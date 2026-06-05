@@ -53,11 +53,6 @@ namespace StreetQuestRPG
             if (!StreetQuestShared.AcceptQuest(quest))
                 return BuildActiveEntry(quest);
 
-            DialogController.current.contact.ReceivePlayerMessage(
-                new TextMessage(quest.AcceptedPlayerMessageKey, null, true));
-            DialogController.current.contact.SendMessage(
-                new TextMessage(quest.AcceptedManagerMessageKey, null, true));
-
             return BuildConversationEntry(quest.AcceptedManagerMessageKey, CloseDialog);
         }
 
@@ -96,11 +91,6 @@ namespace StreetQuestRPG
             StreetQuestShared.MarkReadyToTurnIn(quest);
             if (!StreetQuestShared.CompleteQuest(quest))
                 return BuildConversationEntry(quest.ActiveTextKey, CloseDialog);
-
-            DialogController.current.contact.ReceivePlayerMessage(
-                new TextMessage(quest.CompletedPlayerMessageKey, null, true));
-            DialogController.current.contact.SendMessage(
-                new TextMessage(quest.CompletedManagerMessageKey, null, true));
 
             return BuildConversationEntry(quest.CompletedManagerMessageKey, CloseDialog);
         }

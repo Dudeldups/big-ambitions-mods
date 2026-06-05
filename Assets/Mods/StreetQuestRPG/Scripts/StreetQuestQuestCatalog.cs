@@ -29,7 +29,7 @@ namespace StreetQuestRPG
                 [Quest2Id] = new(
                     Quest2Id,
                     StreetQuestShared.HomelessContactId,
-                    StreetQuestShared.CourierContactId,
+                    StreetQuestShared.HomelessContactId,
                     "ba:itemname_expensivegift",
                     1,
                     220,

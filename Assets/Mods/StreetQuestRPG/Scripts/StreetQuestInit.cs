@@ -12,15 +12,11 @@ namespace StreetQuestRPG
     {
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
-        public Task OnLoadAsync(ModContext context)
-        {
-            StreetQuestShared.RefreshQuestInteractionAddress();
-            return Task.CompletedTask;
-        }
+        public Task OnLoadAsync(ModContext context) => Task.CompletedTask;
 
         public Task OnUnloadAsync()
         {
-            StreetQuestShared.UnbindContactFromAddress(StreetQuestShared.HomelessAddress);
+            StreetQuestShared.RestorePatchedDialogs();
             return Task.CompletedTask;
         }
     }

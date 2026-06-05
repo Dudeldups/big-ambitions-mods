@@ -1,2 +1,1 @@
 Dialogs.CallDialogType.streetquest_homeless_dialog
-Dialogs.CallDialogType.streetquest_courier_dialog

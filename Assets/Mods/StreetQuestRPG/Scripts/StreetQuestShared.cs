@@ -1,63 +1,74 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using BigAmbitions.Items;
 using BigAmbitions.SaveSystem.Legacy;
 using Dialogs;
 using Entities;
 using Helpers;
-using Services;
-using UI.Smartphone.Apps.Contacts;
+using UnityEngine;
 
 namespace StreetQuestRPG
 {
     internal static class StreetQuestShared
     {
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
+        private static readonly BindingFlags ReflectionFlags =
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
         public const string HomelessNameKey = "streetquest:homeless_name";
         public const string CourierNameKey = "streetquest:courier_name";
 
-        public static readonly Address HomelessAddress = new("ba:street_pier", 4);
+        public static readonly Address HomelessAddress = new("ba:street_secondavenue", 6);
 
-        public static Contact EnsureContact(
-            string contactId,
-            ContactCategoryName categoryName,
-            string descriptionKey,
-            CallDialogType dialogType)
+        public static bool TryInstallPhysicalQuestGiver(CallDialogType dialogType) =>
+            TryOverrideSpecialServiceDialog(HomelessAddress, dialogType);
+
+        public static void CleanupLegacyContacts()
         {
-            var contact = Contact.GetContact(contactId, categoryName, descriptionKey);
-            contact.callDialogTypeOverride = dialogType;
-            return contact;
+            try
+            {
+                SaveGameManager.Current?.Contacts?.RemoveAll(contact =>
+                    contact != null && (contact.id == HomelessContactId || contact.id == CourierContactId));
+
+                var notificationsField = typeof(Contact).GetField(
+                    "AddedContactNotifications",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                if (notificationsField?.GetValue(null) is List<Contact> notifications)
+                {
+                    notifications.RemoveAll(contact =>
+                        contact != null && (contact.id == HomelessContactId || contact.id == CourierContactId));
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to clean legacy contacts. {exception}");
+            }
         }
 
-        public static void BindContactToAddress(Address address, string contactId)
+        public static void RestorePatchedDialogs()
         {
-            if (address == null || string.IsNullOrEmpty(contactId))
-                return;
+            foreach (var originalDialogType in OriginalDialogTypesByAddress.ToList())
+            {
+                var splitIndex = originalDialogType.Key.LastIndexOf(':');
+                if (splitIndex < 0)
+                    continue;
 
-            ContractItemsForSaleService.SetContactForAddress(address, contactId);
-        }
+                if (!int.TryParse(originalDialogType.Key.Substring(splitIndex + 1), out var streetNumber))
+                    continue;
 
-        public static void UnbindContactFromAddress(Address address)
-        {
-            if (address == null)
-                return;
+                var streetName = originalDialogType.Key.Substring(0, splitIndex);
+                TryOverrideSpecialServiceDialog(
+                    new Address(streetName, streetNumber),
+                    (CallDialogType)originalDialogType.Value,
+                    preserveOriginal: false);
+            }
 
-            ContractItemsForSaleService.RemoveContactForAddress(address);
-        }
-
-        public static void RefreshQuestInteractionAddress()
-        {
-            var currentQuest = GetCurrentQuest();
-            var contactId = currentQuest?.TurnInContactId == CourierContactId &&
-                            GetQuestProgress(currentQuest.Id) != StreetQuestQuestProgressState.NotStarted
-                ? CourierContactId
-                : HomelessContactId;
-
-            BindContactToAddress(HomelessAddress, contactId);
+            OriginalDialogTypesByAddress.Clear();
         }
 
         public static StreetQuestQuestDefinition GetCurrentQuest()
@@ -97,7 +108,6 @@ namespace StreetQuestRPG
 
             record.CurrentQuestState = StreetQuestQuestProgressState.Active;
             SaveQuestStateRecord(record);
-            RefreshQuestInteractionAddress();
             return true;
         }
 
@@ -151,7 +161,6 @@ namespace StreetQuestRPG
             }
 
             SaveQuestStateRecord(record);
-            RefreshQuestInteractionAddress();
             return true;
         }
 
@@ -239,6 +248,93 @@ namespace StreetQuestRPG
 
             saveGame.modData ??= new Dictionary<string, string>();
             saveGame.modData[QuestStateModDataKey] = record.Serialize();
+        }
+
+        private static bool TryOverrideSpecialServiceDialog(
+            Address address,
+            CallDialogType dialogType,
+            bool preserveOriginal = true)
+        {
+            if (address == null)
+                return false;
+
+            try
+            {
+                var building = BuildingHelper.GetBuilding(address);
+                if (building == null)
+                    return false;
+
+                var specialService = GetMemberValue(building, "SpecialService") ?? GetMemberValue(building, "specialService");
+                if (specialService == null)
+                    return false;
+
+                var currentDialogValue = GetMemberValue(specialService, "dialogType");
+                if (currentDialogValue == null)
+                    return false;
+
+                if (preserveOriginal)
+                {
+                    var addressKey = GetAddressKey(address);
+                    if (!OriginalDialogTypesByAddress.ContainsKey(addressKey))
+                        OriginalDialogTypesByAddress[addressKey] = Convert.ToInt32(currentDialogValue);
+                }
+
+                return SetMemberValue(specialService, "dialogType", dialogType);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    $"StreetQuestRPG: Failed to override special service dialog at {GetAddressKey(address)}. {exception}");
+                return false;
+            }
+        }
+
+        private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
+
+        private static object GetMemberValue(object instance, string memberName)
+        {
+            if (instance == null || string.IsNullOrEmpty(memberName))
+                return null;
+
+            var instanceType = instance.GetType();
+            var property = instanceType.GetProperty(memberName, ReflectionFlags);
+            if (property != null)
+                return property.GetValue(instance);
+
+            var field = instanceType.GetField(memberName, ReflectionFlags);
+            return field?.GetValue(instance);
+        }
+
+        private static bool SetMemberValue(object instance, string memberName, object value)
+        {
+            if (instance == null || string.IsNullOrEmpty(memberName))
+                return false;
+
+            var instanceType = instance.GetType();
+            var property = instanceType.GetProperty(memberName, ReflectionFlags);
+            if (property != null && property.CanWrite)
+            {
+                property.SetValue(instance, ConvertMemberValue(value, property.PropertyType));
+                return true;
+            }
+
+            var field = instanceType.GetField(memberName, ReflectionFlags);
+            if (field == null)
+                return false;
+
+            field.SetValue(instance, ConvertMemberValue(value, field.FieldType));
+            return true;
+        }
+
+        private static object ConvertMemberValue(object value, Type targetType)
+        {
+            if (targetType.IsEnum)
+            {
+                var intValue = Convert.ToInt32(value);
+                return Enum.ToObject(targetType, intValue);
+            }
+
+            return Convert.ChangeType(value, targetType);
         }
     }
 }
