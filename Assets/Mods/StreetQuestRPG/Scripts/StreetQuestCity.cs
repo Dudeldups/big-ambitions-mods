@@ -19,10 +19,6 @@ namespace StreetQuestRPG
 
             StreetQuestShared.CleanupLegacyContacts();
             CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestHomelessDialog());
-            var installResult = StreetQuestShared.TryInstallPhysicalQuestGiver(questDialogType);
-            if (installResult == StreetQuestPhysicalQuestGiverInstallResult.None)
-                Debug.LogWarning("StreetQuestRPG: Failed to patch the physical quest giver interaction.");
-
             EnsureWatcher(questDialogType);
 
             return Task.CompletedTask;

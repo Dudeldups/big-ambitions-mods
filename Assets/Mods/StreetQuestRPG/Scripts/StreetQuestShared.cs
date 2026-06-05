@@ -8,6 +8,7 @@ using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
+using UI.Notification;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -24,11 +25,19 @@ namespace StreetQuestRPG
     internal static class StreetQuestShared
     {
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
+        private const string SpawnedQuestGiverName = "StreetQuestRPG.OutdoorQuestGiver";
+        private const string SellerStandOverlayHeaderKey = HomelessNameKey;
+        private static readonly Vector3 DefaultSpawnOffsetFromPlayer = new(0f, 0f, 4f);
+        private static readonly Vector3 SellerPositionLocalOffset = new(0f, 0f, -0.85f);
+        private static readonly Vector3 NavTargetLocalOffset = new(0f, 0f, 1.25f);
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
         private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
         private static readonly Dictionary<int, PatchedSellerStandButtonTarget> PatchedSellerStandButtons = new();
+        private static GameObject SpawnedQuestGiverRoot;
+        private static Component SpawnedQuestGiverController;
+        private static Vector3? PreferredQuestGiverSpawnPosition;
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
@@ -83,6 +92,7 @@ namespace StreetQuestRPG
         public static void RestorePatchedDialogs()
         {
             PatchedSellerStandButtons.Clear();
+            DestroySpawnedOutdoorQuestGiver();
 
             foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
             {
@@ -124,10 +134,144 @@ namespace StreetQuestRPG
             OriginalDialogTypesByAddress.Clear();
         }
 
+        public static bool EnsureSpawnedOutdoorQuestGiver()
+        {
+            if (SpawnedQuestGiverRoot != null && SpawnedQuestGiverController != null)
+                return true;
+
+            try
+            {
+                var sellerStandControllerType = FindType("SellerStandController");
+                if (sellerStandControllerType == null)
+                    return false;
+
+                var spawnPosition = GetQuestGiverSpawnPosition();
+                if (!spawnPosition.HasValue)
+                    return false;
+
+                var playerController = PlayerHelper.PlayerController;
+                var facingForward = playerController != null
+                    ? FlattenDirection(playerController.transform.forward)
+                    : Vector3.forward;
+                if (facingForward.sqrMagnitude < 0.001f)
+                    facingForward = Vector3.forward;
+
+                var root = new GameObject(SpawnedQuestGiverName);
+                root.name = SpawnedQuestGiverName;
+                root.transform.position = spawnPosition.Value;
+                root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
+
+                var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                visual.name = "QuestGiverStandVisual";
+                visual.transform.SetParent(root.transform, false);
+                visual.transform.localPosition = new Vector3(0f, 0.525f, 0f);
+                visual.transform.localScale = new Vector3(1.6f, 1.05f, 0.8f);
+                var visualCollider = visual.GetComponent<Collider>();
+                if (visualCollider != null)
+                    UnityEngine.Object.Destroy(visualCollider);
+
+                var interactionCollider = root.AddComponent<BoxCollider>();
+                interactionCollider.center = new Vector3(0f, 0.525f, 0f);
+                interactionCollider.size = new Vector3(1.6f, 1.05f, 0.8f);
+
+                var navTarget = new GameObject("NavMeshTarget").transform;
+                navTarget.SetParent(root.transform, false);
+                navTarget.localPosition = NavTargetLocalOffset;
+
+                var sellerPosition = new GameObject("SellerPosition").transform;
+                sellerPosition.SetParent(root.transform, false);
+                sellerPosition.localPosition = SellerPositionLocalOffset;
+
+                var sellerStandController =
+                    (Component)root.AddComponent(sellerStandControllerType);
+
+                SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
+                SetMemberValue(sellerStandController, "simpleOverlayType", 4);
+                SetMemberValue(sellerStandController, "detailedOverlayType", 1024);
+                SetMemberValue(sellerStandController, "customOverlayHeaderKey", SellerStandOverlayHeaderKey);
+                SetMemberValue(
+                    sellerStandController,
+                    "renderers",
+                    root.GetComponentsInChildren<Renderer>());
+                SetMemberValue(
+                    sellerStandController,
+                    "navMeshTargets",
+                    new[] { navTarget });
+                SetMemberValue(
+                    sellerStandController,
+                    "itemsToSell",
+                    new[] { "ba:itemname_hotdog" });
+                SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
+                InvokeParameterlessMethod(sellerStandController, "Show");
+
+                SpawnedQuestGiverRoot = root;
+                SpawnedQuestGiverController = sellerStandController;
+                ShowDebugNotification(
+                    $"Quest giver spawned at {FormatVector3(root.transform.position)}",
+                    "streetquest-debug-spawn");
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to spawn outdoor quest giver. {exception}");
+                DestroySpawnedOutdoorQuestGiver();
+                return false;
+            }
+        }
+
+        public static void MoveSpawnedQuestGiverToPlayer()
+        {
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+            {
+                Debug.LogWarning("StreetQuestRPG: Could not move quest giver because the player controller is unavailable.");
+                return;
+            }
+
+            var playerForward = FlattenDirection(playerController.transform.forward);
+            if (playerForward.sqrMagnitude < 0.001f)
+                playerForward = Vector3.forward;
+
+            var newPosition = playerController.transform.position + playerForward.normalized * DefaultSpawnOffsetFromPlayer.z;
+            PreferredQuestGiverSpawnPosition = newPosition;
+
+            if (!EnsureSpawnedOutdoorQuestGiver() || SpawnedQuestGiverRoot == null)
+                return;
+
+            SpawnedQuestGiverRoot.transform.position = newPosition;
+            SpawnedQuestGiverRoot.transform.rotation = Quaternion.LookRotation(-playerForward.normalized, Vector3.up);
+            ShowDebugNotification(
+                $"Quest giver moved to {FormatVector3(newPosition)}",
+                "streetquest-debug-move");
+        }
+
+        public static void LogCoordinateSnapshot()
+        {
+            var playerController = PlayerHelper.PlayerController;
+            var playerPosition = playerController != null
+                ? playerController.transform.position
+                : PlayerHelper.GetPosition();
+
+            var questGiverPosition = SpawnedQuestGiverRoot != null
+                ? SpawnedQuestGiverRoot.transform.position
+                : (Vector3?)null;
+
+            ShowDebugNotification(
+                $"Player {FormatVector3(playerPosition)}"
+                + (questGiverPosition.HasValue
+                    ? $" | Quest giver {FormatVector3(questGiverPosition.Value)}"
+                    : " | Quest giver not spawned"),
+                "streetquest-debug-coords");
+        }
+
         public static bool TryPatchSellerStandOverlayButtons(CallDialogType dialogType)
         {
             var sellerStandOverlayType = FindType("Player.HUD.ItemInfoOverlays.SellerStandOverlay");
             if (sellerStandOverlayType == null)
+                return false;
+
+            var activeController = GetActiveDetailedOverlayController();
+            if (!IsSpawnedQuestGiverController(activeController))
                 return false;
 
             var patchedAny = false;
@@ -470,6 +614,72 @@ namespace StreetQuestRPG
             }
         }
 
+        private static void DestroySpawnedOutdoorQuestGiver()
+        {
+            if (SpawnedQuestGiverRoot != null)
+            {
+                UnityEngine.Object.Destroy(SpawnedQuestGiverRoot);
+                SpawnedQuestGiverRoot = null;
+            }
+
+            SpawnedQuestGiverController = null;
+        }
+
+        private static object GetActiveDetailedOverlayController()
+        {
+            var overlayManagerType = FindType("Player.HUD.ItemInfoOverlays.OverlayManager");
+            if (overlayManagerType == null)
+                return null;
+
+            var overlayManager = Resources.FindObjectsOfTypeAll(overlayManagerType).FirstOrDefault();
+            if (overlayManager == null)
+                return null;
+
+            var detailedOverlay = GetMemberValue(overlayManager, "detailedOverlay");
+            if (detailedOverlay == null)
+                return null;
+
+            return GetMemberValue(detailedOverlay, "linkedController")
+                   ?? GetMemberValue(detailedOverlay, "relevantController");
+        }
+
+        private static bool IsSpawnedQuestGiverController(object controller)
+        {
+            if (controller == null || SpawnedQuestGiverController == null)
+                return false;
+
+            return ReferenceEquals(controller, SpawnedQuestGiverController)
+                   || (controller is UnityEngine.Object unityObject
+                       && unityObject.GetInstanceID() == SpawnedQuestGiverController.GetInstanceID());
+        }
+
+        private static Vector3? GetQuestGiverSpawnPosition()
+        {
+            if (PreferredQuestGiverSpawnPosition.HasValue)
+                return PreferredQuestGiverSpawnPosition.Value;
+
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+                return null;
+
+            var playerForward = FlattenDirection(playerController.transform.forward);
+            if (playerForward.sqrMagnitude < 0.001f)
+                playerForward = Vector3.forward;
+
+            var spawnPosition = playerController.transform.position + playerForward.normalized * DefaultSpawnOffsetFromPlayer.z;
+            PreferredQuestGiverSpawnPosition = spawnPosition;
+            return spawnPosition;
+        }
+
+        private static Vector3 FlattenDirection(Vector3 direction)
+        {
+            direction.y = 0f;
+            return direction.normalized;
+        }
+
+        private static string FormatVector3(Vector3 value) =>
+            $"({value.x:F2}, {value.y:F2}, {value.z:F2})";
+
         private static Type FindType(string fullName)
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -484,18 +694,63 @@ namespace StreetQuestRPG
 
         private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
 
+        private static void InvokeParameterlessMethod(object instance, string methodName)
+        {
+            if (instance == null || string.IsNullOrEmpty(methodName))
+                return;
+
+            for (var instanceType = instance.GetType(); instanceType != null; instanceType = instanceType.BaseType)
+            {
+                var method = instanceType.GetMethod(methodName, ReflectionFlags, null, Type.EmptyTypes, null);
+                if (method == null)
+                    continue;
+
+                method.Invoke(instance, null);
+                return;
+            }
+        }
+
+        private static void ShowDebugNotification(string message, string duplicateIdentifier)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            try
+            {
+                Notifications.Show(
+                    NotificationType.Info,
+                    message,
+                    null,
+                    6f,
+                    duplicateIdentifier,
+                    null,
+                    false,
+                    false);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to show debug notification. {exception}");
+                Debug.Log(message);
+            }
+        }
+
         private static object GetMemberValue(object instance, string memberName)
         {
             if (instance == null || string.IsNullOrEmpty(memberName))
                 return null;
 
-            var instanceType = instance.GetType();
-            var property = instanceType.GetProperty(memberName, ReflectionFlags);
-            if (property != null)
-                return property.GetValue(instance);
+            for (var instanceType = instance.GetType(); instanceType != null; instanceType = instanceType.BaseType)
+            {
+                var property = instanceType.GetProperty(memberName, ReflectionFlags);
+                if (property != null)
+                    return property.GetValue(instance);
 
-            var field = instanceType.GetField(memberName, ReflectionFlags);
-            return field?.GetValue(instance);
+                var field = instanceType.GetField(memberName, ReflectionFlags);
+                if (field != null)
+                    return field.GetValue(instance);
+            }
+
+            return null;
         }
 
         private static bool SetMemberValue(object instance, string memberName, object value)
@@ -503,20 +758,24 @@ namespace StreetQuestRPG
             if (instance == null || string.IsNullOrEmpty(memberName))
                 return false;
 
-            var instanceType = instance.GetType();
-            var property = instanceType.GetProperty(memberName, ReflectionFlags);
-            if (property != null && property.CanWrite)
+            for (var instanceType = instance.GetType(); instanceType != null; instanceType = instanceType.BaseType)
             {
-                property.SetValue(instance, ConvertMemberValue(value, property.PropertyType));
+                var property = instanceType.GetProperty(memberName, ReflectionFlags);
+                if (property != null && property.CanWrite)
+                {
+                    property.SetValue(instance, ConvertMemberValue(value, property.PropertyType));
+                    return true;
+                }
+
+                var field = instanceType.GetField(memberName, ReflectionFlags);
+                if (field == null)
+                    continue;
+
+                field.SetValue(instance, ConvertMemberValue(value, field.FieldType));
                 return true;
             }
 
-            var field = instanceType.GetField(memberName, ReflectionFlags);
-            if (field == null)
-                return false;
-
-            field.SetValue(instance, ConvertMemberValue(value, field.FieldType));
-            return true;
+            return false;
         }
 
         private static object ConvertMemberValue(object value, Type targetType)
