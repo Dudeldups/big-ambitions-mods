@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using BigAmbitions.Items;
 using BigAmbitions.SaveSystem.Legacy;
+using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
@@ -26,6 +27,12 @@ namespace StreetQuestRPG
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
         private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
+        private static readonly OutdoorQuestHostDefinition[] OutdoorQuestHostDefinitions =
+        {
+            new("streetquest:outdoor_host_blackjack", "ba:itemname_casinoblackjacktable", -3f, 0f, 0f, 180f),
+            new("streetquest:outdoor_host_roulette", "ba:itemname_casinoroulettetable", 0f, 0f, 0f, 180f),
+            new("streetquest:outdoor_host_slot", "ba:itemname_casinoslotmachine", 3f, 0f, 0f, 180f)
+        };
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
@@ -33,10 +40,12 @@ namespace StreetQuestRPG
         public const string CourierNameKey = "streetquest:courier_name";
 
         public static readonly Address HomelessAddress = new("ba:street_secondavenue", 6);
+        public static readonly Address OutdoorPrototypeAddress = new("ba:street_pier", 4);
         public static readonly string[] ExperimentalItemHostNames =
         {
             "ba:itemname_casinoblackjacktable",
-            "ba:itemname_casinoroulettetable"
+            "ba:itemname_casinoroulettetable",
+            "ba:itemname_casinoslotmachine"
         };
 
         public static StreetQuestPhysicalQuestGiverInstallResult TryInstallPhysicalQuestGiver(CallDialogType dialogType)
@@ -78,6 +87,8 @@ namespace StreetQuestRPG
 
         public static void RestorePatchedDialogs()
         {
+            RemoveOutdoorPrototypeHosts();
+
             foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
             {
                 if (patchedTarget.Target == null)
@@ -116,6 +127,62 @@ namespace StreetQuestRPG
             }
 
             OriginalDialogTypesByAddress.Clear();
+        }
+
+        public static void EnsureOutdoorPrototypeHosts()
+        {
+            try
+            {
+                var buildingRegistration = BuildingHelper.GetBuildingRegistration(OutdoorPrototypeAddress);
+                if (buildingRegistration == null)
+                    return;
+
+                var itemInstances = GetBuildingItemInstances(buildingRegistration);
+                foreach (var hostDefinition in OutdoorQuestHostDefinitions)
+                {
+                    if (itemInstances.Any(itemInstance => IsOutdoorPrototypeHost(itemInstance, hostDefinition.Id)))
+                        continue;
+
+                    var itemInstance = new ItemInstance(hostDefinition.ItemName)
+                    {
+                        streetName = OutdoorPrototypeAddress.streetName,
+                        streetNumber = OutdoorPrototypeAddress.streetNumber,
+                        yRotation = hostDefinition.YRotation,
+                        alias = hostDefinition.Id,
+                        customValue = hostDefinition.Id
+                    };
+                    SetMemberValue(
+                        itemInstance,
+                        "position",
+                        CreateSerializableVector3(hostDefinition.X, hostDefinition.Y, hostDefinition.Z));
+
+                    buildingRegistration.AddItemInstanceToBuilding(itemInstance);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to spawn outdoor prototype hosts. {exception}");
+            }
+        }
+
+        public static void RemoveOutdoorPrototypeHosts()
+        {
+            try
+            {
+                var buildingRegistration = BuildingHelper.GetBuildingRegistration(OutdoorPrototypeAddress);
+                if (buildingRegistration == null)
+                    return;
+
+                var itemInstances = GetBuildingItemInstances(buildingRegistration);
+                foreach (var itemInstance in itemInstances
+                             .Where(itemInstance => itemInstance != null && IsOutdoorPrototypeHost(itemInstance))
+                             .ToList())
+                    buildingRegistration.RemoveItemInstanceFromBuilding(itemInstance, triggerAction: false);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to remove outdoor prototype hosts. {exception}");
+            }
         }
 
         public static StreetQuestQuestDefinition GetCurrentQuest()
@@ -376,6 +443,44 @@ namespace StreetQuestRPG
             return patchedAny;
         }
 
+        private static List<ItemInstance> GetBuildingItemInstances(BuildingRegistration buildingRegistration)
+        {
+            if (buildingRegistration == null)
+                return new List<ItemInstance>();
+
+            var itemInstancesValue = GetMemberValue(buildingRegistration, "itemInstances");
+            if (itemInstancesValue is IDictionary<string, ItemInstance> itemInstanceDictionary)
+                return itemInstanceDictionary.Values.Where(x => x != null).ToList();
+
+            return new List<ItemInstance>();
+        }
+
+        private static bool IsOutdoorPrototypeHost(ItemInstance itemInstance, string hostId = null)
+        {
+            if (itemInstance == null)
+                return false;
+
+            var prototypeId = itemInstance.alias ?? itemInstance.customValue;
+            if (string.IsNullOrEmpty(prototypeId))
+                return false;
+
+            if (hostId == null)
+                return OutdoorQuestHostDefinitions.Any(definition => definition.Id == prototypeId);
+
+            return string.Equals(prototypeId, hostId, StringComparison.Ordinal);
+        }
+
+        private static object CreateSerializableVector3(float x, float y, float z)
+        {
+            var vectorType = typeof(ItemInstance).GetField("position")?.FieldType
+                ?? throw new InvalidOperationException("StreetQuestRPG: Could not resolve ItemInstance.position type.");
+            var serializableVector = Activator.CreateInstance(vectorType);
+            vectorType.GetField("x", ReflectionFlags)?.SetValue(serializableVector, x);
+            vectorType.GetField("y", ReflectionFlags)?.SetValue(serializableVector, y);
+            vectorType.GetField("z", ReflectionFlags)?.SetValue(serializableVector, z);
+            return serializableVector;
+        }
+
         private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
 
         private static object GetMemberValue(object instance, string memberName)
@@ -430,6 +535,26 @@ namespace StreetQuestRPG
             public string MemberName { get; set; } = string.Empty;
             public int OriginalDialogType { get; set; }
             public object Target { get; set; }
+        }
+
+        private sealed class OutdoorQuestHostDefinition
+        {
+            public OutdoorQuestHostDefinition(string id, string itemName, float x, float y, float z, float yRotation)
+            {
+                Id = id;
+                ItemName = itemName;
+                X = x;
+                Y = y;
+                Z = z;
+                YRotation = yRotation;
+            }
+
+            public string Id { get; }
+            public string ItemName { get; }
+            public float X { get; }
+            public float Y { get; }
+            public float Z { get; }
+            public float YRotation { get; }
         }
     }
 }
