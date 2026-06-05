@@ -11,12 +11,21 @@ using UnityEngine;
 
 namespace StreetQuestRPG
 {
+    [Flags]
+    internal enum StreetQuestPhysicalQuestGiverInstallResult
+    {
+        None = 0,
+        RuntimeItem = 1 << 0,
+        SpecialService = 1 << 1
+    }
+
     internal static class StreetQuestShared
     {
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
+        private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
@@ -24,9 +33,26 @@ namespace StreetQuestRPG
         public const string CourierNameKey = "streetquest:courier_name";
 
         public static readonly Address HomelessAddress = new("ba:street_secondavenue", 6);
+        public static readonly string[] ExperimentalItemHostNames =
+        {
+            "ba:itemname_casinoblackjacktable",
+            "ba:itemname_casinoroulettetable"
+        };
 
-        public static bool TryInstallPhysicalQuestGiver(CallDialogType dialogType) =>
-            TryOverrideSpecialServiceDialog(HomelessAddress, dialogType);
+        public static StreetQuestPhysicalQuestGiverInstallResult TryInstallPhysicalQuestGiver(CallDialogType dialogType)
+        {
+            var result = StreetQuestPhysicalQuestGiverInstallResult.None;
+            foreach (var itemHostName in ExperimentalItemHostNames)
+            {
+                if (TryOverrideRuntimeItemDialog(itemHostName, dialogType))
+                    result |= StreetQuestPhysicalQuestGiverInstallResult.RuntimeItem;
+            }
+
+            if (TryOverrideSpecialServiceDialog(HomelessAddress, dialogType))
+                result |= StreetQuestPhysicalQuestGiverInstallResult.SpecialService;
+
+            return result;
+        }
 
         public static void CleanupLegacyContacts()
         {
@@ -52,6 +78,27 @@ namespace StreetQuestRPG
 
         public static void RestorePatchedDialogs()
         {
+            foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
+            {
+                if (patchedTarget.Target == null)
+                    continue;
+
+                try
+                {
+                    SetMemberValue(
+                        patchedTarget.Target,
+                        patchedTarget.MemberName,
+                        (CallDialogType)patchedTarget.OriginalDialogType);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogWarning(
+                        $"StreetQuestRPG: Failed to restore item dialog for {patchedTarget.ItemName}. {exception}");
+                }
+            }
+
+            OriginalDialogTypesByItemTarget.Clear();
+
             foreach (var originalDialogType in OriginalDialogTypesByAddress.ToList())
             {
                 var splitIndex = originalDialogType.Key.LastIndexOf(':');
@@ -289,6 +336,46 @@ namespace StreetQuestRPG
             }
         }
 
+        private static bool TryOverrideRuntimeItemDialog(
+            string itemName,
+            CallDialogType dialogType,
+            bool preserveOriginal = true)
+        {
+            if (string.IsNullOrEmpty(itemName))
+                return false;
+
+            var patchedAny = false;
+            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+            {
+                if (behaviour == null)
+                    continue;
+
+                if (!string.Equals(GetMemberValue(behaviour, "itemName") as string, itemName, StringComparison.Ordinal))
+                    continue;
+
+                var currentDialogValue = GetMemberValue(behaviour, "callDialogType");
+                if (currentDialogValue == null)
+                    continue;
+
+                var instanceId = behaviour.GetInstanceID();
+                if (preserveOriginal && !OriginalDialogTypesByItemTarget.ContainsKey(instanceId))
+                {
+                    OriginalDialogTypesByItemTarget[instanceId] = new PatchedItemDialogTarget
+                    {
+                        ItemName = itemName,
+                        MemberName = "callDialogType",
+                        OriginalDialogType = Convert.ToInt32(currentDialogValue),
+                        Target = behaviour
+                    };
+                }
+
+                if (SetMemberValue(behaviour, "callDialogType", dialogType))
+                    patchedAny = true;
+            }
+
+            return patchedAny;
+        }
+
         private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
 
         private static object GetMemberValue(object instance, string memberName)
@@ -335,6 +422,14 @@ namespace StreetQuestRPG
             }
 
             return Convert.ChangeType(value, targetType);
+        }
+
+        private sealed class PatchedItemDialogTarget
+        {
+            public string ItemName { get; set; } = string.Empty;
+            public string MemberName { get; set; } = string.Empty;
+            public int OriginalDialogType { get; set; }
+            public object Target { get; set; }
         }
     }
 }
