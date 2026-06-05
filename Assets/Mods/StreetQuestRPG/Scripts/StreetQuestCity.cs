@@ -18,7 +18,6 @@ namespace StreetQuestRPG
             var questDialogType = (CallDialogType)ModEnumHash.GetSafeHash("streetquest_homeless_dialog");
 
             StreetQuestShared.CleanupLegacyContacts();
-            StreetQuestShared.EnsureOutdoorPrototypeHosts();
             CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestHomelessDialog());
             var installResult = StreetQuestShared.TryInstallPhysicalQuestGiver(questDialogType);
             if (installResult == StreetQuestPhysicalQuestGiverInstallResult.None)

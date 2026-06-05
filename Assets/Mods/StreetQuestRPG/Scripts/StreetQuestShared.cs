@@ -9,6 +9,7 @@ using Dialogs;
 using Entities;
 using Helpers;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace StreetQuestRPG
 {
@@ -27,12 +28,7 @@ namespace StreetQuestRPG
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
         private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
-        private static readonly OutdoorQuestHostDefinition[] OutdoorQuestHostDefinitions =
-        {
-            new("streetquest:outdoor_host_blackjack", "ba:itemname_casinoblackjacktable", -3f, 0f, 0f, 180f),
-            new("streetquest:outdoor_host_roulette", "ba:itemname_casinoroulettetable", 0f, 0f, 0f, 180f),
-            new("streetquest:outdoor_host_slot", "ba:itemname_casinoslotmachine", 3f, 0f, 0f, 180f)
-        };
+        private static readonly Dictionary<int, PatchedSellerStandButtonTarget> PatchedSellerStandButtons = new();
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
@@ -40,7 +36,6 @@ namespace StreetQuestRPG
         public const string CourierNameKey = "streetquest:courier_name";
 
         public static readonly Address HomelessAddress = new("ba:street_secondavenue", 6);
-        public static readonly Address OutdoorPrototypeAddress = new("ba:street_pier", 4);
         public static readonly string[] ExperimentalItemHostNames =
         {
             "ba:itemname_casinoblackjacktable",
@@ -87,7 +82,7 @@ namespace StreetQuestRPG
 
         public static void RestorePatchedDialogs()
         {
-            RemoveOutdoorPrototypeHosts();
+            PatchedSellerStandButtons.Clear();
 
             foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
             {
@@ -129,60 +124,55 @@ namespace StreetQuestRPG
             OriginalDialogTypesByAddress.Clear();
         }
 
-        public static void EnsureOutdoorPrototypeHosts()
+        public static bool TryPatchSellerStandOverlayButtons(CallDialogType dialogType)
         {
-            try
-            {
-                var buildingRegistration = BuildingHelper.GetBuildingRegistration(OutdoorPrototypeAddress);
-                if (buildingRegistration == null)
-                    return;
+            var sellerStandOverlayType = FindType("Player.HUD.ItemInfoOverlays.SellerStandOverlay");
+            if (sellerStandOverlayType == null)
+                return false;
 
-                var itemInstances = GetBuildingItemInstances(buildingRegistration);
-                foreach (var hostDefinition in OutdoorQuestHostDefinitions)
+            var patchedAny = false;
+            var activeButtonIds = new HashSet<int>();
+            foreach (var overlayObject in Resources.FindObjectsOfTypeAll(sellerStandOverlayType))
+            {
+                if (overlayObject == null)
+                    continue;
+
+                var templateTransform = GetMemberValue(overlayObject, "buyButtonTemplate") as Transform;
+                var buttonContainer = templateTransform?.parent;
+                if (buttonContainer == null)
+                    continue;
+
+                foreach (Transform child in buttonContainer)
                 {
-                    if (itemInstances.Any(itemInstance => IsOutdoorPrototypeHost(itemInstance, hostDefinition.Id)))
+                    if (child == null || child == templateTransform)
                         continue;
 
-                    var itemInstance = new ItemInstance(hostDefinition.ItemName)
-                    {
-                        streetName = OutdoorPrototypeAddress.streetName,
-                        streetNumber = OutdoorPrototypeAddress.streetNumber,
-                        yRotation = hostDefinition.YRotation,
-                        alias = hostDefinition.Id,
-                        customValue = hostDefinition.Id
-                    };
-                    SetMemberValue(
-                        itemInstance,
-                        "position",
-                        CreateSerializableVector3(hostDefinition.X, hostDefinition.Y, hostDefinition.Z));
+                    var button = child.GetComponent<Button>();
+                    if (button == null || !child.gameObject.activeInHierarchy)
+                        continue;
 
-                    buildingRegistration.AddItemInstanceToBuilding(itemInstance);
+                    var buttonId = button.GetInstanceID();
+                    activeButtonIds.Add(buttonId);
+                    if (PatchedSellerStandButtons.TryGetValue(buttonId, out var patchedButton)
+                        && patchedButton.Button == button
+                        && patchedButton.DialogType.Equals(dialogType))
+                        continue;
+
+                    button.onClick.RemoveAllListeners();
+                    button.onClick.AddListener(() => TryOpenQuestDialog(dialogType));
+                    PatchedSellerStandButtons[buttonId] = new PatchedSellerStandButtonTarget
+                    {
+                        Button = button,
+                        DialogType = dialogType
+                    };
+                    patchedAny = true;
                 }
             }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"StreetQuestRPG: Failed to spawn outdoor prototype hosts. {exception}");
-            }
-        }
 
-        public static void RemoveOutdoorPrototypeHosts()
-        {
-            try
-            {
-                var buildingRegistration = BuildingHelper.GetBuildingRegistration(OutdoorPrototypeAddress);
-                if (buildingRegistration == null)
-                    return;
+            foreach (var staleButtonId in PatchedSellerStandButtons.Keys.Where(x => !activeButtonIds.Contains(x)).ToList())
+                PatchedSellerStandButtons.Remove(staleButtonId);
 
-                var itemInstances = GetBuildingItemInstances(buildingRegistration);
-                foreach (var itemInstance in itemInstances
-                             .Where(itemInstance => itemInstance != null && IsOutdoorPrototypeHost(itemInstance))
-                             .ToList())
-                    buildingRegistration.RemoveItemInstanceFromBuilding(itemInstance, triggerAction: false);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"StreetQuestRPG: Failed to remove outdoor prototype hosts. {exception}");
-            }
+            return patchedAny;
         }
 
         public static StreetQuestQuestDefinition GetCurrentQuest()
@@ -443,42 +433,53 @@ namespace StreetQuestRPG
             return patchedAny;
         }
 
-        private static List<ItemInstance> GetBuildingItemInstances(BuildingRegistration buildingRegistration)
+        private static void TryOpenQuestDialog(CallDialogType dialogType)
         {
-            if (buildingRegistration == null)
-                return new List<ItemInstance>();
+            try
+            {
+                var dialogUiType = FindType("UI.Dialog.DialogUI");
+                if (dialogUiType == null)
+                    throw new InvalidOperationException("StreetQuestRPG: Could not resolve UI.Dialog.DialogUI.");
 
-            var itemInstancesValue = GetMemberValue(buildingRegistration, "itemInstances");
-            if (itemInstancesValue is IDictionary<string, ItemInstance> itemInstanceDictionary)
-                return itemInstanceDictionary.Values.Where(x => x != null).ToList();
+                var dialogUi = Resources.FindObjectsOfTypeAll(dialogUiType).FirstOrDefault();
+                if (dialogUi == null)
+                    throw new InvalidOperationException("StreetQuestRPG: Could not find a DialogUI instance.");
 
-            return new List<ItemInstance>();
+                var showDialogMethod = dialogUiType.GetMethod(
+                    "ShowDialog",
+                    ReflectionFlags,
+                    null,
+                    new[]
+                    {
+                        typeof(CallDialogType),
+                        FindType("NavigationBlocker"),
+                        typeof(Contact),
+                        typeof(Action),
+                        FindType("ThirdPersonCharacter")
+                    },
+                    null);
+
+                if (showDialogMethod == null)
+                    throw new InvalidOperationException("StreetQuestRPG: Could not resolve DialogUI.ShowDialog.");
+
+                showDialogMethod.Invoke(dialogUi, new object[] { dialogType, null, null, null, null });
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to open physical quest dialog. {exception}");
+            }
         }
 
-        private static bool IsOutdoorPrototypeHost(ItemInstance itemInstance, string hostId = null)
+        private static Type FindType(string fullName)
         {
-            if (itemInstance == null)
-                return false;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName, throwOnError: false);
+                if (type != null)
+                    return type;
+            }
 
-            var prototypeId = itemInstance.alias ?? itemInstance.customValue;
-            if (string.IsNullOrEmpty(prototypeId))
-                return false;
-
-            if (hostId == null)
-                return OutdoorQuestHostDefinitions.Any(definition => definition.Id == prototypeId);
-
-            return string.Equals(prototypeId, hostId, StringComparison.Ordinal);
-        }
-
-        private static object CreateSerializableVector3(float x, float y, float z)
-        {
-            var vectorType = typeof(ItemInstance).GetField("position")?.FieldType
-                ?? throw new InvalidOperationException("StreetQuestRPG: Could not resolve ItemInstance.position type.");
-            var serializableVector = Activator.CreateInstance(vectorType);
-            vectorType.GetField("x", ReflectionFlags)?.SetValue(serializableVector, x);
-            vectorType.GetField("y", ReflectionFlags)?.SetValue(serializableVector, y);
-            vectorType.GetField("z", ReflectionFlags)?.SetValue(serializableVector, z);
-            return serializableVector;
+            return null;
         }
 
         private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
@@ -537,24 +538,10 @@ namespace StreetQuestRPG
             public object Target { get; set; }
         }
 
-        private sealed class OutdoorQuestHostDefinition
+        private sealed class PatchedSellerStandButtonTarget
         {
-            public OutdoorQuestHostDefinition(string id, string itemName, float x, float y, float z, float yRotation)
-            {
-                Id = id;
-                ItemName = itemName;
-                X = x;
-                Y = y;
-                Z = z;
-                YRotation = yRotation;
-            }
-
-            public string Id { get; }
-            public string ItemName { get; }
-            public float X { get; }
-            public float Y { get; }
-            public float Z { get; }
-            public float YRotation { get; }
+            public Button Button { get; set; }
+            public CallDialogType DialogType { get; set; }
         }
     }
 }
