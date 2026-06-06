@@ -8,10 +8,9 @@ using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
-using Localizor.LanguageChangeEvent;
+using Player.HUD.ItemInfoOverlays;
 using UI.Notification;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace StreetQuestRPG
 {
@@ -28,9 +27,9 @@ namespace StreetQuestRPG
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
         private const string SpawnedQuestGiverName = "StreetQuestRPG.OutdoorQuestGiver";
         private const string SellerStandOverlayHeaderKey = HomelessNameKey;
-        private const string QuestGiverButtonLabel = "Talk to Mack";
-        private static readonly bool UseFixedSpawnPosition = false;
-        private static readonly Vector3 FixedSpawnPosition = new(0f, 0f, 0f);
+        private const string QuestGiverCtaKey = "streetquest:cta_talk";
+        private static readonly bool UseFixedSpawnPosition = true;
+        private static readonly Vector3 FixedSpawnPosition = new(301.58f, 0.09f, -188.47f);
         private static readonly Vector3 FixedForward = new(0f, 0f, -1f);
         private static readonly Vector3 DefaultSpawnOffsetFromPlayer = new(0f, 0f, 4f);
         private static readonly Vector3 SellerPositionLocalOffset = new(0f, 0f, -0.85f);
@@ -39,10 +38,11 @@ namespace StreetQuestRPG
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
         private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
-        private static readonly Dictionary<int, PatchedSellerStandButtonTarget> PatchedSellerStandButtons = new();
         private static GameObject SpawnedQuestGiverRoot;
         private static Component SpawnedQuestGiverController;
         private static Vector3? PreferredQuestGiverSpawnPosition;
+        private static bool QuestGiverCtaInstalled;
+        public static CallDialogType QuestDialogType { get; private set; }
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
@@ -96,7 +96,6 @@ namespace StreetQuestRPG
 
         public static void RestorePatchedDialogs()
         {
-            PatchedSellerStandButtons.Clear();
             DestroySpawnedOutdoorQuestGiver();
 
             foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
@@ -141,6 +140,8 @@ namespace StreetQuestRPG
 
         public static bool EnsureSpawnedOutdoorQuestGiver()
         {
+            EnsureQuestGiverCtaBehaviorInstalled();
+
             if (SpawnedQuestGiverRoot != null && SpawnedQuestGiverController != null)
                 return true;
 
@@ -263,60 +264,9 @@ namespace StreetQuestRPG
                 "streetquest-debug-coords");
         }
 
-        public static bool TryPatchSellerStandOverlayButtons(CallDialogType dialogType)
+        public static void SetQuestDialogType(CallDialogType dialogType)
         {
-            var sellerStandOverlayType = FindType("Player.HUD.ItemInfoOverlays.SellerStandOverlay");
-            if (sellerStandOverlayType == null)
-                return false;
-
-            var activeController = GetActiveDetailedOverlayController();
-            if (!IsSpawnedQuestGiverController(activeController))
-                return false;
-
-            var patchedAny = false;
-            var activeButtonIds = new HashSet<int>();
-            foreach (var overlayObject in Resources.FindObjectsOfTypeAll(sellerStandOverlayType))
-            {
-                if (overlayObject == null)
-                    continue;
-
-                var templateTransform = GetMemberValue(overlayObject, "buyButtonTemplate") as Transform;
-                var buttonContainer = templateTransform?.parent;
-                if (buttonContainer == null)
-                    continue;
-
-                foreach (Transform child in buttonContainer)
-                {
-                    if (child == null || child == templateTransform)
-                        continue;
-
-                    var button = child.GetComponent<Button>();
-                    if (button == null || !child.gameObject.activeInHierarchy)
-                        continue;
-
-                    var buttonId = button.GetInstanceID();
-                    activeButtonIds.Add(buttonId);
-                    if (PatchedSellerStandButtons.TryGetValue(buttonId, out var patchedButton)
-                        && patchedButton.Button == button
-                        && patchedButton.DialogType.Equals(dialogType))
-                        continue;
-
-                    UpdateSellerStandButtonVisuals(button);
-                    button.onClick.RemoveAllListeners();
-                    button.onClick.AddListener(() => TryOpenQuestDialog(dialogType));
-                    PatchedSellerStandButtons[buttonId] = new PatchedSellerStandButtonTarget
-                    {
-                        Button = button,
-                        DialogType = dialogType
-                    };
-                    patchedAny = true;
-                }
-            }
-
-            foreach (var staleButtonId in PatchedSellerStandButtons.Keys.Where(x => !activeButtonIds.Contains(x)).ToList())
-                PatchedSellerStandButtons.Remove(staleButtonId);
-
-            return patchedAny;
+            QuestDialogType = dialogType;
         }
 
         public static StreetQuestQuestDefinition GetCurrentQuest()
@@ -577,7 +527,7 @@ namespace StreetQuestRPG
             return patchedAny;
         }
 
-        private static void TryOpenQuestDialog(CallDialogType dialogType)
+        internal static void TryOpenQuestDialog(CallDialogType dialogType)
         {
             try
             {
@@ -625,25 +575,29 @@ namespace StreetQuestRPG
             SpawnedQuestGiverController = null;
         }
 
-        private static object GetActiveDetailedOverlayController()
+        private static void EnsureQuestGiverCtaBehaviorInstalled()
         {
-            var overlayManagerType = FindType("Player.HUD.ItemInfoOverlays.OverlayManager");
-            if (overlayManagerType == null)
-                return null;
+            if (QuestGiverCtaInstalled)
+                return;
 
-            var overlayManager = Resources.FindObjectsOfTypeAll(overlayManagerType).FirstOrDefault();
-            if (overlayManager == null)
-                return null;
+            var ctaBehaviorsField = typeof(CtaManager).GetField(
+                "CtaBehaviors",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            var ctaBehaviors = ctaBehaviorsField?.GetValue(null) as IList<ICtaBehavior>;
+            if (ctaBehaviors == null)
+                return;
 
-            var detailedOverlay = GetMemberValue(overlayManager, "detailedOverlay");
-            if (detailedOverlay == null)
-                return null;
+            if (ctaBehaviors.Any(x => x is StreetQuestGiverCtaBehavior))
+            {
+                QuestGiverCtaInstalled = true;
+                return;
+            }
 
-            return GetMemberValue(detailedOverlay, "linkedController")
-                   ?? GetMemberValue(detailedOverlay, "relevantController");
+            ctaBehaviors.Insert(0, new StreetQuestGiverCtaBehavior());
+            QuestGiverCtaInstalled = true;
         }
 
-        private static bool IsSpawnedQuestGiverController(object controller)
+        internal static bool IsSpawnedQuestGiverController(object controller)
         {
             if (controller == null || SpawnedQuestGiverController == null)
                 return false;
@@ -841,32 +795,6 @@ namespace StreetQuestRPG
             }
         }
 
-        private static void UpdateSellerStandButtonVisuals(Button button)
-        {
-            if (button == null)
-                return;
-
-            foreach (var text in button.GetComponentsInChildren<Text>(true))
-                text.text = QuestGiverButtonLabel;
-
-            var localizationComponents = button.GetComponentsInChildren<TextLocalizationComponent>(true);
-            foreach (var localizationComponent in localizationComponents)
-            {
-                localizationComponent.enabled = false;
-                localizationComponent.gameObject.SetActive(true);
-            }
-
-            var tmpTextType = FindType("TMPro.TMP_Text");
-            if (tmpTextType == null)
-                return;
-
-            foreach (var component in button.GetComponentsInChildren(tmpTextType, true))
-            {
-                var textProperty = tmpTextType.GetProperty("text", ReflectionFlags);
-                textProperty?.SetValue(component, QuestGiverButtonLabel);
-            }
-        }
-
         private static object GetMemberValue(object instance, string memberName)
         {
             if (instance == null || string.IsNullOrEmpty(memberName))
@@ -930,10 +858,14 @@ namespace StreetQuestRPG
             public object Target { get; set; }
         }
 
-        private sealed class PatchedSellerStandButtonTarget
+        private sealed class StreetQuestGiverCtaBehavior : ICtaBehavior
         {
-            public Button Button { get; set; }
-            public CallDialogType DialogType { get; set; }
+            public override bool ShouldShow(EntityController entityController) =>
+                IsSpawnedQuestGiverController(entityController);
+
+            public override (string, Action) GetCta(EntityController entityController) =>
+                (QuestGiverCtaKey, () => TryOpenQuestDialog(QuestDialogType));
         }
+
     }
 }

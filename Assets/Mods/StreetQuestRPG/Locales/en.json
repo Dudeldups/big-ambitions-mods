@@ -1,5 +1,6 @@
 {
   "streetquest:homeless_name": "Mack",
+  "streetquest:cta_talk": "Talk to Mack",
   "streetquest:homeless_description": "A fixer running quiet errands from a borrowed city desk.",
   "streetquest:courier_name": "Ivy",
   "streetquest:courier_description": "A quiet courier waiting for Mack's deliveries.",
