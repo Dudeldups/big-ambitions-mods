@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using BAModAPI;
 using BigAmbitions.Items;
 using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
@@ -26,8 +27,16 @@ namespace StreetQuestRPG
     {
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
         private const string SpawnedQuestGiverName = "StreetQuestRPG.OutdoorQuestGiver";
+        private static readonly string[] QuestGiverVisualPrefabNames =
+        {
+            "Characters/Homeless",
+            "Prefabs/Characters/Homeless",
+            "Homeless"
+        };
         private const string SellerStandOverlayHeaderKey = HomelessNameKey;
         private const string QuestGiverCtaKey = "streetquest:cta_talk";
+        private static readonly Vector3 QuestGiverVisualLocalPosition = new(0f, 0f, 0f);
+        private static readonly Vector3 QuestGiverVisualLocalEulerAngles = new(0f, 90f, 0f);
         private static readonly bool UseFixedSpawnPosition = true;
         private static readonly Vector3 FixedSpawnPosition = new(301.58f, 0.09f, -188.47f);
         private static readonly Vector3 FixedForward = new(0f, 0f, -1f);
@@ -168,19 +177,22 @@ namespace StreetQuestRPG
                 root.name = SpawnedQuestGiverName;
                 root.transform.position = spawnPosition.Value;
                 root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
-                BuildQuestGiverVisual(root.transform);
+                var questGiverVisualRoot = default(GameObject);
+                var hasQuestGiverVisual = TryAttachQuestGiverVisual(root.transform, out questGiverVisualRoot);
+                if (!hasQuestGiverVisual)
+                    BuildQuestGiverVisual(root.transform);
 
                 var interactionCollider = root.AddComponent<BoxCollider>();
-                interactionCollider.center = new Vector3(0f, 0.95f, 0f);
-                interactionCollider.size = new Vector3(1.8f, 1.9f, 1.2f);
+                interactionCollider.center = hasQuestGiverVisual
+                    ? new Vector3(0f, 1.05f, -0.05f)
+                    : new Vector3(0f, 0.95f, 0f);
+                interactionCollider.size = hasQuestGiverVisual
+                    ? new Vector3(1.3f, 2.1f, 0.55f)
+                    : new Vector3(1.8f, 1.9f, 1.2f);
 
                 var navTarget = new GameObject("NavMeshTarget").transform;
                 navTarget.SetParent(root.transform, false);
                 navTarget.localPosition = NavTargetLocalOffset;
-
-                var sellerPosition = new GameObject("SellerPosition").transform;
-                sellerPosition.SetParent(root.transform, false);
-                sellerPosition.localPosition = SellerPositionLocalOffset;
 
                 var sellerStandController =
                     (Component)root.AddComponent(sellerStandControllerType);
@@ -201,8 +213,20 @@ namespace StreetQuestRPG
                     sellerStandController,
                     "itemsToSell",
                     new[] { "ba:itemname_hotdog" });
-                SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
+                if (!hasQuestGiverVisual)
+                {
+                    var sellerPosition = new GameObject("SellerPosition").transform;
+                    sellerPosition.SetParent(root.transform, false);
+                    sellerPosition.localPosition = SellerPositionLocalOffset;
+                    SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
+                }
                 InvokeParameterlessMethod(sellerStandController, "Show");
+                if (hasQuestGiverVisual && questGiverVisualRoot != null)
+                {
+                    RemoveUnexpectedQuestGiverChildren(
+                        root.transform,
+                        new HashSet<Transform> { questGiverVisualRoot.transform, navTarget });
+                }
 
                 SpawnedQuestGiverRoot = root;
                 SpawnedQuestGiverController = sellerStandController;
@@ -697,6 +721,71 @@ namespace StreetQuestRPG
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.alignment = TextAlignment.Center;
             textMesh.color = new Color(0.1f, 0.08f, 0.05f);
+        }
+
+        private static bool TryAttachQuestGiverVisual(Transform parent, out GameObject visualRoot)
+        {
+            visualRoot = null;
+            try
+            {
+                foreach (var prefabName in QuestGiverVisualPrefabNames)
+                {
+                    visualRoot = PrefabHelper.CreatePrefab(prefabName, parent);
+                    if (visualRoot != null)
+                        break;
+                }
+
+                if (visualRoot == null)
+                    return false;
+
+                visualRoot.name = "MackVisual";
+                visualRoot.transform.SetParent(parent, false);
+                visualRoot.transform.localPosition = QuestGiverVisualLocalPosition;
+                visualRoot.transform.localRotation = Quaternion.Euler(QuestGiverVisualLocalEulerAngles);
+                visualRoot.transform.localScale = Vector3.one;
+
+                DisableVisualOnlyScripts(visualRoot);
+
+                foreach (var collider in visualRoot.GetComponentsInChildren<Collider>(true))
+                    collider.enabled = false;
+
+                foreach (var rigidbody in visualRoot.GetComponentsInChildren<Rigidbody>(true))
+                    rigidbody.isKinematic = true;
+
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to attach quest giver visual prefab. {exception}");
+                visualRoot = null;
+                return false;
+            }
+        }
+
+        private static void DisableVisualOnlyScripts(GameObject root)
+        {
+            if (root == null)
+                return;
+
+            foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (behaviour != null)
+                    behaviour.enabled = false;
+            }
+        }
+
+        private static void RemoveUnexpectedQuestGiverChildren(Transform root, ISet<Transform> allowedChildren)
+        {
+            if (root == null || allowedChildren == null)
+                return;
+
+            foreach (Transform child in root)
+            {
+                if (child == null || allowedChildren.Contains(child))
+                    continue;
+
+                UnityEngine.Object.Destroy(child.gameObject);
+            }
         }
 
         private static void AddOutlineAccent(Transform parent, Vector3 localPosition, Vector3 localScale)
