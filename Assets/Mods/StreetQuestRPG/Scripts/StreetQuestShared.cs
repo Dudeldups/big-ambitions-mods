@@ -8,6 +8,7 @@ using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
+using Localizor.LanguageChangeEvent;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.UI;
@@ -27,6 +28,10 @@ namespace StreetQuestRPG
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
         private const string SpawnedQuestGiverName = "StreetQuestRPG.OutdoorQuestGiver";
         private const string SellerStandOverlayHeaderKey = HomelessNameKey;
+        private const string QuestGiverButtonLabel = "Talk to Mack";
+        private static readonly bool UseFixedSpawnPosition = false;
+        private static readonly Vector3 FixedSpawnPosition = new(0f, 0f, 0f);
+        private static readonly Vector3 FixedForward = new(0f, 0f, -1f);
         private static readonly Vector3 DefaultSpawnOffsetFromPlayer = new(0f, 0f, 4f);
         private static readonly Vector3 SellerPositionLocalOffset = new(0f, 0f, -0.85f);
         private static readonly Vector3 NavTargetLocalOffset = new(0f, 0f, 1.25f);
@@ -150,9 +155,11 @@ namespace StreetQuestRPG
                     return false;
 
                 var playerController = PlayerHelper.PlayerController;
-                var facingForward = playerController != null
-                    ? FlattenDirection(playerController.transform.forward)
-                    : Vector3.forward;
+                var facingForward = UseFixedSpawnPosition
+                    ? FlattenDirection(FixedForward)
+                    : playerController != null
+                        ? FlattenDirection(playerController.transform.forward)
+                        : Vector3.forward;
                 if (facingForward.sqrMagnitude < 0.001f)
                     facingForward = Vector3.forward;
 
@@ -160,19 +167,11 @@ namespace StreetQuestRPG
                 root.name = SpawnedQuestGiverName;
                 root.transform.position = spawnPosition.Value;
                 root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
-
-                var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                visual.name = "QuestGiverStandVisual";
-                visual.transform.SetParent(root.transform, false);
-                visual.transform.localPosition = new Vector3(0f, 0.525f, 0f);
-                visual.transform.localScale = new Vector3(1.6f, 1.05f, 0.8f);
-                var visualCollider = visual.GetComponent<Collider>();
-                if (visualCollider != null)
-                    UnityEngine.Object.Destroy(visualCollider);
+                BuildQuestGiverVisual(root.transform);
 
                 var interactionCollider = root.AddComponent<BoxCollider>();
-                interactionCollider.center = new Vector3(0f, 0.525f, 0f);
-                interactionCollider.size = new Vector3(1.6f, 1.05f, 0.8f);
+                interactionCollider.center = new Vector3(0f, 0.95f, 0f);
+                interactionCollider.size = new Vector3(1.8f, 1.9f, 1.2f);
 
                 var navTarget = new GameObject("NavMeshTarget").transform;
                 navTarget.SetParent(root.transform, false);
@@ -302,6 +301,7 @@ namespace StreetQuestRPG
                         && patchedButton.DialogType.Equals(dialogType))
                         continue;
 
+                    UpdateSellerStandButtonVisuals(button);
                     button.onClick.RemoveAllListeners();
                     button.onClick.AddListener(() => TryOpenQuestDialog(dialogType));
                     PatchedSellerStandButtons[buttonId] = new PatchedSellerStandButtonTarget
@@ -655,6 +655,9 @@ namespace StreetQuestRPG
 
         private static Vector3? GetQuestGiverSpawnPosition()
         {
+            if (UseFixedSpawnPosition)
+                return FixedSpawnPosition;
+
             if (PreferredQuestGiverSpawnPosition.HasValue)
                 return PreferredQuestGiverSpawnPosition.Value;
 
@@ -694,6 +697,110 @@ namespace StreetQuestRPG
 
         private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
 
+        private static void BuildQuestGiverVisual(Transform parent)
+        {
+            var countertop = CreateVisualBlock(
+                parent,
+                "Countertop",
+                new Vector3(0f, 0.9f, 0f),
+                new Vector3(1.7f, 0.16f, 0.7f),
+                new Color(0.33f, 0.24f, 0.16f));
+            AddOutlineAccent(countertop.transform, new Vector3(0f, -0.09f, 0f), new Vector3(1.78f, 0.03f, 0.78f));
+
+            CreateVisualBlock(
+                parent,
+                "CrateBase",
+                new Vector3(0f, 0.38f, 0f),
+                new Vector3(1.55f, 0.72f, 0.62f),
+                new Color(0.18f, 0.16f, 0.14f));
+
+            CreateVisualBlock(
+                parent,
+                "SignPostLeft",
+                new Vector3(-0.58f, 1.4f, -0.18f),
+                new Vector3(0.08f, 1f, 0.08f),
+                new Color(0.22f, 0.18f, 0.12f));
+            CreateVisualBlock(
+                parent,
+                "SignPostRight",
+                new Vector3(0.58f, 1.4f, -0.18f),
+                new Vector3(0.08f, 1f, 0.08f),
+                new Color(0.22f, 0.18f, 0.12f));
+            CreateVisualBlock(
+                parent,
+                "SignBoard",
+                new Vector3(0f, 1.75f, -0.18f),
+                new Vector3(1.28f, 0.5f, 0.08f),
+                new Color(0.75f, 0.69f, 0.52f));
+
+            var label = new GameObject("QuestGiverLabel");
+            label.transform.SetParent(parent, false);
+            label.transform.localPosition = new Vector3(0f, 1.75f, -0.24f);
+            var textMesh = label.AddComponent<TextMesh>();
+            textMesh.text = "MACK";
+            textMesh.fontSize = 72;
+            textMesh.characterSize = 0.06f;
+            textMesh.anchor = TextAnchor.MiddleCenter;
+            textMesh.alignment = TextAlignment.Center;
+            textMesh.color = new Color(0.1f, 0.08f, 0.05f);
+        }
+
+        private static void AddOutlineAccent(Transform parent, Vector3 localPosition, Vector3 localScale)
+        {
+            CreateVisualBlock(
+                parent,
+                "CounterAccent",
+                localPosition,
+                localScale,
+                new Color(0.88f, 0.76f, 0.34f));
+        }
+
+        private static GameObject CreateVisualBlock(
+            Transform parent,
+            string name,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Color color)
+        {
+            var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            block.name = name;
+            block.transform.SetParent(parent, false);
+            block.transform.localPosition = localPosition;
+            block.transform.localScale = localScale;
+
+            var collider = block.GetComponent<Collider>();
+            if (collider != null)
+                UnityEngine.Object.Destroy(collider);
+
+            var renderer = block.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                var material = CreateRuntimeMaterial(color);
+                if (material != null)
+                    renderer.sharedMaterial = material;
+            }
+
+            return block;
+        }
+
+        private static Material CreateRuntimeMaterial(Color color)
+        {
+            var shader = Shader.Find("Standard")
+                         ?? Shader.Find("HDRP/Lit")
+                         ?? Shader.Find("Universal Render Pipeline/Lit")
+                         ?? Shader.Find("Sprites/Default");
+            if (shader == null)
+                return null;
+
+            var material = new Material(shader);
+            if (material.HasProperty("_Color"))
+                material.color = color;
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", color);
+
+            return material;
+        }
+
         private static void InvokeParameterlessMethod(object instance, string methodName)
         {
             if (instance == null || string.IsNullOrEmpty(methodName))
@@ -731,6 +838,32 @@ namespace StreetQuestRPG
             {
                 Debug.LogWarning($"StreetQuestRPG: Failed to show debug notification. {exception}");
                 Debug.Log(message);
+            }
+        }
+
+        private static void UpdateSellerStandButtonVisuals(Button button)
+        {
+            if (button == null)
+                return;
+
+            foreach (var text in button.GetComponentsInChildren<Text>(true))
+                text.text = QuestGiverButtonLabel;
+
+            var localizationComponents = button.GetComponentsInChildren<TextLocalizationComponent>(true);
+            foreach (var localizationComponent in localizationComponents)
+            {
+                localizationComponent.enabled = false;
+                localizationComponent.gameObject.SetActive(true);
+            }
+
+            var tmpTextType = FindType("TMPro.TMP_Text");
+            if (tmpTextType == null)
+                return;
+
+            foreach (var component in button.GetComponentsInChildren(tmpTextType, true))
+            {
+                var textProperty = tmpTextType.GetProperty("text", ReflectionFlags);
+                textProperty?.SetValue(component, QuestGiverButtonLabel);
             }
         }
 
