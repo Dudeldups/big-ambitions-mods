@@ -7,7 +7,81 @@ using UnityEngine;
 
 public static class GunStoreRecipeFactory
 {
+    public static ScriptableObject?[] CreateAllRecipes()
+    {
+        return new[]
+        {
+            CreateAk47Recipe(),
+            CreateAmmoSmallRecipe(),
+            CreateAmmoLargeRecipe()
+        };
+    }
+
     public static ScriptableObject? CreateAk47Recipe()
+    {
+        return CreateRecipe(
+            "Ak47Recipe",
+            "sSoU0AdCKUWnH+qY0k+K+A==",
+            new[]
+            {
+                new RecipeIngredient("ba:itemname_plastic", 20),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+            },
+            new RecipeIngredient("gunstore-businesstype:itemname_ak47", 20),
+            new[]
+            {
+                new MachineVisualDefinition(
+                    "ba:itemname_lasercuttingmachine",
+                    "gunstore-businesstype:itemname_gunpartscheap",
+                    "gunstore-businesstype:itemname_gunpartscheap"),
+                new MachineVisualDefinition(
+                    "ba:itemname_consumergoodsassemblymachine",
+                    string.Empty,
+                    "gunstore-businesstype:itemname_ak47")
+            });
+    }
+
+    public static ScriptableObject? CreateAmmoSmallRecipe()
+    {
+        return CreateRecipe(
+            "AmmoSmallRecipe",
+            "EPrYqAvTRk2EUYJ8YjI1ow==",
+            new[]
+            {
+                new RecipeIngredient("ba:itemname_metalband", 60)
+            },
+            new RecipeIngredient("gunstore-businesstype:itemname_ammosmall", 60),
+            new[]
+            {
+                new MachineVisualDefinition(
+                    "ba:itemname_consumergoodsassemblymachine",
+                    string.Empty,
+                    "gunstore-businesstype:itemname_ammosmall")
+            });
+    }
+
+    public static ScriptableObject? CreateAmmoLargeRecipe()
+    {
+        return CreateRecipe(
+            "AmmoLargeRecipe",
+            "Uf4L4mV0l0a0b8R8Yq+QpA==",
+            new[]
+            {
+                new RecipeIngredient("ba:itemname_metalband", 30)
+            },
+            new RecipeIngredient("gunstore-businesstype:itemname_ammolarge", 30),
+            new[]
+            {
+                new MachineVisualDefinition(
+                    "ba:itemname_consumergoodsassemblymachine",
+                    string.Empty,
+                    "gunstore-businesstype:itemname_ammolarge")
+            });
+    }
+
+    private static ScriptableObject? CreateRecipe(string recipeName, string recipeId, RecipeIngredient[] ingredients,
+        RecipeIngredient output, MachineVisualDefinition[] machineVisuals)
     {
         var recipeType = AppDomain.CurrentDomain.GetAssemblies()
             .Select(assembly => assembly.GetType("BigAmbitions.Factories.Recipes.Recipe", false))
@@ -16,38 +90,43 @@ public static class GunStoreRecipeFactory
             return null;
 
         var recipeAsset = ScriptableObject.CreateInstance(recipeType);
-        recipeAsset.name = "Ak47Recipe";
+        recipeAsset.name = recipeName;
 
-        SetFieldValue(recipeType, recipeAsset, "id", "sSoU0AdCKUWnH+qY0k+K+A==");
+        SetFieldValue(recipeType, recipeAsset, "id", recipeId);
 
         var recipeItemType = recipeType.Assembly.GetType("BigAmbitions.Factories.Recipes.RecipeItem");
         if (recipeItemType == null)
             return recipeAsset;
 
-        SetCollectionField(recipeType, recipeAsset, "ingredients", recipeItemType, new[]
-        {
-            CreateRecipeItem(recipeItemType, "ba:itemname_plastic", 20),
-            CreateRecipeItem(recipeItemType, "gunstore-businesstype:itemname_gunpartscheap", 40),
-            CreateRecipeItem(recipeItemType, "gunstore-businesstype:itemname_gunpartsexpensive", 20)
-        });
+        SetCollectionField(
+            recipeType,
+            recipeAsset,
+            "ingredients",
+            recipeItemType,
+            ingredients.Select(ingredient => CreateRecipeItem(recipeItemType, ingredient.ItemName, ingredient.Amount))
+                .ToArray());
 
-        SetFieldValue(recipeType, recipeAsset, "output",
-            CreateRecipeItem(recipeItemType, "gunstore-businesstype:itemname_ak47", 20));
+        SetFieldValue(
+            recipeType,
+            recipeAsset,
+            "output",
+            CreateRecipeItem(recipeItemType, output.ItemName, output.Amount));
 
         var machineVisualsField = recipeType.GetField("machineVisuals",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         var machineVisualType = GetElementType(machineVisualsField?.FieldType);
         if (machineVisualsField != null && machineVisualType != null)
         {
-            SetCollectionField(recipeType, recipeAsset, "machineVisuals", machineVisualType, new[]
-            {
-                CreateMachineVisual(machineVisualType, "ba:itemname_lasercuttingmachine",
-                    "gunstore-businesstype:itemname_gunpartscheap",
-                    "gunstore-businesstype:itemname_gunpartscheap"),
-                CreateMachineVisual(machineVisualType, "ba:itemname_consumergoodsassemblymachine",
-                    string.Empty,
-                    "gunstore-businesstype:itemname_ak47")
-            });
+            SetCollectionField(
+                recipeType,
+                recipeAsset,
+                "machineVisuals",
+                machineVisualType,
+                machineVisuals.Select(machineVisual => CreateMachineVisual(
+                    machineVisualType,
+                    machineVisual.MachineName,
+                    machineVisual.InputItemName,
+                    machineVisual.OutputItemName)).ToArray());
         }
 
         return recipeAsset;
@@ -124,5 +203,31 @@ public static class GunStoreRecipeFactory
         var field = ownerType.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (field != null)
             field.SetValue(owner, value);
+    }
+
+    private struct RecipeIngredient
+    {
+        public RecipeIngredient(string itemName, int amount)
+        {
+            ItemName = itemName;
+            Amount = amount;
+        }
+
+        public string ItemName { get; }
+        public int Amount { get; }
+    }
+
+    private struct MachineVisualDefinition
+    {
+        public MachineVisualDefinition(string machineName, string inputItemName, string outputItemName)
+        {
+            MachineName = machineName;
+            InputItemName = inputItemName;
+            OutputItemName = outputItemName;
+        }
+
+        public string MachineName { get; }
+        public string InputItemName { get; }
+        public string OutputItemName { get; }
     }
 }

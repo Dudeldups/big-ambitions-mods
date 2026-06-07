@@ -34,7 +34,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
-    public static ScriptableObject? Ak47RecipeAsset { get; private set; }
+    public static IReadOnlyList<ScriptableObject> RecipeAssets { get; private set; } = Array.Empty<ScriptableObject>();
 
     private BusinessType? modBusinessType;
     private readonly List<Item> modItems = new();
@@ -54,7 +54,10 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
             ItemsGetter.RegisterModItem(modItem);
         }
 
-        Ak47RecipeAsset = GunStoreRecipeFactory.CreateAk47Recipe();
+        RecipeAssets = GunStoreRecipeFactory.CreateAllRecipes()
+            .Where(recipeAsset => recipeAsset != null)
+            .Cast<ScriptableObject>()
+            .ToArray();
 
         modBusinessType = bundle.LoadAsset<BusinessType>(BusinessTypeAssetPath);
         if (modBusinessType != null)
@@ -72,7 +75,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
             ItemsGetter.UnregisterModItem(modItem.itemName);
 
         modItems.Clear();
-        Ak47RecipeAsset = null;
+        RecipeAssets = Array.Empty<ScriptableObject>();
 
         return Task.CompletedTask;
     }
@@ -227,8 +230,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     private void PatchConsumerGoodsWorkstation()
     {
-        var recipeAsset = GunStoreBusinessTypeMod.Ak47RecipeAsset;
-        if (recipeAsset == null)
+        if (GunStoreBusinessTypeMod.RecipeAssets.Count == 0)
             return;
 
         foreach (var scriptableObject in Resources.FindObjectsOfTypeAll<ScriptableObject>())
@@ -248,23 +250,34 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
                     StringComparison.Ordinal))
                 continue;
 
-            if (supportedRecipesField.GetValue(scriptableObject) is not IList supportedRecipes
-                || supportedRecipes.Contains(recipeAsset))
+            if (supportedRecipesField.GetValue(scriptableObject) is not IList supportedRecipes)
                 continue;
 
-            supportedRecipes.Add(recipeAsset);
-            patchedRecipeLists.Add(supportedRecipes);
+            var addedAnyRecipe = false;
+            foreach (var recipeAsset in GunStoreBusinessTypeMod.RecipeAssets)
+            {
+                if (supportedRecipes.Contains(recipeAsset))
+                    continue;
+
+                supportedRecipes.Add(recipeAsset);
+                addedAnyRecipe = true;
+            }
+
+            if (addedAnyRecipe)
+                patchedRecipeLists.Add(supportedRecipes);
         }
     }
 
     private void RestoreConsumerGoodsWorkstation()
     {
-        var recipeAsset = GunStoreBusinessTypeMod.Ak47RecipeAsset;
-        if (recipeAsset == null)
+        if (GunStoreBusinessTypeMod.RecipeAssets.Count == 0)
             return;
 
         foreach (var supportedRecipes in patchedRecipeLists)
-            supportedRecipes.Remove(recipeAsset);
+        {
+            foreach (var recipeAsset in GunStoreBusinessTypeMod.RecipeAssets)
+                supportedRecipes.Remove(recipeAsset);
+        }
 
         patchedRecipeLists.Clear();
     }
