@@ -37,13 +37,13 @@ MonoBehaviour:
   businessProducts:
   - itemName: gunstore-businesstype:itemname_ak47
     impact: 1
-  - itemName: gunstore-businesstype:itemname_colt1911
+  - itemName: gunstore-businesstype:itemname_ammosmall
     impact: 1
   - itemName: gunstore-businesstype:itemname_webleyfosbery
     impact: 1
   - itemName: gunstore-businesstype:itemname_berettam9
     impact: 1
-  - itemName: gunstore-businesstype:itemname_winchesterrepeater
+  - itemName: gunstore-businesstype:itemname_ammolarge
     impact: 1
   - itemName: gunstore-businesstype:itemname_rpg
     impact: 1

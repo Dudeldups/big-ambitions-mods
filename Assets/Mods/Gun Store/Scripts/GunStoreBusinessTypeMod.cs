@@ -23,10 +23,10 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
     private static readonly string[] ItemAssetPaths =
     {
         "Assets/Mods/Gun Store/Ak47.asset",
-        "Assets/Mods/Gun Store/Colt1911.asset",
+        "Assets/Mods/Gun Store/AmmoSmall.asset",
         "Assets/Mods/Gun Store/WebleyFosbery.asset",
         "Assets/Mods/Gun Store/BerettaM9.asset",
-        "Assets/Mods/Gun Store/WinchesterRepeater.asset",
+        "Assets/Mods/Gun Store/AmmoLarge.asset",
         "Assets/Mods/Gun Store/Rpg.asset",
         "Assets/Mods/Gun Store/GunPartsCheap.asset",
         "Assets/Mods/Gun Store/GunPartsExpensive.asset"
@@ -84,20 +84,20 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private static readonly string[] GunStoreShelfItemNames =
     {
         "gunstore-businesstype:itemname_ak47",
-        "gunstore-businesstype:itemname_colt1911",
+        "gunstore-businesstype:itemname_ammosmall",
         "gunstore-businesstype:itemname_webleyfosbery",
         "gunstore-businesstype:itemname_berettam9",
-        "gunstore-businesstype:itemname_winchesterrepeater",
+        "gunstore-businesstype:itemname_ammolarge",
         "gunstore-businesstype:itemname_rpg"
     };
 
     private static readonly string[] BlueStoneImporterItemNames =
     {
         "gunstore-businesstype:itemname_ak47",
-        "gunstore-businesstype:itemname_colt1911",
+        "gunstore-businesstype:itemname_ammosmall",
         "gunstore-businesstype:itemname_webleyfosbery",
         "gunstore-businesstype:itemname_berettam9",
-        "gunstore-businesstype:itemname_winchesterrepeater",
+        "gunstore-businesstype:itemname_ammolarge",
         "gunstore-businesstype:itemname_rpg"
     };
 
