@@ -13,7 +13,7 @@ public static class GunStoreRecipeFactory
         {
             CreateAk47Recipe(),
             CreateBerettaM9Recipe(),
-            CreateWebleyFosberyRecipe(),
+            CreateWinCheaterSxpRecipe(),
             CreateRpgRecipe(),
             CreateAmmoSmallRecipe(),
             CreateAmmoLargeRecipe()
@@ -97,18 +97,18 @@ public static class GunStoreRecipeFactory
             CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_berettam9"));
     }
 
-    public static ScriptableObject? CreateWebleyFosberyRecipe()
+    public static ScriptableObject? CreateWinCheaterSxpRecipe()
     {
         return CreateRecipe(
-            "WebleyFosberyRecipe",
+            "WinCheaterSxpRecipe",
             "4Q7GXs5h0USJ9V2q1tLh8w==",
             new[]
             {
                 new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
                 new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
             },
-            new RecipeIngredient("gunstore-businesstype:itemname_webleyfosbery", 20),
-            CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_webleyfosbery"));
+            new RecipeIngredient("gunstore-businesstype:itemname_wincheatersxp", 20),
+            CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_wincheatersxp"));
     }
 
     public static ScriptableObject? CreateRpgRecipe()

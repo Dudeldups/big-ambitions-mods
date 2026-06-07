@@ -24,7 +24,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
     {
         "Assets/Mods/Gun Store/Ak47.asset",
         "Assets/Mods/Gun Store/AmmoSmall.asset",
-        "Assets/Mods/Gun Store/WebleyFosbery.asset",
+        "Assets/Mods/Gun Store/WinCheaterSxp.asset",
         "Assets/Mods/Gun Store/BerettaM9.asset",
         "Assets/Mods/Gun Store/AmmoLarge.asset",
         "Assets/Mods/Gun Store/Rpg.asset",
@@ -88,7 +88,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     {
         "gunstore-businesstype:itemname_ak47",
         "gunstore-businesstype:itemname_ammosmall",
-        "gunstore-businesstype:itemname_webleyfosbery",
+        "gunstore-businesstype:itemname_wincheatersxp",
         "gunstore-businesstype:itemname_berettam9",
         "gunstore-businesstype:itemname_ammolarge",
         "gunstore-businesstype:itemname_rpg"
@@ -98,7 +98,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     {
         "gunstore-businesstype:itemname_ak47",
         "gunstore-businesstype:itemname_ammosmall",
-        "gunstore-businesstype:itemname_webleyfosbery",
+        "gunstore-businesstype:itemname_wincheatersxp",
         "gunstore-businesstype:itemname_berettam9",
         "gunstore-businesstype:itemname_ammolarge",
         "gunstore-businesstype:itemname_rpg"
