@@ -20,7 +20,7 @@ MonoBehaviour:
   wholesalePrice: 35
   defaultMarketPrice: 125
   productSalesRatio: 0.75
-  boxSize: 600
+  boxSize: 200
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 
   itemPanelMetaView: 0
