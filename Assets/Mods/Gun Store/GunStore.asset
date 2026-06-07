@@ -32,7 +32,7 @@ MonoBehaviour:
   hasWeekendOnlyEntranceFee: 0
   weekendOnlyEntranceFee: 
   callDialogType: 0
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 30c7cda27d4c5d14c87d68e8345480d5, type: 3}
   cityMapFilterColor: {r: 0.52, g: 0.19, b: 0.14, a: 1}
   businessProducts:
   - itemName: gunstore-businesstype:itemname_ak47
