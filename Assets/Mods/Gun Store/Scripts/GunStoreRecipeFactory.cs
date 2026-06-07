@@ -12,6 +12,9 @@ public static class GunStoreRecipeFactory
         return new[]
         {
             CreateAk47Recipe(),
+            CreateBerettaM9Recipe(),
+            CreateWebleyFosberyRecipe(),
+            CreateRpgRecipe(),
             CreateAmmoSmallRecipe(),
             CreateAmmoLargeRecipe()
         };
@@ -80,6 +83,48 @@ public static class GunStoreRecipeFactory
             });
     }
 
+    public static ScriptableObject? CreateBerettaM9Recipe()
+    {
+        return CreateRecipe(
+            "BerettaM9Recipe",
+            "q8r9zW8x9UuP1VfZKx7xkA==",
+            new[]
+            {
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+            },
+            new RecipeIngredient("gunstore-businesstype:itemname_berettam9", 20),
+            CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_berettam9"));
+    }
+
+    public static ScriptableObject? CreateWebleyFosberyRecipe()
+    {
+        return CreateRecipe(
+            "WebleyFosberyRecipe",
+            "4Q7GXs5h0USJ9V2q1tLh8w==",
+            new[]
+            {
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+            },
+            new RecipeIngredient("gunstore-businesstype:itemname_webleyfosbery", 20),
+            CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_webleyfosbery"));
+    }
+
+    public static ScriptableObject? CreateRpgRecipe()
+    {
+        return CreateRecipe(
+            "RpgRecipe",
+            "2T0wU6h4qkWJ4D9Nwq7G2A==",
+            new[]
+            {
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 20),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+            },
+            new RecipeIngredient("gunstore-businesstype:itemname_rpg", 10),
+            CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_rpg"));
+    }
+
     private static ScriptableObject? CreateRecipe(string recipeName, string recipeId, RecipeIngredient[] ingredients,
         RecipeIngredient output, MachineVisualDefinition[] machineVisuals)
     {
@@ -130,6 +175,21 @@ public static class GunStoreRecipeFactory
         }
 
         return recipeAsset;
+    }
+
+    private static MachineVisualDefinition[] CreateGunRecipeMachineVisuals(string outputItemName)
+    {
+        return new[]
+        {
+            new MachineVisualDefinition(
+                "ba:itemname_lasercuttingmachine",
+                "gunstore-businesstype:itemname_gunpartscheap",
+                "gunstore-businesstype:itemname_gunpartscheap"),
+            new MachineVisualDefinition(
+                "ba:itemname_consumergoodsassemblymachine",
+                string.Empty,
+                outputItemName)
+        };
     }
 
     private static object CreateRecipeItem(Type recipeItemType, string itemName, int amount)
