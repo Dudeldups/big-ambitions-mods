@@ -27,7 +27,7 @@ public static class GunStoreRecipeFactory
             "sSoU0AdCKUWnH+qY0k+K+A==",
             new[]
             {
-                new RecipeIngredient("ba:itemname_plastic", 20),
+                new RecipeIngredient("ba:itemname_plastic", 50),
                 new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
                 new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
             },
@@ -52,7 +52,7 @@ public static class GunStoreRecipeFactory
             "EPrYqAvTRk2EUYJ8YjI1ow==",
             new[]
             {
-                new RecipeIngredient("ba:itemname_metalband", 60)
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 20)
             },
             new RecipeIngredient("gunstore-businesstype:itemname_ammosmall", 60),
             new[]
@@ -71,7 +71,7 @@ public static class GunStoreRecipeFactory
             "Uf4L4mV0l0a0b8R8Yq+QpA==",
             new[]
             {
-                new RecipeIngredient("ba:itemname_metalband", 30)
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 15)
             },
             new RecipeIngredient("gunstore-businesstype:itemname_ammolarge", 30),
             new[]
@@ -90,8 +90,8 @@ public static class GunStoreRecipeFactory
             "q8r9zW8x9UuP1VfZKx7xkA==",
             new[]
             {
-                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
-                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 30),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 10)
             },
             new RecipeIngredient("gunstore-businesstype:itemname_berettam9", 20),
             CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_berettam9"));
