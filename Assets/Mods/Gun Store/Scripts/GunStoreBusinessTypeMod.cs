@@ -100,8 +100,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         "gunstore-businesstype:itemname_ammosmall",
         "gunstore-businesstype:itemname_wincheatersxp",
         "gunstore-businesstype:itemname_berettam9",
-        "gunstore-businesstype:itemname_ammolarge",
-        "gunstore-businesstype:itemname_rpg"
+        "gunstore-businesstype:itemname_ammolarge"
     };
 
     private static readonly string[] MaritimeImporterItemNames =
