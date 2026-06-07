@@ -6,5 +6,7 @@
   "gunstore-businesstype:itemname_webleyfosbery": "Web Lee Revolver",
   "gunstore-businesstype:itemname_berettam9": "Peralta M9",
   "gunstore-businesstype:itemname_winchesterrepeater": "Win-Cheater 22",
-  "gunstore-businesstype:itemname_rpg": "RPG 4U"
+  "gunstore-businesstype:itemname_rpg": "RPG 4U",
+  "gunstore-businesstype:itemname_gunpartscheap": "Gun Parts (cheap)",
+  "gunstore-businesstype:itemname_gunpartsexpensive": "Gun Parts (expensive)"
 }

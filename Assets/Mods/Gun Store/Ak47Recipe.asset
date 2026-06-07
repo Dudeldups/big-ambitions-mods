@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1689586986, guid: f4a83adcd5cad4fb4665f187e404ef92, type: 3}
+  m_Name: Ak47Recipe
+  m_EditorClassIdentifier: 
+  id: sSoU0AdCKUWnH+qY0k+K+A==
+  ingredients:
+  - item: ba:itemname_plastic
+    amount: 20
+  - item: gunstore-businesstype:itemname_gunpartscheap
+    amount: 40
+  - item: gunstore-businesstype:itemname_gunpartsexpensive
+    amount: 20
+  output:
+    item: gunstore-businesstype:itemname_ak47
+    amount: 20
+  machineVisuals:
+  - machineName: ba:itemname_lasercuttingmachine
+    inputItemName: gunstore-businesstype:itemname_gunpartscheap
+    outputItemName: gunstore-businesstype:itemname_gunpartscheap
+    shaderColorA: {r: 0, g: 0, b: 0, a: 0}
+    shaderColorB: {r: 0, g: 0, b: 0, a: 0}
+  - machineName: ba:itemname_consumergoodsassemblymachine
+    inputItemName: 
+    outputItemName: gunstore-businesstype:itemname_ak47
+    shaderColorA: {r: 0, g: 0, b: 0, a: 0}
+    shaderColorB: {r: 0, g: 0, b: 0, a: 0}

@@ -1,13 +1,16 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using BAModAPI;
 using BAModAPI.Services;
 using BigAmbitions.Items;
 using Buildings;
 using Helpers;
+using UnityEngine;
 
 [assembly: RegisterModClass(typeof(GunStoreBusinessTypeMod))]
 [assembly: RegisterModClass(typeof(GunStoreBusinessTypeCityMod))]
@@ -17,6 +20,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
 {
     private const string BundleKey = "AssetBundles/gunstore-businesstype.unity3d";
     private const string BusinessTypeAssetPath = "Assets/Mods/Gun Store/GunStore.asset";
+    private const string Ak47RecipeAssetPath = "Assets/Mods/Gun Store/Ak47Recipe.asset";
     private static readonly string[] ItemAssetPaths =
     {
         "Assets/Mods/Gun Store/Ak47.asset",
@@ -24,10 +28,14 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
         "Assets/Mods/Gun Store/WebleyFosbery.asset",
         "Assets/Mods/Gun Store/BerettaM9.asset",
         "Assets/Mods/Gun Store/WinchesterRepeater.asset",
-        "Assets/Mods/Gun Store/Rpg.asset"
+        "Assets/Mods/Gun Store/Rpg.asset",
+        "Assets/Mods/Gun Store/GunPartsCheap.asset",
+        "Assets/Mods/Gun Store/GunPartsExpensive.asset"
     };
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
+
+    public static ScriptableObject? Ak47RecipeAsset { get; private set; }
 
     private BusinessType? modBusinessType;
     private readonly List<Item> modItems = new();
@@ -47,6 +55,8 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
             ItemsGetter.RegisterModItem(modItem);
         }
 
+        Ak47RecipeAsset = bundle.LoadAsset<ScriptableObject>(Ak47RecipeAssetPath);
+
         modBusinessType = bundle.LoadAsset<BusinessType>(BusinessTypeAssetPath);
         if (modBusinessType != null)
             ModdingAPI.RegisterModBusinessType(modBusinessType);
@@ -63,6 +73,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
             ItemsGetter.UnregisterModItem(modItem.itemName);
 
         modItems.Clear();
+        Ak47RecipeAsset = null;
 
         return Task.CompletedTask;
     }
@@ -71,7 +82,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
 [ModEntryOnCityLoad]
 public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 {
-    private static readonly string[] GunStoreItemNames =
+    private static readonly string[] GunStoreShelfItemNames =
     {
         "gunstore-businesstype:itemname_ak47",
         "gunstore-businesstype:itemname_colt1911",
@@ -81,25 +92,46 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         "gunstore-businesstype:itemname_rpg"
     };
 
+    private static readonly string[] BlueStoneImporterItemNames =
+    {
+        "gunstore-businesstype:itemname_ak47",
+        "gunstore-businesstype:itemname_colt1911",
+        "gunstore-businesstype:itemname_webleyfosbery",
+        "gunstore-businesstype:itemname_berettam9",
+        "gunstore-businesstype:itemname_winchesterrepeater",
+        "gunstore-businesstype:itemname_rpg"
+    };
+
+    private static readonly string[] MaritimeImporterItemNames =
+    {
+        "gunstore-businesstype:itemname_gunpartscheap",
+        "gunstore-businesstype:itemname_gunpartsexpensive"
+    };
+
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
     private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
+    private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
 
     public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
     private readonly Dictionary<Item, string[]> patchedShowcaseShelves = new();
-    private ImportExportSettings? importSettings;
+    private readonly List<IList> patchedRecipeLists = new();
+    private ImportExportSettings? blueStoneImportSettings;
+    private ImportExportSettings? maritimeImportSettings;
 
     public Task OnLoadAsync(ModContext context)
     {
         PatchShowcaseShelves();
         AddToImporter();
+        PatchConsumerGoodsWorkstation();
         return Task.CompletedTask;
     }
 
     public Task OnUnloadAsync()
     {
+        RestoreConsumerGoodsWorkstation();
         RestoreShowcaseShelves();
         RemoveFromImporter();
         return Task.CompletedTask;
@@ -115,7 +147,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             if (!ShouldPatchShowcaseShelf(item))
                 continue;
 
-            var missingGunStoreItems = GunStoreItemNames
+            var missingGunStoreItems = GunStoreShelfItemNames
                 .Where(gunStoreItemName => !item.itemsThatCanShowcase.Contains(gunStoreItemName))
                 .ToArray();
             if (missingGunStoreItems.Length == 0)
@@ -153,7 +185,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         foreach (var patchedShelf in patchedShowcaseShelves)
             patchedShelf.Key.itemsThatCanShowcase = patchedShelf.Value;
 
-        foreach (var gunStoreItemName in GunStoreItemNames)
+        foreach (var gunStoreItemName in GunStoreShelfItemNames)
             ShelfController.UnregisterItemToShow(gunStoreItemName);
 
         patchedShowcaseShelves.Clear();
@@ -161,22 +193,80 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     private void AddToImporter()
     {
-        importSettings ??=
+        blueStoneImportSettings ??=
             (ImportExportSettings)BuildingHelper.GetBuilding(new Address("ba:street_pier", 4)).SpecialService.settings;
+        maritimeImportSettings ??=
+            (ImportExportSettings)BuildingHelper.GetBuilding(new Address("ba:street_pier", 7)).SpecialService.settings;
 
-        foreach (var gunStoreItemName in GunStoreItemNames)
+        foreach (var gunStoreItemName in BlueStoneImporterItemNames)
         {
-            if (!importSettings.itemsAvailable.Contains(gunStoreItemName))
-                importSettings.itemsAvailable.Add(gunStoreItemName);
+            if (!blueStoneImportSettings.itemsAvailable.Contains(gunStoreItemName))
+                blueStoneImportSettings.itemsAvailable.Add(gunStoreItemName);
+        }
+
+        foreach (var gunPartItemName in MaritimeImporterItemNames)
+        {
+            if (!maritimeImportSettings.itemsAvailable.Contains(gunPartItemName))
+                maritimeImportSettings.itemsAvailable.Add(gunPartItemName);
         }
     }
 
     private void RemoveFromImporter()
     {
-        if (importSettings == null)
+        if (blueStoneImportSettings != null)
+        {
+            foreach (var gunStoreItemName in BlueStoneImporterItemNames)
+                blueStoneImportSettings.itemsAvailable.Remove(gunStoreItemName);
+        }
+
+        if (maritimeImportSettings != null)
+        {
+            foreach (var gunPartItemName in MaritimeImporterItemNames)
+                maritimeImportSettings.itemsAvailable.Remove(gunPartItemName);
+        }
+    }
+
+    private void PatchConsumerGoodsWorkstation()
+    {
+        var recipeAsset = GunStoreBusinessTypeMod.Ak47RecipeAsset;
+        if (recipeAsset == null)
             return;
 
-        foreach (var gunStoreItemName in GunStoreItemNames)
-            importSettings.itemsAvailable.Remove(gunStoreItemName);
+        foreach (var scriptableObject in Resources.FindObjectsOfTypeAll<ScriptableObject>())
+        {
+            var type = scriptableObject.GetType();
+            if (type.FullName != "BigAmbitions.Factories.Workstations.FactoryWorkstation")
+                continue;
+
+            var workstationTypeField =
+                type.GetField("workstationType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var supportedRecipesField =
+                type.GetField("supportedRecipes", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (workstationTypeField == null || supportedRecipesField == null)
+                continue;
+
+            if (!string.Equals(workstationTypeField.GetValue(scriptableObject) as string, ConsumerGoodsWorkstationType,
+                    StringComparison.Ordinal))
+                continue;
+
+            if (supportedRecipesField.GetValue(scriptableObject) is not IList supportedRecipes
+                || supportedRecipes.Contains(recipeAsset))
+                continue;
+
+            supportedRecipes.Add(recipeAsset);
+            patchedRecipeLists.Add(supportedRecipes);
+        }
+    }
+
+    private void RestoreConsumerGoodsWorkstation()
+    {
+        var recipeAsset = GunStoreBusinessTypeMod.Ak47RecipeAsset;
+        if (recipeAsset == null)
+            return;
+
+        foreach (var supportedRecipes in patchedRecipeLists)
+            supportedRecipes.Remove(recipeAsset);
+
+        patchedRecipeLists.Clear();
     }
 }
