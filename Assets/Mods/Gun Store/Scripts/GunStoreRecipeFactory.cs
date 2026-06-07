@@ -90,6 +90,7 @@ public static class GunStoreRecipeFactory
             "q8r9zW8x9UuP1VfZKx7xkA==",
             new[]
             {
+                new RecipeIngredient("ba:itemname_plastic", 20),
                 new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 30),
                 new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 10)
             },
@@ -104,8 +105,8 @@ public static class GunStoreRecipeFactory
             "4Q7GXs5h0USJ9V2q1tLh8w==",
             new[]
             {
-                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
-                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+                new RecipeIngredient("ba:itemname_plastic", 20),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 30),
             },
             new RecipeIngredient("gunstore-businesstype:itemname_wincheatersxp", 20),
             CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_wincheatersxp"));
@@ -118,8 +119,9 @@ public static class GunStoreRecipeFactory
             "2T0wU6h4qkWJ4D9Nwq7G2A==",
             new[]
             {
-                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 20),
-                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 20)
+                new RecipeIngredient("ba:itemname_plastic", 40),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartscheap", 40),
+                new RecipeIngredient("gunstore-businesstype:itemname_gunpartsexpensive", 40)
             },
             new RecipeIngredient("gunstore-businesstype:itemname_rpg", 10),
             CreateGunRecipeMachineVisuals("gunstore-businesstype:itemname_rpg"));

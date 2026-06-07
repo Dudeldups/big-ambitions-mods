@@ -17,9 +17,9 @@ MonoBehaviour:
   itemName: gunstore-businesstype:itemname_berettam9
   type: 2
   leanBackSitAnimation: 0
-  wholesalePrice: 26
-  defaultMarketPrice: 92
-  productSalesRatio: 0.75
+  wholesalePrice: 215
+  defaultMarketPrice: 410
+  productSalesRatio: 0.2
   boxSize: 500
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 

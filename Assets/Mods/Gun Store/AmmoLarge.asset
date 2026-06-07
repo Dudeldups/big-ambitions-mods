@@ -17,9 +17,9 @@ MonoBehaviour:
   itemName: gunstore-businesstype:itemname_ammolarge
   type: 2
   leanBackSitAnimation: 0
-  wholesalePrice: 32
+  wholesalePrice: 52
   defaultMarketPrice: 115
-  productSalesRatio: 0.75
+  productSalesRatio: 0.35
   boxSize: 200
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 

@@ -17,10 +17,10 @@ MonoBehaviour:
   itemName: gunstore-businesstype:itemname_wincheatersxp
   type: 2
   leanBackSitAnimation: 0
-  wholesalePrice: 24
-  defaultMarketPrice: 88
-  productSalesRatio: 0.75
-  boxSize: 500
+  wholesalePrice: 125
+  defaultMarketPrice: 250
+  productSalesRatio: 0.3
+  boxSize: 150
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 
   itemPanelMetaView: 0

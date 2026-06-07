@@ -17,10 +17,10 @@ MonoBehaviour:
   itemName: gunstore-businesstype:itemname_ak47
   type: 2
   leanBackSitAnimation: 0
-  wholesalePrice: 35
-  defaultMarketPrice: 125
-  productSalesRatio: 0.75
-  boxSize: 200
+  wholesalePrice: 360
+  defaultMarketPrice: 650
+  productSalesRatio: 0.18
+  boxSize: 150
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 
   itemPanelMetaView: 0
