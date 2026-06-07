@@ -1,7 +1,8 @@
 fileFormatVersion: 2
-guid: 330f910027579764e8fb9cfe0d689924
-DefaultImporter:
+guid: 71e0fe7ed57941aeb0f9205be8a29ac2
+NativeFormatImporter:
   externalObjects: {}
+  mainObjectFileID: 11400000
   userData: 
   assetBundleName: gunstore-businesstype
   assetBundleVariant: unity3d
