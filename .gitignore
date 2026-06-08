@@ -42,3 +42,6 @@ Output/
 # via the Welcome window importer. Ignore the imported binaries and generated metas.
 Assets/_BaDependencies/GameDlls/**/*.dll
 Assets/_BaDependencies/GameDlls/**/*.dll.meta
+
+*.unity
+*.unity.*
