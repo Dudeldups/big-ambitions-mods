@@ -117,7 +117,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
-    private readonly Dictionary<Item, string[]> patchedShowcaseShelves = new();
+    private readonly Dictionary<BigAmbitions.Items.Item, string[]> patchedShowcaseShelves = new();
     private readonly List<IList> patchedRecipeLists = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
@@ -171,7 +171,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         }
     }
 
-    private static bool ShouldPatchShowcaseShelf(Item item)
+    private static bool ShouldPatchShowcaseShelf(BigAmbitions.Items.Item item)
     {
         if (item == null || item.itemsThatCanShowcase == null)
             return false;
