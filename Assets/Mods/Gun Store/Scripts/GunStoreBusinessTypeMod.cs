@@ -121,22 +121,33 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private const string CompetitionHelperTypeName = "Helpers.CompetitionHelper";
     private static readonly LayoutRegistration[] RivalLayouts =
     {
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivals.json", "GunStoreRivals.json", "GunStoreRivals"),
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsA1.json", "GunStoreRivalsA1.json", "GunStoreRivalsA1")
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsC1.json", "GunStoreRivalsC1.json", "GunStoreRivalsC1"),
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsA1.json", "GunStoreRivalsA1.json", "GunStoreRivalsA1"),
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsC2.json", "GunStoreRivalsC2.json", "GunStoreRivalsC2"),
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsD2.json", "GunStoreRivalsD2.json", "GunStoreRivalsD2"),
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsM1.json", "GunStoreRivalsM1.json", "GunStoreRivalsM1")
     };
     private static readonly string[] GunStoreRivalBusinessNames =
     {
-        "Peralta Arms",
-        "Wick-ed Defense",
-        "AK67 Outfitters",
-        "RPG 4U Depot"
+        "Friendly Fire Department",
+        "Pew Pew Defense",
+        "Guns R Us",
+        "McMunition’s",
+        "Respawn Disablers",
+        "Pay-To-Win Supply Co.",
+        "No Brain, Just Aim",
+        "Boom Boom & Beyond",
+        "Safety Third Firearms"
     };
     private static readonly string[] GunStoreRivalLayoutNames =
     {
-        "GunStoreRivals",
-        "GunStoreRivals",
+        "GunStoreRivalsC1",
+        "GunStoreRivalsC1",
         "GunStoreRivalsA1",
-        "GunStoreRivalsA1"
+        "GunStoreRivalsA1",
+        "GunStoreRivalsC2",
+        "GunStoreRivalsD2",
+        "GunStoreRivalsM1"
     };
     private static readonly string[] RivalTemplateLayouts =
     {
@@ -471,13 +482,13 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         if (injectedAiBusinessDefaults.Count > 0)
             return;
 
-        var templates = FindAiBusinessDefaultTemplates().Take(GunStoreRivalBusinessNames.Length).ToArray();
+        var templates = FindAiBusinessDefaultTemplates().ToArray();
         if (templates.Length == 0)
             return;
 
-        for (var i = 0; i < templates.Length; i++)
+        for (var i = 0; i < GunStoreRivalBusinessNames.Length; i++)
         {
-            var clone = UnityEngine.Object.Instantiate(templates[i]);
+            var clone = UnityEngine.Object.Instantiate(templates[i % templates.Length]);
             clone.name = GunStoreRivalBusinessNames[i].Replace(" ", string.Empty);
             SetFieldValue(clone, "businessTypeName", GunStoreBusinessTypeName);
             SetFieldValue(clone, "businessName", GunStoreRivalBusinessNames[i]);

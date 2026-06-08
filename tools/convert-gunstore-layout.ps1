@@ -1,5 +1,5 @@
 $blueprintPath = "C:\Users\Arne\AppData\LocalLow\Hovgaard Games\Big Ambitions\Blueprints\Gun Store C1\Layout.json"
-$outputPath = "E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Assets\Mods\Gun Store\Layouts\GunStoreRivals.json"
+$outputPath = "E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Assets\Mods\Gun Store\Layouts\GunStoreRivalsC1.json"
 
 $saleItems = @(
     "gunstore-businesstype:itemname_ak47",
