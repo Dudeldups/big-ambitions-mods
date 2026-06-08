@@ -19,7 +19,7 @@ MonoBehaviour:
   leanBackSitAnimation: 0
   wholesalePrice: 125
   defaultMarketPrice: 250
-  productSalesRatio: 0.3
+  productSalesRatio: 0.27
   boxSize: 150
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 
