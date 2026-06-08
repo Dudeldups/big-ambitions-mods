@@ -86,6 +86,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
 public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 {
     private const string BundleKey = "AssetBundles/gunstore-businesstype.unity3d";
+    private const string GunStoreBusinessTypeName = "gunstore-businesstype:businesstype_gunstore";
     private static readonly string[] GunStoreShelfItemNames =
     {
         "gunstore-businesstype:itemname_ak47",
@@ -116,34 +117,64 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
     private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
     private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
-    private const string RivalLayoutAssetPath = "Assets/Mods/Gun Store/Layouts/GunStoreRivals.json";
-    private const string RivalLayoutFileName = "GunStoreRivals.json";
     private const string BusinessLayoutSetHelperTypeName = "BusinessLayoutSets.BusinessLayoutSetHelper";
+    private const string CompetitionHelperTypeName = "Helpers.CompetitionHelper";
+    private static readonly LayoutRegistration[] RivalLayouts =
+    {
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivals.json", "GunStoreRivals.json", "GunStoreRivals"),
+        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsA1.json", "GunStoreRivalsA1.json", "GunStoreRivalsA1")
+    };
+    private static readonly string[] GunStoreRivalBusinessNames =
+    {
+        "Peralta Arms",
+        "Wick-ed Defense",
+        "AK67 Outfitters",
+        "RPG 4U Depot"
+    };
+    private static readonly string[] GunStoreRivalLayoutNames =
+    {
+        "GunStoreRivals",
+        "GunStoreRivals",
+        "GunStoreRivalsA1",
+        "GunStoreRivalsA1"
+    };
+    private static readonly string[] RivalTemplateLayouts =
+    {
+        "GiftShopRivals",
+        "LiquorRivals",
+        "ElectronicsRivals",
+        "JewelryRivals"
+    };
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
     private readonly Dictionary<BigAmbitions.Items.Item, string[]> patchedShowcaseShelves = new();
     private readonly List<IList> patchedRecipeLists = new();
+    private readonly List<ScriptableObject> injectedAiBusinessDefaults = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
 
     public async Task OnLoadAsync(ModContext context)
     {
         RegisterBundledLayout(context);
+        PatchCompetitionDefaults();
         PatchShowcaseShelves();
         AddToImporter();
         PatchConsumerGoodsWorkstation();
         await Task.Yield();
         RegisterBundledLayout(context);
+        PatchCompetitionDefaults();
         PatchConsumerGoodsWorkstation();
         await Task.Yield();
         RegisterBundledLayout(context);
+        PatchCompetitionDefaults();
         PatchConsumerGoodsWorkstation();
     }
 
     public Task OnUnloadAsync()
     {
         RestoreConsumerGoodsWorkstation();
+        RestoreCompetitionDefaults();
         RestoreShowcaseShelves();
         RemoveFromImporter();
         return Task.CompletedTask;
@@ -388,10 +419,6 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private static void RegisterBundledLayout(ModContext context)
     {
         var bundle = AssetService.GetBundle(context.ModId, BundleKey);
-        var layoutAsset = bundle.LoadAsset<TextAsset>(RivalLayoutAssetPath);
-        if (layoutAsset == null || string.IsNullOrWhiteSpace(layoutAsset.text))
-            return;
-
         var helperType = AppDomain.CurrentDomain.GetAssemblies()
             .Select(assembly => assembly.GetType(BusinessLayoutSetHelperTypeName, false))
             .FirstOrDefault(type => type != null);
@@ -410,8 +437,280 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         var tempDirectory = Path.Combine(Application.temporaryCachePath, "BAModLayouts", context.ModId);
         Directory.CreateDirectory(tempDirectory);
 
-        var tempPath = Path.Combine(tempDirectory, RivalLayoutFileName);
-        File.WriteAllText(tempPath, layoutAsset.text);
-        setBusinessLayoutMethod.Invoke(null, new object[] { tempPath });
+        foreach (var rivalLayout in RivalLayouts)
+        {
+            var layoutAsset = bundle.LoadAsset<TextAsset>(rivalLayout.AssetPath);
+            if (layoutAsset == null || string.IsNullOrWhiteSpace(layoutAsset.text))
+                continue;
+
+            var tempPath = Path.Combine(tempDirectory, rivalLayout.FileName);
+            File.WriteAllText(tempPath, layoutAsset.text);
+            setBusinessLayoutMethod.Invoke(null, new object[] { tempPath });
+        }
+    }
+
+    private void PatchCompetitionDefaults()
+    {
+        var helperType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType(CompetitionHelperTypeName, false))
+            .FirstOrDefault(type => type != null);
+        if (helperType == null)
+            return;
+
+        EnsureInjectedAiBusinessDefaults();
+        if (injectedAiBusinessDefaults.Count == 0)
+            return;
+
+        var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        PatchBusinessDefaultsCached(helperType.GetField("BusinessDefaultsCached", bindingFlags));
+        PatchBusinessDefaultsByType(helperType.GetField("BusinessDefaultsByType", bindingFlags));
+    }
+
+    private void EnsureInjectedAiBusinessDefaults()
+    {
+        if (injectedAiBusinessDefaults.Count > 0)
+            return;
+
+        var templates = FindAiBusinessDefaultTemplates().Take(GunStoreRivalBusinessNames.Length).ToArray();
+        if (templates.Length == 0)
+            return;
+
+        for (var i = 0; i < templates.Length; i++)
+        {
+            var clone = UnityEngine.Object.Instantiate(templates[i]);
+            clone.name = GunStoreRivalBusinessNames[i].Replace(" ", string.Empty);
+            SetFieldValue(clone, "businessTypeName", GunStoreBusinessTypeName);
+            SetFieldValue(clone, "businessName", GunStoreRivalBusinessNames[i]);
+            SetFieldValue(clone, "buildingLayout", GunStoreRivalLayoutNames[i]);
+            injectedAiBusinessDefaults.Add(clone);
+        }
+    }
+
+    private static IEnumerable<ScriptableObject> FindAiBusinessDefaultTemplates()
+    {
+        return Resources.FindObjectsOfTypeAll<ScriptableObject>()
+            .Where(IsAiBusinessDefaultObject)
+            .Where(scriptableObject =>
+            {
+                var businessTypeName = GetStringFieldValue(scriptableObject, "businessTypeName");
+                return !string.Equals(businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal);
+            })
+            .OrderBy(scriptableObject =>
+            {
+                var layoutName = GetStringFieldValue(scriptableObject, "buildingLayout");
+                var preferredIndex = Array.IndexOf(RivalTemplateLayouts, layoutName);
+                return preferredIndex < 0 ? int.MaxValue : preferredIndex;
+            })
+            .ThenBy(scriptableObject => scriptableObject.name)
+            .GroupBy(scriptableObject => GetStringFieldValue(scriptableObject, "buildingLayout"))
+            .Select(group => group.First());
+    }
+
+    private static bool IsAiBusinessDefaultObject(ScriptableObject scriptableObject)
+    {
+        if (scriptableObject == null)
+            return false;
+
+        return HasField(scriptableObject, "businessTypeName")
+               && HasField(scriptableObject, "businessName")
+               && HasField(scriptableObject, "buildingLayout")
+               && HasField(scriptableObject, "corporationRivalId")
+               && HasField(scriptableObject, "goodsSource")
+               && HasField(scriptableObject, "schedule");
+    }
+
+    private void PatchBusinessDefaultsCached(FieldInfo? field)
+    {
+        if (field == null)
+            return;
+
+        var cachedDefaultsValue = field.GetValue(null);
+        if (cachedDefaultsValue == null)
+            return;
+
+        if (cachedDefaultsValue.GetType().IsArray)
+        {
+            field.SetValue(null, AppendUniqueValues(cachedDefaultsValue.GetType(), cachedDefaultsValue as IEnumerable));
+            return;
+        }
+
+        if (cachedDefaultsValue is not IList cachedDefaults)
+            return;
+
+        foreach (var injectedDefault in injectedAiBusinessDefaults)
+        {
+            if (!cachedDefaults.Contains(injectedDefault))
+                cachedDefaults.Add(injectedDefault);
+        }
+    }
+
+    private void PatchBusinessDefaultsByType(FieldInfo? field)
+    {
+        if (field?.GetValue(null) is not IDictionary defaultsByType)
+            return;
+
+        var existingDefaults = defaultsByType[GunStoreBusinessTypeName];
+        if (existingDefaults != null && existingDefaults.GetType().IsArray)
+        {
+            defaultsByType[GunStoreBusinessTypeName] =
+                AppendUniqueValues(existingDefaults.GetType(), existingDefaults as IEnumerable);
+            return;
+        }
+
+        if (existingDefaults is IList defaultsForType)
+        {
+            foreach (var injectedDefault in injectedAiBusinessDefaults)
+            {
+                if (!defaultsForType.Contains(injectedDefault))
+                    defaultsForType.Add(injectedDefault);
+            }
+
+            return;
+        }
+
+        var dictionaryValueType = field.FieldType.IsGenericType
+            ? field.FieldType.GetGenericArguments().LastOrDefault()
+            : null;
+        if (dictionaryValueType == null)
+            return;
+
+        defaultsByType[GunStoreBusinessTypeName] = CreateCollection(dictionaryValueType, injectedAiBusinessDefaults);
+    }
+
+    private void RestoreCompetitionDefaults()
+    {
+        var helperType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType(CompetitionHelperTypeName, false))
+            .FirstOrDefault(type => type != null);
+        if (helperType == null)
+            return;
+
+        var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+
+        if (helperType.GetField("BusinessDefaultsCached", bindingFlags)?.GetValue(null) is IList cachedDefaults)
+        {
+            foreach (var injectedDefault in injectedAiBusinessDefaults)
+                cachedDefaults.Remove(injectedDefault);
+        }
+
+        if (helperType.GetField("BusinessDefaultsByType", bindingFlags)?.GetValue(null) is IDictionary defaultsByType)
+        {
+            if (defaultsByType[GunStoreBusinessTypeName] is IList defaultsForType)
+            {
+                foreach (var injectedDefault in injectedAiBusinessDefaults)
+                    defaultsForType.Remove(injectedDefault);
+
+                if (defaultsForType.Count == 0)
+                    defaultsByType.Remove(GunStoreBusinessTypeName);
+            }
+            else
+            {
+                defaultsByType.Remove(GunStoreBusinessTypeName);
+            }
+        }
+
+        foreach (var injectedDefault in injectedAiBusinessDefaults)
+            UnityEngine.Object.Destroy(injectedDefault);
+
+        injectedAiBusinessDefaults.Clear();
+    }
+
+    private static object? CreateCollection(Type collectionType, IReadOnlyList<ScriptableObject> values)
+    {
+        if (collectionType.IsArray)
+        {
+            var elementType = collectionType.GetElementType();
+            if (elementType == null)
+                return null;
+
+            var array = Array.CreateInstance(elementType, values.Count);
+            for (var i = 0; i < values.Count; i++)
+                array.SetValue(values[i], i);
+
+            return array;
+        }
+
+        if (Activator.CreateInstance(collectionType) is not IList list)
+            return null;
+
+        foreach (var value in values)
+            list.Add(value);
+
+        return list;
+    }
+
+    private object? AppendUniqueValues(Type collectionType, IEnumerable? existingValues)
+    {
+        var combined = new List<object>();
+
+        if (existingValues != null)
+        {
+            foreach (var value in existingValues)
+            {
+                if (value != null)
+                    combined.Add(value);
+            }
+        }
+
+        foreach (var injectedDefault in injectedAiBusinessDefaults)
+        {
+            if (!combined.Contains(injectedDefault))
+                combined.Add(injectedDefault);
+        }
+
+        if (collectionType.IsArray)
+        {
+            var elementType = collectionType.GetElementType();
+            if (elementType == null)
+                return null;
+
+            var array = Array.CreateInstance(elementType, combined.Count);
+            for (var i = 0; i < combined.Count; i++)
+                array.SetValue(combined[i], i);
+
+            return array;
+        }
+
+        if (Activator.CreateInstance(collectionType) is not IList list)
+            return null;
+
+        foreach (var value in combined)
+            list.Add(value);
+
+        return list;
+    }
+
+    private static bool HasField(object owner, string fieldName)
+    {
+        return owner.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) !=
+               null;
+    }
+
+    private static string? GetStringFieldValue(object owner, string fieldName)
+    {
+        return owner.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?.GetValue(owner) as string;
+    }
+
+    private static void SetFieldValue(object owner, string fieldName, object? value)
+    {
+        owner.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?.SetValue(owner, value);
+    }
+
+    private readonly struct LayoutRegistration
+    {
+        public LayoutRegistration(string assetPath, string fileName, string layoutName)
+        {
+            AssetPath = assetPath;
+            FileName = fileName;
+            LayoutName = layoutName;
+        }
+
+        public string AssetPath { get; }
+        public string FileName { get; }
+        public string LayoutName { get; }
     }
 }
