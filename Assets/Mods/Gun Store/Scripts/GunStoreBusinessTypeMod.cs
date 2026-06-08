@@ -483,7 +483,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             return;
 
         var templates = FindAiBusinessDefaultTemplates().ToArray();
-        if (templates.Length == 0)
+        if (templates.Length == 0 || GunStoreRivalLayoutNames.Length == 0)
             return;
 
         for (var i = 0; i < GunStoreRivalBusinessNames.Length; i++)
@@ -492,7 +492,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             clone.name = GunStoreRivalBusinessNames[i].Replace(" ", string.Empty);
             SetFieldValue(clone, "businessTypeName", GunStoreBusinessTypeName);
             SetFieldValue(clone, "businessName", GunStoreRivalBusinessNames[i]);
-            SetFieldValue(clone, "buildingLayout", GunStoreRivalLayoutNames[i]);
+            SetFieldValue(clone, "buildingLayout", GunStoreRivalLayoutNames[i % GunStoreRivalLayoutNames.Length]);
             injectedAiBusinessDefaults.Add(clone);
         }
     }
