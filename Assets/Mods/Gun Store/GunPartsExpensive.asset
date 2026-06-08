@@ -65,8 +65,8 @@ MonoBehaviour:
   isADemandedProduct: 0
   limitDemandToNeighbourhoods: []
   isSpecialRivalOnly: 0
-  maxWholesaleOrderAmount: 5000
-  maxOrderAmountPerImporter: 5000
+  maxWholesaleOrderAmount: 999999999
+  maxOrderAmountPerImporter: 999999999
   providersNeededToStartGeneratingEvents: 7
   usingAnimation: 30
   playerMountPosition: {x: 0, y: 0, z: 0}
