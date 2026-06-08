@@ -122,12 +122,15 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
 
-    public Task OnLoadAsync(ModContext context)
+    public async Task OnLoadAsync(ModContext context)
     {
         PatchShowcaseShelves();
         AddToImporter();
         PatchConsumerGoodsWorkstation();
-        return Task.CompletedTask;
+        await Task.Yield();
+        PatchConsumerGoodsWorkstation();
+        await Task.Yield();
+        PatchConsumerGoodsWorkstation();
     }
 
     public Task OnUnloadAsync()
@@ -232,39 +235,132 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         if (GunStoreBusinessTypeMod.RecipeAssets.Count == 0)
             return;
 
+        var patchedAnyWorkstation = false;
+
         foreach (var scriptableObject in Resources.FindObjectsOfTypeAll<ScriptableObject>())
         {
-            var type = scriptableObject.GetType();
-            if (type.FullName != "BigAmbitions.Factories.Workstations.FactoryWorkstation")
+            if (TryPatchWorkstation(scriptableObject))
+                patchedAnyWorkstation = true;
+        }
+
+        if (TryPatchFactoryWorkstationCaches())
+            patchedAnyWorkstation = true;
+
+        if (patchedAnyWorkstation)
+            RefreshFactoryWorkstationHelper();
+    }
+
+    private bool TryPatchFactoryWorkstationCaches()
+    {
+        var helperType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType("BigAmbitions.Factories.Workstations.FactoryWorkstationHelper", false))
+            .FirstOrDefault(type => type != null);
+        if (helperType == null)
+            return false;
+
+        var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        var patchedAnyWorkstation = false;
+
+        foreach (var fieldName in new[] { "AllWorkstations", "AllWorkstationsByType" })
+        {
+            var field = helperType.GetField(fieldName, bindingFlags);
+            if (field?.GetValue(null) == null)
                 continue;
 
-            var workstationTypeField =
-                type.GetField("workstationType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            var supportedRecipesField =
-                type.GetField("supportedRecipes", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (workstationTypeField == null || supportedRecipesField == null)
-                continue;
+            if (TryPatchWorkstationContainer(field.GetValue(null)))
+                patchedAnyWorkstation = true;
+        }
 
-            if (!string.Equals(workstationTypeField.GetValue(scriptableObject) as string, ConsumerGoodsWorkstationType,
-                    StringComparison.Ordinal))
-                continue;
+        return patchedAnyWorkstation;
+    }
 
-            if (supportedRecipesField.GetValue(scriptableObject) is not IList supportedRecipes)
-                continue;
+    private bool TryPatchWorkstationContainer(object? container)
+    {
+        if (container == null)
+            return false;
 
-            var addedAnyRecipe = false;
-            foreach (var recipeAsset in GunStoreBusinessTypeMod.RecipeAssets)
+        var patchedAnyWorkstation = false;
+
+        if (TryPatchWorkstation(container))
+            patchedAnyWorkstation = true;
+
+        if (container is IDictionary dictionary)
+        {
+            foreach (var value in dictionary.Values)
             {
-                if (supportedRecipes.Contains(recipeAsset))
-                    continue;
-
-                supportedRecipes.Add(recipeAsset);
-                addedAnyRecipe = true;
+                if (TryPatchWorkstationContainer(value))
+                    patchedAnyWorkstation = true;
             }
 
-            if (addedAnyRecipe)
-                patchedRecipeLists.Add(supportedRecipes);
+            return patchedAnyWorkstation;
         }
+
+        if (container is IEnumerable enumerable && container is not string)
+        {
+            foreach (var value in enumerable)
+            {
+                if (TryPatchWorkstationContainer(value))
+                    patchedAnyWorkstation = true;
+            }
+        }
+
+        return patchedAnyWorkstation;
+    }
+
+    private bool TryPatchWorkstation(object? workstationObject)
+    {
+        if (workstationObject == null)
+            return false;
+
+        var type = workstationObject.GetType();
+        if (type.FullName != "BigAmbitions.Factories.Workstations.FactoryWorkstation")
+            return false;
+
+        var workstationTypeField =
+            type.GetField("workstationType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var supportedRecipesField =
+            type.GetField("supportedRecipes", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (workstationTypeField == null || supportedRecipesField == null)
+            return false;
+
+        if (!string.Equals(workstationTypeField.GetValue(workstationObject) as string, ConsumerGoodsWorkstationType,
+                StringComparison.Ordinal))
+            return false;
+
+        if (supportedRecipesField.GetValue(workstationObject) is not IList supportedRecipes)
+            return false;
+
+        var addedAnyRecipe = false;
+        foreach (var recipeAsset in GunStoreBusinessTypeMod.RecipeAssets)
+        {
+            if (supportedRecipes.Contains(recipeAsset))
+                continue;
+
+            supportedRecipes.Add(recipeAsset);
+            addedAnyRecipe = true;
+        }
+
+        if (addedAnyRecipe && !patchedRecipeLists.Contains(supportedRecipes))
+            patchedRecipeLists.Add(supportedRecipes);
+
+        return addedAnyRecipe;
+    }
+
+    private static void RefreshFactoryWorkstationHelper()
+    {
+        var helperType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType("BigAmbitions.Factories.Workstations.FactoryWorkstationHelper", false))
+            .FirstOrDefault(type => type != null);
+        if (helperType == null)
+            return;
+
+        var onFactoryWorkstationsLoaded =
+            helperType.GetMethod("OnFactoryWorkstationsLoaded", BindingFlags.Static | BindingFlags.Public |
+                                                             BindingFlags.NonPublic);
+        if (onFactoryWorkstationsLoaded == null || onFactoryWorkstationsLoaded.GetParameters().Length != 0)
+            return;
+
+        onFactoryWorkstationsLoaded.Invoke(null, null);
     }
 
     private void RestoreConsumerGoodsWorkstation()
