@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -84,6 +85,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
 [ModEntryOnCityLoad]
 public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 {
+    private const string BundleKey = "AssetBundles/gunstore-businesstype.unity3d";
     private static readonly string[] GunStoreShelfItemNames =
     {
         "gunstore-businesstype:itemname_ak47",
@@ -114,8 +116,11 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
     private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
     private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
+    private const string RivalLayoutAssetPath = "Assets/Mods/Gun Store/Layouts/GunStoreRivals.json";
+    private const string RivalLayoutFileName = "GunStoreRivals.json";
+    private const string BusinessLayoutSetHelperTypeName = "BusinessLayoutSets.BusinessLayoutSetHelper";
 
-    public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+    public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
     private readonly Dictionary<BigAmbitions.Items.Item, string[]> patchedShowcaseShelves = new();
     private readonly List<IList> patchedRecipeLists = new();
@@ -124,12 +129,15 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public async Task OnLoadAsync(ModContext context)
     {
+        RegisterBundledLayout(context);
         PatchShowcaseShelves();
         AddToImporter();
         PatchConsumerGoodsWorkstation();
         await Task.Yield();
+        RegisterBundledLayout(context);
         PatchConsumerGoodsWorkstation();
         await Task.Yield();
+        RegisterBundledLayout(context);
         PatchConsumerGoodsWorkstation();
     }
 
@@ -375,5 +383,35 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         }
 
         patchedRecipeLists.Clear();
+    }
+
+    private static void RegisterBundledLayout(ModContext context)
+    {
+        var bundle = AssetService.GetBundle(context.ModId, BundleKey);
+        var layoutAsset = bundle.LoadAsset<TextAsset>(RivalLayoutAssetPath);
+        if (layoutAsset == null || string.IsNullOrWhiteSpace(layoutAsset.text))
+            return;
+
+        var helperType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType(BusinessLayoutSetHelperTypeName, false))
+            .FirstOrDefault(type => type != null);
+        if (helperType == null)
+            return;
+
+        var setBusinessLayoutMethod = helperType.GetMethod(
+            "SetBusinessLayoutSynchronous",
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            new[] { typeof(string) },
+            null);
+        if (setBusinessLayoutMethod == null)
+            return;
+
+        var tempDirectory = Path.Combine(Application.temporaryCachePath, "BAModLayouts", context.ModId);
+        Directory.CreateDirectory(tempDirectory);
+
+        var tempPath = Path.Combine(tempDirectory, RivalLayoutFileName);
+        File.WriteAllText(tempPath, layoutAsset.text);
+        setBusinessLayoutMethod.Invoke(null, new object[] { tempPath });
     }
 }
