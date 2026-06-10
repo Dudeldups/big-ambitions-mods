@@ -17,10 +17,10 @@ MonoBehaviour:
   itemName: gunstore-businesstype:itemname_gunpartsexpensive
   type: 2
   leanBackSitAnimation: 0
-  wholesalePrice: 11
-  defaultMarketPrice: 11
+  wholesalePrice: 90
+  defaultMarketPrice: 90
   productSalesRatio: 0.01
-  boxSize: 500
+  boxSize: 50
   showBoxAsHandItem: 1
   defaultWorldSpaceKey: 
   itemPanelMetaView: 0
