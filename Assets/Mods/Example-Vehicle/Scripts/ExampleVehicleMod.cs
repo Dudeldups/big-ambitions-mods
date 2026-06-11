@@ -1,7 +1,5 @@
 #nullable enable
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using BackAlleyDealer;
 using BAModAPI;
 using BAModAPI.Services;
 using UnityEngine;
@@ -13,11 +11,11 @@ using Vehicles.VehicleTypes;
 public class ExampleVehicleMod : IModBigAmbitions
 {
     private const string BundleKey = "AssetBundles/example-vehicle.unity3d";
+    private const string TurboHonzaAssetPath = "Assets/Mods/Example-Vehicle/TurboHonza.asset";
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
-    private readonly List<VehicleType> registeredVehicleTypes = new();
-    private ExampleVehicleRuntime? runtime;
+    private VehicleType? turboHonzaVehicleType;
 
     public Task OnLoadAsync(ModContext context)
     {
@@ -28,44 +26,23 @@ public class ExampleVehicleMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
-        var vehicleTypes = bundle.LoadAllAssets<VehicleType>();
-        if (vehicleTypes == null || vehicleTypes.Length == 0)
+        turboHonzaVehicleType = bundle.LoadAsset<VehicleType>(TurboHonzaAssetPath);
+        if (turboHonzaVehicleType == null)
         {
-            Debug.LogError("ExampleVehicleMod: failed to load any vehicle types from the asset bundle.");
+            Debug.LogError($"ExampleVehicleMod: failed to load vehicle type '{TurboHonzaAssetPath}'.");
             return Task.CompletedTask;
         }
 
-        foreach (var vehicleType in vehicleTypes)
-        {
-            if (vehicleType == null || string.IsNullOrWhiteSpace(vehicleType.vehicleTypeName))
-                continue;
-
-            ModdingAPI.RegisterModVehicleType(vehicleType);
-            registeredVehicleTypes.Add(vehicleType);
-        }
-
-        if (registeredVehicleTypes.Count == 0)
-        {
-            Debug.LogError("ExampleVehicleMod: the asset bundle contained no valid vehicle types to register.");
-            return Task.CompletedTask;
-        }
-
-        runtime = ExampleVehicleRuntime.Initialize(context, registeredVehicleTypes);
+        ModdingAPI.RegisterModVehicleType(turboHonzaVehicleType);
         return Task.CompletedTask;
     }
 
     public Task OnUnloadAsync()
     {
-        runtime?.Shutdown();
-        runtime = null;
-
-        foreach (var vehicleType in registeredVehicleTypes)
-        {
-            ModdingAPI.UnregisterModVehicleType(vehicleType.vehicleTypeName);
-            BackAlleyDealerInit.Instance?.UnregisterVehicle(vehicleType.vehicleTypeName);
-        }
-
-        registeredVehicleTypes.Clear();
+        if (turboHonzaVehicleType == null)
+            return Task.CompletedTask;
+        
+        ModdingAPI.UnregisterModVehicleType(turboHonzaVehicleType.vehicleTypeName);
 
         return Task.CompletedTask;
     }

@@ -16,11 +16,12 @@ MonoBehaviour:
   tags: []
   vehicleTypeName: example-vehicle:vehicletype_turbohonza
   price: 2500
-  itemVersion: 
-  maxFuel: 60
-  maxCargoCapacity: 14
-  maxSpeed: 70
-  enginePower: 50
+  isATruck: 0
+  isHandVehicle: 0
+  maxFuel: 55
+  maxCargoCapacity: 8
+  maxSpeed: 60
+  enginePower: 45
   brakeForce: 2500
   turnRadius: 35
   damageIntensity: 0.64
@@ -30,7 +31,7 @@ MonoBehaviour:
   taxDeductible: 0
   hasRadio: 1
   requiredDeliveryDriverSkillValue: 0
-  destinationsThatCanDeliver: 2
+  destinationsThatCanDeliver: 1
   countsForPersonalGoals: 1
   spawnInPlayerObject: 0
   usePedestrianCam: 0
