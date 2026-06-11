@@ -87,6 +87,9 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 {
     private const string BundleKey = "AssetBundles/gunstore-businesstype.unity3d";
     private const string GunStoreBusinessTypeName = "gunstore-businesstype:businesstype_gunstore";
+    private const string RpgItemName = "gunstore-businesstype:itemname_rpg";
+    private static readonly Address BlueStoneImporterAddress = new("ba:street_pier", 4);
+    private static readonly Address MaritimeImporterAddress = new("ba:street_pier", 7);
     private static readonly string[] GunStoreShelfItemNames =
     {
         "gunstore-businesstype:itemname_ak47",
@@ -168,19 +171,21 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public async Task OnLoadAsync(ModContext context)
     {
-        RegisterBundledLayout(context);
-        PatchCompetitionDefaults();
-        PatchShowcaseShelves();
-        AddToImporter();
-        PatchConsumerGoodsWorkstation();
-        await Task.Yield();
-        RegisterBundledLayout(context);
-        PatchCompetitionDefaults();
-        PatchConsumerGoodsWorkstation();
-        await Task.Yield();
-        RegisterBundledLayout(context);
-        PatchCompetitionDefaults();
-        PatchConsumerGoodsWorkstation();
+        for (var i = 0; i < 6; i++)
+        {
+            RegisterBundledLayout(context);
+            PatchCompetitionDefaults();
+
+            if (i == 0)
+                PatchShowcaseShelves();
+
+            AddToImporter();
+            PatchImportPartnerships();
+            PatchConsumerGoodsWorkstation();
+
+            if (i < 5)
+                await Task.Yield();
+        }
     }
 
     public Task OnUnloadAsync()
@@ -249,9 +254,9 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private void AddToImporter()
     {
         blueStoneImportSettings ??=
-            (ImportExportSettings)BuildingHelper.GetBuilding(new Address("ba:street_pier", 4)).SpecialService.settings;
+            (ImportExportSettings)BuildingHelper.GetBuilding(BlueStoneImporterAddress).SpecialService.settings;
         maritimeImportSettings ??=
-            (ImportExportSettings)BuildingHelper.GetBuilding(new Address("ba:street_pier", 7)).SpecialService.settings;
+            (ImportExportSettings)BuildingHelper.GetBuilding(MaritimeImporterAddress).SpecialService.settings;
 
         foreach (var gunStoreItemName in BlueStoneImporterItemNames)
         {
@@ -498,6 +503,153 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         }
     }
 
+    private void PatchImportPartnerships()
+    {
+        foreach (var importPartnership in FindImportPartnerships())
+        {
+            if (!IsBlueStoneImportPartnership(importPartnership))
+                continue;
+
+            RemoveImportProduct(importPartnership, RpgItemName);
+        }
+    }
+
+    private static IEnumerable<object> FindImportPartnerships()
+    {
+        var importPartnershipType = FindLoadedType("Entities.ImportPartnership");
+        if (importPartnershipType == null)
+            yield break;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type[] assemblyTypes;
+            try
+            {
+                assemblyTypes = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                assemblyTypes = ex.Types.Where(type => type != null).ToArray()!;
+            }
+
+            foreach (var type in assemblyTypes)
+            {
+                if (type == null)
+                    continue;
+
+                const BindingFlags bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+                foreach (var field in type.GetFields(bindingFlags))
+                {
+                    object? fieldValue;
+                    try
+                    {
+                        fieldValue = field.GetValue(null);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    foreach (var partnership in ReadImportPartnerships(field.FieldType, fieldValue, importPartnershipType))
+                        yield return partnership;
+                }
+
+                foreach (var property in type.GetProperties(bindingFlags).Where(property => property.GetIndexParameters().Length == 0))
+                {
+                    object? propertyValue;
+                    try
+                    {
+                        propertyValue = property.GetValue(null);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    foreach (var partnership in ReadImportPartnerships(property.PropertyType, propertyValue, importPartnershipType))
+                        yield return partnership;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<object> ReadImportPartnerships(Type memberType, object? memberValue, Type importPartnershipType)
+    {
+        if (memberValue == null)
+            yield break;
+
+        if (importPartnershipType.IsInstanceOfType(memberValue))
+        {
+            yield return memberValue;
+            yield break;
+        }
+
+        if (!typeof(IEnumerable).IsAssignableFrom(memberType) || memberValue is string || memberValue is not IEnumerable enumerable)
+            yield break;
+
+        foreach (var entry in enumerable)
+        {
+            if (entry != null && importPartnershipType.IsInstanceOfType(entry))
+                yield return entry;
+        }
+    }
+
+    private static bool IsBlueStoneImportPartnership(object importPartnership)
+    {
+        var addressValue = GetMemberValue(importPartnership, "importAddress") ?? GetMemberValue(importPartnership, "ImportAddress");
+        return addressValue is Address address && address.Equals(BlueStoneImporterAddress);
+    }
+
+    private static void RemoveImportProduct(object importPartnership, string itemName)
+    {
+        if (GetMemberValue(importPartnership, "products") is IList products)
+        {
+            for (var i = products.Count - 1; i >= 0; i--)
+            {
+                var product = products[i];
+                if (product == null)
+                    continue;
+
+                var productItemName = GetMemberValue(product, "itemName") as string
+                    ?? GetMemberValue(product, "ItemName") as string;
+                if (string.Equals(productItemName, itemName, StringComparison.Ordinal))
+                    products.RemoveAt(i);
+            }
+        }
+
+        RemoveDictionaryEntry(importPartnership, "ImporterAmountPerItem", itemName);
+        RemoveDictionaryEntry(importPartnership, "ContractAmountPerItem", itemName);
+
+        RemoveCollectionEntry(importPartnership, "AmountExceededItems", itemName);
+    }
+
+    private static void RemoveDictionaryEntry(object owner, string memberName, string key)
+    {
+        if (GetMemberValue(owner, memberName) is not IDictionary dictionary)
+            return;
+
+        if (dictionary.Contains(key))
+            dictionary.Remove(key);
+    }
+
+    private static void RemoveCollectionEntry(object owner, string memberName, object value)
+    {
+        var collection = GetMemberValue(owner, memberName);
+        if (collection == null)
+            return;
+
+        if (collection is IList list)
+        {
+            while (list.Contains(value))
+                list.Remove(value);
+
+            return;
+        }
+
+        var removeMethod = collection.GetType().GetMethod("Remove", BindingFlags.Instance | BindingFlags.Public, null, new[] { value.GetType() }, null);
+        removeMethod?.Invoke(collection, new[] { value });
+    }
+
     private static IEnumerable<ScriptableObject> FindAiBusinessDefaultTemplates()
     {
         return Resources.FindObjectsOfTypeAll<ScriptableObject>()
@@ -696,6 +848,36 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     {
         return owner.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) !=
                null;
+    }
+
+    private static Type? FindLoadedType(string fullName)
+    {
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType(fullName, false))
+            .FirstOrDefault(type => type != null);
+    }
+
+    private static object? GetMemberValue(object owner, string memberName)
+    {
+        const BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        var ownerType = owner.GetType();
+
+        var field = ownerType.GetField(memberName, bindingFlags);
+        if (field != null)
+            return field.GetValue(owner);
+
+        var property = ownerType.GetProperty(memberName, bindingFlags);
+        if (property == null || property.GetIndexParameters().Length != 0)
+            return null;
+
+        try
+        {
+            return property.GetValue(owner);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? GetStringFieldValue(object owner, string fieldName)
