@@ -14,6 +14,8 @@ namespace CameraTools
         private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
         private const string CityMapCamTypeName = "CityMapCam";
         private const string SaveGameManagerTypeName = "SaveGameManager";
+        private const float GameplayMinimumZoom = 1.5f;
+        private const float MapMinimumZoom = 10f;
 
         private Camera? activeMapCamera;
         private CameraState activeMapCameraState;
@@ -27,6 +29,8 @@ namespace CameraTools
         private float manualGameplayPitch;
         private float nextControllerRefreshAt;
         private CameraToolsSettings? settings;
+        private static Type? pedestrianCamType;
+        private static Type? cityMapCamType;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
         {
@@ -45,6 +49,8 @@ namespace CameraTools
             runtime.hasShownGameplayPitchHint = false;
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
+            pedestrianCamType ??= FindType(PedestrianCamTypeName);
+            cityMapCamType ??= FindType(CityMapCamTypeName);
             return runtime;
         }
 
@@ -71,8 +77,8 @@ namespace CameraTools
 
         private void RefreshControllers()
         {
-            gameplayController = FindFirstActiveController(PedestrianCamTypeName);
-            mapController = FindFirstActiveController(CityMapCamTypeName);
+            gameplayController = FindFirstActiveController(pedestrianCamType);
+            mapController = FindFirstActiveController(cityMapCamType);
 
             if (gameplayController != configuredGameplayController)
             {
@@ -88,10 +94,14 @@ namespace CameraTools
             ConfigureMapController();
         }
 
-        private static MonoBehaviour? FindFirstActiveController(string typeName)
+        private static MonoBehaviour? FindFirstActiveController(Type? type)
         {
-            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+            if (type == null)
+                return null;
+
+            foreach (var obj in Resources.FindObjectsOfTypeAll(type))
             {
+                var behaviour = obj as MonoBehaviour;
                 if (behaviour == null)
                     continue;
 
@@ -99,8 +109,7 @@ namespace CameraTools
                 if (gameObject == null || !gameObject.activeInHierarchy || !behaviour.isActiveAndEnabled)
                     continue;
 
-                if (string.Equals(behaviour.GetType().FullName, typeName, StringComparison.Ordinal))
-                    return behaviour;
+                return behaviour;
             }
 
             return null;
@@ -112,17 +121,10 @@ namespace CameraTools
                 return;
 
             var bounds = GetVector2Field(gameplayController, "minMaxDistance");
+            bounds.x = Mathf.Min(bounds.x, GameplayMinimumZoom);
             bounds.y = Mathf.Max(bounds.y, settings.GameplayMaxZoom);
             SetField(gameplayController, "minMaxDistance", bounds);
             SetField(gameplayController, "blockCameraZoom", false);
-
-            var desiredDistance = Mathf.Clamp(settings.GameplayMaxZoom * 0.6f, bounds.x, bounds.y);
-            var currentDistance = GetFloatField(gameplayController, "distance");
-            if (currentDistance < desiredDistance)
-            {
-                SetField(gameplayController, "distance", desiredDistance);
-                SetField(gameplayController, "_currentDistance", desiredDistance);
-            }
 
             if (!hasManualGameplayPitch)
                 manualGameplayPitch = Mathf.Clamp(settings.GameplayDefaultPitch, settings.GameplayMinPitch, settings.GameplayMaxPitch);
@@ -179,13 +181,10 @@ namespace CameraTools
                 return;
 
             var bounds = GetVector2Field(mapController, "minMaxDistance");
+            bounds.x = Mathf.Min(bounds.x, MapMinimumZoom);
             bounds.y = Mathf.Max(bounds.y, settings.MapDistance);
-            bounds.x = Mathf.Min(bounds.x, settings.MapDistance);
             SetField(mapController, "minMaxDistance", bounds);
-
-            var desiredDistance = Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y);
-            SetField(mapController, "distance", desiredDistance);
-            SetSavedMapZoom(desiredDistance);
+            SetSavedMapZoom(Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y));
         }
 
         private void ApplyMapTweaks()
@@ -226,6 +225,14 @@ namespace CameraTools
 
             mapCamera.orthographic = true;
             mapCamera.orthographicSize = settings.MapOrthographicSize * (distance / Mathf.Max(settings.MapDistance, 1f));
+
+            var mainCamera = Camera.main;
+            if (mainCamera != null)
+            {
+                mainCamera.orthographic = true;
+                mainCamera.orthographicSize = mapCamera.orthographicSize;
+                mainCamera.transform.rotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
+            }
         }
 
         private void RestoreMapCameraState()
