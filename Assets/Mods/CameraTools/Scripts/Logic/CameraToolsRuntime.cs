@@ -1,8 +1,8 @@
 #nullable enable
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using UI.Notification;
 using UnityEngine;
 
 namespace CameraTools
@@ -12,8 +12,6 @@ namespace CameraTools
         private const float PitchStepPerMousePixel = 0.15f;
         private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
         private const string CityMapCamTypeName = "CityMapCam";
-        private const string NotificationsTypeName = "UI.Notification.Notifications";
-        private const string NotificationTypeEnumName = "UI.Notification.NotificationType";
         private const string SaveGameManagerTypeName = "SaveGameManager";
         private const float GameplayMinimumZoom = 1.5f;
         private const float MapMinimumZoom = 10f;
@@ -31,14 +29,12 @@ namespace CameraTools
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
         private string? pendingMapNoticeDuplicateIdentifier;
-        private string? pendingMapNoticeHeaderKey;
+        private string? pendingMapNoticeMessage;
         private CameraToolsSettings? settings;
         private bool wasCityMapOpen;
         private bool hasShownMapStatusNotice;
         private static Type? pedestrianCamType;
         private static Type? cityMapCamType;
-        private static Type? notificationsType;
-        private static Type? notificationTypeEnumType;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
         {
@@ -56,15 +52,13 @@ namespace CameraTools
             runtime.hasShownGameplayPitchHint = false;
             runtime.isTrackingRightMousePitch = false;
             runtime.pendingMapNoticeDuplicateIdentifier = null;
-            runtime.pendingMapNoticeHeaderKey = null;
+            runtime.pendingMapNoticeMessage = null;
             runtime.wasCityMapOpen = false;
             runtime.hasShownMapStatusNotice = false;
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
             cityMapCamType ??= FindType(CityMapCamTypeName);
-            notificationsType ??= FindType(NotificationsTypeName);
-            notificationTypeEnumType ??= FindType(NotificationTypeEnumName);
             return runtime;
         }
 
@@ -252,7 +246,9 @@ namespace CameraTools
                 RestoreMapCameraState();
                 if (cityMapOpen && !hasShownMapStatusNotice)
                 {
-                    QueueMapNotice("cameratools_map_notice_missing", "cameratools_map_notice_missing");
+                    QueueMapNotice(
+                        "CameraTools could not find CityMapCam while the map was open.",
+                        "cameratools_map_notice_missing");
                     hasShownMapStatusNotice = true;
                 }
                 return;
@@ -273,7 +269,9 @@ namespace CameraTools
 
             if (!hasShownMapStatusNotice)
             {
-                QueueMapNotice("cameratools_map_notice_found", "cameratools_map_notice_found");
+                QueueMapNotice(
+                    "CameraTools found CityMapCam and applied map changes.",
+                    "cameratools_map_notice_found");
                 hasShownMapStatusNotice = true;
             }
 
@@ -307,20 +305,20 @@ namespace CameraTools
             }
         }
 
-        private void QueueMapNotice(string headerKey, string duplicateIdentifier)
+        private void QueueMapNotice(string message, string duplicateIdentifier)
         {
-            pendingMapNoticeHeaderKey = headerKey;
+            pendingMapNoticeMessage = message;
             pendingMapNoticeDuplicateIdentifier = duplicateIdentifier;
         }
 
         private void FlushPendingMapNotice(bool cityMapOpen)
         {
-            if (cityMapOpen || string.IsNullOrEmpty(pendingMapNoticeHeaderKey) ||
+            if (cityMapOpen || string.IsNullOrEmpty(pendingMapNoticeMessage) ||
                 string.IsNullOrEmpty(pendingMapNoticeDuplicateIdentifier))
                 return;
 
-            ShowInGameNotification(pendingMapNoticeHeaderKey, pendingMapNoticeDuplicateIdentifier);
-            pendingMapNoticeHeaderKey = null;
+            ShowPopup(pendingMapNoticeMessage, pendingMapNoticeDuplicateIdentifier);
+            pendingMapNoticeMessage = null;
             pendingMapNoticeDuplicateIdentifier = null;
         }
 
@@ -342,35 +340,27 @@ namespace CameraTools
             return controller.GetComponentInChildren<Camera>(true) ?? Camera.main;
         }
 
-        private static void ShowInGameNotification(string headerKey, string duplicateIdentifier)
+        private static void ShowPopup(string message, string? duplicateIdentifier = null)
         {
-            if (notificationsType == null || notificationTypeEnumType == null)
+            if (string.IsNullOrWhiteSpace(message))
                 return;
 
-            var showMethod = notificationsType.GetMethod(
-                "Show",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[]
-                {
-                    notificationTypeEnumType,
-                    typeof(string),
-                    typeof(Dictionary<string, string>),
-                    typeof(float),
-                    typeof(string),
-                    typeof(Action),
-                    typeof(bool),
-                    typeof(bool)
-                },
-                null);
-
-            if (showMethod == null)
-                return;
-
-            var infoValue = Enum.ToObject(notificationTypeEnumType, 3);
-            showMethod.Invoke(
-                null,
-                new object?[] { infoValue, headerKey, null, 4f, duplicateIdentifier, null, false, false });
+            try
+            {
+                Notifications.Show(
+                    NotificationType.Info,
+                    message,
+                    null,
+                    6f,
+                    duplicateIdentifier,
+                    null,
+                    false,
+                    false);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"CameraTools: failed to show popup: {exception}");
+            }
         }
 
         private static void SetSavedMapZoom(float zoom)

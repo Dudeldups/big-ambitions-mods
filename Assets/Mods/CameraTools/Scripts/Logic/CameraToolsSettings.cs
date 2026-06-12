@@ -4,7 +4,7 @@ namespace CameraTools
     {
         public bool EnableGameplayTweaks { get; set; } = true;
 
-        public int GameplayMaxZoom { get; set; } = 40;
+        public int GameplayMaxZoom { get; set; } = 80;
 
         public int GameplayDefaultPitch { get; set; } = 35;
 
@@ -16,7 +16,7 @@ namespace CameraTools
 
         public int MapPitch { get; set; } = 90;
 
-        public int MapDistance { get; set; } = 140;
+        public int MapDistance { get; set; } = 220;
 
         public int MapOrthographicSize { get; set; } = 70;
     }
