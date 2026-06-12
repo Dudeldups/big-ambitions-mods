@@ -16,8 +16,8 @@ namespace CameraTools
 
         public int MapPitch { get; set; } = 90;
 
-        public int MapDistance { get; set; } = 220;
+        public int MapDistance { get; set; } = 800;
 
-        public int MapOrthographicSize { get; set; } = 70;
+        public int MapOrthographicSize { get; set; } = 150;
     }
 }

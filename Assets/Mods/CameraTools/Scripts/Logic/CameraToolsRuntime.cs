@@ -10,11 +10,12 @@ namespace CameraTools
     public sealed class CameraToolsRuntime : MonoBehaviour
     {
         private const float PitchStepPerMousePixel = 0.15f;
+        private const string GameManagerTypeName = "GameManager";
         private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
         private const string CityMapCamTypeName = "CityMapCam";
         private const string SaveGameManagerTypeName = "SaveGameManager";
         private const float GameplayMinimumZoom = 1.5f;
-        private const float MapMinimumZoom = 10f;
+        private const float MapMinimumZoom = 1f;
 
         private Camera? activeMapCamera;
         private CameraState activeMapCameraState;
@@ -39,6 +40,7 @@ namespace CameraTools
         private bool hasShownMapStatusNotice;
         private static Type? pedestrianCamType;
         private static Type? cityMapCamType;
+        private static Type? gameManagerType;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
         {
@@ -63,6 +65,7 @@ namespace CameraTools
             runtime.configuredMapController = null;
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
             cityMapCamType ??= FindType(CityMapCamTypeName);
+            gameManagerType ??= FindType(GameManagerTypeName);
             return runtime;
         }
 
@@ -320,7 +323,7 @@ namespace CameraTools
             mapCamera.transform.position = targetPosition;
             mapCamera.transform.rotation = targetRotation;
 
-            var mainCamera = Camera.main;
+            var mainCamera = GetLiveMainCamera();
             if (mainCamera != null)
             {
                 mainCamera.orthographic = true;
@@ -367,7 +370,7 @@ namespace CameraTools
             if (vCamTransform != null)
                 return vCamTransform.GetComponent<Camera>() ?? vCamTransform.GetComponentInChildren<Camera>(true);
 
-            return controller.GetComponentInChildren<Camera>(true) ?? Camera.main;
+            return controller.GetComponentInChildren<Camera>(true) ?? GetLiveMainCamera();
         }
 
         private void HandleCameraPreCull(Camera camera)
@@ -375,13 +378,27 @@ namespace CameraTools
             if (!shouldForceMapCamera || !IsCityMapOpen())
                 return;
 
-            if (camera != Camera.main && camera != activeMapCamera)
+            var liveMainCamera = GetLiveMainCamera();
+            if (camera != liveMainCamera && camera != activeMapCamera)
                 return;
 
             camera.orthographic = true;
             camera.orthographicSize = pendingMapOrthographicSize;
             camera.transform.position = pendingMapCameraPosition;
             camera.transform.rotation = pendingMapCameraRotation;
+        }
+
+        private static Camera? GetLiveMainCamera()
+        {
+            if (gameManagerType != null)
+            {
+                var getMainCameraMethod =
+                    gameManagerType.GetMethod("GetMainCamera", BindingFlags.Public | BindingFlags.Static);
+                if (getMainCameraMethod?.Invoke(null, null) is Camera gameManagerCamera)
+                    return gameManagerCamera;
+            }
+
+            return Camera.main;
         }
 
         private static void ShowPopup(string message, string? duplicateIdentifier = null)

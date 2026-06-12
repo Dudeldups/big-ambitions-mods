@@ -41,11 +41,11 @@ namespace CameraTools
                     .AddHeader("cameratools_gameplay_pitch_help")
                     .AddToggle(MapToggleKey, "cameratools_map_toggle", settings.EnableMapTopDown,
                         value => settings.EnableMapTopDown = value)
-                    .AddSlider(MapDistanceKey, "cameratools_map_distance_label", 40, 400, settings.MapDistance,
+                    .AddSlider(MapDistanceKey, "cameratools_map_distance_label", 100, 2000, settings.MapDistance,
                         value => settings.MapDistance = value, "cameratools_slider_value")
                     .AddSlider(MapPitchKey, "cameratools_map_pitch_label", 75, 90, settings.MapPitch,
                         value => settings.MapPitch = value, "cameratools_slider_value")
-                    .AddSlider(MapOrthoSizeKey, "cameratools_map_size_label", 20, 200, settings.MapOrthographicSize,
+                    .AddSlider(MapOrthoSizeKey, "cameratools_map_size_label", 20, 1000, settings.MapOrthographicSize,
                         value => settings.MapOrthographicSize = value, "cameratools_slider_value")
                     .AddHeader("cameratools_map_help");
 
