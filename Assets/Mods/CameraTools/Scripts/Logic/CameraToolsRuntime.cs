@@ -17,7 +17,7 @@ namespace CameraTools
         private const float VehicleZoomStepPerScrollTick = 4f;
         private const float VehicleForcedZoomStep = 20f;
         private const float GameplayMinimumZoom = 1.5f;
-        private const float MapMinimumZoom = 1f;
+        private const float MapMinimumZoom = 120f;
         private const float UiStateRefreshIntervalSeconds = 0.15f;
         private const float VehicleOverwriteThreshold = 0.5f;
         private const float VehicleSearchIntervalSeconds = 5f;
