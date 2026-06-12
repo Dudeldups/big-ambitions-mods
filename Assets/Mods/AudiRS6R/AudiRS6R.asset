@@ -18,7 +18,7 @@ MonoBehaviour:
   price: 240000
   itemVersion: 
   maxFuel: 62
-  maxCargoCapacity: 12
+  maxCargoCapacity: 16
   maxSpeed: 320
   enginePower: 544
   brakeForce: 5000

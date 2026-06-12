@@ -1,8 +1,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using BAModAPI;
 using UnityEngine;
@@ -11,61 +9,22 @@ namespace CameraTools
 {
     public sealed class CameraToolsRuntime : MonoBehaviour
     {
-        private const float ControllerRefreshInterval = 1f;
+        private const float ControllerRefreshInterval = 2f;
         private const float PitchStepPerScrollTick = 3f;
-        private static readonly string[] GameplayCameraTypeNames = { "CameraControllers.PedestrianCam" };
-        private static readonly string[] MapCameraTypeNames = { "CityMapCam" };
-        private static readonly string[] CameraMemberCandidates =
-        {
-            "Camera",
-            "_camera",
-            "_mainCamera",
-            "pedestrianCamera",
-            "citymapCamera",
-            "buildingPreviewCamera"
-        };
-
-        private static readonly string[] MaxDistanceMemberCandidates =
-        {
-            "maxDistance",
-            "maximumDistance",
-            "maxZoom"
-        };
-
-        private static readonly string[] MinDistanceMemberCandidates =
-        {
-            "minDistance",
-            "minimumDistance",
-            "minZoom"
-        };
-
-        private static readonly string[] DistanceMemberCandidates =
-        {
-            "distance",
-            "zoom",
-            "cityMapZoom"
-        };
-
-        private static readonly string[] PitchMemberCandidates =
-        {
-            "pitch",
-            "_angle",
-            "_currentAngle"
-        };
-
-        private static readonly string[] RotationMemberCandidates =
-        {
-            "rotation",
-            "yRotation"
-        };
+        private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
+        private const string CityMapCamTypeName = "CityMapCam";
+        private const string SaveGameManagerTypeName = "SaveGameManager";
 
         private Camera? activeMapCamera;
         private CameraState activeMapCameraState;
+        private MonoBehaviour? configuredGameplayController;
+        private MonoBehaviour? configuredMapController;
         private ModContext? context;
         private MonoBehaviour? gameplayController;
         private bool hasManualGameplayPitch;
-        private float manualGameplayPitch;
+        private bool hasShownGameplayPitchHint;
         private MonoBehaviour? mapController;
+        private float manualGameplayPitch;
         private float nextControllerRefreshAt;
         private CameraToolsSettings? settings;
 
@@ -83,6 +42,9 @@ namespace CameraTools
             runtime.settings = settings;
             runtime.nextControllerRefreshAt = 0f;
             runtime.hasManualGameplayPitch = false;
+            runtime.hasShownGameplayPitchHint = false;
+            runtime.configuredGameplayController = null;
+            runtime.configuredMapController = null;
             return runtime;
         }
 
@@ -109,11 +71,24 @@ namespace CameraTools
 
         private void RefreshControllers()
         {
-            gameplayController = FindFirstActiveController(GameplayCameraTypeNames);
-            mapController = FindFirstActiveController(MapCameraTypeNames);
+            gameplayController = FindFirstActiveController(PedestrianCamTypeName);
+            mapController = FindFirstActiveController(CityMapCamTypeName);
+
+            if (gameplayController != configuredGameplayController)
+            {
+                configuredGameplayController = gameplayController;
+            }
+
+            if (mapController != configuredMapController)
+            {
+                configuredMapController = mapController;
+            }
+
+            ConfigureGameplayController();
+            ConfigureMapController();
         }
 
-        private MonoBehaviour? FindFirstActiveController(IEnumerable<string> typeNames)
+        private static MonoBehaviour? FindFirstActiveController(string typeName)
         {
             foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
             {
@@ -124,309 +99,211 @@ namespace CameraTools
                 if (gameObject == null || !gameObject.activeInHierarchy || !behaviour.isActiveAndEnabled)
                     continue;
 
-                var fullName = behaviour.GetType().FullName;
-                if (fullName != null && typeNames.Contains(fullName, StringComparer.Ordinal))
+                if (string.Equals(behaviour.GetType().FullName, typeName, StringComparison.Ordinal))
                     return behaviour;
             }
 
             return null;
         }
 
-    private void ApplyGameplayTweaks()
-    {
-        if (settings == null || !settings.EnableGameplayTweaks || gameplayController == null)
-            return;
-
-        var minPitch = Mathf.Min(settings.GameplayMinPitch, settings.GameplayMaxPitch);
-        var maxPitch = Mathf.Max(settings.GameplayMinPitch, settings.GameplayMaxPitch);
-
-        SetMaximumValue(gameplayController, settings.GameplayMaxZoom, MaxDistanceMemberCandidates);
-        SetMinimumValue(gameplayController, 0f, MinDistanceMemberCandidates);
-        TrySetBoolMember(gameplayController, false, "blockCameraZoom");
-
-        if (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))
+        private void ConfigureGameplayController()
         {
-            var scrollDelta = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scrollDelta) > Mathf.Epsilon)
+            if (settings == null || gameplayController == null || !settings.EnableGameplayTweaks)
+                return;
+
+            var bounds = GetVector2Field(gameplayController, "minMaxDistance");
+            bounds.y = Mathf.Max(bounds.y, settings.GameplayMaxZoom);
+            SetField(gameplayController, "minMaxDistance", bounds);
+            SetField(gameplayController, "blockCameraZoom", false);
+
+            var desiredDistance = Mathf.Clamp(settings.GameplayMaxZoom * 0.6f, bounds.x, bounds.y);
+            var currentDistance = GetFloatField(gameplayController, "distance");
+            if (currentDistance < desiredDistance)
             {
-                manualGameplayPitch = Mathf.Clamp(
-                    GetCurrentGameplayPitch(settings.GameplayDefaultPitch) + scrollDelta * PitchStepPerScrollTick,
-                    minPitch,
-                    maxPitch);
+                SetField(gameplayController, "distance", desiredDistance);
+                SetField(gameplayController, "_currentDistance", desiredDistance);
+            }
+
+            if (!hasManualGameplayPitch)
+                manualGameplayPitch = Mathf.Clamp(settings.GameplayDefaultPitch, settings.GameplayMinPitch, settings.GameplayMaxPitch);
+
+            ApplyGameplayOffset(manualGameplayPitch);
+        }
+
+        private void ApplyGameplayTweaks()
+        {
+            if (settings == null || gameplayController == null || !settings.EnableGameplayTweaks)
+                return;
+
+            var minPitch = Mathf.Min(settings.GameplayMinPitch, settings.GameplayMaxPitch);
+            var maxPitch = Mathf.Max(settings.GameplayMinPitch, settings.GameplayMaxPitch);
+
+            if (!hasShownGameplayPitchHint && context != null)
+            {
+                context.Logger.Info("CameraTools: hold Left Alt and use the mouse wheel to tilt the gameplay camera.");
+                hasShownGameplayPitchHint = true;
+            }
+
+            if (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))
+            {
+                var scrollDelta = Input.mouseScrollDelta.y;
+                if (Mathf.Abs(scrollDelta) > Mathf.Epsilon)
+                {
+                    manualGameplayPitch = Mathf.Clamp(manualGameplayPitch + scrollDelta * PitchStepPerScrollTick, minPitch, maxPitch);
+                    hasManualGameplayPitch = true;
+                }
+            }
+
+            if (Input.GetKeyDown(KeyCode.Home))
+            {
+                manualGameplayPitch = Mathf.Clamp(settings.GameplayDefaultPitch, minPitch, maxPitch);
                 hasManualGameplayPitch = true;
             }
+
+            ApplyGameplayOffset(hasManualGameplayPitch ? manualGameplayPitch : settings.GameplayDefaultPitch);
         }
 
-        if (Input.GetKeyDown(KeyCode.Home))
+        private void ApplyGameplayOffset(float pitchDegrees)
         {
-            manualGameplayPitch = Mathf.Clamp(settings.GameplayDefaultPitch, minPitch, maxPitch);
-            hasManualGameplayPitch = true;
+            if (gameplayController == null)
+                return;
+
+            var radians = Mathf.Deg2Rad * Mathf.Clamp(pitchDegrees, 1f, 89f);
+            var offset = new Vector3(0f, Mathf.Sin(radians), -Mathf.Cos(radians));
+            SetField(gameplayController, "offset", offset);
         }
 
-        if (!hasManualGameplayPitch)
-            return;
-
-        if (!TrySetFirstNumericMember(gameplayController, manualGameplayPitch, PitchMemberCandidates))
+        private void ConfigureMapController()
         {
-            var gameplayCamera = ResolveCamera(gameplayController);
-            if (gameplayCamera != null)
+            if (settings == null || mapController == null || !settings.EnableMapTopDown)
+                return;
+
+            var bounds = GetVector2Field(mapController, "minMaxDistance");
+            bounds.y = Mathf.Max(bounds.y, settings.MapDistance);
+            bounds.x = Mathf.Min(bounds.x, settings.MapDistance);
+            SetField(mapController, "minMaxDistance", bounds);
+
+            var desiredDistance = Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y);
+            SetField(mapController, "distance", desiredDistance);
+            SetSavedMapZoom(desiredDistance);
+        }
+
+        private void ApplyMapTweaks()
+        {
+            if (settings == null || mapController == null || !settings.EnableMapTopDown)
             {
-                var localAngles = gameplayCamera.transform.localEulerAngles;
-                gameplayCamera.transform.localRotation = Quaternion.Euler(manualGameplayPitch, localAngles.y, localAngles.z);
+                RestoreMapCameraState();
+                return;
             }
-        }
-    }
 
-    private float GetCurrentGameplayPitch(float defaultPitch)
-    {
-        if (gameplayController == null)
-            return defaultPitch;
+            var mapCamera = ResolveMapCamera(mapController);
+            if (mapCamera == null)
+                return;
 
-        return TryGetFirstNumericMember(gameplayController, PitchMemberCandidates, out var pitch)
-            ? pitch
-            : defaultPitch;
-    }
-
-    private void ApplyMapTweaks()
-    {
-        if (settings == null || mapController == null || !settings.EnableMapTopDown)
-        {
-            RestoreMapCameraState();
-            return;
-        }
-
-        var mapDistance = Mathf.Max(settings.MapDistance, 1);
-        var mapPitch = Mathf.Clamp(settings.MapPitch, 75, 90);
-
-        SetMaximumValue(mapController, mapDistance, MaxDistanceMemberCandidates);
-        SetMinimumValue(mapController, mapDistance, MinDistanceMemberCandidates);
-        TrySetFirstNumericMember(mapController, mapDistance, DistanceMemberCandidates);
-        TrySetFirstNumericMember(mapController, mapPitch, PitchMemberCandidates);
-        TrySetFirstNumericMember(mapController, 0f, RotationMemberCandidates);
-
-        var mapCamera = ResolveCamera(mapController);
-        if (mapCamera == null)
-            return;
-
-        if (activeMapCamera != mapCamera)
-        {
-            RestoreMapCameraState();
-            activeMapCamera = mapCamera;
-            activeMapCameraState = new CameraState(mapCamera);
-        }
-
-        mapCamera.orthographic = true;
-        mapCamera.orthographicSize = settings.MapOrthographicSize;
-
-        var eulerAngles = mapCamera.transform.eulerAngles;
-        mapCamera.transform.rotation = Quaternion.Euler(mapPitch, eulerAngles.y, 0f);
-    }
-
-    private void RestoreMapCameraState()
-    {
-        if (activeMapCamera == null)
-            return;
-
-        activeMapCameraState.Restore(activeMapCamera);
-        activeMapCamera = null;
-    }
-
-    private static Camera? ResolveCamera(Component controller)
-    {
-        foreach (var candidate in CameraMemberCandidates)
-        {
-            if (!TryGetMemberValue(controller, candidate, out var value) || value == null)
-                continue;
-
-            switch (value)
+            if (activeMapCamera != mapCamera)
             {
-                case Camera camera:
-                    return camera;
-                case GameObject gameObject:
-                    return gameObject.GetComponentInChildren<Camera>(true);
-                case Component component:
-                    return component.GetComponentInChildren<Camera>(true);
+                RestoreMapCameraState();
+                activeMapCamera = mapCamera;
+                activeMapCameraState = new CameraState(mapCamera);
             }
-        }
 
-        return controller.GetComponentInChildren<Camera>(true) ?? Camera.main;
-    }
+            var distance = Mathf.Max(GetFloatField(mapController, "distance"), 1f);
+            var currentAngle = GetFloatField(mapController, "_currentAngle");
+            var pitch = Mathf.Clamp(settings.MapPitch, 75f, 90f);
+            var pitchRadians = pitch * Mathf.Deg2Rad;
+            var height = distance * Mathf.Sin(pitchRadians);
+            var horizontalRadius = Mathf.Max(0.05f, distance * Mathf.Cos(pitchRadians));
+            var orbit = Quaternion.Euler(0f, currentAngle, 0f) * new Vector3(0f, height, -horizontalRadius);
+            var rootPosition = mapController.transform.position;
+            var targetPosition = rootPosition + orbit;
 
-    private static void SetMaximumValue(object target, float minimumAllowedValue, IEnumerable<string> memberNames)
-    {
-        foreach (var memberName in memberNames)
-        {
-            if (TryGetNumericMember(target, memberName, out var currentValue) && currentValue >= minimumAllowedValue)
-                continue;
-
-            TrySetNumericMember(target, memberName, minimumAllowedValue);
-        }
-    }
-
-    private static void SetMinimumValue(object target, float maximumAllowedValue, IEnumerable<string> memberNames)
-    {
-        foreach (var memberName in memberNames)
-        {
-            if (TryGetNumericMember(target, memberName, out var currentValue) && currentValue <= maximumAllowedValue)
-                continue;
-
-            TrySetNumericMember(target, memberName, maximumAllowedValue);
-        }
-    }
-
-    private static bool TrySetFirstNumericMember(object target, float value, IEnumerable<string> memberNames)
-    {
-        foreach (var memberName in memberNames)
-        {
-            if (TrySetNumericMember(target, memberName, value))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryGetFirstNumericMember(object target, IEnumerable<string> memberNames, out float value)
-    {
-        foreach (var memberName in memberNames)
-        {
-            if (TryGetNumericMember(target, memberName, out value))
-                return true;
-        }
-
-        value = default;
-        return false;
-    }
-
-    private static bool TrySetBoolMember(object target, bool value, string memberName)
-    {
-        var members = GetMembers(target.GetType(), memberName);
-        foreach (var member in members)
-        {
-            try
+            var vCamTransform = GetTransformField(mapController, "_vCam");
+            if (vCamTransform != null)
             {
-                switch (member)
-                {
-                    case PropertyInfo property when property.CanWrite && property.PropertyType == typeof(bool):
-                        property.SetValue(target, value);
-                        return true;
-                    case FieldInfo field when field.FieldType == typeof(bool):
-                        field.SetValue(target, value);
-                        return true;
-                }
+                vCamTransform.position = targetPosition;
+                vCamTransform.rotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
             }
-            catch
-            {
-            }
+
+            mapCamera.orthographic = true;
+            mapCamera.orthographicSize = settings.MapOrthographicSize * (distance / Mathf.Max(settings.MapDistance, 1f));
         }
 
-        return false;
-    }
-
-    private static bool TrySetNumericMember(object target, string memberName, float value)
-    {
-        var members = GetMembers(target.GetType(), memberName);
-        foreach (var member in members)
+        private void RestoreMapCameraState()
         {
-            try
-            {
-                switch (member)
-                {
-                    case PropertyInfo property when property.CanWrite:
-                        property.SetValue(target, ConvertNumericValue(value, property.PropertyType));
-                        return true;
-                    case FieldInfo field:
-                        field.SetValue(target, ConvertNumericValue(value, field.FieldType));
-                        return true;
-                }
-            }
-            catch
-            {
-            }
+            if (activeMapCamera == null)
+                return;
+
+            activeMapCameraState.Restore(activeMapCamera);
+            activeMapCamera = null;
         }
 
-        return false;
-    }
-
-    private static bool TryGetNumericMember(object target, string memberName, out float value)
-    {
-        value = default;
-        var members = GetMembers(target.GetType(), memberName);
-        foreach (var member in members)
+        private static Camera? ResolveMapCamera(Component controller)
         {
-            try
-            {
-                object? rawValue = member switch
-                {
-                    PropertyInfo property when property.CanRead => property.GetValue(target),
-                    FieldInfo field => field.GetValue(target),
-                    _ => null
-                };
+            var vCamTransform = GetTransformField(controller, "_vCam");
+            if (vCamTransform != null)
+                return vCamTransform.GetComponent<Camera>() ?? vCamTransform.GetComponentInChildren<Camera>(true);
 
-                if (rawValue == null)
-                    continue;
-
-                value = Convert.ToSingle(rawValue, CultureInfo.InvariantCulture);
-                return true;
-            }
-            catch
-            {
-            }
+            return controller.GetComponentInChildren<Camera>(true) ?? Camera.main;
         }
 
-        return false;
-    }
-
-    private static bool TryGetMemberValue(object target, string memberName, out object? value)
-    {
-        value = default;
-        var members = GetMembers(target.GetType(), memberName);
-        foreach (var member in members)
+        private static void SetSavedMapZoom(float zoom)
         {
-            try
-            {
-                value = member switch
-                {
-                    PropertyInfo property when property.CanRead => property.GetValue(target),
-                    FieldInfo field => field.GetValue(target),
-                    _ => null
-                };
+            var type = FindType(SaveGameManagerTypeName);
+            if (type == null)
+                return;
 
-                if (value != null)
-                    return true;
-            }
-            catch
-            {
-            }
+            var currentProperty = type.GetProperty("Current", BindingFlags.Public | BindingFlags.Static);
+            var current = currentProperty?.GetValue(null);
+            if (current == null)
+                return;
+
+            SetField(current, "cityMapZoom", zoom);
         }
 
-        return false;
-    }
+        private static Transform? GetTransformField(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            return field?.GetValue(target) as Transform;
+        }
 
-    private static IEnumerable<MemberInfo> GetMembers(Type type, string memberName)
-    {
-        const BindingFlags Flags =
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+        private static Vector2 GetVector2Field(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            return field != null && field.FieldType == typeof(Vector2)
+                ? (Vector2)field.GetValue(target)
+                : default;
+        }
 
-        return type
-            .GetMember(memberName, MemberTypes.Field | MemberTypes.Property, Flags)
-            .OrderBy(member => member is PropertyInfo ? 0 : 1);
-    }
+        private static float GetFloatField(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (field == null)
+                return 0f;
 
-    private static object ConvertNumericValue(float value, Type targetType)
-    {
-        if (targetType == typeof(float))
-            return value;
-        if (targetType == typeof(double))
-            return (double)value;
-        if (targetType == typeof(int))
-            return Mathf.RoundToInt(value);
-        if (targetType == typeof(long))
-            return (long)Mathf.RoundToInt(value);
-        if (targetType == typeof(short))
-            return (short)Mathf.RoundToInt(value);
+            var value = field.GetValue(target);
+            return value is float floatValue ? floatValue : 0f;
+        }
 
-        return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
-    }
+        private static void SetField(object target, string fieldName, object value)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (field == null)
+                return;
+
+            field.SetValue(target, value);
+        }
+
+        private static Type? FindType(string typeName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(typeName, false);
+                if (type != null)
+                    return type;
+            }
+
+            return null;
+        }
 
         private readonly struct CameraState
         {
