@@ -15,7 +15,7 @@ MonoBehaviour:
   database: {fileID: 0}
   tags: []
   vehicleTypeName: audirs6r-vehicle:vehicletype_audirs6r
-  price: 240000
+  price: 255000
   itemVersion: 
   maxFuel: 62
   maxCargoCapacity: 16
