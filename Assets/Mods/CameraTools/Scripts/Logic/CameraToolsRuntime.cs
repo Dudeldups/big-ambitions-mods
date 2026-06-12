@@ -29,12 +29,10 @@ namespace CameraTools
         private float lastRightMouseY;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
+        private bool hasInitializedMapDistanceForCurrentOpen;
+        private float lastAppliedMapDistanceSetting;
         private string? pendingMapNoticeDuplicateIdentifier;
         private string? pendingMapNoticeMessage;
-        private Vector3 pendingMapCameraPosition;
-        private Quaternion pendingMapCameraRotation;
-        private float pendingMapOrthographicSize;
-        private bool shouldForceMapCamera;
         private CameraToolsSettings? settings;
         private bool wasCityMapOpen;
         private bool hasShownMapStatusNotice;
@@ -57,6 +55,8 @@ namespace CameraTools
             runtime.hasManualGameplayPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isTrackingRightMousePitch = false;
+            runtime.hasInitializedMapDistanceForCurrentOpen = false;
+            runtime.lastAppliedMapDistanceSetting = float.NaN;
             runtime.pendingMapNoticeDuplicateIdentifier = null;
             runtime.pendingMapNoticeMessage = null;
             runtime.wasCityMapOpen = false;
@@ -251,19 +251,37 @@ namespace CameraTools
             SetField(mapController, "minMaxDistance", bounds);
 
             var desiredDistance = Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y);
-            var currentDistance = GetFloatField(mapController, "distance");
-            if (currentDistance < desiredDistance)
-                SetField(mapController, "distance", desiredDistance);
+            var shouldSeedDistance =
+                !hasInitializedMapDistanceForCurrentOpen ||
+                !Mathf.Approximately(lastAppliedMapDistanceSetting, desiredDistance);
 
-            SetSavedMapZoom(desiredDistance);
+            if (!shouldSeedDistance)
+                return;
+
+            var currentDistance = Mathf.Clamp(GetFloatField(mapController, "distance"), bounds.x, bounds.y);
+            if (currentDistance < desiredDistance)
+            {
+                SetField(mapController, "distance", desiredDistance);
+                currentDistance = desiredDistance;
+            }
+
+            SetSavedMapZoom(currentDistance);
+            hasInitializedMapDistanceForCurrentOpen = true;
+            lastAppliedMapDistanceSetting = desiredDistance;
         }
 
         private void ApplyMapTweaks(bool cityMapOpen)
         {
             if (cityMapOpen && !wasCityMapOpen)
+            {
                 hasShownMapStatusNotice = false;
+                hasInitializedMapDistanceForCurrentOpen = false;
+            }
+
+            if (!cityMapOpen)
+                hasInitializedMapDistanceForCurrentOpen = false;
+
             wasCityMapOpen = cityMapOpen;
-            shouldForceMapCamera = false;
 
             if (settings == null || mapController == null || !settings.EnableMapTopDown)
             {
@@ -299,7 +317,9 @@ namespace CameraTools
                 hasShownMapStatusNotice = true;
             }
 
-            var distance = Mathf.Max(GetFloatField(mapController, "distance"), 1f);
+            var bounds = GetVector2Field(mapController, "minMaxDistance");
+            var distance = Mathf.Clamp(GetFloatField(mapController, "distance"), bounds.x, bounds.y);
+
             var currentAngle = GetFloatField(mapController, "_currentAngle");
             var pitch = Mathf.Clamp(settings.MapPitch, 75f, 90f);
             var pitchRadians = pitch * Mathf.Deg2Rad;
@@ -308,8 +328,8 @@ namespace CameraTools
             var orbit = Quaternion.Euler(0f, currentAngle, 0f) * new Vector3(0f, height, -horizontalRadius);
             var rootPosition = mapController.transform.position;
             var targetPosition = rootPosition + orbit;
-            var targetRotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
-            var targetOrthographicSize = settings.MapOrthographicSize * (distance / Mathf.Max(settings.MapDistance, 1f));
+            var upAxis = Quaternion.Euler(0f, currentAngle, 0f) * Vector3.forward;
+            var targetRotation = Quaternion.LookRotation(rootPosition - targetPosition, upAxis);
 
             var vCamTransform = GetTransformField(mapController, "_vCam");
             if (vCamTransform != null)
@@ -318,24 +338,8 @@ namespace CameraTools
                 vCamTransform.rotation = targetRotation;
             }
 
-            mapCamera.orthographic = true;
-            mapCamera.orthographicSize = targetOrthographicSize;
             mapCamera.transform.position = targetPosition;
             mapCamera.transform.rotation = targetRotation;
-
-            var mainCamera = GetLiveMainCamera();
-            if (mainCamera != null)
-            {
-                mainCamera.orthographic = true;
-                mainCamera.orthographicSize = targetOrthographicSize;
-                mainCamera.transform.position = targetPosition;
-                mainCamera.transform.rotation = targetRotation;
-            }
-
-            pendingMapCameraPosition = targetPosition;
-            pendingMapCameraRotation = targetRotation;
-            pendingMapOrthographicSize = targetOrthographicSize;
-            shouldForceMapCamera = true;
         }
 
         private void QueueMapNotice(string message, string duplicateIdentifier)
@@ -375,17 +379,6 @@ namespace CameraTools
 
         private void HandleCameraPreCull(Camera camera)
         {
-            if (!shouldForceMapCamera || !IsCityMapOpen())
-                return;
-
-            var liveMainCamera = GetLiveMainCamera();
-            if (camera != liveMainCamera && camera != activeMapCamera)
-                return;
-
-            camera.orthographic = true;
-            camera.orthographicSize = pendingMapOrthographicSize;
-            camera.transform.position = pendingMapCameraPosition;
-            camera.transform.rotation = pendingMapCameraRotation;
         }
 
         private static Camera? GetLiveMainCamera()
@@ -399,6 +392,20 @@ namespace CameraTools
             }
 
             return Camera.main;
+        }
+
+        private static void SetSavedMapZoom(float zoom)
+        {
+            var type = FindType(SaveGameManagerTypeName);
+            if (type == null)
+                return;
+
+            var currentProperty = type.GetProperty("Current", BindingFlags.Public | BindingFlags.Static);
+            var current = currentProperty?.GetValue(null);
+            if (current == null)
+                return;
+
+            SetField(current, "cityMapZoom", zoom);
         }
 
         private static void ShowPopup(string message, string? duplicateIdentifier = null)
@@ -422,20 +429,6 @@ namespace CameraTools
             {
                 Debug.LogWarning($"CameraTools: failed to show popup: {exception}");
             }
-        }
-
-        private static void SetSavedMapZoom(float zoom)
-        {
-            var type = FindType(SaveGameManagerTypeName);
-            if (type == null)
-                return;
-
-            var currentProperty = type.GetProperty("Current", BindingFlags.Public | BindingFlags.Static);
-            var current = currentProperty?.GetValue(null);
-            if (current == null)
-                return;
-
-            SetField(current, "cityMapZoom", zoom);
         }
 
         private static Transform? GetTransformField(object target, string fieldName)

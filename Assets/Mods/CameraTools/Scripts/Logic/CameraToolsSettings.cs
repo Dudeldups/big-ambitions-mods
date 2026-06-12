@@ -12,12 +12,14 @@ namespace CameraTools
 
         public int GameplayMaxPitch { get; set; } = 80;
 
+        public int VehicleMaxZoom { get; set; } = 55;
+
         public bool EnableMapTopDown { get; set; } = true;
 
         public int MapPitch { get; set; } = 90;
 
-        public int MapDistance { get; set; } = 800;
+        public int MapDistance { get; set; } = 680;
 
-        public int MapOrthographicSize { get; set; } = 150;
+        public int MapOrthographicSize { get; set; } = 70;
     }
 }
