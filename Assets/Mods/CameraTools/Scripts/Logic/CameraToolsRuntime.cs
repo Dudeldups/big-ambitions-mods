@@ -30,6 +30,8 @@ namespace CameraTools
         private float lastRightMouseY;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
+        private string? pendingMapNoticeDuplicateIdentifier;
+        private string? pendingMapNoticeHeaderKey;
         private CameraToolsSettings? settings;
         private bool wasCityMapOpen;
         private bool hasShownMapStatusNotice;
@@ -53,6 +55,8 @@ namespace CameraTools
             runtime.hasManualGameplayPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isTrackingRightMousePitch = false;
+            runtime.pendingMapNoticeDuplicateIdentifier = null;
+            runtime.pendingMapNoticeHeaderKey = null;
             runtime.wasCityMapOpen = false;
             runtime.hasShownMapStatusNotice = false;
             runtime.configuredGameplayController = null;
@@ -76,9 +80,11 @@ namespace CameraTools
                 return;
 
             EnsureControllers();
+            var cityMapOpen = IsCityMapOpen();
 
             ApplyGameplayTweaks();
-            ApplyMapTweaks();
+            ApplyMapTweaks(cityMapOpen);
+            FlushPendingMapNotice(cityMapOpen);
         }
 
         private void EnsureControllers()
@@ -235,9 +241,8 @@ namespace CameraTools
             SetSavedMapZoom(Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y));
         }
 
-        private void ApplyMapTweaks()
+        private void ApplyMapTweaks(bool cityMapOpen)
         {
-            var cityMapOpen = IsCityMapOpen();
             if (cityMapOpen && !wasCityMapOpen)
                 hasShownMapStatusNotice = false;
             wasCityMapOpen = cityMapOpen;
@@ -247,7 +252,7 @@ namespace CameraTools
                 RestoreMapCameraState();
                 if (cityMapOpen && !hasShownMapStatusNotice)
                 {
-                    ShowInGameNotification("cameratools_map_notice_missing", "cameratools_map_notice_missing");
+                    QueueMapNotice("cameratools_map_notice_missing", "cameratools_map_notice_missing");
                     hasShownMapStatusNotice = true;
                 }
                 return;
@@ -268,7 +273,7 @@ namespace CameraTools
 
             if (!hasShownMapStatusNotice)
             {
-                ShowInGameNotification("cameratools_map_notice_found", "cameratools_map_notice_found");
+                QueueMapNotice("cameratools_map_notice_found", "cameratools_map_notice_found");
                 hasShownMapStatusNotice = true;
             }
 
@@ -300,6 +305,23 @@ namespace CameraTools
                 mainCamera.transform.position = targetPosition;
                 mainCamera.transform.rotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
             }
+        }
+
+        private void QueueMapNotice(string headerKey, string duplicateIdentifier)
+        {
+            pendingMapNoticeHeaderKey = headerKey;
+            pendingMapNoticeDuplicateIdentifier = duplicateIdentifier;
+        }
+
+        private void FlushPendingMapNotice(bool cityMapOpen)
+        {
+            if (cityMapOpen || string.IsNullOrEmpty(pendingMapNoticeHeaderKey) ||
+                string.IsNullOrEmpty(pendingMapNoticeDuplicateIdentifier))
+                return;
+
+            ShowInGameNotification(pendingMapNoticeHeaderKey, pendingMapNoticeDuplicateIdentifier);
+            pendingMapNoticeHeaderKey = null;
+            pendingMapNoticeDuplicateIdentifier = null;
         }
 
         private void RestoreMapCameraState()
