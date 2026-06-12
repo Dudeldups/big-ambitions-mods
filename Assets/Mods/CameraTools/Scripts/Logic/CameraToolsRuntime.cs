@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
 using UI.Notification;
@@ -10,39 +11,98 @@ namespace CameraTools
     public sealed class CameraToolsRuntime : MonoBehaviour
     {
         private const float PitchStepPerMousePixel = 0.15f;
-        private const string GameManagerTypeName = "GameManager";
-        private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
-        private const string CityMapCamTypeName = "CityMapCam";
-        private const string SaveGameManagerTypeName = "SaveGameManager";
+        private const float VehicleMinimumZoom = 6f;
+        private const float VehicleZoomStepPerScrollTick = 4f;
+        private const float VehicleForcedZoomStep = 20f;
         private const float GameplayMinimumZoom = 1.5f;
         private const float MapMinimumZoom = 1f;
-        private const float VehicleMinimumZoom = 6f;
-        private const float VehicleControllerSearchIntervalSeconds = 2f;
+        private const float VehicleSearchIntervalSeconds = 5f;
+        private const string GameManagerTypeName = "GameManager";
+        private const string CarControllerTypeName = "CarController";
+        private const string VehicleControllerTypeName = "VehicleController";
+        private const string PedestrianCamTypeName = "PedestrianCam";
+        private const string CityMapCamTypeName = "CityMapCam";
+        private const string CameraMouseDragTypeName = "CameraMouseDrag";
+        private const string SaveGameManagerTypeName = "SaveGameManager";
+        private static readonly string[] VehicleCameraMemberNames =
+        {
+            "vehicleCamera",
+            "vehicleCameraReverse",
+            "indoorVehicleCamera",
+            "indoorVehicleCameraReverse"
+        };
+        private static readonly string[] VehicleControllerMemberNames =
+        {
+            "vehicleController",
+            "_vehicleController",
+            "VehicleController"
+        };
+        private static readonly string[] VehicleDistanceMemberNames =
+        {
+            "vehicleToCamDistance",
+            "VehicleToCamDistance",
+            "cameraDistance",
+            "CameraDistance",
+            "distance",
+            "Distance"
+        };
+        private static readonly string[] VehicleMinDistanceMemberNames =
+        {
+            "minCameraDistance",
+            "MinCameraDistance",
+            "vehicleCameraMinDistance",
+            "VehicleCameraMinDistance",
+            "minDistance",
+            "MinDistance"
+        };
+        private static readonly string[] VehicleMaxDistanceMemberNames =
+        {
+            "maxCameraDistance",
+            "MaxCameraDistance",
+            "vehicleCameraMaxDistance",
+            "VehicleCameraMaxDistance",
+            "maxDistance",
+            "MaxDistance"
+        };
 
         private Camera? activeMapCamera;
         private CameraState activeMapCameraState;
+        private Component[]? cachedVehicleCameras;
         private MonoBehaviour? configuredGameplayController;
         private MonoBehaviour? configuredMapController;
         private ModContext? context;
+        private float desiredVehicleDistance;
+        private MonoBehaviour? gameManagerController;
         private MonoBehaviour? gameplayController;
+        private bool hasInitializedMapDistanceForCurrentOpen;
         private bool hasManualGameplayPitch;
         private bool hasShownGameplayPitchHint;
+        private bool hasShownMapStatusNotice;
         private bool isTrackingRightMousePitch;
+        private int lastActiveVehicleCameraId;
+        private float lastAppliedMapDistanceSetting;
+        private float lastAppliedVehicleMaxZoom;
         private float lastRightMouseY;
+        private float lastVehicleControllerSearchTime;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
-        private MonoBehaviour? vehicleController;
-        private float nextVehicleControllerSearchTime;
-        private bool hasInitializedMapDistanceForCurrentOpen;
-        private float lastAppliedMapDistanceSetting;
         private string? pendingMapNoticeDuplicateIdentifier;
         private string? pendingMapNoticeMessage;
         private CameraToolsSettings? settings;
+        private bool showVehicleDebugOverlay;
         private bool wasCityMapOpen;
-        private bool hasShownMapStatusNotice;
-        private static Type? pedestrianCamType;
+        private VehicleDebugState vehicleDebug = new VehicleDebugState();
+        private VehicleTarget? vehicleTarget;
+        private static Type? cameraMouseDragType;
+        private static Type? carControllerType;
+        private static Type? cityMapType;
         private static Type? cityMapCamType;
+        private static Type? cinematachineVirtualCameraType;
+        private static GUIStyle? debugOverlayStyle;
         private static Type? gameManagerType;
+        private static Type? pedestrianCamType;
+        private static Type? saveGameManagerType;
+        private static Type? vehicleControllerType;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
         {
@@ -56,28 +116,48 @@ namespace CameraTools
 
             runtime.context = context;
             runtime.settings = settings;
-            runtime.hasManualGameplayPitch = false;
-            runtime.hasShownGameplayPitchHint = false;
-            runtime.isTrackingRightMousePitch = false;
-            runtime.vehicleController = null;
-            runtime.nextVehicleControllerSearchTime = 0f;
-            runtime.hasInitializedMapDistanceForCurrentOpen = false;
-            runtime.lastAppliedMapDistanceSetting = float.NaN;
-            runtime.pendingMapNoticeDuplicateIdentifier = null;
-            runtime.pendingMapNoticeMessage = null;
-            runtime.wasCityMapOpen = false;
-            runtime.hasShownMapStatusNotice = false;
+            runtime.cachedVehicleCameras = null;
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
+            runtime.desiredVehicleDistance = float.NaN;
+            runtime.gameManagerController = null;
+            runtime.gameplayController = null;
+            runtime.hasInitializedMapDistanceForCurrentOpen = false;
+            runtime.hasManualGameplayPitch = false;
+            runtime.hasShownGameplayPitchHint = false;
+            runtime.hasShownMapStatusNotice = false;
+            runtime.isTrackingRightMousePitch = false;
+            runtime.lastActiveVehicleCameraId = 0;
+            runtime.lastAppliedMapDistanceSetting = float.NaN;
+            runtime.lastAppliedVehicleMaxZoom = float.NaN;
+            runtime.lastRightMouseY = 0f;
+            runtime.lastVehicleControllerSearchTime = float.NegativeInfinity;
+            runtime.mapController = null;
+            runtime.pendingMapNoticeDuplicateIdentifier = null;
+            runtime.pendingMapNoticeMessage = null;
+            runtime.showVehicleDebugOverlay = false;
+            runtime.vehicleTarget = null;
+            runtime.vehicleDebug = new VehicleDebugState();
+            runtime.wasCityMapOpen = false;
+
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
+            cityMapType ??= FindType("CityMap");
             cityMapCamType ??= FindType(CityMapCamTypeName);
+            carControllerType ??= FindType(CarControllerTypeName);
+            vehicleControllerType ??= FindType(VehicleControllerTypeName);
+            cameraMouseDragType ??= FindType(CameraMouseDragTypeName);
+            cinematachineVirtualCameraType ??= FindType("CinemachineVirtualCamera");
             gameManagerType ??= FindType(GameManagerTypeName);
+            saveGameManagerType ??= FindType(SaveGameManagerTypeName);
+
+            CameraToolsFileLogger.Log("CameraTools runtime initialized.");
             return runtime;
         }
 
         public void Shutdown()
         {
             RestoreMapCameraState();
+            CameraToolsFileLogger.Log("CameraTools runtime shutting down.");
             Destroy(gameObject);
         }
 
@@ -97,12 +177,45 @@ namespace CameraTools
                 return;
 
             EnsureControllers();
+            HandleVehicleDebugHotkeys();
+
             var cityMapOpen = IsCityMapOpen();
+            var gameplayActive = IsGameplayActive();
 
             ApplyGameplayTweaks();
-            ApplyVehicleTweaks();
+            ApplyVehicleTweaks(gameplayActive);
             ApplyMapTweaks(cityMapOpen);
             FlushPendingMapNotice(cityMapOpen);
+        }
+
+        private void OnGUI()
+        {
+            if (!showVehicleDebugOverlay)
+                return;
+
+            debugOverlayStyle ??= CreateDebugOverlayStyle();
+
+            var lines = new[]
+            {
+                "CameraTools Vehicle Debug",
+                "F8 toggle overlay, F9 zoom in, F10 zoom out",
+                $"Scroll delta: {vehicleDebug.ScrollDelta:0.###}",
+                $"Vehicle mode: {vehicleDebug.IsVehicleMode}",
+                $"Inside vehicle: {vehicleDebug.IsInsideVehicle}",
+                $"Active car found: {vehicleDebug.ActiveCarFound}",
+                $"Car controller: {vehicleDebug.CarControllerTypeName}",
+                $"Vehicle controller found: {vehicleDebug.VehicleControllerFound}",
+                $"Vehicle controller: {vehicleDebug.VehicleControllerTypeName}",
+                $"Distance member: {vehicleDebug.DistanceMemberName}",
+                $"Current distance: {vehicleDebug.CurrentDistance:0.##}",
+                $"Last applied distance: {vehicleDebug.LastAppliedDistance:0.##}",
+                $"Value overwritten: {vehicleDebug.WasOverwritten}",
+                $"Camera object found: {vehicleDebug.CameraObjectFound}",
+                $"Cinemachine camera found: {vehicleDebug.CinemachineFound}"
+            };
+
+            var content = string.Join("\n", lines);
+            GUI.Box(new Rect(12f, 12f, 420f, 280f), content, debugOverlayStyle);
         }
 
         private void EnsureControllers()
@@ -134,7 +247,12 @@ namespace CameraTools
                 ConfigureMapController();
             }
 
-            EnsureVehicleController();
+            if (gameManagerController == null || !gameManagerController.isActiveAndEnabled)
+            {
+                gameManagerController = FindFirstActiveController(gameManagerType, includeInactive: false) ??
+                    FindFirstActiveController(gameManagerType, includeInactive: true);
+                cachedVehicleCameras = null;
+            }
         }
 
         private static MonoBehaviour? FindFirstActiveController(Type? type, bool includeInactive)
@@ -147,10 +265,8 @@ namespace CameraTools
                 foreach (var obj in UnityEngine.Object.FindObjectsOfType(type))
                 {
                     var behaviour = obj as MonoBehaviour;
-                    if (behaviour == null)
-                        continue;
-
-                    return behaviour;
+                    if (behaviour != null)
+                        return behaviour;
                 }
 
                 return null;
@@ -159,14 +275,7 @@ namespace CameraTools
             foreach (var obj in Resources.FindObjectsOfTypeAll(type))
             {
                 var behaviour = obj as MonoBehaviour;
-                if (behaviour == null)
-                    continue;
-
-                var gameObject = behaviour.gameObject;
-                if (gameObject == null)
-                    continue;
-
-                if (gameObject.hideFlags != HideFlags.None)
+                if (behaviour == null || behaviour.gameObject == null || behaviour.gameObject.hideFlags != HideFlags.None)
                     continue;
 
                 return behaviour;
@@ -180,11 +289,11 @@ namespace CameraTools
             if (settings == null || gameplayController == null || !settings.EnableGameplayTweaks)
                 return;
 
-            var bounds = GetVector2Field(gameplayController, "minMaxDistance");
+            var bounds = GetVector2Member(gameplayController, "minMaxDistance");
             bounds.x = Mathf.Min(bounds.x, GameplayMinimumZoom);
             bounds.y = Mathf.Max(bounds.y, settings.GameplayMaxZoom);
-            SetField(gameplayController, "minMaxDistance", bounds);
-            SetField(gameplayController, "blockCameraZoom", false);
+            SetMemberValue(gameplayController, "minMaxDistance", bounds);
+            SetMemberValue(gameplayController, "blockCameraZoom", false);
 
             if (!hasManualGameplayPitch)
                 manualGameplayPitch = Mathf.Clamp(settings.GameplayDefaultPitch, settings.GameplayMinPitch, settings.GameplayMaxPitch);
@@ -246,7 +355,7 @@ namespace CameraTools
 
             var radians = Mathf.Deg2Rad * Mathf.Clamp(pitchDegrees, 1f, 89f);
             var offset = new Vector3(0f, Mathf.Sin(radians), -Mathf.Cos(radians));
-            SetField(gameplayController, "offset", offset);
+            SetMemberValue(gameplayController, "offset", offset);
         }
 
         private void ConfigureMapController()
@@ -254,10 +363,10 @@ namespace CameraTools
             if (settings == null || mapController == null || !settings.EnableMapTopDown)
                 return;
 
-            var bounds = GetVector2Field(mapController, "minMaxDistance");
+            var bounds = GetVector2Member(mapController, "minMaxDistance");
             bounds.x = Mathf.Min(bounds.x, MapMinimumZoom);
             bounds.y = Mathf.Max(bounds.y, settings.MapDistance);
-            SetField(mapController, "minMaxDistance", bounds);
+            SetMemberValue(mapController, "minMaxDistance", bounds);
 
             var desiredDistance = Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y);
             var shouldSeedDistance =
@@ -267,10 +376,10 @@ namespace CameraTools
             if (!shouldSeedDistance)
                 return;
 
-            var currentDistance = Mathf.Clamp(GetFloatField(mapController, "distance"), bounds.x, bounds.y);
+            var currentDistance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
             if (currentDistance < desiredDistance)
             {
-                SetField(mapController, "distance", desiredDistance);
+                SetMemberValue(mapController, "distance", desiredDistance);
                 currentDistance = desiredDistance;
             }
 
@@ -279,38 +388,607 @@ namespace CameraTools
             lastAppliedMapDistanceSetting = desiredDistance;
         }
 
-        private void EnsureVehicleController()
+        private void ApplyVehicleTweaks(bool gameplayActive)
         {
-            if (vehicleController != null)
-            {
-                if (vehicleController.isActiveAndEnabled)
-                    return;
+            if (settings == null)
+                return;
 
-                vehicleController = null;
+            var wantsVehicleWork =
+                showVehicleDebugOverlay ||
+                Mathf.Abs(Input.mouseScrollDelta.y) > Mathf.Epsilon ||
+                Mathf.Abs(Input.GetAxis("Mouse ScrollWheel")) > Mathf.Epsilon ||
+                Input.GetKeyDown(KeyCode.F9) ||
+                Input.GetKeyDown(KeyCode.F10) ||
+                (vehicleTarget != null && IsVehicleTargetStillValid(vehicleTarget)) ||
+                vehicleDebug.IsVehicleMode;
+
+            if (!gameplayActive)
+            {
+                vehicleDebug.IsVehicleMode = false;
+                vehicleDebug.IsInsideVehicle = false;
+                vehicleDebug.CameraObjectFound = false;
+                desiredVehicleDistance = float.NaN;
+                return;
             }
 
-            if (Time.unscaledTime < nextVehicleControllerSearchTime)
-                return;
+            if (wantsVehicleWork)
+                ResolveVehicleTarget(forceSearch: false, allowExpensiveSearch: true);
+            else
+                UpdateVehicleDebugStateFromTarget();
 
-            nextVehicleControllerSearchTime = Time.unscaledTime + VehicleControllerSearchIntervalSeconds;
-            vehicleController = FindVehicleController();
+            if (gameManagerController != null && (cachedVehicleCameras == null || cachedVehicleCameras.Length == 0))
+                cachedVehicleCameras = ResolveVehicleCameras(gameManagerController);
+
+            if (cachedVehicleCameras != null && cachedVehicleCameras.Length > 0 && !AreAllVehicleCamerasAlive(cachedVehicleCameras))
+                cachedVehicleCameras = gameManagerController == null ? Array.Empty<Component>() : ResolveVehicleCameras(gameManagerController);
+
+            if (!vehicleDebug.IsVehicleMode)
+            {
+                desiredVehicleDistance = float.NaN;
+                return;
+            }
+
+            if (float.IsNaN(desiredVehicleDistance))
+            {
+                desiredVehicleDistance = ResolveCurrentVehicleDistance(settings.VehicleMaxZoom);
+                vehicleDebug.CurrentDistance = desiredVehicleDistance;
+            }
+
+            var scrollDelta = ReadVehicleScrollDelta();
+            vehicleDebug.ScrollDelta = scrollDelta;
+            if (Mathf.Abs(scrollDelta) > Mathf.Epsilon)
+            {
+                var nextDistance = Mathf.Clamp(
+                    desiredVehicleDistance - scrollDelta * VehicleZoomStepPerScrollTick,
+                    VehicleMinimumZoom,
+                    settings.VehicleMaxZoom);
+                ApplyVehicleDistance(nextDistance, "scroll");
+            }
+            else
+            {
+                ReapplyVehicleDistanceIfNeeded();
+            }
+
+            ApplyVehicleZoomLimits();
         }
 
-        private void ApplyVehicleTweaks()
+        private void HandleVehicleDebugHotkeys()
         {
-            if (settings == null || vehicleController == null)
+            if (Input.GetKeyDown(KeyCode.F8))
+            {
+                showVehicleDebugOverlay = !showVehicleDebugOverlay;
+                CameraToolsFileLogger.Log($"Vehicle debug overlay toggled: {showVehicleDebugOverlay}");
+            }
+
+            if (settings == null)
                 return;
 
-            var bounds = GetVector2Field(vehicleController, "minMaxDistance");
-            if (bounds == default && !HasField(vehicleController, "minMaxDistance"))
+            if (Input.GetKeyDown(KeyCode.F9))
+                ApplyVehicleDistance(
+                    Mathf.Max(VehicleMinimumZoom, ResolveCurrentVehicleDistance(settings.VehicleMaxZoom) - VehicleForcedZoomStep),
+                    "hotkey-zoom-in");
+
+            if (Input.GetKeyDown(KeyCode.F10))
+                ApplyVehicleDistance(Mathf.Min(settings.VehicleMaxZoom, ResolveCurrentVehicleDistance(settings.VehicleMaxZoom) + VehicleForcedZoomStep), "hotkey-zoom-out");
+        }
+
+        private void ResolveVehicleTarget(bool forceSearch, bool allowExpensiveSearch)
+        {
+            if (!forceSearch && vehicleTarget != null && IsVehicleTargetStillValid(vehicleTarget))
+            {
+                UpdateVehicleDebugStateFromTarget();
+                return;
+            }
+
+            if (!allowExpensiveSearch)
+            {
+                UpdateVehicleDebugStateFromTarget();
+                return;
+            }
+
+            if (!forceSearch && Time.unscaledTime - lastVehicleControllerSearchTime < VehicleSearchIntervalSeconds)
+            {
+                UpdateVehicleDebugStateFromTarget();
+                return;
+            }
+
+            lastVehicleControllerSearchTime = Time.unscaledTime;
+            vehicleTarget = null;
+
+            var resolvedCarController = ResolveActiveCarControllerCandidate();
+            var resolvedVehicleController = ResolveVehicleControllerCandidate(resolvedCarController);
+
+            vehicleTarget = new VehicleTarget(resolvedCarController, resolvedVehicleController);
+
+            vehicleDebug.ActiveCarFound = resolvedCarController != null;
+            vehicleDebug.CarControllerTypeName = resolvedCarController == null ? "none" : resolvedCarController.GetType().FullName ?? resolvedCarController.GetType().Name;
+            vehicleDebug.VehicleControllerFound = resolvedVehicleController != null;
+            vehicleDebug.VehicleControllerTypeName = resolvedVehicleController == null ? "none" : resolvedVehicleController.GetType().FullName ?? resolvedVehicleController.GetType().Name;
+
+            var newSummary =
+                $"carFound={vehicleDebug.ActiveCarFound}, carType={vehicleDebug.CarControllerTypeName}, " +
+                $"vehicleControllerFound={vehicleDebug.VehicleControllerFound}, vehicleControllerType={vehicleDebug.VehicleControllerTypeName}";
+            if (vehicleDebug.LastResolutionSummary != newSummary)
+            {
+                vehicleDebug.LastResolutionSummary = newSummary;
+                CameraToolsFileLogger.Log("Vehicle target resolved. " + newSummary);
+            }
+        }
+
+        private MonoBehaviour? ResolveActiveCarControllerCandidate()
+        {
+            if (carControllerType != null)
+            {
+                var typedCandidate = FindBestVehicleControllerBehaviour(carControllerType);
+                if (typedCandidate != null)
+                    return typedCandidate;
+            }
+
+            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+            {
+                if (behaviour == null || behaviour.gameObject == null || behaviour.gameObject.hideFlags != HideFlags.None)
+                    continue;
+
+                var type = behaviour.GetType();
+                if (!TypeNameMatches(type, CarControllerTypeName))
+                    continue;
+
+                if (LooksLikePlayerControlledVehicle(behaviour))
+                    return behaviour;
+            }
+
+            return null;
+        }
+
+        private static MonoBehaviour? FindBestVehicleControllerBehaviour(Type type)
+        {
+            MonoBehaviour? fallback = null;
+
+            foreach (var obj in Resources.FindObjectsOfTypeAll(type))
+            {
+                var behaviour = obj as MonoBehaviour;
+                if (behaviour == null || behaviour.gameObject == null || behaviour.gameObject.hideFlags != HideFlags.None)
+                    continue;
+
+                if (TryGetBoolMember(behaviour, "controlledByPlayer", out var controlledByPlayer) && controlledByPlayer)
+                    return behaviour;
+
+                if (fallback == null && behaviour.isActiveAndEnabled)
+                    fallback = behaviour;
+            }
+
+            return fallback;
+        }
+
+        private object? ResolveVehicleControllerCandidate(MonoBehaviour? activeCarController)
+        {
+            if (activeCarController != null)
+            {
+                foreach (var memberName in VehicleControllerMemberNames)
+                {
+                    if (TryGetMemberValue(activeCarController, memberName, out var memberValue) && memberValue != null)
+                        return memberValue;
+                }
+            }
+
+            if (vehicleControllerType != null)
+            {
+                var typedCandidate = FindBestVehicleControllerObject(vehicleControllerType);
+                if (typedCandidate != null)
+                    return typedCandidate;
+            }
+
+            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+            {
+                if (behaviour == null || behaviour.gameObject == null || behaviour.gameObject.hideFlags != HideFlags.None)
+                    continue;
+
+                var type = behaviour.GetType();
+                if (!TypeNameMatches(type, VehicleControllerTypeName))
+                    continue;
+
+                if (IsInsideVehicle(behaviour))
+                    return behaviour;
+            }
+
+            return null;
+        }
+
+        private static object? FindBestVehicleControllerObject(Type type)
+        {
+            object? fallback = null;
+            foreach (var obj in Resources.FindObjectsOfTypeAll(type))
+            {
+                if (obj == null)
+                    continue;
+
+                if (IsInsideVehicle(obj))
+                    return obj;
+
+                fallback ??= obj;
+            }
+
+            return fallback;
+        }
+
+        private static bool LooksLikePlayerControlledVehicle(MonoBehaviour behaviour)
+        {
+            if (TryGetBoolMember(behaviour, "controlledByPlayer", out var controlledByPlayer) && controlledByPlayer)
+                return true;
+
+            foreach (var memberName in VehicleControllerMemberNames)
+            {
+                if (TryGetMemberValue(behaviour, memberName, out var memberValue) && memberValue != null && IsInsideVehicle(memberValue))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsVehicleTargetStillValid(VehicleTarget target)
+        {
+            if (target.CarController is MonoBehaviour carController &&
+                !carController.isActiveAndEnabled &&
+                !IsInsideVehicle(target.VehicleController))
+                return false;
+
+            return target.VehicleController != null || target.CarController != null;
+        }
+
+        private void UpdateVehicleDebugStateFromTarget()
+        {
+            vehicleDebug.IsInsideVehicle = IsInsideVehicle(vehicleTarget?.VehicleController);
+            vehicleDebug.IsVehicleMode = vehicleDebug.IsInsideVehicle || GetActiveVehicleCameraId(cachedVehicleCameras ?? Array.Empty<Component>()) != 0;
+            vehicleDebug.CameraObjectFound = cachedVehicleCameras != null && cachedVehicleCameras.Length > 0;
+        }
+
+        private float ReadVehicleScrollDelta()
+        {
+            var scrollDelta = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(scrollDelta) <= Mathf.Epsilon)
+                scrollDelta = Input.GetAxis("Mouse ScrollWheel") * 120f;
+
+            if (Mathf.Abs(scrollDelta) > Mathf.Epsilon)
+                CameraToolsFileLogger.Log($"Vehicle scroll detected: delta={scrollDelta:0.###}, insideVehicle={vehicleDebug.IsInsideVehicle}");
+
+            return scrollDelta;
+        }
+
+        private float ResolveCurrentVehicleDistance(float maxZoom)
+        {
+            if (TryGetVehicleDistanceValue(out var distance, out var memberName))
+            {
+                vehicleDebug.DistanceMemberName = memberName;
+                return Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom);
+            }
+
+            vehicleDebug.DistanceMemberName = "not-found";
+            return Mathf.Clamp(maxZoom, VehicleMinimumZoom, maxZoom);
+        }
+
+        private bool TryGetVehicleDistanceValue(out float value, out string memberName)
+        {
+            value = 0f;
+            memberName = "none";
+
+            if (vehicleTarget?.VehicleController != null &&
+                TryGetFirstFloatMember(vehicleTarget.VehicleController, VehicleDistanceMemberNames, out value, out memberName))
+                return true;
+
+            if (vehicleTarget?.CarController != null &&
+                TryGetFirstFloatMember(vehicleTarget.CarController, VehicleDistanceMemberNames, out value, out memberName))
+                return true;
+
+            if (TryGetActiveVehicleCameraDistance(cachedVehicleCameras ?? Array.Empty<Component>(), out value))
+            {
+                memberName = "camera-component";
+                return true;
+            }
+
+            return false;
+        }
+
+        private void ApplyVehicleDistance(float targetDistance, string reason)
+        {
+            if (settings == null)
                 return;
 
-            bounds.x = Mathf.Min(bounds.x, VehicleMinimumZoom);
-            bounds.y = Mathf.Max(bounds.y, settings.VehicleMaxZoom);
-            SetField(vehicleController, "minMaxDistance", bounds);
+            ResolveVehicleTarget(forceSearch: true, allowExpensiveSearch: true);
+            UpdateVehicleDebugStateFromTarget();
 
-            if (HasField(vehicleController, "blockCameraZoom"))
-                SetField(vehicleController, "blockCameraZoom", false);
+            var clampedDistance = Mathf.Clamp(targetDistance, VehicleMinimumZoom, settings.VehicleMaxZoom);
+            var oldDistance = ResolveCurrentVehicleDistance(settings.VehicleMaxZoom);
+            desiredVehicleDistance = clampedDistance;
+
+            var sourceValueApplied = ApplyVehicleDistanceToSource(clampedDistance, settings.VehicleMaxZoom);
+            var cameraValueApplied = ApplyVehicleDistanceToCameras(clampedDistance, settings.VehicleMaxZoom);
+
+            vehicleDebug.CurrentDistance = oldDistance;
+            vehicleDebug.LastAppliedDistance = clampedDistance;
+            vehicleDebug.CinemachineFound = cameraValueApplied;
+
+            var readBackDistance = ResolveCurrentVehicleDistance(settings.VehicleMaxZoom);
+            vehicleDebug.WasOverwritten = !Mathf.Approximately(readBackDistance, clampedDistance);
+
+            var applySummary =
+                $"Vehicle zoom apply ({reason}). insideVehicle={vehicleDebug.IsInsideVehicle}, activeCarFound={vehicleDebug.ActiveCarFound}, " +
+                $"carType={vehicleDebug.CarControllerTypeName}, vehicleControllerFound={vehicleDebug.VehicleControllerFound}, " +
+                $"distanceMember={vehicleDebug.DistanceMemberName}, oldDistance={oldDistance:0.##}, newDistance={clampedDistance:0.##}, " +
+                $"sourceApplied={sourceValueApplied}, cameraApplied={cameraValueApplied}, overwritten={vehicleDebug.WasOverwritten}";
+            if (reason != "lateupdate-reapply" || vehicleDebug.LastApplySummary != applySummary)
+            {
+                vehicleDebug.LastApplySummary = applySummary;
+                CameraToolsFileLogger.Log(applySummary);
+            }
+        }
+
+        private void ReapplyVehicleDistanceIfNeeded()
+        {
+            if (settings == null || float.IsNaN(desiredVehicleDistance))
+                return;
+
+            var currentDistance = ResolveCurrentVehicleDistance(settings.VehicleMaxZoom);
+            if (Mathf.Approximately(currentDistance, desiredVehicleDistance))
+                return;
+
+            vehicleDebug.WasOverwritten = true;
+            ApplyVehicleDistance(desiredVehicleDistance, "lateupdate-reapply");
+        }
+
+        private bool ApplyVehicleDistanceToSource(float distance, float maxZoom)
+        {
+            var applied = false;
+            if (vehicleTarget?.VehicleController != null)
+            {
+                applied |= SetFirstFloatMember(vehicleTarget.VehicleController, VehicleDistanceMemberNames, distance);
+                applied |= SetFirstFloatMember(vehicleTarget.VehicleController, VehicleMinDistanceMemberNames, VehicleMinimumZoom);
+                applied |= SetFirstFloatMember(vehicleTarget.VehicleController, VehicleMaxDistanceMemberNames, maxZoom);
+            }
+
+            if (vehicleTarget?.CarController != null)
+            {
+                applied |= SetFirstFloatMember(vehicleTarget.CarController, VehicleDistanceMemberNames, distance);
+                applied |= SetFirstFloatMember(vehicleTarget.CarController, VehicleMinDistanceMemberNames, VehicleMinimumZoom);
+                applied |= SetFirstFloatMember(vehicleTarget.CarController, VehicleMaxDistanceMemberNames, maxZoom);
+            }
+
+            return applied;
+        }
+
+        private void ApplyVehicleZoomLimits()
+        {
+            if (settings == null || cachedVehicleCameras == null || cachedVehicleCameras.Length == 0)
+                return;
+
+            var activeVehicleCameraId = GetActiveVehicleCameraId(cachedVehicleCameras);
+            if (Mathf.Approximately(lastAppliedVehicleMaxZoom, settings.VehicleMaxZoom) &&
+                activeVehicleCameraId == lastActiveVehicleCameraId)
+                return;
+
+            foreach (var vehicleCamera in cachedVehicleCameras)
+            {
+                if (vehicleCamera == null)
+                    continue;
+
+                ApplyVehicleCameraZoomLimits(vehicleCamera.gameObject, settings.VehicleMaxZoom);
+            }
+
+            lastAppliedVehicleMaxZoom = settings.VehicleMaxZoom;
+            lastActiveVehicleCameraId = activeVehicleCameraId;
+        }
+
+        private bool ApplyVehicleDistanceToCameras(float distance, float maxZoom)
+        {
+            var foundCamera = false;
+            foreach (var vehicleCamera in cachedVehicleCameras ?? Array.Empty<Component>())
+            {
+                if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
+                    continue;
+
+                ApplyVehicleCameraDistance(vehicleCamera.gameObject, distance, maxZoom);
+                foundCamera = true;
+            }
+
+            return foundCamera;
+        }
+
+        private static Component[] ResolveVehicleCameras(Component gameManager)
+        {
+            var results = new List<Component>();
+            foreach (var memberName in VehicleCameraMemberNames)
+            {
+                if (!TryGetMemberValue(gameManager, memberName, out var value) || value == null)
+                    continue;
+
+                if (value is Component component)
+                {
+                    results.Add(component);
+                    continue;
+                }
+
+                if (value is GameObject gameObject)
+                {
+                    var transform = gameObject.transform;
+                    if (transform != null)
+                        results.Add(transform);
+                }
+            }
+
+            return results.ToArray();
+        }
+
+        private static bool AreAllVehicleCamerasAlive(Component[] vehicleCameras)
+        {
+            foreach (var vehicleCamera in vehicleCameras)
+            {
+                if (vehicleCamera == null)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static int GetActiveVehicleCameraId(Component[] vehicleCameras)
+        {
+            foreach (var vehicleCamera in vehicleCameras)
+            {
+                if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
+                    continue;
+
+                return vehicleCamera.gameObject.GetInstanceID();
+            }
+
+            return 0;
+        }
+
+        private static bool TryGetActiveVehicleCameraDistance(Component[] vehicleCameras, out float distance)
+        {
+            distance = 0f;
+            foreach (var vehicleCamera in vehicleCameras)
+            {
+                if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
+                    continue;
+
+                if (TryGetVehicleCameraDistance(vehicleCamera.gameObject, out distance))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetVehicleCameraDistance(GameObject cameraObject, out float distance)
+        {
+            distance = 0f;
+
+            if (cameraMouseDragType != null)
+            {
+                foreach (var zoomComponent in cameraObject.GetComponentsInChildren(cameraMouseDragType, true))
+                {
+                    if (zoomComponent != null && TryGetFloatMember(zoomComponent, "distance", out distance))
+                        return true;
+                }
+            }
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return false;
+
+            foreach (var virtualCamera in cameraObject.GetComponentsInChildren(virtualCameraType, true))
+            {
+                if (virtualCamera == null)
+                    continue;
+
+                var pipeline = GetCinemachinePipeline(virtualCameraType, virtualCamera);
+                if (pipeline == null)
+                    continue;
+
+                foreach (var pipelineComponent in pipeline)
+                {
+                    if (pipelineComponent == null)
+                        continue;
+
+                    var typeName = pipelineComponent.GetType().Name;
+                    if ((typeName == "CinemachineFramingTransposer" && TryGetFloatMember(pipelineComponent, "m_CameraDistance", out distance)) ||
+                        (typeName == "Cinemachine3rdPersonFollow" && TryGetFloatMember(pipelineComponent, "CameraDistance", out distance)))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void ApplyVehicleCameraZoomLimits(GameObject cameraObject, float maxZoom)
+        {
+            if (cameraMouseDragType != null)
+            {
+                foreach (var zoomComponent in cameraObject.GetComponentsInChildren(cameraMouseDragType, true))
+                {
+                    if (zoomComponent == null)
+                        continue;
+
+                    SetMemberValue(zoomComponent, "minDistance", VehicleMinimumZoom);
+                    SetMemberValue(zoomComponent, "maxDistance", maxZoom);
+                }
+            }
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return;
+
+            foreach (var virtualCamera in cameraObject.GetComponentsInChildren(virtualCameraType, true))
+            {
+                if (virtualCamera == null)
+                    continue;
+
+                var pipeline = GetCinemachinePipeline(virtualCameraType, virtualCamera);
+                if (pipeline == null)
+                    continue;
+
+                foreach (var pipelineComponent in pipeline)
+                {
+                    if (pipelineComponent == null)
+                        continue;
+
+                    var typeName = pipelineComponent.GetType().Name;
+                    if (typeName == "CinemachineFramingTransposer")
+                    {
+                        SetMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
+                        SetMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
+                    }
+                    else if (typeName == "Cinemachine3rdPersonFollow")
+                    {
+                        SetMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(GetFloatMember(pipelineComponent, "CameraDistance"), VehicleMinimumZoom, maxZoom));
+                    }
+                }
+            }
+        }
+
+        private static void ApplyVehicleCameraDistance(GameObject cameraObject, float distance, float maxZoom)
+        {
+            if (cameraMouseDragType != null)
+            {
+                foreach (var zoomComponent in cameraObject.GetComponentsInChildren(cameraMouseDragType, true))
+                {
+                    if (zoomComponent == null)
+                        continue;
+
+                    SetMemberValue(zoomComponent, "minDistance", VehicleMinimumZoom);
+                    SetMemberValue(zoomComponent, "maxDistance", maxZoom);
+                    SetMemberValue(zoomComponent, "distance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
+                }
+            }
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return;
+
+            foreach (var virtualCamera in cameraObject.GetComponentsInChildren(virtualCameraType, true))
+            {
+                if (virtualCamera == null)
+                    continue;
+
+                var pipeline = GetCinemachinePipeline(virtualCameraType, virtualCamera);
+                if (pipeline == null)
+                    continue;
+
+                foreach (var pipelineComponent in pipeline)
+                {
+                    if (pipelineComponent == null)
+                        continue;
+
+                    var typeName = pipelineComponent.GetType().Name;
+                    if (typeName == "CinemachineFramingTransposer")
+                    {
+                        SetMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
+                        SetMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
+                        SetMemberValue(pipelineComponent, "m_CameraDistance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
+                    }
+                    else if (typeName == "Cinemachine3rdPersonFollow")
+                    {
+                        SetMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
+                    }
+                }
+            }
         }
 
         private void ApplyMapTweaks(bool cityMapOpen)
@@ -360,10 +1038,9 @@ namespace CameraTools
                 hasShownMapStatusNotice = true;
             }
 
-            var bounds = GetVector2Field(mapController, "minMaxDistance");
-            var distance = Mathf.Clamp(GetFloatField(mapController, "distance"), bounds.x, bounds.y);
-
-            var currentAngle = GetFloatField(mapController, "_currentAngle");
+            var bounds = GetVector2Member(mapController, "minMaxDistance");
+            var distance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
+            var currentAngle = GetFloatMember(mapController, "_currentAngle");
             var pitch = Mathf.Clamp(settings.MapPitch, 75f, 90f);
             var pitchRadians = pitch * Mathf.Deg2Rad;
             var height = distance * Mathf.Sin(pitchRadians);
@@ -374,7 +1051,7 @@ namespace CameraTools
             var upAxis = Quaternion.Euler(0f, currentAngle, 0f) * Vector3.forward;
             var targetRotation = Quaternion.LookRotation(rootPosition - targetPosition, upAxis);
 
-            var vCamTransform = GetTransformField(mapController, "_vCam");
+            var vCamTransform = GetTransformMember(mapController, "_vCam");
             if (vCamTransform != null)
             {
                 vCamTransform.position = targetPosition;
@@ -393,8 +1070,7 @@ namespace CameraTools
 
         private void FlushPendingMapNotice(bool cityMapOpen)
         {
-            if (cityMapOpen || string.IsNullOrEmpty(pendingMapNoticeMessage) ||
-                string.IsNullOrEmpty(pendingMapNoticeDuplicateIdentifier))
+            if (cityMapOpen || string.IsNullOrEmpty(pendingMapNoticeMessage) || string.IsNullOrEmpty(pendingMapNoticeDuplicateIdentifier))
                 return;
 
             ShowPopup(pendingMapNoticeMessage, pendingMapNoticeDuplicateIdentifier);
@@ -413,54 +1089,38 @@ namespace CameraTools
 
         private static Camera? ResolveMapCamera(Component controller)
         {
-            var vCamTransform = GetTransformField(controller, "_vCam");
+            var vCamTransform = GetTransformMember(controller, "_vCam");
             if (vCamTransform != null)
                 return vCamTransform.GetComponent<Camera>() ?? vCamTransform.GetComponentInChildren<Camera>(true);
 
             return controller.GetComponentInChildren<Camera>(true) ?? GetLiveMainCamera();
         }
 
-        private static MonoBehaviour? FindVehicleController()
-        {
-            foreach (var behaviour in UnityEngine.Object.FindObjectsOfType<MonoBehaviour>())
-            {
-                if (behaviour == null || !behaviour.isActiveAndEnabled)
-                    continue;
-
-                if (IsLikelyVehicleController(behaviour))
-                    return behaviour;
-            }
-
-            return null;
-        }
-
-        private static bool IsLikelyVehicleController(MonoBehaviour behaviour)
-        {
-            var type = behaviour.GetType();
-            var typeName = (type.FullName ?? type.Name).ToLowerInvariant();
-            var hasVehicleName = typeName.Contains("vehicle") || typeName.Contains("car");
-            var hasCameraField =
-                HasField(behaviour, "vehicleCamera") ||
-                HasField(behaviour, "vehicleCameraReverse") ||
-                HasField(behaviour, "indoorVehicleCamera") ||
-                HasField(behaviour, "indoorVehicleCameraReverse");
-
-            if (!hasVehicleName && !hasCameraField)
-                return false;
-
-            return HasField(behaviour, "minMaxDistance");
-        }
-
         private void HandleCameraPreCull(Camera camera)
         {
+            if (settings == null || float.IsNaN(desiredVehicleDistance) || cachedVehicleCameras == null || !vehicleDebug.IsVehicleMode)
+                return;
+
+            foreach (var vehicleCamera in cachedVehicleCameras)
+            {
+                if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
+                    continue;
+
+                var vehicleCameraComponent = vehicleCamera.GetComponent<Camera>();
+                var nestedCamera = vehicleCamera.GetComponentInChildren<Camera>(true);
+                if (vehicleCameraComponent != camera && nestedCamera != camera)
+                    continue;
+
+                ApplyVehicleDistanceToSource(desiredVehicleDistance, settings.VehicleMaxZoom);
+                ApplyVehicleCameraDistance(vehicleCamera.gameObject, desiredVehicleDistance, settings.VehicleMaxZoom);
+            }
         }
 
         private static Camera? GetLiveMainCamera()
         {
             if (gameManagerType != null)
             {
-                var getMainCameraMethod =
-                    gameManagerType.GetMethod("GetMainCamera", BindingFlags.Public | BindingFlags.Static);
+                var getMainCameraMethod = gameManagerType.GetMethod("GetMainCamera", BindingFlags.Public | BindingFlags.Static);
                 if (getMainCameraMethod?.Invoke(null, null) is Camera gameManagerCamera)
                     return gameManagerCamera;
             }
@@ -470,7 +1130,7 @@ namespace CameraTools
 
         private static void SetSavedMapZoom(float zoom)
         {
-            var type = FindType(SaveGameManagerTypeName);
+            var type = saveGameManagerType;
             if (type == null)
                 return;
 
@@ -479,7 +1139,7 @@ namespace CameraTools
             if (current == null)
                 return;
 
-            SetField(current, "cityMapZoom", zoom);
+            SetMemberValue(current, "cityMapZoom", zoom);
         }
 
         private static void ShowPopup(string message, string? duplicateIdentifier = null)
@@ -501,68 +1161,249 @@ namespace CameraTools
             }
             catch (Exception exception)
             {
-                Debug.LogWarning($"CameraTools: failed to show popup: {exception}");
+                CameraToolsFileLogger.Log("Failed to show popup: " + exception.Message);
             }
         }
 
-        private static Transform? GetTransformField(object target, string fieldName)
+        private static GUIStyle CreateDebugOverlayStyle()
         {
-            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            return field?.GetValue(target) as Transform;
+            var style = new GUIStyle(GUI.skin.box);
+            style.alignment = TextAnchor.UpperLeft;
+            style.fontSize = 14;
+            style.normal.textColor = Color.white;
+            return style;
         }
 
-        private static Vector2 GetVector2Field(object target, string fieldName)
+        private static Array? GetCinemachinePipeline(Type virtualCameraType, object virtualCamera)
         {
-            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            return field != null && field.FieldType == typeof(Vector2)
-                ? (Vector2)field.GetValue(target)
-                : default;
-        }
-
-        private static float GetFloatField(object target, string fieldName)
-        {
-            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            if (field == null)
-                return 0f;
-
-            var value = field.GetValue(target);
-            return value is float floatValue ? floatValue : 0f;
-        }
-
-        private static void SetField(object target, string fieldName, object value)
-        {
-            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            if (field == null)
-                return;
-
-            field.SetValue(target, value);
-        }
-
-        private static bool HasField(object target, string fieldName)
-        {
-            return target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public) != null;
+            var getPipelineMethod = virtualCameraType.GetMethod("GetComponentPipeline", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return getPipelineMethod?.Invoke(virtualCamera, null) as Array;
         }
 
         private static Type? FindType(string typeName)
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                var type = assembly.GetType(typeName, false);
-                if (type != null)
-                    return type;
+                Type[]? types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException exception)
+                {
+                    types = exception.Types;
+                }
+
+                if (types == null)
+                    continue;
+
+                foreach (var type in types)
+                {
+                    if (type == null)
+                        continue;
+
+                    if (TypeNameMatches(type, typeName))
+                        return type;
+                }
             }
 
             return null;
         }
 
+        private static bool TypeNameMatches(Type type, string typeName)
+        {
+            if (string.Equals(type.FullName, typeName, StringComparison.Ordinal) ||
+                string.Equals(type.Name, typeName, StringComparison.Ordinal))
+                return true;
+
+            return type.FullName != null &&
+                type.FullName.EndsWith("." + typeName, StringComparison.Ordinal);
+        }
+
         private static bool IsCityMapOpen()
         {
-            var cityMapType = FindType("CityMap");
+            var cityMapType = CameraToolsRuntime.cityMapType;
             if (cityMapType == null)
                 return false;
 
             var isOpenProperty = cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
             return isOpenProperty?.GetValue(null) as bool? ?? false;
+        }
+
+        private static bool IsInsideVehicle(object? target)
+        {
+            if (target == null)
+                return false;
+
+            if (TryGetBoolMember(target, "CameraInsideVehicle", out var cameraInsideVehicle))
+                return cameraInsideVehicle;
+
+            if (TryGetBoolMember(target, "controlledByPlayer", out var controlledByPlayer))
+                return controlledByPlayer;
+
+            return false;
+        }
+
+        private bool IsGameplayActive()
+        {
+            if (gameplayController != null && gameplayController.isActiveAndEnabled)
+                return true;
+
+            if (gameManagerController != null && gameManagerController.isActiveAndEnabled)
+                return true;
+
+            return false;
+        }
+
+        private static Transform? GetTransformMember(object target, string memberName)
+        {
+            if (!TryGetMemberValue(target, memberName, out var value))
+                return null;
+
+            return value as Transform;
+        }
+
+        private static Vector2 GetVector2Member(object target, string memberName)
+        {
+            if (!TryGetMemberValue(target, memberName, out var value) || value is not Vector2 vector)
+                return default;
+
+            return vector;
+        }
+
+        private static float GetFloatMember(object target, string memberName)
+        {
+            return TryGetFloatMember(target, memberName, out var value) ? value : 0f;
+        }
+
+        private static bool TryGetFloatMember(object target, string memberName, out float value)
+        {
+            value = 0f;
+            if (!TryGetMemberValue(target, memberName, out var memberValue) || memberValue == null)
+                return false;
+
+            switch (memberValue)
+            {
+                case float floatValue:
+                    value = floatValue;
+                    return true;
+                case int intValue:
+                    value = intValue;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool TryGetBoolMember(object target, string memberName, out bool value)
+        {
+            value = false;
+            if (!TryGetMemberValue(target, memberName, out var memberValue) || memberValue == null || memberValue is not bool boolValue)
+                return false;
+
+            value = boolValue;
+            return true;
+        }
+
+        private static bool TryGetFirstFloatMember(object target, string[] memberNames, out float value, out string foundMemberName)
+        {
+            foreach (var memberName in memberNames)
+            {
+                if (!TryGetFloatMember(target, memberName, out value))
+                    continue;
+
+                foundMemberName = memberName;
+                return true;
+            }
+
+            value = 0f;
+            foundMemberName = "none";
+            return false;
+        }
+
+        private static bool SetFirstFloatMember(object target, string[] memberNames, float value)
+        {
+            foreach (var memberName in memberNames)
+            {
+                if (SetMemberValue(target, memberName, value))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetMemberValue(object target, string memberName, out object? value)
+        {
+            value = null;
+            if (target == null)
+                return false;
+
+            try
+            {
+                var type = target.GetType();
+                var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (field != null)
+                {
+                    value = field.GetValue(target);
+                    return true;
+                }
+
+                var property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (property == null || !property.CanRead)
+                    return false;
+
+                value = property.GetValue(target, null);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool SetMemberValue(object target, string memberName, object value)
+        {
+            if (target == null)
+                return false;
+
+            try
+            {
+                var type = target.GetType();
+                var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (field != null)
+                {
+                    field.SetValue(target, ConvertValue(value, field.FieldType));
+                    return true;
+                }
+
+                var property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (property == null || !property.CanWrite)
+                    return false;
+
+                property.SetValue(target, ConvertValue(value, property.PropertyType), null);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static object ConvertValue(object value, Type targetType)
+        {
+            if (targetType.IsInstanceOfType(value))
+                return value;
+
+            if (targetType == typeof(float))
+                return Convert.ToSingle(value);
+
+            if (targetType == typeof(int))
+                return Convert.ToInt32(value);
+
+            if (targetType == typeof(bool))
+                return Convert.ToBoolean(value);
+
+            return value;
         }
 
         private readonly struct CameraState
@@ -584,6 +1425,38 @@ namespace CameraTools
                 camera.orthographicSize = orthographicSize;
                 camera.fieldOfView = fieldOfView;
             }
+        }
+
+        private sealed class VehicleTarget
+        {
+            public VehicleTarget(MonoBehaviour? carController, object? vehicleController)
+            {
+                CarController = carController;
+                VehicleController = vehicleController;
+            }
+
+            public MonoBehaviour? CarController { get; }
+
+            public object? VehicleController { get; }
+        }
+
+        private sealed class VehicleDebugState
+        {
+            public bool ActiveCarFound;
+            public bool CameraObjectFound;
+            public string CarControllerTypeName = "none";
+            public bool CinemachineFound;
+            public float CurrentDistance;
+            public string DistanceMemberName = "none";
+            public bool IsInsideVehicle;
+            public bool IsVehicleMode;
+            public float LastAppliedDistance;
+            public string LastApplySummary = string.Empty;
+            public string LastResolutionSummary = string.Empty;
+            public float ScrollDelta;
+            public bool VehicleControllerFound;
+            public string VehicleControllerTypeName = "none";
+            public bool WasOverwritten;
         }
     }
 }
