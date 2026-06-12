@@ -14,6 +14,12 @@ namespace CameraTools
 
         public int VehicleMaxZoom { get; set; } = 65;
 
+        public bool EnableCameraToolsDebug { get; set; } = false;
+
+        public bool EnableVehicleDebugLogging { get; set; } = false;
+
+        public bool EnableVehicleDebugOverlay { get; set; } = false;
+
         public bool EnableMapTopDown { get; set; } = true;
 
         public int MapPitch { get; set; } = 90;
