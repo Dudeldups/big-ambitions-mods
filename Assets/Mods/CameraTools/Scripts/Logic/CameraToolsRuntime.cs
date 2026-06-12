@@ -18,6 +18,10 @@ namespace CameraTools
         private const float VehicleForcedZoomStep = 20f;
         private const float GameplayMinimumZoom = 1.5f;
         private const float MapMinimumZoom = 120f;
+        private const float MapScrollStepMultiplier = 7f;
+        private const float MapScrollDeltaThreshold = 0.1f;
+        private const float MapMinimumPitch = 45f;
+        private const float MapMaximumPitch = 90f;
         private const float UiStateRefreshIntervalSeconds = 0.15f;
         private const float VehicleOverwriteThreshold = 0.5f;
         private const float VehicleSearchIntervalSeconds = 5f;
@@ -101,8 +105,9 @@ namespace CameraTools
             "minDistance"
         };
 
-        private Camera? activeMapCamera;
-        private CameraState activeMapCameraState;
+        private Camera? activeMapRenderCamera;
+        private CameraState activeMapRenderCameraState;
+        private Transform? activeMapVcamTransform;
         private Component? activeVehicleCameraRoot;
         private Component[]? cachedVehicleCameras;
         private readonly Dictionary<int, Vector3> cachedVehicleFollowOffsets = new Dictionary<int, Vector3>();
@@ -116,9 +121,11 @@ namespace CameraTools
         private MonoBehaviour? gameplayController;
         private bool hasInitializedMapDistanceForCurrentOpen;
         private bool hasManualGameplayPitch;
+        private bool hasManualMapPitch;
         private bool hasShownGameplayPitchHint;
         private bool hasShownMapStatusNotice;
         private bool isGameplayUiBlocked;
+        private bool isTrackingMapRightMousePitch;
         private bool isTrackingRightMousePitch;
         private int lastActiveVehicleCameraId;
         private int lastConfiguredGameplayControllerId;
@@ -126,10 +133,12 @@ namespace CameraTools
         private int lastAppliedGameplayMaxZoom;
         private int lastAppliedMapMaxZoom;
         private float lastAppliedMapDistanceSetting;
+        private float desiredMapDistance;
         private float lastAppliedVehicleMaxZoom;
         private float lastRightMouseY;
         private float lastVehicleControllerSearchTime;
         private MonoBehaviour? mapController;
+        private float manualMapPitch;
         private float manualGameplayPitch;
         private bool needsVehicleDistanceReapply;
         private float nextUiStateRefreshTime;
@@ -140,6 +149,13 @@ namespace CameraTools
         private bool showVehicleDebugOverlay;
         private bool wasCityMapOpen;
         private Vector3? lastAppliedGameplayOffset;
+        private float mapDebugCurrentDistance;
+        private float mapDebugDesiredDistance;
+        private float mapDebugRawScrollDelta;
+        private float mapDebugVanillaDelta;
+        private string lastMapApplyLogSummary = string.Empty;
+        private string lastMapLifecycleLogSummary = string.Empty;
+        private string lastMapDebugLogSummary = string.Empty;
         private VehicleDebugState vehicleDebug = new VehicleDebugState();
         private VehicleTarget? vehicleTarget;
         private MonoBehaviour? cachedDialogUiController;
@@ -189,13 +205,16 @@ namespace CameraTools
             runtime.gameplayController = null;
             runtime.hasInitializedMapDistanceForCurrentOpen = false;
             runtime.hasManualGameplayPitch = false;
+            runtime.hasManualMapPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.hasShownMapStatusNotice = false;
+            runtime.isTrackingMapRightMousePitch = false;
             runtime.isTrackingRightMousePitch = false;
             runtime.lastActiveVehicleCameraId = 0;
             runtime.lastAppliedGameplayMaxZoom = int.MinValue;
             runtime.lastAppliedMapMaxZoom = int.MinValue;
             runtime.lastAppliedMapDistanceSetting = float.NaN;
+            runtime.desiredMapDistance = float.NaN;
             runtime.lastAppliedVehicleMaxZoom = float.NaN;
             runtime.lastConfiguredGameplayControllerId = 0;
             runtime.lastConfiguredMapControllerId = 0;
@@ -216,6 +235,9 @@ namespace CameraTools
             runtime.cachedFullMenuController = null;
             runtime.cachedMiniMenuController = null;
             runtime.isGameplayUiBlocked = false;
+            runtime.lastMapApplyLogSummary = string.Empty;
+            runtime.lastMapLifecycleLogSummary = string.Empty;
+            runtime.lastMapDebugLogSummary = string.Empty;
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
 
@@ -264,7 +286,8 @@ namespace CameraTools
             HandleVehicleDebugHotkeys();
             var gameplayActive = IsGameplayActive();
 
-            ApplyGameplayTweaks();
+            if (!cityMapOpen)
+                ApplyGameplayTweaks();
             if (!cityMapOpen)
                 ApplyVehicleTweaks(gameplayActive);
             else
@@ -301,7 +324,11 @@ namespace CameraTools
                 $"Last applied distance: {vehicleDebug.LastAppliedDistance:0.##}",
                 $"Value overwritten: {vehicleDebug.WasOverwritten}",
                 $"Camera object found: {vehicleDebug.CameraObjectFound}",
-                $"Cinemachine camera found: {vehicleDebug.CinemachineFound}"
+                $"Cinemachine camera found: {vehicleDebug.CinemachineFound}",
+                $"Map current distance: {mapDebugCurrentDistance:0.##}",
+                $"Map desired distance: {mapDebugDesiredDistance:0.##}",
+                $"Map vanilla delta: {mapDebugVanillaDelta:0.##}",
+                $"Map raw scroll: {mapDebugRawScrollDelta:0.##}"
             };
 
             var content = string.Join("\n", lines);
@@ -1358,15 +1385,36 @@ namespace CameraTools
 
         private void ApplyMapTweaks(bool cityMapOpen)
         {
+            if (cameraToolsDebugEnabled)
+            {
+                var lifecycleSummary = $"Map state: cityMapOpen={cityMapOpen}, mapController={(mapController == null ? "null" : mapController.GetType().FullName)}, activeMapRenderCamera={(activeMapRenderCamera == null ? "null" : activeMapRenderCamera.name)}, activeMapVcam={(activeMapVcamTransform == null ? "null" : activeMapVcamTransform.name)}";
+                if (lastMapLifecycleLogSummary != lifecycleSummary)
+                {
+                    lastMapLifecycleLogSummary = lifecycleSummary;
+                    LogVehicleDebug(lifecycleSummary);
+                }
+            }
+
             if (cityMapOpen && !wasCityMapOpen)
             {
                 hasShownMapStatusNotice = false;
                 hasInitializedMapDistanceForCurrentOpen = false;
+                hasManualMapPitch = false;
+                isTrackingMapRightMousePitch = false;
                 lastConfiguredMapControllerId = 0;
+                desiredMapDistance = float.NaN;
+                if (cameraToolsDebugEnabled)
+                    LogVehicleDebug("Map opened: resetting desiredMapDistance.");
             }
 
             if (!cityMapOpen)
+            {
                 hasInitializedMapDistanceForCurrentOpen = false;
+                desiredMapDistance = float.NaN;
+                isTrackingMapRightMousePitch = false;
+                if (cameraToolsDebugEnabled && wasCityMapOpen)
+                    LogVehicleDebug("Map closed: clearing desiredMapDistance.");
+            }
 
             wasCityMapOpen = cityMapOpen;
 
@@ -1380,21 +1428,31 @@ namespace CameraTools
                         "cameratools_map_notice_missing");
                     hasShownMapStatusNotice = true;
                 }
+                if (cameraToolsDebugEnabled && cityMapOpen)
+                    LogVehicleDebug($"Map early exit: settingsNull={settings == null}, mapControllerNull={mapController == null}, mapTopDownEnabled={(settings != null && settings.EnableMapTopDown)}");
                 return;
             }
 
             ConfigureMapController();
 
-            var mapCamera = ResolveMapCamera(mapController);
-            if (mapCamera == null)
+            var mapVcamTransform = ResolveMapVcamTransform(mapController);
+            var mapRenderCamera = GetLiveMainCamera();
+            if (mapVcamTransform == null && mapRenderCamera == null)
+            {
+                if (cameraToolsDebugEnabled)
+                    LogVehicleDebug("Map early exit: ResolveMapVcamTransform and render camera both returned null.");
                 return;
+            }
 
-            if (activeMapCamera != mapCamera)
+            if (activeMapRenderCamera != mapRenderCamera)
             {
                 RestoreMapCameraState();
-                activeMapCamera = mapCamera;
-                activeMapCameraState = new CameraState(mapCamera);
+                activeMapRenderCamera = mapRenderCamera;
+                if (mapRenderCamera != null)
+                    activeMapRenderCameraState = new CameraState(mapRenderCamera);
             }
+
+            activeMapVcamTransform = mapVcamTransform;
 
             if (!hasShownMapStatusNotice)
             {
@@ -1405,9 +1463,93 @@ namespace CameraTools
             }
 
             var bounds = GetVector2Member(mapController, "minMaxDistance");
-            var distance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
+            var currentDistance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
+            if (float.IsNaN(desiredMapDistance))
+                desiredMapDistance = Mathf.Clamp(currentDistance, bounds.x, bounds.y);
+
+            if (!hasManualMapPitch)
+                manualMapPitch = Mathf.Clamp(settings.MapPitch, MapMinimumPitch, MapMaximumPitch);
+
+            if (Input.GetMouseButtonDown(1))
+            {
+                isTrackingMapRightMousePitch = true;
+                lastRightMouseY = Input.mousePosition.y;
+            }
+
+            if (Input.GetMouseButton(1) && isTrackingMapRightMousePitch)
+            {
+                var currentMouseY = Input.mousePosition.y;
+                var deltaY = currentMouseY - lastRightMouseY;
+                lastRightMouseY = currentMouseY;
+
+                if (Mathf.Abs(deltaY) > Mathf.Epsilon)
+                {
+                    manualMapPitch = Mathf.Clamp(manualMapPitch - deltaY * PitchStepPerMousePixel, MapMinimumPitch, MapMaximumPitch);
+                    hasManualMapPitch = true;
+                }
+            }
+
+            if (Input.GetMouseButtonUp(1))
+                isTrackingMapRightMousePitch = false;
+
+            var rawScrollDelta = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(rawScrollDelta) <= Mathf.Epsilon)
+                rawScrollDelta = Input.GetAxis("Mouse ScrollWheel") * 120f;
+
+            var vanillaDelta = currentDistance - desiredMapDistance;
+            if (Mathf.Abs(vanillaDelta) > MapScrollDeltaThreshold)
+            {
+                desiredMapDistance = Mathf.Clamp(
+                    desiredMapDistance + (vanillaDelta * MapScrollStepMultiplier),
+                    bounds.x,
+                    bounds.y);
+            }
+
+            desiredMapDistance = Mathf.Clamp(desiredMapDistance, bounds.x, bounds.y);
+            if (cameraToolsDebugEnabled)
+            {
+                mapDebugCurrentDistance = currentDistance;
+                mapDebugDesiredDistance = desiredMapDistance;
+                mapDebugRawScrollDelta = rawScrollDelta;
+                mapDebugVanillaDelta = vanillaDelta;
+
+                var mapSummary =
+                    $"Map zoom input: currentDistance={mapDebugCurrentDistance:0.##}, desiredMapDistance={mapDebugDesiredDistance:0.##}, " +
+                    $"vanillaDelta={mapDebugVanillaDelta:0.##}, rawScrollDelta={mapDebugRawScrollDelta:0.##}";
+                if (lastMapDebugLogSummary != mapSummary &&
+                    (Mathf.Abs(mapDebugVanillaDelta) > MapScrollDeltaThreshold || Mathf.Abs(mapDebugRawScrollDelta) > Mathf.Epsilon))
+                {
+                    lastMapDebugLogSummary = mapSummary;
+                    LogVehicleDebug(mapSummary);
+                }
+            }
+            ApplyMapCameraState();
+        }
+
+        private void ApplyMapCameraState()
+        {
+            if (settings == null || mapController == null || float.IsNaN(desiredMapDistance))
+                return;
+
+            var bounds = GetVector2Member(mapController, "minMaxDistance");
+            var distance = Mathf.Clamp(desiredMapDistance, bounds.x, bounds.y);
+            desiredMapDistance = distance;
+            SetMemberValue(mapController, "distance", distance);
+            SetSavedMapZoom(distance);
+            if (cameraToolsDebugEnabled)
+            {
+                var readBackDistance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
+                var applySummary =
+                    $"Map zoom apply: desiredMapDistance={desiredMapDistance:0.##}, readBackDistance={readBackDistance:0.##}, activeMapRenderCamera={(activeMapRenderCamera == null ? "null" : activeMapRenderCamera.name)}, activeMapVcam={(activeMapVcamTransform == null ? "null" : activeMapVcamTransform.name)}";
+                if (lastMapApplyLogSummary != applySummary)
+                {
+                    lastMapApplyLogSummary = applySummary;
+                    LogVehicleDebug(applySummary);
+                }
+            }
+
             var currentAngle = GetFloatMember(mapController, "_currentAngle");
-            var pitch = Mathf.Clamp(settings.MapPitch, 75f, 90f);
+            var pitch = Mathf.Clamp(hasManualMapPitch ? manualMapPitch : settings.MapPitch, MapMinimumPitch, MapMaximumPitch);
             var pitchRadians = pitch * Mathf.Deg2Rad;
             var height = distance * Mathf.Sin(pitchRadians);
             var horizontalRadius = Mathf.Max(0.05f, distance * Mathf.Cos(pitchRadians));
@@ -1417,15 +1559,19 @@ namespace CameraTools
             var upAxis = Quaternion.Euler(0f, currentAngle, 0f) * Vector3.forward;
             var targetRotation = Quaternion.LookRotation(rootPosition - targetPosition, upAxis);
 
-            var vCamTransform = GetTransformMember(mapController, "_vCam");
+            var vCamTransform = activeMapVcamTransform ?? ResolveMapVcamTransform(mapController);
             if (vCamTransform != null)
             {
+                activeMapVcamTransform = vCamTransform;
                 vCamTransform.position = targetPosition;
                 vCamTransform.rotation = targetRotation;
             }
 
-            mapCamera.transform.position = targetPosition;
-            mapCamera.transform.rotation = targetRotation;
+            if (activeMapRenderCamera != null)
+            {
+                activeMapRenderCamera.transform.position = targetPosition;
+                activeMapRenderCamera.transform.rotation = targetRotation;
+            }
         }
 
         private void QueueMapNotice(string message, string duplicateIdentifier)
@@ -1446,28 +1592,59 @@ namespace CameraTools
 
         private void RestoreMapCameraState()
         {
-            if (activeMapCamera == null)
-                return;
+            if (activeMapRenderCamera != null)
+            {
+                activeMapRenderCameraState.Restore(activeMapRenderCamera);
+                activeMapRenderCamera = null;
+            }
 
-            activeMapCameraState.Restore(activeMapCamera);
-            activeMapCamera = null;
+            activeMapVcamTransform = null;
         }
 
-        private static Camera? ResolveMapCamera(Component controller)
+        private Transform? ResolveMapVcamTransform(Component controller)
         {
             var vCamTransform = GetTransformMember(controller, "_vCam");
             if (vCamTransform != null)
-                return vCamTransform.GetComponent<Camera>() ?? vCamTransform.GetComponentInChildren<Camera>(true);
+                return vCamTransform;
 
-            return controller.GetComponentInChildren<Camera>(true) ?? GetLiveMainCamera();
+            if (TryGetMemberValue(controller, "_vCam", out var vCamValue) && vCamValue != null)
+            {
+                if (vCamValue is Transform transform)
+                    return transform;
+
+                if (vCamValue is Component component)
+                    return component.transform;
+
+                if (vCamValue is GameObject gameObject)
+                    return gameObject.transform;
+            }
+
+            if (gameManagerController != null &&
+                TryGetMemberValue(gameManagerController, "citymapCamera", out var cityMapCameraValue) &&
+                cityMapCameraValue != null)
+            {
+                if (cityMapCameraValue is Transform cityMapTransform)
+                    return cityMapTransform;
+
+                if (cityMapCameraValue is Component cityMapComponent)
+                    return cityMapComponent.transform;
+
+                if (cityMapCameraValue is GameObject cityMapObject)
+                    return cityMapObject.transform;
+            }
+
+            return null;
         }
 
         private void HandleCameraPreCull(Camera camera)
         {
-            if (!cameraToolsDebugEnabled)
+            if (settings == null)
                 return;
 
-            if (settings == null ||
+            if (activeMapRenderCamera != null && camera == activeMapRenderCamera)
+                ApplyMapCameraState();
+
+            if (!cameraToolsDebugEnabled ||
                 !needsVehicleDistanceReapply ||
                 float.IsNaN(desiredVehicleDistance) ||
                 cachedVehicleCameras == null ||
