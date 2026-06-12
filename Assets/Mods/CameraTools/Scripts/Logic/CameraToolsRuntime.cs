@@ -101,6 +101,7 @@ namespace CameraTools
         private Camera? activeMapCamera;
         private CameraState activeMapCameraState;
         private Component[]? cachedVehicleCameras;
+        private readonly Dictionary<int, Vector3> cachedVehicleFollowOffsets = new Dictionary<int, Vector3>();
         private MonoBehaviour? configuredGameplayController;
         private MonoBehaviour? configuredMapController;
         private ModContext? context;
@@ -151,6 +152,7 @@ namespace CameraTools
             runtime.context = context;
             runtime.settings = settings;
             runtime.cachedVehicleCameras = null;
+            runtime.cachedVehicleFollowOffsets.Clear();
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
             runtime.desiredVehicleDistance = float.NaN;
@@ -245,6 +247,8 @@ namespace CameraTools
                 $"Distance member: {vehicleDebug.DistanceMemberName}",
                 $"Current distance: {vehicleDebug.CurrentDistance:0.##}",
                 $"Actual distance: {vehicleDebug.ActualDistance:0.##}",
+                $"Original offset: {vehicleDebug.OriginalFollowOffset}",
+                $"Current offset: {vehicleDebug.CurrentFollowOffset}",
                 $"Last applied distance: {vehicleDebug.LastAppliedDistance:0.##}",
                 $"Value overwritten: {vehicleDebug.WasOverwritten}",
                 $"Camera object found: {vehicleDebug.CameraObjectFound}",
@@ -684,6 +688,7 @@ namespace CameraTools
             vehicleDebug.IsVehicleMode = vehicleDebug.IsInsideVehicle || GetActiveVehicleCameraId(cachedVehicleCameras ?? Array.Empty<Component>()) != 0;
             vehicleDebug.CameraObjectFound = cachedVehicleCameras != null && cachedVehicleCameras.Length > 0;
             vehicleDebug.ActualDistance = settings == null ? 0f : ResolveCurrentVehicleDistance(settings.VehicleMaxZoom);
+            UpdateActiveVehicleOffsetDebugState();
         }
 
         private float ReadVehicleScrollDelta()
@@ -710,6 +715,25 @@ namespace CameraTools
 
             vehicleDebug.DistanceMemberName = "not-found";
             return Mathf.Clamp(maxZoom, VehicleMinimumZoom, maxZoom);
+        }
+
+        private void UpdateActiveVehicleOffsetDebugState()
+        {
+            vehicleDebug.OriginalFollowOffset = "n/a";
+            vehicleDebug.CurrentFollowOffset = "n/a";
+
+            foreach (var vehicleCamera in cachedVehicleCameras ?? Array.Empty<Component>())
+            {
+                if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
+                    continue;
+
+                if (!TryGetVehicleCameraOffsetDebugInfo(vehicleCamera.gameObject, out var currentOffset, out var originalOffset))
+                    continue;
+
+                vehicleDebug.CurrentFollowOffset = currentOffset.ToString("F2");
+                vehicleDebug.OriginalFollowOffset = originalOffset.ToString("F2");
+                return;
+            }
         }
 
         private bool TryGetVehicleDistanceValue(out float value, out string memberName)
@@ -930,6 +954,40 @@ namespace CameraTools
             return false;
         }
 
+        private bool TryGetVehicleCameraOffsetDebugInfo(GameObject cameraObject, out Vector3 currentOffset, out Vector3 originalOffset)
+        {
+            currentOffset = default;
+            originalOffset = default;
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return false;
+
+            foreach (var virtualCamera in cameraObject.GetComponentsInChildren(virtualCameraType, true))
+            {
+                if (virtualCamera == null)
+                    continue;
+
+                var pipeline = GetCinemachinePipeline(virtualCameraType, virtualCamera);
+                if (pipeline == null)
+                    continue;
+
+                foreach (var pipelineComponent in pipeline)
+                {
+                    if (pipelineComponent == null || !IsFollowOffsetComponent(pipelineComponent))
+                        continue;
+
+                    if (!TryGetFollowOffset(pipelineComponent, out currentOffset))
+                        continue;
+
+                    originalOffset = GetOrCacheOriginalFollowOffset(pipelineComponent, currentOffset);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool TryGetVehicleCameraDistance(GameObject cameraObject, out float distance)
         {
             distance = 0f;
@@ -1002,7 +1060,7 @@ namespace CameraTools
             return false;
         }
 
-        private static void ApplyVehicleCameraZoomLimits(GameObject cameraObject, float maxZoom)
+        private void ApplyVehicleCameraZoomLimits(GameObject cameraObject, float maxZoom)
         {
             if (cameraMouseDragType != null)
             {
@@ -1039,7 +1097,7 @@ namespace CameraTools
             }
         }
 
-        private static void ApplyVehicleCameraDistance(GameObject cameraObject, float distance, float maxZoom)
+        private void ApplyVehicleCameraDistance(GameObject cameraObject, float distance, float maxZoom)
         {
             if (cameraMouseDragType != null)
             {
@@ -1078,7 +1136,7 @@ namespace CameraTools
             }
         }
 
-        private static void ApplyPipelineZoomLimits(object pipelineComponent, float maxZoom)
+        private void ApplyPipelineZoomLimits(object pipelineComponent, float maxZoom)
         {
             var typeName = pipelineComponent.GetType().Name;
             if (typeName == "CinemachineFramingTransposer")
@@ -1092,15 +1150,14 @@ namespace CameraTools
             }
             else if (typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer")
             {
-                if (TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) && offsetValue is Vector3 followOffset)
+                if (TryGetFollowOffset(pipelineComponent, out var followOffset))
                 {
-                    followOffset.z = -Mathf.Clamp(Mathf.Abs(followOffset.z), VehicleMinimumZoom, maxZoom);
-                    SetMemberValue(pipelineComponent, "m_FollowOffset", followOffset);
+                    GetOrCacheOriginalFollowOffset(pipelineComponent, followOffset);
                 }
             }
         }
 
-        private static void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom)
+        private void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom)
         {
             var clampedDistance = Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom);
             var typeName = pipelineComponent.GetType().Name;
@@ -1114,15 +1171,15 @@ namespace CameraTools
             }
             else if (typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer")
             {
-                if (TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) && offsetValue is Vector3 followOffset)
+                if (TryGetFollowOffset(pipelineComponent, out var followOffset))
                 {
-                    followOffset.z = -clampedDistance;
-                    SetMemberValue(pipelineComponent, "m_FollowOffset", followOffset);
-                }
-                else if (TryGetMemberValue(pipelineComponent, "FollowOffset", out var followOffsetValue) && followOffsetValue is Vector3 publicFollowOffset)
-                {
-                    publicFollowOffset.z = -clampedDistance;
-                    SetMemberValue(pipelineComponent, "FollowOffset", publicFollowOffset);
+                    var originalOffset = GetOrCacheOriginalFollowOffset(pipelineComponent, followOffset);
+                    var originalMagnitude = originalOffset.magnitude;
+                    if (originalMagnitude > Mathf.Epsilon)
+                    {
+                        var scaledOffset = originalOffset * (clampedDistance / originalMagnitude);
+                        SetFollowOffset(pipelineComponent, scaledOffset);
+                    }
                 }
             }
         }
@@ -1148,20 +1205,10 @@ namespace CameraTools
             }
 
             if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
-                TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) &&
-                offsetValue is Vector3 followOffset)
+                TryGetFollowOffset(pipelineComponent, out var followOffset))
             {
-                distance = Mathf.Abs(followOffset.z);
-                memberName = typeName + ".m_FollowOffset.z";
-                return true;
-            }
-
-            if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
-                TryGetMemberValue(pipelineComponent, "FollowOffset", out var publicOffsetValue) &&
-                publicOffsetValue is Vector3 publicFollowOffset)
-            {
-                distance = Mathf.Abs(publicFollowOffset.z);
-                memberName = typeName + ".FollowOffset.z";
+                distance = followOffset.magnitude;
+                memberName = typeName + ".FollowOffset.magnitude";
                 return true;
             }
 
@@ -1810,13 +1857,14 @@ namespace CameraTools
                 }
 
                 if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
-                    TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) &&
-                    offsetValue is Vector3 followOffset)
+                    TryGetFollowOffset(pipelineComponent, out var followOffset))
                 {
                     var beforeOffset = followOffset;
-                    followOffset.z = -6f;
-                    SetMemberValue(pipelineComponent, "m_FollowOffset", followOffset);
-                    return $"{typeName}.m_FollowOffset {beforeOffset}->{followOffset}";
+                    var originalMagnitude = beforeOffset.magnitude;
+                    var scale = originalMagnitude > Mathf.Epsilon ? 6f / originalMagnitude : 1f;
+                    followOffset = beforeOffset * scale;
+                    SetFollowOffset(pipelineComponent, followOffset);
+                    return $"{typeName}.FollowOffset {beforeOffset}->{followOffset}";
                 }
             }
 
@@ -1848,9 +1896,8 @@ namespace CameraTools
                     return $"{typeName}.m_CameraDistance={framingDistance:0.##}";
 
                 if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
-                    TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) &&
-                    offsetValue is Vector3 followOffset)
-                    return $"{typeName}.m_FollowOffset={followOffset}";
+                    TryGetFollowOffset(pipelineComponent, out var followOffset))
+                    return $"{typeName}.FollowOffset={followOffset}";
             }
 
             return "no-supported-body-component";
@@ -1931,6 +1978,49 @@ namespace CameraTools
         private static string FormatEnabled(Component component)
         {
             return component is Behaviour behaviour ? behaviour.enabled.ToString() : "n/a";
+        }
+
+        private Vector3 GetOrCacheOriginalFollowOffset(object pipelineComponent, Vector3 currentOffset)
+        {
+            if (pipelineComponent is not Component component)
+                return currentOffset;
+
+            var key = component.GetInstanceID();
+            if (cachedVehicleFollowOffsets.TryGetValue(key, out var cachedOffset))
+                return cachedOffset;
+
+            cachedVehicleFollowOffsets[key] = currentOffset;
+            return currentOffset;
+        }
+
+        private static bool TryGetFollowOffset(object pipelineComponent, out Vector3 offset)
+        {
+            offset = default;
+            if (TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) && offsetValue is Vector3 privateOffset)
+            {
+                offset = privateOffset;
+                return true;
+            }
+
+            if (TryGetMemberValue(pipelineComponent, "FollowOffset", out var publicOffsetValue) && publicOffsetValue is Vector3 publicOffset)
+            {
+                offset = publicOffset;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool SetFollowOffset(object pipelineComponent, Vector3 offset)
+        {
+            return SetMemberValue(pipelineComponent, "m_FollowOffset", offset) ||
+                SetMemberValue(pipelineComponent, "FollowOffset", offset);
+        }
+
+        private static bool IsFollowOffsetComponent(object pipelineComponent)
+        {
+            var typeName = pipelineComponent.GetType().Name;
+            return typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer";
         }
 
         private bool IsGameplayActive()
@@ -2137,12 +2227,14 @@ namespace CameraTools
             public string CarControllerTypeName = "none";
             public bool CinemachineFound;
             public float CurrentDistance;
+            public string CurrentFollowOffset = "n/a";
             public string DistanceMemberName = "none";
             public bool IsInsideVehicle;
             public bool IsVehicleMode;
             public float LastAppliedDistance;
             public string LastApplySummary = string.Empty;
             public string LastOverwriteSummary = string.Empty;
+            public string OriginalFollowOffset = "n/a";
             public string LastResolutionSummary = string.Empty;
             public float ScrollDelta;
             public bool VehicleControllerFound;
