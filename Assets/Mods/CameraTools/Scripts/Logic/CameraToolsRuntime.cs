@@ -5,6 +5,7 @@ using System.Reflection;
 using BAModAPI;
 using UI.Notification;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace CameraTools
 {
@@ -134,7 +135,10 @@ namespace CameraTools
         private static Type? cityMapCamType;
         private static Type? cinematachineVirtualCameraType;
         private static GUIStyle? debugOverlayStyle;
+        private static Type? dialogUiType;
+        private static Type? fullMenuType;
         private static Type? gameManagerType;
+        private static Type? miniMenuType;
         private static Type? pedestrianCamType;
         private static Type? saveGameManagerType;
         private static Type? vehicleControllerType;
@@ -184,6 +188,9 @@ namespace CameraTools
             vehicleControllerType ??= FindType(VehicleControllerTypeName);
             cameraMouseDragType ??= FindType(CameraMouseDragTypeName);
             cinematachineVirtualCameraType ??= FindType("CinemachineVirtualCamera");
+            miniMenuType ??= FindType("UI.MiniMenu.MiniMenu");
+            fullMenuType ??= FindType("UI.Smartphone.FullMenu");
+            dialogUiType ??= FindType("UI.Dialog.DialogUI");
             gameManagerType ??= FindType(GameManagerTypeName);
             saveGameManagerType ??= FindType(SaveGameManagerTypeName);
 
@@ -479,6 +486,9 @@ namespace CameraTools
             vehicleDebug.ScrollDelta = scrollDelta;
             if (Mathf.Abs(scrollDelta) > Mathf.Epsilon)
             {
+                if (IsGameplayInputBlockedByUi())
+                    return;
+
                 var nextDistance = Mathf.Clamp(
                     desiredVehicleDistance - scrollDelta * VehicleZoomStepPerScrollTick,
                     VehicleMinimumZoom,
@@ -701,6 +711,57 @@ namespace CameraTools
                 CameraToolsFileLogger.Log($"Vehicle scroll detected: delta={scrollDelta:0.###}, insideVehicle={vehicleDebug.IsInsideVehicle}");
 
             return scrollDelta;
+        }
+
+        private bool IsGameplayInputBlockedByUi()
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null)
+            {
+                if (eventSystem.IsPointerOverGameObject())
+                    return true;
+
+                var selectedGameObject = eventSystem.currentSelectedGameObject;
+                if (selectedGameObject != null && selectedGameObject.activeInHierarchy)
+                    return true;
+            }
+
+            if (IsUiOpen(miniMenuType, "IsOpen"))
+                return true;
+
+            if (IsUiOpen(fullMenuType, "IsOpen"))
+                return true;
+
+            if (IsDialogPanelOpen())
+                return true;
+
+            return false;
+        }
+
+        private bool IsUiOpen(Type? type, string propertyName)
+        {
+            var behaviour = FindFirstActiveController(type, includeInactive: false);
+            if (behaviour == null)
+                return false;
+
+            return TryGetBoolMember(behaviour, propertyName, out var isOpen) && isOpen;
+        }
+
+        private bool IsDialogPanelOpen()
+        {
+            if (dialogUiType == null)
+                return false;
+
+            foreach (var obj in UnityEngine.Object.FindObjectsOfType(dialogUiType))
+            {
+                if (obj is not MonoBehaviour behaviour || !behaviour.isActiveAndEnabled)
+                    continue;
+
+                if (TryGetBoolMember(behaviour, "isPanelOpen", out var isPanelOpen) && isPanelOpen)
+                    return true;
+            }
+
+            return false;
         }
 
         private float ResolveCurrentVehicleDistance(float maxZoom)

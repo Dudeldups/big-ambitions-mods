@@ -12,7 +12,7 @@ namespace CameraTools
 
         public int GameplayMaxPitch { get; set; } = 80;
 
-        public int VehicleMaxZoom { get; set; } = 55;
+        public int VehicleMaxZoom { get; set; } = 65;
 
         public bool EnableMapTopDown { get; set; } = true;
 
