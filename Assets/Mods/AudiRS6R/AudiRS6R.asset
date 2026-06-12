@@ -16,14 +16,13 @@ MonoBehaviour:
   tags: []
   vehicleTypeName: audirs6r-vehicle:vehicletype_audirs6r
   price: 240000
-  isATruck: 0
-  isHandVehicle: 0
-  maxFuel: 55
+  itemVersion: 
+  maxFuel: 62
   maxCargoCapacity: 12
   maxSpeed: 320
-  enginePower: 740
-  brakeForce: 4600
-  turnRadius: 35
+  enginePower: 544
+  brakeForce: 5000
+  turnRadius: 32
   damageIntensity: 0.64
   fitsHandTruck: 1
   fitsFlatbed: 0

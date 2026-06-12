@@ -8,6 +8,7 @@ using Vehicles.VehicleTypes;
 public sealed class AudiRS6RRuntime : MonoBehaviour
 {
     private const float DealerSyncInterval = 1f;
+    private const bool DebugVehicleSpawnEnabled = false;
     private const float SpawnDistance = 6f;
 
     private float nextDealerSyncAt;
@@ -43,7 +44,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             TryRegisterWithDealer();
         }
 
-        if (Input.GetKeyDown(KeyCode.F9))
+        if (DebugVehicleSpawnEnabled && Input.GetKeyDown(KeyCode.F9))
             TrySpawnVehicleInFrontOfPlayer();
     }
 
