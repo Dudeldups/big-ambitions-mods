@@ -30,6 +30,10 @@ namespace CameraTools
         private float manualGameplayPitch;
         private string? pendingMapNoticeDuplicateIdentifier;
         private string? pendingMapNoticeMessage;
+        private Vector3 pendingMapCameraPosition;
+        private Quaternion pendingMapCameraRotation;
+        private float pendingMapOrthographicSize;
+        private bool shouldForceMapCamera;
         private CameraToolsSettings? settings;
         private bool wasCityMapOpen;
         private bool hasShownMapStatusNotice;
@@ -66,6 +70,16 @@ namespace CameraTools
         {
             RestoreMapCameraState();
             Destroy(gameObject);
+        }
+
+        private void OnEnable()
+        {
+            Camera.onPreCull += HandleCameraPreCull;
+        }
+
+        private void OnDisable()
+        {
+            Camera.onPreCull -= HandleCameraPreCull;
         }
 
         private void LateUpdate()
@@ -232,7 +246,13 @@ namespace CameraTools
             bounds.x = Mathf.Min(bounds.x, MapMinimumZoom);
             bounds.y = Mathf.Max(bounds.y, settings.MapDistance);
             SetField(mapController, "minMaxDistance", bounds);
-            SetSavedMapZoom(Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y));
+
+            var desiredDistance = Mathf.Clamp(settings.MapDistance, bounds.x, bounds.y);
+            var currentDistance = GetFloatField(mapController, "distance");
+            if (currentDistance < desiredDistance)
+                SetField(mapController, "distance", desiredDistance);
+
+            SetSavedMapZoom(desiredDistance);
         }
 
         private void ApplyMapTweaks(bool cityMapOpen)
@@ -240,6 +260,7 @@ namespace CameraTools
             if (cityMapOpen && !wasCityMapOpen)
                 hasShownMapStatusNotice = false;
             wasCityMapOpen = cityMapOpen;
+            shouldForceMapCamera = false;
 
             if (settings == null || mapController == null || !settings.EnableMapTopDown)
             {
@@ -284,25 +305,34 @@ namespace CameraTools
             var orbit = Quaternion.Euler(0f, currentAngle, 0f) * new Vector3(0f, height, -horizontalRadius);
             var rootPosition = mapController.transform.position;
             var targetPosition = rootPosition + orbit;
+            var targetRotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
+            var targetOrthographicSize = settings.MapOrthographicSize * (distance / Mathf.Max(settings.MapDistance, 1f));
 
             var vCamTransform = GetTransformField(mapController, "_vCam");
             if (vCamTransform != null)
             {
                 vCamTransform.position = targetPosition;
-                vCamTransform.rotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
+                vCamTransform.rotation = targetRotation;
             }
 
             mapCamera.orthographic = true;
-            mapCamera.orthographicSize = settings.MapOrthographicSize * (distance / Mathf.Max(settings.MapDistance, 1f));
+            mapCamera.orthographicSize = targetOrthographicSize;
+            mapCamera.transform.position = targetPosition;
+            mapCamera.transform.rotation = targetRotation;
 
             var mainCamera = Camera.main;
             if (mainCamera != null)
             {
                 mainCamera.orthographic = true;
-                mainCamera.orthographicSize = mapCamera.orthographicSize;
+                mainCamera.orthographicSize = targetOrthographicSize;
                 mainCamera.transform.position = targetPosition;
-                mainCamera.transform.rotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
+                mainCamera.transform.rotation = targetRotation;
             }
+
+            pendingMapCameraPosition = targetPosition;
+            pendingMapCameraRotation = targetRotation;
+            pendingMapOrthographicSize = targetOrthographicSize;
+            shouldForceMapCamera = true;
         }
 
         private void QueueMapNotice(string message, string duplicateIdentifier)
@@ -338,6 +368,20 @@ namespace CameraTools
                 return vCamTransform.GetComponent<Camera>() ?? vCamTransform.GetComponentInChildren<Camera>(true);
 
             return controller.GetComponentInChildren<Camera>(true) ?? Camera.main;
+        }
+
+        private void HandleCameraPreCull(Camera camera)
+        {
+            if (!shouldForceMapCamera || !IsCityMapOpen())
+                return;
+
+            if (camera != Camera.main && camera != activeMapCamera)
+                return;
+
+            camera.orthographic = true;
+            camera.orthographicSize = pendingMapOrthographicSize;
+            camera.transform.position = pendingMapCameraPosition;
+            camera.transform.rotation = pendingMapCameraRotation;
         }
 
         private static void ShowPopup(string message, string? duplicateIdentifier = null)
