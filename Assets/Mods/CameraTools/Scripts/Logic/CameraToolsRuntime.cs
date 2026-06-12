@@ -10,6 +10,7 @@ namespace CameraTools
     public sealed class CameraToolsRuntime : MonoBehaviour
     {
         private const float PitchStepPerScrollTick = 3f;
+        private const float PitchStepPerMousePixel = 0.15f;
         private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
         private const string CityMapCamTypeName = "CityMapCam";
         private const string SaveGameManagerTypeName = "SaveGameManager";
@@ -24,6 +25,8 @@ namespace CameraTools
         private MonoBehaviour? gameplayController;
         private bool hasManualGameplayPitch;
         private bool hasShownGameplayPitchHint;
+        private bool isTrackingRightMousePitch;
+        private float lastRightMouseY;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
         private CameraToolsSettings? settings;
@@ -44,6 +47,7 @@ namespace CameraTools
             runtime.settings = settings;
             runtime.hasManualGameplayPitch = false;
             runtime.hasShownGameplayPitchHint = false;
+            runtime.isTrackingRightMousePitch = false;
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
@@ -72,7 +76,7 @@ namespace CameraTools
         {
             if (gameplayController == null || !gameplayController.isActiveAndEnabled)
             {
-                gameplayController = FindFirstActiveController(pedestrianCamType);
+                gameplayController = FindFirstActiveController(pedestrianCamType, includeInactive: false);
                 if (gameplayController != configuredGameplayController)
                     configuredGameplayController = null;
             }
@@ -85,7 +89,8 @@ namespace CameraTools
 
             if (IsCityMapOpen() && (mapController == null || !mapController.isActiveAndEnabled))
             {
-                mapController = FindFirstActiveController(cityMapCamType);
+                mapController = FindFirstActiveController(cityMapCamType, includeInactive: false) ??
+                    FindFirstActiveController(cityMapCamType, includeInactive: true);
                 if (mapController != configuredMapController)
                     configuredMapController = null;
             }
@@ -97,15 +102,36 @@ namespace CameraTools
             }
         }
 
-        private static MonoBehaviour? FindFirstActiveController(Type? type)
+        private static MonoBehaviour? FindFirstActiveController(Type? type, bool includeInactive)
         {
             if (type == null)
                 return null;
 
-            foreach (var obj in UnityEngine.Object.FindObjectsOfType(type))
+            if (!includeInactive)
+            {
+                foreach (var obj in UnityEngine.Object.FindObjectsOfType(type))
+                {
+                    var behaviour = obj as MonoBehaviour;
+                    if (behaviour == null)
+                        continue;
+
+                    return behaviour;
+                }
+
+                return null;
+            }
+
+            foreach (var obj in Resources.FindObjectsOfTypeAll(type))
             {
                 var behaviour = obj as MonoBehaviour;
                 if (behaviour == null)
+                    continue;
+
+                var gameObject = behaviour.gameObject;
+                if (gameObject == null)
+                    continue;
+
+                if (gameObject.hideFlags != HideFlags.None)
                     continue;
 
                 return behaviour;
@@ -156,6 +182,28 @@ namespace CameraTools
                     hasManualGameplayPitch = true;
                 }
             }
+
+            if (Input.GetMouseButtonDown(1))
+            {
+                isTrackingRightMousePitch = true;
+                lastRightMouseY = Input.mousePosition.y;
+            }
+
+            if (Input.GetMouseButton(1) && isTrackingRightMousePitch)
+            {
+                var currentMouseY = Input.mousePosition.y;
+                var deltaY = currentMouseY - lastRightMouseY;
+                lastRightMouseY = currentMouseY;
+
+                if (Mathf.Abs(deltaY) > Mathf.Epsilon)
+                {
+                    manualGameplayPitch = Mathf.Clamp(manualGameplayPitch - deltaY * PitchStepPerMousePixel, minPitch, maxPitch);
+                    hasManualGameplayPitch = true;
+                }
+            }
+
+            if (Input.GetMouseButtonUp(1))
+                isTrackingRightMousePitch = false;
 
             if (Input.GetKeyDown(KeyCode.Home))
             {
