@@ -9,10 +9,11 @@ namespace CameraTools
 {
     public sealed class CameraToolsRuntime : MonoBehaviour
     {
-        private const float PitchStepPerScrollTick = 3f;
         private const float PitchStepPerMousePixel = 0.15f;
         private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
         private const string CityMapCamTypeName = "CityMapCam";
+        private const string NotificationsTypeName = "UI.Notification.Notifications";
+        private const string NotificationTypeEnumName = "UI.Notification.NotificationType";
         private const string SaveGameManagerTypeName = "SaveGameManager";
         private const float GameplayMinimumZoom = 1.5f;
         private const float MapMinimumZoom = 10f;
@@ -30,8 +31,12 @@ namespace CameraTools
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
         private CameraToolsSettings? settings;
+        private bool wasCityMapOpen;
+        private bool hasShownMapStatusNotice;
         private static Type? pedestrianCamType;
         private static Type? cityMapCamType;
+        private static Type? notificationsType;
+        private static Type? notificationTypeEnumType;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
         {
@@ -48,10 +53,14 @@ namespace CameraTools
             runtime.hasManualGameplayPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isTrackingRightMousePitch = false;
+            runtime.wasCityMapOpen = false;
+            runtime.hasShownMapStatusNotice = false;
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
             cityMapCamType ??= FindType(CityMapCamTypeName);
+            notificationsType ??= FindType(NotificationsTypeName);
+            notificationTypeEnumType ??= FindType(NotificationTypeEnumName);
             return runtime;
         }
 
@@ -169,18 +178,8 @@ namespace CameraTools
 
             if (!hasShownGameplayPitchHint && context != null)
             {
-                context.Logger.Info("CameraTools: hold Left Alt and use the mouse wheel to tilt the gameplay camera.");
+                context.Logger.Info("CameraTools: hold right mouse and move up or down to tilt the gameplay camera.");
                 hasShownGameplayPitchHint = true;
-            }
-
-            if (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))
-            {
-                var scrollDelta = Input.mouseScrollDelta.y;
-                if (Mathf.Abs(scrollDelta) > Mathf.Epsilon)
-                {
-                    manualGameplayPitch = Mathf.Clamp(manualGameplayPitch + scrollDelta * PitchStepPerScrollTick, minPitch, maxPitch);
-                    hasManualGameplayPitch = true;
-                }
             }
 
             if (Input.GetMouseButtonDown(1))
@@ -238,9 +237,19 @@ namespace CameraTools
 
         private void ApplyMapTweaks()
         {
+            var cityMapOpen = IsCityMapOpen();
+            if (cityMapOpen && !wasCityMapOpen)
+                hasShownMapStatusNotice = false;
+            wasCityMapOpen = cityMapOpen;
+
             if (settings == null || mapController == null || !settings.EnableMapTopDown)
             {
                 RestoreMapCameraState();
+                if (cityMapOpen && !hasShownMapStatusNotice)
+                {
+                    ShowInGameNotification("cameratools_map_notice_missing", "cameratools_map_notice_missing");
+                    hasShownMapStatusNotice = true;
+                }
                 return;
             }
 
@@ -255,6 +264,12 @@ namespace CameraTools
                 RestoreMapCameraState();
                 activeMapCamera = mapCamera;
                 activeMapCameraState = new CameraState(mapCamera);
+            }
+
+            if (!hasShownMapStatusNotice)
+            {
+                ShowInGameNotification("cameratools_map_notice_found", "cameratools_map_notice_found");
+                hasShownMapStatusNotice = true;
             }
 
             var distance = Mathf.Max(GetFloatField(mapController, "distance"), 1f);
@@ -303,6 +318,37 @@ namespace CameraTools
                 return vCamTransform.GetComponent<Camera>() ?? vCamTransform.GetComponentInChildren<Camera>(true);
 
             return controller.GetComponentInChildren<Camera>(true) ?? Camera.main;
+        }
+
+        private static void ShowInGameNotification(string headerKey, string duplicateIdentifier)
+        {
+            if (notificationsType == null || notificationTypeEnumType == null)
+                return;
+
+            var showMethod = notificationsType.GetMethod(
+                "Show",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[]
+                {
+                    notificationTypeEnumType,
+                    typeof(string),
+                    typeof(Dictionary<string, string>),
+                    typeof(float),
+                    typeof(string),
+                    typeof(Action),
+                    typeof(bool),
+                    typeof(bool)
+                },
+                null);
+
+            if (showMethod == null)
+                return;
+
+            var infoValue = Enum.ToObject(notificationTypeEnumType, 3);
+            showMethod.Invoke(
+                null,
+                new object?[] { infoValue, headerKey, null, 4f, duplicateIdentifier, null, false, false });
         }
 
         private static void SetSavedMapZoom(float zoom)

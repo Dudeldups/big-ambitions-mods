@@ -6,13 +6,15 @@
   "cameratools_gameplay_pitch_default_label": "Gameplay Default Pitch",
   "cameratools_gameplay_pitch_min_label": "Gameplay Min Pitch",
   "cameratools_gameplay_pitch_max_label": "Gameplay Max Pitch",
-  "cameratools_gameplay_pitch_help": "Hold Left Alt and use the mouse wheel to tilt the camera. Press Home to reset it.",
+  "cameratools_gameplay_pitch_help": "Hold right mouse and move up or down to tilt the camera. Press Home to reset it.",
 
   "cameratools_map_toggle": "Enable Top-Down City Map",
   "cameratools_map_distance_label": "Map Camera Distance",
   "cameratools_map_size_label": "Map Orthographic Size",
   "cameratools_map_pitch_label": "Map Pitch",
   "cameratools_map_help": "Forces the city map into a straight top-down camera while it is open.",
+  "cameratools_map_notice_found": "CameraTools found CityMapCam and applied map changes.",
+  "cameratools_map_notice_missing": "CameraTools could not find CityMapCam while the map was open.",
 
   "cameratools_slider_value": "{value}"
 }
