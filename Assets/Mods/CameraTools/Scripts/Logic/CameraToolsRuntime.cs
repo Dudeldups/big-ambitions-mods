@@ -16,6 +16,8 @@ namespace CameraTools
         private const string SaveGameManagerTypeName = "SaveGameManager";
         private const float GameplayMinimumZoom = 1.5f;
         private const float MapMinimumZoom = 1f;
+        private const float VehicleMinimumZoom = 6f;
+        private const float VehicleControllerSearchIntervalSeconds = 2f;
 
         private Camera? activeMapCamera;
         private CameraState activeMapCameraState;
@@ -29,6 +31,8 @@ namespace CameraTools
         private float lastRightMouseY;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
+        private MonoBehaviour? vehicleController;
+        private float nextVehicleControllerSearchTime;
         private bool hasInitializedMapDistanceForCurrentOpen;
         private float lastAppliedMapDistanceSetting;
         private string? pendingMapNoticeDuplicateIdentifier;
@@ -55,6 +59,8 @@ namespace CameraTools
             runtime.hasManualGameplayPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isTrackingRightMousePitch = false;
+            runtime.vehicleController = null;
+            runtime.nextVehicleControllerSearchTime = 0f;
             runtime.hasInitializedMapDistanceForCurrentOpen = false;
             runtime.lastAppliedMapDistanceSetting = float.NaN;
             runtime.pendingMapNoticeDuplicateIdentifier = null;
@@ -94,6 +100,7 @@ namespace CameraTools
             var cityMapOpen = IsCityMapOpen();
 
             ApplyGameplayTweaks();
+            ApplyVehicleTweaks();
             ApplyMapTweaks(cityMapOpen);
             FlushPendingMapNotice(cityMapOpen);
         }
@@ -126,6 +133,8 @@ namespace CameraTools
                 configuredMapController = mapController;
                 ConfigureMapController();
             }
+
+            EnsureVehicleController();
         }
 
         private static MonoBehaviour? FindFirstActiveController(Type? type, bool includeInactive)
@@ -270,6 +279,40 @@ namespace CameraTools
             lastAppliedMapDistanceSetting = desiredDistance;
         }
 
+        private void EnsureVehicleController()
+        {
+            if (vehicleController != null)
+            {
+                if (vehicleController.isActiveAndEnabled)
+                    return;
+
+                vehicleController = null;
+            }
+
+            if (Time.unscaledTime < nextVehicleControllerSearchTime)
+                return;
+
+            nextVehicleControllerSearchTime = Time.unscaledTime + VehicleControllerSearchIntervalSeconds;
+            vehicleController = FindVehicleController();
+        }
+
+        private void ApplyVehicleTweaks()
+        {
+            if (settings == null || vehicleController == null)
+                return;
+
+            var bounds = GetVector2Field(vehicleController, "minMaxDistance");
+            if (bounds == default && !HasField(vehicleController, "minMaxDistance"))
+                return;
+
+            bounds.x = Mathf.Min(bounds.x, VehicleMinimumZoom);
+            bounds.y = Mathf.Max(bounds.y, settings.VehicleMaxZoom);
+            SetField(vehicleController, "minMaxDistance", bounds);
+
+            if (HasField(vehicleController, "blockCameraZoom"))
+                SetField(vehicleController, "blockCameraZoom", false);
+        }
+
         private void ApplyMapTweaks(bool cityMapOpen)
         {
             if (cityMapOpen && !wasCityMapOpen)
@@ -377,6 +420,37 @@ namespace CameraTools
             return controller.GetComponentInChildren<Camera>(true) ?? GetLiveMainCamera();
         }
 
+        private static MonoBehaviour? FindVehicleController()
+        {
+            foreach (var behaviour in UnityEngine.Object.FindObjectsOfType<MonoBehaviour>())
+            {
+                if (behaviour == null || !behaviour.isActiveAndEnabled)
+                    continue;
+
+                if (IsLikelyVehicleController(behaviour))
+                    return behaviour;
+            }
+
+            return null;
+        }
+
+        private static bool IsLikelyVehicleController(MonoBehaviour behaviour)
+        {
+            var type = behaviour.GetType();
+            var typeName = (type.FullName ?? type.Name).ToLowerInvariant();
+            var hasVehicleName = typeName.Contains("vehicle") || typeName.Contains("car");
+            var hasCameraField =
+                HasField(behaviour, "vehicleCamera") ||
+                HasField(behaviour, "vehicleCameraReverse") ||
+                HasField(behaviour, "indoorVehicleCamera") ||
+                HasField(behaviour, "indoorVehicleCameraReverse");
+
+            if (!hasVehicleName && !hasCameraField)
+                return false;
+
+            return HasField(behaviour, "minMaxDistance");
+        }
+
         private void HandleCameraPreCull(Camera camera)
         {
         }
@@ -462,6 +536,11 @@ namespace CameraTools
                 return;
 
             field.SetValue(target, value);
+        }
+
+        private static bool HasField(object target, string fieldName)
+        {
+            return target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public) != null;
         }
 
         private static Type? FindType(string typeName)
