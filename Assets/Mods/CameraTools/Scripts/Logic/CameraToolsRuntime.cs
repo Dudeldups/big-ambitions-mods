@@ -9,7 +9,6 @@ namespace CameraTools
 {
     public sealed class CameraToolsRuntime : MonoBehaviour
     {
-        private const float ControllerRefreshInterval = 2f;
         private const float PitchStepPerScrollTick = 3f;
         private const string PedestrianCamTypeName = "CameraControllers.PedestrianCam";
         private const string CityMapCamTypeName = "CityMapCam";
@@ -27,7 +26,6 @@ namespace CameraTools
         private bool hasShownGameplayPitchHint;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
-        private float nextControllerRefreshAt;
         private CameraToolsSettings? settings;
         private static Type? pedestrianCamType;
         private static Type? cityMapCamType;
@@ -44,7 +42,6 @@ namespace CameraTools
 
             runtime.context = context;
             runtime.settings = settings;
-            runtime.nextControllerRefreshAt = 0f;
             runtime.hasManualGameplayPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.configuredGameplayController = null;
@@ -65,33 +62,39 @@ namespace CameraTools
             if (settings == null)
                 return;
 
-            if (Time.unscaledTime >= nextControllerRefreshAt)
-            {
-                RefreshControllers();
-                nextControllerRefreshAt = Time.unscaledTime + ControllerRefreshInterval;
-            }
+            EnsureControllers();
 
             ApplyGameplayTweaks();
             ApplyMapTweaks();
         }
 
-        private void RefreshControllers()
+        private void EnsureControllers()
         {
-            gameplayController = FindFirstActiveController(pedestrianCamType);
-            mapController = FindFirstActiveController(cityMapCamType);
+            if (gameplayController == null || !gameplayController.isActiveAndEnabled)
+            {
+                gameplayController = FindFirstActiveController(pedestrianCamType);
+                if (gameplayController != configuredGameplayController)
+                    configuredGameplayController = null;
+            }
 
-            if (gameplayController != configuredGameplayController)
+            if (gameplayController != null && gameplayController != configuredGameplayController)
             {
                 configuredGameplayController = gameplayController;
+                ConfigureGameplayController();
             }
 
-            if (mapController != configuredMapController)
+            if (IsCityMapOpen() && (mapController == null || !mapController.isActiveAndEnabled))
+            {
+                mapController = FindFirstActiveController(cityMapCamType);
+                if (mapController != configuredMapController)
+                    configuredMapController = null;
+            }
+
+            if (mapController != null && mapController != configuredMapController)
             {
                 configuredMapController = mapController;
+                ConfigureMapController();
             }
-
-            ConfigureGameplayController();
-            ConfigureMapController();
         }
 
         private static MonoBehaviour? FindFirstActiveController(Type? type)
@@ -99,14 +102,10 @@ namespace CameraTools
             if (type == null)
                 return null;
 
-            foreach (var obj in Resources.FindObjectsOfTypeAll(type))
+            foreach (var obj in UnityEngine.Object.FindObjectsOfType(type))
             {
                 var behaviour = obj as MonoBehaviour;
                 if (behaviour == null)
-                    continue;
-
-                var gameObject = behaviour.gameObject;
-                if (gameObject == null || !gameObject.activeInHierarchy || !behaviour.isActiveAndEnabled)
                     continue;
 
                 return behaviour;
@@ -136,6 +135,8 @@ namespace CameraTools
         {
             if (settings == null || gameplayController == null || !settings.EnableGameplayTweaks)
                 return;
+
+            ConfigureGameplayController();
 
             var minPitch = Mathf.Min(settings.GameplayMinPitch, settings.GameplayMaxPitch);
             var maxPitch = Mathf.Max(settings.GameplayMinPitch, settings.GameplayMaxPitch);
@@ -195,6 +196,8 @@ namespace CameraTools
                 return;
             }
 
+            ConfigureMapController();
+
             var mapCamera = ResolveMapCamera(mapController);
             if (mapCamera == null)
                 return;
@@ -231,6 +234,7 @@ namespace CameraTools
             {
                 mainCamera.orthographic = true;
                 mainCamera.orthographicSize = mapCamera.orthographicSize;
+                mainCamera.transform.position = targetPosition;
                 mainCamera.transform.rotation = Quaternion.LookRotation(rootPosition - targetPosition, Vector3.forward);
             }
         }
@@ -310,6 +314,16 @@ namespace CameraTools
             }
 
             return null;
+        }
+
+        private static bool IsCityMapOpen()
+        {
+            var cityMapType = FindType("CityMap");
+            if (cityMapType == null)
+                return false;
+
+            var isOpenProperty = cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
+            return isOpenProperty?.GetValue(null) as bool? ?? false;
         }
 
         private readonly struct CameraState
