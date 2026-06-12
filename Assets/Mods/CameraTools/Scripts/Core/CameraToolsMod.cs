@@ -5,30 +5,31 @@ using BAModAPI;
 
 [assembly: RegisterModClass(typeof(CameraTools.CameraToolsMod))]
 
-namespace CameraTools;
-
-[ModEntryOnInitializationLoad]
-public sealed class CameraToolsMod : IModBigAmbitions
+namespace CameraTools
 {
-    private readonly CameraToolsSettings settings = new();
-    private readonly CameraToolsOptions options = new();
-    private CameraToolsRuntime? runtime;
-
-    public string[] RelativeAssetBundlePaths => Array.Empty<string>();
-
-    public Task OnLoadAsync(ModContext context)
+    [ModEntryOnInitializationLoad]
+    public sealed class CameraToolsMod : IModBigAmbitions
     {
-        options.Initialize(context, settings);
-        runtime = CameraToolsRuntime.Initialize(context, settings);
-        context.Logger.Info("CameraTools: runtime initialized.");
-        return Task.CompletedTask;
-    }
+        private readonly CameraToolsSettings settings = new();
+        private readonly CameraToolsOptions options = new();
+        private CameraToolsRuntime? runtime;
 
-    public Task OnUnloadAsync()
-    {
-        runtime?.Shutdown();
-        runtime = null;
-        options.Shutdown();
-        return Task.CompletedTask;
+        public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+
+        public Task OnLoadAsync(ModContext context)
+        {
+            options.Initialize(context, settings);
+            runtime = CameraToolsRuntime.Initialize(context, settings);
+            context.Logger.Info("CameraTools: runtime initialized.");
+            return Task.CompletedTask;
+        }
+
+        public Task OnUnloadAsync()
+        {
+            runtime?.Shutdown();
+            runtime = null;
+            options.Shutdown();
+            return Task.CompletedTask;
+        }
     }
 }

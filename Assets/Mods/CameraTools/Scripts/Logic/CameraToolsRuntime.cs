@@ -7,130 +7,130 @@ using System.Reflection;
 using BAModAPI;
 using UnityEngine;
 
-namespace CameraTools;
-
-public sealed class CameraToolsRuntime : MonoBehaviour
+namespace CameraTools
 {
-    private const float ControllerRefreshInterval = 1f;
-    private const float PitchStepPerScrollTick = 3f;
-    private static readonly string[] GameplayCameraTypeNames = { "CameraControllers.PedestrianCam" };
-    private static readonly string[] MapCameraTypeNames = { "CityMapCam" };
-    private static readonly string[] CameraMemberCandidates =
+    public sealed class CameraToolsRuntime : MonoBehaviour
     {
-        "Camera",
-        "_camera",
-        "_mainCamera",
-        "pedestrianCamera",
-        "citymapCamera",
-        "buildingPreviewCamera"
-    };
-
-    private static readonly string[] MaxDistanceMemberCandidates =
-    {
-        "maxDistance",
-        "maximumDistance",
-        "maxZoom"
-    };
-
-    private static readonly string[] MinDistanceMemberCandidates =
-    {
-        "minDistance",
-        "minimumDistance",
-        "minZoom"
-    };
-
-    private static readonly string[] DistanceMemberCandidates =
-    {
-        "distance",
-        "zoom",
-        "cityMapZoom"
-    };
-
-    private static readonly string[] PitchMemberCandidates =
-    {
-        "pitch",
-        "_angle",
-        "_currentAngle"
-    };
-
-    private static readonly string[] RotationMemberCandidates =
-    {
-        "rotation",
-        "yRotation"
-    };
-
-    private Camera? activeMapCamera;
-    private CameraState activeMapCameraState;
-    private ModContext? context;
-    private MonoBehaviour? gameplayController;
-    private bool hasManualGameplayPitch;
-    private float manualGameplayPitch;
-    private MonoBehaviour? mapController;
-    private float nextControllerRefreshAt;
-    private CameraToolsSettings? settings;
-
-    public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
-    {
-        var runtime = FindObjectOfType<CameraToolsRuntime>();
-        if (runtime == null)
+        private const float ControllerRefreshInterval = 1f;
+        private const float PitchStepPerScrollTick = 3f;
+        private static readonly string[] GameplayCameraTypeNames = { "CameraControllers.PedestrianCam" };
+        private static readonly string[] MapCameraTypeNames = { "CityMapCam" };
+        private static readonly string[] CameraMemberCandidates =
         {
-            var runtimeObject = new GameObject(nameof(CameraToolsRuntime));
-            DontDestroyOnLoad(runtimeObject);
-            runtime = runtimeObject.AddComponent<CameraToolsRuntime>();
+            "Camera",
+            "_camera",
+            "_mainCamera",
+            "pedestrianCamera",
+            "citymapCamera",
+            "buildingPreviewCamera"
+        };
+
+        private static readonly string[] MaxDistanceMemberCandidates =
+        {
+            "maxDistance",
+            "maximumDistance",
+            "maxZoom"
+        };
+
+        private static readonly string[] MinDistanceMemberCandidates =
+        {
+            "minDistance",
+            "minimumDistance",
+            "minZoom"
+        };
+
+        private static readonly string[] DistanceMemberCandidates =
+        {
+            "distance",
+            "zoom",
+            "cityMapZoom"
+        };
+
+        private static readonly string[] PitchMemberCandidates =
+        {
+            "pitch",
+            "_angle",
+            "_currentAngle"
+        };
+
+        private static readonly string[] RotationMemberCandidates =
+        {
+            "rotation",
+            "yRotation"
+        };
+
+        private Camera? activeMapCamera;
+        private CameraState activeMapCameraState;
+        private ModContext? context;
+        private MonoBehaviour? gameplayController;
+        private bool hasManualGameplayPitch;
+        private float manualGameplayPitch;
+        private MonoBehaviour? mapController;
+        private float nextControllerRefreshAt;
+        private CameraToolsSettings? settings;
+
+        public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
+        {
+            var runtime = FindObjectOfType<CameraToolsRuntime>();
+            if (runtime == null)
+            {
+                var runtimeObject = new GameObject(nameof(CameraToolsRuntime));
+                DontDestroyOnLoad(runtimeObject);
+                runtime = runtimeObject.AddComponent<CameraToolsRuntime>();
+            }
+
+            runtime.context = context;
+            runtime.settings = settings;
+            runtime.nextControllerRefreshAt = 0f;
+            runtime.hasManualGameplayPitch = false;
+            return runtime;
         }
 
-        runtime.context = context;
-        runtime.settings = settings;
-        runtime.nextControllerRefreshAt = 0f;
-        runtime.hasManualGameplayPitch = false;
-        return runtime;
-    }
-
-    public void Shutdown()
-    {
-        RestoreMapCameraState();
-        Destroy(gameObject);
-    }
-
-    private void LateUpdate()
-    {
-        if (settings == null)
-            return;
-
-        if (Time.unscaledTime >= nextControllerRefreshAt)
+        public void Shutdown()
         {
-            RefreshControllers();
-            nextControllerRefreshAt = Time.unscaledTime + ControllerRefreshInterval;
+            RestoreMapCameraState();
+            Destroy(gameObject);
         }
 
-        ApplyGameplayTweaks();
-        ApplyMapTweaks();
-    }
-
-    private void RefreshControllers()
-    {
-        gameplayController = FindFirstActiveController(GameplayCameraTypeNames);
-        mapController = FindFirstActiveController(MapCameraTypeNames);
-    }
-
-    private MonoBehaviour? FindFirstActiveController(IEnumerable<string> typeNames)
-    {
-        foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+        private void LateUpdate()
         {
-            if (behaviour == null)
-                continue;
+            if (settings == null)
+                return;
 
-            var gameObject = behaviour.gameObject;
-            if (gameObject == null || !gameObject.activeInHierarchy || !behaviour.isActiveAndEnabled)
-                continue;
+            if (Time.unscaledTime >= nextControllerRefreshAt)
+            {
+                RefreshControllers();
+                nextControllerRefreshAt = Time.unscaledTime + ControllerRefreshInterval;
+            }
 
-            var fullName = behaviour.GetType().FullName;
-            if (fullName != null && typeNames.Contains(fullName, StringComparer.Ordinal))
-                return behaviour;
+            ApplyGameplayTweaks();
+            ApplyMapTweaks();
         }
 
-        return null;
-    }
+        private void RefreshControllers()
+        {
+            gameplayController = FindFirstActiveController(GameplayCameraTypeNames);
+            mapController = FindFirstActiveController(MapCameraTypeNames);
+        }
+
+        private MonoBehaviour? FindFirstActiveController(IEnumerable<string> typeNames)
+        {
+            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+            {
+                if (behaviour == null)
+                    continue;
+
+                var gameObject = behaviour.gameObject;
+                if (gameObject == null || !gameObject.activeInHierarchy || !behaviour.isActiveAndEnabled)
+                    continue;
+
+                var fullName = behaviour.GetType().FullName;
+                if (fullName != null && typeNames.Contains(fullName, StringComparer.Ordinal))
+                    return behaviour;
+            }
+
+            return null;
+        }
 
     private void ApplyGameplayTweaks()
     {
@@ -428,24 +428,25 @@ public sealed class CameraToolsRuntime : MonoBehaviour
         return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
     }
 
-    private readonly struct CameraState
-    {
-        private readonly float fieldOfView;
-        private readonly bool orthographic;
-        private readonly float orthographicSize;
-
-        public CameraState(Camera camera)
+        private readonly struct CameraState
         {
-            orthographic = camera.orthographic;
-            orthographicSize = camera.orthographicSize;
-            fieldOfView = camera.fieldOfView;
-        }
+            private readonly float fieldOfView;
+            private readonly bool orthographic;
+            private readonly float orthographicSize;
 
-        public void Restore(Camera camera)
-        {
-            camera.orthographic = orthographic;
-            camera.orthographicSize = orthographicSize;
-            camera.fieldOfView = fieldOfView;
+            public CameraState(Camera camera)
+            {
+                orthographic = camera.orthographic;
+                orthographicSize = camera.orthographicSize;
+                fieldOfView = camera.fieldOfView;
+            }
+
+            public void Restore(Camera camera)
+            {
+                camera.orthographic = orthographic;
+                camera.orthographicSize = orthographicSize;
+                camera.fieldOfView = fieldOfView;
+            }
         }
     }
 }
