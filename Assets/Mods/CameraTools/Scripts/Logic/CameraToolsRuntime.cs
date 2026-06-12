@@ -119,6 +119,7 @@ namespace CameraTools
         private float lastVehicleControllerSearchTime;
         private MonoBehaviour? mapController;
         private float manualGameplayPitch;
+        private PendingVcamDiagnostic? pendingVcamDiagnostic;
         private string? pendingMapNoticeDuplicateIdentifier;
         private string? pendingMapNoticeMessage;
         private CameraToolsSettings? settings;
@@ -166,6 +167,7 @@ namespace CameraTools
             runtime.lastRightMouseY = 0f;
             runtime.lastVehicleControllerSearchTime = float.NegativeInfinity;
             runtime.mapController = null;
+            runtime.pendingVcamDiagnostic = null;
             runtime.pendingMapNoticeDuplicateIdentifier = null;
             runtime.pendingMapNoticeMessage = null;
             runtime.showVehicleDebugOverlay = false;
@@ -218,6 +220,7 @@ namespace CameraTools
             ApplyGameplayTweaks();
             ApplyVehicleTweaks(gameplayActive);
             ApplyMapTweaks(cityMapOpen);
+            ProcessPendingVcamDiagnostic();
             FlushPendingMapNotice(cityMapOpen);
         }
 
@@ -714,6 +717,9 @@ namespace CameraTools
             value = 0f;
             memberName = "none";
 
+            if (TryGetActiveVehicleBodyDistance(out value, out memberName))
+                return true;
+
             if (vehicleTarget?.VehicleController != null &&
                 TryGetFirstFloatMember(vehicleTarget.VehicleController, VehicleDistanceMemberNames, out value, out memberName))
                 return true;
@@ -907,6 +913,23 @@ namespace CameraTools
             return false;
         }
 
+        private bool TryGetActiveVehicleBodyDistance(out float distance, out string memberName)
+        {
+            distance = 0f;
+            memberName = "none";
+
+            foreach (var vehicleCamera in cachedVehicleCameras ?? Array.Empty<Component>())
+            {
+                if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
+                    continue;
+
+                if (TryGetVehicleCameraBodyDistance(vehicleCamera.gameObject, out distance, out memberName))
+                    return true;
+            }
+
+            return false;
+        }
+
         private static bool TryGetVehicleCameraDistance(GameObject cameraObject, out float distance)
         {
             distance = 0f;
@@ -948,6 +971,37 @@ namespace CameraTools
             return false;
         }
 
+        private static bool TryGetVehicleCameraBodyDistance(GameObject cameraObject, out float distance, out string memberName)
+        {
+            distance = 0f;
+            memberName = "none";
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return false;
+
+            foreach (var virtualCamera in cameraObject.GetComponentsInChildren(virtualCameraType, true))
+            {
+                if (virtualCamera == null)
+                    continue;
+
+                var pipeline = GetCinemachinePipeline(virtualCameraType, virtualCamera);
+                if (pipeline == null)
+                    continue;
+
+                foreach (var pipelineComponent in pipeline)
+                {
+                    if (pipelineComponent == null)
+                        continue;
+
+                    if (TryGetPipelineComponentDistance(pipelineComponent, out distance, out memberName))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void ApplyVehicleCameraZoomLimits(GameObject cameraObject, float maxZoom)
         {
             if (cameraMouseDragType != null)
@@ -980,16 +1034,7 @@ namespace CameraTools
                     if (pipelineComponent == null)
                         continue;
 
-                    var typeName = pipelineComponent.GetType().Name;
-                    if (typeName == "CinemachineFramingTransposer")
-                    {
-                        SetMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
-                        SetMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
-                    }
-                    else if (typeName == "Cinemachine3rdPersonFollow")
-                    {
-                        SetMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(GetFloatMember(pipelineComponent, "CameraDistance"), VehicleMinimumZoom, maxZoom));
-                    }
+                    ApplyPipelineZoomLimits(pipelineComponent, maxZoom);
                 }
             }
         }
@@ -1027,19 +1072,100 @@ namespace CameraTools
                     if (pipelineComponent == null)
                         continue;
 
-                    var typeName = pipelineComponent.GetType().Name;
-                    if (typeName == "CinemachineFramingTransposer")
-                    {
-                        SetMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
-                        SetMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
-                        SetMemberValue(pipelineComponent, "m_CameraDistance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
-                    }
-                    else if (typeName == "Cinemachine3rdPersonFollow")
-                    {
-                        SetMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
-                    }
+                    ApplyPipelineZoomLimits(pipelineComponent, maxZoom);
+                    ApplyPipelineDistance(pipelineComponent, distance, maxZoom);
                 }
             }
+        }
+
+        private static void ApplyPipelineZoomLimits(object pipelineComponent, float maxZoom)
+        {
+            var typeName = pipelineComponent.GetType().Name;
+            if (typeName == "CinemachineFramingTransposer")
+            {
+                SetMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
+                SetMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
+            }
+            else if (typeName == "Cinemachine3rdPersonFollow")
+            {
+                SetMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(GetFloatMember(pipelineComponent, "CameraDistance"), VehicleMinimumZoom, maxZoom));
+            }
+            else if (typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer")
+            {
+                if (TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) && offsetValue is Vector3 followOffset)
+                {
+                    followOffset.z = -Mathf.Clamp(Mathf.Abs(followOffset.z), VehicleMinimumZoom, maxZoom);
+                    SetMemberValue(pipelineComponent, "m_FollowOffset", followOffset);
+                }
+            }
+        }
+
+        private static void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom)
+        {
+            var clampedDistance = Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom);
+            var typeName = pipelineComponent.GetType().Name;
+            if (typeName == "CinemachineFramingTransposer")
+            {
+                SetMemberValue(pipelineComponent, "m_CameraDistance", clampedDistance);
+            }
+            else if (typeName == "Cinemachine3rdPersonFollow")
+            {
+                SetMemberValue(pipelineComponent, "CameraDistance", clampedDistance);
+            }
+            else if (typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer")
+            {
+                if (TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) && offsetValue is Vector3 followOffset)
+                {
+                    followOffset.z = -clampedDistance;
+                    SetMemberValue(pipelineComponent, "m_FollowOffset", followOffset);
+                }
+                else if (TryGetMemberValue(pipelineComponent, "FollowOffset", out var followOffsetValue) && followOffsetValue is Vector3 publicFollowOffset)
+                {
+                    publicFollowOffset.z = -clampedDistance;
+                    SetMemberValue(pipelineComponent, "FollowOffset", publicFollowOffset);
+                }
+            }
+        }
+
+        private static bool TryGetPipelineComponentDistance(object pipelineComponent, out float distance, out string memberName)
+        {
+            distance = 0f;
+            memberName = "none";
+            var typeName = pipelineComponent.GetType().Name;
+
+            if (typeName == "CinemachineFramingTransposer" &&
+                TryGetFloatMember(pipelineComponent, "m_CameraDistance", out distance))
+            {
+                memberName = typeName + ".m_CameraDistance";
+                return true;
+            }
+
+            if (typeName == "Cinemachine3rdPersonFollow" &&
+                TryGetFloatMember(pipelineComponent, "CameraDistance", out distance))
+            {
+                memberName = typeName + ".CameraDistance";
+                return true;
+            }
+
+            if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
+                TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) &&
+                offsetValue is Vector3 followOffset)
+            {
+                distance = Mathf.Abs(followOffset.z);
+                memberName = typeName + ".m_FollowOffset.z";
+                return true;
+            }
+
+            if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
+                TryGetMemberValue(pipelineComponent, "FollowOffset", out var publicOffsetValue) &&
+                publicOffsetValue is Vector3 publicFollowOffset)
+            {
+                distance = Mathf.Abs(publicFollowOffset.z);
+                memberName = typeName + ".FollowOffset.z";
+                return true;
+            }
+
+            return false;
         }
 
         private void ApplyMapTweaks(bool cityMapOpen)
@@ -1418,6 +1544,7 @@ namespace CameraTools
                     continue;
 
                 CameraToolsFileLogger.Log($"Cached vehicle camera root: {GetHierarchyPath(vehicleCamera.transform)} active={vehicleCamera.gameObject.activeInHierarchy}");
+                DumpDetailedVehicleVcam(vehicleCamera);
                 DumpComponentsForHierarchy(vehicleCamera.transform);
             }
 
@@ -1460,9 +1587,54 @@ namespace CameraTools
                 if (vehicleCamera == null || !vehicleCamera.gameObject.activeInHierarchy)
                     continue;
 
-                ApplyVehicleCameraDistance(vehicleCamera.gameObject, settings == null ? 6f : Mathf.Min(settings.VehicleMaxZoom, 6f), settings == null ? 55f : settings.VehicleMaxZoom);
-                CameraToolsFileLogger.Log($"F12 camera poke applied to cached vehicle camera: {GetHierarchyPath(vehicleCamera.transform)}");
+                ApplyVcamDiagnosticPoke(vehicleCamera);
             }
+        }
+
+        private void ApplyVcamDiagnosticPoke(Component vehicleCamera)
+        {
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return;
+
+            var vcams = vehicleCamera.gameObject.GetComponentsInChildren(virtualCameraType, true);
+            foreach (var vcam in vcams)
+            {
+                if (vcam == null)
+                    continue;
+
+                var component = vcam as Component;
+                if (component == null)
+                    continue;
+
+                var beforeLens = TryReadLensFieldOfView(component);
+                var afterLens = TryApplyLensFieldOfView(vcam, 25f);
+                var bodySummary = ApplyActiveBodyDiagnosticPoke(vcam);
+                CameraToolsFileLogger.Log(
+                    $"F12 vcam poke applied: path={GetHierarchyPath(component.transform)}, beforeFov={(beforeLens.HasValue ? beforeLens.Value.ToString("0.##") : "n/a")}, afterFov={(afterLens.HasValue ? afterLens.Value.ToString("0.##") : "n/a")}, body={bodySummary}");
+
+                pendingVcamDiagnostic = new PendingVcamDiagnostic(component, bodySummary);
+                break;
+            }
+        }
+
+        private void ProcessPendingVcamDiagnostic()
+        {
+            if (pendingVcamDiagnostic == null)
+                return;
+
+            var diagnostic = pendingVcamDiagnostic.Value;
+            if (diagnostic.VirtualCamera == null)
+            {
+                pendingVcamDiagnostic = null;
+                return;
+            }
+
+            var lensFov = TryReadLensFieldOfView(diagnostic.VirtualCamera);
+            var bodyReadback = ReadActiveBodyDiagnosticState(diagnostic.VirtualCamera);
+            CameraToolsFileLogger.Log(
+                $"F12 vcam poke readback: path={GetHierarchyPath(diagnostic.VirtualCamera.transform)}, fov={(lensFov.HasValue ? lensFov.Value.ToString("0.##") : "n/a")}, body={bodyReadback}");
+            pendingVcamDiagnostic = null;
         }
 
         private void DumpInterestingMembers(string label, object? target, string[] keywords)
@@ -1479,6 +1651,209 @@ namespace CameraTools
                 CameraToolsFileLogger.Log(
                     $"  {member.DeclaringType}.{member.Name} type={member.MemberType.Name} writable={member.Writable} value={FormatMemberValue(member.Value)}");
             }
+        }
+
+        private void DumpDetailedVehicleVcam(Component vehicleCamera)
+        {
+            CameraToolsFileLogger.Log($"Vehicle vcam detail: root={GetHierarchyPath(vehicleCamera.transform)}");
+            DumpInterestingMembers("Vehicle vcam root members", vehicleCamera, VehicleCameraKeywords);
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return;
+
+            foreach (var vcam in vehicleCamera.gameObject.GetComponentsInChildren(virtualCameraType, true))
+            {
+                if (vcam == null)
+                    continue;
+
+                var component = vcam as Component;
+                if (component == null)
+                    continue;
+
+                var follow = TryGetMemberValue(vcam, "Follow", out var followValue) ? followValue : null;
+                var lookAt = TryGetMemberValue(vcam, "LookAt", out var lookAtValue) ? lookAtValue : null;
+                var priority = TryGetMemberValue(vcam, "Priority", out var priorityValue) ? priorityValue : null;
+                CameraToolsFileLogger.Log(
+                    $"VCAM: path={GetHierarchyPath(component.transform)}, active={component.gameObject.activeInHierarchy}, enabled={FormatEnabled(component)}, " +
+                    $"priority={FormatMemberValue(priority)}, follow={FormatMemberValue(follow)}, lookAt={FormatMemberValue(lookAt)}");
+
+                foreach (var sameGoComponent in component.gameObject.GetComponents<Component>())
+                {
+                    if (sameGoComponent == null)
+                        continue;
+
+                    CameraToolsFileLogger.Log($"  SameGO component: {sameGoComponent.GetType().FullName}");
+                }
+
+                var pipeline = GetCinemachinePipeline(virtualCameraType, vcam);
+                if (pipeline == null)
+                    continue;
+
+                string bodyType = "none";
+                string aimType = "none";
+                foreach (var pipelineComponent in pipeline)
+                {
+                    if (pipelineComponent == null)
+                        continue;
+
+                    var typeName = pipelineComponent.GetType().Name;
+                    if (bodyType == "none" && IsBodyComponentType(typeName))
+                        bodyType = typeName;
+                    if (aimType == "none" && IsAimComponentType(typeName))
+                        aimType = typeName;
+
+                    CameraToolsFileLogger.Log($"  Pipeline component: {pipelineComponent.GetType().FullName}");
+                    DumpInterestingMembers("  Pipeline members", pipelineComponent, VehicleCameraKeywords);
+                }
+
+                CameraToolsFileLogger.Log($"  Body component type: {bodyType}");
+                CameraToolsFileLogger.Log($"  Aim component type: {aimType}");
+            }
+        }
+
+        private static bool IsBodyComponentType(string typeName)
+        {
+            return typeName == "CinemachineTransposer" ||
+                typeName == "CinemachineFramingTransposer" ||
+                typeName == "Cinemachine3rdPersonFollow" ||
+                typeName == "CinemachineHardLockToTarget" ||
+                typeName == "CinemachineOrbitalTransposer";
+        }
+
+        private static bool IsAimComponentType(string typeName)
+        {
+            return typeName == "CinemachineComposer" ||
+                typeName == "CinemachineHardLookAt" ||
+                typeName == "CinemachinePOV";
+        }
+
+        private static float? TryApplyLensFieldOfView(object vcam, float targetFov)
+        {
+            try
+            {
+                var lensField = vcam.GetType().GetField("m_Lens", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (lensField == null)
+                    return null;
+
+                var lensValue = lensField.GetValue(vcam);
+                if (lensValue == null)
+                    return null;
+
+                var lensType = lensValue.GetType();
+                var fovField = lensType.GetField("FieldOfView", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (fovField == null)
+                    return null;
+
+                fovField.SetValue(lensValue, targetFov);
+                lensField.SetValue(vcam, lensValue);
+                return targetFov;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static float? TryReadLensFieldOfView(Component vcam)
+        {
+            try
+            {
+                var lensField = vcam.GetType().GetField("m_Lens", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (lensField == null)
+                    return null;
+
+                var lensValue = lensField.GetValue(vcam);
+                if (lensValue == null)
+                    return null;
+
+                var fovField = lensValue.GetType().GetField("FieldOfView", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (fovField == null)
+                    return null;
+
+                return Convert.ToSingle(fovField.GetValue(lensValue));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ApplyActiveBodyDiagnosticPoke(object vcam)
+        {
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return "no-virtual-camera-type";
+
+            var pipeline = GetCinemachinePipeline(virtualCameraType, vcam);
+            if (pipeline == null)
+                return "no-pipeline";
+
+            foreach (var pipelineComponent in pipeline)
+            {
+                if (pipelineComponent == null)
+                    continue;
+
+                var typeName = pipelineComponent.GetType().Name;
+                if (typeName == "Cinemachine3rdPersonFollow" &&
+                    TryGetFloatMember(pipelineComponent, "CameraDistance", out var beforeDistance))
+                {
+                    SetMemberValue(pipelineComponent, "CameraDistance", 6f);
+                    return $"{typeName}.CameraDistance {beforeDistance:0.##}->6";
+                }
+
+                if (typeName == "CinemachineFramingTransposer" &&
+                    TryGetFloatMember(pipelineComponent, "m_CameraDistance", out var beforeFramingDistance))
+                {
+                    SetMemberValue(pipelineComponent, "m_CameraDistance", 6f);
+                    return $"{typeName}.m_CameraDistance {beforeFramingDistance:0.##}->6";
+                }
+
+                if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
+                    TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) &&
+                    offsetValue is Vector3 followOffset)
+                {
+                    var beforeOffset = followOffset;
+                    followOffset.z = -6f;
+                    SetMemberValue(pipelineComponent, "m_FollowOffset", followOffset);
+                    return $"{typeName}.m_FollowOffset {beforeOffset}->{followOffset}";
+                }
+            }
+
+            return "no-supported-body-component";
+        }
+
+        private static string ReadActiveBodyDiagnosticState(Component vcam)
+        {
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return "no-virtual-camera-type";
+
+            var pipeline = GetCinemachinePipeline(virtualCameraType, vcam);
+            if (pipeline == null)
+                return "no-pipeline";
+
+            foreach (var pipelineComponent in pipeline)
+            {
+                if (pipelineComponent == null)
+                    continue;
+
+                var typeName = pipelineComponent.GetType().Name;
+                if (typeName == "Cinemachine3rdPersonFollow" &&
+                    TryGetFloatMember(pipelineComponent, "CameraDistance", out var distance))
+                    return $"{typeName}.CameraDistance={distance:0.##}";
+
+                if (typeName == "CinemachineFramingTransposer" &&
+                    TryGetFloatMember(pipelineComponent, "m_CameraDistance", out var framingDistance))
+                    return $"{typeName}.m_CameraDistance={framingDistance:0.##}";
+
+                if ((typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer") &&
+                    TryGetMemberValue(pipelineComponent, "m_FollowOffset", out var offsetValue) &&
+                    offsetValue is Vector3 followOffset)
+                    return $"{typeName}.m_FollowOffset={followOffset}";
+            }
+
+            return "no-supported-body-component";
         }
 
         private static IEnumerable<InterestingMember> EnumerateInterestingMembers(object target, string[] keywords)
@@ -1791,6 +2166,18 @@ namespace CameraTools
             public Type MemberType { get; }
             public object? Value { get; }
             public bool Writable { get; }
+        }
+
+        private readonly struct PendingVcamDiagnostic
+        {
+            public PendingVcamDiagnostic(Component virtualCamera, string summary)
+            {
+                VirtualCamera = virtualCamera;
+                Summary = summary;
+            }
+
+            public string Summary { get; }
+            public Component VirtualCamera { get; }
         }
     }
 }
