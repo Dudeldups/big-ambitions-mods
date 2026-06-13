@@ -1,3 +1,17 @@
 {
-  "sharedwholesale_name": "Shared Wholesale Desk"
+  "sharedwholesale_name": "Shared Wholesale Desk",
+  "sharedwholesale:dialog_start_message": "Shared wholesale access proof of concept<br><br>Select the original vanilla wholesale flow or open the debug modded-products catalog.",
+  "sharedwholesale:dialog_start_confirm": "Original Wholesale Contract",
+  "sharedwholesale:dialog_start_second": "Modded Products",
+  "sharedwholesale:dialog_catalog_header": "Shared Wholesale Debug Catalog",
+  "sharedwholesale:dialog_catalog_body": "{body}",
+  "sharedwholesale:dialog_catalog_next": "Next Page",
+  "sharedwholesale:dialog_catalog_previous": "Previous Page",
+  "sharedwholesale:dialog_catalog_back": "Back",
+  "sharedwholesale:dialog_error_header": "Shared Wholesale Desk",
+  "sharedwholesale:dialog_error_message": "{message}",
+  "sharedwholesale:dialog_error_close": "Close",
+  "sharedwholesale:itemname_testcola": "Shared Test Cola",
+  "sharedwholesale:itemname_testsnacks": "Shared Test Snacks",
+  "sharedwholesale:itemname_testcleaner": "Shared Test Cleaner"
 }
