@@ -58,7 +58,7 @@ namespace StorageTools
             lastKnownActiveVehicleId = null;
         }
 
-        private void ApplyFreightTruckDeliveryPlaces(ModContext context, int deliveryPlaces)
+        private void ApplyFreightTruckDeliveryPlaces(ModContext context, int displayedDeliveryPlaces)
         {
             var freightTruckType = VehicleTypeHelper.GetVehicleType(StorageToolsTargetIds.FreightTruckT1VehicleTypeName);
             if (freightTruckType == null)
@@ -71,7 +71,7 @@ namespace StorageTools
             }
 
             CaptureOriginalDeliveryPlaces(freightTruckType);
-            freightTruckType.destinationsThatCanDeliver = deliveryPlaces;
+            freightTruckType.destinationsThatCanDeliver = ConvertDisplayedToRawDeliveryPlaces(displayedDeliveryPlaces);
         }
 
         private void CaptureOriginalCapacity(VehicleType vehicleType)
@@ -112,6 +112,11 @@ namespace StorageTools
 
             if (originalDeliveryDestinations.TryGetValue(vehicleTypeName, out var originalDestinations))
                 vehicleType.destinationsThatCanDeliver = originalDestinations;
+        }
+
+        private static int ConvertDisplayedToRawDeliveryPlaces(int displayedDeliveryPlaces)
+        {
+            return Mathf.Max(1, Mathf.CeilToInt(displayedDeliveryPlaces / 2f));
         }
 
         private static VehicleController? FindVehicleControllerById(string? vehicleId)

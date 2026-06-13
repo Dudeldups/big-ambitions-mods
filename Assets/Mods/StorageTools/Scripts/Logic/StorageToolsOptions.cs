@@ -52,8 +52,8 @@ namespace StorageTools
                     .AddSlider(
                         FreightTruckT1DeliveryPlacesKey,
                         "storagetools_freight_truck_label",
-                        StorageToolsTargetIds.FreightTruckT1VanillaDeliveryPlaces,
-                        StorageToolsTargetIds.FreightTruckT1MaxDeliveryPlaces,
+                        StorageToolsTargetIds.FreightTruckT1VanillaDisplayedDeliveryPlaces,
+                        StorageToolsTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
                         settings.FreightTruckT1DeliveryPlaces,
                         value =>
                         {

@@ -2,7 +2,7 @@ namespace StorageTools
 {
     public sealed class StorageToolsSettings
     {
-        public int FreightTruckT1DeliveryPlaces { get; set; } = 4;
+        public int FreightTruckT1DeliveryPlaces { get; set; } = 8;
 
         public int StandardFridgeCapacity { get; set; } = 10;
 
