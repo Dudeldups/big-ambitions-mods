@@ -10,11 +10,12 @@ namespace CameraTools
         private const string VehicleZoomKey = "camera_tools_vehicle_max_zoom";
         private const string MapDistanceKey = "camera_tools_map_distance";
         private const string ScenicViewHotkeyKey = "camera_tools_scenic_view_hotkey";
-        private const string ScenicViewDebugLoggingKey = "camera_tools_scenic_view_debug_logging";
         private static readonly string[] ScenicViewHotkeyChoices =
         {
+            "cameratools_hotkey_f5",
             "cameratools_hotkey_f6",
             "cameratools_hotkey_f7",
+            "cameratools_hotkey_f8",
             "cameratools_hotkey_home",
             "cameratools_hotkey_insert",
             "cameratools_hotkey_delete"
@@ -22,8 +23,10 @@ namespace CameraTools
 
         private static readonly UnityEngine.KeyCode[] ScenicViewHotkeyValues =
         {
+            UnityEngine.KeyCode.F5,
             UnityEngine.KeyCode.F6,
             UnityEngine.KeyCode.F7,
+            UnityEngine.KeyCode.F8,
             UnityEngine.KeyCode.Home,
             UnityEngine.KeyCode.Insert,
             UnityEngine.KeyCode.Delete
@@ -58,10 +61,7 @@ namespace CameraTools
                             value => settings.VehicleMaxZoom = value, "cameratools_slider_value")
                         .AddDropdown(ScenicViewHotkeyKey, "cameratools_scenic_view_hotkey_label", ScenicViewHotkeyChoices,
                             GetScenicViewHotkeyIndex(settings.ScenicViewHotkey),
-                            value => settings.ScenicViewHotkey = ScenicViewHotkeyValues[value])
-                        .AddToggle(ScenicViewDebugLoggingKey, "cameratools_scenic_view_debug_logging_label",
-                            settings.EnableScenicViewDebugLogging,
-                            value => settings.EnableScenicViewDebugLogging = value);
+                            value => settings.ScenicViewHotkey = ScenicViewHotkeyValues[value]);
 
                 LogOptionsDebug(modContext, $"CameraTools: built options count = {options.Options.Count} for modId={modContext.ModId}.");
 
@@ -101,7 +101,7 @@ namespace CameraTools
                     return i;
             }
 
-            return 1;
+            return 2;
         }
 
         private static void LogOptionsDebug(ModContext modContext, string message)

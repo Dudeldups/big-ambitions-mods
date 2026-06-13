@@ -183,7 +183,6 @@ namespace CameraTools
         private static readonly Dictionary<string, PropertyInfo?> propertyCache = new Dictionary<string, PropertyInfo?>();
         private static readonly object memberCacheLock = new object();
         private static bool cameraToolsDebugEnabled;
-        private static bool scenicViewDebugLoggingEnabled;
         private static bool vehicleDebugLoggingEnabled;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
@@ -247,7 +246,6 @@ namespace CameraTools
             runtime.lastMapLifecycleLogSummary = string.Empty;
             runtime.lastMapDebugLogSummary = string.Empty;
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
-            scenicViewDebugLoggingEnabled = settings.EnableScenicViewDebugLogging;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
 
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
@@ -292,7 +290,6 @@ namespace CameraTools
                 return;
 
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
-            scenicViewDebugLoggingEnabled = settings.EnableScenicViewDebugLogging;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
             if (!cameraToolsDebugEnabled)
                 showVehicleDebugOverlay = false;
@@ -649,7 +646,6 @@ namespace CameraTools
             if (settings == null || !Input.GetKeyDown(settings.ScenicViewHotkey))
                 return;
 
-            LogScenicViewDebug($"Scenic hotkey pressed: key={settings.ScenicViewHotkey}, currentlyEnabled={scenicViewEnabled}");
             scenicViewEnabled = !scenicViewEnabled;
             if (scenicViewEnabled)
             {
@@ -675,14 +671,10 @@ namespace CameraTools
 
             var playerController = PlayerHelper.PlayerController;
             if (playerController == null)
-            {
-                LogScenicViewDebug("Scenic refresh skipped: PlayerHelper.PlayerController is null.");
                 return;
-            }
 
             if (scenicViewTargetRoot == null || scenicViewTargetRoot != playerController)
             {
-                LogScenicViewDebug($"Scenic refresh reapplied: targetChanged={(scenicViewTargetRoot != playerController)}");
                 ApplyScenicView();
                 return;
             }
@@ -690,7 +682,6 @@ namespace CameraTools
             var currentRenderers = playerController.GetComponentsInChildren<Renderer>(true);
             if (currentRenderers.Length != scenicViewRendererStates.Length)
             {
-                LogScenicViewDebug($"Scenic refresh reapplied: rendererCountChanged old={scenicViewRendererStates.Length} new={currentRenderers.Length}");
                 ApplyScenicView();
                 return;
             }
@@ -706,10 +697,7 @@ namespace CameraTools
         {
             var playerController = PlayerHelper.PlayerController;
             if (playerController == null)
-            {
-                LogScenicViewDebug("ApplyScenicView aborted: PlayerHelper.PlayerController is null.");
                 return;
-            }
 
             RestoreScenicView();
 
@@ -726,25 +714,18 @@ namespace CameraTools
 
             scenicViewTargetRoot = playerController;
             scenicViewRendererStates = states.ToArray();
-            LogScenicViewDebug(
-                $"Scenic view applied: player={playerController.name}, rendererCount={scenicViewRendererStates.Length}");
         }
 
         private void RestoreScenicView()
         {
-            var restoredCount = 0;
             foreach (var state in scenicViewRendererStates)
             {
                 if (state.Renderer != null)
-                {
                     state.Renderer.enabled = state.WasEnabled;
-                    restoredCount++;
-                }
             }
 
             scenicViewRendererStates = Array.Empty<RendererState>();
             scenicViewTargetRoot = null;
-            LogScenicViewDebug($"Scenic view restored: rendererCount={restoredCount}");
         }
 
         private void ResolveVehicleTarget(bool forceSearch, bool allowExpensiveSearch)
@@ -1838,14 +1819,6 @@ namespace CameraTools
         private static void LogVehicleDebug(string message)
         {
             if (!vehicleDebugLoggingEnabled)
-                return;
-
-            CameraToolsFileLogger.Log(message);
-        }
-
-        private static void LogScenicViewDebug(string message)
-        {
-            if (!scenicViewDebugLoggingEnabled)
                 return;
 
             CameraToolsFileLogger.Log(message);

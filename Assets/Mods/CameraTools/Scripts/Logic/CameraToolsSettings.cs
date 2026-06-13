@@ -18,8 +18,6 @@ namespace CameraTools
 
         public KeyCode ScenicViewHotkey { get; set; } = KeyCode.F7;
 
-        public bool EnableScenicViewDebugLogging { get; set; } = false;
-
         public bool EnableCameraToolsDebug { get; set; } = false;
 
         public bool EnableVehicleDebugLogging { get; set; } = false;
