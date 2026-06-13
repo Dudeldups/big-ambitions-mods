@@ -13,11 +13,11 @@ namespace CameraTools
         private const string ScenicViewDebugLoggingKey = "camera_tools_scenic_view_debug_logging";
         private static readonly string[] ScenicViewHotkeyChoices =
         {
-            "F6",
-            "F7",
-            "Home",
-            "Insert",
-            "Delete"
+            "cameratools_hotkey_f6",
+            "cameratools_hotkey_f7",
+            "cameratools_hotkey_home",
+            "cameratools_hotkey_insert",
+            "cameratools_hotkey_delete"
         };
 
         private static readonly UnityEngine.KeyCode[] ScenicViewHotkeyValues =
@@ -37,16 +37,16 @@ namespace CameraTools
             context = modContext;
             if (!string.IsNullOrEmpty(registeredModId))
             {
-                modContext.Logger.Info($"CameraTools: unregistering previous options for modId={registeredModId}.");
+                LogOptionsDebug(modContext, $"CameraTools: unregistering previous options for modId={registeredModId}.");
                 OptionsService.RemoveModOptions(registeredModId);
             }
 
-            modContext.Logger.Info($"CameraTools: removing stale options for current modId={modContext.ModId} before registration.");
+            LogOptionsDebug(modContext, $"CameraTools: removing stale options for current modId={modContext.ModId} before registration.");
             OptionsService.RemoveModOptions(modContext.ModId);
 
             try
             {
-                modContext.Logger.Info($"CameraTools: building options for modId={modContext.ModId}.");
+                LogOptionsDebug(modContext, $"CameraTools: building options for modId={modContext.ModId}.");
                 var options =
                     new ModOptions()
                         .AddHeader("cameratools_options_header")
@@ -63,14 +63,16 @@ namespace CameraTools
                             settings.EnableScenicViewDebugLogging,
                             value => settings.EnableScenicViewDebugLogging = value);
 
-                modContext.Logger.Info($"CameraTools: registering options for modId={modContext.ModId}.");
+                LogOptionsDebug(modContext, $"CameraTools: built options count = {options.Options.Count} for modId={modContext.ModId}.");
+
+                LogOptionsDebug(modContext, $"CameraTools: registering options for modId={modContext.ModId}.");
                 OptionsService.Register(modContext.ModId, options);
                 registeredModId = modContext.ModId;
-                modContext.Logger.Info($"CameraTools: options registered successfully for modId={modContext.ModId}.");
+                LogOptionsDebug(modContext, $"CameraTools: options registered successfully for modId={modContext.ModId}.");
             }
             catch (System.Exception exception)
             {
-                modContext.Logger.Error($"CameraTools: failed to build/register options. {exception}");
+                LogOptionsDebug(modContext, $"CameraTools: failed to build/register options. {exception}");
                 throw;
             }
         }
@@ -82,12 +84,12 @@ namespace CameraTools
 
             if (!string.IsNullOrEmpty(registeredModId))
             {
-                context.Logger.Info($"CameraTools: unregistering options on shutdown for modId={registeredModId}.");
+                LogOptionsDebug(context, $"CameraTools: unregistering options on shutdown for modId={registeredModId}.");
                 OptionsService.RemoveModOptions(registeredModId);
             }
 
             registeredModId = null;
-            context.Logger.Info("CameraTools: options unregistered.");
+            LogOptionsDebug(context, "CameraTools: options unregistered.");
             context = null;
         }
 
@@ -100,6 +102,12 @@ namespace CameraTools
             }
 
             return 1;
+        }
+
+        private static void LogOptionsDebug(ModContext modContext, string message)
+        {
+            modContext.Logger.Info(message);
+            CameraToolsFileLogger.Log(message);
         }
     }
 }

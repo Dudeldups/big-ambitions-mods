@@ -21,13 +21,13 @@ namespace CameraTools
         {
             if (activeModId == context.ModId && activeRuntime != null)
             {
-                context.Logger.Info($"CameraTools: skipping duplicate load for modId={context.ModId}.");
+                LogLoadDebug(context, $"CameraTools: skipping duplicate load for modId={context.ModId}.");
                 return Task.CompletedTask;
             }
 
             if (activeModId != null)
             {
-                context.Logger.Info($"CameraTools: tearing down previous load for modId={activeModId} before reinitializing modId={context.ModId}.");
+                LogLoadDebug(context, $"CameraTools: tearing down previous load for modId={activeModId} before reinitializing modId={context.ModId}.");
                 SharedOptions.Shutdown();
             }
 
@@ -37,7 +37,7 @@ namespace CameraTools
             SharedOptions.Initialize(context, SharedSettings);
             activeRuntime = CameraToolsRuntime.Initialize(context, SharedSettings);
             activeModId = context.ModId;
-            context.Logger.Info("CameraTools: runtime initialized.");
+            LogLoadDebug(context, "CameraTools: runtime initialized.");
             return Task.CompletedTask;
         }
 
@@ -48,6 +48,12 @@ namespace CameraTools
             SharedOptions.Shutdown();
             activeModId = null;
             return Task.CompletedTask;
+        }
+
+        private static void LogLoadDebug(ModContext context, string message)
+        {
+            context.Logger.Info(message);
+            CameraToolsFileLogger.Log(message);
         }
     }
 }
