@@ -26,8 +26,16 @@ namespace StorageTools
 
         public void ApplyConfiguredCapacities(ModContext context, StorageToolsSettings settings, bool forceRefresh)
         {
-            LoadPersistedOverridesFromSave();
             ApplyFreightTruckDeliveryPlaces(context, settings.FreightTruckT1DeliveryPlaces);
+
+            if (!settings.EnableActiveVehicleCapacityOverride)
+            {
+                RestorePersistedVehicleTypeCapacities();
+                lastKnownActiveVehicleId = SaveGameManager.Current?.ActiveVehicleId;
+                return;
+            }
+
+            LoadPersistedOverridesFromSave();
             ApplyPersistedVehicleTypeCapacities();
 
             var activeVehicleId = SaveGameManager.Current?.ActiveVehicleId;
@@ -150,6 +158,12 @@ namespace StorageTools
                 if (vehicleType.maxCargoCapacity != pair.Value)
                     vehicleType.maxCargoCapacity = pair.Value;
             }
+        }
+
+        private void RestorePersistedVehicleTypeCapacities()
+        {
+            foreach (var vehicleTypeName in persistedVehicleTypeCapacities.Keys)
+                RestoreVehicleType(vehicleTypeName);
         }
 
         private void LoadPersistedOverridesFromSave()

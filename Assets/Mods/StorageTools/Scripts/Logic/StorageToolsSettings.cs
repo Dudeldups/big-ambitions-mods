@@ -9,6 +9,8 @@ namespace StorageTools
 
         public bool EnableDebugLogging { get; set; } = false;
 
+        public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
+
         public int FreightTruckT1DeliveryPlaces { get; set; } = DefaultFreightTruckT1DeliveryPlaces;
 
         public int StandardFridgeCapacity { get; set; } = DefaultStandardFridgeCapacity;
@@ -16,13 +18,5 @@ namespace StorageTools
         public int PalletShelfCapacity { get; set; } = DefaultPalletShelfCapacity;
 
         public int ActiveVehicleCapacity { get; set; } = DefaultActiveVehicleCapacity;
-
-        public void ResetToDefaults()
-        {
-            FreightTruckT1DeliveryPlaces = DefaultFreightTruckT1DeliveryPlaces;
-            StandardFridgeCapacity = DefaultStandardFridgeCapacity;
-            PalletShelfCapacity = DefaultPalletShelfCapacity;
-            ActiveVehicleCapacity = DefaultActiveVehicleCapacity;
-        }
     }
 }

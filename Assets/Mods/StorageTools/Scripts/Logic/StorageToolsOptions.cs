@@ -9,8 +9,8 @@ namespace StorageTools
         private const string FreightTruckT1DeliveryPlacesKey = "storage_tools_freight_truck_t1_delivery_places";
         private const string StandardFridgeCapacityKey = "storage_tools_standard_fridge_capacity";
         private const string PalletShelfCapacityKey = "storage_tools_pallet_shelf_capacity";
+        private const string ActiveVehicleCapacityEnabledKey = "storage_tools_active_vehicle_capacity_enabled";
         private const string ActiveVehicleCapacityKey = "storage_tools_active_vehicle_capacity";
-        private const string ResetDefaultsKey = "storagetools_reset_defaults_label";
 
         private ModContext? context;
         private string? registeredModId;
@@ -29,7 +29,7 @@ namespace StorageTools
                     .AddSlider(
                         StandardFridgeCapacityKey,
                         "storagetools_standard_fridge_label",
-                        StorageToolsTargetIds.SliderMinimum,
+                        StorageToolsSettings.DefaultStandardFridgeCapacity,
                         StorageToolsTargetIds.SliderMaximum,
                         settings.StandardFridgeCapacity,
                         value =>
@@ -41,7 +41,7 @@ namespace StorageTools
                     .AddSlider(
                         PalletShelfCapacityKey,
                         "storagetools_pallet_shelf_label",
-                        StorageToolsTargetIds.SliderMinimum,
+                        StorageToolsSettings.DefaultPalletShelfCapacity,
                         StorageToolsTargetIds.SliderMaximum,
                         settings.PalletShelfCapacity,
                         value =>
@@ -53,7 +53,7 @@ namespace StorageTools
                     .AddSlider(
                         FreightTruckT1DeliveryPlacesKey,
                         "storagetools_freight_truck_label",
-                        StorageToolsTargetIds.FreightTruckT1VanillaDisplayedDeliveryPlaces,
+                        StorageToolsSettings.DefaultFreightTruckT1DeliveryPlaces,
                         StorageToolsTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
                         settings.FreightTruckT1DeliveryPlaces,
                         value =>
@@ -62,10 +62,19 @@ namespace StorageTools
                             StorageToolsRuntime.RequestImmediateApply();
                         },
                         "storagetools_capacity_value")
+                    .AddToggle(
+                        ActiveVehicleCapacityEnabledKey,
+                        "storagetools_active_vehicle_enabled_label",
+                        settings.EnableActiveVehicleCapacityOverride,
+                        value =>
+                        {
+                            settings.EnableActiveVehicleCapacityOverride = value;
+                            StorageToolsRuntime.RequestImmediateApply();
+                        })
                     .AddSlider(
                         ActiveVehicleCapacityKey,
                         "storagetools_active_vehicle_label",
-                        StorageToolsTargetIds.SliderMinimum,
+                        StorageToolsSettings.DefaultActiveVehicleCapacity,
                         StorageToolsTargetIds.SliderMaximum,
                         settings.ActiveVehicleCapacity,
                         value =>
@@ -73,16 +82,7 @@ namespace StorageTools
                             settings.ActiveVehicleCapacity = value;
                             StorageToolsRuntime.RequestImmediateApply();
                         },
-                        "storagetools_capacity_value")
-                    .AddSplitter()
-                    .AddButton(
-                        ResetDefaultsKey,
-                        () =>
-                        {
-                            settings.ResetToDefaults();
-                            StorageToolsRuntime.RequestImmediateApply();
-                            Initialize(modContext, settings);
-                        });
+                        "storagetools_capacity_value");
 
             OptionsService.Register(modContext.ModId, options);
             registeredModId = modContext.ModId;
