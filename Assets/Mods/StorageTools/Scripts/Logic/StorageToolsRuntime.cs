@@ -32,6 +32,7 @@ namespace StorageTools
             runtime.settings = settings;
             runtime.applyRequested = true;
             runtime.nextActiveVehiclePollAt = 0f;
+            StorageToolsLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
             StorageToolsLogger.Info(context, $"StorageTools: file log path = {StorageToolsFileLogger.LogPath}");
             runtime.ApplyIfRequested();
@@ -69,6 +70,7 @@ namespace StorageTools
             if (settings == null)
                 return;
 
+            StorageToolsLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             ApplyIfRequested();
             PollActiveVehicleChanges();
         }
