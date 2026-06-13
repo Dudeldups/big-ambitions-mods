@@ -10,6 +10,6 @@ namespace StorageTools
 
         public int PalletShelfCapacity { get; set; } = 60;
 
-        public int ActiveVehicleCapacity { get; set; } = 60;
+        public int ActiveVehicleCapacity { get; set; } = 20;
     }
 }
