@@ -45,3 +45,5 @@ Assets/_BaDependencies/GameDlls/**/*.dll.meta
 
 *.unity
 *.unity.meta
+*.md
+!README.md
