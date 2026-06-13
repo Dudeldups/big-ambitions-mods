@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using BAModAPI;
@@ -13,7 +13,6 @@ using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
-using Localizor;
 using UI.Dialog;
 using UnityEngine;
 
@@ -114,7 +113,7 @@ namespace SharedWholesaleDesk
 
             _stopped = true;
             SharedWholesaleDeskRuntime.LogInfo(
-                $"Stopping service desk scan after {_stableScans} stable passes. Targets={result.FoundTargetCount}, patched={SharedWholesaleDeskRuntime.PatchedDeskCount}.");
+                $"Stopping wholesale desk scan after {_stableScans} stable passes. Targets={result.FoundTargetCount}, patched={SharedWholesaleDeskRuntime.PatchedDeskCount}.");
         }
     }
 
@@ -122,7 +121,6 @@ namespace SharedWholesaleDesk
     {
         internal const string ModdedDialogTypeKey = "sharedwholesale_moddedproducts_dialog";
 
-        private const string ImportExportSettingsTypeName = "Buildings.ImportExportSettings";
         private const string WholesaleStoreSettingsTypeName = "Buildings.WholesaleStoreSettings";
         private const int DebugCatalogPageSize = 8;
 
@@ -140,6 +138,7 @@ namespace SharedWholesaleDesk
         internal static void Initialize(IModLogger logger)
         {
             _logger = logger;
+            LogInfo($"File logging enabled={SharedWholesaleDeskDebugSettings.EnableFileLogging}. LogPath={SharedWholesaleDeskFileLogger.LogPath}");
         }
 
         internal static void Reset()
@@ -160,7 +159,7 @@ namespace SharedWholesaleDesk
             var saveGame = SaveGameManager.Current;
             if (saveGame?.BuildingRegistrations == null)
             {
-                LogInfo("Service desk patch scan skipped because save game or building registrations are unavailable.");
+                LogInfo("Wholesale desk patch scan skipped because save game or building registrations are unavailable.");
                 return PatchScanResult.NotReady();
             }
 
@@ -185,10 +184,7 @@ namespace SharedWholesaleDesk
                     continue;
 
                 var settings = GetMemberValue(specialService, "settings");
-                if (settings == null)
-                    continue;
-
-                if (!TryResolveServiceKind(settings, out var serviceKind))
+                if (settings == null || !IsWholesaleSettings(settings))
                     continue;
 
                 foundTargetCount++;
@@ -200,7 +196,7 @@ namespace SharedWholesaleDesk
                 var currentDialogValue = GetMemberValue(specialService, "dialogType");
                 if (currentDialogValue == null)
                 {
-                    LogWarning($"Skipping {serviceKind} desk at {GetAddressKey(address)} because dialogType was unavailable.");
+                    LogWarning($"Skipping wholesale desk at {GetAddressKey(address)} because dialogType was unavailable.");
                     continue;
                 }
 
@@ -208,14 +204,14 @@ namespace SharedWholesaleDesk
                 if (originalDialogType.Equals(ModdedDialogType))
                 {
                     LogInfo(
-                        $"Skipping {serviceKind} desk at {GetAddressKey(address)} because it already uses the modded dialog type {(int)ModdedDialogType}.");
+                        $"Skipping wholesale desk at {GetAddressKey(address)} because it already uses the modded dialog type {(int)ModdedDialogType}.");
                     continue;
                 }
 
                 if (!SetMemberValue(specialService, "dialogType", ModdedDialogType))
                 {
                     LogWarning(
-                        $"Failed to patch {serviceKind} desk at {GetAddressKey(address)}. Could not assign dialogType {(int)ModdedDialogType}.");
+                        $"Failed to patch wholesale desk at {GetAddressKey(address)}. Could not assign dialogType {(int)ModdedDialogType}.");
                     continue;
                 }
 
@@ -224,7 +220,7 @@ namespace SharedWholesaleDesk
                     GetAddressKey(address),
                     address,
                     specialService,
-                    serviceKind,
+                    ServiceDeskKind.Wholesale,
                     originalDialogType,
                     TryGetUnityInstanceId(specialService));
 
@@ -239,11 +235,11 @@ namespace SharedWholesaleDesk
                 patchedCount++;
 
                 LogInfo(
-                    $"Patched {serviceKind} desk at {record.AddressKey}. ServiceKey={record.ServiceInstanceKey}, ServiceInstanceId={record.ServiceInstanceId}, OriginalDialogType={(int)record.OriginalDialogType}, ModdedDialogType={(int)ModdedDialogType}.");
+                    $"Patched wholesale desk at {record.AddressKey}. ServiceKey={record.ServiceInstanceKey}, ServiceInstanceId={record.ServiceInstanceId}, OriginalDialogType={(int)record.OriginalDialogType}, ModdedDialogType={(int)ModdedDialogType}.");
             }
 
             if (foundTargetCount == 0)
-                LogInfo("Service desk patch scan found no wholesale/import desks yet.");
+                LogInfo("Wholesale desk patch scan found no wholesale desks yet.");
 
             return PatchScanResult.CreateReady(foundTargetCount, patchedCount);
         }
@@ -256,7 +252,7 @@ namespace SharedWholesaleDesk
                 if (currentDialogValue == null)
                 {
                     LogWarning(
-                        $"Restore skipped for {record.ServiceKind} desk at {record.AddressKey} because dialogType was unavailable.");
+                        $"Restore skipped for wholesale desk at {record.AddressKey} because dialogType was unavailable.");
                     continue;
                 }
 
@@ -264,19 +260,19 @@ namespace SharedWholesaleDesk
                 if (!currentDialogType.Equals(ModdedDialogType))
                 {
                     LogInfo(
-                        $"Restore skipped for {record.ServiceKind} desk at {record.AddressKey} because current dialog {(int)currentDialogType} no longer belongs to this mod.");
+                        $"Restore skipped for wholesale desk at {record.AddressKey} because current dialog {(int)currentDialogType} no longer belongs to this mod.");
                     continue;
                 }
 
                 if (!SetMemberValue(record.SpecialService, "dialogType", record.OriginalDialogType))
                 {
                     LogWarning(
-                        $"Restore failed for {record.ServiceKind} desk at {record.AddressKey}. Original dialog {(int)record.OriginalDialogType} could not be reassigned.");
+                        $"Restore failed for wholesale desk at {record.AddressKey}. Original dialog {(int)record.OriginalDialogType} could not be reassigned.");
                     continue;
                 }
 
                 LogInfo(
-                    $"Restored {record.ServiceKind} desk at {record.AddressKey} to original dialog {(int)record.OriginalDialogType}.");
+                    $"Restored wholesale desk at {record.AddressKey} to original dialog {(int)record.OriginalDialogType}.");
             }
         }
 
@@ -298,23 +294,23 @@ namespace SharedWholesaleDesk
             try
             {
                 LogInfo(
-                    $"Attempting vanilla delegation for {record.ServiceKind} desk at {record.AddressKey} using original dialog {(int)record.OriginalDialogType}.");
+                    $"Attempting vanilla delegation for wholesale desk at {record.AddressKey} using original dialog {(int)record.OriginalDialogType}.");
                 var dialog = CallDialogFactory.GetDialog(record.OriginalDialogType);
                 if (dialog == null)
                 {
                     LogWarning(
-                        $"Vanilla delegation returned null for {record.ServiceKind} desk at {record.AddressKey}. Falling back to confirmed dialog constructor.");
+                        $"Vanilla delegation returned null for wholesale desk at {record.AddressKey}. Falling back to confirmed wholesale dialog constructor.");
                     return TryOpenConfirmedVanillaFallback(record);
                 }
 
                 LogInfo(
-                    $"Vanilla delegation succeeded for {record.ServiceKind} desk at {record.AddressKey} using original dialog {(int)record.OriginalDialogType}.");
+                    $"Vanilla delegation succeeded for wholesale desk at {record.AddressKey} using original dialog {(int)record.OriginalDialogType}.");
                 return true;
             }
             catch (Exception exception)
             {
                 LogWarning(
-                    $"Vanilla delegation threw for {record.ServiceKind} desk at {record.AddressKey}. Falling back to confirmed dialog constructor. {exception}");
+                    $"Vanilla delegation threw for wholesale desk at {record.AddressKey}. Falling back to confirmed wholesale dialog constructor. {exception}");
                 return TryOpenConfirmedVanillaFallback(record);
             }
         }
@@ -350,7 +346,7 @@ namespace SharedWholesaleDesk
                 builder.Append(entry.Item.itemName);
                 builder.Append("<br>");
                 builder.Append(
-                    $"wholesale={entry.Item.wholesalePrice:0.##}, market={entry.Item.DefaultMarketPrice:0.##}, boxSize={entry.Item.boxSize}, salesRatio={entry.Item.productSalesRatio:0.###}, importerMax={entry.Item.maxOrderAmountPerImporter}");
+                    $"wholesalePrice={entry.Item.wholesalePrice:0.##}, defaultMarketPrice={entry.Item.DefaultMarketPrice:0.##}, boxSize={entry.Item.boxSize}, productSalesRatio={entry.Item.productSalesRatio:0.###}, maxOrderAmountPerImporter={entry.Item.maxOrderAmountPerImporter}, canPlayerDoOrder={entry.Item.canPlayerDoOrder}, isADemandedProduct={entry.Item.isADemandedProduct}");
             }
 
             return new CatalogPageResult(
@@ -369,8 +365,10 @@ namespace SharedWholesaleDesk
             }
             catch
             {
-                // Fallback below.
             }
+
+            if (SharedWholesaleDeskDebugSettings.EnableFileLogging)
+                SharedWholesaleDeskFileLogger.Log("INFO", message);
 
             Debug.Log($"SharedWholesaleDesk: {message}");
         }
@@ -383,8 +381,10 @@ namespace SharedWholesaleDesk
             }
             catch
             {
-                // Fallback below.
             }
+
+            if (SharedWholesaleDeskDebugSettings.EnableFileLogging)
+                SharedWholesaleDeskFileLogger.Log("WARN", message);
 
             Debug.LogWarning($"SharedWholesaleDesk: {message}");
         }
@@ -393,29 +393,15 @@ namespace SharedWholesaleDesk
         {
             try
             {
-                switch (record.ServiceKind)
-                {
-                    case ServiceDeskKind.Wholesale:
-                        LogInfo(
-                            $"Using confirmed fallback constructor for wholesale desk at {record.AddressKey}: {typeof(WholesaleStoreManagerDialog).FullName}.");
-                        _ = new WholesaleStoreManagerDialog();
-                        return true;
-
-                    case ServiceDeskKind.Import:
-                        LogInfo(
-                            $"Using confirmed fallback constructor for import desk at {record.AddressKey}: {typeof(ImportManagerDialog).FullName}.");
-                        _ = new ImportManagerDialog();
-                        return true;
-
-                    default:
-                        LogWarning($"No fallback constructor is available for service kind {record.ServiceKind} at {record.AddressKey}.");
-                        return false;
-                }
+                LogInfo(
+                    $"Using confirmed fallback constructor for wholesale desk at {record.AddressKey}: {typeof(WholesaleStoreManagerDialog).FullName}.");
+                _ = new WholesaleStoreManagerDialog();
+                return true;
             }
             catch (Exception exception)
             {
                 LogWarning(
-                    $"Confirmed fallback constructor failed for {record.ServiceKind} desk at {record.AddressKey}. {exception}");
+                    $"Confirmed fallback constructor failed for wholesale desk at {record.AddressKey}. {exception}");
                 return false;
             }
         }
@@ -437,7 +423,7 @@ namespace SharedWholesaleDesk
                 var itemName = item.itemName;
                 if (string.IsNullOrWhiteSpace(itemName))
                 {
-                    LogInfo("Excluded non-vanilla item candidate with missing item ID: itemName was null or whitespace.");
+                    LogInfo("Excluded non-ba item candidate with missing item ID: itemName was null or whitespace.");
                     continue;
                 }
 
@@ -445,8 +431,7 @@ namespace SharedWholesaleDesk
                     continue;
 
                 var evaluation = EvaluateItemEligibility(item);
-                LogInfo(
-                    $"{(evaluation.IsEligible ? "Included" : "Excluded")} non-ba item '{itemName}': {evaluation.Reason}");
+                LogInfo($"{(evaluation.IsEligible ? "Included" : "Excluded")} non-ba item '{itemName}': {evaluation.Reason}");
                 if (evaluation.IsEligible)
                     included.Add(evaluation);
             }
@@ -463,58 +448,49 @@ namespace SharedWholesaleDesk
                 return ProductEligibilityResult.Excluded(item, "vanilla item ID");
 
             if (item.wholesalePrice <= 0f)
-                return ProductEligibilityResult.Excluded(item, "wholesalePrice <= 0");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "wholesalePrice <= 0"));
 
             if (item.DefaultMarketPrice <= 0f)
-                return ProductEligibilityResult.Excluded(item, "defaultMarketPrice <= 0");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "defaultMarketPrice <= 0"));
 
             if (item.boxSize <= 0)
-                return ProductEligibilityResult.Excluded(item, "boxSize <= 0 (runtime field used for amountPerBox check)");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "boxSize <= 0 (runtime field used for amountPerBox check)"));
 
             if (item.productSalesRatio <= 0f)
-                return ProductEligibilityResult.Excluded(item, "productSalesRatio <= 0");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "productSalesRatio <= 0"));
 
             if (item.maxOrderAmountPerImporter <= 0)
-                return ProductEligibilityResult.Excluded(item, "maxOrderAmountPerImporter <= 0");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "maxOrderAmountPerImporter <= 0"));
 
             if (item.isFurniture)
-                return ProductEligibilityResult.Excluded(item, "isFurniture = true");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "isFurniture = true"));
 
             if (item.isProducer)
-                return ProductEligibilityResult.Excluded(item, "isProducer = true");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "isProducer = true"));
 
             if (item.assignable)
-                return ProductEligibilityResult.Excluded(item, "assignable = true");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "assignable = true"));
 
             if (item.canPlayerDoOrder)
-                return ProductEligibilityResult.Excluded(item, "canPlayerDoOrder = true");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "canPlayerDoOrder = true"));
 
             if (!item.isADemandedProduct)
-                return ProductEligibilityResult.Excluded(item, "isADemandedProduct = false");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "isADemandedProduct = false"));
 
             if (!string.IsNullOrWhiteSpace(item.vehicleType))
-                return ProductEligibilityResult.Excluded(item, "vehicleType is set");
+                return ProductEligibilityResult.Excluded(item, BuildEligibilityReason(item, "vehicleType is set"));
 
-            return ProductEligibilityResult.Included(item, "eligible");
+            return ProductEligibilityResult.Included(item, BuildEligibilityReason(item, "eligible"));
         }
 
-        private static bool TryResolveServiceKind(object settings, out ServiceDeskKind serviceKind)
+        private static string BuildEligibilityReason(Item item, string result)
         {
-            var typeName = settings.GetType().FullName;
-            if (string.Equals(typeName, ImportExportSettingsTypeName, StringComparison.Ordinal))
-            {
-                serviceKind = ServiceDeskKind.Import;
-                return true;
-            }
+            return $"{result}; values: wholesalePrice={item.wholesalePrice:0.##}, defaultMarketPrice={item.DefaultMarketPrice:0.##}, boxSize={item.boxSize}, productSalesRatio={item.productSalesRatio:0.###}, maxOrderAmountPerImporter={item.maxOrderAmountPerImporter}, canPlayerDoOrder={item.canPlayerDoOrder}, isADemandedProduct={item.isADemandedProduct}, isFurniture={item.isFurniture}, isProducer={item.isProducer}, assignable={item.assignable}";
+        }
 
-            if (string.Equals(typeName, WholesaleStoreSettingsTypeName, StringComparison.Ordinal))
-            {
-                serviceKind = ServiceDeskKind.Wholesale;
-                return true;
-            }
-
-            serviceKind = default;
-            return false;
+        private static bool IsWholesaleSettings(object settings)
+        {
+            return string.Equals(settings.GetType().FullName, WholesaleStoreSettingsTypeName, StringComparison.Ordinal);
         }
 
         private static string BuildServiceInstanceKey(Address address, object specialService)
@@ -523,7 +499,7 @@ namespace SharedWholesaleDesk
             var instanceId = TryGetUnityInstanceId(specialService);
             return instanceId.HasValue
                 ? $"{addressKey}#{instanceId.Value}"
-                : $"{addressKey}#{RuntimeHelpers.GetHashCode(specialService)}";
+                : $"{addressKey}#{specialService.GetHashCode()}";
         }
 
         private static int? TryGetUnityInstanceId(object instance)
@@ -629,17 +605,48 @@ namespace SharedWholesaleDesk
             public static PatchScanResult CreateReady(int foundTargetCount, int patchedCount) => new(true, foundTargetCount, patchedCount);
         }
 
-        internal sealed record PatchedServiceDeskRecord(
-            string ServiceInstanceKey,
-            string AddressKey,
-            Address Address,
-            object SpecialService,
-            ServiceDeskKind ServiceKind,
-            CallDialogType OriginalDialogType,
-            int? ServiceInstanceId);
-
-        internal sealed record ProductEligibilityResult(Item Item, bool IsEligible, string Reason)
+        internal sealed class PatchedServiceDeskRecord
         {
+            internal PatchedServiceDeskRecord(
+                string serviceInstanceKey,
+                string addressKey,
+                Address address,
+                object specialService,
+                ServiceDeskKind serviceKind,
+                CallDialogType originalDialogType,
+                int? serviceInstanceId)
+            {
+                ServiceInstanceKey = serviceInstanceKey;
+                AddressKey = addressKey;
+                Address = address;
+                SpecialService = specialService;
+                ServiceKind = serviceKind;
+                OriginalDialogType = originalDialogType;
+                ServiceInstanceId = serviceInstanceId;
+            }
+
+            internal string ServiceInstanceKey { get; }
+            internal string AddressKey { get; }
+            internal Address Address { get; }
+            internal object SpecialService { get; }
+            internal ServiceDeskKind ServiceKind { get; }
+            internal CallDialogType OriginalDialogType { get; }
+            internal int? ServiceInstanceId { get; }
+        }
+
+        internal sealed class ProductEligibilityResult
+        {
+            internal ProductEligibilityResult(Item item, bool isEligible, string reason)
+            {
+                Item = item;
+                IsEligible = isEligible;
+                Reason = reason;
+            }
+
+            internal Item Item { get; }
+            internal bool IsEligible { get; }
+            internal string Reason { get; }
+
             public static ProductEligibilityResult Included(Item item, string reason) => new(item, true, reason);
             public static ProductEligibilityResult Excluded(Item item, string reason) => new(item, false, reason);
         }
@@ -670,8 +677,7 @@ namespace SharedWholesaleDesk
 
     internal enum ServiceDeskKind
     {
-        Wholesale,
-        Import
+        Wholesale
     }
 
     internal sealed class SharedWholesaleDeskDialog : Dialog
@@ -681,9 +687,7 @@ namespace SharedWholesaleDesk
         public SharedWholesaleDeskDialog()
         {
             var record = SharedWholesaleDeskRuntime.TryGetCurrentDeskRecord();
-            npcNameKey = record?.ServiceKind == ServiceDeskKind.Import
-                ? "dialog_import_npc_name"
-                : "dialog_wholesale_store_npc_name";
+            npcNameKey = "dialog_wholesale_store_npc_name";
 
             SharedWholesaleDeskRuntime.LogInfo(
                 $"Opened custom shared wholesale dialog for {(record?.ServiceKind.ToString() ?? "unknown")} desk at {record?.AddressKey ?? "<no-address>"}.");
@@ -693,18 +697,12 @@ namespace SharedWholesaleDesk
 
         private DialogEntry BuildStartEntry(SharedWholesaleDeskRuntime.PatchedServiceDeskRecord? record)
         {
-            var introMessage = record?.ServiceKind == ServiceDeskKind.Import
-                ? "Shared importer access proof of concept"
-                : "Shared wholesale access proof of concept";
-
             return new DialogEntry
             {
                 headerKey = npcNameKey,
-                messageData = $"{introMessage}<br><br>Select the original vanilla contract flow or open the debug modded-products catalog.",
+                messageData = "Shared wholesale access proof of concept<br><br>Select the original vanilla wholesale flow or open the debug modded-products catalog.",
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = record?.ServiceKind == ServiceDeskKind.Import
-                    ? "Original Import Contract"
-                    : "Original Wholesale Contract",
+                ConfirmTextOverride = "Original Wholesale Contract",
                 SecondOptionTextOverride = "Modded Products",
                 OnConfirm = () => OpenOriginalVanillaBranch(record),
                 OnSecondOption = OpenDebugCatalog,
@@ -716,12 +714,12 @@ namespace SharedWholesaleDesk
         {
             if (record == null)
             {
-                SharedWholesaleDeskRuntime.LogWarning("Original vanilla branch could not resolve the current patched desk record.");
-                return BuildErrorEntry("The original desk mapping could not be resolved.");
+                SharedWholesaleDeskRuntime.LogWarning("Original vanilla branch could not resolve the current patched wholesale desk record.");
+                return BuildErrorEntry("The original wholesale desk mapping could not be resolved.");
             }
 
             var opened = SharedWholesaleDeskRuntime.TryOpenOriginalVanillaDialog(record);
-            return opened ? null : BuildErrorEntry("The original vanilla desk dialog failed to open.");
+            return opened ? null : BuildErrorEntry("The original vanilla wholesale desk dialog failed to open.");
         }
 
         private DialogEntry OpenDebugCatalog()
@@ -771,6 +769,58 @@ namespace SharedWholesaleDesk
                 Template = DialogEntry.TemplateType.Text,
                 OnCancel = DialogController.current.FinishDialog
             };
+        }
+    }
+
+    internal static class SharedWholesaleDeskDebugSettings
+    {
+        internal const bool EnableFileLogging = true;
+    }
+
+    internal static class SharedWholesaleDeskFileLogger
+    {
+        private static readonly object Sync = new object();
+        private static string? _logPath;
+
+        internal static string LogPath
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(_logPath))
+                    return _logPath;
+
+                try
+                {
+                    var directory = Path.Combine(Application.persistentDataPath, "SharedWholesaleDesk");
+                    Directory.CreateDirectory(directory);
+                    _logPath = Path.Combine(directory, "shared-wholesale-debug.log");
+                }
+                catch
+                {
+                    _logPath = Path.Combine(Path.GetTempPath(), "shared-wholesale-debug.log");
+                }
+
+                return _logPath;
+            }
+        }
+
+        internal static void Log(string level, string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            try
+            {
+                lock (Sync)
+                {
+                    File.AppendAllText(
+                        LogPath,
+                        $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}] {message}{Environment.NewLine}");
+                }
+            }
+            catch
+            {
+            }
         }
     }
 }
