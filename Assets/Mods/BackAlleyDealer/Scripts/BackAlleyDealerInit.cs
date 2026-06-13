@@ -50,6 +50,29 @@ namespace BackAlleyDealer
             return Task.CompletedTask;
         }
 
+        public void RegisterVehicle(string vehicleName)
+        {
+            if (string.IsNullOrEmpty(vehicleName))
+                return;
+
+            if (_registeredVehicleNames.Add(vehicleName))
+                SetContractVehiclesForContact(BackAlleyDealerCity.DealerName, _registeredVehicleNames);
+        }
+
+        public void UnregisterVehicle(string vehicleName)
+        {
+            if (string.IsNullOrEmpty(vehicleName))
+                return;
+
+            if (_registeredVehicleNames.Remove(vehicleName))
+                SetContractVehiclesForContact(BackAlleyDealerCity.DealerName, _registeredVehicleNames);
+        }
+
+        public void RefreshRegisteredVehicles()
+        {
+            UpdateModdedVehicles();
+        }
+
         private void UpdateModdedItems()
         {
             _registeredItemNames.Clear();

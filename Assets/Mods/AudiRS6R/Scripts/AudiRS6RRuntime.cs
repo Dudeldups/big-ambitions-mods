@@ -7,15 +7,16 @@ using Vehicles.VehicleTypes;
 
 public sealed class AudiRS6RRuntime : MonoBehaviour
 {
-    private const float DealerSyncInterval = 1f;
+    private const float DealerRetryInterval = 1f;
     private const bool DebugVehicleSpawnEnabled = false;
     private const float SpawnDistance = 6f;
 
+    private bool dealerRegistrationPending;
     private float nextDealerSyncAt;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
 
-    public static AudiRS6RRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static AudiRS6RRuntime Initialize(ModContext context, string vehicleTypeName, bool dealerRegistered)
     {
         var runtime = FindObjectOfType<AudiRS6RRuntime>();
         if (runtime == null)
@@ -27,7 +28,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
-        runtime.nextDealerSyncAt = 0f;
+        runtime.dealerRegistrationPending = !dealerRegistered;
+        runtime.nextDealerSyncAt = runtime.dealerRegistrationPending ? 0f : float.PositiveInfinity;
         return runtime;
     }
 
@@ -38,20 +40,27 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (Time.unscaledTime >= nextDealerSyncAt)
+        if (dealerRegistrationPending && Time.unscaledTime >= nextDealerSyncAt)
         {
-            nextDealerSyncAt = Time.unscaledTime + DealerSyncInterval;
-            TryRegisterWithDealer();
+            if (TryRegisterWithDealer())
+            {
+                dealerRegistrationPending = false;
+                nextDealerSyncAt = float.PositiveInfinity;
+            }
+            else
+            {
+                nextDealerSyncAt = Time.unscaledTime + DealerRetryInterval;
+            }
         }
 
         if (DebugVehicleSpawnEnabled && Input.GetKeyDown(KeyCode.F9))
             TrySpawnVehicleInFrontOfPlayer();
     }
 
-    private void TryRegisterWithDealer()
+    private bool TryRegisterWithDealer()
     {
         if (string.IsNullOrWhiteSpace(vehicleTypeName))
-            return;
+            return false;
 
         try
         {
@@ -59,13 +68,15 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             var dealerInstance = dealerType?.GetProperty("Instance")?.GetValue(null);
             var registerMethod = dealerType?.GetMethod("RegisterVehicle");
             if (dealerInstance == null || registerMethod == null)
-                return;
+                return false;
 
             registerMethod.Invoke(dealerInstance, new object[] { vehicleTypeName });
+            return true;
         }
         catch (Exception ex)
         {
             context?.Logger.Warn($"AudiRS6R: dealer sync failed: {ex.Message}");
+            return false;
         }
     }
 

@@ -37,8 +37,8 @@ public class AudiRS6RMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        TryCallBackAlleyDealer("RegisterVehicle", vehicleType.vehicleTypeName, context);
-        runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        var dealerRegistered = TryCallBackAlleyDealer("RegisterVehicle", vehicleType.vehicleTypeName, context);
+        runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName, dealerRegistered);
         context.Logger.Info($"AudiRS6R: registered vehicle type '{vehicleType.vehicleTypeName}'.");
         return Task.CompletedTask;
     }
@@ -57,7 +57,7 @@ public class AudiRS6RMod : IModBigAmbitions
         return Task.CompletedTask;
     }
 
-    private static void TryCallBackAlleyDealer(string methodName, string vehicleName, ModContext? context)
+    private static bool TryCallBackAlleyDealer(string methodName, string vehicleName, ModContext? context)
     {
         try
         {
@@ -66,16 +66,16 @@ public class AudiRS6RMod : IModBigAmbitions
             var method = type?.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
             if (instance == null || method == null)
             {
-                context?.Logger.Warn(
-                    "AudiRS6R: BackAlleyDealer is not loaded, vehicle was registered but not added to dealer stock.");
-                return;
+                return false;
             }
 
             method.Invoke(instance, new object[] { vehicleName });
+            return true;
         }
         catch (Exception ex)
         {
             context?.Logger.Warn($"AudiRS6R: BackAlleyDealer integration failed: {ex.Message}");
+            return false;
         }
     }
 }
