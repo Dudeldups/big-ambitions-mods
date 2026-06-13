@@ -10,6 +10,7 @@ namespace StorageTools
         private const string StandardFridgeCapacityKey = "storage_tools_standard_fridge_capacity";
         private const string PalletShelfCapacityKey = "storage_tools_pallet_shelf_capacity";
         private const string ActiveVehicleCapacityKey = "storage_tools_active_vehicle_capacity";
+        private const string ResetDefaultsKey = "storagetools_reset_defaults_label";
 
         private ModContext? context;
         private string? registeredModId;
@@ -72,7 +73,16 @@ namespace StorageTools
                             settings.ActiveVehicleCapacity = value;
                             StorageToolsRuntime.RequestImmediateApply();
                         },
-                        "storagetools_capacity_value");
+                        "storagetools_capacity_value")
+                    .AddSplitter()
+                    .AddButton(
+                        ResetDefaultsKey,
+                        () =>
+                        {
+                            settings.ResetToDefaults();
+                            StorageToolsRuntime.RequestImmediateApply();
+                            Initialize(modContext, settings);
+                        });
 
             OptionsService.Register(modContext.ModId, options);
             registeredModId = modContext.ModId;
