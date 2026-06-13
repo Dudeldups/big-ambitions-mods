@@ -1,9 +1,9 @@
-namespace StorageTools
+namespace BigHax
 {
-    public sealed class StorageToolsSettings
+    public sealed class BigHaxSettings
     {
         public const int DefaultFreightTruckT1DeliveryPlaces = 8;
-        public const int DefaultStandardFridgeCapacity = 10;
+        public const int DefaultStandardFridgeCapacity = 50;
         public const int DefaultPalletShelfCapacity = 60;
         public const int DefaultActiveVehicleCapacity = 20;
 

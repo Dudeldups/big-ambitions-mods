@@ -1,6 +1,6 @@
-namespace StorageTools
+namespace BigHax
 {
-    internal static class StorageToolsTargetIds
+    internal static class BigHaxTargetIds
     {
         public const string StandardFridgeItemName = "ba:itemname_standardfridge";
         public const string PalletShelfItemName = "ba:itemname_palletshelf";

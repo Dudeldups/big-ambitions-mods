@@ -3,38 +3,38 @@ using BAModAPI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace StorageTools
+namespace BigHax
 {
-    public sealed class StorageToolsRuntime : MonoBehaviour
+    public sealed class BigHaxRuntime : MonoBehaviour
     {
         private const float ActiveVehiclePollIntervalSeconds = 0.1f;
 
-        private static StorageToolsRuntime? instance;
-        private readonly StorageToolsItemCapacityService itemCapacityService = new StorageToolsItemCapacityService();
-        private readonly StorageToolsVehicleCapacityService vehicleCapacityService = new StorageToolsVehicleCapacityService();
+        private static BigHaxRuntime? instance;
+        private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
+        private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
         private bool applyRequested;
         private ModContext? context;
         private float nextActiveVehiclePollAt;
-        private StorageToolsSettings? settings;
+        private BigHaxSettings? settings;
 
-        public static StorageToolsRuntime Initialize(ModContext context, StorageToolsSettings settings)
+        public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
         {
-            var runtime = FindObjectOfType<StorageToolsRuntime>();
+            var runtime = FindObjectOfType<BigHaxRuntime>();
             if (runtime == null)
             {
-                var runtimeObject = new GameObject(nameof(StorageToolsRuntime));
+                var runtimeObject = new GameObject(nameof(BigHaxRuntime));
                 DontDestroyOnLoad(runtimeObject);
-                runtime = runtimeObject.AddComponent<StorageToolsRuntime>();
+                runtime = runtimeObject.AddComponent<BigHaxRuntime>();
             }
 
             runtime.context = context;
             runtime.settings = settings;
             runtime.applyRequested = true;
             runtime.nextActiveVehiclePollAt = 0f;
-            StorageToolsLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
+            BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
-            StorageToolsLogger.Info(context, $"StorageTools: file log path = {StorageToolsFileLogger.LogPath}");
+            BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
             runtime.ApplyIfRequested();
             return runtime;
         }
@@ -70,7 +70,7 @@ namespace StorageTools
             if (settings == null)
                 return;
 
-            StorageToolsLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
+            BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             ApplyIfRequested();
             PollActiveVehicleChanges();
         }

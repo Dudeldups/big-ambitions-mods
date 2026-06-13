@@ -7,9 +7,9 @@ using BigAmbitions.Items;
 using Helpers;
 using UnityEngine;
 
-namespace StorageTools
+namespace BigHax
 {
-    internal sealed class StorageToolsItemCapacityService
+    internal sealed class BigHaxItemCapacityService
     {
         private readonly Dictionary<string, int> originalCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, List<Item>> resolvedItems = new Dictionary<string, List<Item>>(StringComparer.OrdinalIgnoreCase);
@@ -19,12 +19,12 @@ namespace StorageTools
             resolvedItems.Clear();
         }
 
-        public void ApplyConfiguredCapacities(ModContext context, StorageToolsSettings settings)
+        public void ApplyConfiguredCapacities(ModContext context, BigHaxSettings settings)
         {
-            ApplyItemCapacity(context, StorageToolsTargetIds.StandardFridgeItemName, settings.StandardFridgeCapacity);
-            ApplyItemCapacity(context, StorageToolsTargetIds.PalletShelfItemName, settings.PalletShelfCapacity);
-            RefreshCurrentCargoHolder(StorageToolsTargetIds.StandardFridgeItemName);
-            RefreshCurrentCargoHolder(StorageToolsTargetIds.PalletShelfItemName);
+            ApplyItemCapacity(context, BigHaxTargetIds.StandardFridgeItemName, settings.StandardFridgeCapacity);
+            ApplyItemCapacity(context, BigHaxTargetIds.PalletShelfItemName, settings.PalletShelfCapacity);
+            RefreshCurrentCargoHolder(BigHaxTargetIds.StandardFridgeItemName);
+            RefreshCurrentCargoHolder(BigHaxTargetIds.PalletShelfItemName);
         }
 
         public void RestoreOriginalCapacities()
@@ -47,7 +47,7 @@ namespace StorageTools
             var items = ResolveItems(itemName);
             if (items.Count == 0)
             {
-                StorageToolsLogger.WarnOnce(context, "missing-item-" + itemName, $"StorageTools: could not resolve item definition '{itemName}'.");
+                BigHaxLogger.WarnOnce(context, "missing-item-" + itemName, $"BigHax: could not resolve item definition '{itemName}'.");
                 return;
             }
 

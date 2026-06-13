@@ -3,16 +3,16 @@ using System;
 using System.Threading.Tasks;
 using BAModAPI;
 
-[assembly: RegisterModClass(typeof(StorageTools.StorageToolsMod))]
+[assembly: RegisterModClass(typeof(BigHax.BigHaxMod))]
 
-namespace StorageTools
+namespace BigHax
 {
     [ModEntryOnInitializationLoad]
-    public sealed class StorageToolsMod : IModBigAmbitions
+    public sealed class BigHaxMod : IModBigAmbitions
     {
-        private static readonly StorageToolsSettings SharedSettings = new();
-        private static readonly StorageToolsOptions SharedOptions = new();
-        private static StorageToolsRuntime? activeRuntime;
+        private static readonly BigHaxSettings SharedSettings = new();
+        private static readonly BigHaxOptions SharedOptions = new();
+        private static BigHaxRuntime? activeRuntime;
         private static string? activeModId;
 
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
@@ -29,9 +29,9 @@ namespace StorageTools
             activeRuntime = null;
 
             SharedOptions.Initialize(context, SharedSettings);
-            activeRuntime = StorageToolsRuntime.Initialize(context, SharedSettings);
+            activeRuntime = BigHaxRuntime.Initialize(context, SharedSettings);
             activeModId = context.ModId;
-            StorageToolsLogger.Info(context, "StorageTools: runtime initialized.");
+            BigHaxLogger.Info(context, "BigHax: runtime initialized.");
             return Task.CompletedTask;
         }
 

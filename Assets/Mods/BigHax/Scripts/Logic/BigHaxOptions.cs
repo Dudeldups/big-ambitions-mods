@@ -2,20 +2,20 @@
 using BAModAPI;
 using BigAmbitions.Mods;
 
-namespace StorageTools
+namespace BigHax
 {
-    public sealed class StorageToolsOptions
+    public sealed class BigHaxOptions
     {
-        private const string FreightTruckT1DeliveryPlacesKey = "storage_tools_freight_truck_t1_delivery_places";
-        private const string StandardFridgeCapacityKey = "storage_tools_standard_fridge_capacity";
-        private const string PalletShelfCapacityKey = "storage_tools_pallet_shelf_capacity";
-        private const string ActiveVehicleCapacityEnabledKey = "storage_tools_active_vehicle_capacity_enabled";
-        private const string ActiveVehicleCapacityKey = "storage_tools_active_vehicle_capacity";
+        private const string FreightTruckT1DeliveryPlacesKey = "big_hax_freight_truck_t1_delivery_places";
+        private const string StandardFridgeCapacityKey = "big_hax_standard_fridge_capacity";
+        private const string PalletShelfCapacityKey = "big_hax_pallet_shelf_capacity";
+        private const string ActiveVehicleCapacityEnabledKey = "big_hax_active_vehicle_capacity_enabled";
+        private const string ActiveVehicleCapacityKey = "big_hax_active_vehicle_capacity";
 
         private ModContext? context;
         private string? registeredModId;
 
-        public void Initialize(ModContext modContext, StorageToolsSettings settings)
+        public void Initialize(ModContext modContext, BigHaxSettings settings)
         {
             context = modContext;
             if (!string.IsNullOrEmpty(registeredModId))
@@ -25,68 +25,68 @@ namespace StorageTools
 
             var options =
                 new ModOptions()
-                    .AddHeader("storagetools_options_header")
+                    .AddHeader("bighax_options_header")
                     .AddSlider(
                         StandardFridgeCapacityKey,
-                        "storagetools_standard_fridge_label",
-                        StorageToolsSettings.DefaultStandardFridgeCapacity,
-                        StorageToolsTargetIds.SliderMaximum,
+                        "bighax_standard_fridge_label",
+                        BigHaxSettings.DefaultStandardFridgeCapacity,
+                        BigHaxTargetIds.SliderMaximum,
                         settings.StandardFridgeCapacity,
                         value =>
                         {
                             settings.StandardFridgeCapacity = value;
-                            StorageToolsRuntime.RequestImmediateApply();
+                            BigHaxRuntime.RequestImmediateApply();
                         },
-                        "storagetools_capacity_value")
+                        "bighax_capacity_value")
                     .AddSlider(
                         PalletShelfCapacityKey,
-                        "storagetools_pallet_shelf_label",
-                        StorageToolsSettings.DefaultPalletShelfCapacity,
-                        StorageToolsTargetIds.SliderMaximum,
+                        "bighax_pallet_shelf_label",
+                        BigHaxSettings.DefaultPalletShelfCapacity,
+                        BigHaxTargetIds.SliderMaximum,
                         settings.PalletShelfCapacity,
                         value =>
                         {
                             settings.PalletShelfCapacity = value;
-                            StorageToolsRuntime.RequestImmediateApply();
+                            BigHaxRuntime.RequestImmediateApply();
                         },
-                        "storagetools_capacity_value")
+                        "bighax_capacity_value")
                     .AddSlider(
                         FreightTruckT1DeliveryPlacesKey,
-                        "storagetools_freight_truck_label",
-                        StorageToolsSettings.DefaultFreightTruckT1DeliveryPlaces,
-                        StorageToolsTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
+                        "bighax_freight_truck_label",
+                        BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
+                        BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
                         settings.FreightTruckT1DeliveryPlaces,
                         value =>
                         {
                             settings.FreightTruckT1DeliveryPlaces = value;
-                            StorageToolsRuntime.RequestImmediateApply();
+                            BigHaxRuntime.RequestImmediateApply();
                         },
-                        "storagetools_capacity_value")
+                        "bighax_capacity_value")
                     .AddToggle(
                         ActiveVehicleCapacityEnabledKey,
-                        "storagetools_active_vehicle_enabled_label",
+                        "bighax_active_vehicle_enabled_label",
                         settings.EnableActiveVehicleCapacityOverride,
                         value =>
                         {
                             settings.EnableActiveVehicleCapacityOverride = value;
-                            StorageToolsRuntime.RequestImmediateApply();
+                            BigHaxRuntime.RequestImmediateApply();
                         })
                     .AddSlider(
                         ActiveVehicleCapacityKey,
-                        "storagetools_active_vehicle_label",
-                        StorageToolsSettings.DefaultActiveVehicleCapacity,
-                        StorageToolsTargetIds.SliderMaximum,
+                        "bighax_active_vehicle_label",
+                        BigHaxSettings.DefaultActiveVehicleCapacity,
+                        BigHaxTargetIds.SliderMaximum,
                         settings.ActiveVehicleCapacity,
                         value =>
                         {
                             settings.ActiveVehicleCapacity = value;
-                            StorageToolsRuntime.RequestImmediateApply();
+                            BigHaxRuntime.RequestImmediateApply();
                         },
-                        "storagetools_capacity_value");
+                        "bighax_capacity_value");
 
             OptionsService.Register(modContext.ModId, options);
             registeredModId = modContext.ModId;
-            StorageToolsLogger.Info(modContext, "StorageTools: options registered.");
+            BigHaxLogger.Info(modContext, "BigHax: options registered.");
         }
 
         public void Shutdown()
@@ -97,7 +97,7 @@ namespace StorageTools
             if (!string.IsNullOrEmpty(registeredModId))
                 OptionsService.RemoveModOptions(registeredModId);
 
-            StorageToolsLogger.Info(context, "StorageTools: options unregistered.");
+            BigHaxLogger.Info(context, "BigHax: options unregistered.");
             registeredModId = null;
             context = null;
         }

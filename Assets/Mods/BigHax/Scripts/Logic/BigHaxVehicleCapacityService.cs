@@ -7,11 +7,11 @@ using Helpers;
 using UnityEngine;
 using Vehicles.VehicleTypes;
 
-namespace StorageTools
+namespace BigHax
 {
-    internal sealed class StorageToolsVehicleCapacityService
+    internal sealed class BigHaxVehicleCapacityService
     {
-        private const string VehicleOverridesModDataKey = "storage_tools:vehicle_type_caps_v1";
+        private const string VehicleOverridesModDataKey = "big_hax:vehicle_type_caps_v1";
 
         private readonly Dictionary<string, int> originalCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> originalDeliveryDestinations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -24,7 +24,7 @@ namespace StorageTools
             lastKnownActiveVehicleId = null;
         }
 
-        public void ApplyConfiguredCapacities(ModContext context, StorageToolsSettings settings, bool forceRefresh)
+        public void ApplyConfiguredCapacities(ModContext context, BigHaxSettings settings, bool forceRefresh)
         {
             ApplyFreightTruckDeliveryPlaces(context, settings.FreightTruckT1DeliveryPlaces);
 
@@ -50,9 +50,9 @@ namespace StorageTools
             CaptureOriginalCapacity(activeVehicle.vehicleType);
             if (SetPersistedVehicleTypeCapacity(activeVehicle.vehicleType.vehicleTypeName, settings.ActiveVehicleCapacity))
             {
-                StorageToolsLogger.Info(
+                BigHaxLogger.Info(
                     context,
-                    $"StorageTools: saved active vehicle override {activeVehicle.vehicleType.vehicleTypeName} -> {settings.ActiveVehicleCapacity}.");
+                    $"BigHax: saved active vehicle override {activeVehicle.vehicleType.vehicleTypeName} -> {settings.ActiveVehicleCapacity}.");
             }
 
             activeVehicle.vehicleType.maxCargoCapacity = settings.ActiveVehicleCapacity;
@@ -68,13 +68,13 @@ namespace StorageTools
 
         private void ApplyFreightTruckDeliveryPlaces(ModContext context, int displayedDeliveryPlaces)
         {
-            var freightTruckType = VehicleTypeHelper.GetVehicleType(StorageToolsTargetIds.FreightTruckT1VehicleTypeName);
+            var freightTruckType = VehicleTypeHelper.GetVehicleType(BigHaxTargetIds.FreightTruckT1VehicleTypeName);
             if (freightTruckType == null)
             {
-                StorageToolsLogger.WarnOnce(
+                BigHaxLogger.WarnOnce(
                     context,
-                    "missing-vehicle-" + StorageToolsTargetIds.FreightTruckT1VehicleTypeName,
-                    $"StorageTools: could not resolve vehicle type '{StorageToolsTargetIds.FreightTruckT1VehicleTypeName}'.");
+                    "missing-vehicle-" + BigHaxTargetIds.FreightTruckT1VehicleTypeName,
+                    $"BigHax: could not resolve vehicle type '{BigHaxTargetIds.FreightTruckT1VehicleTypeName}'.");
                 return;
             }
 
@@ -113,7 +113,7 @@ namespace StorageTools
 
         private void RestoreFreightTruckDeliveryPlaces()
         {
-            var vehicleTypeName = StorageToolsTargetIds.FreightTruckT1VehicleTypeName;
+            var vehicleTypeName = BigHaxTargetIds.FreightTruckT1VehicleTypeName;
             var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
             if (vehicleType == null)
                 return;

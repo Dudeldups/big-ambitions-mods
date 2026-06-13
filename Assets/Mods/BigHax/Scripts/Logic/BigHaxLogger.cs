@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using BAModAPI;
 
-namespace StorageTools
+namespace BigHax
 {
-    internal static class StorageToolsLogger
+    internal static class BigHaxLogger
     {
         private static readonly HashSet<string> WarnedKeys = new HashSet<string>();
         private static bool debugLoggingEnabled;
@@ -20,7 +20,7 @@ namespace StorageTools
                 return;
 
             context?.Logger.Info(message);
-            StorageToolsFileLogger.Log(message);
+            BigHaxFileLogger.Log(message);
         }
 
         public static void Warn(ModContext? context, string message)
@@ -29,7 +29,7 @@ namespace StorageTools
                 return;
 
             context?.Logger.Warn(message);
-            StorageToolsFileLogger.Log("WARN: " + message);
+            BigHaxFileLogger.Log("WARN: " + message);
         }
 
         public static void WarnOnce(ModContext? context, string key, string message)

@@ -3,9 +3,9 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace StorageTools
+namespace BigHax
 {
-    internal static class StorageToolsFileLogger
+    internal static class BigHaxFileLogger
     {
         private static readonly object Sync = new object();
         private static string? logPath;
@@ -19,7 +19,7 @@ namespace StorageTools
 
                 try
                 {
-                    var directory = Path.Combine(Application.persistentDataPath, "StorageTools");
+                    var directory = Path.Combine(Application.persistentDataPath, "BigHax");
                     Directory.CreateDirectory(directory);
                     logPath = Path.Combine(directory, "storage-tools.log");
                 }
