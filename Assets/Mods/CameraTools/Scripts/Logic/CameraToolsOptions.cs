@@ -13,11 +13,11 @@ namespace CameraTools
         private const string ScenicViewDebugLoggingKey = "camera_tools_scenic_view_debug_logging";
         private static readonly string[] ScenicViewHotkeyChoices =
         {
-            "cameratools_hotkey_f6",
-            "cameratools_hotkey_f7",
-            "cameratools_hotkey_home",
-            "cameratools_hotkey_insert",
-            "cameratools_hotkey_delete"
+            "F6",
+            "F7",
+            "Home",
+            "Insert",
+            "Delete"
         };
 
         private static readonly UnityEngine.KeyCode[] ScenicViewHotkeyValues =
@@ -30,32 +30,49 @@ namespace CameraTools
         };
 
         private ModContext? context;
-        private bool isRegistered;
+        private string? registeredModId;
 
         public void Initialize(ModContext modContext, CameraToolsSettings settings)
         {
             context = modContext;
+            if (!string.IsNullOrEmpty(registeredModId))
+            {
+                modContext.Logger.Info($"CameraTools: unregistering previous options for modId={registeredModId}.");
+                OptionsService.RemoveModOptions(registeredModId);
+            }
+
+            modContext.Logger.Info($"CameraTools: removing stale options for current modId={modContext.ModId} before registration.");
             OptionsService.RemoveModOptions(modContext.ModId);
 
-            var options =
-                new ModOptions()
-                    .AddHeader("cameratools_options_header")
-                    .AddSlider(GameplayZoomKey, "cameratools_gameplay_zoom_label", 15, 90, settings.GameplayMaxZoom,
-                        value => settings.GameplayMaxZoom = value, "cameratools_slider_value")
-                    .AddSlider(MapDistanceKey, "cameratools_map_distance_label", 100, 800, settings.MapDistance,
-                        value => settings.MapDistance = value, "cameratools_slider_value")
-                    .AddSlider(VehicleZoomKey, "cameratools_vehicle_zoom_label", 20, 120, settings.VehicleMaxZoom,
-                        value => settings.VehicleMaxZoom = value, "cameratools_slider_value")
-                    .AddDropdown(ScenicViewHotkeyKey, "cameratools_scenic_view_hotkey_label", ScenicViewHotkeyChoices,
-                        GetScenicViewHotkeyIndex(settings.ScenicViewHotkey),
-                        value => settings.ScenicViewHotkey = ScenicViewHotkeyValues[value])
-                    .AddToggle(ScenicViewDebugLoggingKey, "cameratools_scenic_view_debug_logging_label",
-                        settings.EnableScenicViewDebugLogging,
-                        value => settings.EnableScenicViewDebugLogging = value);
+            try
+            {
+                modContext.Logger.Info($"CameraTools: building options for modId={modContext.ModId}.");
+                var options =
+                    new ModOptions()
+                        .AddHeader("cameratools_options_header")
+                        .AddSlider(GameplayZoomKey, "cameratools_gameplay_zoom_label", 15, 90, settings.GameplayMaxZoom,
+                            value => settings.GameplayMaxZoom = value, "cameratools_slider_value")
+                        .AddSlider(MapDistanceKey, "cameratools_map_distance_label", 100, 800, settings.MapDistance,
+                            value => settings.MapDistance = value, "cameratools_slider_value")
+                        .AddSlider(VehicleZoomKey, "cameratools_vehicle_zoom_label", 20, 120, settings.VehicleMaxZoom,
+                            value => settings.VehicleMaxZoom = value, "cameratools_slider_value")
+                        .AddDropdown(ScenicViewHotkeyKey, "cameratools_scenic_view_hotkey_label", ScenicViewHotkeyChoices,
+                            GetScenicViewHotkeyIndex(settings.ScenicViewHotkey),
+                            value => settings.ScenicViewHotkey = ScenicViewHotkeyValues[value])
+                        .AddToggle(ScenicViewDebugLoggingKey, "cameratools_scenic_view_debug_logging_label",
+                            settings.EnableScenicViewDebugLogging,
+                            value => settings.EnableScenicViewDebugLogging = value);
 
-            OptionsService.Register(modContext.ModId, options);
-            isRegistered = true;
-            modContext.Logger.Info("CameraTools: options registered.");
+                modContext.Logger.Info($"CameraTools: registering options for modId={modContext.ModId}.");
+                OptionsService.Register(modContext.ModId, options);
+                registeredModId = modContext.ModId;
+                modContext.Logger.Info($"CameraTools: options registered successfully for modId={modContext.ModId}.");
+            }
+            catch (System.Exception exception)
+            {
+                modContext.Logger.Error($"CameraTools: failed to build/register options. {exception}");
+                throw;
+            }
         }
 
         public void Shutdown()
@@ -63,8 +80,13 @@ namespace CameraTools
             if (context == null)
                 return;
 
-            OptionsService.RemoveModOptions(context.ModId);
-            isRegistered = false;
+            if (!string.IsNullOrEmpty(registeredModId))
+            {
+                context.Logger.Info($"CameraTools: unregistering options on shutdown for modId={registeredModId}.");
+                OptionsService.RemoveModOptions(registeredModId);
+            }
+
+            registeredModId = null;
             context.Logger.Info("CameraTools: options unregistered.");
             context = null;
         }
