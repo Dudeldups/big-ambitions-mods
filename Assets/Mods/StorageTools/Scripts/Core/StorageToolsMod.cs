@@ -28,8 +28,8 @@ namespace StorageTools
             activeRuntime?.Shutdown();
             activeRuntime = null;
 
-            activeRuntime = StorageToolsRuntime.Initialize(context, SharedSettings);
             SharedOptions.Initialize(context, SharedSettings);
+            activeRuntime = StorageToolsRuntime.Initialize(context, SharedSettings);
             activeModId = context.ModId;
             StorageToolsLogger.Info(context, "StorageTools: runtime initialized.");
             return Task.CompletedTask;

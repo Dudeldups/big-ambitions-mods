@@ -1,7 +1,9 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Text;
 using BAModAPI;
+using Helpers;
 using UnityEngine;
 using Vehicles.VehicleTypes;
 
@@ -9,38 +11,54 @@ namespace StorageTools
 {
     internal sealed class StorageToolsVehicleCapacityService
     {
+        private const string VehicleOverridesModDataKey = "storage_tools:vehicle_type_caps_v1";
+
         private readonly Dictionary<string, int> originalCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private string? lastActiveVehicleTypeName;
+        private readonly Dictionary<string, int> originalDeliveryDestinations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> persistedVehicleTypeCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private string? lastAppliedSerializedOverrides;
+        private string? lastKnownActiveVehicleId;
 
-        public void ApplyConfiguredCapacities(ModContext context, StorageToolsSettings settings)
+        public void InvalidateCache()
         {
-            ApplyFreightTruckCapacity(context, settings.FreightTruckT1Capacity);
+            lastKnownActiveVehicleId = null;
+        }
 
-            var activeVehicle = FindActiveVehicleController();
-            var activeVehicleTypeName = activeVehicle?.vehicleType?.vehicleTypeName;
-            if (!string.Equals(lastActiveVehicleTypeName, activeVehicleTypeName, StringComparison.OrdinalIgnoreCase))
-            {
-                RestoreNonActiveOverride(lastActiveVehicleTypeName, settings.FreightTruckT1Capacity);
-                lastActiveVehicleTypeName = activeVehicleTypeName;
-            }
+        public void ApplyConfiguredCapacities(ModContext context, StorageToolsSettings settings, bool forceRefresh)
+        {
+            LoadPersistedOverridesFromSave();
+            ApplyFreightTruckDeliveryPlaces(context, settings.FreightTruckT1DeliveryPlaces);
+            ApplyPersistedVehicleTypeCapacities();
 
-            if (activeVehicle?.vehicleType == null || string.IsNullOrWhiteSpace(activeVehicleTypeName))
+            var activeVehicleId = SaveGameManager.Current?.ActiveVehicleId;
+            if (!forceRefresh && string.Equals(lastKnownActiveVehicleId, activeVehicleId, StringComparison.Ordinal))
+                return;
+
+            lastKnownActiveVehicleId = activeVehicleId;
+            var activeVehicle = FindVehicleControllerById(activeVehicleId);
+            if (activeVehicle?.vehicleType == null || string.IsNullOrWhiteSpace(activeVehicle.vehicleType.vehicleTypeName))
                 return;
 
             CaptureOriginalCapacity(activeVehicle.vehicleType);
+            if (SetPersistedVehicleTypeCapacity(activeVehicle.vehicleType.vehicleTypeName, settings.ActiveVehicleCapacity))
+            {
+                StorageToolsLogger.Info(
+                    context,
+                    $"StorageTools: saved active vehicle override {activeVehicle.vehicleType.vehicleTypeName} -> {settings.ActiveVehicleCapacity}.");
+            }
+
             activeVehicle.vehicleType.maxCargoCapacity = settings.ActiveVehicleCapacity;
         }
 
         public void RestoreOriginalCapacities()
         {
-            if (!string.IsNullOrWhiteSpace(lastActiveVehicleTypeName))
-                RestoreVehicleType(lastActiveVehicleTypeName);
-
-            RestoreVehicleType(StorageToolsTargetIds.FreightTruckT1VehicleTypeName);
-            lastActiveVehicleTypeName = null;
+            foreach (var vehicleTypeName in persistedVehicleTypeCapacities.Keys)
+                RestoreVehicleType(vehicleTypeName);
+            RestoreFreightTruckDeliveryPlaces();
+            lastKnownActiveVehicleId = null;
         }
 
-        private void ApplyFreightTruckCapacity(ModContext context, int capacity)
+        private void ApplyFreightTruckDeliveryPlaces(ModContext context, int deliveryPlaces)
         {
             var freightTruckType = VehicleTypeHelper.GetVehicleType(StorageToolsTargetIds.FreightTruckT1VehicleTypeName);
             if (freightTruckType == null)
@@ -52,8 +70,8 @@ namespace StorageTools
                 return;
             }
 
-            CaptureOriginalCapacity(freightTruckType);
-            freightTruckType.maxCargoCapacity = capacity;
+            CaptureOriginalDeliveryPlaces(freightTruckType);
+            freightTruckType.destinationsThatCanDeliver = deliveryPlaces;
         }
 
         private void CaptureOriginalCapacity(VehicleType vehicleType)
@@ -64,23 +82,12 @@ namespace StorageTools
             originalCapacities[vehicleType.vehicleTypeName] = vehicleType.maxCargoCapacity;
         }
 
-        private void RestoreNonActiveOverride(string? vehicleTypeName, int freightTruckCapacity)
+        private void CaptureOriginalDeliveryPlaces(VehicleType vehicleType)
         {
-            if (string.IsNullOrWhiteSpace(vehicleTypeName))
+            if (string.IsNullOrWhiteSpace(vehicleType.vehicleTypeName) || originalDeliveryDestinations.ContainsKey(vehicleType.vehicleTypeName))
                 return;
 
-            var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
-            if (vehicleType == null)
-                return;
-
-            if (string.Equals(vehicleTypeName, StorageToolsTargetIds.FreightTruckT1VehicleTypeName, StringComparison.OrdinalIgnoreCase))
-            {
-                vehicleType.maxCargoCapacity = freightTruckCapacity;
-                return;
-            }
-
-            if (originalCapacities.TryGetValue(vehicleTypeName, out var originalCapacity))
-                vehicleType.maxCargoCapacity = originalCapacity;
+            originalDeliveryDestinations[vehicleType.vehicleTypeName] = vehicleType.destinationsThatCanDeliver;
         }
 
         private void RestoreVehicleType(string vehicleTypeName)
@@ -96,15 +103,124 @@ namespace StorageTools
                 vehicleType.maxCargoCapacity = originalCapacity;
         }
 
-        private static VehicleController? FindActiveVehicleController()
+        private void RestoreFreightTruckDeliveryPlaces()
         {
-            foreach (var vehicleController in UnityEngine.Object.FindObjectsOfType<VehicleController>())
+            var vehicleTypeName = StorageToolsTargetIds.FreightTruckT1VehicleTypeName;
+            var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
+            if (vehicleType == null)
+                return;
+
+            if (originalDeliveryDestinations.TryGetValue(vehicleTypeName, out var originalDestinations))
+                vehicleType.destinationsThatCanDeliver = originalDestinations;
+        }
+
+        private static VehicleController? FindVehicleControllerById(string? vehicleId)
+        {
+            if (string.IsNullOrWhiteSpace(vehicleId))
+                return null;
+
+            var allPlayerVehicles = VehicleHelper.AllPlayerVehicles;
+            if (allPlayerVehicles == null)
+                return null;
+
+            foreach (var vehicleController in allPlayerVehicles)
             {
-                if (vehicleController != null && vehicleController.controlledByPlayer)
+                if (vehicleController?.vehicleInstance != null &&
+                    string.Equals(vehicleController.vehicleInstance.id, vehicleId, StringComparison.Ordinal))
                     return vehicleController;
             }
 
             return null;
+        }
+
+        private void ApplyPersistedVehicleTypeCapacities()
+        {
+            foreach (var pair in persistedVehicleTypeCapacities)
+            {
+                var vehicleType = VehicleTypeHelper.GetVehicleType(pair.Key);
+                if (vehicleType == null)
+                    continue;
+
+                CaptureOriginalCapacity(vehicleType);
+                if (vehicleType.maxCargoCapacity != pair.Value)
+                    vehicleType.maxCargoCapacity = pair.Value;
+            }
+        }
+
+        private void LoadPersistedOverridesFromSave()
+        {
+            var saveGame = SaveGameManager.Current;
+            var serialized = string.Empty;
+            if (saveGame?.modData != null &&
+                saveGame.modData.TryGetValue(VehicleOverridesModDataKey, out var storedValue) &&
+                !string.IsNullOrWhiteSpace(storedValue))
+            {
+                serialized = storedValue;
+            }
+
+            if (string.Equals(lastAppliedSerializedOverrides, serialized, StringComparison.Ordinal))
+                return;
+
+            persistedVehicleTypeCapacities.Clear();
+            if (!string.IsNullOrWhiteSpace(serialized))
+            {
+                foreach (var entry in serialized.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var separatorIndex = entry.LastIndexOf('=');
+                    if (separatorIndex <= 0 || separatorIndex >= entry.Length - 1)
+                        continue;
+
+                    var vehicleTypeName = entry.Substring(0, separatorIndex);
+                    var capacityText = entry.Substring(separatorIndex + 1);
+                    if (!int.TryParse(capacityText, out var capacity))
+                        continue;
+
+                    persistedVehicleTypeCapacities[vehicleTypeName] = capacity;
+                }
+            }
+
+            lastAppliedSerializedOverrides = serialized;
+        }
+
+        private bool SetPersistedVehicleTypeCapacity(string vehicleTypeName, int capacity)
+        {
+            if (string.IsNullOrWhiteSpace(vehicleTypeName) ||
+                persistedVehicleTypeCapacities.TryGetValue(vehicleTypeName, out var existingCapacity) && existingCapacity == capacity)
+            {
+                return false;
+            }
+
+            persistedVehicleTypeCapacities[vehicleTypeName] = capacity;
+            SavePersistedOverridesToSave();
+            return true;
+        }
+
+        private void SavePersistedOverridesToSave()
+        {
+            var saveGame = SaveGameManager.Current;
+            if (saveGame == null)
+                return;
+
+            saveGame.modData ??= new Dictionary<string, string>();
+            var serialized = SerializePersistedOverrides();
+            saveGame.modData[VehicleOverridesModDataKey] = serialized;
+            lastAppliedSerializedOverrides = serialized;
+        }
+
+        private string SerializePersistedOverrides()
+        {
+            var builder = new StringBuilder();
+            foreach (var pair in persistedVehicleTypeCapacities)
+            {
+                if (builder.Length > 0)
+                    builder.Append(';');
+
+                builder.Append(pair.Key);
+                builder.Append('=');
+                builder.Append(pair.Value);
+            }
+
+            return builder.ToString();
         }
     }
 }

@@ -2,7 +2,7 @@
   "storagetools_options_header": "Storage Tools",
   "storagetools_standard_fridge_label": "Standard Fridge Capacity",
   "storagetools_pallet_shelf_label": "Pallet Shelf Capacity",
-  "storagetools_freight_truck_label": "Freight Truck T1 Capacity",
+  "storagetools_freight_truck_label": "Freight Truck T1 Delivery Places",
   "storagetools_active_vehicle_label": "Active Vehicle Capacity",
   "storagetools_capacity_value": "{value}"
 }

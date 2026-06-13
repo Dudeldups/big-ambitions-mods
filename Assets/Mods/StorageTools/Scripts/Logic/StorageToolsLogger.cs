@@ -11,11 +11,13 @@ namespace StorageTools
         public static void Info(ModContext? context, string message)
         {
             context?.Logger.Info(message);
+            StorageToolsFileLogger.Log(message);
         }
 
         public static void Warn(ModContext? context, string message)
         {
             context?.Logger.Warn(message);
+            StorageToolsFileLogger.Log("WARN: " + message);
         }
 
         public static void WarnOnce(ModContext? context, string key, string message)

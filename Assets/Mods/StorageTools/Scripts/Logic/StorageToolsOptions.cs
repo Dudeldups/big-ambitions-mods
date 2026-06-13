@@ -6,7 +6,7 @@ namespace StorageTools
 {
     public sealed class StorageToolsOptions
     {
-        private const string FreightTruckT1CapacityKey = "storage_tools_freight_truck_t1_capacity";
+        private const string FreightTruckT1DeliveryPlacesKey = "storage_tools_freight_truck_t1_delivery_places";
         private const string StandardFridgeCapacityKey = "storage_tools_standard_fridge_capacity";
         private const string PalletShelfCapacityKey = "storage_tools_pallet_shelf_capacity";
         private const string ActiveVehicleCapacityKey = "storage_tools_active_vehicle_capacity";
@@ -50,14 +50,14 @@ namespace StorageTools
                         },
                         "storagetools_capacity_value")
                     .AddSlider(
-                        FreightTruckT1CapacityKey,
+                        FreightTruckT1DeliveryPlacesKey,
                         "storagetools_freight_truck_label",
-                        StorageToolsTargetIds.SliderMinimum,
-                        StorageToolsTargetIds.SliderMaximum,
-                        settings.FreightTruckT1Capacity,
+                        StorageToolsTargetIds.FreightTruckT1VanillaDeliveryPlaces,
+                        StorageToolsTargetIds.FreightTruckT1MaxDeliveryPlaces,
+                        settings.FreightTruckT1DeliveryPlaces,
                         value =>
                         {
-                            settings.FreightTruckT1Capacity = value;
+                            settings.FreightTruckT1DeliveryPlaces = value;
                             StorageToolsRuntime.RequestImmediateApply();
                         },
                         "storagetools_capacity_value")

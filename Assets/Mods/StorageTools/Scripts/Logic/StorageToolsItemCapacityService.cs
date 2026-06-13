@@ -12,6 +12,12 @@ namespace StorageTools
     internal sealed class StorageToolsItemCapacityService
     {
         private readonly Dictionary<string, int> originalCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<Item>> resolvedItems = new Dictionary<string, List<Item>>(StringComparer.OrdinalIgnoreCase);
+
+        public void InvalidateCache()
+        {
+            resolvedItems.Clear();
+        }
 
         public void ApplyConfiguredCapacities(ModContext context, StorageToolsSettings settings)
         {
@@ -23,35 +29,36 @@ namespace StorageTools
 
         public void RestoreOriginalCapacities()
         {
-            foreach (var item in Resources.FindObjectsOfTypeAll<Item>())
+            foreach (var pair in resolvedItems)
             {
-                if (item == null || string.IsNullOrWhiteSpace(item.itemName))
+                if (!originalCapacities.TryGetValue(pair.Key, out var originalCapacity))
                     continue;
 
-                if (!originalCapacities.TryGetValue(item.itemName, out var originalCapacity))
-                    continue;
-
-                item.cargoCapacity = originalCapacity;
+                foreach (var item in pair.Value)
+                {
+                    if (item != null)
+                        item.cargoCapacity = originalCapacity;
+                }
             }
         }
 
         private void ApplyItemCapacity(ModContext context, string itemName, int capacity)
         {
-            var foundAny = false;
-            foreach (var item in Resources.FindObjectsOfTypeAll<Item>())
+            var items = ResolveItems(itemName);
+            if (items.Count == 0)
             {
-                if (item == null || !string.Equals(item.itemName, itemName, StringComparison.OrdinalIgnoreCase))
-                    continue;
+                StorageToolsLogger.WarnOnce(context, "missing-item-" + itemName, $"StorageTools: could not resolve item definition '{itemName}'.");
+                return;
+            }
 
-                foundAny = true;
+            foreach (var item in items)
+            {
                 if (!originalCapacities.ContainsKey(itemName))
                     originalCapacities[itemName] = item.cargoCapacity;
 
-                item.cargoCapacity = capacity;
+                if (item.cargoCapacity != capacity)
+                    item.cargoCapacity = capacity;
             }
-
-            if (!foundAny)
-                StorageToolsLogger.WarnOnce(context, "missing-item-" + itemName, $"StorageTools: could not resolve item definition '{itemName}'.");
         }
 
         private static void RefreshCurrentCargoHolder(string itemName)
@@ -82,6 +89,22 @@ namespace StorageTools
             {
                 // Best effort only; some UI paths update lazily from the patched capacity anyway.
             }
+        }
+
+        private List<Item> ResolveItems(string itemName)
+        {
+            if (resolvedItems.TryGetValue(itemName, out var cachedItems))
+                return cachedItems;
+
+            var items = new List<Item>();
+            foreach (var item in Resources.FindObjectsOfTypeAll<Item>())
+            {
+                if (item != null && string.Equals(item.itemName, itemName, StringComparison.OrdinalIgnoreCase))
+                    items.Add(item);
+            }
+
+            resolvedItems[itemName] = items;
+            return items;
         }
     }
 }

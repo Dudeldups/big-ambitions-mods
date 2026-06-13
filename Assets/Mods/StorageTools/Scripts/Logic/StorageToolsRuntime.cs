@@ -1,20 +1,22 @@
 #nullable enable
 using BAModAPI;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace StorageTools
 {
     public sealed class StorageToolsRuntime : MonoBehaviour
     {
-        private const float RefreshIntervalSeconds = 0.5f;
+        private const float ActiveVehiclePollIntervalSeconds = 0.1f;
 
         private static StorageToolsRuntime? instance;
         private readonly StorageToolsItemCapacityService itemCapacityService = new StorageToolsItemCapacityService();
         private readonly StorageToolsVehicleCapacityService vehicleCapacityService = new StorageToolsVehicleCapacityService();
 
+        private bool applyRequested;
         private ModContext? context;
+        private float nextActiveVehiclePollAt;
         private StorageToolsSettings? settings;
-        private float nextRefreshAt;
 
         public static StorageToolsRuntime Initialize(ModContext context, StorageToolsSettings settings)
         {
@@ -28,16 +30,18 @@ namespace StorageTools
 
             runtime.context = context;
             runtime.settings = settings;
-            runtime.nextRefreshAt = 0f;
+            runtime.applyRequested = true;
+            runtime.nextActiveVehiclePollAt = 0f;
             instance = runtime;
-            runtime.ApplyNow();
+            StorageToolsLogger.Info(context, $"StorageTools: file log path = {StorageToolsFileLogger.LogPath}");
+            runtime.ApplyIfRequested();
             return runtime;
         }
 
         public static void RequestImmediateApply()
         {
             if (instance != null)
-                instance.nextRefreshAt = 0f;
+                instance.applyRequested = true;
         }
 
         public void Shutdown()
@@ -50,22 +54,49 @@ namespace StorageTools
             Destroy(gameObject);
         }
 
-        private void Update()
+        private void OnEnable()
         {
-            if (settings == null || Time.unscaledTime < nextRefreshAt)
-                return;
-
-            ApplyNow();
+            SceneManager.sceneLoaded += HandleSceneLoaded;
         }
 
-        private void ApplyNow()
+        private void OnDisable()
         {
-            if (context == null || settings == null)
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+        }
+
+        private void Update()
+        {
+            if (settings == null)
+                return;
+
+            ApplyIfRequested();
+            PollActiveVehicleChanges();
+        }
+
+        private void ApplyIfRequested()
+        {
+            if (!applyRequested || context == null || settings == null)
                 return;
 
             itemCapacityService.ApplyConfiguredCapacities(context, settings);
-            vehicleCapacityService.ApplyConfiguredCapacities(context, settings);
-            nextRefreshAt = Time.unscaledTime + RefreshIntervalSeconds;
+            vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true);
+            applyRequested = false;
+        }
+
+        private void PollActiveVehicleChanges()
+        {
+            if (context == null || settings == null || Time.unscaledTime < nextActiveVehiclePollAt)
+                return;
+
+            nextActiveVehiclePollAt = Time.unscaledTime + ActiveVehiclePollIntervalSeconds;
+            vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: false);
+        }
+
+        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            itemCapacityService.InvalidateCache();
+            vehicleCapacityService.InvalidateCache();
+            applyRequested = true;
         }
     }
 }
