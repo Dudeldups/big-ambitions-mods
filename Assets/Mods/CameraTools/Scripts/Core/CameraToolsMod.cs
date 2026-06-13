@@ -53,7 +53,6 @@ namespace CameraTools
         private static void LogLoadDebug(ModContext context, string message)
         {
             context.Logger.Info(message);
-            CameraToolsFileLogger.Log(message);
         }
     }
 }

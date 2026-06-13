@@ -107,7 +107,6 @@ namespace CameraTools
         private static void LogOptionsDebug(ModContext modContext, string message)
         {
             modContext.Logger.Info(message);
-            CameraToolsFileLogger.Log(message);
         }
     }
 }
