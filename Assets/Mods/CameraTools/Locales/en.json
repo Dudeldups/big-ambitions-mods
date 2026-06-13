@@ -4,6 +4,13 @@
   "cameratools_gameplay_zoom_label": "Max Character Zoom",
   "cameratools_vehicle_zoom_label": "Max Vehicle Zoom",
   "cameratools_map_distance_label": "Max Map Zoom",
+  "cameratools_scenic_view_hotkey_label": "Scenic View Hotkey",
+  "cameratools_scenic_view_debug_logging_label": "Scenic View Debug Logging",
+  "cameratools_hotkey_f6": "F6",
+  "cameratools_hotkey_f7": "F7",
+  "cameratools_hotkey_home": "Home",
+  "cameratools_hotkey_insert": "Insert",
+  "cameratools_hotkey_delete": "Delete",
   "cameratools_map_notice_found": "CameraTools found CityMapCam and applied map changes.",
   "cameratools_map_notice_missing": "CameraTools could not find CityMapCam while the map was open.",
 

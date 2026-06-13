@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using Helpers;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -145,6 +146,9 @@ namespace CameraTools
         private PendingVcamDiagnostic? pendingVcamDiagnostic;
         private string? pendingMapNoticeDuplicateIdentifier;
         private string? pendingMapNoticeMessage;
+        private bool scenicViewEnabled;
+        private RendererState[] scenicViewRendererStates = Array.Empty<RendererState>();
+        private Component? scenicViewTargetRoot;
         private CameraToolsSettings? settings;
         private bool showVehicleDebugOverlay;
         private bool wasCityMapOpen;
@@ -179,6 +183,7 @@ namespace CameraTools
         private static readonly Dictionary<string, PropertyInfo?> propertyCache = new Dictionary<string, PropertyInfo?>();
         private static readonly object memberCacheLock = new object();
         private static bool cameraToolsDebugEnabled;
+        private static bool scenicViewDebugLoggingEnabled;
         private static bool vehicleDebugLoggingEnabled;
 
         public static CameraToolsRuntime Initialize(ModContext context, CameraToolsSettings settings)
@@ -227,6 +232,9 @@ namespace CameraTools
             runtime.pendingVcamDiagnostic = null;
             runtime.pendingMapNoticeDuplicateIdentifier = null;
             runtime.pendingMapNoticeMessage = null;
+            runtime.scenicViewEnabled = false;
+            runtime.scenicViewRendererStates = Array.Empty<RendererState>();
+            runtime.scenicViewTargetRoot = null;
             runtime.showVehicleDebugOverlay = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugOverlay;
             runtime.vehicleTarget = null;
             runtime.vehicleDebug = new VehicleDebugState();
@@ -239,6 +247,7 @@ namespace CameraTools
             runtime.lastMapLifecycleLogSummary = string.Empty;
             runtime.lastMapDebugLogSummary = string.Empty;
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
+            scenicViewDebugLoggingEnabled = settings.EnableScenicViewDebugLogging;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
 
             pedestrianCamType ??= FindType(PedestrianCamTypeName);
@@ -261,6 +270,7 @@ namespace CameraTools
 
         public void Shutdown()
         {
+            RestoreScenicView();
             RestoreMapCameraState();
             LogVehicleDebug("CameraTools runtime shutting down.");
             Destroy(gameObject);
@@ -281,8 +291,16 @@ namespace CameraTools
             if (settings == null)
                 return;
 
+            cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
+            scenicViewDebugLoggingEnabled = settings.EnableScenicViewDebugLogging;
+            vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
+            if (!cameraToolsDebugEnabled)
+                showVehicleDebugOverlay = false;
+
             var cityMapOpen = IsCityMapOpen();
             EnsureControllers(cityMapOpen);
+            HandleScenicViewHotkey();
+            RefreshScenicViewState();
             HandleVehicleDebugHotkeys();
             var gameplayActive = IsGameplayActive();
 
@@ -624,6 +642,109 @@ namespace CameraTools
 
             if (Input.GetKeyDown(KeyCode.F12))
                 ApplyVisualCameraDiagnostic();
+        }
+
+        private void HandleScenicViewHotkey()
+        {
+            if (settings == null || !Input.GetKeyDown(settings.ScenicViewHotkey))
+                return;
+
+            LogScenicViewDebug($"Scenic hotkey pressed: key={settings.ScenicViewHotkey}, currentlyEnabled={scenicViewEnabled}");
+            scenicViewEnabled = !scenicViewEnabled;
+            if (scenicViewEnabled)
+            {
+                ApplyScenicView();
+                ShowPopup("Scenic view enabled.", "cameratools_scenic_view_enabled");
+            }
+            else
+            {
+                RestoreScenicView();
+                ShowPopup("Scenic view disabled.", "cameratools_scenic_view_disabled");
+            }
+        }
+
+        private void RefreshScenicViewState()
+        {
+            if (!scenicViewEnabled)
+            {
+                if (scenicViewRendererStates.Length > 0)
+                    RestoreScenicView();
+
+                return;
+            }
+
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+            {
+                LogScenicViewDebug("Scenic refresh skipped: PlayerHelper.PlayerController is null.");
+                return;
+            }
+
+            if (scenicViewTargetRoot == null || scenicViewTargetRoot != playerController)
+            {
+                LogScenicViewDebug($"Scenic refresh reapplied: targetChanged={(scenicViewTargetRoot != playerController)}");
+                ApplyScenicView();
+                return;
+            }
+
+            var currentRenderers = playerController.GetComponentsInChildren<Renderer>(true);
+            if (currentRenderers.Length != scenicViewRendererStates.Length)
+            {
+                LogScenicViewDebug($"Scenic refresh reapplied: rendererCountChanged old={scenicViewRendererStates.Length} new={currentRenderers.Length}");
+                ApplyScenicView();
+                return;
+            }
+
+            foreach (var state in scenicViewRendererStates)
+            {
+                if (state.Renderer != null && state.Renderer.enabled)
+                    state.Renderer.enabled = false;
+            }
+        }
+
+        private void ApplyScenicView()
+        {
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+            {
+                LogScenicViewDebug("ApplyScenicView aborted: PlayerHelper.PlayerController is null.");
+                return;
+            }
+
+            RestoreScenicView();
+
+            var renderers = playerController.GetComponentsInChildren<Renderer>(true);
+            var states = new List<RendererState>(renderers.Length);
+            foreach (var renderer in renderers)
+            {
+                if (renderer == null)
+                    continue;
+
+                states.Add(new RendererState(renderer, renderer.enabled));
+                renderer.enabled = false;
+            }
+
+            scenicViewTargetRoot = playerController;
+            scenicViewRendererStates = states.ToArray();
+            LogScenicViewDebug(
+                $"Scenic view applied: player={playerController.name}, rendererCount={scenicViewRendererStates.Length}");
+        }
+
+        private void RestoreScenicView()
+        {
+            var restoredCount = 0;
+            foreach (var state in scenicViewRendererStates)
+            {
+                if (state.Renderer != null)
+                {
+                    state.Renderer.enabled = state.WasEnabled;
+                    restoredCount++;
+                }
+            }
+
+            scenicViewRendererStates = Array.Empty<RendererState>();
+            scenicViewTargetRoot = null;
+            LogScenicViewDebug($"Scenic view restored: rendererCount={restoredCount}");
         }
 
         private void ResolveVehicleTarget(bool forceSearch, bool allowExpensiveSearch)
@@ -1722,6 +1843,14 @@ namespace CameraTools
             CameraToolsFileLogger.Log(message);
         }
 
+        private static void LogScenicViewDebug(string message)
+        {
+            if (!scenicViewDebugLoggingEnabled)
+                return;
+
+            CameraToolsFileLogger.Log(message);
+        }
+
         private static GUIStyle CreateDebugOverlayStyle()
         {
             var style = new GUIStyle(GUI.skin.box);
@@ -2580,6 +2709,19 @@ namespace CameraTools
                 camera.orthographicSize = orthographicSize;
                 camera.fieldOfView = fieldOfView;
             }
+        }
+
+        private readonly struct RendererState
+        {
+            public RendererState(Renderer renderer, bool wasEnabled)
+            {
+                Renderer = renderer;
+                WasEnabled = wasEnabled;
+            }
+
+            public Renderer Renderer { get; }
+
+            public bool WasEnabled { get; }
         }
 
         private sealed class VehicleTarget

@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace CameraTools
 {
     public sealed class CameraToolsSettings
@@ -13,6 +15,10 @@ namespace CameraTools
         public int GameplayMaxPitch { get; set; } = 80;
 
         public int VehicleMaxZoom { get; set; } = 65;
+
+        public KeyCode ScenicViewHotkey { get; set; } = KeyCode.F7;
+
+        public bool EnableScenicViewDebugLogging { get; set; } = false;
 
         public bool EnableCameraToolsDebug { get; set; } = false;
 
