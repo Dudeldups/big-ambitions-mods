@@ -10,7 +10,7 @@ namespace CameraTools
 
         public int GameplayDefaultPitch { get; set; } = 35;
 
-        public int GameplayMinPitch { get; set; } = 15;
+        public int GameplayMinPitch { get; set; } = 1;
 
         public int GameplayMaxPitch { get; set; } = 80;
 
