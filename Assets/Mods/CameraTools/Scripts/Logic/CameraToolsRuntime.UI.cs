@@ -21,8 +21,7 @@ namespace CameraTools
         private float nextHiddenUiDiagnosticLogTime;
         private static readonly string[] HideMapMarkersOptionKeys =
         {
-            "camera_tools_hide_map_markers_with_ui_v2",
-            "camera_tools_hide_map_markers_with_ui"
+            "camera_tools_hide_map_markers"
         };
         private static GameObject? cachedKnownMapMarkerRoot;
 

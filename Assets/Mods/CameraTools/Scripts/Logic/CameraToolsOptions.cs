@@ -40,6 +40,7 @@ namespace CameraTools
         public void Initialize(ModContext modContext, CameraToolsSettings settings)
         {
             context = modContext;
+            settings.HideMapMarkersWithUi = LoadSavedHideMapMarkersValue(modContext.ModId, settings.HideMapMarkersWithUi);
             if (!string.IsNullOrEmpty(registeredModId))
             {
                 LogOptionsDebug(modContext, $"CameraTools: unregistering previous options for modId={registeredModId}.");
@@ -69,7 +70,11 @@ namespace CameraTools
                             value => settings.HideUiHotkey = HotkeyValues[value])
                         .AddToggle(HideMapMarkersKey, "cameratools_hide_map_markers_label",
                             settings.HideMapMarkersWithUi,
-                            value => settings.HideMapMarkersWithUi = value);
+                            value =>
+                            {
+                                settings.HideMapMarkersWithUi = value;
+                                SaveHideMapMarkersValue(modContext.ModId, value);
+                            });
 
                 LogOptionsDebug(modContext, $"CameraTools: built options count = {options.Options.Count} for modId={modContext.ModId}.");
 
@@ -115,6 +120,26 @@ namespace CameraTools
         private static void LogOptionsDebug(ModContext modContext, string message)
         {
             modContext.Logger.Info(message);
+        }
+
+        private static string GetSavedHideMapMarkersKey(string modId)
+        {
+            return modId + "." + HideMapMarkersKey;
+        }
+
+        private static bool LoadSavedHideMapMarkersValue(string modId, bool fallbackValue)
+        {
+            var key = GetSavedHideMapMarkersKey(modId);
+            return UnityEngine.PlayerPrefs.HasKey(key)
+                ? UnityEngine.PlayerPrefs.GetInt(key, fallbackValue ? 1 : 0) != 0
+                : fallbackValue;
+        }
+
+        private static void SaveHideMapMarkersValue(string modId, bool value)
+        {
+            var key = GetSavedHideMapMarkersKey(modId);
+            UnityEngine.PlayerPrefs.SetInt(key, value ? 1 : 0);
+            UnityEngine.PlayerPrefs.Save();
         }
     }
 }
