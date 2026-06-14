@@ -20,6 +20,8 @@ namespace CameraTools
 
         public KeyCode HideUiHotkey { get; set; } = KeyCode.F6;
 
+        public bool HideMapMarkersWithUi { get; set; } = false;
+
         public bool EnableCameraToolsDebug { get; set; } = false;
 
         public bool EnableVehicleDebugLogging { get; set; } = false;

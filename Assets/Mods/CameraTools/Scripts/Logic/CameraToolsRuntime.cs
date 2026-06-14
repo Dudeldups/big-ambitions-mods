@@ -142,17 +142,26 @@ namespace CameraTools
             "lease",
             "owned",
             "owner",
-            "icon",
-            "marker",
-            "mapicon",
-            "worldicon",
-            "circle",
             "help",
             "bug",
             "option",
             "building",
             "business",
             "location"
+        };
+        private static readonly string[] HiddenUiMarkerKeywords =
+        {
+            "icon",
+            "marker",
+            "mapicon",
+            "worldicon",
+            "circle",
+            "steering",
+            "rent",
+            "rented",
+            "lease",
+            "owned",
+            "owner"
         };
         private static readonly string[] HiddenUiExcludeKeywords =
         {

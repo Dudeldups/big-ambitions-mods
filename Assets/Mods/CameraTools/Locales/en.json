@@ -6,6 +6,7 @@
   "cameratools_map_distance_label": "Max Map Zoom",
   "cameratools_scenic_view_hotkey_label": "Scenic View Hotkey",
   "cameratools_hide_ui_hotkey_label": "Hide UI Hotkey",
+  "cameratools_hide_map_markers_label": "Also disable map markers",
   "cameratools_hotkey_f5": "F5",
   "cameratools_hotkey_f6": "F6",
   "cameratools_hotkey_f7": "F7",

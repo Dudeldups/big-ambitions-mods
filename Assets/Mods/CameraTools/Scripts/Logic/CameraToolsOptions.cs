@@ -11,6 +11,7 @@ namespace CameraTools
         private const string MapDistanceKey = "camera_tools_map_distance";
         private const string ScenicViewHotkeyKey = "camera_tools_scenic_view_hotkey";
         private const string HideUiHotkeyKey = "camera_tools_hide_ui_hotkey";
+        private const string HideMapMarkersKey = "camera_tools_hide_map_markers";
         private static readonly string[] HotkeyChoices =
         {
             "cameratools_hotkey_f5",
@@ -65,7 +66,10 @@ namespace CameraTools
                             value => settings.ScenicViewHotkey = HotkeyValues[value])
                         .AddDropdown(HideUiHotkeyKey, "cameratools_hide_ui_hotkey_label", HotkeyChoices,
                             GetHotkeyIndex(settings.HideUiHotkey),
-                            value => settings.HideUiHotkey = HotkeyValues[value]);
+                            value => settings.HideUiHotkey = HotkeyValues[value])
+                        .AddToggle(HideMapMarkersKey, "cameratools_hide_map_markers_label",
+                            settings.HideMapMarkersWithUi,
+                            value => settings.HideMapMarkersWithUi = value);
 
                 LogOptionsDebug(modContext, $"CameraTools: built options count = {options.Options.Count} for modId={modContext.ModId}.");
 
