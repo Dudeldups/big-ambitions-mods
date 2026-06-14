@@ -13,6 +13,10 @@ namespace CameraTools
 {
     public sealed partial class CameraToolsRuntime : MonoBehaviour
     {
+        private bool lastHiddenUiCityMapOpen;
+        private bool lastHiddenUiHideMapMarkers;
+        private float nextHiddenUiDiagnosticLogTime;
+
         private void HandleHideUiHotkey()
         {
             if (settings == null || !Input.GetKeyDown(settings.HideUiHotkey))
@@ -35,7 +39,13 @@ namespace CameraTools
                 return;
             }
 
+            var cityMapOpen = IsCityMapOpen();
+            var hideMapMarkers = settings != null && settings.HideMapMarkersWithUi;
             var needsRefresh = hiddenUiStates.Length == 0;
+
+            if (cityMapOpen != lastHiddenUiCityMapOpen || hideMapMarkers != lastHiddenUiHideMapMarkers)
+                needsRefresh = true;
+
             if (!needsRefresh)
             {
                 foreach (var state in hiddenUiStates)
@@ -51,7 +61,10 @@ namespace CameraTools
                 }
             }
 
-            if (!needsRefresh || Time.unscaledTime < nextHiddenUiRefreshTime)
+            if (!needsRefresh && Time.unscaledTime >= nextHiddenUiRefreshTime)
+                needsRefresh = true;
+
+            if (!needsRefresh)
                 return;
 
             ApplyHiddenUi();
@@ -63,10 +76,19 @@ namespace CameraTools
 
             var cityMapOpen = IsCityMapOpen();
             var hideMapMarkers = settings != null && settings.HideMapMarkersWithUi;
-            var targets = ResolveHiddenUiTargets(cityMapOpen, hideMapMarkers);
+            lastHiddenUiCityMapOpen = cityMapOpen;
+            lastHiddenUiHideMapMarkers = hideMapMarkers;
+
+            var logDiagnostics = hideMapMarkers && Time.unscaledTime >= nextHiddenUiDiagnosticLogTime;
+            if (logDiagnostics)
+                nextHiddenUiDiagnosticLogTime = Time.unscaledTime + 2f;
+
+            var targets = ResolveHiddenUiTargets(cityMapOpen, hideMapMarkers, logDiagnostics);
+            const int markerRendererCount = 0;
             if (targets.Count == 0)
             {
                 nextHiddenUiRefreshTime = Time.unscaledTime + HiddenUiRefreshIntervalSeconds;
+                LogHiddenUiDebug($"Hidden UI scan found no targets. cityMapOpen={cityMapOpen}, hideMapMarkers={hideMapMarkers}");
                 return;
             }
 
@@ -82,6 +104,8 @@ namespace CameraTools
 
             hiddenUiStates = states.ToArray();
             nextHiddenUiRefreshTime = Time.unscaledTime + HiddenUiRefreshIntervalSeconds;
+            LogHiddenUiDebug(
+                $"Hidden UI V4_POI_ROOT_HIDE applied. cityMapOpen={cityMapOpen}, hideMapMarkers={hideMapMarkers}, uiTargets={hiddenUiStates.Length}, markerRenderers={markerRendererCount}, rendererScanDisabled=True");
         }
 
         private void RestoreHiddenUi()
@@ -95,12 +119,19 @@ namespace CameraTools
             hiddenUiStates = Array.Empty<GameObjectActiveState>();
         }
 
-        private static List<GameObject> ResolveHiddenUiTargets(bool cityMapOpen, bool hideMapMarkers)
+        private static List<GameObject> ResolveHiddenUiTargets(bool cityMapOpen, bool hideMapMarkers, bool logDiagnostics)
         {
             var targets = new List<GameObject>();
             var seen = new HashSet<int>();
+            var scanned = 0;
+            var namedMarkerMatches = 0;
+            var potentialMarkerMatches = 0;
+
+            if (hideMapMarkers)
+                AddKnownMapMarkerRoots(targets, seen, logDiagnostics);
             foreach (var rectTransform in Resources.FindObjectsOfTypeAll<RectTransform>())
             {
+                scanned++;
                 if (rectTransform == null)
                     continue;
 
@@ -109,9 +140,17 @@ namespace CameraTools
                     continue;
 
                 var path = GetHierarchyPath(rectTransform).ToLowerInvariant();
-                var namedMarker = IsNamedMarkerPath(path);
+                var namedMarker = IsNamedMarkerPath(path) || HasMarkerComponentInHierarchy(rectTransform, cityMapOpen);
+                var potentialMarker = hideMapMarkers && IsPotentialMarkerUiTransform(rectTransform, cityMapOpen);
+                if (namedMarker)
+                    namedMarkerMatches++;
+                if (potentialMarker)
+                    potentialMarkerMatches++;
+                if (logDiagnostics && (namedMarker || potentialMarker) && namedMarkerMatches + potentialMarkerMatches <= 30)
+                    LogHiddenUiDebug($"Hidden UI marker candidate: path={GetHierarchyPath(rectTransform)}, named={namedMarker}, potential={potentialMarker}, cityMapOpen={cityMapOpen}");
                 var aggressiveMapMarkerMatch = cityMapOpen && hideMapMarkers &&
                     (namedMarker ||
+                    potentialMarker ||
                     path.IndexOf("map", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     path.IndexOf("filter", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     path.IndexOf("location", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -128,12 +167,13 @@ namespace CameraTools
                     continue;
                 }
 
-                if (!ShouldHideUiTransform(rectTransform, namedMarker))
+                if (!ShouldHideUiTransform(rectTransform, namedMarker, cityMapOpen, hideMapMarkers))
                     continue;
 
                 var compactMarker =
+                    hideMapMarkers && (potentialMarker ||
                     (!cityMapOpen && IsLikelyWorldMarker(rectTransform)) ||
-                    (cityMapOpen && hideMapMarkers && IsLikelyMapMarker(rectTransform));
+                    (cityMapOpen && IsLikelyMapMarker(rectTransform)));
                 if (compactMarker || namedMarker || aggressiveMapMarkerMatch)
                 {
                     TryAddHiddenUiTarget(targets, seen, ResolveWorldMarkerRoot(rectTransform).gameObject);
@@ -150,7 +190,64 @@ namespace CameraTools
                 TryAddHiddenUiTarget(targets, seen, gameObject);
             }
 
-            return FilterNestedUiTargets(targets);
+            var filtered = FilterNestedUiTargets(targets);
+            if (logDiagnostics)
+                LogHiddenUiDebug($"Hidden UI target scan: cityMapOpen={cityMapOpen}, hideMapMarkers={hideMapMarkers}, scannedRectTransforms={scanned}, rawTargets={targets.Count}, filteredTargets={filtered.Count}, namedMarkerMatches={namedMarkerMatches}, potentialMarkerMatches={potentialMarkerMatches}");
+
+            return filtered;
+        }
+
+        private static void AddKnownMapMarkerRoots(List<GameObject> targets, HashSet<int> seen, bool logDiagnostics)
+        {
+            foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (transform == null || transform.gameObject == null)
+                    continue;
+
+                var gameObject = transform.gameObject;
+                if (gameObject.hideFlags != HideFlags.None || !gameObject.activeInHierarchy)
+                    continue;
+
+                if (!IsKnownMapMarkerRoot(transform))
+                    continue;
+
+                TryAddHiddenUiTarget(targets, seen, gameObject);
+                if (logDiagnostics)
+                    LogHiddenUiDebug($"Hidden known map marker root: path={GetHierarchyPath(transform)}");
+            }
+        }
+
+        private static bool IsKnownMapMarkerRoot(Transform transform)
+        {
+            var name = transform.name;
+            if (!IsKnownMapMarkerRootName(name))
+                return false;
+
+            var current = transform.parent;
+            var climbCount = 0;
+            while (current != null && climbCount <= 4)
+            {
+                if (string.Equals(current.name, "CityMap", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(current.name, "CityManager", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                current = current.parent;
+                climbCount++;
+            }
+
+            return false;
+        }
+
+        private static bool IsKnownMapMarkerRootName(string name)
+        {
+            return string.Equals(name, "Pois", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "POIs", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "Poi", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "Markers", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "MapMarkers", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "Waypoints", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "MapIcons", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "Icons", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void TryAddHiddenUiTarget(List<GameObject> targets, HashSet<int> seen, GameObject? target)
@@ -165,7 +262,7 @@ namespace CameraTools
             targets.Add(target);
         }
 
-        private static bool ShouldHideUiTransform(RectTransform transform, bool namedMarker)
+        private static bool ShouldHideUiTransform(RectTransform transform, bool namedMarker, bool cityMapOpen, bool hideMapMarkers)
         {
             if (transform.GetComponentInParent<Canvas>(true) == null)
                 return false;
@@ -177,10 +274,72 @@ namespace CameraTools
             if (ContainsAny(path, HiddenUiExcludeKeywords))
                 return false;
 
+            if (ContainsAny(path, HiddenUiIncludeKeywords) || IsLikelyFixedHudRegion(transform))
+                return true;
+
+            if (!hideMapMarkers)
+                return false;
+
             return namedMarker ||
-                ContainsAny(path, HiddenUiIncludeKeywords) ||
-                IsLikelyFixedHudRegion(transform) ||
-                IsLikelyWorldMarker(transform);
+                IsPotentialMarkerUiTransform(transform, cityMapOpen) ||
+                (!cityMapOpen && IsLikelyWorldMarker(transform)) ||
+                (cityMapOpen && IsLikelyMapMarker(transform));
+        }
+
+        private static bool IsPotentialMarkerUiTransform(RectTransform rectTransform, bool cityMapOpen)
+        {
+            if (!TryGetScreenRect(rectTransform, out var minX, out var minY, out var maxX, out var maxY))
+                return false;
+
+            var path = GetHierarchyPath(rectTransform).ToLowerInvariant();
+            if (ContainsAny(path, HiddenUiExcludeKeywords))
+                return false;
+
+            if (!HasGraphicInMarkerHierarchy(rectTransform) && !HasMarkerComponentInHierarchy(rectTransform, cityMapOpen))
+                return false;
+
+            var width = maxX - minX;
+            var height = maxY - minY;
+            if (width <= 1f || height <= 1f)
+                return false;
+
+            if (!cityMapOpen)
+                return width <= Screen.width * 0.34f && height <= Screen.height * 0.34f;
+
+            if (IsLikelyFixedHudRegion(rectTransform))
+                return false;
+
+            if (width > Screen.width * 0.42f || height > Screen.height * 0.32f)
+                return false;
+
+            var aspectRatio = width > height ? width / height : height / width;
+            return aspectRatio <= 10f;
+        }
+
+        private static bool HasMarkerComponentInHierarchy(Transform transform, bool cityMapOpen)
+        {
+            var current = transform;
+            var climbCount = 0;
+            while (current != null && climbCount <= 5)
+            {
+                foreach (var component in current.GetComponents<Component>())
+                {
+                    if (component == null)
+                        continue;
+
+                    var typeName = component.GetType().Name.ToLowerInvariant();
+                    if (ContainsAny(typeName, HiddenComponentMarkerKeywords))
+                        return true;
+
+                    if (cityMapOpen && ContainsAny(typeName, HiddenCityMapComponentMarkerKeywords))
+                        return true;
+                }
+
+                current = current.parent;
+                climbCount++;
+            }
+
+            return false;
         }
 
         private static bool IsNamedMarkerPath(string path)
@@ -315,16 +474,30 @@ namespace CameraTools
 
         private static bool HasGraphicInMarkerHierarchy(RectTransform rectTransform)
         {
+            return HasGraphicInMarkerHierarchy(rectTransform, depth: 0, visited: 0);
+        }
+
+        private static bool HasGraphicInMarkerHierarchy(RectTransform rectTransform, int depth, int visited)
+        {
+            if (depth > 5 || visited > 64)
+                return false;
+
             if (rectTransform.GetComponent("Image") != null ||
                 rectTransform.GetComponent("RawImage") != null ||
                 rectTransform.GetComponent("TMP_Text") != null ||
-                rectTransform.GetComponent("TextMeshProUGUI") != null)
+                rectTransform.GetComponent("TextMeshProUGUI") != null ||
+                rectTransform.GetComponent("CanvasRenderer") != null)
                 return true;
 
+            var nextVisited = visited;
             foreach (Transform child in rectTransform)
             {
                 if (child is not RectTransform childRect)
                     continue;
+
+                nextVisited++;
+                if (nextVisited > 64)
+                    return false;
 
                 if (!TryGetScreenRect(childRect, out _, out _, out var childMaxX, out var childMaxY))
                     continue;
@@ -332,10 +505,7 @@ namespace CameraTools
                 if (childMaxX <= 0f && childMaxY <= 0f)
                     continue;
 
-                if (childRect.GetComponent("Image") != null ||
-                    childRect.GetComponent("RawImage") != null ||
-                    childRect.GetComponent("TMP_Text") != null ||
-                    childRect.GetComponent("TextMeshProUGUI") != null)
+                if (HasGraphicInMarkerHierarchy(childRect, depth + 1, nextVisited))
                     return true;
             }
 
@@ -402,6 +572,50 @@ namespace CameraTools
             }
 
             return false;
+        }
+
+        private static readonly string[] HiddenComponentMarkerKeywords =
+        {
+            "marker",
+            "mapmarker",
+            "icon",
+            "pin",
+            "waypoint",
+            "blip",
+            "poi",
+            "locationmarker",
+            "buildingmarker",
+            "vehiclemarker",
+            "carmarker",
+            "citymapmarker",
+            "minimapmarker",
+            "indicator",
+            "overlay",
+            "floating"
+        };
+
+        private static readonly string[] HiddenCityMapComponentMarkerKeywords =
+        {
+            "citymap",
+            "mapicon",
+            "maplabel",
+            "mapbutton",
+            "businessicon",
+            "businesslabel",
+            "buildingicon",
+            "buildinglabel",
+            "vehicleicon",
+            "vehiclelabel",
+            "locationicon",
+            "locationlabel"
+        };
+
+        private static void LogHiddenUiDebug(string message)
+        {
+            if (!cameraToolsDebugEnabled)
+                return;
+
+            CameraToolsFileLogger.Log(message);
         }
 
         private bool IsGameplayInputBlockedByUi()
