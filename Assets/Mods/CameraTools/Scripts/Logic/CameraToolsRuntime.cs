@@ -882,6 +882,7 @@ namespace CameraTools
         private static List<GameObject> ResolveHiddenUiTargets()
         {
             var targets = new List<GameObject>();
+            var seen = new HashSet<int>();
             foreach (var rectTransform in Resources.FindObjectsOfTypeAll<RectTransform>())
             {
                 if (rectTransform == null)
@@ -894,17 +895,35 @@ namespace CameraTools
                 if (!ShouldHideUiTransform(rectTransform))
                     continue;
 
-                var path = GetHierarchyPath(rectTransform).ToLowerInvariant();
-                var matchedByName = ContainsAny(path, HiddenUiIncludeKeywords) || path.IndexOf("bizphone", StringComparison.OrdinalIgnoreCase) >= 0;
-                var target = IsLikelyWorldMarker(rectTransform)
-                    ? ResolveWorldMarkerRoot(rectTransform).gameObject
-                    : !matchedByName && IsLikelyFixedHudRegion(rectTransform)
-                        ? ResolveFixedHudRoot(rectTransform).gameObject
-                        : gameObject;
-                targets.Add(target);
+                if (IsLikelyWorldMarker(rectTransform))
+                {
+                    TryAddHiddenUiTarget(targets, seen, ResolveWorldMarkerRoot(rectTransform).gameObject);
+                    continue;
+                }
+
+                if (IsLikelyFixedHudRegion(rectTransform))
+                {
+                    TryAddHiddenUiTarget(targets, seen, gameObject);
+                    TryAddHiddenUiTarget(targets, seen, ResolveFixedHudRoot(rectTransform).gameObject);
+                    continue;
+                }
+
+                TryAddHiddenUiTarget(targets, seen, gameObject);
             }
 
             return FilterNestedUiTargets(targets);
+        }
+
+        private static void TryAddHiddenUiTarget(List<GameObject> targets, HashSet<int> seen, GameObject? target)
+        {
+            if (target == null)
+                return;
+
+            var id = target.GetInstanceID();
+            if (!seen.Add(id))
+                return;
+
+            targets.Add(target);
         }
 
         private static bool ShouldHideUiTransform(RectTransform transform)
