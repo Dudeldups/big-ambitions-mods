@@ -15,8 +15,6 @@
   "cameratools_hotkey_delete": "Delete",
   "cameratools_scenic_view_enabled": "Scenic view enabled.",
   "cameratools_scenic_view_disabled": "Scenic view disabled.",
-  "cameratools_ui_hidden": "UI hidden.",
-  "cameratools_ui_visible": "UI visible.",
 
   "cameratools_slider_value": "{value}"
 }

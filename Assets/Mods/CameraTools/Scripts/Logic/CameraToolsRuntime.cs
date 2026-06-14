@@ -123,10 +123,28 @@ namespace CameraTools
             "day",
             "time",
             "bizphone",
+            "phone",
+            "smartphone",
+            "vehicle",
+            "car",
+            "steering",
+            "rent",
+            "rented",
+            "lease",
+            "owned",
+            "owner",
+            "icon",
+            "marker",
+            "mapicon",
+            "worldicon",
+            "circle",
             "notification",
             "help",
             "bug",
-            "option"
+            "option",
+            "building",
+            "business",
+            "location"
         };
         private static readonly string[] HiddenUiExcludeKeywords =
         {
@@ -138,7 +156,7 @@ namespace CameraTools
             "dropdown",
             "scroll",
             "list",
-            "phone"
+            "phonecall"
         };
 
         private Camera? activeMapRenderCamera;
@@ -159,7 +177,6 @@ namespace CameraTools
         private bool hasManualGameplayPitch;
         private bool hasManualMapPitch;
         private bool hasShownGameplayPitchHint;
-        private bool hasShownMapStatusNotice;
         private bool isUiHidden;
         private bool isGameplayUiBlocked;
         private bool isTrackingMapRightMousePitch;
@@ -247,7 +264,6 @@ namespace CameraTools
             runtime.hasManualGameplayPitch = false;
             runtime.hasManualMapPitch = false;
             runtime.hasShownGameplayPitchHint = false;
-            runtime.hasShownMapStatusNotice = false;
             runtime.isUiHidden = false;
             runtime.isTrackingMapRightMousePitch = false;
             runtime.isTrackingRightMousePitch = false;
@@ -774,15 +790,9 @@ namespace CameraTools
 
             isUiHidden = !isUiHidden;
             if (isUiHidden)
-            {
                 ApplyHiddenUi();
-                ShowPopup("UI hidden.", "cameratools_ui_hidden");
-            }
             else
-            {
                 RestoreHiddenUi();
-                ShowPopup("UI visible.", "cameratools_ui_visible");
-            }
         }
 
         private void RefreshHiddenUiState()
@@ -868,7 +878,10 @@ namespace CameraTools
                 if (!ShouldHideUiTransform(rectTransform))
                     continue;
 
-                targets.Add(gameObject);
+                var target = IsLikelyWorldMarker(rectTransform)
+                    ? ResolveWorldMarkerRoot(rectTransform).gameObject
+                    : gameObject;
+                targets.Add(target);
             }
 
             return FilterNestedUiTargets(targets);
@@ -886,27 +899,19 @@ namespace CameraTools
             if (ContainsAny(path, HiddenUiExcludeKeywords))
                 return false;
 
-            return ContainsAny(path, HiddenUiIncludeKeywords) || IsLikelyHudRegion(transform);
+            return ContainsAny(path, HiddenUiIncludeKeywords) ||
+                IsLikelyFixedHudRegion(transform) ||
+                IsLikelyWorldMarker(transform);
         }
 
-        private static bool IsLikelyHudRegion(RectTransform rectTransform)
+        private static bool IsLikelyFixedHudRegion(RectTransform rectTransform)
         {
-            if (Screen.width <= 0 || Screen.height <= 0)
+            if (!TryGetScreenRect(rectTransform, out var minX, out var minY, out var maxX, out var maxY))
                 return false;
 
-            var corners = new Vector3[4];
-            rectTransform.GetWorldCorners(corners);
-
-            var minX = corners[0].x;
-            var minY = corners[0].y;
-            var maxX = corners[2].x;
-            var maxY = corners[2].y;
             var width = maxX - minX;
             var height = maxY - minY;
-            if (width <= 1f || height <= 1f)
-                return false;
-
-            if (width > Screen.width * 0.7f || height > Screen.height * 0.6f)
+            if (width > Screen.width * 0.85f || height > Screen.height * 0.7f)
                 return false;
 
             var centerX = (minX + maxX) * 0.5f;
@@ -918,9 +923,97 @@ namespace CameraTools
             var isTopCenterHud = normalizedX >= 0.25f && normalizedX <= 0.75f && normalizedY >= 0.75f;
             var isTopRightHud = normalizedX >= 0.75f && normalizedY >= 0.7f;
             var isLeftSideHud = normalizedX <= 0.3f && normalizedY >= 0.25f && normalizedY <= 0.7f;
-            var isBottomRightHud = normalizedX >= 0.7f && normalizedY <= 0.3f;
+            var isBottomRightHud = normalizedX >= 0.55f && normalizedY <= 0.42f;
+            var isUpperMiddleSupportPanel = normalizedX >= 0.2f && normalizedX <= 0.8f && normalizedY >= 0.5f && normalizedY <= 0.78f;
 
-            return isTopLeftHud || isTopCenterHud || isTopRightHud || isLeftSideHud || isBottomRightHud;
+            return isTopLeftHud || isTopCenterHud || isTopRightHud || isLeftSideHud || isBottomRightHud || isUpperMiddleSupportPanel;
+        }
+
+        private static bool IsLikelyWorldMarker(RectTransform rectTransform)
+        {
+            if (!TryGetScreenRect(rectTransform, out var minX, out var minY, out var maxX, out var maxY))
+                return false;
+
+            var width = maxX - minX;
+            var height = maxY - minY;
+            if (width > Screen.width * 0.18f || height > Screen.height * 0.18f)
+                return false;
+
+            var hasUiGraphic = HasGraphicInMarkerHierarchy(rectTransform);
+
+            return hasUiGraphic;
+        }
+
+        private static RectTransform ResolveWorldMarkerRoot(RectTransform rectTransform)
+        {
+            var best = rectTransform;
+            var current = rectTransform;
+            var climbCount = 0;
+            while (current.parent is RectTransform parentRect &&
+                parentRect.GetComponentInParent<Canvas>(true) != null &&
+                !ContainsAny(GetHierarchyPath(parentRect).ToLowerInvariant(), HiddenUiExcludeKeywords) &&
+                TryGetScreenRect(parentRect, out var minX, out var minY, out var maxX, out var maxY))
+            {
+                var width = maxX - minX;
+                var height = maxY - minY;
+                if (width > Screen.width * 0.18f || height > Screen.height * 0.18f)
+                    break;
+
+                best = parentRect;
+                current = parentRect;
+                climbCount++;
+                if (climbCount >= 3)
+                    break;
+            }
+
+            return best;
+        }
+
+        private static bool HasGraphicInMarkerHierarchy(RectTransform rectTransform)
+        {
+            if (rectTransform.GetComponent("Image") != null ||
+                rectTransform.GetComponent("RawImage") != null ||
+                rectTransform.GetComponent("TMP_Text") != null ||
+                rectTransform.GetComponent("TextMeshProUGUI") != null)
+                return true;
+
+            foreach (Transform child in rectTransform)
+            {
+                if (child is not RectTransform childRect)
+                    continue;
+
+                if (!TryGetScreenRect(childRect, out _, out _, out var childMaxX, out var childMaxY))
+                    continue;
+
+                if (childMaxX <= 0f && childMaxY <= 0f)
+                    continue;
+
+                if (childRect.GetComponent("Image") != null ||
+                    childRect.GetComponent("RawImage") != null ||
+                    childRect.GetComponent("TMP_Text") != null ||
+                    childRect.GetComponent("TextMeshProUGUI") != null)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetScreenRect(RectTransform rectTransform, out float minX, out float minY, out float maxX, out float maxY)
+        {
+            minX = 0f;
+            minY = 0f;
+            maxX = 0f;
+            maxY = 0f;
+            if (Screen.width <= 0 || Screen.height <= 0)
+                return false;
+
+            var corners = new Vector3[4];
+            rectTransform.GetWorldCorners(corners);
+            minX = corners[0].x;
+            minY = corners[0].y;
+            maxX = corners[2].x;
+            maxY = corners[2].y;
+            return maxX - minX > 1f && maxY - minY > 1f;
         }
 
         private static List<GameObject> FilterNestedUiTargets(List<GameObject> targets)
@@ -1738,7 +1831,6 @@ namespace CameraTools
 
             if (cityMapOpen && !wasCityMapOpen)
             {
-                hasShownMapStatusNotice = false;
                 hasInitializedMapDistanceForCurrentOpen = false;
                 hasManualMapPitch = false;
                 isTrackingMapRightMousePitch = false;
@@ -1762,8 +1854,6 @@ namespace CameraTools
             if (settings == null || mapController == null || !settings.EnableMapTopDown)
             {
                 RestoreMapCameraState();
-                if (cityMapOpen)
-                    hasShownMapStatusNotice = true;
                 if (cameraToolsDebugEnabled && cityMapOpen)
                     LogVehicleDebug($"Map early exit: settingsNull={settings == null}, mapControllerNull={mapController == null}, mapTopDownEnabled={(settings != null && settings.EnableMapTopDown)}");
                 return;
@@ -1789,8 +1879,6 @@ namespace CameraTools
             }
 
             activeMapVcamTransform = mapVcamTransform;
-
-            hasShownMapStatusNotice = true;
 
             var bounds = GetVector2Member(mapController, "minMaxDistance");
             var currentDistance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
