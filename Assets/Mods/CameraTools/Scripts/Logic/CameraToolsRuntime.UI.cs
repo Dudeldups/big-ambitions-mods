@@ -45,6 +45,16 @@ namespace CameraTools
 
         private void RefreshHiddenUiState()
         {
+            if (!IsGameplayActive())
+            {
+                if (isUiHidden || hiddenUiStates.Length > 0)
+                    RestoreHiddenUi();
+
+                isUiHidden = false;
+                pendingHiddenUiRefreshFrames = 0;
+                return;
+            }
+
             if (!isUiHidden)
             {
                 if (hiddenUiStates.Length > 0)
