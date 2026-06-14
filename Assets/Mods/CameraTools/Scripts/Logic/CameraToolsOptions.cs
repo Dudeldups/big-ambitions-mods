@@ -10,7 +10,8 @@ namespace CameraTools
         private const string VehicleZoomKey = "camera_tools_vehicle_max_zoom";
         private const string MapDistanceKey = "camera_tools_map_distance";
         private const string ScenicViewHotkeyKey = "camera_tools_scenic_view_hotkey";
-        private static readonly string[] ScenicViewHotkeyChoices =
+        private const string HideUiHotkeyKey = "camera_tools_hide_ui_hotkey";
+        private static readonly string[] HotkeyChoices =
         {
             "cameratools_hotkey_f5",
             "cameratools_hotkey_f6",
@@ -21,7 +22,7 @@ namespace CameraTools
             "cameratools_hotkey_delete"
         };
 
-        private static readonly UnityEngine.KeyCode[] ScenicViewHotkeyValues =
+        private static readonly UnityEngine.KeyCode[] HotkeyValues =
         {
             UnityEngine.KeyCode.F5,
             UnityEngine.KeyCode.F6,
@@ -59,9 +60,12 @@ namespace CameraTools
                             value => settings.MapDistance = value, "cameratools_slider_value")
                         .AddSlider(VehicleZoomKey, "cameratools_vehicle_zoom_label", 20, 120, settings.VehicleMaxZoom,
                             value => settings.VehicleMaxZoom = value, "cameratools_slider_value")
-                        .AddDropdown(ScenicViewHotkeyKey, "cameratools_scenic_view_hotkey_label", ScenicViewHotkeyChoices,
-                            GetScenicViewHotkeyIndex(settings.ScenicViewHotkey),
-                            value => settings.ScenicViewHotkey = ScenicViewHotkeyValues[value]);
+                        .AddDropdown(ScenicViewHotkeyKey, "cameratools_scenic_view_hotkey_label", HotkeyChoices,
+                            GetHotkeyIndex(settings.ScenicViewHotkey),
+                            value => settings.ScenicViewHotkey = HotkeyValues[value])
+                        .AddDropdown(HideUiHotkeyKey, "cameratools_hide_ui_hotkey_label", HotkeyChoices,
+                            GetHotkeyIndex(settings.HideUiHotkey),
+                            value => settings.HideUiHotkey = HotkeyValues[value]);
 
                 LogOptionsDebug(modContext, $"CameraTools: built options count = {options.Options.Count} for modId={modContext.ModId}.");
 
@@ -93,15 +97,15 @@ namespace CameraTools
             context = null;
         }
 
-        private static int GetScenicViewHotkeyIndex(UnityEngine.KeyCode keyCode)
+        private static int GetHotkeyIndex(UnityEngine.KeyCode keyCode)
         {
-            for (var i = 0; i < ScenicViewHotkeyValues.Length; i++)
+            for (var i = 0; i < HotkeyValues.Length; i++)
             {
-                if (ScenicViewHotkeyValues[i] == keyCode)
+                if (HotkeyValues[i] == keyCode)
                     return i;
             }
 
-            return 2;
+            return 1;
         }
 
         private static void LogOptionsDebug(ModContext modContext, string message)

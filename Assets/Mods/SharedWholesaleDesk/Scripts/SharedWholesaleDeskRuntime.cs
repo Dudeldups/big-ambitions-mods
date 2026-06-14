@@ -20,7 +20,6 @@ namespace SharedWholesaleDesk
         internal const string ModdedDialogTypeKey = "sharedwholesale_moddedproducts_dialog";
 
         private const string WholesaleStoreSettingsTypeName = "Buildings.WholesaleStoreSettings";
-        private const int DebugCatalogPageSize = 8;
 
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -207,41 +206,170 @@ namespace SharedWholesaleDesk
             }
         }
 
-        internal static CatalogPageResult BuildDebugCatalogPage(int pageIndex)
+        internal static ProductBrowserResult BuildProductBrowserPage(int productIndex)
         {
             var evaluations = DiscoverEligibleModdedProducts().ToList();
             if (evaluations.Count == 0)
             {
-                return new CatalogPageResult(
+                return new ProductBrowserResult(
+                    null,
                     0,
-                    1,
+                    0,
                     "No eligible modded products were detected.",
-                    false,
                     false);
             }
 
-            var pageCount = Mathf.Max(1, Mathf.CeilToInt(evaluations.Count / (float)DebugCatalogPageSize));
-            var clampedPageIndex = Mathf.Clamp(pageIndex, 0, pageCount - 1);
-            var entries = evaluations.Skip(clampedPageIndex * DebugCatalogPageSize).Take(DebugCatalogPageSize).ToArray();
+            var clampedIndex = Mathf.Clamp(productIndex, 0, evaluations.Count - 1);
+            var selected = evaluations[clampedIndex];
 
             var builder = new StringBuilder();
-            builder.Append($"Showing page {clampedPageIndex + 1}/{pageCount} ({evaluations.Count} eligible items)");
+            builder.Append($"Product {clampedIndex + 1}/{evaluations.Count}");
+            builder.Append("<br><br>");
+            builder.Append(BuildCatalogItemTitle(selected.Item));
+            builder.Append("<br>");
+            builder.Append(
+                $"id={selected.Item.itemName}<br>wholesalePrice={selected.Item.wholesalePrice:0.##}, defaultMarketPrice={selected.Item.DefaultMarketPrice:0.##}, boxSize={selected.Item.boxSize}, productSalesRatio={selected.Item.productSalesRatio:0.###}, maxOrderAmountPerImporter={selected.Item.maxOrderAmountPerImporter}, canPlayerDoOrder={selected.Item.canPlayerDoOrder}, isADemandedProduct={selected.Item.isADemandedProduct}<br><br>Select this product to create a wholesale delivery contract.");
 
-            foreach (var entry in entries)
+            return new ProductBrowserResult(
+                selected,
+                clampedIndex,
+                evaluations.Count,
+                builder.ToString(),
+                evaluations.Count > 1);
+        }
+
+        internal static BusinessBrowserResult BuildBusinessBrowserPage(
+            PatchedServiceDeskRecord record,
+            ProductEligibilityResult selectedProduct,
+            int businessIndex)
+        {
+            var candidates = GetEligibleBusinessTargets(record, selectedProduct.Item).ToList();
+            if (candidates.Count == 0)
             {
-                builder.Append("<br><br>");
-                builder.Append(BuildCatalogItemTitle(entry.Item));
-                builder.Append("<br>");
-                builder.Append(
-                    $"id={entry.Item.itemName}<br>wholesalePrice={entry.Item.wholesalePrice:0.##}, defaultMarketPrice={entry.Item.DefaultMarketPrice:0.##}, boxSize={entry.Item.boxSize}, productSalesRatio={entry.Item.productSalesRatio:0.###}, maxOrderAmountPerImporter={entry.Item.maxOrderAmountPerImporter}, canPlayerDoOrder={entry.Item.canPlayerDoOrder}, isADemandedProduct={entry.Item.isADemandedProduct}");
+                return new BusinessBrowserResult(
+                    null,
+                    0,
+                    0,
+                    "No eligible target businesses were found. A business must be rented by the player, have a business name, contain business storage furniture, and not already have a contract with this wholesale desk.",
+                    false);
             }
 
-            return new CatalogPageResult(
-                clampedPageIndex,
-                pageCount,
+            var clampedIndex = Mathf.Clamp(businessIndex, 0, candidates.Count - 1);
+            var selected = candidates[clampedIndex];
+            var builder = new StringBuilder();
+            builder.Append($"Business {clampedIndex + 1}/{candidates.Count}");
+            builder.Append("<br><br>");
+            builder.Append(selected.BusinessName);
+            builder.Append("<br>");
+            builder.Append(FormatAddress(selected.Address));
+            builder.Append("<br><br>");
+            builder.Append($"Selected product: {BuildCatalogItemTitle(selectedProduct.Item)}");
+
+            return new BusinessBrowserResult(
+                selected,
+                clampedIndex,
+                candidates.Count,
                 builder.ToString(),
-                clampedPageIndex > 0,
-                clampedPageIndex < pageCount - 1);
+                candidates.Count > 1);
+        }
+
+        internal static QuantityBrowserResult BuildQuantityBrowserPage(
+            ProductEligibilityResult selectedProduct,
+            int quantityIndex)
+        {
+            var options = BuildQuantityOptions(selectedProduct.Item).ToList();
+            if (options.Count == 0)
+            {
+                return new QuantityBrowserResult(
+                    null,
+                    0,
+                    0,
+                    "No valid quantity options were available for this product.",
+                    false);
+            }
+
+            var clampedIndex = Mathf.Clamp(quantityIndex, 0, options.Count - 1);
+            var selected = options[clampedIndex];
+            var builder = new StringBuilder();
+            builder.Append($"Quantity {clampedIndex + 1}/{options.Count}");
+            builder.Append("<br><br>");
+            builder.Append(BuildCatalogItemTitle(selectedProduct.Item));
+            builder.Append("<br>");
+            builder.Append($"Boxes: {selected.Boxes}");
+            builder.Append("<br>");
+            builder.Append($"Units: {selected.Amount}");
+            builder.Append("<br>");
+            builder.Append($"Estimated product cost: {(selectedProduct.Item.wholesalePrice * selected.Amount):0.##}");
+            builder.Append("<br>");
+            builder.Append($"Delivery fee added separately by the wholesale contract.");
+
+            return new QuantityBrowserResult(
+                selected,
+                clampedIndex,
+                options.Count,
+                builder.ToString(),
+                options.Count > 1);
+        }
+
+        internal static OrderCreationResult CreateModdedWholesaleContract(
+            PatchedServiceDeskRecord record,
+            ProductEligibilityResult selectedProduct,
+            BusinessTargetRecord selectedBusiness,
+            QuantityOption selectedQuantity)
+        {
+            try
+            {
+                SharedWholesaleDeskLog.Info(
+                    $"Attempting modded wholesale contract creation. Desk={record.AddressKey}, Business={FormatAddress(selectedBusiness.Address)}, Product={selectedProduct.Item.itemName}, Boxes={selectedQuantity.Boxes}, Amount={selectedQuantity.Amount}.");
+
+                var saveGame = SaveGameManager.Current;
+                if (saveGame?.DeliveryContracts == null)
+                    return OrderCreationResult.Failure("DeliveryContracts storage is unavailable.");
+
+                if (HasExistingContractForPair(saveGame.DeliveryContracts, record.Address, selectedBusiness.Address))
+                    return OrderCreationResult.Failure("This business already has a delivery contract with the selected wholesale desk.");
+
+                if (!BusinessHasStorage(selectedBusiness.Registration))
+                    return OrderCreationResult.Failure("The selected business does not contain business storage furniture.");
+
+                #pragma warning disable 0612
+                var contract = new DeliveryContract
+                {
+                    enabled = true,
+                    isUrgentOrder = false,
+                    nextDeliveryDay = DeliveryHelper.GetNextDeliveryDay(),
+                    repeatingOrder = true,
+                    wholesaleAddress = record.Address,
+                    businessAddress = selectedBusiness.Address,
+                    deliveryFee = GetWholesaleDeliveryFee(record.SpecialService),
+                    items = new List<DeliveryContractItem>
+                    {
+                        new DeliveryContractItem
+                        {
+                            itemName = selectedProduct.Item.itemName,
+                            boxes = selectedQuantity.Boxes,
+                            amount = selectedQuantity.Amount,
+                            amountOrderedLastWeek = 0,
+                            amountOrderedThisWeek = 0
+                        }
+                    }
+                };
+                #pragma warning restore 0612
+
+                saveGame.DeliveryContracts.Add(contract);
+                SharedWholesaleDeskLog.Info(
+                    $"Inserted DeliveryContract. Business={FormatAddress(selectedBusiness.Address)}, Product={selectedProduct.Item.itemName}, Boxes={selectedQuantity.Boxes}, Amount={selectedQuantity.Amount}, DeliveryFee={contract.deliveryFee:0.##}, NextDeliveryDay={contract.nextDeliveryDay}, Enabled={contract.enabled}, RepeatingOrder={contract.repeatingOrder}.");
+
+                TryInvokeNewDeliveryContractEvent();
+
+                return OrderCreationResult.Success(
+                    $"Created wholesale contract for {BuildCatalogItemTitle(selectedProduct.Item)} to {selectedBusiness.BusinessName}. Boxes={selectedQuantity.Boxes}, Units={selectedQuantity.Amount}.");
+            }
+            catch (Exception exception)
+            {
+                SharedWholesaleDeskLog.Warn($"Modded wholesale contract creation failed. {exception}");
+                return OrderCreationResult.Failure("An exception occurred while creating the wholesale contract. Check the SharedWholesaleDesk log file.");
+            }
         }
 
         private static string BuildCatalogItemTitle(Item item)
@@ -250,6 +378,167 @@ namespace SharedWholesaleDesk
             return string.Equals(localizedName, item.itemName, StringComparison.Ordinal)
                 ? item.itemName
                 : $"{localizedName} ({item.itemName})";
+        }
+
+        private static IEnumerable<BusinessTargetRecord> GetEligibleBusinessTargets(
+            PatchedServiceDeskRecord record,
+            Item selectedItem)
+        {
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.BuildingRegistrations == null)
+                yield break;
+
+            foreach (var registration in saveGame.BuildingRegistrations)
+            {
+                if (registration == null)
+                    continue;
+
+                if (!registration.RentedByPlayer)
+                {
+                    SharedWholesaleDeskLog.Info($"Excluded business candidate at {FormatAddress(registration.Address)}: not rented by player.");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(registration.BusinessName))
+                {
+                    SharedWholesaleDeskLog.Info($"Excluded business candidate at {FormatAddress(registration.Address)}: missing business name.");
+                    continue;
+                }
+
+                if (HasExistingContractForPair(saveGame.DeliveryContracts, record.Address, registration.Address))
+                {
+                    SharedWholesaleDeskLog.Info(
+                        $"Excluded business candidate at {FormatAddress(registration.Address)}: duplicate contract already exists for wholesale desk {record.AddressKey}.");
+                    continue;
+                }
+
+                if (!BusinessHasStorage(registration))
+                {
+                    SharedWholesaleDeskLog.Info($"Excluded business candidate at {FormatAddress(registration.Address)}: no business storage detected.");
+                    continue;
+                }
+
+                SharedWholesaleDeskLog.Info(
+                    $"Included business candidate at {FormatAddress(registration.Address)} for product {selectedItem.itemName}.");
+                yield return new BusinessTargetRecord(registration, registration.Address, registration.BusinessName);
+            }
+        }
+
+        private static bool HasExistingContractForPair(IEnumerable<DeliveryContract>? contracts, Address wholesaleAddress, Address businessAddress)
+        {
+            if (contracts == null)
+                return false;
+
+            foreach (var contract in contracts)
+            {
+                if (contract == null)
+                    continue;
+
+                if (contract.wholesaleAddress != null
+                    && contract.businessAddress != null
+                    && contract.wholesaleAddress.Equals(wholesaleAddress)
+                    && contract.businessAddress.Equals(businessAddress))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool BusinessHasStorage(BuildingRegistration registration)
+        {
+            if (registration.itemInstances == null || registration.itemInstances.Count == 0)
+                return false;
+
+            foreach (var instance in registration.itemInstances.Values)
+            {
+                if (instance?.ItemCached == null)
+                    continue;
+
+                if (ItemHasBusinessStorageTag(instance.ItemCached))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ItemHasBusinessStorageTag(Item item)
+        {
+            var tagsValue = GetMemberValue(item, "tags");
+            if (!(tagsValue is System.Collections.IEnumerable tags))
+                return false;
+
+            foreach (var tag in tags)
+            {
+                if (tag == null)
+                    continue;
+
+                var value = tag.ToString();
+                if (string.Equals(value, "isbusinessstorage", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(value, "SharedItemTag.isbusinessstorage", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static IEnumerable<QuantityOption> BuildQuantityOptions(Item item)
+        {
+            var maxBoxes = item.boxSize > 0
+                ? item.maxOrderAmountPerImporter / item.boxSize
+                : 0;
+            if (maxBoxes <= 0)
+                yield break;
+
+            var preferred = new[] { 1, 2, 5, 10, 20, 50, maxBoxes };
+            var yielded = new HashSet<int>();
+
+            foreach (var boxes in preferred)
+            {
+                var clamped = Mathf.Clamp(boxes, 1, maxBoxes);
+                if (!yielded.Add(clamped))
+                    continue;
+
+                yield return new QuantityOption(clamped, clamped * item.boxSize);
+            }
+        }
+
+        private static float GetWholesaleDeliveryFee(object specialService)
+        {
+            var settings = GetMemberValue(specialService, "settings");
+            if (settings == null)
+                return 0f;
+
+            var feeValue = GetMemberValue(settings, "deliveryFee");
+            return feeValue == null
+                ? 0f
+                : Convert.ToSingle(feeValue, CultureInfo.InvariantCulture);
+        }
+
+        private static void TryInvokeNewDeliveryContractEvent()
+        {
+            try
+            {
+                var gameEventType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(assembly => assembly.GetType("GameEvent", false))
+                    .FirstOrDefault(type => type != null);
+                var invokeMethod = gameEventType?.GetMethod(
+                    "Invoke",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(string) },
+                    null);
+                invokeMethod?.Invoke(null, new object[] { "ba:gameevent_newdeliverycontract" });
+                SharedWholesaleDeskLog.Info("Invoked GameEvent 'ba:gameevent_newdeliverycontract'.");
+            }
+            catch (Exception exception)
+            {
+                SharedWholesaleDeskLog.Warn($"Failed to invoke GameEvent 'ba:gameevent_newdeliverycontract'. {exception}");
+            }
+        }
+
+        private static string FormatAddress(Address address)
+        {
+            return $"{address.streetName} {address.streetNumber}";
         }
 
         private static bool TryOpenConfirmedVanillaFallback(PatchedServiceDeskRecord record)
@@ -515,22 +804,99 @@ namespace SharedWholesaleDesk
             internal static ProductEligibilityResult Excluded(Item item, string reason) => new ProductEligibilityResult(item, false, reason);
         }
 
-        internal readonly struct CatalogPageResult
+        internal readonly struct ProductBrowserResult
         {
-            internal CatalogPageResult(int pageIndex, int pageCount, string message, bool hasPreviousPage, bool hasNextPage)
+            internal ProductBrowserResult(ProductEligibilityResult? selectedProduct, int productIndex, int productCount, string message, bool hasNextProduct)
             {
-                PageIndex = pageIndex;
-                PageCount = pageCount;
+                SelectedProduct = selectedProduct;
+                ProductIndex = productIndex;
+                ProductCount = productCount;
                 Message = message;
-                HasPreviousPage = hasPreviousPage;
-                HasNextPage = hasNextPage;
+                HasNextProduct = hasNextProduct;
             }
 
-            internal int PageIndex { get; }
-            internal int PageCount { get; }
+            internal ProductEligibilityResult? SelectedProduct { get; }
+            internal int ProductIndex { get; }
+            internal int ProductCount { get; }
             internal string Message { get; }
-            internal bool HasPreviousPage { get; }
-            internal bool HasNextPage { get; }
+            internal bool HasNextProduct { get; }
+        }
+
+        internal readonly struct BusinessBrowserResult
+        {
+            internal BusinessBrowserResult(BusinessTargetRecord? selectedBusiness, int businessIndex, int businessCount, string message, bool hasNextBusiness)
+            {
+                SelectedBusiness = selectedBusiness;
+                BusinessIndex = businessIndex;
+                BusinessCount = businessCount;
+                Message = message;
+                HasNextBusiness = hasNextBusiness;
+            }
+
+            internal BusinessTargetRecord? SelectedBusiness { get; }
+            internal int BusinessIndex { get; }
+            internal int BusinessCount { get; }
+            internal string Message { get; }
+            internal bool HasNextBusiness { get; }
+        }
+
+        internal readonly struct QuantityBrowserResult
+        {
+            internal QuantityBrowserResult(QuantityOption? selectedQuantity, int quantityIndex, int quantityCount, string message, bool hasNextQuantity)
+            {
+                SelectedQuantity = selectedQuantity;
+                QuantityIndex = quantityIndex;
+                QuantityCount = quantityCount;
+                Message = message;
+                HasNextQuantity = hasNextQuantity;
+            }
+
+            internal QuantityOption? SelectedQuantity { get; }
+            internal int QuantityIndex { get; }
+            internal int QuantityCount { get; }
+            internal string Message { get; }
+            internal bool HasNextQuantity { get; }
+        }
+
+        internal readonly struct BusinessTargetRecord
+        {
+            internal BusinessTargetRecord(BuildingRegistration registration, Address address, string businessName)
+            {
+                Registration = registration;
+                Address = address;
+                BusinessName = businessName;
+            }
+
+            internal BuildingRegistration Registration { get; }
+            internal Address Address { get; }
+            internal string BusinessName { get; }
+        }
+
+        internal readonly struct QuantityOption
+        {
+            internal QuantityOption(int boxes, int amount)
+            {
+                Boxes = boxes;
+                Amount = amount;
+            }
+
+            internal int Boxes { get; }
+            internal int Amount { get; }
+        }
+
+        internal readonly struct OrderCreationResult
+        {
+            private OrderCreationResult(bool succeeded, string message)
+            {
+                Succeeded = succeeded;
+                Message = message;
+            }
+
+            internal bool Succeeded { get; }
+            internal string Message { get; }
+
+            internal static OrderCreationResult Success(string message) => new OrderCreationResult(true, message);
+            internal static OrderCreationResult Failure(string message) => new OrderCreationResult(false, message);
         }
     }
 

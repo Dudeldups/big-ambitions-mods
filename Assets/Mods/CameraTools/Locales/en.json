@@ -5,6 +5,7 @@
   "cameratools_vehicle_zoom_label": "Max Vehicle Zoom",
   "cameratools_map_distance_label": "Max Map Zoom",
   "cameratools_scenic_view_hotkey_label": "Scenic View Hotkey",
+  "cameratools_hide_ui_hotkey_label": "Hide UI Hotkey",
   "cameratools_hotkey_f5": "F5",
   "cameratools_hotkey_f6": "F6",
   "cameratools_hotkey_f7": "F7",
@@ -14,6 +15,8 @@
   "cameratools_hotkey_delete": "Delete",
   "cameratools_scenic_view_enabled": "Scenic view enabled.",
   "cameratools_scenic_view_disabled": "Scenic view disabled.",
+  "cameratools_ui_hidden": "UI hidden.",
+  "cameratools_ui_visible": "UI visible.",
   "cameratools_map_notice_found": "CameraTools found CityMapCam and applied map changes.",
   "cameratools_map_notice_missing": "CameraTools could not find CityMapCam while the map was open.",
 

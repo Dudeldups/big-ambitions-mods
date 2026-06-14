@@ -24,6 +24,7 @@ namespace CameraTools
         private const float MapMinimumPitch = 45f;
         private const float MapMaximumPitch = 90f;
         private const float UiStateRefreshIntervalSeconds = 0.15f;
+        private const float HiddenUiRefreshIntervalSeconds = 1f;
         private const float VehicleOverwriteThreshold = 0.5f;
         private const float VehicleSearchIntervalSeconds = 5f;
         private const string GameManagerTypeName = "GameManager";
@@ -105,6 +106,37 @@ namespace CameraTools
             "maxDistance",
             "minDistance"
         };
+        private static readonly string[] HiddenUiIncludeKeywords =
+        {
+            "portrait",
+            "avatar",
+            "face",
+            "status",
+            "topbar",
+            "needs",
+            "energy",
+            "happiness",
+            "hunger",
+            "money",
+            "day",
+            "time",
+            "notification",
+            "help",
+            "bug",
+            "option"
+        };
+        private static readonly string[] HiddenUiExcludeKeywords =
+        {
+            "menu",
+            "dialog",
+            "popup",
+            "modal",
+            "tooltip",
+            "dropdown",
+            "scroll",
+            "list",
+            "phone"
+        };
 
         private Camera? activeMapRenderCamera;
         private CameraState activeMapRenderCameraState;
@@ -125,6 +157,7 @@ namespace CameraTools
         private bool hasManualMapPitch;
         private bool hasShownGameplayPitchHint;
         private bool hasShownMapStatusNotice;
+        private bool isUiHidden;
         private bool isGameplayUiBlocked;
         private bool isTrackingMapRightMousePitch;
         private bool isTrackingRightMousePitch;
@@ -143,12 +176,14 @@ namespace CameraTools
         private float manualGameplayPitch;
         private bool needsVehicleDistanceReapply;
         private float nextUiStateRefreshTime;
+        private float nextHiddenUiRefreshTime;
         private PendingVcamDiagnostic? pendingVcamDiagnostic;
         private string? pendingMapNoticeDuplicateIdentifier;
         private string? pendingMapNoticeMessage;
         private bool scenicViewEnabled;
         private RendererState[] scenicViewRendererStates = Array.Empty<RendererState>();
         private Component? scenicViewTargetRoot;
+        private GameObjectActiveState[] hiddenUiStates = Array.Empty<GameObjectActiveState>();
         private CameraToolsSettings? settings;
         private bool showVehicleDebugOverlay;
         private bool wasCityMapOpen;
@@ -212,6 +247,7 @@ namespace CameraTools
             runtime.hasManualMapPitch = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.hasShownMapStatusNotice = false;
+            runtime.isUiHidden = false;
             runtime.isTrackingMapRightMousePitch = false;
             runtime.isTrackingRightMousePitch = false;
             runtime.lastActiveVehicleCameraId = 0;
@@ -228,12 +264,14 @@ namespace CameraTools
             runtime.mapController = null;
             runtime.needsVehicleDistanceReapply = false;
             runtime.nextUiStateRefreshTime = 0f;
+            runtime.nextHiddenUiRefreshTime = 0f;
             runtime.pendingVcamDiagnostic = null;
             runtime.pendingMapNoticeDuplicateIdentifier = null;
             runtime.pendingMapNoticeMessage = null;
             runtime.scenicViewEnabled = false;
             runtime.scenicViewRendererStates = Array.Empty<RendererState>();
             runtime.scenicViewTargetRoot = null;
+            runtime.hiddenUiStates = Array.Empty<GameObjectActiveState>();
             runtime.showVehicleDebugOverlay = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugOverlay;
             runtime.vehicleTarget = null;
             runtime.vehicleDebug = new VehicleDebugState();
@@ -269,6 +307,7 @@ namespace CameraTools
         public void Shutdown()
         {
             RestoreScenicView();
+            RestoreHiddenUi();
             RestoreMapCameraState();
             LogVehicleDebug("CameraTools runtime shutting down.");
             Destroy(gameObject);
@@ -298,6 +337,8 @@ namespace CameraTools
             EnsureControllers(cityMapOpen);
             HandleScenicViewHotkey();
             RefreshScenicViewState();
+            HandleHideUiHotkey();
+            RefreshHiddenUiState();
             HandleVehicleDebugHotkeys();
             var gameplayActive = IsGameplayActive();
 
@@ -726,6 +767,169 @@ namespace CameraTools
 
             scenicViewRendererStates = Array.Empty<RendererState>();
             scenicViewTargetRoot = null;
+        }
+
+        private void HandleHideUiHotkey()
+        {
+            if (settings == null || !Input.GetKeyDown(settings.HideUiHotkey))
+                return;
+
+            isUiHidden = !isUiHidden;
+            if (isUiHidden)
+            {
+                ApplyHiddenUi();
+                ShowPopup("UI hidden.", "cameratools_ui_hidden");
+            }
+            else
+            {
+                RestoreHiddenUi();
+                ShowPopup("UI visible.", "cameratools_ui_visible");
+            }
+        }
+
+        private void RefreshHiddenUiState()
+        {
+            if (!isUiHidden)
+            {
+                if (hiddenUiStates.Length > 0)
+                    RestoreHiddenUi();
+
+                return;
+            }
+
+            var needsRefresh = hiddenUiStates.Length == 0;
+            if (!needsRefresh)
+            {
+                foreach (var state in hiddenUiStates)
+                {
+                    if (state.Target == null)
+                    {
+                        needsRefresh = true;
+                        break;
+                    }
+
+                    if (state.Target.activeSelf)
+                        state.Target.SetActive(false);
+                }
+            }
+
+            if (!needsRefresh || Time.unscaledTime < nextHiddenUiRefreshTime)
+                return;
+
+            ApplyHiddenUi();
+        }
+
+        private void ApplyHiddenUi()
+        {
+            RestoreHiddenUi();
+
+            var targets = ResolveHiddenUiTargets();
+            if (targets.Count == 0)
+            {
+                nextHiddenUiRefreshTime = Time.unscaledTime + HiddenUiRefreshIntervalSeconds;
+                return;
+            }
+
+            var states = new List<GameObjectActiveState>(targets.Count);
+            foreach (var target in targets)
+            {
+                if (target == null)
+                    continue;
+
+                states.Add(new GameObjectActiveState(target, target.activeSelf));
+                target.SetActive(false);
+            }
+
+            hiddenUiStates = states.ToArray();
+            nextHiddenUiRefreshTime = Time.unscaledTime + HiddenUiRefreshIntervalSeconds;
+        }
+
+        private void RestoreHiddenUi()
+        {
+            foreach (var state in hiddenUiStates)
+            {
+                if (state.Target != null)
+                    state.Target.SetActive(state.WasActive);
+            }
+
+            hiddenUiStates = Array.Empty<GameObjectActiveState>();
+        }
+
+        private static List<GameObject> ResolveHiddenUiTargets()
+        {
+            var targets = new List<GameObject>();
+            foreach (var rectTransform in Resources.FindObjectsOfTypeAll<RectTransform>())
+            {
+                if (rectTransform == null)
+                    continue;
+
+                var gameObject = rectTransform.gameObject;
+                if (gameObject == null || gameObject.hideFlags != HideFlags.None || !gameObject.activeInHierarchy)
+                    continue;
+
+                if (!ShouldHideUiTransform(rectTransform))
+                    continue;
+
+                targets.Add(gameObject);
+            }
+
+            return FilterNestedUiTargets(targets);
+        }
+
+        private static bool ShouldHideUiTransform(Transform transform)
+        {
+            if (transform.GetComponentInParent<Canvas>(true) == null)
+                return false;
+
+            var path = GetHierarchyPath(transform).ToLowerInvariant();
+            if (ContainsAny(path, HiddenUiExcludeKeywords))
+                return false;
+
+            return ContainsAny(path, HiddenUiIncludeKeywords);
+        }
+
+        private static List<GameObject> FilterNestedUiTargets(List<GameObject> targets)
+        {
+            var filtered = new List<GameObject>(targets.Count);
+            for (var i = 0; i < targets.Count; i++)
+            {
+                var candidate = targets[i];
+                if (candidate == null)
+                    continue;
+
+                var isChildOfSelectedTarget = false;
+                for (var j = 0; j < targets.Count; j++)
+                {
+                    if (i == j)
+                        continue;
+
+                    var other = targets[j];
+                    if (other == null)
+                        continue;
+
+                    if (candidate.transform.IsChildOf(other.transform))
+                    {
+                        isChildOfSelectedTarget = true;
+                        break;
+                    }
+                }
+
+                if (!isChildOfSelectedTarget)
+                    filtered.Add(candidate);
+            }
+
+            return filtered;
+        }
+
+        private static bool ContainsAny(string source, string[] keywords)
+        {
+            foreach (var keyword in keywords)
+            {
+                if (source.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+
+            return false;
         }
 
         private void ResolveVehicleTarget(bool forceSearch, bool allowExpensiveSearch)
@@ -2695,6 +2899,19 @@ namespace CameraTools
             public Renderer Renderer { get; }
 
             public bool WasEnabled { get; }
+        }
+
+        private readonly struct GameObjectActiveState
+        {
+            public GameObjectActiveState(GameObject target, bool wasActive)
+            {
+                Target = target;
+                WasActive = wasActive;
+            }
+
+            public GameObject Target { get; }
+
+            public bool WasActive { get; }
         }
 
         private sealed class VehicleTarget
