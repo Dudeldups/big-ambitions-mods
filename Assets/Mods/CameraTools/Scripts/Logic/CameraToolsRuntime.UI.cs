@@ -416,6 +416,9 @@ namespace CameraTools
             if (ContainsAny(path, HiddenUiExcludeKeywords))
                 return false;
 
+            if (namedMarker && !hideMapMarkers)
+                return false;
+
             if (ContainsAny(path, HiddenUiIncludeKeywords) || IsLikelyFixedHudRegion(transform))
                 return true;
 

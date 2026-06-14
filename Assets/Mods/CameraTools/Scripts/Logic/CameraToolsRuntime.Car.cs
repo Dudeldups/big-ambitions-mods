@@ -63,6 +63,12 @@ namespace CameraTools
                     vehicleDebug.CurrentDistance = desiredVehicleDistance;
             }
 
+            var supportsVehiclePitch = IsVehiclePitchCameraRoot(activeVehicleCameraRoot);
+            if (supportsVehiclePitch)
+                HandleVehiclePitchInput(settings.VehicleMaxZoom);
+            else
+                ResetVehiclePitchTracking();
+
             var scrollDelta = ReadVehicleScrollDelta(rawScrollDelta);
             if (cameraToolsDebugEnabled)
                 vehicleDebug.ScrollDelta = scrollDelta;
@@ -83,6 +89,78 @@ namespace CameraTools
             }
 
             ApplyVehicleZoomLimits(activeVehicleCameraRoot);
+        }
+
+        private void HandleVehiclePitchInput(float maxZoom)
+        {
+            var vehicleCameraRoot = activeVehicleCameraRoot;
+            if (vehicleCameraRoot == null)
+                return;
+
+            EnsureVehiclePitchInitialized(vehicleCameraRoot);
+
+            if (Input.GetMouseButtonDown(1))
+            {
+                isTrackingVehicleRightMousePitch = true;
+                lastVehicleRightMouseY = Input.mousePosition.y;
+            }
+
+            if (Input.GetMouseButton(1) && isTrackingVehicleRightMousePitch)
+            {
+                if (IsGameplayInputBlockedByUi())
+                    return;
+
+                var currentMouseY = Input.mousePosition.y;
+                var deltaY = currentMouseY - lastVehicleRightMouseY;
+                lastVehicleRightMouseY = currentMouseY;
+
+                if (Mathf.Abs(deltaY) > Mathf.Epsilon)
+                {
+                    manualVehiclePitch = Mathf.Clamp(manualVehiclePitch - deltaY * PitchStepPerMousePixel, 1f, 89f);
+                    hasManualVehiclePitch = true;
+                    ApplyVehicleDistance(GetCurrentVehicleZoomDistance(maxZoom), "pitch");
+                }
+            }
+
+            if (Input.GetMouseButtonUp(1))
+                isTrackingVehicleRightMousePitch = false;
+
+            if (Input.GetKeyDown(KeyCode.Home))
+            {
+                manualVehiclePitch = GetVehicleDefaultPitch(vehicleCameraRoot);
+                hasManualVehiclePitch = true;
+                ApplyVehicleDistance(GetCurrentVehicleZoomDistance(maxZoom), "pitch-reset");
+            }
+        }
+
+        private void EnsureVehiclePitchInitialized(Component vehicleCameraRoot)
+        {
+            if (hasManualVehiclePitch)
+                return;
+
+            manualVehiclePitch = GetVehicleCurrentPitch(vehicleCameraRoot);
+        }
+
+        private float GetVehicleCurrentPitch(Component vehicleCameraRoot)
+        {
+            if (TryGetVehicleCameraOffsetDebugInfo(vehicleCameraRoot.gameObject, out var currentOffset, out _))
+                return GetPitchDegreesFromOffset(currentOffset);
+
+            return GetVehicleDefaultPitch(vehicleCameraRoot);
+        }
+
+        private float GetVehicleDefaultPitch(Component vehicleCameraRoot)
+        {
+            if (TryGetVehicleCameraOffsetDebugInfo(vehicleCameraRoot.gameObject, out _, out var originalOffset))
+                return GetPitchDegreesFromOffset(originalOffset);
+
+            return 45f;
+        }
+
+        private void ResetVehiclePitchTracking()
+        {
+            isTrackingVehicleRightMousePitch = false;
+            lastVehicleRightMouseY = 0f;
         }
 
         private void HandleVehicleDebugHotkeys()
@@ -465,6 +543,9 @@ namespace CameraTools
         {
             activeVehicleCameraRoot = null;
             desiredVehicleDistance = float.NaN;
+            hasManualVehiclePitch = false;
+            manualVehiclePitch = 0f;
+            ResetVehiclePitchTracking();
             needsVehicleDistanceReapply = false;
             if (!cameraToolsDebugEnabled)
                 return;
@@ -656,6 +737,8 @@ namespace CameraTools
 
         private void ApplyVehicleCameraDistance(GameObject cameraObject, float distance, float maxZoom)
         {
+            var applyVehiclePitch = IsVehiclePitchCameraObject(cameraObject);
+            var targetPitch = Mathf.Clamp(hasManualVehiclePitch ? manualVehiclePitch : GetVehicleDefaultPitchFromObject(cameraObject), 1f, 89f);
             foreach (var zoomComponent in GetCachedVehicleZoomComponents(cameraObject))
             {
                 if (zoomComponent == null)
@@ -671,7 +754,7 @@ namespace CameraTools
                 if (pipelineComponent == null)
                     continue;
                 ApplyPipelineZoomLimits(pipelineComponent, maxZoom);
-                ApplyPipelineDistance(pipelineComponent, distance, maxZoom);
+                ApplyPipelineDistance(pipelineComponent, distance, maxZoom, applyVehiclePitch, targetPitch);
             }
         }
 
@@ -696,7 +779,7 @@ namespace CameraTools
             }
         }
 
-        private void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom)
+        private void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom, bool applyVehiclePitch, float targetPitch)
         {
             var clampedDistance = Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom);
             var typeName = pipelineComponent.GetType().Name;
@@ -716,11 +799,62 @@ namespace CameraTools
                     var originalMagnitude = originalOffset.magnitude;
                     if (originalMagnitude > Mathf.Epsilon)
                     {
-                        var scaledOffset = originalOffset * (clampedDistance / originalMagnitude);
+                        var scaledOffset = applyVehiclePitch
+                            ? BuildVehiclePitchAdjustedOffset(originalOffset, clampedDistance, targetPitch)
+                            : originalOffset * (clampedDistance / originalMagnitude);
                         SetFollowOffset(pipelineComponent, scaledOffset);
                     }
                 }
             }
+        }
+
+        private static bool IsVehiclePitchCameraRoot(Component? vehicleCameraRoot)
+        {
+            return vehicleCameraRoot != null && IsVehiclePitchCameraObject(vehicleCameraRoot.gameObject);
+        }
+
+        private static bool IsVehiclePitchCameraObject(GameObject? cameraObject)
+        {
+            if (cameraObject == null)
+                return false;
+
+            var path = GetHierarchyPath(cameraObject.transform);
+            return path.IndexOf("VehicleCamReverse", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                (path.IndexOf("VehicleCam", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                path.IndexOf("Indoor", StringComparison.OrdinalIgnoreCase) < 0);
+        }
+
+        private float GetVehicleDefaultPitchFromObject(GameObject cameraObject)
+        {
+            if (TryGetVehicleCameraOffsetDebugInfo(cameraObject, out _, out var originalOffset))
+                return GetPitchDegreesFromOffset(originalOffset);
+
+            return 45f;
+        }
+
+        private static float GetPitchDegreesFromOffset(Vector3 offset)
+        {
+            var magnitude = offset.magnitude;
+            if (magnitude <= Mathf.Epsilon)
+                return 45f;
+
+            return Mathf.Clamp(Mathf.Asin(Mathf.Clamp(offset.y / magnitude, -1f, 1f)) * Mathf.Rad2Deg, 1f, 89f);
+        }
+
+        private static Vector3 BuildVehiclePitchAdjustedOffset(Vector3 originalOffset, float distance, float pitchDegrees)
+        {
+            var clampedPitch = Mathf.Clamp(pitchDegrees, 1f, 89f) * Mathf.Deg2Rad;
+            var targetHeight = distance * Mathf.Sin(clampedPitch);
+            var targetHorizontal = Mathf.Max(0f, distance * Mathf.Cos(clampedPitch));
+            var originalHorizontal = Mathf.Sqrt(originalOffset.x * originalOffset.x + originalOffset.z * originalOffset.z);
+            if (originalHorizontal <= Mathf.Epsilon)
+                return new Vector3(0f, targetHeight, 0f);
+
+            var horizontalScale = targetHorizontal / originalHorizontal;
+            return new Vector3(
+                originalOffset.x * horizontalScale,
+                targetHeight,
+                originalOffset.z * horizontalScale);
         }
 
         private object[] GetCachedVehiclePipelineComponents(GameObject cameraObject)
