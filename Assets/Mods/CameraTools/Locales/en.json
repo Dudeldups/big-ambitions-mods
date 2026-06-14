@@ -4,7 +4,7 @@
   "cameratools_gameplay_zoom_label": "Max Character Zoom",
   "cameratools_vehicle_zoom_label": "Max Vehicle Zoom",
   "cameratools_map_distance_label": "Max Map Zoom",
-  "cameratools_scenic_view_hotkey_label": "Scenic View Hotkey",
+  "cameratools_scenic_view_hotkey_label": "Hide character Hotkey",
   "cameratools_hide_ui_hotkey_label": "Hide UI Hotkey",
   "cameratools_hide_map_markers_label": "Also disable map markers",
   "cameratools_hotkey_f5": "F5",
