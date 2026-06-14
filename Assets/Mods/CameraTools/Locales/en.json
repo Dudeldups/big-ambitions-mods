@@ -17,8 +17,6 @@
   "cameratools_scenic_view_disabled": "Scenic view disabled.",
   "cameratools_ui_hidden": "UI hidden.",
   "cameratools_ui_visible": "UI visible.",
-  "cameratools_map_notice_found": "CameraTools found CityMapCam and applied map changes.",
-  "cameratools_map_notice_missing": "CameraTools could not find CityMapCam while the map was open.",
 
   "cameratools_slider_value": "{value}"
 }

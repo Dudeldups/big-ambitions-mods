@@ -111,6 +111,8 @@ namespace CameraTools
             "portrait",
             "avatar",
             "face",
+            "objective",
+            "objectives",
             "status",
             "topbar",
             "needs",
@@ -120,6 +122,7 @@ namespace CameraTools
             "money",
             "day",
             "time",
+            "bizphone",
             "notification",
             "help",
             "bug",
@@ -178,8 +181,6 @@ namespace CameraTools
         private float nextUiStateRefreshTime;
         private float nextHiddenUiRefreshTime;
         private PendingVcamDiagnostic? pendingVcamDiagnostic;
-        private string? pendingMapNoticeDuplicateIdentifier;
-        private string? pendingMapNoticeMessage;
         private bool scenicViewEnabled;
         private RendererState[] scenicViewRendererStates = Array.Empty<RendererState>();
         private Component? scenicViewTargetRoot;
@@ -266,8 +267,6 @@ namespace CameraTools
             runtime.nextUiStateRefreshTime = 0f;
             runtime.nextHiddenUiRefreshTime = 0f;
             runtime.pendingVcamDiagnostic = null;
-            runtime.pendingMapNoticeDuplicateIdentifier = null;
-            runtime.pendingMapNoticeMessage = null;
             runtime.scenicViewEnabled = false;
             runtime.scenicViewRendererStates = Array.Empty<RendererState>();
             runtime.scenicViewTargetRoot = null;
@@ -351,7 +350,6 @@ namespace CameraTools
             ApplyMapTweaks(cityMapOpen);
             if (cameraToolsDebugEnabled)
                 ProcessPendingVcamDiagnostic();
-            FlushPendingMapNotice(cityMapOpen);
         }
 
         private void OnGUI()
@@ -876,16 +874,53 @@ namespace CameraTools
             return FilterNestedUiTargets(targets);
         }
 
-        private static bool ShouldHideUiTransform(Transform transform)
+        private static bool ShouldHideUiTransform(RectTransform transform)
         {
             if (transform.GetComponentInParent<Canvas>(true) == null)
                 return false;
 
             var path = GetHierarchyPath(transform).ToLowerInvariant();
+            if (path.IndexOf("bizphone", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
             if (ContainsAny(path, HiddenUiExcludeKeywords))
                 return false;
 
-            return ContainsAny(path, HiddenUiIncludeKeywords);
+            return ContainsAny(path, HiddenUiIncludeKeywords) || IsLikelyHudRegion(transform);
+        }
+
+        private static bool IsLikelyHudRegion(RectTransform rectTransform)
+        {
+            if (Screen.width <= 0 || Screen.height <= 0)
+                return false;
+
+            var corners = new Vector3[4];
+            rectTransform.GetWorldCorners(corners);
+
+            var minX = corners[0].x;
+            var minY = corners[0].y;
+            var maxX = corners[2].x;
+            var maxY = corners[2].y;
+            var width = maxX - minX;
+            var height = maxY - minY;
+            if (width <= 1f || height <= 1f)
+                return false;
+
+            if (width > Screen.width * 0.7f || height > Screen.height * 0.6f)
+                return false;
+
+            var centerX = (minX + maxX) * 0.5f;
+            var centerY = (minY + maxY) * 0.5f;
+            var normalizedX = centerX / Screen.width;
+            var normalizedY = centerY / Screen.height;
+
+            var isTopLeftHud = normalizedX <= 0.25f && normalizedY >= 0.7f;
+            var isTopCenterHud = normalizedX >= 0.25f && normalizedX <= 0.75f && normalizedY >= 0.75f;
+            var isTopRightHud = normalizedX >= 0.75f && normalizedY >= 0.7f;
+            var isLeftSideHud = normalizedX <= 0.3f && normalizedY >= 0.25f && normalizedY <= 0.7f;
+            var isBottomRightHud = normalizedX >= 0.7f && normalizedY <= 0.3f;
+
+            return isTopLeftHud || isTopCenterHud || isTopRightHud || isLeftSideHud || isBottomRightHud;
         }
 
         private static List<GameObject> FilterNestedUiTargets(List<GameObject> targets)
@@ -1727,13 +1762,8 @@ namespace CameraTools
             if (settings == null || mapController == null || !settings.EnableMapTopDown)
             {
                 RestoreMapCameraState();
-                if (cityMapOpen && !hasShownMapStatusNotice)
-                {
-                    QueueMapNotice(
-                        "CameraTools could not find CityMapCam while the map was open.",
-                        "cameratools_map_notice_missing");
+                if (cityMapOpen)
                     hasShownMapStatusNotice = true;
-                }
                 if (cameraToolsDebugEnabled && cityMapOpen)
                     LogVehicleDebug($"Map early exit: settingsNull={settings == null}, mapControllerNull={mapController == null}, mapTopDownEnabled={(settings != null && settings.EnableMapTopDown)}");
                 return;
@@ -1760,13 +1790,7 @@ namespace CameraTools
 
             activeMapVcamTransform = mapVcamTransform;
 
-            if (!hasShownMapStatusNotice)
-            {
-                QueueMapNotice(
-                    "CameraTools found CityMapCam and applied map changes.",
-                    "cameratools_map_notice_found");
-                hasShownMapStatusNotice = true;
-            }
+            hasShownMapStatusNotice = true;
 
             var bounds = GetVector2Member(mapController, "minMaxDistance");
             var currentDistance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
@@ -1878,22 +1902,6 @@ namespace CameraTools
                 activeMapRenderCamera.transform.position = targetPosition;
                 activeMapRenderCamera.transform.rotation = targetRotation;
             }
-        }
-
-        private void QueueMapNotice(string message, string duplicateIdentifier)
-        {
-            pendingMapNoticeMessage = message;
-            pendingMapNoticeDuplicateIdentifier = duplicateIdentifier;
-        }
-
-        private void FlushPendingMapNotice(bool cityMapOpen)
-        {
-            if (cityMapOpen || string.IsNullOrEmpty(pendingMapNoticeMessage) || string.IsNullOrEmpty(pendingMapNoticeDuplicateIdentifier))
-                return;
-
-            ShowPopup(pendingMapNoticeMessage, pendingMapNoticeDuplicateIdentifier);
-            pendingMapNoticeMessage = null;
-            pendingMapNoticeDuplicateIdentifier = null;
         }
 
         private void RestoreMapCameraState()
