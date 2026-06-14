@@ -128,6 +128,12 @@ namespace CameraTools
             "vehicle",
             "car",
             "steering",
+            "fuel",
+            "gas",
+            "autopark",
+            "auto_park",
+            "park",
+            "sell",
             "rent",
             "rented",
             "lease",
@@ -138,7 +144,6 @@ namespace CameraTools
             "mapicon",
             "worldicon",
             "circle",
-            "notification",
             "help",
             "bug",
             "option",
@@ -153,10 +158,21 @@ namespace CameraTools
             "popup",
             "modal",
             "tooltip",
+            "toast",
+            "sleep",
+            "bed",
+            "timeskip",
+            "time_skip",
+            "skiptime",
+            "fastforward",
+            "fast_forward",
+            "cancel",
             "dropdown",
             "scroll",
             "list",
-            "phonecall"
+            "phonecall",
+            "notificationstack",
+            "notificationitem"
         };
 
         private Camera? activeMapRenderCamera;
@@ -878,9 +894,13 @@ namespace CameraTools
                 if (!ShouldHideUiTransform(rectTransform))
                     continue;
 
+                var path = GetHierarchyPath(rectTransform).ToLowerInvariant();
+                var matchedByName = ContainsAny(path, HiddenUiIncludeKeywords) || path.IndexOf("bizphone", StringComparison.OrdinalIgnoreCase) >= 0;
                 var target = IsLikelyWorldMarker(rectTransform)
                     ? ResolveWorldMarkerRoot(rectTransform).gameObject
-                    : gameObject;
+                    : !matchedByName && IsLikelyFixedHudRegion(rectTransform)
+                        ? ResolveFixedHudRoot(rectTransform).gameObject
+                        : gameObject;
                 targets.Add(target);
             }
 
@@ -925,8 +945,9 @@ namespace CameraTools
             var isLeftSideHud = normalizedX <= 0.3f && normalizedY >= 0.25f && normalizedY <= 0.7f;
             var isBottomRightHud = normalizedX >= 0.55f && normalizedY <= 0.42f;
             var isUpperMiddleSupportPanel = normalizedX >= 0.2f && normalizedX <= 0.8f && normalizedY >= 0.5f && normalizedY <= 0.78f;
+            var isVehicleActionPanel = normalizedX >= 0.2f && normalizedX <= 0.8f && normalizedY >= 0.68f && normalizedY <= 0.9f;
 
-            return isTopLeftHud || isTopCenterHud || isTopRightHud || isLeftSideHud || isBottomRightHud || isUpperMiddleSupportPanel;
+            return isTopLeftHud || isTopCenterHud || isTopRightHud || isLeftSideHud || isBottomRightHud || isUpperMiddleSupportPanel || isVehicleActionPanel;
         }
 
         private static bool IsLikelyWorldMarker(RectTransform rectTransform)
@@ -963,6 +984,31 @@ namespace CameraTools
                 current = parentRect;
                 climbCount++;
                 if (climbCount >= 3)
+                    break;
+            }
+
+            return best;
+        }
+
+        private static RectTransform ResolveFixedHudRoot(RectTransform rectTransform)
+        {
+            var best = rectTransform;
+            var current = rectTransform;
+            var climbCount = 0;
+            while (current.parent is RectTransform parentRect &&
+                parentRect.GetComponentInParent<Canvas>(true) != null &&
+                !ContainsAny(GetHierarchyPath(parentRect).ToLowerInvariant(), HiddenUiExcludeKeywords) &&
+                TryGetScreenRect(parentRect, out var minX, out var minY, out var maxX, out var maxY))
+            {
+                var width = maxX - minX;
+                var height = maxY - minY;
+                if (width > Screen.width * 0.9f || height > Screen.height * 0.45f)
+                    break;
+
+                best = parentRect;
+                current = parentRect;
+                climbCount++;
+                if (climbCount >= 4)
                     break;
             }
 
