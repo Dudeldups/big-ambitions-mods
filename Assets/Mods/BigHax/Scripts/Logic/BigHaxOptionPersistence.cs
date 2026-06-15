@@ -1,6 +1,4 @@
 #nullable enable
-using UnityEngine;
-
 namespace BigHax
 {
     internal static class BigHaxOptionPersistence
@@ -41,16 +39,16 @@ namespace BigHax
         private static int LoadInt(string modId, string optionId, int defaultValue)
         {
             var key = BuildKey(modId, optionId);
-            return PlayerPrefs.HasKey(key) ? PlayerPrefs.GetInt(key) : defaultValue;
+            return UnityEngine.PlayerPrefs.HasKey(key) ? UnityEngine.PlayerPrefs.GetInt(key) : defaultValue;
         }
 
         private static bool LoadBool(string modId, string optionId, bool defaultValue)
         {
             var key = BuildKey(modId, optionId);
-            if (!PlayerPrefs.HasKey(key))
+            if (!UnityEngine.PlayerPrefs.HasKey(key))
                 return defaultValue;
 
-            return PlayerPrefs.GetInt(key) != 0;
+            return UnityEngine.PlayerPrefs.GetInt(key) != 0;
         }
 
         private static string BuildKey(string modId, string optionId)
