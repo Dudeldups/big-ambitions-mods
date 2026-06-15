@@ -29,7 +29,16 @@ namespace BigHax
             activeRuntime = null;
 
             SharedOptions.Initialize(context, SharedSettings);
-            activeRuntime = BigHaxRuntime.Initialize(context, SharedSettings);
+            try
+            {
+                activeRuntime = BigHaxRuntime.Initialize(context, SharedSettings);
+            }
+            catch (Exception exception)
+            {
+                context.Logger.Error(exception);
+                activeRuntime = null;
+            }
+
             activeModId = context.ModId;
             BigHaxLogger.Info(context, "BigHax: runtime initialized.");
             return Task.CompletedTask;

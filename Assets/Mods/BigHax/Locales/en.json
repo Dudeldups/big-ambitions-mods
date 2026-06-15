@@ -1,9 +1,11 @@
 {
   "bighax_options_header": "Big Hax",
+  "bighax_customer_traffic_multiplier_label": "Player Business Customer Multiplier",
   "bighax_standard_fridge_label": "Standard Fridge Capacity",
   "bighax_pallet_shelf_label": "Pallet Shelf Capacity",
   "bighax_freight_truck_label": "Freight Truck T1 Delivery Places",
   "bighax_active_vehicle_enabled_label": "Enable Active Vehicle Capacity Override",
   "bighax_active_vehicle_label": "Active Vehicle Capacity",
-  "bighax_capacity_value": "{value}"
+  "bighax_capacity_value": "{value}",
+  "bighax_multiplier_value": "{value}x"
 }

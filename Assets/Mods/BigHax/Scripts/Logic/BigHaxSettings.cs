@@ -2,6 +2,7 @@ namespace BigHax
 {
     public sealed class BigHaxSettings
     {
+        public const int DefaultCustomerTrafficMultiplier = 1;
         public const int DefaultFreightTruckT1DeliveryPlaces = 8;
         public const int DefaultStandardFridgeCapacity = 50;
         public const int DefaultPalletShelfCapacity = 60;
@@ -10,6 +11,8 @@ namespace BigHax
         public bool EnableDebugLogging { get; set; } = false;
 
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
+
+        public int CustomerTrafficMultiplier { get; set; } = DefaultCustomerTrafficMultiplier;
 
         public int FreightTruckT1DeliveryPlaces { get; set; } = DefaultFreightTruckT1DeliveryPlaces;
 

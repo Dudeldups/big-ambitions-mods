@@ -4,20 +4,26 @@ using BigAmbitions.Mods;
 
 namespace BigHax
 {
+    internal static class BigHaxOptionIds
+    {
+        public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
+        public const string FreightTruckT1DeliveryPlaces = "big_hax_freight_truck_t1_delivery_places";
+        public const string StandardFridgeCapacity = "big_hax_standard_fridge_capacity";
+        public const string PalletShelfCapacity = "big_hax_pallet_shelf_capacity";
+        public const string ActiveVehicleCapacityEnabled = "big_hax_active_vehicle_capacity_enabled";
+        public const string ActiveVehicleCapacity = "big_hax_active_vehicle_capacity";
+    }
+
     public sealed class BigHaxOptions
     {
-        private const string FreightTruckT1DeliveryPlacesKey = "big_hax_freight_truck_t1_delivery_places";
-        private const string StandardFridgeCapacityKey = "big_hax_standard_fridge_capacity";
-        private const string PalletShelfCapacityKey = "big_hax_pallet_shelf_capacity";
-        private const string ActiveVehicleCapacityEnabledKey = "big_hax_active_vehicle_capacity_enabled";
-        private const string ActiveVehicleCapacityKey = "big_hax_active_vehicle_capacity";
-
         private ModContext? context;
         private string? registeredModId;
 
         public void Initialize(ModContext modContext, BigHaxSettings settings)
         {
             context = modContext;
+            BigHaxOptionPersistence.LoadIntoSettings(modContext.ModId, settings);
+
             if (!string.IsNullOrEmpty(registeredModId))
                 OptionsService.RemoveModOptions(registeredModId);
 
@@ -27,7 +33,19 @@ namespace BigHax
                 new ModOptions()
                     .AddHeader("bighax_options_header")
                     .AddSlider(
-                        StandardFridgeCapacityKey,
+                        BigHaxOptionIds.CustomerTrafficMultiplier,
+                        "bighax_customer_traffic_multiplier_label",
+                        BigHaxTargetIds.CustomerTrafficMultiplierMinimum,
+                        BigHaxTargetIds.CustomerTrafficMultiplierMaximum,
+                        settings.CustomerTrafficMultiplier,
+                        value =>
+                        {
+                            settings.CustomerTrafficMultiplier = value;
+                            BigHaxRuntime.RequestImmediateApply();
+                        },
+                        "bighax_multiplier_value")
+                    .AddSlider(
+                        BigHaxOptionIds.StandardFridgeCapacity,
                         "bighax_standard_fridge_label",
                         BigHaxSettings.DefaultStandardFridgeCapacity,
                         BigHaxTargetIds.SliderMaximum,
@@ -39,7 +57,7 @@ namespace BigHax
                         },
                         "bighax_capacity_value")
                     .AddSlider(
-                        PalletShelfCapacityKey,
+                        BigHaxOptionIds.PalletShelfCapacity,
                         "bighax_pallet_shelf_label",
                         BigHaxSettings.DefaultPalletShelfCapacity,
                         BigHaxTargetIds.SliderMaximum,
@@ -51,7 +69,7 @@ namespace BigHax
                         },
                         "bighax_capacity_value")
                     .AddSlider(
-                        FreightTruckT1DeliveryPlacesKey,
+                        BigHaxOptionIds.FreightTruckT1DeliveryPlaces,
                         "bighax_freight_truck_label",
                         BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
                         BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
@@ -63,7 +81,7 @@ namespace BigHax
                         },
                         "bighax_capacity_value")
                     .AddToggle(
-                        ActiveVehicleCapacityEnabledKey,
+                        BigHaxOptionIds.ActiveVehicleCapacityEnabled,
                         "bighax_active_vehicle_enabled_label",
                         settings.EnableActiveVehicleCapacityOverride,
                         value =>
@@ -72,7 +90,7 @@ namespace BigHax
                             BigHaxRuntime.RequestImmediateApply();
                         })
                     .AddSlider(
-                        ActiveVehicleCapacityKey,
+                        BigHaxOptionIds.ActiveVehicleCapacity,
                         "bighax_active_vehicle_label",
                         BigHaxSettings.DefaultActiveVehicleCapacity,
                         BigHaxTargetIds.SliderMaximum,
