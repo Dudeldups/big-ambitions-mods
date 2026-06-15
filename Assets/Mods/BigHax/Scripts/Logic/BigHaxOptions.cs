@@ -6,7 +6,8 @@ namespace BigHax
 {
     internal static class BigHaxOptionIds
     {
-        public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
+        public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier_v2";
+        public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
         public const string FreightTruckT1DeliveryPlaces = "big_hax_freight_truck_t1_delivery_places";
         public const string StandardFridgeCapacity = "big_hax_standard_fridge_capacity";
         public const string PalletShelfCapacity = "big_hax_pallet_shelf_capacity";
@@ -16,6 +17,16 @@ namespace BigHax
 
     public sealed class BigHaxOptions
     {
+        private static readonly string[] CustomerTrafficMultiplierChoices =
+        {
+            "bighax_customer_traffic_multiplier_1_0",
+            "bighax_customer_traffic_multiplier_1_5",
+            "bighax_customer_traffic_multiplier_2_0",
+            "bighax_customer_traffic_multiplier_3_0",
+            "bighax_customer_traffic_multiplier_5_0",
+            "bighax_customer_traffic_multiplier_10_0"
+        };
+
         private ModContext? context;
         private string? registeredModId;
 
@@ -32,18 +43,16 @@ namespace BigHax
             var options =
                 new ModOptions()
                     .AddHeader("bighax_options_header")
-                    .AddSlider(
+                    .AddDropdown(
                         BigHaxOptionIds.CustomerTrafficMultiplier,
                         "bighax_customer_traffic_multiplier_label",
-                        BigHaxTargetIds.CustomerTrafficMultiplierMinimum,
-                        BigHaxTargetIds.CustomerTrafficMultiplierMaximum,
-                        settings.CustomerTrafficMultiplier,
-                        value =>
+                        CustomerTrafficMultiplierChoices,
+                        settings.CustomerTrafficMultiplierIndex,
+                        index =>
                         {
-                            settings.CustomerTrafficMultiplier = value;
+                            settings.CustomerTrafficMultiplierIndex = index;
                             BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_multiplier_value")
+                        })
                     .AddSlider(
                         BigHaxOptionIds.StandardFridgeCapacity,
                         "bighax_standard_fridge_label",

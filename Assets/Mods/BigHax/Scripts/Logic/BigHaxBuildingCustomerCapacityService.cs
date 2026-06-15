@@ -18,7 +18,7 @@ namespace BigHax
 
         public void ApplyConfiguredCapacities(ModContext context, BigHaxSettings settings)
         {
-            var multiplier = Mathf.Max(BigHaxSettings.DefaultCustomerTrafficMultiplier, settings.CustomerTrafficMultiplier);
+            var multiplier = Mathf.Max(1f, settings.CustomerTrafficMultiplier);
             var buildingSizeDataEntries = ResolveBuildingSizeData();
             if (buildingSizeDataEntries.Count == 0)
             {
@@ -48,7 +48,7 @@ namespace BigHax
                         continue;
 
                     var originalAmount = originalValues[index];
-                    var targetAmount = originalAmount <= 0 || multiplier <= BigHaxSettings.DefaultCustomerTrafficMultiplier
+                    var targetAmount = originalAmount <= 0 || multiplier <= 1f
                         ? originalAmount
                         : Mathf.Max(originalAmount, Mathf.CeilToInt(originalAmount * multiplier));
 

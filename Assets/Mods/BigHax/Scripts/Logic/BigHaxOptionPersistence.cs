@@ -5,10 +5,7 @@ namespace BigHax
     {
         public static void LoadIntoSettings(string modId, BigHaxSettings settings)
         {
-            settings.CustomerTrafficMultiplier = LoadInt(
-                modId,
-                BigHaxOptionIds.CustomerTrafficMultiplier,
-                BigHaxSettings.DefaultCustomerTrafficMultiplier);
+            settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
 
             settings.StandardFridgeCapacity = LoadInt(
                 modId,
@@ -34,12 +31,44 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.ActiveVehicleCapacity,
                 BigHaxSettings.DefaultActiveVehicleCapacity);
+
+            if (settings.CustomerTrafficMultiplierIndex < 0 ||
+                settings.CustomerTrafficMultiplierIndex >= BigHaxSettings.CustomerTrafficMultiplierValues.Length)
+            {
+                settings.CustomerTrafficMultiplierIndex = BigHaxSettings.DefaultCustomerTrafficMultiplierIndex;
+            }
         }
 
         private static int LoadInt(string modId, string optionId, int defaultValue)
         {
             var key = BuildKey(modId, optionId);
             return UnityEngine.PlayerPrefs.HasKey(key) ? UnityEngine.PlayerPrefs.GetInt(key) : defaultValue;
+        }
+
+        private static int LoadCustomerTrafficMultiplierIndex(string modId)
+        {
+            var currentKey = BuildKey(modId, BigHaxOptionIds.CustomerTrafficMultiplier);
+            if (UnityEngine.PlayerPrefs.HasKey(currentKey))
+                return UnityEngine.PlayerPrefs.GetInt(currentKey);
+
+            var legacyKey = BuildKey(modId, BigHaxOptionIds.LegacyCustomerTrafficMultiplier);
+            if (!UnityEngine.PlayerPrefs.HasKey(legacyKey))
+                return BigHaxSettings.DefaultCustomerTrafficMultiplierIndex;
+
+            var legacyValue = UnityEngine.PlayerPrefs.GetInt(legacyKey);
+            return MapLegacyCustomerTrafficMultiplierToIndex(legacyValue);
+        }
+
+        private static int MapLegacyCustomerTrafficMultiplierToIndex(int legacyValue)
+        {
+            return legacyValue switch
+            {
+                <= 1 => 0,
+                2 => 2,
+                3 => 3,
+                4 => 3,
+                _ => 4
+            };
         }
 
         private static bool LoadBool(string modId, string optionId, bool defaultValue)

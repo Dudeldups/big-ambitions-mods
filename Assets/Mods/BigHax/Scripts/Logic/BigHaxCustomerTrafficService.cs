@@ -45,7 +45,7 @@ namespace BigHax
 
         private bool hasAppliedCustomTraffic;
         private float? originalBaseCustomerPromotionMultiplier;
-        private int lastAppliedMultiplier = BigHaxSettings.DefaultCustomerTrafficMultiplier;
+        private float lastAppliedMultiplier = 1f;
 
         public void InvalidateCache()
         {
@@ -55,8 +55,8 @@ namespace BigHax
 
         public void ApplyConfiguredTraffic(ModContext context, BigHaxSettings settings, bool forceRefresh)
         {
-            var multiplier = Mathf.Max(BigHaxSettings.DefaultCustomerTrafficMultiplier, settings.CustomerTrafficMultiplier);
-            if (multiplier <= BigHaxSettings.DefaultCustomerTrafficMultiplier)
+            var multiplier = Mathf.Max(1f, settings.CustomerTrafficMultiplier);
+            if (multiplier <= 1f)
             {
                 if (hasAppliedCustomTraffic)
                     RestoreVanillaTraffic(context);
@@ -72,7 +72,7 @@ namespace BigHax
                 return;
             }
 
-            if (forceRefresh || multiplier != lastAppliedMultiplier || !IsCurrentStateApplied(multiplier))
+            if (forceRefresh || !Mathf.Approximately(multiplier, lastAppliedMultiplier) || !IsCurrentStateApplied(multiplier))
                 RebuildAndApplyTraffic(context, multiplier);
         }
 
@@ -80,10 +80,10 @@ namespace BigHax
         {
             RestoreVanillaTraffic(context);
             hasAppliedCustomTraffic = false;
-            lastAppliedMultiplier = BigHaxSettings.DefaultCustomerTrafficMultiplier;
+            lastAppliedMultiplier = 1f;
         }
 
-        private void RebuildAndApplyTraffic(ModContext? context, int multiplier)
+        private void RebuildAndApplyTraffic(ModContext? context, float multiplier)
         {
             ApplyPromotionBoost(multiplier);
             UpdateAllCustomerEntries();
@@ -143,9 +143,9 @@ namespace BigHax
             BigHaxLogger.Info(context, "BigHax: restored vanilla customer traffic for player businesses.");
         }
 
-        private bool IsCurrentStateApplied(int multiplier)
+        private bool IsCurrentStateApplied(float multiplier)
         {
-            if (!hasAppliedCustomTraffic || multiplier != lastAppliedMultiplier)
+            if (!hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
                 return false;
 
             if (!IsPromotionBoostApplied(multiplier))
@@ -169,7 +169,7 @@ namespace BigHax
             return true;
         }
 
-        private void ApplyPromotionBoost(int multiplier)
+        private void ApplyPromotionBoost(float multiplier)
         {
             var gameVariables = SaveGameManager.Current?.gameVariables;
             if (gameVariables == null)
@@ -178,7 +178,7 @@ namespace BigHax
             if (!originalBaseCustomerPromotionMultiplier.HasValue)
                 originalBaseCustomerPromotionMultiplier = gameVariables.baseCustomerPromotionMultiplier;
 
-            var targetMultiplier = 1f + (multiplier - BigHaxSettings.DefaultCustomerTrafficMultiplier) * AdditionalPromotionBoostPerMultiplierStep;
+            var targetMultiplier = 1f + (multiplier - 1f) * AdditionalPromotionBoostPerMultiplierStep;
             var targetValue = originalBaseCustomerPromotionMultiplier.Value * targetMultiplier;
 
             if (!Mathf.Approximately(gameVariables.baseCustomerPromotionMultiplier, targetValue))
@@ -194,7 +194,7 @@ namespace BigHax
             gameVariables.baseCustomerPromotionMultiplier = originalBaseCustomerPromotionMultiplier.Value;
         }
 
-        private bool IsPromotionBoostApplied(int multiplier)
+        private bool IsPromotionBoostApplied(float multiplier)
         {
             var gameVariables = SaveGameManager.Current?.gameVariables;
             if (gameVariables == null)
@@ -203,7 +203,7 @@ namespace BigHax
             if (!originalBaseCustomerPromotionMultiplier.HasValue)
                 originalBaseCustomerPromotionMultiplier = gameVariables.baseCustomerPromotionMultiplier;
 
-            var targetMultiplier = 1f + (multiplier - BigHaxSettings.DefaultCustomerTrafficMultiplier) * AdditionalPromotionBoostPerMultiplierStep;
+            var targetMultiplier = 1f + (multiplier - 1f) * AdditionalPromotionBoostPerMultiplierStep;
             var targetValue = originalBaseCustomerPromotionMultiplier.Value * targetMultiplier;
             return Mathf.Approximately(gameVariables.baseCustomerPromotionMultiplier, targetValue);
         }
@@ -224,13 +224,17 @@ namespace BigHax
                    TimestampType != null;
         }
 
-        private static void MultiplyEntries(IList entries, int multiplier)
+        private static void MultiplyEntries(IList entries, float multiplier)
         {
+            if (multiplier <= 1f || entries.Count == 0)
+                return;
+
             var originalEntries = new object[entries.Count];
             for (var i = 0; i < entries.Count; i++)
                 originalEntries[i] = entries[i]!;
 
-            for (var duplicateIndex = 1; duplicateIndex < multiplier; duplicateIndex++)
+            var wholeCopies = Mathf.FloorToInt(multiplier) - 1;
+            for (var duplicateIndex = 1; duplicateIndex <= wholeCopies; duplicateIndex++)
             {
                 foreach (var sourceEntry in originalEntries)
                 {
@@ -238,6 +242,15 @@ namespace BigHax
                     if (clone != null)
                         entries.Add(clone);
                 }
+            }
+
+            var targetCount = Mathf.CeilToInt(originalEntries.Length * multiplier);
+            var partialClonesNeeded = Mathf.Max(0, targetCount - entries.Count);
+            for (var index = 0; index < partialClonesNeeded && index < originalEntries.Length; index++)
+            {
+                var clone = CloneCustomerEntry(originalEntries[index], wholeCopies + 1);
+                if (clone != null)
+                    entries.Add(clone);
             }
         }
 

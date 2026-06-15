@@ -19,7 +19,7 @@ namespace BigHax
 
         public void ApplyConfiguredCapacities(ModContext context, BigHaxSettings settings)
         {
-            var multiplier = Mathf.Max(BigHaxSettings.DefaultCustomerTrafficMultiplier, settings.CustomerTrafficMultiplier);
+            var multiplier = Mathf.Max(1f, settings.CustomerTrafficMultiplier);
             var throughputItems = ResolveThroughputItems();
             if (throughputItems.Count == 0)
             {
@@ -33,7 +33,7 @@ namespace BigHax
                     originalAddedCustomersPerHour[item.itemName] = item.addedCustomersPerHour;
 
                 var originalValue = originalAddedCustomersPerHour[item.itemName];
-                var targetValue = multiplier <= BigHaxSettings.DefaultCustomerTrafficMultiplier
+                var targetValue = multiplier <= 1f
                     ? originalValue
                     : Mathf.Max(originalValue, Mathf.CeilToInt(originalValue * multiplier));
 
