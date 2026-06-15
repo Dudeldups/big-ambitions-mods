@@ -74,14 +74,19 @@ namespace Pink
             // Used by the global active-renderer fallback. Keep this strict; generic words like door/body/panel/exterior
             // also appear on buildings. Do not use bare "van" here: it matches words like "advanced".
             "carpaint", "car_paint", "carbody", "body_car", "paint_car", "vehiclebody", "body_vehicle",
-            "flatbed", "truck", "taxi", "saloon", "sedan", "suv", "pickup",
+            "flatbed", "truck", "taxi", "taxicab", "yellowcab", "cabbody", "body_cab", "cab_body", "saloon", "sedan", "suv", "pickup",
             "deliveryvan", "delivery_van", "vanbody", "body_van", "van_body",
-            "m_car", "m_vehicle", "m_truck", "m_van", "m_taxi", "m_sedan", "m_suv", "m_pickup", "m_flatbed"
+            "m_car", "m_vehicle", "m_truck", "m_van", "m_taxi", "m_cab", "m_sedan", "m_suv", "m_pickup", "m_flatbed"
         };
 
         private static readonly string[] TaxiAllowTokens =
         {
-            "taxi", "taxicab", "yellowcab", "yellow cab"
+            "taxi", "taxicab", "yellowcab", "yellow cab", "cabbody", "body_cab", "cab_body", "m_cab"
+        };
+
+        private static readonly string[] TaxiBroadTokens =
+        {
+            "taxi", "taxicab", "yellowcab", "yellow cab", "cabbody", "body_cab", "cab_body", "m_cab", "cab"
         };
 
         private static readonly string[] VehicleDenyTokensWithoutCab =
@@ -131,9 +136,15 @@ namespace Pink
         private static readonly bool AggressiveNpcClothingTint = true;
         private const bool EnableNpcDiagnosticSamples = false;
         private const int MaxNpcDiagnosticSamples = 80;
+        private const int MaxTaxiDiagnosticSamples = 0;
+        private const int MaxTrafficLightDiagnosticSamples = 0;
+        private const int MaxBlueBinDiagnosticSamples = 0;
         private const int RendererFallbackMaxPasses = 1;
 
         private static int npcDiagnosticSamples;
+        private static int taxiDiagnosticSamples;
+        private static int trafficLightDiagnosticSamples;
+        private static int blueBinDiagnosticSamples;
 
         private static readonly Color BasePinkColor = new Color(1f, 0.35f, 0.7f, 1f);
 
@@ -150,6 +161,8 @@ namespace Pink
 
         private static readonly Color FixedBrightPink = new Color(1f, 0.35f, 0.7f, 1f);
         private static readonly Color FixedDarkPink = new Color(0.62f, 0.08f, 0.38f, 1f);
+        private static readonly Color FixedTrashPink = new Color(0.82f, 0.18f, 0.52f, 1f);
+        private static readonly Color FixedTrashLightPink = new Color(1f, 0.80f, 0.95f, 1f);
 
         private static readonly Dictionary<int, MaterialColorSnapshot> PatchedMaterials = new Dictionary<int, MaterialColorSnapshot>();
         private static readonly Dictionary<RendererSlotKey, RendererPropertyBlockSnapshot> PatchedRendererSlots = new Dictionary<RendererSlotKey, RendererPropertyBlockSnapshot>();
@@ -178,7 +191,7 @@ namespace Pink
             PinkFileLogger.Initialize(modId, modLogger, enableDebugLogging, enableVerbosePatchLogging);
             PinkFileLogger.Info(
                 "PinkRuntime initialized. Renderer layer scan is disabled; scanning controller/tag candidates only. " +
-                "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict parent-name world-prop scan and taxi cab exception.",
+                "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict world-prop scan for hydrants, light closed trash bins, medium open trash bins, and darker mailboxes.",
                 alsoGameLog: true);
         }
 
@@ -201,6 +214,9 @@ namespace Pink
             BehaviourTypeHitCounts.Clear();
             ShaderColorPropertyIdCache.Clear();
             npcDiagnosticSamples = 0;
+            taxiDiagnosticSamples = 0;
+            trafficLightDiagnosticSamples = 0;
+            blueBinDiagnosticSamples = 0;
             logger = null;
             PinkFileLogger.Shutdown();
         }
@@ -510,6 +526,10 @@ namespace Pink
             }
 
             var combined = rendererName + " " + parentName + " " + materialNames;
+
+            if (LooksLikeTaxiRenderer(renderer, combined))
+                return true;
+
             if (ContainsAnyToken(combined, VehicleDenyTokens))
                 return false;
 
@@ -679,25 +699,175 @@ namespace Pink
 
         private static Color? GetSimpleWorldPropColor(Renderer renderer)
         {
-            var text = GetRendererAndParentNameText(renderer);
+            var text = GetRendererParentAndSharedMaterialNameText(renderer);
 
             if (ContainsAnyToken(text, new[] { "hydrant", "firehydrant", "fire_hydrant", "fire hydrant" }))
                 return FixedBrightPink;
 
-            if (ContainsAnyToken(text, TaxiAllowTokens))
-                return FixedBrightPink;
+            if (IsTrashCanText(text))
+                return IsClosedTrashBinText(text) ? FixedTrashLightPink : FixedTrashPink;
+
+            if (LooksLikeClosedBlueTrashBin(renderer, text))
+                return FixedTrashLightPink;
+
+            if (IsMailboxText(text))
+                return FixedDarkPink;
+
+            return null;
+        }
+
+        private static bool IsTrashCanText(string text)
+        {
+            if (ContainsAnyToken(text, new[]
+                {
+                    "trashcan", "trash_can", "trash can",
+                    "trashbin", "trash_bin", "trash bin",
+                    "garbagecan", "garbage_can", "garbage can",
+                    "garbagebin", "garbage_bin", "garbage bin",
+                    "wastecan", "waste_can", "waste can",
+                    "wastebin", "waste_bin", "waste bin",
+                    "recyclebin", "recycle_bin", "recycle bin",
+                    "recyclingbin", "recycling_bin", "recycling bin",
+                    "dumpster", "dustbin", "dust_bin", "dust bin",
+                    "wheeliebin", "wheelie_bin", "wheelie bin",
+                    "wheelybin", "wheely_bin", "wheely bin",
+                    "wheelbin", "wheel_bin", "wheel bin",
+                    "bluebin", "blue_bin", "blue bin",
+                    "trashcontainer", "trash_container", "trash container",
+                    "garbagecontainer", "garbage_container", "garbage container",
+                    "wastecontainer", "waste_container", "waste container",
+                    "refusecontainer", "refuse_container", "refuse container"
+                }))
+            {
+                return true;
+            }
+
+            // Fallback for closed street bins that are named generically but have blue/recycle/trash hints on material or parent.
+            return ContainsAnyToken(text, new[] { "bin", "container" }) &&
+                   ContainsAnyToken(text, new[] { "trash", "garbage", "waste", "recycle", "recycling", "refuse", "sanitation", "wheelie", "wheely", "blue" });
+        }
+
+        private static bool IsClosedTrashBinText(string text)
+        {
+            return ContainsAnyToken(text, new[]
+                {
+                    "sortingbin", "sorting_bin", "sorting bin",
+                    "wheeliebin", "wheelie_bin", "wheelie bin",
+                    "wheelybin", "wheely_bin", "wheely bin",
+                    "bluebin", "blue_bin", "blue bin",
+                    "trashcontainer", "trash_container", "trash container",
+                    "garbagecontainer", "garbage_container", "garbage container",
+                    "wastecontainer", "waste_container", "waste container",
+                    "refusecontainer", "refuse_container", "refuse container"
+                });
+        }
+
+        private static bool LooksLikeClosedBlueTrashBin(Renderer renderer, string text)
+        {
+            if (ContainsAnyToken(text, new[]
+                {
+                    "vehicle", "car", "taxi", "truck", "traffic", "pedestrian", "human", "npc", "customer", "employee",
+                    "shirt", "pants", "hair", "skin", "building", "facade", "window", "shop", "store", "sign", "billboard",
+                    "streetlight", "trafficlight", "lamp", "mailbox", "postbox",
+                    "carnival", "ferriswheel", "ferris wheel", "cabin", "ticketbooth", "ticket booth", "booth"
+                }))
+            {
+                return false;
+            }
+
+            var size = renderer.bounds.size;
+            var maxDimension = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            if (maxDimension > 4.0f)
+                return false;
+
+            var blueInfo = GetBlueMaterialInfo(renderer);
+            if (blueInfo == null)
+                return false;
 
             if (ContainsAnyToken(text, new[]
                 {
-                    "streetlight", "street light", "streetlamp", "street lamp",
-                    "lamppost", "lamp post", "lightpole", "light pole",
-                    "trafficlight", "traffic light"
+                    "bin", "container", "wheelie", "wheely", "trash", "garbage", "waste", "recycle", "recycling", "refuse", "dustbin", "barrel"
                 }))
             {
-                return FixedDarkPink;
+                LogBlueBinDiagnosticSample(renderer, blueInfo, "accepted");
+                return true;
+            }
+
+            LogBlueBinDiagnosticSample(renderer, blueInfo, "blue-small-skipped-no-bin-token");
+            return false;
+        }
+
+        private static string? GetBlueMaterialInfo(Renderer renderer)
+        {
+            Material[] materials;
+            try
+            {
+                materials = renderer.sharedMaterials;
+            }
+            catch
+            {
+                return null;
+            }
+
+            for (var materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                var material = materials[materialIndex];
+                if (material == null)
+                    continue;
+
+                var materialName = material.name ?? string.Empty;
+                if (ContainsAnyToken(materialName, new[] { "blue", "bin", "trash", "garbage", "waste", "recycle", "refuse" }))
+                    return $"material={materialName}";
+
+                for (var propertyIndex = 0; propertyIndex < CandidateColorPropertyIds.Length; propertyIndex++)
+                {
+                    var propertyId = CandidateColorPropertyIds[propertyIndex];
+                    if (!material.HasProperty(propertyId))
+                        continue;
+
+                    try
+                    {
+                        var color = material.GetColor(propertyId);
+                        if (IsLikelyBinBlue(color))
+                            return $"material={materialName}, color={color}";
+                    }
+                    catch
+                    {
+                        // Ignore unsupported reads.
+                    }
+                }
             }
 
             return null;
+        }
+
+        private static bool IsLikelyBinBlue(Color color)
+        {
+            return color.b >= 0.35f && color.b > color.r * 1.25f && color.b > color.g * 1.05f;
+        }
+
+        private static void LogBlueBinDiagnosticSample(Renderer renderer, string info, string reason)
+        {
+            if (blueBinDiagnosticSamples >= MaxBlueBinDiagnosticSamples)
+                return;
+
+            blueBinDiagnosticSamples++;
+            var size = renderer.bounds.size;
+            PinkFileLogger.Info(
+                $"BLUE_BIN_DIAG {blueBinDiagnosticSamples}/{MaxBlueBinDiagnosticSamples}: reason={reason}, " +
+                $"path={GetPath(renderer.transform, 8)}, renderer={renderer.name}, parent={(renderer.transform.parent == null ? "<null>" : renderer.transform.parent.name)}, " +
+                $"size={size}, {info}");
+        }
+
+        private static bool IsMailboxText(string text)
+        {
+            return ContainsAnyToken(text, new[]
+                {
+                    "mailbox", "mail_box", "mail box",
+                    "postbox", "post_box", "post box",
+                    "postalbox", "postal_box", "postal box",
+                    "maildrop", "mail_drop", "mail drop"
+                });
         }
 
         private static string GetRendererAndParentNameText(Renderer renderer)
@@ -711,11 +881,53 @@ namespace Pink
             return text;
         }
 
+        private static string GetRendererParentAndSharedMaterialNameText(Renderer renderer)
+        {
+            var text = GetRendererAndParentNameText(renderer);
+
+            try
+            {
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    if (material != null)
+                        text += " " + material.name;
+                }
+            }
+            catch
+            {
+                // Ignore material-name diagnostics for world-prop detection.
+            }
+
+            return text;
+        }
+
         private static bool ShouldSkipSimpleWorldPropSlot(Renderer renderer, Material material)
         {
-            var text = renderer.name + " " + material.name;
+            var rendererName = renderer.name ?? string.Empty;
+            var parentName = renderer.transform.parent != null ? renderer.transform.parent.name : string.Empty;
+            var materialName = material.name ?? string.Empty;
+            var text = rendererName + " " + parentName + " " + materialName;
+            var propText = GetRendererParentAndSharedMaterialNameText(renderer);
 
-            // Keep actual traffic signal / bulb / lens materials normal. The pole/fixture can still become dark pink.
+            if (IsTrashCanText(propText) && ContainsAnyToken(text, new[]
+                {
+                    "lid", "cover", "top", "cap", "handle", "hinge", "wheel", "tire", "tyre",
+                    "rubber", "glass", "window", "label", "sticker", "decal"
+                }))
+            {
+                return true;
+            }
+
+            if (IsMailboxText(propText) && ContainsAnyToken(text, new[]
+                {
+                    "handle", "hinge", "slot", "flag", "label", "sticker", "decal",
+                    "glass", "window"
+                }))
+            {
+                return true;
+            }
+
+            // Generic safety: do not tint obvious glass/light/wheel/decal slots on world props.
             if (ContainsAnyToken(text, new[]
                 {
                     "glass", "window", "wheel", "tire", "tyre", "rim", "plate", "license",
@@ -909,6 +1121,123 @@ namespace Pink
             return patched;
         }
 
+        private static bool LooksLikeTaxiRenderer(Renderer renderer, string combined)
+        {
+            if (ContainsAnyToken(combined, new[] { "delivery", "truck", "flatbed", "freight", "vanbody", "body_van", "van_body" }))
+                return false;
+
+            if (ContainsAnyToken(combined, TaxiAllowTokens))
+            {
+                LogTaxiDiagnosticSample(renderer, null, combined, "renderer-token");
+                return true;
+            }
+
+            if (ContainsAnyToken(combined, new[] { "cab" }) && HasLikelyYellowPaint(renderer))
+            {
+                LogTaxiDiagnosticSample(renderer, null, combined, "yellow-cab-renderer");
+                return true;
+            }
+
+
+            return false;
+        }
+
+        private static bool IsLikelyTaxiSlot(Renderer renderer, Material material, string slotText)
+        {
+            if (ContainsAnyToken(slotText, new[] { "delivery", "truck", "flatbed", "freight", "vanbody", "body_van", "van_body" }))
+                return false;
+
+            if (ContainsAnyToken(slotText, TaxiAllowTokens))
+                return true;
+
+            if (ContainsAnyToken(slotText, new[] { "cab" }) && HasLikelyYellowPaint(material))
+                return true;
+
+            if (HasLikelyYellowPaint(material) && ContainsAnyToken(slotText, new[] { "car", "vehicle", "traffic", "saloon", "sedan" }))
+                return true;
+
+            return false;
+        }
+
+        private static bool HasLikelyYellowPaint(Renderer renderer)
+        {
+            Material[] materials;
+            try
+            {
+                materials = renderer.sharedMaterials;
+            }
+            catch
+            {
+                return false;
+            }
+
+            for (var index = 0; index < materials.Length; index++)
+            {
+                if (HasLikelyYellowPaint(materials[index]))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool HasLikelyYellowPaint(Material? material)
+        {
+            if (material == null)
+                return false;
+
+            var materialName = material.name ?? string.Empty;
+            if (ContainsAnyToken(materialName, new[] { "yellow", "taxi", "taxicab", "yellowcab" }))
+                return true;
+
+            for (var index = 0; index < CandidateColorPropertyIds.Length; index++)
+            {
+                var propertyId = CandidateColorPropertyIds[index];
+                if (!material.HasProperty(propertyId))
+                    continue;
+
+                try
+                {
+                    if (IsLikelyTaxiYellow(material.GetColor(propertyId)))
+                        return true;
+                }
+                catch
+                {
+                    // Ignore unsupported color reads.
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsLikelyTaxiYellow(Color color)
+        {
+            return color.r >= 0.65f && color.g >= 0.45f && color.b <= 0.35f && color.r >= color.g * 0.85f;
+        }
+
+        private static void LogTaxiDiagnosticSample(Renderer renderer, Material? material, string text, string reason)
+        {
+            if (taxiDiagnosticSamples >= MaxTaxiDiagnosticSamples)
+                return;
+
+            taxiDiagnosticSamples++;
+            PinkFileLogger.Info(
+                $"TAXI_DIAG {taxiDiagnosticSamples}/{MaxTaxiDiagnosticSamples}: reason={reason}, " +
+                $"rendererPath={GetPath(renderer.transform, 8)}, renderer={renderer.name}, " +
+                $"material={(material == null ? "<shared-scan>" : material.name)}, text={text}");
+        }
+
+        private static void LogTrafficLightDiagnosticSample(Renderer renderer, Material material, string text)
+        {
+            if (trafficLightDiagnosticSamples >= MaxTrafficLightDiagnosticSamples)
+                return;
+
+            trafficLightDiagnosticSamples++;
+            PinkFileLogger.Info(
+                $"TRAFFICLIGHT_DIAG {trafficLightDiagnosticSamples}/{MaxTrafficLightDiagnosticSamples}: " +
+                $"rendererPath={GetPath(renderer.transform, 8)}, renderer={renderer.name}, parent={(renderer.transform.parent == null ? "<null>" : renderer.transform.parent.name)}, " +
+                $"material={material.name}, text={text}");
+        }
+
         private static bool ShouldSkipWholeVehicleRenderer(Renderer renderer)
         {
             var name = renderer.name;
@@ -925,10 +1254,12 @@ namespace Pink
             var materialName = material.name ?? string.Empty;
             var slotText = rendererName + " " + parentName + " " + materialName;
 
-            if (ContainsAnyToken(slotText, TaxiAllowTokens))
+            if (IsLikelyTaxiSlot(renderer, material, slotText))
             {
-                // Taxis are often named YellowCab/TaxiCab. The normal cab/cabin deny exists for delivery trucks,
-                // but would also block taxi bodies. Keep all other vehicle deny tokens.
+                LogTaxiDiagnosticSample(renderer, material, slotText, "tint");
+
+                // Taxis are often named YellowCab/TaxiCab/CabBody or only expose a yellow cab material.
+                // The normal cab/cabin deny exists for delivery trucks, but would also block taxi bodies.
                 if (ContainsAnyToken(slotText, VehicleDenyTokensWithoutCab))
                     return false;
 
