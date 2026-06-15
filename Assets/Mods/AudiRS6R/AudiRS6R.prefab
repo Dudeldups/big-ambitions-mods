@@ -1,6 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
-# RS6R prefab rework — see inline # RS6R fix comments at each changed Transform / wheel.visual.
 --- !u!1 &546965321206246
 GameObject:
   m_ObjectHideFlags: 0
@@ -7365,7 +7364,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: WheelMeshFR Y180 — corrects front-right tyre mesh facing after pivot reset.
 --- !u!4 &6349768545827397264
 Transform:
   m_ObjectHideFlags: 0
@@ -11868,7 +11866,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: 3DWheel Front R — removes ~1 deg tilt and 0.95 scale that inclined the body.
 --- !u!4 &305066114996868156
 Transform:
   m_ObjectHideFlags: 0
@@ -15110,7 +15107,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: WheelMeshRR Y180 — corrects rear-right tyre mesh facing after pivot reset.
 --- !u!4 &8714862657579407571
 Transform:
   m_ObjectHideFlags: 0
@@ -16281,8 +16277,8 @@ MonoBehaviour:
   driverAnimator: {fileID: 0}
   washDuration: {x: 3, y: 4}
   washAudioSource: {fileID: 1074512470899048824}
-  washSoundLoop: {fileID: 8300000, guid: 032beeccf36f8be40983adbb76123d01, type: 3}
-  washSoundEnd: {fileID: 8300000, guid: b7d635cb5052be84e9174e40430940c2, type: 3}
+  washSoundLoop: {fileID: 8300000, guid: 7ee76d1b2ed0d21439cb83b2e65dc2f8, type: 3}
+  washSoundEnd: {fileID: 8300000, guid: c46893eb4eb22fe4fad4703f2ce50c98, type: 3}
 --- !u!114 &167550288057349501
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16313,7 +16309,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 14300
+    maxTorque: 22000
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.1
@@ -17795,7 +17791,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: Colliders Y+0.055 — aligns physics collider height with corrected body stance.
 --- !u!4 &8120936231790416447
 Transform:
   m_ObjectHideFlags: 0
@@ -17805,7 +17800,7 @@ Transform:
   m_GameObject: {fileID: 3942621424439436342}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.055, z: 0}
+  m_LocalPosition: {x: 0, y: 0.235, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -18272,7 +18267,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: FrontLeft_WheelController — strut mount Y=0.47 (Honza ref); prevents body floating on enter.
 --- !u!4 &4434426067094138717
 Transform:
   m_ObjectHideFlags: 0
@@ -18282,7 +18276,7 @@ Transform:
   m_GameObject: {fileID: 4106372074478100133}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000021855694, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.69444996, y: 0.47, z: 1.4604352}
+  m_LocalPosition: {x: -0.69444996, y: 0.51, z: 1.4604352}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -19068,7 +19062,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: FrontRight_WheelController — strut mount + X/Z aligned to 3DWheel Front R pivot.
 --- !u!4 &1993374699489778516
 Transform:
   m_ObjectHideFlags: 0
@@ -19078,7 +19071,7 @@ Transform:
   m_GameObject: {fileID: 4435337005592736106}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000021855694, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.69444996, y: 0.47, z: 1.4604352}
+  m_LocalPosition: {x: 0.69444996, y: 0.51, z: 1.4604352}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -20451,7 +20444,7 @@ Transform:
   m_GameObject: {fileID: 4941002883087958202}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.18, z: 0}
   m_LocalScale: {x: 0.95, y: 0.95000017, z: 0.95000017}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -22150,7 +22143,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: 3DWheel Rear L — removes ~1 deg tilt and 0.95 scale that inclined the body.
 --- !u!4 &6544827464455887676
 Transform:
   m_ObjectHideFlags: 0
@@ -23209,7 +23201,7 @@ Transform:
   m_GameObject: {fileID: 6077871272308408183}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.18, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -25067,7 +25059,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: 3DWheel Front L — removes ~1 deg tilt and 0.95 scale that inclined the body.
 --- !u!4 &3577845956395394275
 Transform:
   m_ObjectHideFlags: 0
@@ -25851,7 +25842,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: RearRight_WheelController — strut mount Y=0.47; prevents body floating on enter.
 --- !u!4 &4325209142225634666
 Transform:
   m_ObjectHideFlags: 0
@@ -25861,7 +25851,7 @@ Transform:
   m_GameObject: {fileID: 6952769880586502863}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000021855694, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.68685, y: 0.47, z: -1.3216401}
+  m_LocalPosition: {x: 0.68685, y: 0.51, z: -1.3216401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -25924,7 +25914,6 @@ MonoBehaviour:
     reboundDivisionVelocity: 0.05
     force: 0
   wheel:
-# RS6R fix: RearRight visual → 3DWheel Rear R pivot (was WheelMeshRR); NWH moves correct assembly on enter.
     visual: {fileID: 8282834880677866698}
     visualTransform: {fileID: 0}
     colliderGO: {fileID: 0}
@@ -26596,7 +26585,7 @@ MeshCollider:
   serializedVersion: 5
   m_Convex: 1
   m_CookingOptions: 30
-  m_Mesh: {fileID: -4209182782497736992, guid: b89f0d4d3411c6b48ae1f2fb4e436b3f, type: 3}
+  m_Mesh: {fileID: -4209182782497736992, guid: 2e5de3e501118a6489219c1b34b21baa, type: 3}
 --- !u!1 &7301647037726199894
 GameObject:
   m_ObjectHideFlags: 0
@@ -29579,7 +29568,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: 3DWheel Rear R — removes ~1 deg tilt and 0.95 scale that inclined the body.
 --- !u!4 &8884784881427335126
 Transform:
   m_ObjectHideFlags: 0
@@ -31274,7 +31262,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
-# RS6R fix: RearLeft_WheelController — strut mount Y=0.47; prevents body floating on enter.
 --- !u!4 &1460031630456120675
 Transform:
   m_ObjectHideFlags: 0
@@ -31284,7 +31271,7 @@ Transform:
   m_GameObject: {fileID: 8894368288977902743}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000021855694, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.68685, y: 0.47, z: -1.3216401}
+  m_LocalPosition: {x: -0.68685, y: 0.51, z: -1.3216401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -31347,7 +31334,6 @@ MonoBehaviour:
     reboundDivisionVelocity: 0.05
     force: 0
   wheel:
-# RS6R fix: RearLeft visual → 3DWheel Rear L pivot (was WheelMeshRL); NWH moves correct assembly on enter.
     visual: {fileID: 5643296115530995866}
     visualTransform: {fileID: 0}
     colliderGO: {fileID: 0}
