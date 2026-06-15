@@ -16,8 +16,8 @@ namespace BigHax
         private static readonly Type? CustomerEntriesHelperType = FindType("AI.Customers.CustomerEntries.CustomerEntriesHelper");
         private static readonly MethodInfo? UpdateAllCustomerEntriesMethod =
             CustomerEntriesHelperType?.GetMethod("UpdateCustomerEntriesForAllPlayerBusinesses", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        private static readonly MethodInfo? GetBusinessCustomerEntriesMethod =
-            CustomerEntriesHelperType?.GetMethod("GetBusinessCustomerEntries", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly MethodInfo? GetEntriesByAddressMethod =
+            CustomerEntriesHelperType?.GetMethod("GetEntriesByAddress", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly MethodInfo? ShouldEntriesBeCreatedMethod =
             CustomerEntriesHelperType?.GetMethod("ShouldEntriesBeCreated", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
 
@@ -164,7 +164,7 @@ namespace BigHax
         private static bool CanUseCustomerEntries()
         {
             return UpdateAllCustomerEntriesMethod != null &&
-                   GetBusinessCustomerEntriesMethod != null &&
+                   GetEntriesByAddressMethod != null &&
                    CustomerEntrySpawnTimeField != null &&
                    CustomerEntryCompletedField != null &&
                    CustomerEntryOrderField != null &&
@@ -302,12 +302,12 @@ namespace BigHax
 
         private static IList? GetBusinessCustomerEntries(BuildingRegistration registration)
         {
-            if (GetBusinessCustomerEntriesMethod == null)
+            if (GetEntriesByAddressMethod == null)
                 return null;
 
             try
             {
-                return GetBusinessCustomerEntriesMethod.Invoke(null, new object[] { registration }) as IList;
+                return GetEntriesByAddressMethod.Invoke(null, new object[] { registration.Address }) as IList;
             }
             catch
             {
