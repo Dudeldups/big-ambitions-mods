@@ -7,7 +7,7 @@ namespace Pink
 {
     internal static partial class PinkRuntime
     {
-        private const float ExplicitUiPinkStrength = 0.22f;
+        private const float ExplicitUiPinkStrength = 0.32f;
         private static readonly Color ExplicitUiPink = new Color(0.62f, 0.08f, 0.38f, 1f);
         private static readonly Dictionary<int, ExplicitUiGraphicSnapshot> ExplicitUiPatchedGraphics = new Dictionary<int, ExplicitUiGraphicSnapshot>();
 
