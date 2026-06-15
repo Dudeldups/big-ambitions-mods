@@ -12,7 +12,7 @@ namespace Pink
     public sealed class PinkCityMod : IModBigAmbitions
     {
         // Set this to false for the release build. The logger file/class can stay in the mod.
-        private const bool EnableDebugLogging = true;
+        private const bool EnableDebugLogging = false;
 
         // Keep false by default. Turn on only if you need every renderer/material decision in the log.
         private const bool EnableVerbosePatchLogging = false;

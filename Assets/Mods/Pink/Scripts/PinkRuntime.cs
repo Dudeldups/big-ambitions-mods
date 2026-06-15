@@ -192,7 +192,7 @@ namespace Pink
             PinkFileLogger.Initialize(modId, modLogger, enableDebugLogging, enableVerbosePatchLogging);
             PinkFileLogger.Info(
                 "PinkRuntime initialized. Renderer layer scan is disabled; scanning controller/tag candidates only. " +
-                "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict world-prop scan for hydrants, trash bins, darker mailboxes, and 50-percent tinted hotdog stands, dark-pink BikeRentalStand holders, LOADING_HUD_UI_V6 active: loading-screen, Topbar and body-only Objectives/BizPhone tint via explicit paths.",
+                "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict world-prop scan for hydrants, trash bins, darker mailboxes, and 50-percent tinted hotdog stands, dark-pink BikeRentalStand holders, LOADING_HUD_UI_V7 release: loading-screen, Topbar and body-only Objectives/BizPhone tint via explicit paths with stronger UI blend.",
                 alsoGameLog: true);
         }
 
