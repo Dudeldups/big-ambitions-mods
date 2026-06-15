@@ -11862,6 +11862,11 @@ GameObject:
   m_Component:
   - component: {fileID: 305066114996868156}
   m_Layer: 0
+  m_Name: 3DWheel Front R
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 # RS6R fix: 3DWheel Front R — removes ~1 deg tilt and 0.95 scale that inclined the body.
 --- !u!4 &305066114996868156
@@ -15099,6 +15104,11 @@ GameObject:
   - component: {fileID: 8521782774973393100}
   - component: {fileID: 6961828276924067310}
   m_Layer: 0
+  m_Name: WheelMeshRR
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 # RS6R fix: WheelMeshRR Y180 — corrects rear-right tyre mesh facing after pivot reset.
 --- !u!4 &8714862657579407571
@@ -17779,6 +17789,11 @@ GameObject:
   m_Component:
   - component: {fileID: 8120936231790416447}
   m_Layer: 12
+  m_Name: Colliders
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 # RS6R fix: Colliders Y+0.055 — aligns physics collider height with corrected body stance.
 --- !u!4 &8120936231790416447
@@ -18251,6 +18266,11 @@ GameObject:
   - component: {fileID: 4434426067094138717}
   - component: {fileID: 3593847142219981959}
   m_Layer: 0
+  m_Name: FrontLeft_WheelController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 # RS6R fix: FrontLeft_WheelController — strut mount Y=0.47 (Honza ref); prevents body floating on enter.
 --- !u!4 &4434426067094138717
@@ -19042,6 +19062,11 @@ GameObject:
   - component: {fileID: 1993374699489778516}
   - component: {fileID: 419384300758087357}
   m_Layer: 0
+  m_Name: FrontRight_WheelController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 # RS6R fix: FrontRight_WheelController — strut mount + X/Z aligned to 3DWheel Front R pivot.
 --- !u!4 &1993374699489778516
