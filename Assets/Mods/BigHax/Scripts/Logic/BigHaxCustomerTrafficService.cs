@@ -10,6 +10,8 @@ namespace BigHax
 {
     internal sealed class BigHaxCustomerTrafficService
     {
+        private const float AdditionalPromotionBoostPerMultiplierStep = 0.25f;
+
         private static readonly MethodInfo MemberwiseCloneMethod =
             typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
@@ -42,6 +44,7 @@ namespace BigHax
         private readonly Dictionary<string, int> lastAppliedCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         private bool hasAppliedCustomTraffic;
+        private float? originalBaseCustomerPromotionMultiplier;
         private int lastAppliedMultiplier = BigHaxSettings.DefaultCustomerTrafficMultiplier;
 
         public void InvalidateCache()
@@ -55,7 +58,7 @@ namespace BigHax
             var multiplier = Mathf.Max(BigHaxSettings.DefaultCustomerTrafficMultiplier, settings.CustomerTrafficMultiplier);
             if (multiplier <= BigHaxSettings.DefaultCustomerTrafficMultiplier)
             {
-                if (hasAppliedCustomTraffic || forceRefresh)
+                if (hasAppliedCustomTraffic)
                     RestoreVanillaTraffic(context);
 
                 hasAppliedCustomTraffic = false;
@@ -82,6 +85,7 @@ namespace BigHax
 
         private void RebuildAndApplyTraffic(ModContext? context, int multiplier)
         {
+            ApplyPromotionBoost(multiplier);
             UpdateAllCustomerEntries();
 
             lastAppliedEntryCounts.Clear();
@@ -124,6 +128,7 @@ namespace BigHax
 
         private void RestoreVanillaTraffic(ModContext? context)
         {
+            RestorePromotionBoost();
             UpdateAllCustomerEntries();
 
             foreach (var registration in GetPlayerBusinessRegistrations())
@@ -143,6 +148,9 @@ namespace BigHax
             if (!hasAppliedCustomTraffic || multiplier != lastAppliedMultiplier)
                 return false;
 
+            if (!IsPromotionBoostApplied(multiplier))
+                return false;
+
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
                 var key = GetRegistrationKey(registration);
@@ -159,6 +167,45 @@ namespace BigHax
             }
 
             return true;
+        }
+
+        private void ApplyPromotionBoost(int multiplier)
+        {
+            var gameVariables = SaveGameManager.Current?.gameVariables;
+            if (gameVariables == null)
+                return;
+
+            if (!originalBaseCustomerPromotionMultiplier.HasValue)
+                originalBaseCustomerPromotionMultiplier = gameVariables.baseCustomerPromotionMultiplier;
+
+            var targetMultiplier = 1f + (multiplier - BigHaxSettings.DefaultCustomerTrafficMultiplier) * AdditionalPromotionBoostPerMultiplierStep;
+            var targetValue = originalBaseCustomerPromotionMultiplier.Value * targetMultiplier;
+
+            if (!Mathf.Approximately(gameVariables.baseCustomerPromotionMultiplier, targetValue))
+                gameVariables.baseCustomerPromotionMultiplier = targetValue;
+        }
+
+        private void RestorePromotionBoost()
+        {
+            var gameVariables = SaveGameManager.Current?.gameVariables;
+            if (gameVariables == null || !originalBaseCustomerPromotionMultiplier.HasValue)
+                return;
+
+            gameVariables.baseCustomerPromotionMultiplier = originalBaseCustomerPromotionMultiplier.Value;
+        }
+
+        private bool IsPromotionBoostApplied(int multiplier)
+        {
+            var gameVariables = SaveGameManager.Current?.gameVariables;
+            if (gameVariables == null)
+                return false;
+
+            if (!originalBaseCustomerPromotionMultiplier.HasValue)
+                originalBaseCustomerPromotionMultiplier = gameVariables.baseCustomerPromotionMultiplier;
+
+            var targetMultiplier = 1f + (multiplier - BigHaxSettings.DefaultCustomerTrafficMultiplier) * AdditionalPromotionBoostPerMultiplierStep;
+            var targetValue = originalBaseCustomerPromotionMultiplier.Value * targetMultiplier;
+            return Mathf.Approximately(gameVariables.baseCustomerPromotionMultiplier, targetValue);
         }
 
         private static bool CanUseCustomerEntries()
