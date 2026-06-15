@@ -12,7 +12,7 @@ namespace Pink
     public sealed class PinkCityMod : IModBigAmbitions
     {
         // Set this to false for the release build. The logger file/class can stay in the mod.
-        private const bool EnableDebugLogging = false;
+        private const bool EnableDebugLogging = true;
 
         // Keep false by default. Turn on only if you need every renderer/material decision in the log.
         private const bool EnableVerbosePatchLogging = false;
@@ -68,12 +68,24 @@ namespace Pink
         private const float RetryIntervalSeconds = 6f;
         private const int StableScanThreshold = 1;
         private const int MaxScanPasses = 1;
+        private const float FirstLoadingUiScanDelaySeconds = 0.05f;
+        private const float LoadingUiScanIntervalSeconds = 0.35f;
+        private const int MaxLoadingUiScanPasses = 4;
+        private const float HudUiScanIntervalSeconds = 0.5f;
+        private const int MaxHudUiScanPasses = 4;
 
         private float elapsedSeconds;
         private float nextScanAtSeconds;
         private int stableScans;
         private int scanPasses;
         private bool stopped;
+        private bool loadingUiScanStopped;
+        private bool hudUiScanStopped;
+        private bool hudUiScanArmed;
+        private int loadingUiScanPasses;
+        private int hudUiScanPasses;
+        private float nextLoadingUiScanAtSeconds;
+        private float nextHudUiScanAtSeconds;
 
         internal void Initialize()
         {
@@ -82,6 +94,13 @@ namespace Pink
             stableScans = 0;
             scanPasses = 0;
             stopped = false;
+            loadingUiScanStopped = false;
+            hudUiScanStopped = false;
+            hudUiScanArmed = false;
+            loadingUiScanPasses = 0;
+            hudUiScanPasses = 0;
+            nextLoadingUiScanAtSeconds = FirstLoadingUiScanDelaySeconds;
+            nextHudUiScanAtSeconds = 0f;
 
             PinkFileLogger.Info(
                 $"Pink watcher initialized. firstDelay={FirstScanDelaySeconds:0.0}s interval={RetryIntervalSeconds:0.0}s maxPasses={MaxScanPasses} stableThreshold={StableScanThreshold}",
@@ -90,16 +109,46 @@ namespace Pink
 
         private void Update()
         {
+            elapsedSeconds += Time.unscaledDeltaTime;
+
+            if (!loadingUiScanStopped && elapsedSeconds >= nextLoadingUiScanAtSeconds)
+            {
+                loadingUiScanPasses++;
+                PinkRuntime.ApplyLoadingUiTintPass();
+
+                if (loadingUiScanPasses >= MaxLoadingUiScanPasses)
+                    loadingUiScanStopped = true;
+                else
+                    nextLoadingUiScanAtSeconds = elapsedSeconds + LoadingUiScanIntervalSeconds;
+            }
+
+            if (hudUiScanArmed && !hudUiScanStopped && elapsedSeconds >= nextHudUiScanAtSeconds)
+            {
+                hudUiScanPasses++;
+                PinkRuntime.ApplyMainHudUiTintPass();
+
+                if (hudUiScanPasses >= MaxHudUiScanPasses)
+                    hudUiScanStopped = true;
+                else
+                    nextHudUiScanAtSeconds = elapsedSeconds + HudUiScanIntervalSeconds;
+            }
+
             if (stopped)
                 return;
 
-            elapsedSeconds += Time.unscaledDeltaTime;
             if (elapsedSeconds < nextScanAtSeconds)
                 return;
 
             scanPasses++;
             var result = PinkRuntime.ApplyPinkPass(scanPasses);
             nextScanAtSeconds = elapsedSeconds + RetryIntervalSeconds;
+
+            if (!hudUiScanArmed)
+            {
+                hudUiScanArmed = true;
+                hudUiScanPasses = 0;
+                nextHudUiScanAtSeconds = elapsedSeconds;
+            }
 
             if (!result.Ready)
                 return;
