@@ -64,10 +64,10 @@ namespace Pink
 
     internal sealed class PinkWatcher : MonoBehaviour
     {
-        private const float FirstScanDelaySeconds = 8f;
-        private const float RetryIntervalSeconds = 6f;
-        private const int StableScanThreshold = 1;
-        private const int MaxScanPasses = 1;
+        private const float FirstScanDelaySeconds = 0.05f;
+        private const float RetryIntervalSeconds = 0.75f;
+        private const int StableScanThreshold = 2;
+        private const int MaxScanPasses = 6;
         private const float FirstLoadingUiScanDelaySeconds = 0.05f;
         private const float LoadingUiScanIntervalSeconds = 0.35f;
         private const int MaxLoadingUiScanPasses = 4;
