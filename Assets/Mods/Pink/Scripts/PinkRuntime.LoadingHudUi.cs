@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,7 +9,10 @@ namespace Pink
     internal static partial class PinkRuntime
     {
         private const float ExplicitUiPinkStrength = 0.32f;
+        private const float TopbarUiPinkStrength = 0.55f;
         private static readonly Color ExplicitUiPink = new Color(0.62f, 0.08f, 0.38f, 1f);
+        private static readonly Color HeaderHotPink = new Color(1f, 0.76f, 0.93f, 1f);
+        private static readonly Color HeaderDarkText = new Color(0.06f, 0.07f, 0.09f, 1f);
         private static readonly Dictionary<int, ExplicitUiGraphicSnapshot> ExplicitUiPatchedGraphics = new Dictionary<int, ExplicitUiGraphicSnapshot>();
 
         internal static int ApplyLoadingUiTintPass()
@@ -25,51 +29,70 @@ namespace Pink
             var foundMainBarTargets = 0;
             var foundTaskTargets = 0;
             var foundSmartphoneTargets = 0;
+            var foundHeaderTargets = 0;
 
-            // The visible HUD chrome is mostly white-tinted sprite imagery, not dark Image.color values.
-            // These targets came from TOPBAR_DIAG_V2.
-            if (TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar", out _))
+            // Stronger tint for the visible topbar chrome. These are white-tinted sprites,
+            // so a stronger blend is needed than for normal dark panels.
+            if (TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar", TopbarUiPinkStrength, out _))
                 foundMainBarTargets++;
 
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/Avatar", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/Avatar/DanceButton/Background", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/Avatar/AccessoriesButton", out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/Avatar", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/Avatar/DanceButton/Background", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/Avatar/AccessoriesButton", TopbarUiPinkStrength, out _);
 
-            // Keep stat backgrounds as secondary targets. They are mostly hidden behind the colored fillers,
-            // but still useful when a bar is not full.
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/PlayerStats/Hunger", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/PlayerStats/Energy", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/PlayerStats/Happiness", out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/PlayerStats/Hunger", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/PlayerStats/Energy", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Left Bar/PlayerStats/Happiness", TopbarUiPinkStrength, out _);
 
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/NotificationsButton", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/HelpButton", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/ReportBugButton", out _);
-            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/SettingsButton", out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/NotificationsButton", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/HelpButton", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/ReportBugButton", TopbarUiPinkStrength, out _);
+            TryTintExplicitUiGraphic("Canvases", "Topbar/Container/Buttons/SettingsButton", TopbarUiPinkStrength, out _);
 
-            // Objectives/tasks panel. The F9 log showed Canvases/Tasks labels/icons; the actual visible
-            // panel chrome is likely a white-tinted sprite like the topbar, so target the panel containers,
-            // not labels/icons.
-            // Objectives/tasks body only. Do NOT tint Tasks/.../Headline: the header is intended to stay bright.
+            // Objectives/tasks: body stays subtly tinted, headline background becomes hot pink.
             if (TryTintExplicitUiGraphic("Canvases", "Tasks/Container/Panel", out _))
                 foundTaskTargets++;
             TryTintExplicitUiGraphic("Canvases", "Tasks/ExpandButton/Background", out _);
+            if (TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline", HeaderHotPink, out _))
+                foundHeaderTargets++;
+            TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline/Label", HeaderDarkText, out _);
+            TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline/Icon", HeaderDarkText, out _);
 
-            // BizPhone / smartphone body only. Do NOT tint Smartphone/.../Headline: the header is intended to stay bright.
+            // BizPhone / smartphone: body stays subtly tinted, headline background becomes hot pink.
             if (TryTintExplicitUiGraphic("Canvases", "Smartphone/Container/Phone", out _))
                 foundSmartphoneTargets++;
             TryTintExplicitUiGraphic("Canvases", "Smartphone/Container/Phone/Radio", out _);
             TryTintExplicitUiGraphic("Canvases", "Smartphone/Container/Phone/Radio/Splitter", out _);
+            if (TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline", HeaderHotPink, out _))
+                foundHeaderTargets++;
+            TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline/Title", HeaderDarkText, out _);
+            TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline/Icon", HeaderDarkText, out _);
 
-            PinkFileLogger.Info($"MAIN_HUD_UI_TINT_PASS foundMainBarTargets={foundMainBarTargets}/1 foundTaskTargets={foundTaskTargets}/1 foundSmartphoneTargets={foundSmartphoneTargets}/1");
+            PinkFileLogger.Info($"MAIN_HUD_UI_TINT_PASS foundMainBarTargets={foundMainBarTargets}/1 foundTaskTargets={foundTaskTargets}/1 foundSmartphoneTargets={foundSmartphoneTargets}/1 foundHeaderTargets={foundHeaderTargets}/2");
             return foundMainBarTargets >= 1;
         }
 
         private static int TryTintExplicitUiGraphic(string rootName, string relativePath)
         {
-            return TryTintExplicitUiGraphic(rootName, relativePath, out _) ? 1 : 0;
+            return TryTintExplicitUiGraphic(rootName, relativePath, ExplicitUiPinkStrength, out _) ? 1 : 0;
         }
 
         private static bool TryTintExplicitUiGraphic(string rootName, string relativePath, out bool patched)
+        {
+            return TryTintExplicitUiGraphic(rootName, relativePath, ExplicitUiPinkStrength, out patched);
+        }
+
+        private static bool TryTintExplicitUiGraphic(string rootName, string relativePath, float strength, out bool patched)
+        {
+            return TryApplyExplicitUiGraphicColor(rootName, relativePath, original => BlendExplicitUiColor(original, strength), out patched);
+        }
+
+        private static bool TrySetExplicitUiGraphicColor(string rootName, string relativePath, Color color, out bool patched)
+        {
+            return TryApplyExplicitUiGraphicColor(rootName, relativePath, original => new Color(color.r, color.g, color.b, original.a), out patched);
+        }
+
+        private static bool TryApplyExplicitUiGraphicColor(string rootName, string relativePath, Func<Color, Color> colorMapper, out bool patched)
         {
             patched = false;
 
@@ -104,22 +127,24 @@ namespace Pink
             var id = graphic.GetInstanceID();
             if (ExplicitUiPatchedGraphics.TryGetValue(id, out var existingSnapshot))
             {
-                // Vanilla can overwrite UI colors after we set them. Re-apply from the original snapshot.
-                graphic.color = BlendExplicitUiColor(existingSnapshot.OriginalColor);
+                // Vanilla can overwrite UI colors after we set them. Re-apply the selected target color.
+                graphic.color = existingSnapshot.PatchedColor;
                 return true;
             }
 
-            ExplicitUiPatchedGraphics[id] = new ExplicitUiGraphicSnapshot(graphic, graphic.color);
-            graphic.color = BlendExplicitUiColor(graphic.color);
+            var originalColor = graphic.color;
+            var patchedColor = colorMapper(originalColor);
+            ExplicitUiPatchedGraphics[id] = new ExplicitUiGraphicSnapshot(graphic, originalColor, patchedColor);
+            graphic.color = patchedColor;
             PinkFileLogger.Info($"EXPLICIT_UI_TINT patched path={fullPath}, graphic={graphic.GetType().Name}, name={graphic.name}");
             patched = true;
             return true;
         }
 
-        private static Color BlendExplicitUiColor(Color original)
+        private static Color BlendExplicitUiColor(Color original, float strength)
         {
             var target = new Color(ExplicitUiPink.r, ExplicitUiPink.g, ExplicitUiPink.b, original.a);
-            var blended = Color.Lerp(original, target, ExplicitUiPinkStrength);
+            var blended = Color.Lerp(original, target, strength);
             blended.a = original.a;
             return blended;
         }
@@ -147,14 +172,16 @@ namespace Pink
 
         private readonly struct ExplicitUiGraphicSnapshot
         {
-            internal ExplicitUiGraphicSnapshot(Graphic graphic, Color originalColor)
+            internal ExplicitUiGraphicSnapshot(Graphic graphic, Color originalColor, Color patchedColor)
             {
                 Graphic = graphic;
                 OriginalColor = originalColor;
+                PatchedColor = patchedColor;
             }
 
             internal Graphic Graphic { get; }
             internal Color OriginalColor { get; }
+            internal Color PatchedColor { get; }
         }
     }
 }

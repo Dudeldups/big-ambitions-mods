@@ -171,6 +171,7 @@ namespace Pink
         private static readonly HashSet<int> ProcessedNpcRoots = new HashSet<int>();
         private static readonly HashSet<int> ProcessedVehicleRenderers = new HashSet<int>();
         private static readonly HashSet<int> ProcessedNpcRenderers = new HashSet<int>();
+        private static readonly HashSet<int> ProcessedPlayerRenderers = new HashSet<int>();
         private static readonly HashSet<int> ProcessedWorldPropRenderers = new HashSet<int>();
         private static readonly HashSet<int> SeenCandidateRoots = new HashSet<int>();
         private static readonly HashSet<int> LoggedRejectedRoots = new HashSet<int>();
@@ -185,6 +186,7 @@ namespace Pink
         internal static int CandidateRootCount => SeenCandidateRoots.Count;
         internal static int ProcessedVehicleRendererCount => ProcessedVehicleRenderers.Count;
         internal static int ProcessedNpcRendererCount => ProcessedNpcRenderers.Count;
+        internal static int ProcessedPlayerRendererCount => ProcessedPlayerRenderers.Count;
 
         internal static void Initialize(string modId, IModLogger? modLogger, bool enableDebugLogging, bool enableVerbosePatchLogging)
         {
@@ -192,17 +194,18 @@ namespace Pink
             PinkFileLogger.Initialize(modId, modLogger, enableDebugLogging, enableVerbosePatchLogging);
             PinkFileLogger.Info(
                 "PinkRuntime initialized. Renderer layer scan is disabled; scanning controller/tag candidates only. " +
-                "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict world-prop scan for hydrants, trash bins, darker mailboxes, and 50-percent tinted hotdog stands, dark-pink BikeRentalStand holders, LOADING_HUD_UI_V7 release: loading-screen, Topbar and body-only Objectives/BizPhone tint via explicit paths with stronger UI blend.",
+                "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict world-prop scan for hydrants, trash bins, darker mailboxes, and 50-percent tinted hotdog stands, dark-pink BikeRentalStand holders, PINKCITY_FINAL_V15 release: stronger UI, very light candy-pink headers, player Torso/Top texture tint, bike-stand/world/vehicle/NPC tint.",
                 alsoGameLog: true);
         }
 
         internal static void Reset()
         {
             ResetExplicitUiTintState();
+            ResetPlayerTextureState();
 
             PinkFileLogger.Info(
                 $"PinkRuntime reset. patchedMaterials={PatchedMaterials.Count} patchedRendererSlots={PatchedRendererSlots.Count} " +
-                $"processedVehicles={ProcessedVehicleRoots.Count} processedNpcs={ProcessedNpcRoots.Count} processedVehicleRenderers={ProcessedVehicleRenderers.Count} processedNpcRenderers={ProcessedNpcRenderers.Count} candidates={SeenCandidateRoots.Count}.",
+                $"processedVehicles={ProcessedVehicleRoots.Count} processedNpcs={ProcessedNpcRoots.Count} processedVehicleRenderers={ProcessedVehicleRenderers.Count} processedNpcRenderers={ProcessedNpcRenderers.Count} processedPlayerRenderers={ProcessedPlayerRenderers.Count} candidates={SeenCandidateRoots.Count}.",
                 alsoGameLog: true);
 
             PatchedMaterials.Clear();
@@ -211,6 +214,7 @@ namespace Pink
             ProcessedNpcRoots.Clear();
             ProcessedVehicleRenderers.Clear();
             ProcessedNpcRenderers.Clear();
+            ProcessedPlayerRenderers.Clear();
             ProcessedWorldPropRenderers.Clear();
             SeenCandidateRoots.Clear();
             LoggedRejectedRoots.Clear();
@@ -240,6 +244,7 @@ namespace Pink
             var newPatchCount = 0;
             var skippedAlreadyProcessed = 0;
             var passStart = Time.realtimeSinceStartup;
+            var playerUpperBodyPatches = 0;
 
             foreach (var root in EnumerateVehicleRoots())
             {
@@ -348,11 +353,15 @@ namespace Pink
                 newPatchCount += patched;
             }
 
+            playerUpperBodyPatches = TintPlayerUpperBodyIfAvailable();
+            newPatchCount += playerUpperBodyPatches;
+
             var elapsedMs = (Time.realtimeSinceStartup - passStart) * 1000f;
             PinkFileLogger.Info(
                 $"Pass {passIndex}: vehicleCandidates={foundVehicleCandidates}, vehicleRendererFallback={fallbackVehicleRenderers}, npcCandidates={foundNpcCandidates}, " +
                 $"newCandidates={newCandidateCount}, alreadyProcessed={skippedAlreadyProcessed}, newPatches={newPatchCount}, " +
                 $"vehicleRootPatches={vehicleRootPatches}, vehicleFallbackPatches={vehicleFallbackPatches}, npcPatches={npcPatches}, " +
+                $"playerUpperBodyPatches={playerUpperBodyPatches}, " +
                 $"npcRendererFallback={npcRendererFallback}, npcFallbackPatches={npcFallbackPatches}, " +
                 $"worldPropCandidates={worldPropCandidates}, worldPropPatches={worldPropPatches}, " +
                 $"totalMaterials={PatchedMaterials.Count}, totalRendererSlots={PatchedRendererSlots.Count}, elapsedMs={elapsedMs:0.0}");
@@ -366,6 +375,7 @@ namespace Pink
         internal static void Restore()
         {
             var restoredExplicitUiGraphics = RestoreExplicitUiTint();
+            var restoredPlayerTextures = RestorePlayerTextureOverrides();
             var restoredMaterialProperties = 0;
             foreach (var snapshot in PatchedMaterials.Values)
             {
@@ -393,7 +403,7 @@ namespace Pink
             }
 
             PinkFileLogger.Info(
-                $"Restore complete. restoredMaterialProperties={restoredMaterialProperties}, restoredRendererSlots={restoredRendererSlots}, restoredExplicitUiGraphics={restoredExplicitUiGraphics}.",
+                $"Restore complete. restoredMaterialProperties={restoredMaterialProperties}, restoredRendererSlots={restoredRendererSlots}, restoredExplicitUiGraphics={restoredExplicitUiGraphics}, restoredPlayerTextures={restoredPlayerTextures}.",
                 alsoGameLog: true);
         }
 
