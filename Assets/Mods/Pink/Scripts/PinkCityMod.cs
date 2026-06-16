@@ -11,7 +11,7 @@ namespace Pink
     [ModEntryOnCityLoad]
     public sealed class PinkCityMod : IModBigAmbitions
     {
-        private const bool EnableManualDebugMode = true;
+        internal const bool EnableManualDebugMode = true;
 
         // Set this to false for the release build. The logger file/class can stay in the mod.
         private const bool EnableDebugLogging = false;
