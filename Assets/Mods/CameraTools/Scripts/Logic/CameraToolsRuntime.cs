@@ -630,8 +630,7 @@ namespace CameraTools
             if (isIndoorSkySuppressed)
                 return;
 
-            mainCamera.clearFlags = CameraClearFlags.SolidColor;
-            mainCamera.backgroundColor = Color.black;
+            ApplyIndoorCameraRenderState(mainCamera);
             isIndoorSkySuppressed = true;
         }
 
@@ -644,6 +643,16 @@ namespace CameraTools
             }
 
             isIndoorSkySuppressed = false;
+        }
+
+        private static void ApplyIndoorCameraRenderState(Camera camera)
+        {
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = Color.black;
+
+            var skybox = camera.GetComponent<Skybox>();
+            if (skybox != null)
+                skybox.enabled = false;
         }
 
 
@@ -1094,6 +1103,7 @@ namespace CameraTools
             private readonly float fieldOfView;
             private readonly bool orthographic;
             private readonly float orthographicSize;
+            private readonly bool skyboxEnabled;
 
             public CameraState(Camera camera)
             {
@@ -1102,6 +1112,8 @@ namespace CameraTools
                 orthographic = camera.orthographic;
                 orthographicSize = camera.orthographicSize;
                 fieldOfView = camera.fieldOfView;
+                var skybox = camera.GetComponent<Skybox>();
+                skyboxEnabled = skybox != null && skybox.enabled;
             }
 
             public void Restore(Camera camera)
@@ -1111,6 +1123,9 @@ namespace CameraTools
                 camera.orthographic = orthographic;
                 camera.orthographicSize = orthographicSize;
                 camera.fieldOfView = fieldOfView;
+                var skybox = camera.GetComponent<Skybox>();
+                if (skybox != null)
+                    skybox.enabled = skyboxEnabled;
             }
         }
 
