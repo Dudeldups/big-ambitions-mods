@@ -28,6 +28,8 @@ namespace CameraTools
 
         public bool EnableVehicleDebugOverlay { get; set; } = false;
 
+        public bool EnableIndoorCameraDebugLogging { get; set; } = true;
+
         public bool EnableMapTopDown { get; set; } = true;
 
         public int MapPitch { get; set; } = 90;

@@ -195,6 +195,8 @@ namespace CameraTools
         private Camera? activeMapRenderCamera;
         private CameraState activeMapRenderCameraState;
         private Transform? activeMapVcamTransform;
+        private Camera? activeIndoorRenderCamera;
+        private CameraState activeIndoorRenderCameraState;
         private Component? activeVehicleCameraRoot;
         private Component[]? cachedVehicleCameras;
         private readonly Dictionary<int, Vector3> cachedVehicleFollowOffsets = new Dictionary<int, Vector3>();
@@ -212,6 +214,7 @@ namespace CameraTools
         private bool hasManualVehiclePitch;
         private bool hasManualVehicleYaw;
         private bool hasShownGameplayPitchHint;
+        private bool isIndoorSkySuppressed;
         private bool isUiHidden;
         private bool isGameplayUiBlocked;
         private bool isTrackingMapRightMousePitch;
@@ -253,6 +256,7 @@ namespace CameraTools
         private string lastMapApplyLogSummary = string.Empty;
         private string lastMapLifecycleLogSummary = string.Empty;
         private string lastMapDebugLogSummary = string.Empty;
+        private string lastIndoorCameraLogSignature = string.Empty;
         private VehicleDebugState vehicleDebug = new VehicleDebugState();
         private VehicleTarget? vehicleTarget;
         private MonoBehaviour? cachedDialogUiController;
@@ -306,6 +310,7 @@ namespace CameraTools
             runtime.hasManualVehiclePitch = false;
             runtime.hasManualVehicleYaw = false;
             runtime.hasShownGameplayPitchHint = false;
+            runtime.isIndoorSkySuppressed = false;
             runtime.isUiHidden = false;
             runtime.isTrackingMapRightMousePitch = false;
             runtime.isTrackingRightMousePitch = false;
@@ -345,6 +350,7 @@ namespace CameraTools
             runtime.lastMapApplyLogSummary = string.Empty;
             runtime.lastMapLifecycleLogSummary = string.Empty;
             runtime.lastMapDebugLogSummary = string.Empty;
+            runtime.lastIndoorCameraLogSignature = string.Empty;
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
 
@@ -370,6 +376,7 @@ namespace CameraTools
         {
             RestoreScenicView();
             RestoreHiddenUi();
+            RestoreIndoorCameraState();
             RestoreMapCameraState();
             LogVehicleDebug("CameraTools runtime shutting down.");
             Destroy(gameObject);
@@ -403,6 +410,8 @@ namespace CameraTools
             RefreshHiddenUiState();
             HandleVehicleDebugHotkeys();
             var gameplayActive = IsGameplayActive();
+            HandleIndoorCameraDebugHotkey(cityMapOpen, gameplayActive);
+            UpdateIndoorCameraState(cityMapOpen, gameplayActive);
 
             if (!cityMapOpen)
                 ApplyGameplayTweaks();
@@ -418,6 +427,17 @@ namespace CameraTools
 
         private void EnsureControllers(bool cityMapOpen)
         {
+            if (!cityMapOpen)
+            {
+                var liveGameplayController = ResolveLiveGameplayController();
+                if (liveGameplayController != null && gameplayController != liveGameplayController)
+                {
+                    gameplayController = liveGameplayController;
+                    if (gameplayController != configuredGameplayController)
+                        configuredGameplayController = null;
+                }
+            }
+
             if (gameplayController == null || !gameplayController.isActiveAndEnabled)
             {
                 gameplayController = FindFirstActiveController(pedestrianCamType, includeInactive: false);
@@ -454,6 +474,15 @@ namespace CameraTools
                     FindFirstActiveController(gameManagerType, includeInactive: true);
                 InvalidateVehicleCameraCaches();
             }
+        }
+
+        private MonoBehaviour? ResolveLiveGameplayController()
+        {
+            var liveVirtualCamera = GetLiveVirtualCameraComponent();
+            if (liveVirtualCamera == null || pedestrianCamType == null)
+                return null;
+
+            return liveVirtualCamera.GetComponent(pedestrianCamType) as MonoBehaviour;
         }
 
         private static MonoBehaviour? FindFirstActiveController(Type? type, bool includeInactive)
@@ -564,6 +593,59 @@ namespace CameraTools
             CameraToolsFileLogger.Log(message);
         }
 
+        private static void LogIndoorCameraDebug(string message)
+        {
+            CameraToolsFileLogger.Log("indoor-camera-debug.log", "cameratools-indoor-camera-debug.log", message);
+        }
+
+        private void UpdateIndoorCameraState(bool cityMapOpen, bool gameplayActive)
+        {
+            if (cityMapOpen || !gameplayActive)
+            {
+                RestoreIndoorCameraState();
+                return;
+            }
+
+            var liveVirtualCamera = GetLiveVirtualCameraComponent();
+            if (!IsIndoorGameplayCamera(liveVirtualCamera))
+            {
+                RestoreIndoorCameraState();
+                return;
+            }
+
+            var mainCamera = GetLiveMainCamera();
+            if (mainCamera == null)
+            {
+                RestoreIndoorCameraState();
+                return;
+            }
+
+            if (activeIndoorRenderCamera != mainCamera)
+            {
+                RestoreIndoorCameraState();
+                activeIndoorRenderCamera = mainCamera;
+                activeIndoorRenderCameraState = new CameraState(mainCamera);
+            }
+
+            if (isIndoorSkySuppressed)
+                return;
+
+            mainCamera.clearFlags = CameraClearFlags.SolidColor;
+            mainCamera.backgroundColor = Color.black;
+            isIndoorSkySuppressed = true;
+        }
+
+        private void RestoreIndoorCameraState()
+        {
+            if (activeIndoorRenderCamera != null)
+            {
+                activeIndoorRenderCameraState.Restore(activeIndoorRenderCamera);
+                activeIndoorRenderCamera = null;
+            }
+
+            isIndoorSkySuppressed = false;
+        }
+
 
         private static Array? GetCinemachinePipeline(Type virtualCameraType, object virtualCamera)
         {
@@ -619,6 +701,140 @@ namespace CameraTools
 
             var isOpenProperty = cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
             return isOpenProperty?.GetValue(null) as bool? ?? false;
+        }
+
+        private void HandleIndoorCameraDebugHotkey(bool cityMapOpen, bool gameplayActive)
+        {
+            if (settings == null || !settings.EnableIndoorCameraDebugLogging)
+                return;
+
+            if (!cityMapOpen && gameplayActive)
+                MaybeLogIndoorCameraState();
+
+            if (Input.GetKeyDown(KeyCode.F4))
+                DumpIndoorCameraDiagnostics("manual");
+        }
+
+        private void MaybeLogIndoorCameraState()
+        {
+            var liveVirtualCamera = GetLiveVirtualCameraComponent();
+            if (liveVirtualCamera == null)
+                return;
+
+            var path = GetHierarchyPath(liveVirtualCamera.transform);
+            if (IsVehicleLikeCameraPath(path))
+                return;
+
+            var signature =
+                path + "|" +
+                liveVirtualCamera.GetType().FullName + "|" +
+                (gameplayController == null ? "none" : GetHierarchyPath(gameplayController.transform));
+            if (string.Equals(signature, lastIndoorCameraLogSignature, StringComparison.Ordinal))
+                return;
+
+            lastIndoorCameraLogSignature = signature;
+            DumpIndoorCameraDiagnostics("active-camera-changed");
+        }
+
+        private void DumpIndoorCameraDiagnostics(string reason)
+        {
+            if (settings == null || !settings.EnableIndoorCameraDebugLogging)
+                return;
+
+            var liveVirtualCamera = GetLiveVirtualCameraComponent();
+            LogIndoorCameraDebug("=== Indoor camera diagnostics start ===");
+            LogIndoorCameraDebug($"reason={reason}, gameplayActive={IsGameplayActive()}, cityMapOpen={IsCityMapOpen()}, liveVcam={(liveVirtualCamera == null ? "none" : GetHierarchyPath(liveVirtualCamera.transform))}");
+
+            if (gameplayController != null)
+            {
+                LogIndoorCameraDebug(
+                    $"gameplayController: type={gameplayController.GetType().FullName}, path={GetHierarchyPath(gameplayController.transform)}, enabled={gameplayController.isActiveAndEnabled}");
+            }
+            else
+            {
+                LogIndoorCameraDebug("gameplayController: none");
+            }
+
+            var mainCamera = Camera.main;
+            if (mainCamera != null)
+            {
+                LogIndoorCameraDebug(
+                    $"Camera.main: path={GetHierarchyPath(mainCamera.transform)}, enabled={mainCamera.enabled}, fov={mainCamera.fieldOfView:0.##}");
+            }
+            else
+            {
+                LogIndoorCameraDebug("Camera.main: none");
+            }
+
+            if (liveVirtualCamera == null)
+            {
+                LogIndoorCameraDebug("No live Cinemachine virtual camera was resolved.");
+                LogIndoorCameraDebug("=== Indoor camera diagnostics end ===");
+                return;
+            }
+
+            LogIndoorVirtualCameraDetails(liveVirtualCamera);
+            LogIndoorCameraDebug("=== Indoor camera diagnostics end ===");
+        }
+
+        private void LogIndoorVirtualCameraDetails(Component liveVirtualCamera)
+        {
+            var follow = TryGetMemberValue(liveVirtualCamera, "Follow", out var followValue) ? followValue : null;
+            var lookAt = TryGetMemberValue(liveVirtualCamera, "LookAt", out var lookAtValue) ? lookAtValue : null;
+            var priority = TryGetMemberValue(liveVirtualCamera, "Priority", out var priorityValue) ? priorityValue : null;
+            LogIndoorCameraDebug(
+                $"Live VCAM: type={liveVirtualCamera.GetType().FullName}, path={GetHierarchyPath(liveVirtualCamera.transform)}, enabled={FormatEnabled(liveVirtualCamera)}, " +
+                $"priority={FormatMemberValue(priority)}, follow={FormatMemberValue(follow)}, lookAt={FormatMemberValue(lookAt)}");
+
+            foreach (var sameGoComponent in liveVirtualCamera.gameObject.GetComponents<Component>())
+            {
+                if (sameGoComponent == null)
+                    continue;
+
+                LogIndoorCameraDebug($"SameGO component: {sameGoComponent.GetType().FullName}");
+            }
+
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (virtualCameraType == null)
+                return;
+
+            var pipeline = GetCinemachinePipeline(virtualCameraType, liveVirtualCamera);
+            if (pipeline == null)
+            {
+                LogIndoorCameraDebug("Pipeline: none");
+                return;
+            }
+
+            foreach (var pipelineComponent in pipeline)
+            {
+                if (pipelineComponent == null)
+                    continue;
+
+                LogIndoorCameraDebug($"Pipeline component: {pipelineComponent.GetType().FullName}");
+                foreach (var member in EnumerateInterestingMembers(pipelineComponent, VehicleCameraKeywords))
+                {
+                    LogIndoorCameraDebug(
+                        $"  {member.DeclaringType}.{member.Name} type={member.MemberType.Name} writable={member.Writable} value={FormatMemberValue(member.Value)}");
+                }
+            }
+        }
+
+        private static bool IsVehicleLikeCameraPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+
+            return path.IndexOf("VehicleCam", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                path.IndexOf("IndoorVehicle", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsIndoorGameplayCamera(Component? liveVirtualCamera)
+        {
+            if (liveVirtualCamera == null)
+                return false;
+
+            var path = GetHierarchyPath(liveVirtualCamera.transform);
+            return path.IndexOf("IndoorCam", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
 
@@ -873,12 +1089,16 @@ namespace CameraTools
 
         private readonly struct CameraState
         {
+            private readonly Color backgroundColor;
+            private readonly CameraClearFlags clearFlags;
             private readonly float fieldOfView;
             private readonly bool orthographic;
             private readonly float orthographicSize;
 
             public CameraState(Camera camera)
             {
+                backgroundColor = camera.backgroundColor;
+                clearFlags = camera.clearFlags;
                 orthographic = camera.orthographic;
                 orthographicSize = camera.orthographicSize;
                 fieldOfView = camera.fieldOfView;
@@ -886,6 +1106,8 @@ namespace CameraTools
 
             public void Restore(Camera camera)
             {
+                camera.backgroundColor = backgroundColor;
+                camera.clearFlags = clearFlags;
                 camera.orthographic = orthographic;
                 camera.orthographicSize = orthographicSize;
                 camera.fieldOfView = fieldOfView;
