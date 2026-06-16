@@ -9,7 +9,7 @@ namespace VehicleRuntimeTuner.UI
     {
         private const string TextFieldControlPrefix = "VehicleRuntimeTunerField_";
 
-        private Rect windowRect = new Rect(20f, 200f, 460f, 720f);
+        private Rect windowRect = new Rect(20f, 200f, 720f, 720f);
         private bool positionInitialized;
         private Texture2D? blackTexture;
         private Texture2D? greyTexture;
@@ -81,11 +81,11 @@ namespace VehicleRuntimeTuner.UI
             if (state.StatusMessage.HasVisibleMessage)
                 GUILayout.Label(state.StatusMessage.Text, labelStyle);
 
-            DrawBody(state.FieldBuffer);
-            DrawEngine(state.FieldBuffer);
-            DrawBrakes(state.FieldBuffer);
-            DrawSuspension(state.FieldBuffer);
-            DrawWheels(state.FieldBuffer);
+            DrawBody(state.FieldBuffer, state.DefaultValues);
+            DrawEngine(state.FieldBuffer, state.DefaultValues);
+            DrawBrakes(state.FieldBuffer, state.DefaultValues);
+            DrawSuspension(state.FieldBuffer, state.DefaultValues);
+            DrawWheels(state.FieldBuffer, state.DefaultValues);
 
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Apply", buttonStyle)) onApply();
@@ -109,63 +109,65 @@ namespace VehicleRuntimeTuner.UI
             GUI.DragWindow();
         }
 
-        private void DrawBody(VehicleRuntimeTunerFieldBuffer buffer)
+        private void DrawBody(VehicleRuntimeTunerFieldBuffer buffer, VehicleRuntimeTunerDefaultValues defaults)
         {
             GUILayout.Space(4f);
             DrawSectionLabel("[Body]");
-            DrawTextField("Mass", nameof(buffer.Mass), ref buffer.Mass);
-            DrawTextField("Drag", nameof(buffer.Drag), ref buffer.Drag);
-            DrawTextField("Angular Drag", nameof(buffer.AngularDrag), ref buffer.AngularDrag);
-            DrawTextField("Center Of Mass X", nameof(buffer.CenterOfMassX), ref buffer.CenterOfMassX);
-            DrawTextField("Center Of Mass Y", nameof(buffer.CenterOfMassY), ref buffer.CenterOfMassY);
-            DrawTextField("Center Of Mass Z", nameof(buffer.CenterOfMassZ), ref buffer.CenterOfMassZ);
+            DrawTextField("Mass", nameof(buffer.Mass), ref buffer.Mass, defaults.Mass);
+            DrawTextField("Drag", nameof(buffer.Drag), ref buffer.Drag, defaults.Drag);
+            DrawTextField("Angular Drag", nameof(buffer.AngularDrag), ref buffer.AngularDrag, defaults.AngularDrag);
+            DrawTextField("Center Of Mass X", nameof(buffer.CenterOfMassX), ref buffer.CenterOfMassX, defaults.CenterOfMassX);
+            DrawTextField("Center Of Mass Y", nameof(buffer.CenterOfMassY), ref buffer.CenterOfMassY, defaults.CenterOfMassY);
+            DrawTextField("Center Of Mass Z", nameof(buffer.CenterOfMassZ), ref buffer.CenterOfMassZ, defaults.CenterOfMassZ);
         }
 
-        private void DrawEngine(VehicleRuntimeTunerFieldBuffer buffer)
+        private void DrawEngine(VehicleRuntimeTunerFieldBuffer buffer, VehicleRuntimeTunerDefaultValues defaults)
         {
             GUILayout.Space(4f);
             DrawSectionLabel("[Engine]");
-            DrawTextField("Engine Power", nameof(buffer.EnginePower), ref buffer.EnginePower);
-            DrawTextField("Max Speed", nameof(buffer.MaxSpeed), ref buffer.MaxSpeed);
+            DrawTextField("Engine Power", nameof(buffer.EnginePower), ref buffer.EnginePower, defaults.EnginePower);
+            DrawTextField("Max Speed", nameof(buffer.MaxSpeed), ref buffer.MaxSpeed, defaults.MaxSpeed);
         }
 
-        private void DrawBrakes(VehicleRuntimeTunerFieldBuffer buffer)
+        private void DrawBrakes(VehicleRuntimeTunerFieldBuffer buffer, VehicleRuntimeTunerDefaultValues defaults)
         {
             GUILayout.Space(4f);
             DrawSectionLabel("[Brakes]");
-            DrawTextField("Brake Torque", nameof(buffer.BrakeTorque), ref buffer.BrakeTorque);
+            DrawTextField("Brake Torque", nameof(buffer.BrakeTorque), ref buffer.BrakeTorque, defaults.BrakeTorque);
         }
 
-        private void DrawSuspension(VehicleRuntimeTunerFieldBuffer buffer)
+        private void DrawSuspension(VehicleRuntimeTunerFieldBuffer buffer, VehicleRuntimeTunerDefaultValues defaults)
         {
             GUILayout.Space(4f);
             DrawSectionLabel("[Suspension]");
-            DrawTextField("Front Spring", nameof(buffer.FrontSpring), ref buffer.FrontSpring);
-            DrawTextField("Front Damper", nameof(buffer.FrontDamper), ref buffer.FrontDamper);
-            DrawTextField("Front Target", nameof(buffer.FrontTarget), ref buffer.FrontTarget);
-            DrawTextField("Front Distance", nameof(buffer.FrontSuspensionDistance), ref buffer.FrontSuspensionDistance);
-            DrawTextField("Rear Spring", nameof(buffer.RearSpring), ref buffer.RearSpring);
-            DrawTextField("Rear Damper", nameof(buffer.RearDamper), ref buffer.RearDamper);
-            DrawTextField("Rear Target", nameof(buffer.RearTarget), ref buffer.RearTarget);
-            DrawTextField("Rear Distance", nameof(buffer.RearSuspensionDistance), ref buffer.RearSuspensionDistance);
+            DrawTextField("Front Spring", nameof(buffer.FrontSpring), ref buffer.FrontSpring, defaults.FrontSpring);
+            DrawTextField("Front Damper", nameof(buffer.FrontDamper), ref buffer.FrontDamper, defaults.FrontDamper);
+            DrawTextField("Front Target", nameof(buffer.FrontTarget), ref buffer.FrontTarget, defaults.FrontTarget);
+            DrawTextField("Front Distance", nameof(buffer.FrontSuspensionDistance), ref buffer.FrontSuspensionDistance, defaults.FrontSuspensionDistance);
+            DrawTextField("Rear Spring", nameof(buffer.RearSpring), ref buffer.RearSpring, defaults.RearSpring);
+            DrawTextField("Rear Damper", nameof(buffer.RearDamper), ref buffer.RearDamper, defaults.RearDamper);
+            DrawTextField("Rear Target", nameof(buffer.RearTarget), ref buffer.RearTarget, defaults.RearTarget);
+            DrawTextField("Rear Distance", nameof(buffer.RearSuspensionDistance), ref buffer.RearSuspensionDistance, defaults.RearSuspensionDistance);
         }
 
-        private void DrawWheels(VehicleRuntimeTunerFieldBuffer buffer)
+        private void DrawWheels(VehicleRuntimeTunerFieldBuffer buffer, VehicleRuntimeTunerDefaultValues defaults)
         {
             GUILayout.Space(4f);
             DrawSectionLabel("[Wheels]");
-            DrawTextField("Front Radius", nameof(buffer.FrontRadius), ref buffer.FrontRadius);
-            DrawTextField("Rear Radius", nameof(buffer.RearRadius), ref buffer.RearRadius);
-            DrawTextField("Front Width", nameof(buffer.FrontWidth), ref buffer.FrontWidth);
-            DrawTextField("Rear Width", nameof(buffer.RearWidth), ref buffer.RearWidth);
+            DrawTextField("Front Radius", nameof(buffer.FrontRadius), ref buffer.FrontRadius, defaults.FrontRadius);
+            DrawTextField("Rear Radius", nameof(buffer.RearRadius), ref buffer.RearRadius, defaults.RearRadius);
+            DrawTextField("Front Width", nameof(buffer.FrontWidth), ref buffer.FrontWidth, defaults.FrontWidth);
+            DrawTextField("Rear Width", nameof(buffer.RearWidth), ref buffer.RearWidth, defaults.RearWidth);
         }
 
-        private void DrawTextField(string label, string controlName, ref string value)
+        private void DrawTextField(string label, string controlName, ref string value, string defaultValue)
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label(label, labelStyle, GUILayout.Width(150f));
             GUI.SetNextControlName(TextFieldControlPrefix + controlName);
             value = GUILayout.TextField(value ?? string.Empty, textFieldStyle, GUILayout.Width(180f));
+            GUILayout.Label("Default", labelStyle, GUILayout.Width(50f));
+            GUILayout.Label(string.IsNullOrWhiteSpace(defaultValue) ? "-" : defaultValue, labelStyle, GUILayout.Width(110f));
             GUILayout.EndHorizontal();
         }
 

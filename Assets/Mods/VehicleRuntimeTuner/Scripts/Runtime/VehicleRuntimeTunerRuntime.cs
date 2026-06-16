@@ -119,9 +119,19 @@ namespace VehicleRuntimeTuner.Runtime
 
         private void RefreshActiveVehicle(bool forceRefresh)
         {
+            var previousVehicleInstanceId = state.ActiveVehicle?.VehicleInstanceId ?? string.Empty;
             state.ActiveVehicle = activeVehicleResolver.Resolve(forceRefresh);
             if (forceRefresh)
                 logger.Info($"RefreshActiveVehicle(force={forceRefresh}) -> {state.ActiveVehicle?.VehicleTypeName ?? "none"} / {state.ActiveVehicle?.VehicleInstanceId ?? "-"}");
+
+            if (state.ActiveVehicle != null &&
+                (forceRefresh ||
+                 !string.Equals(state.DefaultValues.VehicleInstanceId, state.ActiveVehicle.VehicleInstanceId, StringComparison.Ordinal) ||
+                 !string.Equals(previousVehicleInstanceId, state.ActiveVehicle.VehicleInstanceId, StringComparison.Ordinal)))
+            {
+                state.DefaultValues.Capture(state.ActiveVehicle);
+            }
+
             if (state.ActiveVehicle?.VehicleTypeName != null && !string.IsNullOrWhiteSpace(state.ActiveVehicle.VehicleTypeName))
             {
                 state.CurrentProfile.vehicleTypeName = state.ActiveVehicle.VehicleTypeName;
