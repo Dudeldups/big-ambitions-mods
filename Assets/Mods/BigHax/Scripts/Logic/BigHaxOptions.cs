@@ -55,18 +55,6 @@ namespace BigHax
                             BigHaxRuntime.RequestImmediateApply();
                         })
                     .AddSlider(
-                        BigHaxOptionIds.StandardFridgeCapacity,
-                        "bighax_standard_fridge_label",
-                        BigHaxSettings.DefaultStandardFridgeCapacity,
-                        BigHaxTargetIds.SliderMaximum,
-                        settings.StandardFridgeCapacity,
-                        value =>
-                        {
-                            settings.StandardFridgeCapacity = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_capacity_value")
-                    .AddSlider(
                         BigHaxOptionIds.EmployeeTrainingSkillIncrease,
                         "bighax_employee_training_skill_increase_label",
                         BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
@@ -75,6 +63,18 @@ namespace BigHax
                         value =>
                         {
                             settings.EmployeeTrainingSkillIncrease = value;
+                            BigHaxRuntime.RequestImmediateApply();
+                        },
+                        "bighax_capacity_value")
+                    .AddSlider(
+                        BigHaxOptionIds.StandardFridgeCapacity,
+                        "bighax_standard_fridge_label",
+                        BigHaxSettings.DefaultStandardFridgeCapacity,
+                        BigHaxTargetIds.SliderMaximum,
+                        settings.StandardFridgeCapacity,
+                        value =>
+                        {
+                            settings.StandardFridgeCapacity = value;
                             BigHaxRuntime.RequestImmediateApply();
                         },
                         "bighax_capacity_value")
