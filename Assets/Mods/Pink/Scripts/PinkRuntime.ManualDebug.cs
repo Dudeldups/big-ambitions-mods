@@ -12,7 +12,7 @@ namespace Pink
 
         internal static void HandleManualDebugHotkeys()
         {
-            if (!PinkFileLogger.Enabled || !Input.GetKeyDown(KeyCode.F5))
+            if (!PinkFileLogger.Enabled || !Input.GetKeyDown(KeyCode.F4))
                 return;
 
             DumpNearbyItemsAroundPlayer();
@@ -23,7 +23,7 @@ namespace Pink
             var playerRoot = GetPrimaryPlayerRoot();
             if (playerRoot == null)
             {
-                PinkFileLogger.Warn("MANUAL_DEBUG F5 pressed, but no player root could be resolved.", alsoGameLog: true);
+                PinkFileLogger.Warn("MANUAL_DEBUG F4 pressed, but no player root could be resolved.", alsoGameLog: true);
                 return;
             }
 

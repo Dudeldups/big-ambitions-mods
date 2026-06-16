@@ -182,7 +182,9 @@ namespace Pink
             if (string.Equals(typeName, "BaseHuman", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(typeName, "Pedestrian", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(typeName, "CarnivalPedestrian", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(typeName, "WaterPedestrian", StringComparison.OrdinalIgnoreCase))
+                string.Equals(typeName, "WaterPedestrian", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(typeName, "CasualStationaryAi", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(typeName, "CasualAi", StringComparison.OrdinalIgnoreCase))
                 return true;
 
             // Runtime customers often have concrete names like HairdresserCustomer or NightclubCustomer.
@@ -249,6 +251,15 @@ namespace Pink
 
                 if (ContainsAnyToken(materialName, NpcFallbackStrictMaterialTokens))
                     return true;
+
+                if (ContainsAnyToken(materialName, new[]
+                    {
+                        "m_hgshirt", "m_shirt", "m_openedshirtlines", "m_highneckshirt", "m_highneckshirt_female",
+                        "m_sweater", "m_hoodie", "m_jacket", "m_polo"
+                    }))
+                {
+                    return true;
+                }
             }
 
             return false;

@@ -41,6 +41,8 @@ namespace Pink
             if (color == null)
                 return 0;
 
+            var propText = GetRendererParentAndSharedMaterialNameText(renderer);
+
             Material[] materials;
             try
             {
@@ -59,7 +61,10 @@ namespace Pink
                 if (material == null || ShouldSkipSimpleWorldPropSlot(renderer, material))
                     continue;
 
-                var isHotDogStand = IsHotDogStandRenderer(renderer, GetRendererParentAndSharedMaterialNameText(renderer));
+                if (!ShouldTintSimpleWorldPropSlot(renderer, material, propText))
+                    continue;
+
+                var isHotDogStand = IsHotDogStandRenderer(renderer, propText);
                 var changedMaterial = isHotDogStand
                     ? TryTintMaterialBlend(material, color.Value, HotDogStandTintStrength)
                     : TryTintMaterial(material, color.Value);
@@ -76,6 +81,21 @@ namespace Pink
         private static Color? GetSimpleWorldPropColor(Renderer renderer)
         {
             var text = GetRendererParentAndSharedMaterialNameText(renderer);
+
+            if (IsStatueRenderer(renderer, text))
+                return FixedDarkPink;
+
+            if (IsUmbrellaRenderer(renderer, text))
+                return FixedDarkPink;
+
+            if (IsHandTruckRenderer(renderer, text))
+                return FixedBrightPink;
+
+            if (IsDeliverySpotRenderer(renderer, text))
+                return FixedDarkPink;
+
+            if (IsMarqueeRenderer(renderer, text))
+                return FixedDarkPink;
 
             if (ContainsAnyToken(text, new[] { "hydrant", "firehydrant", "fire_hydrant", "fire hydrant" }))
                 return FixedBrightPink;
@@ -96,6 +116,83 @@ namespace Pink
                 return FixedDarkPink;
 
             return null;
+        }
+
+        private static bool IsStatueRenderer(Renderer renderer, string localText)
+        {
+            var path = GetPath(renderer.transform, 12);
+            var combined = path + " " + localText;
+
+            if (!ContainsAnyToken(combined, new[]
+            {
+                "statue", "sculpture", "monument"
+            }))
+            {
+                return false;
+            }
+
+            if (ContainsAnyToken(combined, new[]
+                {
+                    "ground", "floor", "buildingfloor", "building floor", "bank", "accessor", "accessory",
+                    "road", "sidewalk", "decal", "crack", "streetlamp", "street lamp", "lamp"
+                }))
+            {
+                return false;
+            }
+
+            var layerName = LayerMask.LayerToName(renderer.gameObject.layer);
+            return string.Equals(layerName, "StreetProps", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(layerName, "Default", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsUmbrellaRenderer(Renderer renderer, string localText)
+        {
+            var path = GetPath(renderer.transform, 12);
+            var combined = path + " " + localText;
+            return ContainsAnyToken(combined, new[]
+            {
+                "umbrella", "parasol", "canopy"
+            });
+        }
+
+        private static bool IsHandTruckRenderer(Renderer renderer, string localText)
+        {
+            var path = GetPath(renderer.transform, 12);
+            var combined = path + " " + localText;
+            return ContainsAnyToken(combined, new[]
+            {
+                "handtruckmodel", "hand truck", "handtruck", "m_handtruck", "m_handtruckstation", "handtruckspawner"
+            });
+        }
+
+        private static bool IsDeliverySpotRenderer(Renderer renderer, string localText)
+        {
+            var path = GetPath(renderer.transform, 12);
+            var combined = path + " " + localText;
+            return ContainsAnyToken(combined, new[]
+            {
+                "deliveryspot", "delivery spot", "gs_deliveryspot"
+            });
+        }
+
+        private static bool IsMarqueeRenderer(Renderer renderer, string localText)
+        {
+            var path = GetPath(renderer.transform, 12);
+            var combined = path + " " + localText;
+            if (!ContainsAnyToken(combined, new[]
+            {
+                "pref_sign_02", "signbackground", "m_signs"
+            }))
+            {
+                return false;
+            }
+
+            if (ContainsAnyToken(combined, new[] { "ground", "floor", "decal", "roadcracks", "road cracks", "streetlamp", "street lamp" }))
+                return false;
+
+            var layerName = LayerMask.LayerToName(renderer.gameObject.layer);
+            return string.Equals(layerName, "StreetProps", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(layerName, "Default", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsBikeRentalStandRenderer(Renderer renderer, string localText)
@@ -369,6 +466,23 @@ namespace Pink
             }
 
             return false;
+        }
+
+        private static bool ShouldTintSimpleWorldPropSlot(Renderer renderer, Material material, string propText)
+        {
+            if (IsUmbrellaRenderer(renderer, propText))
+                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "pole", "post", "frame", "metal", "stand", "base" });
+
+            if (IsHandTruckRenderer(renderer, propText))
+                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster" });
+
+            if (IsDeliverySpotRenderer(renderer, propText))
+                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster" });
+
+            if (IsMarqueeRenderer(renderer, propText))
+                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster", "light", "bulb", "emission", "emissive" });
+
+            return true;
         }
     }
 }
