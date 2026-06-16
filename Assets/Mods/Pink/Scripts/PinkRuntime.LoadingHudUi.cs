@@ -11,7 +11,7 @@ namespace Pink
         private const float ExplicitUiPinkStrength = 0.32f;
         private const float TopbarUiPinkStrength = 0.55f;
         private static readonly Color ExplicitUiPink = new Color(0.62f, 0.08f, 0.38f, 1f);
-        private static readonly Color HeaderHotPink = new Color(1f, 0.76f, 0.93f, 1f);
+        private static readonly Color HeaderLightPink = new Color(1f, 0.86f, 0.96f, 1f);
         private static readonly Color HeaderDarkText = new Color(0.06f, 0.07f, 0.09f, 1f);
         private static readonly Dictionary<int, ExplicitUiGraphicSnapshot> ExplicitUiPatchedGraphics = new Dictionary<int, ExplicitUiGraphicSnapshot>();
 
@@ -53,7 +53,7 @@ namespace Pink
             if (TryTintExplicitUiGraphic("Canvases", "Tasks/Container/Panel", out _))
                 foundTaskTargets++;
             TryTintExplicitUiGraphic("Canvases", "Tasks/ExpandButton/Background", out _);
-            if (TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline", HeaderHotPink, out _))
+            if (TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline", HeaderLightPink, out _))
                 foundHeaderTargets++;
             TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline/Label", HeaderDarkText, out _);
             TrySetExplicitUiGraphicColor("Canvases", "Tasks/Container/Panel/Headline/Icon", HeaderDarkText, out _);
@@ -63,7 +63,7 @@ namespace Pink
                 foundSmartphoneTargets++;
             TryTintExplicitUiGraphic("Canvases", "Smartphone/Container/Phone/Radio", out _);
             TryTintExplicitUiGraphic("Canvases", "Smartphone/Container/Phone/Radio/Splitter", out _);
-            if (TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline", HeaderHotPink, out _))
+            if (TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline", HeaderLightPink, out _))
                 foundHeaderTargets++;
             TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline/Title", HeaderDarkText, out _);
             TrySetExplicitUiGraphicColor("Canvases", "Smartphone/Container/Headline/Icon", HeaderDarkText, out _);
