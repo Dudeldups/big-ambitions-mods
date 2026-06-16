@@ -17,6 +17,11 @@ namespace BigHax
                 BigHaxOptionIds.PalletShelfCapacity,
                 BigHaxSettings.DefaultPalletShelfCapacity);
 
+            settings.EmployeeTrainingSkillIncrease = LoadInt(
+                modId,
+                BigHaxOptionIds.EmployeeTrainingSkillIncrease,
+                BigHaxSettings.DefaultEmployeeTrainingSkillIncrease);
+
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
                 BigHaxOptionIds.FreightTruckT1DeliveryPlaces,

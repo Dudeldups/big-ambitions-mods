@@ -8,6 +8,7 @@
   "bighax_customer_traffic_multiplier_5_0": "5x",
   "bighax_customer_traffic_multiplier_10_0": "10x",
   "bighax_standard_fridge_label": "Standard Fridge Capacity",
+  "bighax_employee_training_skill_increase_label": "Employee Training Skill Gain",
   "bighax_pallet_shelf_label": "Pallet Shelf Capacity",
   "bighax_freight_truck_label": "Freight Truck T1 Delivery Places",
   "bighax_active_vehicle_enabled_label": "Enable Active Vehicle Capacity Override",

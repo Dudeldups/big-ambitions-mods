@@ -13,6 +13,7 @@ namespace BigHax
         public const string PalletShelfCapacity = "big_hax_pallet_shelf_capacity";
         public const string ActiveVehicleCapacityEnabled = "big_hax_active_vehicle_capacity_enabled";
         public const string ActiveVehicleCapacity = "big_hax_active_vehicle_capacity";
+        public const string EmployeeTrainingSkillIncrease = "big_hax_employee_training_skill_increase";
     }
 
     public sealed class BigHaxOptions
@@ -62,6 +63,18 @@ namespace BigHax
                         value =>
                         {
                             settings.StandardFridgeCapacity = value;
+                            BigHaxRuntime.RequestImmediateApply();
+                        },
+                        "bighax_capacity_value")
+                    .AddSlider(
+                        BigHaxOptionIds.EmployeeTrainingSkillIncrease,
+                        "bighax_employee_training_skill_increase_label",
+                        BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
+                        100,
+                        settings.EmployeeTrainingSkillIncrease,
+                        value =>
+                        {
+                            settings.EmployeeTrainingSkillIncrease = value;
                             BigHaxRuntime.RequestImmediateApply();
                         },
                         "bighax_capacity_value")

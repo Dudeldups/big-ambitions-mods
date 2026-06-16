@@ -9,11 +9,13 @@ namespace BigHax
     {
         private const float ActiveVehiclePollIntervalSeconds = 0.1f;
         private const float CustomerTrafficPollIntervalSeconds = 5f;
+        private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
         private readonly BigHaxBuildingCustomerCapacityService buildingCustomerCapacityService = new BigHaxBuildingCustomerCapacityService();
         private BigHaxCustomerTrafficService? customerTrafficService;
+        private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
@@ -21,6 +23,7 @@ namespace BigHax
         private ModContext? context;
         private float nextActiveVehiclePollAt;
         private float nextCustomerTrafficPollAt;
+        private float nextEmployeeTrainingPollAt;
         private BigHaxSettings? settings;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
@@ -38,6 +41,7 @@ namespace BigHax
             runtime.applyRequested = true;
             runtime.nextActiveVehiclePollAt = 0f;
             runtime.nextCustomerTrafficPollAt = 0f;
+            runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
@@ -84,6 +88,7 @@ namespace BigHax
             ApplyIfRequested();
             PollActiveVehicleChanges();
             PollCustomerTrafficChanges();
+            PollEmployeeTrainingChanges();
         }
 
         private void ApplyIfRequested()
@@ -117,9 +122,19 @@ namespace BigHax
             TryApplyCustomerTraffic(context, settings, forceRefresh: false);
         }
 
+        private void PollEmployeeTrainingChanges()
+        {
+            if (context == null || settings == null || Time.unscaledTime < nextEmployeeTrainingPollAt)
+                return;
+
+            nextEmployeeTrainingPollAt = Time.unscaledTime + EmployeeTrainingPollIntervalSeconds;
+            employeeTrainingService.Update(context, settings);
+        }
+
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             TryInvalidateCustomerTrafficCache();
+            employeeTrainingService.InvalidateCache();
             buildingCustomerCapacityService.InvalidateCache();
             businessCapacityService.InvalidateCache();
             itemCapacityService.InvalidateCache();
