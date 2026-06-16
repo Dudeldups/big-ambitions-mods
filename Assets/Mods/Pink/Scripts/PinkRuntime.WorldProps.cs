@@ -64,13 +64,8 @@ namespace Pink
                 if (!ShouldTintSimpleWorldPropSlot(renderer, material, propText))
                     continue;
 
-                var isHotDogStand = IsHotDogStandRenderer(renderer, propText);
-                var changedMaterial = isHotDogStand
-                    ? TryTintMaterialBlend(material, color.Value, HotDogStandTintStrength)
-                    : TryTintMaterial(material, color.Value);
-                var changedBlock = isHotDogStand
-                    ? TryTintRendererPropertyBlockBlend(renderer, index, material, color.Value, HotDogStandTintStrength)
-                    : TryTintRendererPropertyBlock(renderer, index, material, color.Value);
+                var changedMaterial = TryTintMaterial(material, color.Value);
+                var changedBlock = TryTintRendererPropertyBlock(renderer, index, material, color.Value);
                 if (changedMaterial || changedBlock)
                     patched++;
             }
@@ -88,19 +83,10 @@ namespace Pink
             if (IsUmbrellaRenderer(renderer, text))
                 return FixedDarkPink;
 
-            if (IsHandTruckRenderer(renderer, text))
+            if (IsCrosswalkRenderer(renderer, text))
                 return FixedBrightPink;
-
-            if (IsDeliverySpotRenderer(renderer, text))
-                return FixedDarkPink;
-
-            if (IsMarqueeRenderer(renderer, text))
-                return FixedDarkPink;
 
             if (ContainsAnyToken(text, new[] { "hydrant", "firehydrant", "fire_hydrant", "fire hydrant" }))
-                return FixedBrightPink;
-
-            if (IsHotDogStandRenderer(renderer, text))
                 return FixedBrightPink;
 
             if (IsBikeRentalStandRenderer(renderer, text))
@@ -149,50 +135,63 @@ namespace Pink
         {
             var path = GetPath(renderer.transform, 12);
             var combined = path + " " + localText;
-            return ContainsAnyToken(combined, new[]
-            {
-                "umbrella", "parasol", "canopy"
-            });
+
+            if (!ContainsAnyToken(combined, new[] { "umbrella", "parasol", "canopy" }))
+                return false;
+
+            if (ContainsAnyToken(combined, new[] { "prefab_tablegroup", "regularchair", "roundtable", "table/" }))
+                return false;
+
+            return ContainsAnyToken(combined, new[] { "terrace umbrella", "terraceumbrella", "sm_terraceumbrella", "umbrella/" });
         }
 
         private static bool IsHandTruckRenderer(Renderer renderer, string localText)
         {
-            var path = GetPath(renderer.transform, 12);
-            var combined = path + " " + localText;
-            return ContainsAnyToken(combined, new[]
-            {
-                "handtruckmodel", "hand truck", "handtruck", "m_handtruck", "m_handtruckstation", "handtruckspawner"
-            });
+            return false;
         }
 
         private static bool IsDeliverySpotRenderer(Renderer renderer, string localText)
         {
-            var path = GetPath(renderer.transform, 12);
-            var combined = path + " " + localText;
-            return ContainsAnyToken(combined, new[]
-            {
-                "deliveryspot", "delivery spot", "gs_deliveryspot"
-            });
+            return false;
         }
 
         private static bool IsMarqueeRenderer(Renderer renderer, string localText)
         {
-            var path = GetPath(renderer.transform, 12);
+            return false;
+        }
+
+        private static bool IsCrosswalkRenderer(Renderer renderer, string localText)
+        {
+            var path = GetPath(renderer.transform, 14);
             var combined = path + " " + localText;
+
             if (!ContainsAnyToken(combined, new[]
-            {
-                "pref_sign_02", "signbackground", "m_signs"
-            }))
+                {
+                    "sm_roadmoduleintersection_pier", "sm_roadmodule tintersection", "intersection"
+                }))
             {
                 return false;
             }
 
-            if (ContainsAnyToken(combined, new[] { "ground", "floor", "decal", "roadcracks", "road cracks", "streetlamp", "street lamp" }))
+            if (ContainsAnyToken(combined, new[]
+                {
+                    "trashdecoration", "leaf_", "roadcracks", "road cracks", "decal", "plane."
+                }))
+            {
                 return false;
+            }
+
+            if (ContainsAnyToken(combined, new[]
+                {
+                    "streetlamp", "street lamp", "sign", "parking"
+                }))
+            {
+                return false;
+            }
 
             var layerName = LayerMask.LayerToName(renderer.gameObject.layer);
-            return string.Equals(layerName, "StreetProps", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(layerName, "Default", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(layerName, "Default", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(layerName, "StreetProps", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsBikeRentalStandRenderer(Renderer renderer, string localText)
@@ -220,24 +219,6 @@ namespace Pink
             }
 
             if (ContainsAnyToken(combined, new[] { "human", "pedestrian", "npc", "customer", "employee" }))
-                return false;
-
-            return true;
-        }
-
-        private static bool IsHotDogStandRenderer(Renderer renderer, string localText)
-        {
-            // Diagnostic log showed the stand as a combined renderer/material:
-            // SM_StreetVendor_HotDogStand / M_StreetVendor_HotDogStand.
-            // This tints the whole stand, not only the umbrella/canopy.
-            if (!ContainsAnyToken(localText, new[] { "sm_streetvendor_hotdogstand", "m_streetvendor_hotdogstand", "hotdogstand" }))
-                return false;
-
-            var path = GetPath(renderer.transform, 10);
-            if (!ContainsAnyToken(path + " " + localText, new[] { "street vendor", "hotdogstand", "hot dog" }))
-                return false;
-
-            if (ContainsAnyToken(path + " " + localText, new[] { "human", "pedestrian", "npc", "customer", "employee" }))
                 return false;
 
             return true;
@@ -473,13 +454,7 @@ namespace Pink
             if (IsUmbrellaRenderer(renderer, propText))
                 return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "pole", "post", "frame", "metal", "stand", "base" });
 
-            if (IsHandTruckRenderer(renderer, propText))
-                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster" });
-
-            if (IsDeliverySpotRenderer(renderer, propText))
-                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster" });
-
-            if (IsMarqueeRenderer(renderer, propText))
+            if (IsCrosswalkRenderer(renderer, propText))
                 return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster", "light", "bulb", "emission", "emissive" });
 
             return true;

@@ -103,11 +103,44 @@ namespace Pink
             "jacket", "hoodie", "sweater", "outfit", "body_top", "upperbody", "upper_body", "suit", "polo", "gown"
         };
 
-        private static readonly string[] NpcDenyTokens =
+        private static readonly string[] NpcHardDenyTokens =
         {
-            "skin", "face", "head", "hair", "eye", "brow", "lash", "mouth", "teeth", "tongue", "hand",
-            "arm", "leg", "pants", "trouser", "jean", "short", "sock", "shoe", "foot", "hat", "cap", "glasses",
+            "skin", "face", "eye", "brow", "lash", "mouth", "teeth", "tongue", "hand",
+            "arm", "leg", "foot",
             "beard", "mustache", "moustache", "nail", "skinbase", "basewithoutsss"
+        };
+
+        private static readonly string[] NpcHairTokens =
+        {
+            "hair", "ponytail", "bun", "braid", "afro", "mohawk", "fringe", "bangs"
+        };
+
+        private static readonly string[] NpcUpperClothingTokens =
+        {
+            "shirt", "tshirt", "t-shirt", "tee", "top", "hoodie", "sweater", "jacket", "coat", "blazer", "vest",
+            "polo", "gown", "uniform", "suit", "openedshirt", "highneckshirt", "hgshirt", "croptop", "body_top",
+            "upperbody", "upper_body", "torso/top", "torso top"
+        };
+
+        private static readonly string[] NpcLowerClothingTokens =
+        {
+            "pants", "trouser", "trousers", "jean", "jeans", "cargo", "skirt", "dress", "legging", "leggings",
+            "short", "shorts", "bottom", "lowerbody", "lower_body"
+        };
+
+        private static readonly string[] NpcFootwearTokens =
+        {
+            "shoe", "shoes", "sneaker", "sneakers", "boot", "boots", "heel", "heels", "loafer", "loafers", "sock", "socks"
+        };
+
+        private static readonly string[] NpcHeadwearTokens =
+        {
+            "hat", "cap", "beanie", "helmet", "visor"
+        };
+
+        private static readonly string[] NpcAccessoryTokens =
+        {
+            "glasses", "scarf", "bag", "backpack", "tie", "apron", "belt", "watch", "bracelet"
         };
 
         private static readonly int[] CandidateColorPropertyIds =
@@ -372,6 +405,44 @@ namespace Pink
             return new ScanResult(ready: true, foundVehicleCandidates + fallbackVehicleRenderers + foundNpcCandidates + npcRendererFallback, newCandidateCount, newPatchCount);
         }
 
+        internal static bool IsSinglePassWorldReady(out string readinessReason)
+        {
+            var playerRoot = GetPrimaryPlayerRoot();
+            if (playerRoot == null)
+            {
+                readinessReason = "waiting-player-root";
+                return false;
+            }
+
+            if (!HasActiveRenderer(playerRoot))
+            {
+                readinessReason = "waiting-player-renderers";
+                return false;
+            }
+
+            var pedestrianPoolReady =
+                HasActiveObjectAtPath("GameManager/PoolingManager/Pedestrian") ||
+                HasActiveObjectAtPath("GameManager/PoolingManager/Pedestrians") ||
+                HasActiveObjectAtPath("GameManager/PoolingManager/CasualAi");
+
+            var vehicleRootsReady =
+                HasActiveObjectAtPath("AiVehicles") ||
+                HasActiveObjectAtPath("ParkedVehicles") ||
+                HasActiveObjectAtPath("PlayerVehicles");
+
+            if (!pedestrianPoolReady && !vehicleRootsReady)
+            {
+                readinessReason = "waiting-city-pools";
+                return false;
+            }
+
+            readinessReason = pedestrianPoolReady
+                ? (vehicleRootsReady ? "player-and-city-pools-ready" : "player-and-pedestrian-pool-ready")
+                : "player-and-vehicle-pools-ready";
+
+            return true;
+        }
+
         internal static void Restore()
         {
             var restoredExplicitUiGraphics = RestoreExplicitUiTint();
@@ -428,6 +499,49 @@ namespace Pink
         {
             Vehicle,
             Npc
+        }
+
+        private static bool HasActiveObjectAtPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+
+            GameObject? target = null;
+            try
+            {
+                target = GameObject.Find(path);
+            }
+            catch
+            {
+                return false;
+            }
+
+            return target != null && target.activeInHierarchy;
+        }
+
+        private static bool HasActiveRenderer(GameObject root)
+        {
+            if (root == null)
+                return false;
+
+            Renderer[] renderers;
+            try
+            {
+                renderers = root.GetComponentsInChildren<Renderer>(false);
+            }
+            catch
+            {
+                return false;
+            }
+
+            for (var index = 0; index < renderers.Length; index++)
+            {
+                var renderer = renderers[index];
+                if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

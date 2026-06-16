@@ -30,10 +30,10 @@ namespace Pink
                     return "vehicle-fallback-position|" + GetQuantizedBoundsPositionKey(renderer);
                 }
 
-                return "vehicle-root|" + FindStableVehicleOwnerName(renderer.transform) + "|" + materialName;
+                return "vehicle-root|" + FindStableVehicleOwnerName(renderer.transform);
             }
 
-            return "npc|" + materialName;
+            return "npc|" + FindStableNpcOwnerName(renderer.transform) + "|" + materialName;
         }
 
         private static string GetQuantizedBoundsPositionKey(Renderer renderer)
@@ -64,6 +64,26 @@ namespace Pink
                 return NormalizeName(transform.root.name);
 
             return NormalizeName(transform.name);
+        }
+
+        private static string FindStableNpcOwnerName(Transform transform)
+        {
+            var current = transform;
+            Transform? best = transform.root;
+
+            while (current != null)
+            {
+                var name = current.name ?? string.Empty;
+                if (LooksLikeNpcRoot(name) && !IsGenericNpcContainerName(name))
+                    best = current;
+
+                current = current.parent;
+            }
+
+            if (best != null)
+                return NormalizeName(GetPath(best, 4));
+
+            return NormalizeName(transform.root != null ? transform.root.name : transform.name);
         }
 
         private static string NormalizeName(string? value)

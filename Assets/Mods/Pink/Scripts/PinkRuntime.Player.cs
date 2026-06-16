@@ -247,7 +247,7 @@ namespace Pink
             if (!ContainsAnyToken(rendererPath, new[] { "/torso/top", "torso/top", "/model/female/torso/top", "/model/male/torso/top" }))
                 return false;
 
-            if (ContainsAnyToken(materialName, NpcDenyTokens) || ContainsAnyToken(shaderName, new[] { "skin", "hair", "face" }))
+            if (ContainsAnyToken(materialName, NpcHardDenyTokens) || ContainsAnyToken(shaderName, new[] { "skin", "hair", "face" }))
                 return false;
 
             if (ContainsAnyToken(materialName, new[] { "m_top", "shirt", "hoodie", "sweater", "jacket", "polo", "suit" }))
@@ -303,7 +303,16 @@ namespace Pink
 
         private static int ForcePlayerUpperBodyTexture(Material material)
         {
-            var texture = GetPlayerPinkTexture();
+            var texture = GetSolidColorTexture(ref PlayerPinkTexture, "PinkCity_PlayerTop_PinkTexture", FixedBrightPink);
+            return ForceMaterialTexture(material, texture, PatchedPlayerTextures, "PLAYER_TEXTURE");
+        }
+
+        private static int ForceMaterialTexture(
+            Material material,
+            Texture2D texture,
+            Dictionary<int, PlayerTextureSnapshot> snapshotMap,
+            string logPrefix)
+        {
             var shader = material.shader;
             if (shader == null)
                 return 0;
@@ -330,15 +339,15 @@ namespace Pink
             }
             catch (Exception ex)
             {
-                PinkFileLogger.Warn($"PLAYER_TEXTURE property discovery failed: material={material.name}, error={ex.GetType().Name}: {ex.Message}");
+                PinkFileLogger.Warn($"{logPrefix} property discovery failed: material={material.name}, error={ex.GetType().Name}: {ex.Message}");
             }
 
             if (changed.Count == 0)
                 return 0;
 
             var materialId = material.GetInstanceID();
-            if (!PatchedPlayerTextures.ContainsKey(materialId))
-                PatchedPlayerTextures[materialId] = new PlayerTextureSnapshot(material, changed.ToArray());
+            if (!snapshotMap.ContainsKey(materialId))
+                snapshotMap[materialId] = new PlayerTextureSnapshot(material, changed.ToArray());
 
             for (var index = 0; index < changed.Count; index++)
                 material.SetTexture(changed[index].PropertyId, texture);
@@ -368,20 +377,20 @@ namespace Pink
             return ContainsAnyToken(propertyName, new[] { "base", "main", "albedo", "diffuse", "color", "map", "tex" });
         }
 
-        private static Texture2D GetPlayerPinkTexture()
+        private static Texture2D GetSolidColorTexture(ref Texture2D? cache, string name, Color color)
         {
-            if (PlayerPinkTexture != null)
-                return PlayerPinkTexture;
+            if (cache != null)
+                return cache;
 
-            PlayerPinkTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            cache = new Texture2D(1, 1, TextureFormat.RGBA32, false)
             {
-                name = "PinkCity_PlayerTop_PinkTexture",
+                name = name,
                 wrapMode = TextureWrapMode.Repeat,
                 filterMode = FilterMode.Point
             };
-            PlayerPinkTexture.SetPixel(0, 0, FixedBrightPink);
-            PlayerPinkTexture.Apply(false, false);
-            return PlayerPinkTexture;
+            cache.SetPixel(0, 0, color);
+            cache.Apply(false, false);
+            return cache;
         }
 
         private static bool LooksLikePlayerUpperBodyRenderer(GameObject root, Renderer renderer)
@@ -407,7 +416,7 @@ namespace Pink
 
             var combined = path + " " + rendererName + " " + parentName + " " + materialNames + " " + shaderNames;
 
-            if (ContainsAnyToken(combined, NpcDenyTokens))
+            if (ContainsAnyToken(combined, NpcHardDenyTokens))
                 return false;
 
             if (ContainsAnyToken(combined, NpcAllowTokens))
@@ -475,7 +484,14 @@ namespace Pink
         private static int RestorePlayerTextureOverrides()
         {
             var restored = 0;
-            foreach (var snapshot in PatchedPlayerTextures.Values)
+            restored += RestoreTextureSnapshotMap(PatchedPlayerTextures);
+            return restored;
+        }
+
+        private static int RestoreTextureSnapshotMap(Dictionary<int, PlayerTextureSnapshot> snapshotMap)
+        {
+            var restored = 0;
+            foreach (var snapshot in snapshotMap.Values)
             {
                 if (snapshot.Material == null)
                     continue;
@@ -490,7 +506,7 @@ namespace Pink
                 }
             }
 
-            PatchedPlayerTextures.Clear();
+            snapshotMap.Clear();
             return restored;
         }
 

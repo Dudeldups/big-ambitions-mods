@@ -72,10 +72,11 @@ namespace Pink
         private const float FirstHudUiScanDelaySeconds = 0.05f;
         private const float HudUiScanIntervalSeconds = 0.25f;
         private const int MaxHudUiScanPasses = 32;
-        private const float WorldTintDelayAfterHudReadySeconds = 4f;
+        private const float WorldTintEarliestAfterHudReadySeconds = 0.75f;
+        private const float WorldTintLatestAfterHudReadySeconds = 8f;
+        private const float WorldTintReadinessPollIntervalSeconds = 0.25f;
 
         private float elapsedSeconds;
-        private bool stopped;
         private bool loadingUiScanStopped;
         private bool hudUiScanStopped;
         private bool gameplayReady;
@@ -85,11 +86,11 @@ namespace Pink
         private int hudUiScanPasses;
         private float nextLoadingUiScanAtSeconds;
         private float nextHudUiScanAtSeconds;
+        private float nextWorldTintReadinessCheckAtSeconds;
 
         internal void Initialize()
         {
             elapsedSeconds = 0f;
-            stopped = false;
             loadingUiScanStopped = false;
             hudUiScanStopped = false;
             gameplayReady = false;
@@ -99,6 +100,7 @@ namespace Pink
             hudUiScanPasses = 0;
             nextLoadingUiScanAtSeconds = FirstLoadingUiScanDelaySeconds;
             nextHudUiScanAtSeconds = FirstHudUiScanDelaySeconds;
+            nextWorldTintReadinessCheckAtSeconds = FirstHudUiScanDelaySeconds;
 
             PinkFileLogger.Info(
                 $"Pink watcher initialized. loadingUiInterval={LoadingUiScanIntervalSeconds:0.0}s hudUiInterval={HudUiScanIntervalSeconds:0.00}s maxLoadingUiPasses={MaxLoadingUiScanPasses} maxHudUiPasses={MaxHudUiScanPasses}",
@@ -139,28 +141,36 @@ namespace Pink
                     nextHudUiScanAtSeconds = elapsedSeconds + HudUiScanIntervalSeconds;
             }
 
-            if (stopped)
-                return;
-
             if (!gameplayReady || worldTintApplied)
                 return;
 
             if (gameplayReadyAtSeconds < 0f ||
-                elapsedSeconds - gameplayReadyAtSeconds < WorldTintDelayAfterHudReadySeconds)
+                elapsedSeconds - gameplayReadyAtSeconds < WorldTintEarliestAfterHudReadySeconds ||
+                elapsedSeconds < nextWorldTintReadinessCheckAtSeconds)
                 return;
+
+            var waitedSeconds = elapsedSeconds - gameplayReadyAtSeconds;
+            var timedOut = waitedSeconds >= WorldTintLatestAfterHudReadySeconds;
+            var worldReady = PinkRuntime.IsSinglePassWorldReady(out var readinessReason);
+            if (!worldReady && !timedOut)
+            {
+                nextWorldTintReadinessCheckAtSeconds = elapsedSeconds + WorldTintReadinessPollIntervalSeconds;
+                return;
+            }
 
             worldTintApplied = true;
             var result = PinkRuntime.ApplyPinkPass(1);
             if (!result.Ready)
                 return;
 
-            stopped = true;
             PinkFileLogger.Info(
-                $"Stopping pink scan. reason=single-post-hud-pass hudUiPasses={hudUiScanPasses} loadingUiPasses={loadingUiScanPasses} " +
+                $"Stopping pink scan. reason={(timedOut ? "single-post-hud-pass-timeout" : "single-post-hud-pass-ready")} readiness={readinessReason} " +
+                $"hudUiPasses={hudUiScanPasses} loadingUiPasses={loadingUiScanPasses} waitedAfterHudReady={waitedSeconds:0.00}s " +
                 $"foundTargets={result.FoundTargetCount} newCandidates={result.NewCandidateCount} newPatches={result.NewPatchCount} " +
                 $"candidatesSeen={PinkRuntime.CandidateRootCount} processedVehicles={PinkRuntime.ProcessedVehicleRootCount} processedNpcs={PinkRuntime.ProcessedNpcRootCount} " +
                 $"patchedMaterials={PinkRuntime.PatchedMaterialCount} patchedRendererSlots={PinkRuntime.PatchedRendererSlotCount} processedVehicleRenderers={PinkRuntime.ProcessedVehicleRendererCount} processedNpcRenderers={PinkRuntime.ProcessedNpcRendererCount}.",
                 alsoGameLog: true);
         }
+
     }
 }

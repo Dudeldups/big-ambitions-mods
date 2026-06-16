@@ -280,30 +280,98 @@ namespace Pink
             var rendererName = renderer.name ?? string.Empty;
             var parentName = renderer.transform.parent != null ? renderer.transform.parent.name : string.Empty;
             var materialName = material.name ?? string.Empty;
-            var slotText = rendererName + " " + parentName + " " + materialName;
+            var shaderName = material.shader != null ? material.shader.name : string.Empty;
+            var slotText = rendererName + " " + parentName + " " + materialName + " " + shaderName;
 
-            // Important: material deny must win over renderer allow. Shirt renderers often include a skin material slot.
-            if (ContainsAnyToken(materialName, NpcDenyTokens))
+            // Important: hard deny must still win over any outfit selection.
+            if (ContainsAnyToken(materialName, NpcHardDenyTokens))
                 return false;
 
-            if (ContainsAnyToken(slotText, NpcDenyTokens))
+            if (ContainsAnyToken(slotText, NpcHardDenyTokens))
                 return false;
 
-            if (ContainsAnyToken(slotText, NpcAllowTokens))
-                return true;
+            var category = ClassifyNpcAppearanceCategory(renderer, material, slotText);
+            if (category == NpcAppearanceCategory.None)
+                return false;
 
-            if (AggressiveNpcClothingTint)
+            var shouldTint = ShouldTintNpcAppearanceCategory(renderer, material, category);
+            if (shouldTint)
             {
-                // Once we are inside a confirmed NPC root, most non-skin active renderer slots are clothing/accessories.
-                // The old allow-list was too conservative and only patched a few visible pedestrians.
                 PinkFileLogger.Verbose(
-                    $"Aggressively accepted NPC slot: renderer={rendererName}, slot={materialIndex}, material={materialName}");
+                    $"Accepted NPC slot: renderer={rendererName}, slot={materialIndex}, material={materialName}, category={category}");
                 return true;
             }
 
             PinkFileLogger.Verbose(
-                $"Skipped unknown NPC slot: renderer={rendererName}, slot={materialIndex}, material={materialName}");
+                $"Skipped NPC slot after outfit roll: renderer={rendererName}, slot={materialIndex}, material={materialName}, category={category}");
             return false;
+        }
+
+        private static NpcAppearanceCategory ClassifyNpcAppearanceCategory(Renderer renderer, Material material, string slotText)
+        {
+            if (ContainsAnyToken(slotText, NpcHairTokens))
+                return NpcAppearanceCategory.Hair;
+
+            if (ContainsAnyToken(slotText, NpcUpperClothingTokens) || ContainsAnyToken(slotText, NpcAllowTokens))
+                return NpcAppearanceCategory.UpperClothing;
+
+            if (ContainsAnyToken(slotText, NpcLowerClothingTokens))
+                return NpcAppearanceCategory.LowerClothing;
+
+            if (ContainsAnyToken(slotText, NpcFootwearTokens))
+                return NpcAppearanceCategory.Footwear;
+
+            if (ContainsAnyToken(slotText, NpcHeadwearTokens))
+                return NpcAppearanceCategory.Headwear;
+
+            if (ContainsAnyToken(slotText, NpcAccessoryTokens))
+                return NpcAppearanceCategory.Accessory;
+
+            if (!AggressiveNpcClothingTint)
+                return NpcAppearanceCategory.None;
+
+            if (material.shader != null &&
+                material.shader.name.IndexOf("CharacterClothes", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return NpcAppearanceCategory.UpperClothing;
+            }
+
+            return NpcAppearanceCategory.None;
+        }
+
+        private static bool ShouldTintNpcAppearanceCategory(Renderer renderer, Material material, NpcAppearanceCategory category)
+        {
+            var key = BuildNpcAppearanceRollKey(renderer, material, category);
+            var roll = GetStableUnitFloat(key);
+
+            switch (category)
+            {
+                case NpcAppearanceCategory.Hair:
+                    return roll < 0.035f;
+                case NpcAppearanceCategory.UpperClothing:
+                    return roll < 0.90f;
+                case NpcAppearanceCategory.LowerClothing:
+                    return roll < 0.62f;
+                case NpcAppearanceCategory.Footwear:
+                    return roll < 0.35f;
+                case NpcAppearanceCategory.Headwear:
+                    return roll < 0.28f;
+                case NpcAppearanceCategory.Accessory:
+                    return roll < 0.24f;
+                default:
+                    return false;
+            }
+        }
+
+        private static string BuildNpcAppearanceRollKey(Renderer renderer, Material material, NpcAppearanceCategory category)
+        {
+            return "npc-roll|" + FindStableNpcOwnerName(renderer.transform) + "|" + category + "|" + NormalizeName(material.name) + "|" + NormalizeName(renderer.name);
+        }
+
+        private static float GetStableUnitFloat(string key)
+        {
+            var hash = PositiveStableHash(key);
+            return hash / (float)int.MaxValue;
         }
 
         private static void LogNpcDiagnosticSample(Renderer renderer, Material material, int materialIndex, bool changedMaterial, bool changedBlock)
@@ -362,6 +430,17 @@ namespace Pink
             }
 
             return names.Count == 0 ? "<none>" : string.Join("|", names.ToArray());
+        }
+
+        private enum NpcAppearanceCategory
+        {
+            None,
+            Hair,
+            UpperClothing,
+            LowerClothing,
+            Footwear,
+            Headwear,
+            Accessory
         }
     }
 }

@@ -240,7 +240,7 @@ namespace Pink
                 var shaderName = material.shader != null ? material.shader.name : string.Empty;
                 var slotText = materialName + " " + shaderName;
 
-                if (ContainsAnyToken(slotText, NpcDenyTokens))
+                if (ContainsAnyToken(slotText, NpcHardDenyTokens))
                     continue;
 
                 // The earlier fallback also accepted generic tokens like top/cloth, which matched
@@ -286,6 +286,12 @@ namespace Pink
             var current = source.transform;
             var best = current;
 
+            var sourceName = current.name ?? string.Empty;
+            if (kind == RootKind.Vehicle && LooksLikeVehicleRoot(sourceName))
+                best = current;
+            else if (kind == RootKind.Npc && LooksLikeNpcRoot(sourceName))
+                best = current;
+
             while (current.parent != null)
             {
                 var parent = current.parent;
@@ -296,7 +302,7 @@ namespace Pink
 
                 if (kind == RootKind.Vehicle && LooksLikeVehicleRoot(parentName))
                     best = parent;
-                else if (kind == RootKind.Npc && LooksLikeNpcRoot(parentName))
+                else if (kind == RootKind.Npc && LooksLikeNpcRoot(parentName) && ShouldPromoteNpcRoot(best, parent))
                     best = parent;
 
                 current = parent;
@@ -339,6 +345,42 @@ namespace Pink
         private static bool LooksLikeNpcRoot(string value)
         {
             return ContainsAnyToken(value, new[] { "npc", "pedestrian", "customer", "employee", "citizen", "person", "human", "character" });
+        }
+
+        private static bool ShouldPromoteNpcRoot(Transform currentBest, Transform candidateParent)
+        {
+            var currentName = currentBest.name ?? string.Empty;
+            var candidateName = candidateParent.name ?? string.Empty;
+
+            if (!LooksLikeNpcRoot(currentName))
+                return true;
+
+            if (IsGenericNpcContainerName(candidateName) && !IsGenericNpcContainerName(currentName))
+                return false;
+
+            return true;
+        }
+
+        private static bool IsGenericNpcContainerName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var trimmed = value.Trim();
+            return string.Equals(trimmed, "Pedestrian", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Pedestrians", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "NPC", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "NPCs", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Customer", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Customers", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Employee", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Employees", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Citizen", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Citizens", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Human", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Humans", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Character", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(trimmed, "Characters", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void LogRejectedRoot(GameObject root, RootKind kind, string sourceReason, string rejectReason)
