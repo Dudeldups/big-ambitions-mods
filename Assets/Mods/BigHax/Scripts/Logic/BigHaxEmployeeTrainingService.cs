@@ -10,8 +10,6 @@ namespace BigHax
 {
     internal sealed class BigHaxEmployeeTrainingService
     {
-        private const float VanillaTrainingSkillIncrease = 10f;
-
         private readonly Dictionary<string, TrackedTraining> trackedTrainingByEmployeeId =
             new Dictionary<string, TrackedTraining>(StringComparer.Ordinal);
 
@@ -26,25 +24,15 @@ namespace BigHax
 
         public void Update(ModContext context, BigHaxSettings settings)
         {
-            TrackActiveTrainingSessions();
-
             if (settings.EmployeeTrainingSkillIncrease <= BigHaxSettings.DefaultEmployeeTrainingSkillIncrease)
-                return;
-
-            foreach (var pair in EmployeeHelper.FinishedTrainingEmployees)
             {
-                var employee = pair.Key;
-                var skillName = pair.Value;
-                if (employee == null || string.IsNullOrWhiteSpace(employee.id) || string.IsNullOrWhiteSpace(skillName))
-                    continue;
-
-                var processedKey = BuildProcessedKey(employee.id, SaveGameManager.Current?.Day ?? 0, skillName);
-                if (!processedFinishedTrainingKeys.Add(processedKey))
-                    continue;
-
-                ApplyConfiguredTrainingGain(context, employee, skillName, settings.EmployeeTrainingSkillIncrease);
-                trackedTrainingByEmployeeId.Remove(employee.id);
+                TrackActiveTrainingSessions();
+                return;
             }
+
+            var completedTraining = CollectCompletedTraining();
+            TrackActiveTrainingSessions();
+            ApplyCompletedTrainingBoosts(context, completedTraining, settings.EmployeeTrainingSkillIncrease);
         }
 
         private void TrackActiveTrainingSessions()
@@ -73,15 +61,61 @@ namespace BigHax
             }
         }
 
-        private void ApplyConfiguredTrainingGain(ModContext context, EmployeeInstance employee, string skillName, int configuredGain)
+        private List<CompletedTraining> CollectCompletedTraining()
+        {
+            var completedTraining = new List<CompletedTraining>();
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.EmployeeInstances == null)
+                return completedTraining;
+
+            foreach (var employee in saveGame.EmployeeInstances)
+            {
+                if (employee == null || string.IsNullOrWhiteSpace(employee.id))
+                    continue;
+
+                if (!trackedTrainingByEmployeeId.TryGetValue(employee.id, out var trackedTraining))
+                    continue;
+
+                if (employee.trainingSession != null)
+                    continue;
+
+                if (!employee.isTrainingDay)
+                    continue;
+
+                completedTraining.Add(new CompletedTraining(employee, trackedTraining.SkillName, trackedTraining.StartingValue));
+            }
+
+            return completedTraining;
+        }
+
+        private void ApplyCompletedTrainingBoosts(ModContext context, List<CompletedTraining> completedTraining, int configuredGain)
+        {
+            var day = SaveGameManager.Current?.Day ?? 0;
+            foreach (var completed in completedTraining)
+            {
+                var processedKey = BuildProcessedKey(completed.Employee.id, day, completed.SkillName);
+                if (!processedFinishedTrainingKeys.Add(processedKey))
+                    continue;
+
+                ApplyConfiguredTrainingGain(
+                    context,
+                    completed.Employee,
+                    completed.SkillName,
+                    configuredGain,
+                    completed.StartingValue);
+                trackedTrainingByEmployeeId.Remove(completed.Employee.id);
+            }
+        }
+
+        private void ApplyConfiguredTrainingGain(
+            ModContext context,
+            EmployeeInstance employee,
+            string skillName,
+            int configuredGain,
+            float trackedStartValue)
         {
             if (!TryGetSkillValue(employee, skillName, out var currentSkillValue))
                 return;
-
-            var trackedStartValue = trackedTrainingByEmployeeId.TryGetValue(employee.id, out var trackedTraining) &&
-                                    string.Equals(trackedTraining.SkillName, skillName, StringComparison.Ordinal)
-                ? trackedTraining.StartingValue
-                : Mathf.Max(0f, currentSkillValue - VanillaTrainingSkillIncrease);
 
             var targetValue = Mathf.Min(100f, trackedStartValue + configuredGain);
             var extraGain = targetValue - currentSkillValue;
@@ -118,6 +152,22 @@ namespace BigHax
             }
 
             return false;
+        }
+
+        private readonly struct CompletedTraining
+        {
+            public CompletedTraining(EmployeeInstance employee, string skillName, float startingValue)
+            {
+                Employee = employee;
+                SkillName = skillName;
+                StartingValue = startingValue;
+            }
+
+            public EmployeeInstance Employee { get; }
+
+            public string SkillName { get; }
+
+            public float StartingValue { get; }
         }
 
         private readonly struct TrackedTraining
