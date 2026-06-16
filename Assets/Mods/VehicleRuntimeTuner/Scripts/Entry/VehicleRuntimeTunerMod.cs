@@ -18,9 +18,6 @@ namespace VehicleRuntimeTuner.Entry
 
         public Task OnLoadAsync(ModContext context)
         {
-            if (VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
-                VehicleRuntimeTunerFileLogger.Log("INFO", "OnLoadAsync entered.");
-
             try
             {
                 if (runtimeObject != null)
@@ -28,8 +25,6 @@ namespace VehicleRuntimeTuner.Entry
 
                 runtimeObject = new GameObject("VehicleRuntimeTunerRuntime");
                 UnityEngine.Object.DontDestroyOnLoad(runtimeObject);
-                if (VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
-                    VehicleRuntimeTunerFileLogger.Log("INFO", "Runtime GameObject created.");
 
                 var runtime = runtimeObject.AddComponent<Runtime.VehicleRuntimeTunerRuntime>();
                 runtime.Initialize(context);
@@ -37,7 +32,7 @@ namespace VehicleRuntimeTuner.Entry
                 if (VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
                 {
                     context.Logger.Info("VehicleRuntimeTuner: loaded.");
-                    VehicleRuntimeTunerFileLogger.Log("INFO", "OnLoadAsync completed successfully.");
+                    VehicleRuntimeTunerFileLogger.Log("INFO", "VehicleRuntimeTuner loaded.");
                 }
             }
             catch (Exception ex)
@@ -52,15 +47,10 @@ namespace VehicleRuntimeTuner.Entry
 
         public Task OnUnloadAsync()
         {
-            if (VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
-                VehicleRuntimeTunerFileLogger.Log("INFO", "OnUnloadAsync entered.");
-
             if (runtimeObject != null)
                 UnityEngine.Object.Destroy(runtimeObject);
 
             runtimeObject = null;
-            if (VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
-                VehicleRuntimeTunerFileLogger.Log("INFO", "OnUnloadAsync completed.");
             return Task.CompletedTask;
         }
     }

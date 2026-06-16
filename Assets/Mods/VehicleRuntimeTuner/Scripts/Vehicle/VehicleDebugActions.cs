@@ -10,7 +10,7 @@ namespace VehicleRuntimeTuner.Vehicle
 {
     public sealed class VehicleDebugActions
     {
-        private const float RespawnOffsetDistance = 3f;
+        private const float RespawnOffsetDistance = 7f;
         private const float RespawnHeightOffset = 0.5f;
 
         public bool TryRespawnTestVehicle(
@@ -34,7 +34,12 @@ namespace VehicleRuntimeTuner.Vehicle
             }
 
             var origin = activeVehicle.Root.transform;
-            var spawnPosition = origin.position + origin.right * RespawnOffsetDistance;
+            var forward = Vector3.ProjectOnPlane(origin.forward, Vector3.up);
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = origin.forward;
+            forward.Normalize();
+
+            var spawnPosition = origin.position + forward * RespawnOffsetDistance;
             spawnPosition.y += RespawnHeightOffset;
             var spawnRotation = origin.rotation;
 

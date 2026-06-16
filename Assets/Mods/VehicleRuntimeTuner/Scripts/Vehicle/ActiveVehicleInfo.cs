@@ -16,5 +16,16 @@ namespace VehicleRuntimeTuner.Vehicle
         public VehicleType? VehicleType { get; set; }
         public IReadOnlyList<WheelCollider> WheelColliders { get; set; } = new List<WheelCollider>();
         public IReadOnlyList<MonoBehaviour> MonoBehaviours { get; set; } = new List<MonoBehaviour>();
+        public Transform? FrontLeftWheelVisual { get; set; }
+        public Transform? FrontRightWheelVisual { get; set; }
+        public Transform? RearLeftWheelVisual { get; set; }
+        public Transform? RearRightWheelVisual { get; set; }
+        public Transform? FrontLeftWheelController { get; set; }
+        public Transform? FrontRightWheelController { get; set; }
+        public Transform? RearLeftWheelController { get; set; }
+        public Transform? RearRightWheelController { get; set; }
+        public Transform? BodyColliderTransform { get; set; }
+        public Transform? BodyTransform { get; set; }
+        public Transform? PaintTransform { get; set; }
     }
 }

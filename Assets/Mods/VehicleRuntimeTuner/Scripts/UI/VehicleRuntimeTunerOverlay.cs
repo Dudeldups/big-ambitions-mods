@@ -9,8 +9,9 @@ namespace VehicleRuntimeTuner.UI
     {
         private const string TextFieldControlPrefix = "VehicleRuntimeTunerField_";
 
-        private Rect windowRect = new Rect(20f, 200f, 720f, 720f);
+        private Rect windowRect = new Rect(20f, 200f, 860f, 760f);
         private bool positionInitialized;
+        private Vector2 scrollPosition;
         private Texture2D? blackTexture;
         private Texture2D? greyTexture;
         private GUIStyle? windowStyle;
@@ -54,10 +55,18 @@ namespace VehicleRuntimeTuner.UI
             var textFieldFocused = !string.IsNullOrWhiteSpace(focusedControl) &&
                                    focusedControl.StartsWith(TextFieldControlPrefix, System.StringComparison.Ordinal);
 
+            ConsumeScrollWheelIfMouseOverWindow();
             if (textFieldFocused)
                 ConsumeGameplayInputEvent();
 
             return textFieldFocused;
+        }
+
+        public bool IsMouseOverWindow()
+        {
+            var mousePosition = Input.mousePosition;
+            var guiMousePosition = new Vector2(mousePosition.x, Screen.height - mousePosition.y);
+            return windowRect.Contains(guiMousePosition);
         }
 
         private void DrawWindow(
@@ -78,12 +87,22 @@ namespace VehicleRuntimeTuner.UI
             GUILayout.BeginVertical();
             GUILayout.Label($"Active vehicle: {(activeVehicle?.VehicleTypeName ?? "No active vehicle")}", labelStyle);
             GUILayout.Label($"Instance id: {(activeVehicle?.VehicleInstanceId ?? "-")}", labelStyle);
+            DrawTabBar(state);
 
-            DrawBody(state.FieldBuffer, state.DefaultValues);
-            DrawEngine(state.FieldBuffer, state.DefaultValues);
-            DrawBrakes(state.FieldBuffer, state.DefaultValues);
-            DrawSuspension(state.FieldBuffer, state.DefaultValues);
-            DrawWheels(state.FieldBuffer, state.DefaultValues);
+            scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true, GUILayout.ExpandHeight(true));
+            if (state.SelectedTabIndex == 0)
+            {
+                DrawBody(state.FieldBuffer, state.DefaultValues);
+                DrawEngine(state.FieldBuffer, state.DefaultValues);
+                DrawBrakes(state.FieldBuffer, state.DefaultValues);
+                DrawSuspension(state.FieldBuffer, state.DefaultValues);
+                DrawWheels(state.FieldBuffer, state.DefaultValues);
+            }
+            else
+            {
+                DrawLayout(state.LayoutBuffer, state.LayoutDefaults);
+            }
+            GUILayout.EndScrollView();
 
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Apply", buttonStyle)) onApply();
@@ -178,6 +197,65 @@ namespace VehicleRuntimeTuner.UI
             GUILayout.Label(label, labelStyle);
         }
 
+        private void DrawTabBar(VehicleRuntimeTunerState state)
+        {
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Tuning", buttonStyle))
+                state.SelectedTabIndex = 0;
+            if (GUILayout.Button("Layout", buttonStyle))
+                state.SelectedTabIndex = 1;
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawLayout(VehicleRuntimeTunerLayoutBuffer buffer, VehicleRuntimeTunerLayoutDefaults defaults)
+        {
+            GUILayout.Space(4f);
+            DrawSectionLabel("[Wheel Visuals]");
+            DrawVector3Fields("Front Left Wheel", nameof(buffer.FrontLeftWheelX), ref buffer.FrontLeftWheelX, ref buffer.FrontLeftWheelY, ref buffer.FrontLeftWheelZ, defaults.FrontLeftWheelX, defaults.FrontLeftWheelY, defaults.FrontLeftWheelZ);
+            DrawVector3Fields("Front Right Wheel", nameof(buffer.FrontRightWheelX), ref buffer.FrontRightWheelX, ref buffer.FrontRightWheelY, ref buffer.FrontRightWheelZ, defaults.FrontRightWheelX, defaults.FrontRightWheelY, defaults.FrontRightWheelZ);
+            DrawVector3Fields("Rear Left Wheel", nameof(buffer.RearLeftWheelX), ref buffer.RearLeftWheelX, ref buffer.RearLeftWheelY, ref buffer.RearLeftWheelZ, defaults.RearLeftWheelX, defaults.RearLeftWheelY, defaults.RearLeftWheelZ);
+            DrawVector3Fields("Rear Right Wheel", nameof(buffer.RearRightWheelX), ref buffer.RearRightWheelX, ref buffer.RearRightWheelY, ref buffer.RearRightWheelZ, defaults.RearRightWheelX, defaults.RearRightWheelY, defaults.RearRightWheelZ);
+
+            DrawSectionLabel("[Wheel Controllers]");
+            DrawVector3Fields("Front Left Ctrl", nameof(buffer.FrontLeftControllerX), ref buffer.FrontLeftControllerX, ref buffer.FrontLeftControllerY, ref buffer.FrontLeftControllerZ, defaults.FrontLeftControllerX, defaults.FrontLeftControllerY, defaults.FrontLeftControllerZ);
+            DrawVector3Fields("Front Right Ctrl", nameof(buffer.FrontRightControllerX), ref buffer.FrontRightControllerX, ref buffer.FrontRightControllerY, ref buffer.FrontRightControllerZ, defaults.FrontRightControllerX, defaults.FrontRightControllerY, defaults.FrontRightControllerZ);
+            DrawVector3Fields("Rear Left Ctrl", nameof(buffer.RearLeftControllerX), ref buffer.RearLeftControllerX, ref buffer.RearLeftControllerY, ref buffer.RearLeftControllerZ, defaults.RearLeftControllerX, defaults.RearLeftControllerY, defaults.RearLeftControllerZ);
+            DrawVector3Fields("Rear Right Ctrl", nameof(buffer.RearRightControllerX), ref buffer.RearRightControllerX, ref buffer.RearRightControllerY, ref buffer.RearRightControllerZ, defaults.RearRightControllerX, defaults.RearRightControllerY, defaults.RearRightControllerZ);
+
+            DrawSectionLabel("[Body]");
+            DrawVector3Fields("Body Collider", nameof(buffer.BodyColliderX), ref buffer.BodyColliderX, ref buffer.BodyColliderY, ref buffer.BodyColliderZ, defaults.BodyColliderX, defaults.BodyColliderY, defaults.BodyColliderZ);
+            DrawVector3Fields("CarHolder Body", nameof(buffer.BodyX), ref buffer.BodyX, ref buffer.BodyY, ref buffer.BodyZ, defaults.BodyX, defaults.BodyY, defaults.BodyZ);
+            DrawVector3Fields("CarHolder Paint", nameof(buffer.PaintX), ref buffer.PaintX, ref buffer.PaintY, ref buffer.PaintZ, defaults.PaintX, defaults.PaintY, defaults.PaintZ);
+        }
+
+        private void DrawVector3Fields(
+            string label,
+            string controlPrefix,
+            ref string xValue,
+            ref string yValue,
+            ref string zValue,
+            string defaultX,
+            string defaultY,
+            string defaultZ)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, labelStyle, GUILayout.Width(150f));
+            GUI.SetNextControlName(TextFieldControlPrefix + controlPrefix + "_X");
+            xValue = GUILayout.TextField(xValue ?? string.Empty, textFieldStyle, GUILayout.Width(55f));
+            GUI.SetNextControlName(TextFieldControlPrefix + controlPrefix + "_Y");
+            yValue = GUILayout.TextField(yValue ?? string.Empty, textFieldStyle, GUILayout.Width(55f));
+            GUI.SetNextControlName(TextFieldControlPrefix + controlPrefix + "_Z");
+            zValue = GUILayout.TextField(zValue ?? string.Empty, textFieldStyle, GUILayout.Width(55f));
+            GUILayout.Label("Default", labelStyle, GUILayout.Width(50f));
+            GUILayout.Label($"{FormatDefault(defaultX)}, {FormatDefault(defaultY)}, {FormatDefault(defaultZ)}", labelStyle, GUILayout.Width(180f));
+            GUILayout.EndHorizontal();
+        }
+
+        private static string FormatDefault(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "-" : value;
+        }
+
         private void EnsureLayoutAndStyles()
         {
             if (!positionInitialized)
@@ -248,6 +326,16 @@ namespace VehicleRuntimeTuner.UI
                     currentEvent.Use();
                     break;
             }
+        }
+
+        private void ConsumeScrollWheelIfMouseOverWindow()
+        {
+            var currentEvent = Event.current;
+            if (currentEvent == null || currentEvent.type != EventType.ScrollWheel)
+                return;
+
+            if (windowRect.Contains(currentEvent.mousePosition))
+                currentEvent.Use();
         }
 
         private static void HandleOverlayHotkeys(

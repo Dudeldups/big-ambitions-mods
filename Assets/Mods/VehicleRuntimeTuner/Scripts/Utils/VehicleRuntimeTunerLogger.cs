@@ -10,8 +10,6 @@ namespace VehicleRuntimeTuner.Utils
         public void Initialize(ModContext modContext)
         {
             context = modContext;
-            if (VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
-                VehicleRuntimeTunerFileLogger.Log("INFO", "logger initialized");
         }
 
         public void Info(string message)
@@ -37,7 +35,7 @@ namespace VehicleRuntimeTuner.Utils
             if (!VehicleRuntimeTunerDebugOptions.EnableDebugLogging)
                 return;
 
-            context?.Logger.Warn("VehicleRuntimeTuner: " + message);
+            context?.Logger.Error("VehicleRuntimeTuner: " + message);
             VehicleRuntimeTunerFileLogger.Log("ERROR", message);
         }
     }

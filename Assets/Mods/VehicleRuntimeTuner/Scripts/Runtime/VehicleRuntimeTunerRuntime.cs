@@ -25,21 +25,19 @@ namespace VehicleRuntimeTuner.Runtime
         private readonly VehicleRuntimeTunerOverlay overlay = new VehicleRuntimeTunerOverlay();
         private readonly VehicleRuntimeTunerLogger logger = new VehicleRuntimeTunerLogger();
 
-        private ModContext? context;
-        private bool loggedOverlayOpenFrame;
-
         public void Initialize(ModContext modContext)
         {
-            context = modContext;
             logger.Initialize(modContext);
-            logger.Info($"initialized. persistentDataPath={Application.persistentDataPath}; logPath={VehicleRuntimeTunerPaths.LogFilePath}");
         }
 
         private void Update()
         {
             HandleHotkeys();
 
-            if (state.OverlayVisible && state.OverlayTextFieldFocused)
+            if (state.OverlayVisible)
+                state.OverlayMouseOverWindow = overlay.IsMouseOverWindow();
+
+            if (state.OverlayVisible && (state.OverlayTextFieldFocused || state.OverlayMouseOverWindow))
                 Input.ResetInputAxes();
 
             if (state.OverlayVisible)
@@ -65,12 +63,6 @@ namespace VehicleRuntimeTuner.Runtime
                     RespawnTestVehicle,
                     TeleportCurrentVehicleToGround,
                     ResetCurrentVehicleVelocity);
-
-                if (!loggedOverlayOpenFrame)
-                {
-                    logger.Info($"OnGUI draw active. focusedField={state.OverlayTextFieldFocused}; activeVehicle={state.ActiveVehicle?.VehicleTypeName ?? "none"}");
-                    loggedOverlayOpenFrame = true;
-                }
             }
             catch (Exception ex)
             {
@@ -83,9 +75,8 @@ namespace VehicleRuntimeTuner.Runtime
             if (hotkeys.ToggleOverlayPressed())
             {
                 state.OverlayVisible = !state.OverlayVisible;
-                loggedOverlayOpenFrame = false;
+                state.OverlayMouseOverWindow = false;
                 RefreshActiveVehicle(true);
-                logger.Info($"F10 pressed. OverlayVisible={state.OverlayVisible}; activeVehicle={state.ActiveVehicle?.VehicleTypeName ?? "none"}");
                 state.StatusMessage.Show(state.OverlayVisible ? "Overlay opened." : "Overlay closed.");
             }
 
@@ -93,36 +84,22 @@ namespace VehicleRuntimeTuner.Runtime
                 return;
 
             if (hotkeys.ApplyPressed())
-            {
-                logger.Info("F9 pressed.");
                 ApplyCurrentProfile();
-            }
 
             if (hotkeys.DumpPressed())
-            {
-                logger.Info("F8 pressed.");
                 DumpActiveVehicle();
-            }
 
             if (hotkeys.SavePressed())
-            {
-                logger.Info("F7 pressed.");
                 SaveCurrentProfile();
-            }
 
             if (hotkeys.LoadPressed())
-            {
-                logger.Info("F6 pressed.");
                 LoadCurrentProfile();
-            }
         }
 
         private void RefreshActiveVehicle(bool forceRefresh)
         {
             var previousVehicleInstanceId = state.ActiveVehicle?.VehicleInstanceId ?? string.Empty;
             state.ActiveVehicle = activeVehicleResolver.Resolve(forceRefresh);
-            if (forceRefresh)
-                logger.Info($"RefreshActiveVehicle(force={forceRefresh}) -> {state.ActiveVehicle?.VehicleTypeName ?? "none"} / {state.ActiveVehicle?.VehicleInstanceId ?? "-"}");
 
             if (state.ActiveVehicle != null &&
                 (forceRefresh ||
@@ -130,6 +107,8 @@ namespace VehicleRuntimeTuner.Runtime
                  !string.Equals(previousVehicleInstanceId, state.ActiveVehicle.VehicleInstanceId, StringComparison.Ordinal)))
             {
                 state.DefaultValues.Capture(state.ActiveVehicle);
+                state.LayoutDefaults.Capture(state.ActiveVehicle);
+                state.LayoutBuffer.SyncFromVehicle(state.ActiveVehicle);
             }
 
             if (state.ActiveVehicle?.VehicleTypeName != null && !string.IsNullOrWhiteSpace(state.ActiveVehicle.VehicleTypeName))
@@ -154,11 +133,9 @@ namespace VehicleRuntimeTuner.Runtime
             if (string.IsNullOrWhiteSpace(state.CurrentProfile.vehicleTypeName))
                 state.CurrentProfile.vehicleTypeName = state.ActiveVehicle.VehicleTypeName;
 
-            logger.Info(
-                $"ApplyCurrentProfile values: mass={FormatOptional(state.CurrentProfile.body.mass)}, enginePower={FormatOptional(state.CurrentProfile.engine.enginePower)}, maxSpeed={FormatOptional(state.CurrentProfile.engine.maxSpeed)}, frontRadius={FormatOptional(state.CurrentProfile.wheels.frontRadius)}, rearRadius={FormatOptional(state.CurrentProfile.wheels.rearRadius)}");
             tuningApplier.Apply(state.ActiveVehicle, state.CurrentProfile);
-            logger.Info(
-                $"ApplyCurrentProfile runtime writes: scalarMembers={tuningApplier.LastRuntimeScalarWriteCount}, wheelStructs={tuningApplier.LastWheelStructWriteCount}");
+            state.LayoutBuffer.FillEmptyFieldsFromDefaults(state.LayoutDefaults);
+            state.LayoutBuffer.Apply(state.ActiveVehicle);
             ShowStatus("Applied current profile.");
         }
 
@@ -274,9 +251,5 @@ namespace VehicleRuntimeTuner.Runtime
             logger.Info(message);
         }
 
-        private static string FormatOptional(OptionalFloat value)
-        {
-            return value.hasValue ? value.value.ToString("0.###", InvariantParsing.Culture) : "<unset>";
-        }
     }
 }
