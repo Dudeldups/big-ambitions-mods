@@ -62,8 +62,8 @@ namespace VehicleRuntimeTuner.Applying
             var wheelControllers = FindWheelControllers(activeVehicle.MonoBehaviours);
             VehicleWheelClassifier.SplitWheelControllers(wheelControllers, out var frontControllers, out var rearControllers);
 
-            ApplyWheelStruct(frontControllers, profile.wheels.frontRadius, profile.wheels.frontWidth);
-            ApplyWheelStruct(rearControllers, profile.wheels.rearRadius, profile.wheels.rearWidth);
+            ApplyWheelController(frontControllers, profile.wheels.frontRadius, profile.wheels.frontWidth, profile.suspension.frontSpring, profile.suspension.frontDamper, profile.suspension.frontSuspensionDistance);
+            ApplyWheelController(rearControllers, profile.wheels.rearRadius, profile.wheels.rearWidth, profile.suspension.rearSpring, profile.suspension.rearDamper, profile.suspension.rearSuspensionDistance);
         }
 
         private void ApplyRuntimeScalars(ActiveVehicleInfo activeVehicle, VehicleTuningProfile profile)
@@ -101,7 +101,13 @@ namespace VehicleRuntimeTuner.Applying
             return list;
         }
 
-        private void ApplyWheelStruct(IEnumerable<MonoBehaviour> wheelControllers, OptionalFloat radius, OptionalFloat width)
+        private void ApplyWheelController(
+            IEnumerable<MonoBehaviour> wheelControllers,
+            OptionalFloat radius,
+            OptionalFloat width,
+            OptionalFloat springForce,
+            OptionalFloat damperRate,
+            OptionalFloat springLength)
         {
             foreach (var wheelController in wheelControllers)
             {
@@ -118,6 +124,37 @@ namespace VehicleRuntimeTuner.Applying
                 {
                     VehicleRuntimeTunerReflection.TrySetMemberValue(wheelController, "wheel", wheelStruct);
                     LastWheelStructWriteCount++;
+                }
+
+                if (VehicleRuntimeTunerReflection.TryGetMemberValue(wheelController, "spring", out var springStruct) && springStruct != null)
+                {
+                    var springChanged = false;
+                    if (springForce.hasValue)
+                        springChanged |= VehicleRuntimeTunerReflection.TrySetMemberValue(springStruct, "maxForce", springForce.value);
+                    if (springLength.hasValue)
+                        springChanged |= VehicleRuntimeTunerReflection.TrySetMemberValue(springStruct, "maxLength", springLength.value);
+
+                    if (springChanged)
+                    {
+                        VehicleRuntimeTunerReflection.TrySetMemberValue(wheelController, "spring", springStruct);
+                        LastWheelStructWriteCount++;
+                    }
+                }
+
+                if (VehicleRuntimeTunerReflection.TryGetMemberValue(wheelController, "damper", out var damperStruct) && damperStruct != null)
+                {
+                    var damperChanged = false;
+                    if (damperRate.hasValue)
+                    {
+                        damperChanged |= VehicleRuntimeTunerReflection.TrySetMemberValue(damperStruct, "bumpRate", damperRate.value);
+                        damperChanged |= VehicleRuntimeTunerReflection.TrySetMemberValue(damperStruct, "reboundRate", damperRate.value);
+                    }
+
+                    if (damperChanged)
+                    {
+                        VehicleRuntimeTunerReflection.TrySetMemberValue(wheelController, "damper", damperStruct);
+                        LastWheelStructWriteCount++;
+                    }
                 }
             }
         }

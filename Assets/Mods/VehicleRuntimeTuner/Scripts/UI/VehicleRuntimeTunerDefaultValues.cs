@@ -103,6 +103,11 @@ namespace VehicleRuntimeTuner.UI
             VehicleWheelClassifier.SplitWheelControllers(wheelControllers, out var frontControllers, out var rearControllers);
             CaptureWheelControllerGroup(frontControllers, isFront: true);
             CaptureWheelControllerGroup(rearControllers, isFront: false);
+
+            if (string.IsNullOrWhiteSpace(FrontTarget))
+                FrontTarget = "n/a";
+            if (string.IsNullOrWhiteSpace(RearTarget))
+                RearTarget = "n/a";
         }
 
         private void CaptureWheelControllerGroup(System.Collections.Generic.IEnumerable<MonoBehaviour> wheelControllers, bool isFront)
