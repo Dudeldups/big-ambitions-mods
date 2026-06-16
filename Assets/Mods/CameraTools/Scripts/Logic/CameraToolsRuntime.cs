@@ -15,8 +15,10 @@ namespace CameraTools
     {
         private const float PitchStepPerMousePixel = 0.15f;
         private const float VehicleYawStepPerMousePixel = 0.2f;
+        private const float VehicleYawSlowResetSpeedDegreesPerSecond = 40f;
         private const float VehicleYawResetSpeedDegreesPerSecond = 160f;
-        private const float VehicleMovingSpeedThreshold = 0.25f;
+        private const float VehicleYawAutoResetHighSpeedThreshold = 12f;
+        private const float VehicleYawAutoResetLowSpeedThreshold = VehicleYawAutoResetHighSpeedThreshold * 0.25f;
         private const float VehicleMinimumZoom = 6f;
         private const float VehicleZoomStepPerScrollTick = 4f;
         private const float VehicleForcedZoomStep = 20f;

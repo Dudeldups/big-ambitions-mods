@@ -183,15 +183,18 @@ namespace CameraTools
 
         private bool ShouldAutoResetVehicleYaw()
         {
-            return hasManualVehicleYaw && IsVehicleMoving();
+            return hasManualVehicleYaw && TryGetVehicleAutoResetSpeed(out _);
         }
 
         private void AutoResetVehicleYaw(float maxZoom)
         {
+            if (!TryGetVehicleAutoResetSpeed(out var resetSpeedDegreesPerSecond))
+                return;
+
             var nextYaw = Mathf.MoveTowardsAngle(
                 manualVehicleYaw,
                 0f,
-                VehicleYawResetSpeedDegreesPerSecond * Time.unscaledDeltaTime);
+                resetSpeedDegreesPerSecond * Time.unscaledDeltaTime);
 
             if (Mathf.Abs(Mathf.DeltaAngle(manualVehicleYaw, nextYaw)) <= Mathf.Epsilon)
                 return;
@@ -906,14 +909,36 @@ namespace CameraTools
             return new Vector3(rotatedHorizontal.x, targetHeight, rotatedHorizontal.z);
         }
 
-        private bool IsVehicleMoving()
+        private bool TryGetVehicleAutoResetSpeed(out float resetSpeedDegreesPerSecond)
         {
-            if (TryGetVehicleSpeed(vehicleTarget?.VehicleController, out var speed))
-                return speed > VehicleMovingSpeedThreshold;
+            resetSpeedDegreesPerSecond = 0f;
+            if (!TryGetCurrentVehicleSpeed(out var speed))
+                return false;
+
+            if (speed >= VehicleYawAutoResetHighSpeedThreshold)
+            {
+                resetSpeedDegreesPerSecond = VehicleYawResetSpeedDegreesPerSecond;
+                return true;
+            }
+
+            if (speed >= VehicleYawAutoResetLowSpeedThreshold)
+            {
+                resetSpeedDegreesPerSecond = VehicleYawSlowResetSpeedDegreesPerSecond;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryGetCurrentVehicleSpeed(out float speed)
+        {
+            if (TryGetVehicleSpeed(vehicleTarget?.VehicleController, out speed))
+                return true;
 
             if (TryGetVehicleSpeed(vehicleTarget?.CarController, out speed))
-                return speed > VehicleMovingSpeedThreshold;
+                return true;
 
+            speed = 0f;
             return false;
         }
 
