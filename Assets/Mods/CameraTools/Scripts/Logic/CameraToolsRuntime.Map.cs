@@ -275,9 +275,6 @@ namespace CameraTools
             if (settings == null)
                 return;
 
-            if (activeIndoorRenderCamera != null && camera == activeIndoorRenderCamera && isIndoorSkySuppressed)
-                ApplyIndoorCameraRenderState(camera);
-
             if (activeMapRenderCamera != null && camera == activeMapRenderCamera)
                 ApplyMapCameraState();
 

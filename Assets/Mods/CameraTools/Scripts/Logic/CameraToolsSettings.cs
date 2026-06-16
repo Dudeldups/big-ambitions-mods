@@ -6,7 +6,7 @@ namespace CameraTools
     {
         public bool EnableGameplayTweaks { get; set; } = true;
 
-        public int GameplayMaxZoom { get; set; } = 90;
+        public int GameplayMaxZoom { get; set; } = 43;
 
         public int GameplayDefaultPitch { get; set; } = 35;
 
@@ -28,7 +28,7 @@ namespace CameraTools
 
         public bool EnableVehicleDebugOverlay { get; set; } = false;
 
-        public bool EnableIndoorCameraDebugLogging { get; set; } = true;
+        public bool EnableIndoorCameraDebugLogging { get; set; } = false;
 
         public bool EnableMapTopDown { get; set; } = true;
 

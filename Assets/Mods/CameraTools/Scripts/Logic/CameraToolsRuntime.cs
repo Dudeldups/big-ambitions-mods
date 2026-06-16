@@ -23,6 +23,7 @@ namespace CameraTools
         private const float VehicleZoomStepPerScrollTick = 4f;
         private const float VehicleForcedZoomStep = 20f;
         private const float GameplayMinimumZoom = 1.5f;
+        private const float IndoorWallsPartlyHiddenPitchThreshold = 32.45f;
         private const float MapMinimumZoom = 120f;
         private const float MapScrollStepMultiplier = 7f;
         private const float MapScrollDeltaThreshold = 0.1f;
@@ -111,6 +112,18 @@ namespace CameraTools
             "maxDistance",
             "minDistance"
         };
+        private static readonly string[] GameplayCameraKeywords =
+        {
+            "cam",
+            "camera",
+            "distance",
+            "zoom",
+            "offset",
+            "min",
+            "max",
+            "follow",
+            "look"
+        };
         private static readonly string[] HiddenUiIncludeKeywords =
         {
             "portrait",
@@ -195,8 +208,6 @@ namespace CameraTools
         private Camera? activeMapRenderCamera;
         private CameraState activeMapRenderCameraState;
         private Transform? activeMapVcamTransform;
-        private Camera? activeIndoorRenderCamera;
-        private CameraState activeIndoorRenderCameraState;
         private Component? activeVehicleCameraRoot;
         private Component[]? cachedVehicleCameras;
         private readonly Dictionary<int, Vector3> cachedVehicleFollowOffsets = new Dictionary<int, Vector3>();
@@ -213,8 +224,8 @@ namespace CameraTools
         private bool hasManualMapPitch;
         private bool hasManualVehiclePitch;
         private bool hasManualVehicleYaw;
+        private bool hasForcedIndoorWallsPartlyHidden;
         private bool hasShownGameplayPitchHint;
-        private bool isIndoorSkySuppressed;
         private bool isUiHidden;
         private bool isGameplayUiBlocked;
         private bool isTrackingMapRightMousePitch;
@@ -276,6 +287,8 @@ namespace CameraTools
         private static Type? pedestrianCamType;
         private static Type? saveGameManagerType;
         private static Type? vehicleControllerType;
+        private static Type? wallsVisibilityHelperType;
+        private static Type? wallsVisibilityType;
         private static readonly Dictionary<string, FieldInfo?> fieldCache = new Dictionary<string, FieldInfo?>();
         private static readonly Dictionary<string, PropertyInfo?> propertyCache = new Dictionary<string, PropertyInfo?>();
         private static readonly object memberCacheLock = new object();
@@ -309,8 +322,8 @@ namespace CameraTools
             runtime.hasManualMapPitch = false;
             runtime.hasManualVehiclePitch = false;
             runtime.hasManualVehicleYaw = false;
+            runtime.hasForcedIndoorWallsPartlyHidden = false;
             runtime.hasShownGameplayPitchHint = false;
-            runtime.isIndoorSkySuppressed = false;
             runtime.isUiHidden = false;
             runtime.isTrackingMapRightMousePitch = false;
             runtime.isTrackingRightMousePitch = false;
@@ -367,6 +380,8 @@ namespace CameraTools
             dialogUiType ??= FindType("UI.Dialog.DialogUI");
             gameManagerType ??= FindType(GameManagerTypeName);
             saveGameManagerType ??= FindType(SaveGameManagerTypeName);
+            wallsVisibilityHelperType ??= FindType("Buildings.Indoors.WallsVisibilityHelper");
+            wallsVisibilityType ??= FindType("BigAmbitions.InteriorDesigner.WallsVisibility");
 
             LogVehicleDebug("CameraTools runtime initialized.");
             return runtime;
@@ -376,7 +391,6 @@ namespace CameraTools
         {
             RestoreScenicView();
             RestoreHiddenUi();
-            RestoreIndoorCameraState();
             RestoreMapCameraState();
             LogVehicleDebug("CameraTools runtime shutting down.");
             Destroy(gameObject);
@@ -411,8 +425,7 @@ namespace CameraTools
             HandleVehicleDebugHotkeys();
             var gameplayActive = IsGameplayActive();
             HandleIndoorCameraDebugHotkey(cityMapOpen, gameplayActive);
-            UpdateIndoorCameraState(cityMapOpen, gameplayActive);
-
+            UpdateIndoorWallsVisibility(cityMapOpen, gameplayActive);
             if (!cityMapOpen)
                 ApplyGameplayTweaks();
             if (!cityMapOpen)
@@ -598,64 +611,6 @@ namespace CameraTools
             CameraToolsFileLogger.Log("indoor-camera-debug.log", "cameratools-indoor-camera-debug.log", message);
         }
 
-        private void UpdateIndoorCameraState(bool cityMapOpen, bool gameplayActive)
-        {
-            if (cityMapOpen || !gameplayActive)
-            {
-                RestoreIndoorCameraState();
-                return;
-            }
-
-            var liveVirtualCamera = GetLiveVirtualCameraComponent();
-            if (!IsIndoorGameplayCamera(liveVirtualCamera))
-            {
-                RestoreIndoorCameraState();
-                return;
-            }
-
-            var mainCamera = GetLiveMainCamera();
-            if (mainCamera == null)
-            {
-                RestoreIndoorCameraState();
-                return;
-            }
-
-            if (activeIndoorRenderCamera != mainCamera)
-            {
-                RestoreIndoorCameraState();
-                activeIndoorRenderCamera = mainCamera;
-                activeIndoorRenderCameraState = new CameraState(mainCamera);
-            }
-
-            if (isIndoorSkySuppressed)
-                return;
-
-            ApplyIndoorCameraRenderState(mainCamera);
-            isIndoorSkySuppressed = true;
-        }
-
-        private void RestoreIndoorCameraState()
-        {
-            if (activeIndoorRenderCamera != null)
-            {
-                activeIndoorRenderCameraState.Restore(activeIndoorRenderCamera);
-                activeIndoorRenderCamera = null;
-            }
-
-            isIndoorSkySuppressed = false;
-        }
-
-        private static void ApplyIndoorCameraRenderState(Camera camera)
-        {
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = Color.black;
-
-            var skybox = camera.GetComponent<Skybox>();
-            if (skybox != null)
-                skybox.enabled = false;
-        }
-
-
         private static Array? GetCinemachinePipeline(Type virtualCameraType, object virtualCamera)
         {
             var getPipelineMethod = virtualCameraType.GetMethod("GetComponentPipeline", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -753,11 +708,19 @@ namespace CameraTools
             var liveVirtualCamera = GetLiveVirtualCameraComponent();
             LogIndoorCameraDebug("=== Indoor camera diagnostics start ===");
             LogIndoorCameraDebug($"reason={reason}, gameplayActive={IsGameplayActive()}, cityMapOpen={IsCityMapOpen()}, liveVcam={(liveVirtualCamera == null ? "none" : GetHierarchyPath(liveVirtualCamera.transform))}");
+            LogIndoorCameraDebug($"gameplayPitch={GetCurrentGameplayPitchForLogging():0.##}, hasManualGameplayPitch={hasManualGameplayPitch}");
+            LogIndoorCameraDebug($"wallsVisibility={GetCurrentWallsVisibilityName()}, forcedPartlyHidden={hasForcedIndoorWallsPartlyHidden}, thresholdPitch={IndoorWallsPartlyHiddenPitchThreshold:0.##}");
+            LogIndoorCameraDebug($"wallsHelperType={(wallsVisibilityHelperType == null ? "null" : wallsVisibilityHelperType.FullName)}, wallsEnumType={(wallsVisibilityType == null ? "null" : wallsVisibilityType.FullName)}");
 
             if (gameplayController != null)
             {
                 LogIndoorCameraDebug(
                     $"gameplayController: type={gameplayController.GetType().FullName}, path={GetHierarchyPath(gameplayController.transform)}, enabled={gameplayController.isActiveAndEnabled}");
+                foreach (var member in EnumerateInterestingMembers(gameplayController, GameplayCameraKeywords))
+                {
+                    LogIndoorCameraDebug(
+                        $"  Gameplay member: {member.DeclaringType}.{member.Name} type={member.MemberType.Name} writable={member.Writable} value={FormatMemberValue(member.Value)}");
+                }
             }
             else
             {
@@ -767,12 +730,28 @@ namespace CameraTools
             var mainCamera = Camera.main;
             if (mainCamera != null)
             {
+                var liveDistance = TryGetCameraDistanceToFollowTarget(liveVirtualCamera, mainCamera, out var distanceToFollow)
+                    ? distanceToFollow.ToString("0.##")
+                    : "n/a";
                 LogIndoorCameraDebug(
-                    $"Camera.main: path={GetHierarchyPath(mainCamera.transform)}, enabled={mainCamera.enabled}, fov={mainCamera.fieldOfView:0.##}");
+                    $"Camera.main: path={GetHierarchyPath(mainCamera.transform)}, enabled={mainCamera.enabled}, fov={mainCamera.fieldOfView:0.##}, " +
+                    $"clearFlags={mainCamera.clearFlags}, background={mainCamera.backgroundColor}, cullingMask={FormatLayerMask(mainCamera.cullingMask)}, " +
+                    $"skyboxEnabled={FormatSkyboxEnabled(mainCamera)}, distanceToFollow={liveDistance}");
             }
             else
             {
                 LogIndoorCameraDebug("Camera.main: none");
+            }
+
+            LogIndoorCameraDebug($"RenderSettings.skybox={(RenderSettings.skybox == null ? "null" : RenderSettings.skybox.name)}");
+            foreach (var camera in Camera.allCameras)
+            {
+                if (camera == null || !camera.enabled)
+                    continue;
+
+                LogIndoorCameraDebug(
+                    $"Enabled camera: path={GetHierarchyPath(camera.transform)}, depth={camera.depth:0.##}, clearFlags={camera.clearFlags}, " +
+                    $"background={camera.backgroundColor}, cullingMask={FormatLayerMask(camera.cullingMask)}, skyboxEnabled={FormatSkyboxEnabled(camera)}");
             }
 
             if (liveVirtualCamera == null)
@@ -844,6 +823,43 @@ namespace CameraTools
 
             var path = GetHierarchyPath(liveVirtualCamera.transform);
             return path.IndexOf("IndoorCam", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string FormatSkyboxEnabled(Camera camera)
+        {
+            var skybox = camera.GetComponent<Skybox>();
+            return skybox == null ? "missing" : skybox.enabled.ToString();
+        }
+
+        private static bool TryGetCameraDistanceToFollowTarget(Component? liveVirtualCamera, Camera mainCamera, out float distance)
+        {
+            distance = 0f;
+            if (liveVirtualCamera == null)
+                return false;
+
+            if (!TryGetMemberValue(liveVirtualCamera, "Follow", out var followValue) || followValue is not Transform followTarget)
+                return false;
+
+            distance = Vector3.Distance(mainCamera.transform.position, followTarget.position);
+            return true;
+        }
+
+        private static string FormatLayerMask(int cullingMask)
+        {
+            if (cullingMask == 0)
+                return "0";
+
+            var names = new List<string>();
+            for (var layer = 0; layer < 32; layer++)
+            {
+                if ((cullingMask & (1 << layer)) == 0)
+                    continue;
+
+                var layerName = LayerMask.LayerToName(layer);
+                names.Add(string.IsNullOrWhiteSpace(layerName) ? layer.ToString() : layerName);
+            }
+
+            return string.Join(",", names);
         }
 
 
@@ -1059,7 +1075,7 @@ namespace CameraTools
                 if (fieldCache.TryGetValue(key, out var field))
                     return field;
 
-                field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
                 fieldCache[key] = field;
                 return field;
             }
@@ -1073,7 +1089,7 @@ namespace CameraTools
                 if (propertyCache.TryGetValue(key, out var property))
                     return property;
 
-                property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
                 propertyCache[key] = property;
                 return property;
             }

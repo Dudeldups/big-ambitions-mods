@@ -56,7 +56,7 @@ namespace CameraTools
                 var options =
                     new ModOptions()
                         .AddHeader("cameratools_options_header")
-                        .AddSlider(GameplayZoomKey, "cameratools_gameplay_zoom_label", 15, 90, settings.GameplayMaxZoom,
+                        .AddSlider(GameplayZoomKey, "cameratools_gameplay_zoom_label", 15, 43, settings.GameplayMaxZoom,
                             value => settings.GameplayMaxZoom = value, "cameratools_slider_value")
                         .AddSlider(MapDistanceKey, "cameratools_map_distance_label", 100, 800, settings.MapDistance,
                             value => settings.MapDistance = value, "cameratools_slider_value")
