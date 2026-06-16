@@ -11,6 +11,8 @@ namespace Pink
     [ModEntryOnCityLoad]
     public sealed class PinkCityMod : IModBigAmbitions
     {
+        private const bool EnableManualDebugMode = true;
+
         // Set this to false for the release build. The logger file/class can stay in the mod.
         private const bool EnableDebugLogging = false;
 
@@ -26,7 +28,7 @@ namespace Pink
             PinkRuntime.Initialize(
                 context.ModId,
                 context.Logger,
-                EnableDebugLogging,
+                EnableDebugLogging || EnableManualDebugMode,
                 EnableVerbosePatchLogging);
 
             EnsureWatcher();
@@ -64,24 +66,21 @@ namespace Pink
 
     internal sealed class PinkWatcher : MonoBehaviour
     {
-        private const float FirstScanDelaySeconds = 0.05f;
-        private const float RetryIntervalSeconds = 0.75f;
-        private const int StableScanThreshold = 2;
-        private const int MaxScanPasses = 6;
         private const float FirstLoadingUiScanDelaySeconds = 0.05f;
         private const float LoadingUiScanIntervalSeconds = 0.35f;
-        private const int MaxLoadingUiScanPasses = 4;
-        private const float HudUiScanIntervalSeconds = 0.5f;
-        private const int MaxHudUiScanPasses = 4;
+        private const int MaxLoadingUiScanPasses = 12;
+        private const float FirstHudUiScanDelaySeconds = 0.05f;
+        private const float HudUiScanIntervalSeconds = 0.25f;
+        private const int MaxHudUiScanPasses = 32;
+        private const float WorldTintDelayAfterHudReadySeconds = 4f;
 
         private float elapsedSeconds;
-        private float nextScanAtSeconds;
-        private int stableScans;
-        private int scanPasses;
         private bool stopped;
         private bool loadingUiScanStopped;
         private bool hudUiScanStopped;
-        private bool hudUiScanArmed;
+        private bool gameplayReady;
+        private bool worldTintApplied;
+        private float gameplayReadyAtSeconds;
         private int loadingUiScanPasses;
         private int hudUiScanPasses;
         private float nextLoadingUiScanAtSeconds;
@@ -90,26 +89,28 @@ namespace Pink
         internal void Initialize()
         {
             elapsedSeconds = 0f;
-            nextScanAtSeconds = FirstScanDelaySeconds;
-            stableScans = 0;
-            scanPasses = 0;
             stopped = false;
             loadingUiScanStopped = false;
             hudUiScanStopped = false;
-            hudUiScanArmed = false;
+            gameplayReady = false;
+            worldTintApplied = false;
+            gameplayReadyAtSeconds = -1f;
             loadingUiScanPasses = 0;
             hudUiScanPasses = 0;
             nextLoadingUiScanAtSeconds = FirstLoadingUiScanDelaySeconds;
-            nextHudUiScanAtSeconds = 0f;
+            nextHudUiScanAtSeconds = FirstHudUiScanDelaySeconds;
 
             PinkFileLogger.Info(
-                $"Pink watcher initialized. firstDelay={FirstScanDelaySeconds:0.0}s interval={RetryIntervalSeconds:0.0}s maxPasses={MaxScanPasses} stableThreshold={StableScanThreshold}",
+                $"Pink watcher initialized. loadingUiInterval={LoadingUiScanIntervalSeconds:0.0}s hudUiInterval={HudUiScanIntervalSeconds:0.00}s maxLoadingUiPasses={MaxLoadingUiScanPasses} maxHudUiPasses={MaxHudUiScanPasses}",
                 alsoGameLog: true);
         }
 
         private void Update()
         {
             elapsedSeconds += Time.unscaledDeltaTime;
+
+            if (PinkCityMod.EnableManualDebugMode)
+                PinkRuntime.HandleManualDebugHotkeys();
 
             if (!loadingUiScanStopped && elapsedSeconds >= nextLoadingUiScanAtSeconds)
             {
@@ -122,12 +123,17 @@ namespace Pink
                     nextLoadingUiScanAtSeconds = elapsedSeconds + LoadingUiScanIntervalSeconds;
             }
 
-            if (hudUiScanArmed && !hudUiScanStopped && elapsedSeconds >= nextHudUiScanAtSeconds)
+            if (!hudUiScanStopped && elapsedSeconds >= nextHudUiScanAtSeconds)
             {
                 hudUiScanPasses++;
-                PinkRuntime.ApplyMainHudUiTintPass();
+                var hudReadyThisPass = PinkRuntime.ApplyMainHudUiTintPass();
+                if (hudReadyThisPass && !gameplayReady)
+                {
+                    gameplayReady = true;
+                    gameplayReadyAtSeconds = elapsedSeconds;
+                }
 
-                if (hudUiScanPasses >= MaxHudUiScanPasses)
+                if (gameplayReady || hudUiScanPasses >= MaxHudUiScanPasses)
                     hudUiScanStopped = true;
                 else
                     nextHudUiScanAtSeconds = elapsedSeconds + HudUiScanIntervalSeconds;
@@ -136,34 +142,22 @@ namespace Pink
             if (stopped)
                 return;
 
-            if (elapsedSeconds < nextScanAtSeconds)
+            if (!gameplayReady || worldTintApplied)
                 return;
 
-            scanPasses++;
-            var result = PinkRuntime.ApplyPinkPass(scanPasses);
-            nextScanAtSeconds = elapsedSeconds + RetryIntervalSeconds;
+            if (gameplayReadyAtSeconds < 0f ||
+                elapsedSeconds - gameplayReadyAtSeconds < WorldTintDelayAfterHudReadySeconds)
+                return;
 
-            if (!hudUiScanArmed)
-            {
-                hudUiScanArmed = true;
-                hudUiScanPasses = 0;
-                nextHudUiScanAtSeconds = elapsedSeconds;
-            }
-
+            worldTintApplied = true;
+            var result = PinkRuntime.ApplyPinkPass(1);
             if (!result.Ready)
-                return;
-
-            if (result.NewCandidateCount == 0 && result.NewPatchCount == 0)
-                stableScans++;
-            else
-                stableScans = 0;
-
-            if (stableScans < StableScanThreshold && scanPasses < MaxScanPasses)
                 return;
 
             stopped = true;
             PinkFileLogger.Info(
-                $"Stopping pink scan. reason={(stableScans >= StableScanThreshold ? "stable" : "maxPasses")} passes={scanPasses} stable={stableScans} " +
+                $"Stopping pink scan. reason=single-post-hud-pass hudUiPasses={hudUiScanPasses} loadingUiPasses={loadingUiScanPasses} " +
+                $"foundTargets={result.FoundTargetCount} newCandidates={result.NewCandidateCount} newPatches={result.NewPatchCount} " +
                 $"candidatesSeen={PinkRuntime.CandidateRootCount} processedVehicles={PinkRuntime.ProcessedVehicleRootCount} processedNpcs={PinkRuntime.ProcessedNpcRootCount} " +
                 $"patchedMaterials={PinkRuntime.PatchedMaterialCount} patchedRendererSlots={PinkRuntime.PatchedRendererSlotCount} processedVehicleRenderers={PinkRuntime.ProcessedVehicleRendererCount} processedNpcRenderers={PinkRuntime.ProcessedNpcRendererCount}.",
                 alsoGameLog: true);
