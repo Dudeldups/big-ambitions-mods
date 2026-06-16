@@ -14,6 +14,9 @@ namespace CameraTools
     public sealed partial class CameraToolsRuntime : MonoBehaviour
     {
         private const float PitchStepPerMousePixel = 0.15f;
+        private const float VehicleYawStepPerMousePixel = 0.2f;
+        private const float VehicleYawResetSpeedDegreesPerSecond = 160f;
+        private const float VehicleMovingSpeedThreshold = 0.25f;
         private const float VehicleMinimumZoom = 6f;
         private const float VehicleZoomStepPerScrollTick = 4f;
         private const float VehicleForcedZoomStep = 20f;
@@ -205,6 +208,7 @@ namespace CameraTools
         private bool hasManualGameplayPitch;
         private bool hasManualMapPitch;
         private bool hasManualVehiclePitch;
+        private bool hasManualVehicleYaw;
         private bool hasShownGameplayPitchHint;
         private bool isUiHidden;
         private bool isGameplayUiBlocked;
@@ -220,12 +224,14 @@ namespace CameraTools
         private float desiredMapDistance;
         private float lastAppliedVehicleMaxZoom;
         private float lastRightMouseY;
+        private float lastVehicleRightMouseX;
         private float lastVehicleRightMouseY;
         private float lastVehicleControllerSearchTime;
         private MonoBehaviour? mapController;
         private float manualMapPitch;
         private float manualGameplayPitch;
         private float manualVehiclePitch;
+        private float manualVehicleYaw;
         private bool needsVehicleDistanceReapply;
         private float nextUiStateRefreshTime;
         private float nextHiddenUiRefreshTime;
@@ -296,6 +302,7 @@ namespace CameraTools
             runtime.hasManualGameplayPitch = false;
             runtime.hasManualMapPitch = false;
             runtime.hasManualVehiclePitch = false;
+            runtime.hasManualVehicleYaw = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isUiHidden = false;
             runtime.isTrackingMapRightMousePitch = false;
@@ -311,10 +318,12 @@ namespace CameraTools
             runtime.lastConfiguredMapControllerId = 0;
             runtime.lastAppliedGameplayOffset = null;
             runtime.lastRightMouseY = 0f;
+            runtime.lastVehicleRightMouseX = 0f;
             runtime.lastVehicleRightMouseY = 0f;
             runtime.lastVehicleControllerSearchTime = float.NegativeInfinity;
             runtime.mapController = null;
             runtime.manualVehiclePitch = 0f;
+            runtime.manualVehicleYaw = 0f;
             runtime.needsVehicleDistanceReapply = false;
             runtime.nextUiStateRefreshTime = 0f;
             runtime.nextHiddenUiRefreshTime = 0f;

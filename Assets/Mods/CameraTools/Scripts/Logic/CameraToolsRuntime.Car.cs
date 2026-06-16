@@ -51,7 +51,9 @@ namespace CameraTools
                 return;
             }
 
-            if (cameraToolsDebugEnabled && wantsVehicleWork)
+            if (vehicleTarget == null || !IsVehicleTargetStillValid(vehicleTarget))
+                ResolveVehicleTarget(forceSearch: false, allowExpensiveSearch: true);
+            else if (cameraToolsDebugEnabled && wantsVehicleWork)
                 ResolveVehicleTarget(forceSearch: false, allowExpensiveSearch: true);
             else if (cameraToolsDebugEnabled)
                 UpdateVehicleDebugStateFromTarget();
@@ -97,11 +99,12 @@ namespace CameraTools
             if (vehicleCameraRoot == null)
                 return;
 
-            EnsureVehiclePitchInitialized(vehicleCameraRoot);
+            EnsureVehicleCameraOrientationInitialized(vehicleCameraRoot);
 
             if (Input.GetMouseButtonDown(1))
             {
                 isTrackingVehicleRightMousePitch = true;
+                lastVehicleRightMouseX = Input.mousePosition.x;
                 lastVehicleRightMouseY = Input.mousePosition.y;
             }
 
@@ -110,35 +113,49 @@ namespace CameraTools
                 if (IsGameplayInputBlockedByUi())
                     return;
 
+                var currentMouseX = Input.mousePosition.x;
                 var currentMouseY = Input.mousePosition.y;
+                var deltaX = currentMouseX - lastVehicleRightMouseX;
                 var deltaY = currentMouseY - lastVehicleRightMouseY;
+                lastVehicleRightMouseX = currentMouseX;
                 lastVehicleRightMouseY = currentMouseY;
 
-                if (Mathf.Abs(deltaY) > Mathf.Epsilon)
+                if (Mathf.Abs(deltaX) > Mathf.Epsilon || Mathf.Abs(deltaY) > Mathf.Epsilon)
                 {
+                    if (Mathf.Abs(deltaX) > Mathf.Epsilon)
+                    {
+                        manualVehicleYaw = Mathf.Repeat(manualVehicleYaw + deltaX * VehicleYawStepPerMousePixel + 180f, 360f) - 180f;
+                        hasManualVehicleYaw = true;
+                    }
+
                     manualVehiclePitch = Mathf.Clamp(manualVehiclePitch - deltaY * PitchStepPerMousePixel, 1f, 89f);
                     hasManualVehiclePitch = true;
-                    ApplyVehicleDistance(GetCurrentVehicleZoomDistance(maxZoom), "pitch");
+                    ApplyVehicleDistance(GetCurrentVehicleZoomDistance(maxZoom), "pitch-yaw");
                 }
             }
 
             if (Input.GetMouseButtonUp(1))
                 isTrackingVehicleRightMousePitch = false;
+            else if (!Input.GetMouseButton(1) && ShouldAutoResetVehicleYaw())
+                AutoResetVehicleYaw(maxZoom);
 
             if (Input.GetKeyDown(KeyCode.Home))
             {
                 manualVehiclePitch = GetVehicleDefaultPitch(vehicleCameraRoot);
+                manualVehicleYaw = 0f;
                 hasManualVehiclePitch = true;
+                hasManualVehicleYaw = false;
                 ApplyVehicleDistance(GetCurrentVehicleZoomDistance(maxZoom), "pitch-reset");
             }
         }
 
-        private void EnsureVehiclePitchInitialized(Component vehicleCameraRoot)
+        private void EnsureVehicleCameraOrientationInitialized(Component vehicleCameraRoot)
         {
-            if (hasManualVehiclePitch)
-                return;
+            if (!hasManualVehiclePitch)
+                manualVehiclePitch = GetVehicleCurrentPitch(vehicleCameraRoot);
 
-            manualVehiclePitch = GetVehicleCurrentPitch(vehicleCameraRoot);
+            if (!hasManualVehicleYaw)
+                manualVehicleYaw = 0f;
         }
 
         private float GetVehicleCurrentPitch(Component vehicleCameraRoot)
@@ -160,7 +177,37 @@ namespace CameraTools
         private void ResetVehiclePitchTracking()
         {
             isTrackingVehicleRightMousePitch = false;
+            lastVehicleRightMouseX = 0f;
             lastVehicleRightMouseY = 0f;
+        }
+
+        private bool ShouldAutoResetVehicleYaw()
+        {
+            return hasManualVehicleYaw && IsVehicleMoving();
+        }
+
+        private void AutoResetVehicleYaw(float maxZoom)
+        {
+            var nextYaw = Mathf.MoveTowardsAngle(
+                manualVehicleYaw,
+                0f,
+                VehicleYawResetSpeedDegreesPerSecond * Time.unscaledDeltaTime);
+
+            if (Mathf.Abs(Mathf.DeltaAngle(manualVehicleYaw, nextYaw)) <= Mathf.Epsilon)
+                return;
+
+            manualVehicleYaw = nextYaw;
+            if (Mathf.Abs(Mathf.DeltaAngle(manualVehicleYaw, 0f)) <= 0.1f)
+            {
+                manualVehicleYaw = 0f;
+                hasManualVehicleYaw = false;
+            }
+            else
+            {
+                hasManualVehicleYaw = true;
+            }
+
+            ApplyVehicleDistance(GetCurrentVehicleZoomDistance(maxZoom), "yaw-auto-reset");
         }
 
         private void HandleVehicleDebugHotkeys()
@@ -543,8 +590,11 @@ namespace CameraTools
         {
             activeVehicleCameraRoot = null;
             desiredVehicleDistance = float.NaN;
+            vehicleTarget = null;
             hasManualVehiclePitch = false;
+            hasManualVehicleYaw = false;
             manualVehiclePitch = 0f;
+            manualVehicleYaw = 0f;
             ResetVehiclePitchTracking();
             needsVehicleDistanceReapply = false;
             if (!cameraToolsDebugEnabled)
@@ -739,6 +789,7 @@ namespace CameraTools
         {
             var applyVehiclePitch = IsVehiclePitchCameraObject(cameraObject);
             var targetPitch = Mathf.Clamp(hasManualVehiclePitch ? manualVehiclePitch : GetVehicleDefaultPitchFromObject(cameraObject), 1f, 89f);
+            var targetYaw = hasManualVehicleYaw ? manualVehicleYaw : 0f;
             foreach (var zoomComponent in GetCachedVehicleZoomComponents(cameraObject))
             {
                 if (zoomComponent == null)
@@ -754,7 +805,7 @@ namespace CameraTools
                 if (pipelineComponent == null)
                     continue;
                 ApplyPipelineZoomLimits(pipelineComponent, maxZoom);
-                ApplyPipelineDistance(pipelineComponent, distance, maxZoom, applyVehiclePitch, targetPitch);
+                ApplyPipelineDistance(pipelineComponent, distance, maxZoom, applyVehiclePitch, targetPitch, targetYaw);
             }
         }
 
@@ -779,7 +830,7 @@ namespace CameraTools
             }
         }
 
-        private void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom, bool applyVehiclePitch, float targetPitch)
+        private void ApplyPipelineDistance(object pipelineComponent, float distance, float maxZoom, bool applyVehiclePitch, float targetPitch, float targetYaw)
         {
             var clampedDistance = Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom);
             var typeName = pipelineComponent.GetType().Name;
@@ -800,7 +851,7 @@ namespace CameraTools
                     if (originalMagnitude > Mathf.Epsilon)
                     {
                         var scaledOffset = applyVehiclePitch
-                            ? BuildVehiclePitchAdjustedOffset(originalOffset, clampedDistance, targetPitch)
+                            ? BuildVehicleCameraOffset(originalOffset, clampedDistance, targetPitch, targetYaw)
                             : originalOffset * (clampedDistance / originalMagnitude);
                         SetFollowOffset(pipelineComponent, scaledOffset);
                     }
@@ -841,7 +892,7 @@ namespace CameraTools
             return Mathf.Clamp(Mathf.Asin(Mathf.Clamp(offset.y / magnitude, -1f, 1f)) * Mathf.Rad2Deg, 1f, 89f);
         }
 
-        private static Vector3 BuildVehiclePitchAdjustedOffset(Vector3 originalOffset, float distance, float pitchDegrees)
+        private static Vector3 BuildVehicleCameraOffset(Vector3 originalOffset, float distance, float pitchDegrees, float yawDegrees)
         {
             var clampedPitch = Mathf.Clamp(pitchDegrees, 1f, 89f) * Mathf.Deg2Rad;
             var targetHeight = distance * Mathf.Sin(clampedPitch);
@@ -850,11 +901,72 @@ namespace CameraTools
             if (originalHorizontal <= Mathf.Epsilon)
                 return new Vector3(0f, targetHeight, 0f);
 
-            var horizontalScale = targetHorizontal / originalHorizontal;
-            return new Vector3(
-                originalOffset.x * horizontalScale,
-                targetHeight,
-                originalOffset.z * horizontalScale);
+            var baseHorizontalDirection = new Vector3(originalOffset.x, 0f, originalOffset.z) / originalHorizontal;
+            var rotatedHorizontal = Quaternion.AngleAxis(yawDegrees, Vector3.up) * baseHorizontalDirection * targetHorizontal;
+            return new Vector3(rotatedHorizontal.x, targetHeight, rotatedHorizontal.z);
+        }
+
+        private bool IsVehicleMoving()
+        {
+            if (TryGetVehicleSpeed(vehicleTarget?.VehicleController, out var speed))
+                return speed > VehicleMovingSpeedThreshold;
+
+            if (TryGetVehicleSpeed(vehicleTarget?.CarController, out speed))
+                return speed > VehicleMovingSpeedThreshold;
+
+            return false;
+        }
+
+        private static bool TryGetVehicleSpeed(object? target, out float speed)
+        {
+            speed = 0f;
+            if (target == null)
+                return false;
+
+            if (TryGetFirstFloatMember(target, new[]
+                {
+                    "speed",
+                    "Speed",
+                    "currentSpeed",
+                    "CurrentSpeed",
+                    "vehicleSpeed",
+                    "VehicleSpeed",
+                    "forwardSpeed",
+                    "ForwardSpeed",
+                    "velocityMagnitude",
+                    "VelocityMagnitude"
+                }, out speed, out _))
+                return true;
+
+            foreach (var memberName in new[] { "velocity", "Velocity", "linearVelocity", "LinearVelocity" })
+            {
+                if (!TryGetMemberValue(target, memberName, out var value) || value == null)
+                    continue;
+
+                switch (value)
+                {
+                    case Vector3 vector3:
+                        speed = vector3.magnitude;
+                        return true;
+                    case Vector2 vector2:
+                        speed = vector2.magnitude;
+                        return true;
+                    case Rigidbody rigidbody:
+                        speed = rigidbody.velocity.magnitude;
+                        return true;
+                }
+            }
+
+            foreach (var memberName in new[] { "rb", "RB", "_rb", "rigidbody", "Rigidbody" })
+            {
+                if (!TryGetMemberValue(target, memberName, out var value) || value is not Rigidbody rigidbody)
+                    continue;
+
+                speed = rigidbody.velocity.magnitude;
+                return true;
+            }
+
+            return false;
         }
 
         private object[] GetCachedVehiclePipelineComponents(GameObject cameraObject)
