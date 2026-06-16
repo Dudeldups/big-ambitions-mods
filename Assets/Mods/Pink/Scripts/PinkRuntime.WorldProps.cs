@@ -28,6 +28,9 @@ namespace Pink
                 if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
                     continue;
 
+                if (renderer is ParticleSystemRenderer || renderer is TrailRenderer || renderer is LineRenderer)
+                    continue;
+
                 if (GetSimpleWorldPropColor(renderer) == null)
                     continue;
 
@@ -455,7 +458,7 @@ namespace Pink
                 return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "pole", "post", "frame", "metal", "stand", "base" });
 
             if (IsCrosswalkRenderer(renderer, propText))
-                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster", "light", "bulb", "emission", "emissive" });
+                return !ContainsAnyToken((material.name ?? string.Empty) + " " + renderer.name, new[] { "shadow", "caster", "light", "bulb", "emission", "emissive", "particle", "fx", "vfx", "dust", "smoke", "asphalt" });
 
             return true;
         }
