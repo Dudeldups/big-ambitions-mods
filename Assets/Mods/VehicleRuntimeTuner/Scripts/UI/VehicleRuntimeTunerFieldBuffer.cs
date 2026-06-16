@@ -88,5 +88,43 @@ namespace VehicleRuntimeTuner.UI
 
             return profile;
         }
+
+        public void FillEmptyFieldsFromDefaults(VehicleRuntimeTunerDefaultValues defaults)
+        {
+            ApplyDefaultIfEmpty(ref Mass, defaults.Mass);
+            ApplyDefaultIfEmpty(ref Drag, defaults.Drag);
+            ApplyDefaultIfEmpty(ref AngularDrag, defaults.AngularDrag);
+            ApplyDefaultIfEmpty(ref CenterOfMassX, defaults.CenterOfMassX);
+            ApplyDefaultIfEmpty(ref CenterOfMassY, defaults.CenterOfMassY);
+            ApplyDefaultIfEmpty(ref CenterOfMassZ, defaults.CenterOfMassZ);
+            ApplyDefaultIfEmpty(ref EnginePower, defaults.EnginePower);
+            ApplyDefaultIfEmpty(ref MaxSpeed, defaults.MaxSpeed);
+            ApplyDefaultIfEmpty(ref BrakeTorque, defaults.BrakeTorque);
+            ApplyDefaultIfEmpty(ref FrontSpring, defaults.FrontSpring);
+            ApplyDefaultIfEmpty(ref FrontDamper, defaults.FrontDamper);
+            ApplyDefaultIfEmpty(ref FrontTarget, defaults.FrontTarget);
+            ApplyDefaultIfEmpty(ref FrontSuspensionDistance, defaults.FrontSuspensionDistance);
+            ApplyDefaultIfEmpty(ref RearSpring, defaults.RearSpring);
+            ApplyDefaultIfEmpty(ref RearDamper, defaults.RearDamper);
+            ApplyDefaultIfEmpty(ref RearTarget, defaults.RearTarget);
+            ApplyDefaultIfEmpty(ref RearSuspensionDistance, defaults.RearSuspensionDistance);
+            ApplyDefaultIfEmpty(ref FrontRadius, defaults.FrontRadius);
+            ApplyDefaultIfEmpty(ref RearRadius, defaults.RearRadius);
+            ApplyDefaultIfEmpty(ref FrontWidth, defaults.FrontWidth);
+            ApplyDefaultIfEmpty(ref RearWidth, defaults.RearWidth);
+        }
+
+        private static void ApplyDefaultIfEmpty(ref string value, string defaultValue)
+        {
+            if (string.IsNullOrWhiteSpace(value) && IsUsableDefault(defaultValue))
+                value = defaultValue;
+        }
+
+        private static bool IsUsableDefault(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                   !string.Equals(value, "n/a", System.StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(value, "-", System.StringComparison.Ordinal);
+        }
     }
 }

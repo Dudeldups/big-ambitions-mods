@@ -52,6 +52,8 @@ namespace VehicleRuntimeTuner.UI
                 BrakeTorque = Format(activeVehicle.VehicleType.brakeForce);
             }
 
+            CaptureRuntimeBrakeTorque(activeVehicle);
+
             VehicleWheelClassifier.SplitWheelColliders(activeVehicle.WheelColliders, out var front, out var rear);
             CaptureWheelGroup(front, isFront: true);
             CaptureWheelGroup(rear, isFront: false);
@@ -174,6 +176,55 @@ namespace VehicleRuntimeTuner.UI
         private static string AverageOrEmpty(float[] values)
         {
             return values.Length == 0 ? string.Empty : Format(values.Average());
+        }
+
+        private void CaptureRuntimeBrakeTorque(ActiveVehicleInfo activeVehicle)
+        {
+            if (TryReadNestedFloat(activeVehicle.VehicleController, "brakes", "maxTorque", out var brakeTorque) ||
+                TryReadNestedFloat(activeVehicle.VehicleController, "brakes", "brakeTorque", out brakeTorque))
+            {
+                BrakeTorque = Format(brakeTorque);
+                return;
+            }
+
+            foreach (var behaviour in activeVehicle.MonoBehaviours)
+            {
+                if (behaviour == null)
+                    continue;
+
+                if (TryReadNestedFloat(behaviour, "brakes", "maxTorque", out brakeTorque) ||
+                    TryReadNestedFloat(behaviour, "brakes", "brakeTorque", out brakeTorque))
+                {
+                    BrakeTorque = Format(brakeTorque);
+                    return;
+                }
+            }
+        }
+
+        private static bool TryReadNestedFloat(object? target, string nestedMemberName, string memberName, out float value)
+        {
+            value = default;
+            if (target == null)
+                return false;
+
+            if (!VehicleRuntimeTunerReflection.TryGetMemberValue(target, nestedMemberName, out var nestedValue) || nestedValue == null)
+                return false;
+
+            var memberValue = VehicleRuntimeTunerReflection.GetMemberValue(nestedValue, memberName);
+            switch (memberValue)
+            {
+                case float floatValue:
+                    value = floatValue;
+                    return true;
+                case double doubleValue:
+                    value = (float)doubleValue;
+                    return true;
+                case int intValue:
+                    value = intValue;
+                    return true;
+                default:
+                    return false;
+            }
         }
     }
 }

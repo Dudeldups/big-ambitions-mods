@@ -149,6 +149,7 @@ namespace VehicleRuntimeTuner.Runtime
                 return;
             }
 
+            state.FieldBuffer.FillEmptyFieldsFromDefaults(state.DefaultValues);
             state.CurrentProfile = state.FieldBuffer.ToProfile(state.CurrentProfile);
             if (string.IsNullOrWhiteSpace(state.CurrentProfile.vehicleTypeName))
                 state.CurrentProfile.vehicleTypeName = state.ActiveVehicle.VehicleTypeName;
@@ -235,6 +236,7 @@ namespace VehicleRuntimeTuner.Runtime
                 return;
             }
 
+            state.FieldBuffer.FillEmptyFieldsFromDefaults(state.DefaultValues);
             state.CurrentProfile = state.FieldBuffer.ToProfile(state.CurrentProfile);
             debugActions.TryRespawnTestVehicle(state.ActiveVehicle, state.CurrentProfile, tuningApplier, out var message);
             ShowStatus(message);

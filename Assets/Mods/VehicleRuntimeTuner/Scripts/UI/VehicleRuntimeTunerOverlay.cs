@@ -78,8 +78,6 @@ namespace VehicleRuntimeTuner.UI
             GUILayout.BeginVertical();
             GUILayout.Label($"Active vehicle: {(activeVehicle?.VehicleTypeName ?? "No active vehicle")}", labelStyle);
             GUILayout.Label($"Instance id: {(activeVehicle?.VehicleInstanceId ?? "-")}", labelStyle);
-            if (state.StatusMessage.HasVisibleMessage)
-                GUILayout.Label(state.StatusMessage.Text, labelStyle);
 
             DrawBody(state.FieldBuffer, state.DefaultValues);
             DrawEngine(state.FieldBuffer, state.DefaultValues);
@@ -104,6 +102,10 @@ namespace VehicleRuntimeTuner.UI
             if (GUILayout.Button("Snap To Ground", buttonStyle)) onTeleportToGround();
             if (GUILayout.Button("Reset Velocity", buttonStyle)) onResetVelocity();
             GUILayout.EndHorizontal();
+
+            GUILayout.FlexibleSpace();
+            if (state.StatusMessage.HasVisibleMessage)
+                GUILayout.Label(state.StatusMessage.Text, labelStyle);
 
             GUILayout.EndVertical();
             GUI.DragWindow();
