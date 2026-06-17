@@ -10,6 +10,7 @@ namespace Pink
     {
         private const float LiveDebugRadiusMeters = 5f;
         private const int LiveDebugMaxEntries = 120;
+        private static readonly Color LiveDebugSelectedPreviewColor = new Color(1f, 0.92f, 0.15f, 1f);
 
         private static readonly Dictionary<string, LiveDebugSelection> LiveDebugSelections = new Dictionary<string, LiveDebugSelection>(StringComparer.Ordinal);
         private static readonly List<LiveDebugCandidate> LiveDebugCandidates = new List<LiveDebugCandidate>();
@@ -28,6 +29,7 @@ namespace Pink
         private static Texture2D? liveDebugGreyTexture;
         private static Texture2D? liveDebugCardEvenTexture;
         private static Texture2D? liveDebugCardOddTexture;
+        private static Texture2D? liveDebugCardSelectedTexture;
         private static GUIStyle? liveDebugSmallLabelStyle;
         private static GUIStyle? liveDebugWindowStyle;
         private static GUIStyle? liveDebugLabelStyle;
@@ -119,15 +121,12 @@ namespace Pink
             var cardRect = GUILayoutUtility.GetRect(0f, cardHeight, GUILayout.ExpandWidth(true));
             var isHovered = cardRect.Contains(Event.current.mousePosition);
             DrawLiveDebugCandidateCardBackground(cardRect, index, isHovered);
-            GUI.Box(cardRect, GUIContent.none, liveDebugBoxStyle);
 
             var contentRect = new Rect(cardRect.x + 8f, cardRect.y + 8f, cardRect.width - 16f, cardRect.height - 16f);
             var selected = IsLiveDebugCandidateSelected(candidate);
-
-            GUI.DrawTexture(new Rect(cardRect.x, cardRect.y, cardRect.width, 22f), liveDebugGreyTexture!);
             GUI.Label(
                 new Rect(contentRect.x, contentRect.y, contentRect.width, 22f),
-                $"{index + 1}. {candidate.Distance:0.00}m  [{candidate.Category}]  {candidate.RuleLabel}  {(selected ? "PINKIFIED" : "idle")}",
+                $"{index + 1}. {candidate.Distance:0.00}m  [{candidate.Category}]  {candidate.RuleLabel}  {(selected ? "HIGHLIGHTED" : "idle")}",
                 liveDebugLabelStyle);
 
             GUI.Label(
@@ -157,6 +156,8 @@ namespace Pink
 
                 currentEvent.Use();
             }
+
+            GUILayout.Space(8f);
         }
 
         private static void BeginLiveDebugCapture()
@@ -184,8 +185,7 @@ namespace Pink
         {
             LiveDebugCandidates.Clear();
             liveDebugScrollPosition = Vector2.zero;
-
-            var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+            var groupedCandidates = new Dictionary<string, LiveDebugCandidateBuilder>(StringComparer.Ordinal);
 
             Renderer[] renderers;
             try
@@ -212,14 +212,22 @@ namespace Pink
                     continue;
 
                 var path = GetPath(renderer.transform, 10);
-                var dedupeKey = renderer.transform.root.GetInstanceID() + "|" + path;
-                if (!seenKeys.Add(dedupeKey))
-                    continue;
-
                 var candidate = TryBuildLiveDebugCandidate(renderer, distance, path);
                 if (candidate != null)
-                    LiveDebugCandidates.Add(candidate);
+                {
+                    var groupKey = BuildLiveDebugCandidateGroupKey(renderer, candidate.Category, candidate.Path);
+                    if (!groupedCandidates.TryGetValue(groupKey, out var builder))
+                    {
+                        builder = new LiveDebugCandidateBuilder(candidate.Category, candidate.RuleLabel, candidate.Path);
+                        groupedCandidates[groupKey] = builder;
+                    }
+
+                    builder.Add(candidate);
+                }
             }
+
+            foreach (var builder in groupedCandidates.Values)
+                LiveDebugCandidates.Add(builder.Build());
 
             LiveDebugCandidates.Sort((left, right) => left.Distance.CompareTo(right.Distance));
             if (LiveDebugCandidates.Count > LiveDebugMaxEntries)
@@ -262,6 +270,7 @@ namespace Pink
                 if (LiveDebugSelections.TryGetValue(signature, out var savedSelection))
                 {
                     slots.Add(new LiveDebugSlotInfo(
+                        renderer,
                         signature,
                         materialIndex,
                         material.name ?? "<null>",
@@ -278,13 +287,14 @@ namespace Pink
                     if (!ShouldTintSimpleWorldPropSlot(renderer, material, GetRendererParentAndSharedMaterialNameText(renderer)))
                         continue;
 
-                    slots.Add(new LiveDebugSlotInfo(signature, materialIndex, material.name ?? "<null>", worldColor!.Value, worldRule));
+                    slots.Add(new LiveDebugSlotInfo(renderer, signature, materialIndex, material.name ?? "<null>", worldColor!.Value, worldRule));
                     continue;
                 }
 
                 if (npcLike && ShouldTintNpcMaterialSlot(renderer, material, materialIndex))
                 {
                     slots.Add(new LiveDebugSlotInfo(
+                        renderer,
                         signature,
                         materialIndex,
                         material.name ?? "<null>",
@@ -296,6 +306,7 @@ namespace Pink
                 if (vehicleLike && !rendererShouldSkipVehicle && ShouldTintVehicleMaterialSlot(renderer, material, materialIndex, sharedMaterials.Length, vehicleStrictFallback))
                 {
                     slots.Add(new LiveDebugSlotInfo(
+                        renderer,
                         signature,
                         materialIndex,
                         material.name ?? "<null>",
@@ -317,11 +328,10 @@ namespace Pink
                         : "saved override";
 
             return new LiveDebugCandidate(
-                renderer,
                 distance,
                 category,
                 ruleLabel,
-                path,
+                NormalizeLiveDebugCandidatePath(path),
                 BuildMaterialSummary(sharedMaterials),
                 slots.ToArray());
         }
@@ -394,7 +404,7 @@ namespace Pink
             }
 
             ApplyLiveDebugPreview(candidate);
-            SetLiveDebugStatus($"Pinkified {candidate.Path}.");
+            SetLiveDebugStatus($"Highlighted {candidate.Path}.");
         }
 
         private static void ResetLiveDebugCandidate(LiveDebugCandidate candidate)
@@ -407,7 +417,7 @@ namespace Pink
                     continue;
 
                 removedAny = true;
-                RestoreLiveDebugPreviewSlot(candidate.Renderer, slot, slot.Signature);
+                RestoreLiveDebugPreviewSlot(slot.Renderer, slot, slot.Signature);
             }
 
             if (removedAny)
@@ -423,22 +433,22 @@ namespace Pink
 
         private static void ApplyLiveDebugPreview(LiveDebugCandidate candidate)
         {
-            Material[] materials;
-            try
-            {
-                materials = candidate.Renderer.materials;
-            }
-            catch (Exception ex)
-            {
-                SetLiveDebugStatus($"Preview failed for {candidate.Path}: {ex.GetType().Name}: {ex.Message}");
-                return;
-            }
-
             for (var index = 0; index < candidate.Slots.Length; index++)
             {
                 var slot = candidate.Slots[index];
                 if (!LiveDebugSelections.TryGetValue(slot.Signature, out var selection))
                     continue;
+
+                Material[] materials;
+                try
+                {
+                    materials = slot.Renderer.materials;
+                }
+                catch (Exception ex)
+                {
+                    SetLiveDebugStatus($"Preview failed for {candidate.Path}: {ex.GetType().Name}: {ex.Message}");
+                    return;
+                }
 
                 if (slot.MaterialIndex < 0 || slot.MaterialIndex >= materials.Length)
                     continue;
@@ -447,9 +457,14 @@ namespace Pink
                 if (material == null)
                     continue;
 
-                ApplyLiveDebugPreviewToMaterial(material, selection.Color, selection.Signature);
-                ApplyLiveDebugPreviewToRendererSlot(candidate.Renderer, slot.MaterialIndex, material, selection.Color, selection.Signature);
+                ApplyLiveDebugPreviewToMaterial(material, LiveDebugSelectedPreviewColor, selection.Signature);
+                ApplyLiveDebugPreviewToRendererSlot(slot.Renderer, slot.MaterialIndex, material, LiveDebugSelectedPreviewColor, selection.Signature);
             }
+        }
+
+        private static string BuildLiveDebugCandidateGroupKey(Renderer renderer, string category, string path)
+        {
+            return renderer.transform.root.GetInstanceID() + "|" + category + "|" + NormalizeName(path);
         }
 
         private static void ApplyLiveDebugPreviewToMaterial(Material material, Color pinkColor, string selectionKey)
@@ -743,7 +758,10 @@ namespace Pink
                 liveDebugCardEvenTexture = CreateLiveDebugTexture(new Color(0.16f, 0.16f, 0.16f, 1f));
 
             if (liveDebugCardOddTexture == null)
-                liveDebugCardOddTexture = CreateLiveDebugTexture(new Color(0.21f, 0.21f, 0.21f, 1f));
+                liveDebugCardOddTexture = CreateLiveDebugTexture(new Color(0.24f, 0.24f, 0.24f, 1f));
+
+            if (liveDebugCardSelectedTexture == null)
+                liveDebugCardSelectedTexture = CreateLiveDebugTexture(new Color(0.38f, 0.33f, 0.10f, 1f));
 
             if (liveDebugWindowStyle == null)
             {
@@ -777,7 +795,7 @@ namespace Pink
             if (liveDebugBoxStyle == null)
             {
                 liveDebugBoxStyle = new GUIStyle(GUI.skin.box);
-                liveDebugBoxStyle.normal.background = liveDebugGreyTexture;
+                liveDebugBoxStyle.normal.background = null;
                 liveDebugBoxStyle.normal.textColor = Color.white;
                 liveDebugBoxStyle.padding = new RectOffset(8, 8, 8, 8);
             }
@@ -793,10 +811,73 @@ namespace Pink
 
         private static void DrawLiveDebugCandidateCardBackground(Rect rect, int index, bool isHovered)
         {
-            var background = index % 2 == 0 ? liveDebugCardEvenTexture : liveDebugCardOddTexture;
+            Texture2D? background;
+            if (index >= 0 && index < LiveDebugCandidates.Count && IsLiveDebugCandidateSelected(LiveDebugCandidates[index]))
+                background = liveDebugCardSelectedTexture;
+            else
+                background = index % 2 == 0 ? liveDebugCardEvenTexture : liveDebugCardOddTexture;
 
             if (background != null)
                 GUI.DrawTexture(rect, background);
+
+            if (liveDebugGreyTexture != null)
+            {
+                GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 1f), liveDebugGreyTexture);
+                GUI.DrawTexture(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), liveDebugGreyTexture);
+                GUI.DrawTexture(new Rect(rect.x, rect.y, 1f, rect.height), liveDebugGreyTexture);
+                GUI.DrawTexture(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), liveDebugGreyTexture);
+            }
+        }
+
+        private static string NormalizeLiveDebugCandidatePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return path;
+
+            var segments = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var normalizedSegments = new List<string>(segments.Length);
+            for (var index = 0; index < segments.Length; index++)
+            {
+                if (IsLiveDebugLodSegment(segments[index]))
+                    continue;
+
+                normalizedSegments.Add(segments[index]);
+            }
+
+            return normalizedSegments.Count == 0 ? path : string.Join("/", normalizedSegments.ToArray());
+        }
+
+        private static bool IsLiveDebugLodSegment(string segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+                return false;
+
+            var normalized = NormalizeName(segment);
+            var lodIndex = normalized.LastIndexOf("lod", StringComparison.Ordinal);
+            if (lodIndex < 0)
+                return false;
+
+            if (lodIndex == 0 && normalized.Length > 3)
+                return AllDigits(normalized, 3);
+
+            if (lodIndex > 0 && lodIndex >= normalized.Length - 4)
+                return AllDigits(normalized, lodIndex + 3);
+
+            return false;
+        }
+
+        private static bool AllDigits(string text, int startIndex)
+        {
+            if (startIndex >= text.Length)
+                return false;
+
+            for (var index = startIndex; index < text.Length; index++)
+            {
+                if (!char.IsDigit(text[index]))
+                    return false;
+            }
+
+            return true;
         }
 
         private static void ConsumeLiveDebugScrollWheelIfMouseOverWindow()
@@ -895,7 +976,6 @@ namespace Pink
         private sealed class LiveDebugCandidate
         {
             internal LiveDebugCandidate(
-                Renderer renderer,
                 float distance,
                 string category,
                 string ruleLabel,
@@ -903,7 +983,6 @@ namespace Pink
                 string materialSummary,
                 LiveDebugSlotInfo[] slots)
             {
-                Renderer = renderer;
                 Distance = distance;
                 Category = category;
                 RuleLabel = ruleLabel;
@@ -918,7 +997,6 @@ namespace Pink
                 SlotSummary = string.Join(" | ", slotParts.ToArray());
             }
 
-            internal Renderer Renderer { get; }
             internal float Distance { get; }
             internal string Category { get; }
             internal string RuleLabel { get; }
@@ -930,8 +1008,9 @@ namespace Pink
 
         private readonly struct LiveDebugSlotInfo
         {
-            internal LiveDebugSlotInfo(string signature, int materialIndex, string materialName, Color color, string ruleLabel)
+            internal LiveDebugSlotInfo(Renderer renderer, string signature, int materialIndex, string materialName, Color color, string ruleLabel)
             {
+                Renderer = renderer;
                 Signature = signature;
                 MaterialIndex = materialIndex;
                 MaterialName = materialName;
@@ -939,11 +1018,47 @@ namespace Pink
                 RuleLabel = ruleLabel;
             }
 
+            internal Renderer Renderer { get; }
             internal string Signature { get; }
             internal int MaterialIndex { get; }
             internal string MaterialName { get; }
             internal Color Color { get; }
             internal string RuleLabel { get; }
+        }
+
+        private sealed class LiveDebugCandidateBuilder
+        {
+            private readonly List<LiveDebugSlotInfo> slots = new List<LiveDebugSlotInfo>();
+            private readonly List<string> materialSummaries = new List<string>();
+
+            internal LiveDebugCandidateBuilder(string category, string ruleLabel, string path)
+            {
+                Category = category;
+                RuleLabel = ruleLabel;
+                Path = path;
+                Distance = float.MaxValue;
+            }
+
+            internal string Category { get; }
+            internal string RuleLabel { get; }
+            internal string Path { get; }
+            internal float Distance { get; private set; }
+
+            internal void Add(LiveDebugCandidate candidate)
+            {
+                Distance = Mathf.Min(Distance, candidate.Distance);
+                for (var index = 0; index < candidate.Slots.Length; index++)
+                    slots.Add(candidate.Slots[index]);
+
+                if (!materialSummaries.Contains(candidate.MaterialSummary))
+                    materialSummaries.Add(candidate.MaterialSummary);
+            }
+
+            internal LiveDebugCandidate Build()
+            {
+                var materialSummary = string.Join(" || ", materialSummaries.ToArray());
+                return new LiveDebugCandidate(Distance, Category, RuleLabel, Path, materialSummary, slots.ToArray());
+            }
         }
 
         private readonly struct LiveDebugSelection
