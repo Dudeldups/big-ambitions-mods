@@ -360,19 +360,20 @@ function New-GeneratedProject {
     param(
         [string] $RepoRoot,
         [object] $Mod,
-        [string[]] $References
+        [string[]] $References,
+        [string] $Configuration
     )
 
     $projectRoot = Join-Path $RepoRoot ("obj\ExternalModBuild\" + $Mod.ModName)
     New-Item -ItemType Directory -Path $projectRoot -Force | Out-Null
-    foreach ($generatedChild in @("bin", "obj")) {
-        $generatedPath = Join-Path $projectRoot $generatedChild
-        if (Test-Path -LiteralPath $generatedPath) {
-            Remove-Item -LiteralPath $generatedPath -Recurse -Force
-        }
-    }
 
     $projectPath = Join-Path $projectRoot ($Mod.AssemblyName + ".csproj")
+    $runId = [System.Guid]::NewGuid().ToString("N")
+    $runRoot = Join-Path $projectRoot ("build\" + $runId)
+    $runOutputRoot = Join-Path $runRoot "bin"
+    $runIntermediateRoot = Join-Path $runRoot "obj"
+    $runOutputDir = Join-Path $runOutputRoot $Configuration
+    $stableOutputDir = Join-Path $projectRoot ("bin\" + $Configuration)
 
     $document = [System.Xml.XmlDocument]::new()
     $project = $document.CreateElement("Project")
@@ -396,6 +397,9 @@ function New-GeneratedProject {
         EnableDefaultItems = "false"
         NoWarn = "0169;USG0001;CS1701;CS1702"
         DefineConstants = "BA_GAME_DLLS_IMPORTED;UNITY_2022_3;UNITY_2022_3_OR_NEWER;UNITY_2022;UNITY_STANDALONE;UNITY_STANDALONE_WIN;UNITY_64;NET_STANDARD;NET_STANDARD_2_1;NETSTANDARD;NETSTANDARD2_1"
+        OutputPath = (Join-Path $runOutputRoot '$(Configuration)\')
+        BaseIntermediateOutputPath = ($runIntermediateRoot.TrimEnd('\') + '\')
+        IntermediateOutputPath = (Join-Path $runIntermediateRoot '$(Configuration)\')
     }
 
     foreach ($entry in $properties.GetEnumerator()) {
@@ -426,18 +430,81 @@ function New-GeneratedProject {
         $writer.Dispose()
     }
 
-    return $projectPath
+    return [pscustomobject]@{
+        ProjectPath = $projectPath
+        ProjectRoot = $projectRoot
+        RunOutputDir = $runOutputDir
+        RunIntermediateDir = $runIntermediateRoot
+        RunOutputDll = Join-Path $runOutputDir ($Mod.AssemblyName + ".dll")
+        StableOutputDll = Join-Path $stableOutputDir ($Mod.AssemblyName + ".dll")
+    }
 }
 
 function Invoke-ModBuild {
     param(
         [string] $ProjectPath,
-        [string] $Configuration
+        [string] $Configuration,
+        [string] $OutputDir,
+        [string] $IntermediateDir
     )
 
-    & dotnet build $ProjectPath --configuration $Configuration --nologo --verbosity minimal
+    $outputDirValue = ($OutputDir.TrimEnd('\') -replace '\\', '/') + '/'
+    $intermediateDirValue = ($IntermediateDir.TrimEnd('\') -replace '\\', '/') + '/'
+    $configurationIntermediateDirValue = ((Join-Path $IntermediateDir $Configuration).TrimEnd('\') -replace '\\', '/') + '/'
+
+    & dotnet build $ProjectPath `
+        --configuration $Configuration `
+        --nologo `
+        --verbosity minimal `
+        "/p:OutputPath=$outputDirValue" `
+        "/p:BaseIntermediateOutputPath=$intermediateDirValue" `
+        "/p:MSBuildProjectExtensionsPath=$intermediateDirValue" `
+        "/p:IntermediateOutputPath=$configurationIntermediateDirValue"
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet build failed for $ProjectPath"
+    }
+}
+
+function Copy-StableOutputDll {
+    param(
+        [string] $RunOutputDll,
+        [string] $StableOutputDll
+    )
+
+    try {
+        $stableOutputDir = Split-Path -Parent $StableOutputDll
+        New-Item -ItemType Directory -Path $stableOutputDir -Force | Out-Null
+        Copy-Item -LiteralPath $RunOutputDll -Destination $StableOutputDll -Force
+        Write-Step ("Output DLL path: " + $StableOutputDll)
+        return $StableOutputDll
+    } catch {
+        Write-BuildWarning ("Could not refresh documented output path '" + $StableOutputDll + "': " + $_.Exception.Message)
+        Write-Step ("Output DLL path: " + $RunOutputDll)
+        return $RunOutputDll
+    }
+}
+
+function Copy-ItemWithRetry {
+    param(
+        [string] $Source,
+        [string] $Destination,
+        [int] $MaxAttempts = 8,
+        [int] $DelayMilliseconds = 250
+    )
+
+    $attempt = 0
+    while ($true) {
+        try {
+            Copy-Item -LiteralPath $Source -Destination $Destination -Force
+            return
+        } catch {
+            $attempt++
+            if ($attempt -ge $MaxAttempts) {
+                throw
+            }
+
+            Start-Sleep -Milliseconds ($DelayMilliseconds * $attempt)
+        }
     }
 }
 
@@ -457,7 +524,7 @@ function Copy-DirectoryUpdate {
         $target = Join-Path $Destination $relative
         $targetDir = Split-Path -Parent $target
         New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-        Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+        Copy-ItemWithRetry -Source $file.FullName -Destination $target
     }
 }
 
@@ -478,14 +545,14 @@ function Install-ModOutput {
 
     New-Item -ItemType Directory -Path $dllDir -Force | Out-Null
     $dllTarget = Join-Path $dllDir ([System.IO.Path]::GetFileName($DllPath))
-    Copy-Item -LiteralPath $DllPath -Destination $dllTarget -Force
+    Copy-ItemWithRetry -Source $DllPath -Destination $dllTarget
     Write-Step ("Install target path: " + $dllTarget)
 
     $thumbnail = Join-Path $Mod.SourceDir "thumbnail.png"
     if (Test-Path -LiteralPath $thumbnail -PathType Leaf) {
         $thumbnailTarget = Join-Path $installRoot "thumbnail.png"
         New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
-        Copy-Item -LiteralPath $thumbnail -Destination $thumbnailTarget -Force
+        Copy-ItemWithRetry -Source $thumbnail -Destination $thumbnailTarget
         Write-Step ("Copied thumbnail path (overwritten if present): " + $thumbnailTarget)
     } else {
         Write-BuildWarning ("Mod '" + $Mod.ModName + "' is missing thumbnail.png at " + $thumbnail)
@@ -607,13 +674,16 @@ foreach ($mod in $selectedMods) {
             throw "Source folder not found: $($mod.SourceDir)"
         }
 
-        $projectPath = New-GeneratedProject -RepoRoot $repoRoot -Mod $mod -References $references
-        Write-Step ("Generated project path: " + $projectPath)
+        $buildProject = New-GeneratedProject -RepoRoot $repoRoot -Mod $mod -References $references -Configuration $Configuration
+        Write-Step ("Generated project path: " + $buildProject.ProjectPath)
 
-        Invoke-ModBuild -ProjectPath $projectPath -Configuration $Configuration
+        Invoke-ModBuild `
+            -ProjectPath $buildProject.ProjectPath `
+            -Configuration $Configuration `
+            -OutputDir $buildProject.RunOutputDir `
+            -IntermediateDir $buildProject.RunIntermediateDir
 
-        $outputDll = Join-Path (Split-Path -Parent $projectPath) ("bin\" + $Configuration + "\" + $mod.AssemblyName + ".dll")
-        Write-Step ("Output DLL path: " + $outputDll)
+        $outputDll = Copy-StableOutputDll -RunOutputDll $buildProject.RunOutputDll -StableOutputDll $buildProject.StableOutputDll
         Test-BuiltDll -DllPath $outputDll -ExpectedAssemblyName $mod.AssemblyName -Mod $mod
 
         if ($Install) {
