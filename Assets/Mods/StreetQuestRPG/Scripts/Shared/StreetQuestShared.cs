@@ -649,22 +649,13 @@ namespace StreetQuestRPG
                     return false;
             }
 
-            if (string.IsNullOrWhiteSpace(quest.RequiredItemName))
-                return true;
-
-            return TryConsumeQuestItems(quest.RequiredItemName, quest.RequiredAmount);
+            return true;
         }
 
         private static void GrantRewards(StreetQuestQuestDefinition quest)
         {
             if (quest == null)
                 return;
-
-            if (quest.Rewards.Length == 0)
-            {
-                GrantReward(quest.RewardAmount);
-                return;
-            }
 
             foreach (var reward in quest.Rewards.Where(value => value != null))
             {

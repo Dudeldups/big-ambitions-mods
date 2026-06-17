@@ -139,9 +139,6 @@ namespace StreetQuestRPG
                 nextQuestIds = Array.Empty<string>(),
                 requiredQuestIds = Array.Empty<string>(),
                 requiredStoryFlags = Array.Empty<string>(),
-                requiredItemName = "ba:itemname_hotdog",
-                requiredAmount = 1,
-                rewardAmount = 35,
                 objectives = new[]
                 {
                     new StreetQuestQuestObjectiveDefinition
