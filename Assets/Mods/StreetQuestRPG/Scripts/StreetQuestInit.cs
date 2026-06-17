@@ -12,7 +12,11 @@ namespace StreetQuestRPG
     {
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
-        public Task OnLoadAsync(ModContext context) => Task.CompletedTask;
+        public Task OnLoadAsync(ModContext context)
+        {
+            StreetQuestShared.InitializeDebugLogging(context, nameof(StreetQuestInit));
+            return Task.CompletedTask;
+        }
 
         public Task OnUnloadAsync()
         {

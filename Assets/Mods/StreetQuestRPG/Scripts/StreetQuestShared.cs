@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using BAModAPI;
@@ -13,6 +14,7 @@ using Helpers;
 using Player.HUD.ItemInfoOverlays;
 using UI.Notification;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace StreetQuestRPG
 {
@@ -28,6 +30,7 @@ namespace StreetQuestRPG
     {
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
         private const string SpawnedQuestGiverName = "StreetQuestRPG.OutdoorQuestGiver";
+        private const string QuestGiverCtaKey = "streetquest:cta_talk";
         private static readonly string[] QuestGiverVisualPrefabNames =
         {
             "Characters/Homeless",
@@ -38,9 +41,10 @@ namespace StreetQuestRPG
         private const int QuestGiverVisualAgeInDays = 42 * 365;
         private const int QuestGiverVisualSeed = 104729;
         private const string SellerStandOverlayHeaderKey = HomelessNameKey;
-        private const string QuestGiverCtaKey = "streetquest:cta_talk";
         private static readonly Vector3 QuestGiverVisualLocalPosition = new(0f, 0f, 0f);
         private static readonly Vector3 QuestGiverVisualLocalEulerAngles = new(0f, 90f, 0f);
+        private static readonly Vector3 InteractionRendererLocalPosition = new(0f, 0.9f, 0f);
+        private static readonly Vector3 InteractionRendererLocalScale = new(0.08f, 0.08f, 0.08f);
         private static readonly bool UseFixedSpawnPosition = true;
         private static readonly Vector3 FixedSpawnPosition = new(301.58f, 0.09f, -188.47f);
         private static readonly Vector3 FixedForward = new(0f, 0f, -1f);
@@ -51,10 +55,13 @@ namespace StreetQuestRPG
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
         private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
+        private static readonly object LogSync = new();
+        private static readonly string WorkspaceLogDirectory = @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Assets\Logs";
         private static GameObject SpawnedQuestGiverRoot;
         private static Component SpawnedQuestGiverController;
         private static Vector3? PreferredQuestGiverSpawnPosition;
         private static bool QuestGiverCtaInstalled;
+        private static string DebugLogFilePath;
         public static CallDialogType QuestDialogType { get; private set; }
 
         public const string HomelessContactId = "streetquest:homeless_contact";
@@ -72,6 +79,7 @@ namespace StreetQuestRPG
 
         public static StreetQuestPhysicalQuestGiverInstallResult TryInstallPhysicalQuestGiver(CallDialogType dialogType)
         {
+            LogDebug($"TryInstallPhysicalQuestGiver start dialogType={dialogType}");
             var result = StreetQuestPhysicalQuestGiverInstallResult.None;
             foreach (var itemHostName in ExperimentalItemHostNames)
             {
@@ -82,13 +90,35 @@ namespace StreetQuestRPG
             if (TryOverrideSpecialServiceDialog(HomelessAddress, dialogType))
                 result |= StreetQuestPhysicalQuestGiverInstallResult.SpecialService;
 
+            LogDebug($"TryInstallPhysicalQuestGiver result={result}");
             return result;
+        }
+
+        public static void InitializeDebugLogging(ModContext context, string source)
+        {
+            try
+            {
+                Directory.CreateDirectory(WorkspaceLogDirectory);
+                DebugLogFilePath = Path.Combine(WorkspaceLogDirectory, "streetquest-debug.log");
+
+                lock (LogSync)
+                {
+                    File.AppendAllText(
+                        DebugLogFilePath,
+                        $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{source}] Logging initialized. ModRootPath={context?.ModRootPath ?? "<null>"}{Environment.NewLine}");
+                }
+            }
+            catch
+            {
+            }
         }
 
         public static void CleanupLegacyContacts()
         {
             try
             {
+                RemoveLegacyQuestGiverCtaBehaviors();
+                LogDebug("CleanupLegacyContacts start");
                 SaveGameManager.Current?.Contacts?.RemoveAll(contact =>
                     contact != null && (contact.id == HomelessContactId || contact.id == CourierContactId));
 
@@ -103,12 +133,15 @@ namespace StreetQuestRPG
             }
             catch (Exception exception)
             {
+                LogDebug($"CleanupLegacyContacts failed: {exception}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to clean legacy contacts. {exception}");
             }
         }
 
         public static void RestorePatchedDialogs()
         {
+            RemoveLegacyQuestGiverCtaBehaviors();
+            LogDebug("RestorePatchedDialogs start");
             DestroySpawnedOutdoorQuestGiver();
 
             foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
@@ -149,20 +182,29 @@ namespace StreetQuestRPG
             }
 
             OriginalDialogTypesByAddress.Clear();
+            LogDebug("RestorePatchedDialogs complete");
         }
 
         public static bool EnsureSpawnedOutdoorQuestGiver()
         {
+            LogDebug("EnsureSpawnedOutdoorQuestGiver start");
+            RemoveLegacyQuestGiverCtaBehaviors();
             EnsureQuestGiverCtaBehaviorInstalled();
 
             if (SpawnedQuestGiverRoot != null && SpawnedQuestGiverController != null)
+            {
+                LogDebug($"EnsureSpawnedOutdoorQuestGiver skipped existing root={DescribeObject(SpawnedQuestGiverRoot)} controller={DescribeObject(SpawnedQuestGiverController)}");
                 return true;
+            }
 
             try
             {
                 var sellerStandControllerType = FindType("SellerStandController");
                 if (sellerStandControllerType == null)
+                {
+                    LogDebug("EnsureSpawnedOutdoorQuestGiver failed: SellerStandController type missing");
                     return false;
+                }
 
                 var spawnPosition = GetQuestGiverSpawnPosition();
                 if (!spawnPosition.HasValue)
@@ -181,10 +223,13 @@ namespace StreetQuestRPG
                 root.name = SpawnedQuestGiverName;
                 root.transform.position = spawnPosition.Value;
                 root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
+
                 var questGiverVisualRoot = default(GameObject);
                 var hasQuestGiverVisual = TryAttachQuestGiverVisual(root.transform, out questGiverVisualRoot);
                 if (!hasQuestGiverVisual)
                     BuildQuestGiverVisual(root.transform);
+
+                var interactionRenderer = CreateInteractionRendererProxy(root.transform);
 
                 var interactionCollider = root.AddComponent<BoxCollider>();
                 interactionCollider.center = hasQuestGiverVisual
@@ -202,13 +247,14 @@ namespace StreetQuestRPG
                     (Component)root.AddComponent(sellerStandControllerType);
 
                 SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
-                SetMemberValue(sellerStandController, "simpleOverlayType", 4);
+                SetMemberValue(sellerStandController, "simpleOverlayType", 0);
                 SetMemberValue(sellerStandController, "detailedOverlayType", 1024);
                 SetMemberValue(sellerStandController, "customOverlayHeaderKey", SellerStandOverlayHeaderKey);
+                SetMemberValue(sellerStandController, "blockOutline", true);
                 SetMemberValue(
                     sellerStandController,
                     "renderers",
-                    root.GetComponentsInChildren<Renderer>());
+                    new[] { interactionRenderer });
                 SetMemberValue(
                     sellerStandController,
                     "navMeshTargets",
@@ -225,15 +271,12 @@ namespace StreetQuestRPG
                     SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
                 }
                 InvokeParameterlessMethod(sellerStandController, "Show");
-                if (hasQuestGiverVisual && questGiverVisualRoot != null)
-                {
-                    RemoveUnexpectedQuestGiverChildren(
-                        root.transform,
-                        new HashSet<Transform> { questGiverVisualRoot.transform, navTarget });
-                }
 
                 SpawnedQuestGiverRoot = root;
                 SpawnedQuestGiverController = sellerStandController;
+                LogDebug(
+                    $"EnsureSpawnedOutdoorQuestGiver spawned root={DescribeObject(root)} controller={DescribeObject(sellerStandController)} " +
+                    $"position={FormatVector3(root.transform.position)} overlaySimple=0 overlayDetailed=1024 header={SellerStandOverlayHeaderKey} blockOutline=true");
                 ShowDebugNotification(
                     $"Quest giver spawned at {FormatVector3(root.transform.position)}",
                     "streetquest-debug-spawn");
@@ -241,6 +284,7 @@ namespace StreetQuestRPG
             }
             catch (Exception exception)
             {
+                LogDebug($"EnsureSpawnedOutdoorQuestGiver failed: {exception}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to spawn outdoor quest giver. {exception}");
                 DestroySpawnedOutdoorQuestGiver();
                 return false;
@@ -559,6 +603,7 @@ namespace StreetQuestRPG
         {
             try
             {
+                LogDebug($"TryOpenQuestDialog start dialogType={dialogType}");
                 var dialogUiType = FindType("UI.Dialog.DialogUI");
                 if (dialogUiType == null)
                     throw new InvalidOperationException("StreetQuestRPG: Could not resolve UI.Dialog.DialogUI.");
@@ -585,15 +630,18 @@ namespace StreetQuestRPG
                     throw new InvalidOperationException("StreetQuestRPG: Could not resolve DialogUI.ShowDialog.");
 
                 showDialogMethod.Invoke(dialogUi, new object[] { dialogType, null, null, null, null });
+                LogDebug($"TryOpenQuestDialog success dialogType={dialogType}");
             }
             catch (Exception exception)
             {
+                LogDebug($"TryOpenQuestDialog failed: {exception}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to open physical quest dialog. {exception}");
             }
         }
 
         private static void DestroySpawnedOutdoorQuestGiver()
         {
+            LogDebug($"DestroySpawnedOutdoorQuestGiver root={DescribeObject(SpawnedQuestGiverRoot)} controller={DescribeObject(SpawnedQuestGiverController)}");
             if (SpawnedQuestGiverRoot != null)
             {
                 UnityEngine.Object.Destroy(SpawnedQuestGiverRoot);
@@ -606,23 +654,77 @@ namespace StreetQuestRPG
         private static void EnsureQuestGiverCtaBehaviorInstalled()
         {
             if (QuestGiverCtaInstalled)
+            {
+                LogDebug("EnsureQuestGiverCtaBehaviorInstalled skipped: already installed");
                 return;
+            }
 
             var ctaBehaviorsField = typeof(CtaManager).GetField(
                 "CtaBehaviors",
                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             var ctaBehaviors = ctaBehaviorsField?.GetValue(null) as IList<ICtaBehavior>;
             if (ctaBehaviors == null)
+            {
+                LogDebug("EnsureQuestGiverCtaBehaviorInstalled failed: CtaBehaviors list missing");
                 return;
+            }
 
             if (ctaBehaviors.Any(x => x is StreetQuestGiverCtaBehavior))
             {
                 QuestGiverCtaInstalled = true;
+                LogDebug("EnsureQuestGiverCtaBehaviorInstalled found existing StreetQuestGiverCtaBehavior");
                 return;
             }
 
             ctaBehaviors.Insert(0, new StreetQuestGiverCtaBehavior());
             QuestGiverCtaInstalled = true;
+            LogDebug($"EnsureQuestGiverCtaBehaviorInstalled inserted custom behavior listCountAfter={ctaBehaviors.Count}");
+        }
+
+        private static void RemoveLegacyQuestGiverCtaBehaviors()
+        {
+            try
+            {
+                var ctaManagerType = FindType("CtaManager");
+                var ctaBehaviorType = FindType("ICtaBehavior");
+                var ctaBehaviorsField = ctaManagerType?.GetField(
+                    "CtaBehaviors",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                var ctaBehaviors = ctaBehaviorsField?.GetValue(null) as System.Collections.IList;
+                if (ctaBehaviors == null)
+                {
+                    LogDebug("RemoveLegacyQuestGiverCtaBehaviors skipped: CtaBehaviors list missing");
+                    return;
+                }
+
+                var removedCount = 0;
+                for (var index = ctaBehaviors.Count - 1; index >= 0; index--)
+                {
+                    var behavior = ctaBehaviors[index];
+                    if (behavior == null)
+                        continue;
+
+                    if (ctaBehaviorType != null && !ctaBehaviorType.IsInstanceOfType(behavior))
+                        continue;
+
+                    var typeName = behavior.GetType().FullName ?? string.Empty;
+                    if (!typeName.Contains("StreetQuestGiverCtaBehavior", StringComparison.Ordinal) &&
+                        !typeName.Contains("StreetQuestRPG", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    ctaBehaviors.RemoveAt(index);
+                    removedCount++;
+                }
+
+                LogDebug($"RemoveLegacyQuestGiverCtaBehaviors removed={removedCount} remaining={ctaBehaviors.Count}");
+                QuestGiverCtaInstalled = false;
+            }
+            catch (Exception exception)
+            {
+                LogDebug($"RemoveLegacyQuestGiverCtaBehaviors failed: {exception}");
+            }
         }
 
         internal static bool IsSpawnedQuestGiverController(object controller)
@@ -665,13 +767,39 @@ namespace StreetQuestRPG
         private static string FormatVector3(Vector3 value) =>
             $"({value.x:F2}, {value.y:F2}, {value.z:F2})";
 
-        private static Type FindType(string fullName)
+        private static Type FindType(string typeName)
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                var type = assembly.GetType(fullName, throwOnError: false);
-                if (type != null)
-                    return type;
+                var exactType = assembly.GetType(typeName, throwOnError: false);
+                if (exactType != null)
+                    return exactType;
+
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException exception)
+                {
+                    types = exception.Types;
+                }
+
+                if (types == null)
+                    continue;
+
+                foreach (var type in types)
+                {
+                    if (type == null)
+                        continue;
+
+                    if (string.Equals(type.FullName, typeName, StringComparison.Ordinal) ||
+                        string.Equals(type.Name, typeName, StringComparison.Ordinal) ||
+                        (type.FullName?.EndsWith("." + typeName, StringComparison.Ordinal) ?? false))
+                    {
+                        return type;
+                    }
+                }
             }
 
             return null;
@@ -870,6 +998,44 @@ namespace StreetQuestRPG
                 new Color(0.88f, 0.76f, 0.34f));
         }
 
+        private static Renderer CreateInteractionRendererProxy(Transform parent)
+        {
+            var proxy = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            proxy.name = "InteractionRendererProxy";
+            proxy.transform.SetParent(parent, false);
+            proxy.transform.localPosition = InteractionRendererLocalPosition;
+            proxy.transform.localScale = InteractionRendererLocalScale;
+
+            var collider = proxy.GetComponent<Collider>();
+            if (collider != null)
+                UnityEngine.Object.Destroy(collider);
+
+            var renderer = proxy.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                renderer.lightProbeUsage = LightProbeUsage.Off;
+                renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+
+                var material = CreateRuntimeMaterial(new Color(0f, 0f, 0f, 0f));
+                if (material != null)
+                {
+                    material.SetFloat("_Mode", 3f);
+                    material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+                    material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+                    material.SetInt("_ZWrite", 0);
+                    material.DisableKeyword("_ALPHATEST_ON");
+                    material.EnableKeyword("_ALPHABLEND_ON");
+                    material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                    material.renderQueue = 3000;
+                    renderer.sharedMaterial = material;
+                }
+            }
+
+            return renderer;
+        }
+
         private static GameObject CreateVisualBlock(
             Transform parent,
             string name,
@@ -956,6 +1122,51 @@ namespace StreetQuestRPG
             }
         }
 
+        private static void LogDebug(string message)
+        {
+            if (string.IsNullOrWhiteSpace(DebugLogFilePath))
+                return;
+
+            try
+            {
+                lock (LogSync)
+                {
+                    File.AppendAllText(
+                        DebugLogFilePath,
+                        $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}");
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static string DescribeObject(object value)
+        {
+            if (value == null)
+                return "<null>";
+
+            if (value is Component component)
+                return $"{component.GetType().FullName} name={component.name} id={component.GetInstanceID()}";
+
+            if (value is GameObject gameObject)
+                return $"{gameObject.GetType().FullName} name={gameObject.name} id={gameObject.GetInstanceID()}";
+
+            if (value is UnityEngine.Object unityObject)
+                return $"{unityObject.GetType().FullName} name={unityObject.name} id={unityObject.GetInstanceID()}";
+
+            return $"{value.GetType().FullName}";
+        }
+
+        private sealed class StreetQuestGiverCtaBehavior : ICtaBehavior
+        {
+            public override bool ShouldShow(EntityController entityController) =>
+                IsSpawnedQuestGiverController(entityController);
+
+            public override (string, Action) GetCta(EntityController entityController) =>
+                (QuestGiverCtaKey, () => TryOpenQuestDialog(QuestDialogType));
+        }
+
         private static object GetMemberValue(object instance, string memberName)
         {
             if (instance == null || string.IsNullOrEmpty(memberName))
@@ -1017,15 +1228,6 @@ namespace StreetQuestRPG
             public string MemberName { get; set; } = string.Empty;
             public int OriginalDialogType { get; set; }
             public object Target { get; set; }
-        }
-
-        private sealed class StreetQuestGiverCtaBehavior : ICtaBehavior
-        {
-            public override bool ShouldShow(EntityController entityController) =>
-                IsSpawnedQuestGiverController(entityController);
-
-            public override (string, Action) GetCta(EntityController entityController) =>
-                (QuestGiverCtaKey, () => TryOpenQuestDialog(QuestDialogType));
         }
 
     }

@@ -15,6 +15,7 @@ namespace StreetQuestRPG
 
         public Task OnLoadAsync(ModContext context)
         {
+            StreetQuestShared.InitializeDebugLogging(context, nameof(StreetQuestCity));
             var questDialogType = (CallDialogType)ModEnumHash.GetSafeHash("streetquest_homeless_dialog");
 
             StreetQuestShared.CleanupLegacyContacts();
