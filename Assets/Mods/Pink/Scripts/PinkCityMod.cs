@@ -11,7 +11,8 @@ namespace Pink
     [ModEntryOnCityLoad]
     public sealed class PinkCityMod : IModBigAmbitions
     {
-        internal const bool EnableManualDebugMode = false;
+        internal static readonly bool EnableManualDebugMode = false;
+        internal static readonly bool EnableLiveDebugMode = true;
 
         // Set this to false for the release build. The logger file/class can stay in the mod.
         private const bool EnableDebugLogging = false;
@@ -28,7 +29,7 @@ namespace Pink
             PinkRuntime.Initialize(
                 context.ModId,
                 context.Logger,
-                EnableDebugLogging || EnableManualDebugMode,
+                EnableDebugLogging || EnableManualDebugMode || EnableLiveDebugMode,
                 EnableVerbosePatchLogging);
 
             EnsureWatcher();
@@ -64,6 +65,7 @@ namespace Pink
         }
     }
 
+    [DefaultExecutionOrder(-10000)]
     internal sealed class PinkWatcher : MonoBehaviour
     {
         private const float FirstLoadingUiScanDelaySeconds = 0.05f;
@@ -111,8 +113,16 @@ namespace Pink
         {
             elapsedSeconds += Time.unscaledDeltaTime;
 
-            if (PinkCityMod.EnableManualDebugMode)
+            if (PinkCityMod.EnableLiveDebugMode)
+            {
+                PinkRuntime.HandleLiveDebugHotkeys();
+                if (PinkRuntime.ShouldBlockGameplayInputForLiveDebug())
+                    Input.ResetInputAxes();
+            }
+            else if (PinkCityMod.EnableManualDebugMode)
+            {
                 PinkRuntime.HandleManualDebugHotkeys();
+            }
 
             if (!loadingUiScanStopped && elapsedSeconds >= nextLoadingUiScanAtSeconds)
             {
@@ -172,5 +182,12 @@ namespace Pink
                 alsoGameLog: true);
         }
 
+        private void OnGUI()
+        {
+            if (!PinkCityMod.EnableLiveDebugMode)
+                return;
+
+            PinkRuntime.DrawLiveDebugOverlay();
+        }
     }
 }

@@ -225,6 +225,7 @@ namespace Pink
         {
             logger = modLogger;
             PinkFileLogger.Initialize(modId, modLogger, enableDebugLogging, enableVerbosePatchLogging);
+            LoadLiveDebugSelections();
             PinkFileLogger.Info(
                 "PinkRuntime initialized. Renderer layer scan is disabled; scanning controller/tag candidates only. " +
                 "Vehicle and NPC tinting is filtered per active renderer/material slot. Vehicle renderer fallback is enabled with stricter vehicle tokens and dynamic shader color-property discovery and delivery-truck cab filtering and aggressive NPC clothing tinting, damage-material filtering, and street-vendor NPC exclusion and strict active NPC clothing renderer fallback and parked-car-stable 7-tone pink palette plus strict world-prop scan for hydrants, trash bins, darker mailboxes, and 50-percent tinted hotdog stands, dark-pink BikeRentalStand holders, PINKCITY_FINAL_V15 release: stronger UI, very light candy-pink headers, player Torso/Top texture tint, bike-stand/world/vehicle/NPC tint.",
@@ -253,6 +254,7 @@ namespace Pink
             LoggedRejectedRoots.Clear();
             BehaviourTypeHitCounts.Clear();
             ShaderColorPropertyIdCache.Clear();
+            ResetLiveDebugState();
             npcDiagnosticSamples = 0;
             taxiDiagnosticSamples = 0;
             trafficLightDiagnosticSamples = 0;
@@ -445,6 +447,7 @@ namespace Pink
 
         internal static void Restore()
         {
+            var restoredLiveDebugPreview = RestoreLiveDebugPreview();
             var restoredExplicitUiGraphics = RestoreExplicitUiTint();
             var restoredPlayerTextures = RestorePlayerTextureOverrides();
             var restoredMaterialProperties = 0;
@@ -474,7 +477,7 @@ namespace Pink
             }
 
             PinkFileLogger.Info(
-                $"Restore complete. restoredMaterialProperties={restoredMaterialProperties}, restoredRendererSlots={restoredRendererSlots}, restoredExplicitUiGraphics={restoredExplicitUiGraphics}, restoredPlayerTextures={restoredPlayerTextures}.",
+                $"Restore complete. restoredLiveDebugPreview={restoredLiveDebugPreview}, restoredMaterialProperties={restoredMaterialProperties}, restoredRendererSlots={restoredRendererSlots}, restoredExplicitUiGraphics={restoredExplicitUiGraphics}, restoredPlayerTextures={restoredPlayerTextures}.",
                 alsoGameLog: true);
         }
 
