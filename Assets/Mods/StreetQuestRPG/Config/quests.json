@@ -1,0 +1,20 @@
+{
+  "quests": [
+    {
+      "id": "streetquest:q1_hotdog",
+      "giverCharacterId": "mack",
+      "turnInCharacterId": "mack",
+      "requiredItemName": "ba:itemname_hotdog",
+      "requiredAmount": 1,
+      "rewardAmount": 35,
+      "offerTextKey": "streetquest:dialog_q1_offer",
+      "activeTextKey": "streetquest:dialog_q1_active",
+      "readyTextKey": "streetquest:dialog_q1_ready",
+      "acceptedPlayerMessageKey": "streetquest:dialog_q1_accept_player",
+      "acceptedManagerMessageKey": "streetquest:dialog_q1_accept_manager",
+      "completedPlayerMessageKey": "streetquest:dialog_q1_complete_player",
+      "completedManagerMessageKey": "streetquest:dialog_q1_complete_manager",
+      "enabled": true
+    }
+  ]
+}

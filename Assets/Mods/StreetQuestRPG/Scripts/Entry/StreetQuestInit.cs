@@ -15,6 +15,8 @@ namespace StreetQuestRPG
         public Task OnLoadAsync(ModContext context)
         {
             StreetQuestShared.InitializeDebugLogging(context, nameof(StreetQuestInit));
+            StreetQuestCharacterCatalog.Initialize(context?.ModRootPath, context?.Logger);
+            StreetQuestQuestCatalog.Initialize(context?.ModRootPath, context?.Logger);
             return Task.CompletedTask;
         }
 

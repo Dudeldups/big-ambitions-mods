@@ -20,28 +20,76 @@ namespace StreetQuestRPG
                 return BuildEndEntry("streetquest:dialog_finished");
 
             var progress = StreetQuestShared.GetQuestProgress(currentQuest.Id);
+            if (progress == StreetQuestQuestProgressState.NotStarted)
+            {
+                var introStage = StreetQuestShared.GetHomelessIntroStage();
+                if (introStage <= 0)
+                    return BuildBackOffEntry(currentQuest);
+                if (introStage == 1)
+                    return BuildBackstoryEntry(currentQuest);
+
+                return BuildOfferEntry(currentQuest);
+            }
+
             return progress switch
             {
-                StreetQuestQuestProgressState.NotStarted => BuildOfferEntry(currentQuest),
                 StreetQuestQuestProgressState.Active => BuildActiveEntry(currentQuest),
                 StreetQuestQuestProgressState.ReadyToTurnIn => BuildReadyToTurnInEntry(currentQuest),
                 _ => BuildEndEntry("streetquest:dialog_finished")
             };
         }
 
-        private DialogEntry BuildOfferEntry(StreetQuestQuestDefinition quest)
+        private DialogEntry BuildBackOffEntry(StreetQuestQuestDefinition quest)
         {
-            var offerKey = !StreetQuestShared.HasIntroducedHomelessQuestline()
-                ? "streetquest:dialog_intro"
-                : quest.OfferTextKey;
-
             return new DialogEntry
             {
                 headerKey = npcNameKey,
-                messageData = offerKey.Localize(),
+                messageData = "streetquest:dialog_intro_back_off".Localize(),
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = "streetquest:dialog_accept".Localize(),
-                SecondOptionTextOverride = "streetquest:dialog_decline",
+                ConfirmTextOverride = "streetquest:dialog_whats_up".Localize(),
+                SecondOptionTextOverride = "streetquest:dialog_leave",
+                OnConfirm = () => OnAskWhatsUp(quest),
+                OnSecondOption = CloseDialog,
+                OnCancel = DialogController.current.FinishDialog
+            };
+        }
+
+        private DialogEntry OnAskWhatsUp(StreetQuestQuestDefinition quest)
+        {
+            StreetQuestShared.UnlockHomelessBackstory();
+            return BuildBackstoryEntry(quest);
+        }
+
+        private DialogEntry BuildBackstoryEntry(StreetQuestQuestDefinition quest)
+        {
+            return new DialogEntry
+            {
+                headerKey = npcNameKey,
+                messageData = "streetquest:dialog_intro_backstory".Localize(),
+                Template = DialogEntry.TemplateType.Text,
+                ConfirmTextOverride = "streetquest:dialog_yes".Localize(),
+                SecondOptionTextOverride = "streetquest:dialog_no",
+                OnConfirm = () => OnAgreeToHelp(quest),
+                OnSecondOption = CloseDialog,
+                OnCancel = DialogController.current.FinishDialog
+            };
+        }
+
+        private DialogEntry OnAgreeToHelp(StreetQuestQuestDefinition quest)
+        {
+            StreetQuestShared.UnlockHomelessQuestOffer();
+            return BuildOfferEntry(quest);
+        }
+
+        private DialogEntry BuildOfferEntry(StreetQuestQuestDefinition quest)
+        {
+            return new DialogEntry
+            {
+                headerKey = npcNameKey,
+                messageData = quest.OfferTextKey.Localize(),
+                Template = DialogEntry.TemplateType.Text,
+                ConfirmTextOverride = "streetquest:dialog_yes".Localize(),
+                SecondOptionTextOverride = "streetquest:dialog_no",
                 OnConfirm = () => OnAcceptQuest(quest),
                 OnSecondOption = CloseDialog,
                 OnCancel = DialogController.current.FinishDialog
@@ -70,9 +118,6 @@ namespace StreetQuestRPG
 
         private DialogEntry BuildReadyToTurnInEntry(StreetQuestQuestDefinition quest)
         {
-            if (quest.TurnInContactId != StreetQuestShared.HomelessContactId)
-                return BuildConversationEntry(quest.ReadyTextKey, CloseDialog);
-
             return new DialogEntry
             {
                 headerKey = npcNameKey,

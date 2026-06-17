@@ -9,9 +9,10 @@ namespace StreetQuestRPG
         private const char SegmentSeparator = '|';
         private const char CompletedSeparator = ',';
 
-        public string CurrentQuestId { get; set; } = StreetQuestQuestCatalog.FirstQuest.Id;
+        public string CurrentQuestId { get; set; } = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
         public StreetQuestQuestProgressState CurrentQuestState { get; set; } =
             StreetQuestQuestProgressState.NotStarted;
+        public int IntroStage { get; set; }
         public HashSet<string> CompletedQuestIds { get; } = new();
 
         public string Serialize()
@@ -23,6 +24,7 @@ namespace StreetQuestRPG
                 SegmentSeparator.ToString(),
                 CurrentQuestId ?? string.Empty,
                 CurrentQuestState,
+                IntroStage,
                 completed);
         }
 
@@ -40,9 +42,12 @@ namespace StreetQuestRPG
                 Enum.TryParse(segments[1], out StreetQuestQuestProgressState progressState))
                 record.CurrentQuestState = progressState;
 
-            if (segments.Length > 2 && !string.IsNullOrWhiteSpace(segments[2]))
+            if (segments.Length > 2 && int.TryParse(segments[2], out var introStage))
+                record.IntroStage = introStage;
+
+            if (segments.Length > 3 && !string.IsNullOrWhiteSpace(segments[3]))
             {
-                foreach (var completedQuestId in segments[2].Split(CompletedSeparator))
+                foreach (var completedQuestId in segments[3].Split(CompletedSeparator))
                 {
                     if (!string.IsNullOrWhiteSpace(completedQuestId))
                         record.CompletedQuestIds.Add(completedQuestId);
