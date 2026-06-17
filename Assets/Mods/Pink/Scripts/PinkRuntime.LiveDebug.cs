@@ -212,13 +212,17 @@ namespace Pink
                     continue;
 
                 var path = GetPath(renderer.transform, 10);
+                if (ShouldExcludeLiveDebugRenderer(renderer, path))
+                    continue;
+
                 var candidate = TryBuildLiveDebugCandidate(renderer, distance, path);
                 if (candidate != null)
                 {
-                    var groupKey = BuildLiveDebugCandidateGroupKey(renderer, candidate.Category, candidate.Path);
+                    var groupedPath = BuildLiveDebugGroupedPath(candidate.Path);
+                    var groupKey = BuildLiveDebugCandidateGroupKey(candidate.Category, groupedPath);
                     if (!groupedCandidates.TryGetValue(groupKey, out var builder))
                     {
-                        builder = new LiveDebugCandidateBuilder(candidate.Category, candidate.RuleLabel, candidate.Path);
+                        builder = new LiveDebugCandidateBuilder(candidate.Category, candidate.RuleLabel, groupedPath);
                         groupedCandidates[groupKey] = builder;
                     }
 
@@ -232,6 +236,36 @@ namespace Pink
             LiveDebugCandidates.Sort((left, right) => left.Distance.CompareTo(right.Distance));
             if (LiveDebugCandidates.Count > LiveDebugMaxEntries)
                 LiveDebugCandidates.RemoveRange(LiveDebugMaxEntries, LiveDebugCandidates.Count - LiveDebugMaxEntries);
+        }
+
+        private static bool ShouldExcludeLiveDebugRenderer(Renderer renderer, string path)
+        {
+            if (renderer == null)
+                return true;
+
+            var layerName = LayerMask.LayerToName(renderer.gameObject.layer) ?? string.Empty;
+            if (string.Equals(layerName, "Human", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (string.Equals(layerName, "AiVehicles", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(layerName, "ParkedVehicles", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (path.StartsWith("GameManager/Player", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (path.StartsWith("TrafficHolder/", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (path.IndexOf("HumanDefinition", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
+            if (path.IndexOf("ba:vehicletype_", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
+            return false;
         }
 
         private static LiveDebugCandidate? TryBuildLiveDebugCandidate(Renderer renderer, float distance, string path)
@@ -462,9 +496,9 @@ namespace Pink
             }
         }
 
-        private static string BuildLiveDebugCandidateGroupKey(Renderer renderer, string category, string path)
+        private static string BuildLiveDebugCandidateGroupKey(string category, string groupedPath)
         {
-            return renderer.transform.root.GetInstanceID() + "|" + category + "|" + NormalizeName(path);
+            return category + "|" + NormalizeName(groupedPath);
         }
 
         private static void ApplyLiveDebugPreviewToMaterial(Material material, Color pinkColor, string selectionKey)
@@ -847,6 +881,82 @@ namespace Pink
             return normalizedSegments.Count == 0 ? path : string.Join("/", normalizedSegments.ToArray());
         }
 
+        private static string BuildLiveDebugGroupedPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return path;
+
+            var normalizedPath = NormalizeLiveDebugCandidatePath(path);
+            var segments = normalizedPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length <= 2)
+                return StripLiveDebugInstanceSuffixes(normalizedPath);
+
+            if (StartsWithAnySegment(segments, 1, new[] { "sm_terracepot_", "sm_terraceumbrella_", "sm_mailbox", "prefab_bikerentalstand", "prefab_parkingmeter" }))
+                return JoinLiveDebugSegments(segments, 2);
+
+            if (StartsWithAnySegment(segments, 1, new[] { "prefab_tablegroup" }))
+                return JoinLiveDebugSegments(segments, Math.Min(3, segments.Length));
+
+            return JoinLiveDebugSegments(segments, Math.Min(3, segments.Length));
+        }
+
+        private static bool StartsWithAnySegment(string[] segments, int index, string[] prefixes)
+        {
+            if (index < 0 || index >= segments.Length)
+                return false;
+
+            var normalized = NormalizeName(segments[index]);
+            for (var prefixIndex = 0; prefixIndex < prefixes.Length; prefixIndex++)
+            {
+                if (normalized.StartsWith(prefixes[prefixIndex], StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string JoinLiveDebugSegments(string[] segments, int count)
+        {
+            var safeCount = Mathf.Clamp(count, 0, segments.Length);
+            var result = new List<string>(safeCount);
+            for (var index = 0; index < safeCount; index++)
+                result.Add(StripLiveDebugInstanceSuffixes(segments[index]));
+
+            return string.Join("/", result.ToArray());
+        }
+
+        private static string StripLiveDebugInstanceSuffixes(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return value;
+
+            var text = value.Trim();
+            while (text.EndsWith(")", StringComparison.Ordinal))
+            {
+                var openIndex = text.LastIndexOf('(');
+                if (openIndex < 0)
+                    break;
+
+                var suffix = text.Substring(openIndex);
+                var numericOnly = true;
+                for (var index = 1; index < suffix.Length - 1; index++)
+                {
+                    if (!char.IsDigit(suffix[index]))
+                    {
+                        numericOnly = false;
+                        break;
+                    }
+                }
+
+                if (!numericOnly)
+                    break;
+
+                text = text.Substring(0, openIndex).TrimEnd();
+            }
+
+            return text;
+        }
+
         private static bool IsLiveDebugLodSegment(string segment)
         {
             if (string.IsNullOrWhiteSpace(segment))
@@ -991,8 +1101,13 @@ namespace Pink
                 Slots = slots;
 
                 var slotParts = new List<string>(slots.Length);
+                var seenSlotParts = new HashSet<string>(StringComparer.Ordinal);
                 for (var index = 0; index < slots.Length; index++)
-                    slotParts.Add($"{slots[index].MaterialIndex}:{slots[index].MaterialName}");
+                {
+                    var slotPart = $"{slots[index].MaterialIndex}:{slots[index].MaterialName}";
+                    if (seenSlotParts.Add(slotPart))
+                        slotParts.Add(slotPart);
+                }
 
                 SlotSummary = string.Join(" | ", slotParts.ToArray());
             }
