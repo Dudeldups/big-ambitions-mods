@@ -9,6 +9,7 @@
 *.csproj.user
 *.DotSettings.user
 TestResults/
+docs/
 tmp_decompile/
 
 # Mod Builder packaged outputs
