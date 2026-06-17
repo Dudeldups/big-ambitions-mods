@@ -89,6 +89,26 @@ namespace StreetQuestRPG
                 : null;
         }
 
+        public static string ResolveNextQuestId(StreetQuestQuestDefinition quest, StreetQuestQuestStateRecord stateRecord)
+        {
+            EnsureInitializedWithoutFile();
+            if (quest == null)
+                return null;
+
+            foreach (var nextQuestId in quest.NextQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
+            {
+                if (!QuestsById.TryGetValue(nextQuestId, out var nextQuest) || nextQuest == null || !nextQuest.Enabled)
+                    continue;
+
+                var questRequirementsMet = nextQuest.RequiredQuestIds.All(value => stateRecord.CompletedQuestIds.Contains(value));
+                var flagRequirementsMet = nextQuest.RequiredStoryFlags.All(value => stateRecord.StoryFlags.Contains(value));
+                if (questRequirementsMet && flagRequirementsMet)
+                    return nextQuest.Id;
+            }
+
+            return string.IsNullOrWhiteSpace(quest.NextQuestId) ? null : quest.NextQuestId;
+        }
+
         private static void EnsureInitializedWithoutFile()
         {
             if (_initialized)
@@ -116,9 +136,32 @@ namespace StreetQuestRPG
                 turnInCharacterId = StreetQuestCharacterCatalog.DefaultQuestGiverId,
                 previousQuestId = null,
                 nextQuestId = null,
+                nextQuestIds = Array.Empty<string>(),
+                requiredQuestIds = Array.Empty<string>(),
+                requiredStoryFlags = Array.Empty<string>(),
                 requiredItemName = "ba:itemname_hotdog",
                 requiredAmount = 1,
                 rewardAmount = 35,
+                objectives = new[]
+                {
+                    new StreetQuestQuestObjectiveDefinition
+                    {
+                        id = "bring_hotdog",
+                        type = nameof(StreetQuestQuestObjectiveType.BringItem),
+                        itemName = "ba:itemname_hotdog",
+                        amount = 1
+                    }
+                },
+                rewards = new[]
+                {
+                    new StreetQuestQuestRewardDefinition
+                    {
+                        type = nameof(StreetQuestQuestRewardType.Cash),
+                        amount = 35
+                    }
+                },
+                acceptedStoryFlags = Array.Empty<string>(),
+                completedStoryFlags = Array.Empty<string>(),
                 offerTextKey = "streetquest:dialog_q1_offer",
                 activeTextKey = "streetquest:dialog_q1_active",
                 readyTextKey = "streetquest:dialog_q1_ready",

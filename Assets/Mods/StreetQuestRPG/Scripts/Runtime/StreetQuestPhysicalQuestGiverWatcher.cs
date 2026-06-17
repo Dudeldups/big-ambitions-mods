@@ -9,13 +9,14 @@ namespace StreetQuestRPG
 
         private float _elapsedSeconds;
         private float _nextSpawnRetryAtSeconds;
+        private float _nextObjectiveTickAtSeconds;
         private bool _spawnEnsured;
 
-        public void Initialize(CallDialogType dialogType)
+        public void Initialize()
         {
-            StreetQuestShared.SetQuestDialogType(dialogType);
             _elapsedSeconds = 0f;
             _nextSpawnRetryAtSeconds = 0f;
+            _nextObjectiveTickAtSeconds = 0f;
             _spawnEnsured = false;
         }
 
@@ -33,6 +34,12 @@ namespace StreetQuestRPG
             {
                 _spawnEnsured = StreetQuestShared.EnsureSpawnedOutdoorQuestGiver();
                 _nextSpawnRetryAtSeconds = _elapsedSeconds + SpawnRetryIntervalSeconds;
+            }
+
+            if (_elapsedSeconds >= _nextObjectiveTickAtSeconds)
+            {
+                StreetQuestShared.TickWorldObjectives();
+                _nextObjectiveTickAtSeconds = _elapsedSeconds + 0.5f;
             }
         }
     }

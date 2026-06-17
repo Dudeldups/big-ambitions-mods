@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using BAModAPI;
+using System.Linq;
 using Dialogs;
 using UnityEngine;
 
@@ -19,15 +20,18 @@ namespace StreetQuestRPG
             StreetQuestCharacterCatalog.Initialize(context?.ModRootPath, context?.Logger);
             StreetQuestQuestCatalog.Initialize(context?.ModRootPath, context?.Logger);
 
-            var defaultQuestGiver = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            var dialogTypeKey = string.IsNullOrWhiteSpace(defaultQuestGiver?.dialogTypeKey)
-                ? "streetquest_mack_dialog"
-                : defaultQuestGiver.dialogTypeKey;
-            var questDialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);
-
             StreetQuestShared.CleanupLegacyContacts();
-            CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestMackDialog());
-            EnsureWatcher(questDialogType);
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
+            {
+                var dialogTypeKey = string.IsNullOrWhiteSpace(character.dialogTypeKey)
+                    ? "streetquest_mack_dialog"
+                    : character.dialogTypeKey;
+                var questDialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);
+                var capturedCharacterId = character.id;
+                CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestCharacterDialog(capturedCharacterId));
+            }
+
+            EnsureWatcher();
 
             return Task.CompletedTask;
         }
@@ -44,7 +48,7 @@ namespace StreetQuestRPG
             return Task.CompletedTask;
         }
 
-        private static void EnsureWatcher(CallDialogType dialogType)
+        private static void EnsureWatcher()
         {
             if (_watcherObject == null)
             {
@@ -56,7 +60,7 @@ namespace StreetQuestRPG
             if (watcher == null)
                 watcher = _watcherObject.AddComponent<StreetQuestPhysicalQuestGiverWatcher>();
 
-            watcher.Initialize(dialogType);
+            watcher.Initialize();
         }
     }
 }

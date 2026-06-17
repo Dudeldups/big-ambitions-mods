@@ -4,9 +4,24 @@
       "id": "streetquest:q1_hotdog",
       "giverCharacterId": "mack",
       "turnInCharacterId": "mack",
-      "requiredItemName": "ba:itemname_hotdog",
-      "requiredAmount": 1,
-      "rewardAmount": 35,
+      "requiredQuestIds": [],
+      "requiredStoryFlags": [],
+      "objectives": [
+        {
+          "id": "bring_hotdog",
+          "type": "BringItem",
+          "itemName": "ba:itemname_hotdog",
+          "amount": 1
+        }
+      ],
+      "rewards": [
+        {
+          "type": "Cash",
+          "amount": 35
+        }
+      ],
+      "acceptedStoryFlags": [],
+      "completedStoryFlags": [],
       "offerTextKey": "streetquest:dialog_q1_offer",
       "activeTextKey": "streetquest:dialog_q1_active",
       "readyTextKey": "streetquest:dialog_q1_ready",

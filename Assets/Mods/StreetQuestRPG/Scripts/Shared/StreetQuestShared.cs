@@ -61,12 +61,12 @@ namespace StreetQuestRPG
         private static readonly string PreferredWorkspaceLogDirectory =
             @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Logs\Mods";
         private static string DebugLogDirectory;
-        private static GameObject SpawnedQuestGiverRoot;
-        private static Component SpawnedQuestGiverController;
+        private static readonly Dictionary<string, GameObject> SpawnedCharacterRoots = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, Component> SpawnedCharacterControllers = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<int, string> CharacterIdsByControllerInstanceId = new();
         private static Vector3? PreferredQuestGiverSpawnPosition;
         private static bool QuestGiverCtaInstalled;
         private static string DebugLogFilePath;
-        public static CallDialogType QuestDialogType { get; private set; }
 
         public const string HomelessContactId = "streetquest:homeless_contact";
         public const string CourierContactId = "streetquest:courier_contact";
@@ -218,10 +218,25 @@ namespace StreetQuestRPG
             LogDebug("EnsureSpawnedOutdoorQuestGiver start");
             RemoveLegacyQuestGiverCtaBehaviors();
             EnsureQuestGiverCtaBehaviorInstalled();
-
-            if (SpawnedQuestGiverRoot != null && SpawnedQuestGiverController != null)
+            var spawnedAny = false;
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
             {
-                LogDebug($"EnsureSpawnedOutdoorQuestGiver skipped existing root={DescribeObject(SpawnedQuestGiverRoot)} controller={DescribeObject(SpawnedQuestGiverController)}");
+                spawnedAny |= EnsureSpawnedCharacter(character);
+            }
+
+            return spawnedAny;
+        }
+
+        private static bool EnsureSpawnedCharacter(StreetQuestCharacterDefinition character)
+        {
+            if (character == null || string.IsNullOrWhiteSpace(character.id))
+                return false;
+
+            if (SpawnedCharacterRoots.TryGetValue(character.id, out var existingRoot) &&
+                existingRoot != null &&
+                SpawnedCharacterControllers.TryGetValue(character.id, out var existingController) &&
+                existingController != null)
+            {
                 return true;
             }
 
@@ -230,11 +245,10 @@ namespace StreetQuestRPG
                 var sellerStandControllerType = FindType("SellerStandController");
                 if (sellerStandControllerType == null)
                 {
-                    LogDebug("EnsureSpawnedOutdoorQuestGiver failed: SellerStandController type missing");
+                    LogDebug("EnsureSpawnedCharacter failed: SellerStandController type missing");
                     return false;
                 }
 
-                var character = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
                 var spawnPosition = GetQuestGiverSpawnPosition(character);
                 if (!spawnPosition.HasValue)
                     return false;
@@ -249,78 +263,59 @@ namespace StreetQuestRPG
                     facingForward = Vector3.forward;
 
                 var rootName = string.IsNullOrWhiteSpace(character.gameObjectName)
-                    ? SpawnedQuestGiverName
+                    ? $"{SpawnedQuestGiverName}.{character.id}"
                     : character.gameObjectName;
                 var root = new GameObject(rootName);
                 root.name = rootName;
                 root.transform.position = spawnPosition.Value;
                 root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
 
-                var questGiverVisualRoot = default(GameObject);
-                var hasQuestGiverVisual = StreetQuestCharacterCreator.TryAttachPrefabVisual(
-                    root.transform,
-                    character,
-                    out questGiverVisualRoot);
-                if (!hasQuestGiverVisual)
+                var hasVisual = StreetQuestCharacterCreator.TryAttachPrefabVisual(root.transform, character, out var _);
+                if (!hasVisual)
                     StreetQuestCharacterCreator.BuildFallbackStandVisual(root.transform, character);
 
                 var interactionRenderer = StreetQuestCharacterCreator.CreateInvisibleInteractionRendererProxy(
                     root.transform,
                     character) ?? CreateInteractionRendererProxy(root.transform);
 
-                StreetQuestCharacterCreator.AddInteractionCollider(root, character, hasQuestGiverVisual);
+                StreetQuestCharacterCreator.AddInteractionCollider(root, character, hasVisual);
 
                 var navTarget = new GameObject("NavMeshTarget").transform;
                 navTarget.SetParent(root.transform, false);
                 navTarget.localPosition = character.NavTargetLocalOffsetOr(NavTargetLocalOffset);
 
-                var sellerStandController =
-                    (Component)root.AddComponent(sellerStandControllerType);
-
+                var sellerStandController = (Component)root.AddComponent(sellerStandControllerType);
                 SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
                 SetMemberValue(sellerStandController, "simpleOverlayType", 4);
                 SetMemberValue(sellerStandController, "detailedOverlayType", 1024);
-                var overlayHeaderKey = string.IsNullOrWhiteSpace(character.overlayHeaderKey)
-                    ? SellerStandOverlayHeaderKey
-                    : character.overlayHeaderKey;
-                SetMemberValue(sellerStandController, "customOverlayHeaderKey", overlayHeaderKey);
+                SetMemberValue(
+                    sellerStandController,
+                    "customOverlayHeaderKey",
+                    string.IsNullOrWhiteSpace(character.overlayHeaderKey) ? SellerStandOverlayHeaderKey : character.overlayHeaderKey);
                 SetMemberValue(sellerStandController, "blockOutline", true);
-                SetMemberValue(
-                    sellerStandController,
-                    "renderers",
-                    new[] { interactionRenderer });
-                SetMemberValue(
-                    sellerStandController,
-                    "navMeshTargets",
-                    new[] { navTarget });
-                SetMemberValue(
-                    sellerStandController,
-                    "itemsToSell",
-                    new[] { "ba:itemname_hotdog" });
-                if (!hasQuestGiverVisual)
+                SetMemberValue(sellerStandController, "renderers", new[] { interactionRenderer });
+                SetMemberValue(sellerStandController, "navMeshTargets", new[] { navTarget });
+                SetMemberValue(sellerStandController, "itemsToSell", new[] { "ba:itemname_hotdog" });
+                if (!hasVisual)
                 {
                     var sellerPosition = new GameObject("SellerPosition").transform;
                     sellerPosition.SetParent(root.transform, false);
                     sellerPosition.localPosition = character.SellerPositionLocalOffsetOr(SellerPositionLocalOffset);
                     SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
                 }
-                InvokeParameterlessMethod(sellerStandController, "Show");
 
-                SpawnedQuestGiverRoot = root;
-                SpawnedQuestGiverController = sellerStandController;
-                LogDebug(
-                    $"EnsureSpawnedOutdoorQuestGiver spawned root={DescribeObject(root)} controller={DescribeObject(sellerStandController)} " +
-                    $"position={FormatVector3(root.transform.position)} overlaySimple=4 overlayDetailed=1024 header={overlayHeaderKey} blockOutline=true character={character.id}");
-                ShowDebugNotification(
-                    $"Quest giver spawned at {FormatVector3(root.transform.position)}",
-                    "streetquest-debug-spawn");
+                InvokeParameterlessMethod(sellerStandController, "Show");
+                SpawnedCharacterRoots[character.id] = root;
+                SpawnedCharacterControllers[character.id] = sellerStandController;
+                CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
+                LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
                 return true;
             }
             catch (Exception exception)
             {
-                LogDebug($"EnsureSpawnedOutdoorQuestGiver failed: {exception}");
-                Debug.LogWarning($"StreetQuestRPG: Failed to spawn outdoor quest giver. {exception}");
-                DestroySpawnedOutdoorQuestGiver();
+                LogDebug($"EnsureSpawnedCharacter failed for {character.id}: {exception}");
+                Debug.LogWarning($"StreetQuestRPG: Failed to spawn quest giver '{character.id}'. {exception}");
+                DestroySpawnedCharacter(character.id);
                 return false;
             }
         }
@@ -341,11 +336,15 @@ namespace StreetQuestRPG
             var newPosition = playerController.transform.position + playerForward.normalized * DefaultSpawnOffsetFromPlayer.z;
             PreferredQuestGiverSpawnPosition = newPosition;
 
-            if (!EnsureSpawnedOutdoorQuestGiver() || SpawnedQuestGiverRoot == null)
+            var character = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (!EnsureSpawnedOutdoorQuestGiver() ||
+                character == null ||
+                !SpawnedCharacterRoots.TryGetValue(character.id, out var spawnedRoot) ||
+                spawnedRoot == null)
                 return;
 
-            SpawnedQuestGiverRoot.transform.position = newPosition;
-            SpawnedQuestGiverRoot.transform.rotation = Quaternion.LookRotation(-playerForward.normalized, Vector3.up);
+            spawnedRoot.transform.position = newPosition;
+            spawnedRoot.transform.rotation = Quaternion.LookRotation(-playerForward.normalized, Vector3.up);
             ShowDebugNotification(
                 $"Quest giver moved to {FormatVector3(newPosition)}",
                 "streetquest-debug-move");
@@ -358,8 +357,11 @@ namespace StreetQuestRPG
                 ? playerController.transform.position
                 : PlayerHelper.GetPosition();
 
-            var questGiverPosition = SpawnedQuestGiverRoot != null
-                ? SpawnedQuestGiverRoot.transform.position
+            var defaultQuestGiver = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            var questGiverPosition = defaultQuestGiver != null &&
+                                     SpawnedCharacterRoots.TryGetValue(defaultQuestGiver.id, out var spawnedRoot) &&
+                                     spawnedRoot != null
+                ? spawnedRoot.transform.position
                 : (Vector3?)null;
 
             ShowDebugNotification(
@@ -368,11 +370,6 @@ namespace StreetQuestRPG
                     ? $" | Quest giver {FormatVector3(questGiverPosition.Value)}"
                     : " | Quest giver not spawned"),
                 "streetquest-debug-coords");
-        }
-
-        public static void SetQuestDialogType(CallDialogType dialogType)
-        {
-            QuestDialogType = dialogType;
         }
 
         public static StreetQuestQuestDefinition GetCurrentQuest()
@@ -394,17 +391,20 @@ namespace StreetQuestRPG
 
         public static bool HasIntroducedHomelessQuestline()
         {
-            var record = GetQuestStateRecord();
-            return record.IntroStage > HomelessIntroStageInitial
-                   || record.CompletedQuestIds.Count > 0
-                   || record.CurrentQuestState != StreetQuestQuestProgressState.NotStarted
-                   || record.CurrentQuestId != (StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty);
+            return HasStoryFlag("streetquest:flag_mack_intro_started")
+                   || HasStoryFlag("streetquest:flag_mack_offer_unlocked")
+                   || GetQuestStateRecord().CompletedQuestIds.Count > 0
+                   || GetQuestStateRecord().CurrentQuestState != StreetQuestQuestProgressState.NotStarted
+                   || GetQuestStateRecord().CurrentQuestId != (StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty);
         }
 
         public static int GetHomelessIntroStage()
         {
-            var record = GetQuestStateRecord();
-            return record.IntroStage;
+            if (HasStoryFlag("streetquest:flag_mack_offer_unlocked"))
+                return HomelessIntroStageCanOfferQuest;
+            if (HasStoryFlag("streetquest:flag_mack_intro_started"))
+                return HomelessIntroStageKnowsPast;
+            return HomelessIntroStageInitial;
         }
 
         public static void AdvanceHomelessIntroStage(int stage)
@@ -414,12 +414,50 @@ namespace StreetQuestRPG
                 return;
 
             record.IntroStage = stage;
+            if (stage >= HomelessIntroStageKnowsPast)
+                record.AddStoryFlag("streetquest:flag_mack_intro_started");
+            if (stage >= HomelessIntroStageCanOfferQuest)
+                record.AddStoryFlag("streetquest:flag_mack_offer_unlocked");
             SaveQuestStateRecord(record);
         }
 
         public static void UnlockHomelessBackstory() => AdvanceHomelessIntroStage(HomelessIntroStageKnowsPast);
 
         public static void UnlockHomelessQuestOffer() => AdvanceHomelessIntroStage(HomelessIntroStageCanOfferQuest);
+
+        public static bool HasStoryFlag(string storyFlagId)
+        {
+            if (string.IsNullOrWhiteSpace(storyFlagId))
+                return false;
+
+            return GetQuestStateRecord().StoryFlags.Contains(storyFlagId);
+        }
+
+        public static void AddStoryFlag(string storyFlagId)
+        {
+            if (string.IsNullOrWhiteSpace(storyFlagId))
+                return;
+
+            var record = GetQuestStateRecord();
+            if (!record.AddStoryFlag(storyFlagId))
+                return;
+
+            SaveQuestStateRecord(record);
+        }
+
+        public static void AddStoryFlags(IEnumerable<string> storyFlagIds)
+        {
+            if (storyFlagIds == null)
+                return;
+
+            var record = GetQuestStateRecord();
+            var changed = false;
+            foreach (var storyFlagId in storyFlagIds)
+                changed |= record.AddStoryFlag(storyFlagId);
+
+            if (changed)
+                SaveQuestStateRecord(record);
+        }
 
         public static bool AcceptQuest(StreetQuestQuestDefinition quest)
         {
@@ -434,6 +472,7 @@ namespace StreetQuestRPG
             record.CurrentQuestState = StreetQuestQuestProgressState.Active;
             if (record.IntroStage < HomelessIntroStageCanOfferQuest)
                 record.IntroStage = HomelessIntroStageCanOfferQuest;
+            record.AddStoryFlags(quest.AcceptedStoryFlags);
             SaveQuestStateRecord(record);
             return true;
         }
@@ -443,7 +482,7 @@ namespace StreetQuestRPG
             if (quest == null)
                 return false;
 
-            return GetPlayerItemAmount(quest.RequiredItemName) >= quest.RequiredAmount;
+            return AreAllObjectivesSatisfied(quest);
         }
 
         public static bool MarkReadyToTurnIn(StreetQuestQuestDefinition quest)
@@ -466,24 +505,26 @@ namespace StreetQuestRPG
 
         public static bool CompleteQuest(StreetQuestQuestDefinition quest)
         {
-            if (quest == null || !CanTurnIn(quest) || !TryConsumeQuestItems(quest.RequiredItemName, quest.RequiredAmount))
+            if (quest == null || !CanTurnIn(quest) || !TryConsumeQuestObjectives(quest))
                 return false;
 
             var record = GetQuestStateRecord();
             if (record.CurrentQuestId != quest.Id)
                 return false;
 
-            GrantReward(quest.RewardAmount);
+            GrantRewards(quest);
+            record.AddStoryFlags(quest.CompletedStoryFlags);
             record.CompletedQuestIds.Add(quest.Id);
 
-            if (string.IsNullOrEmpty(quest.NextQuestId))
+            var nextQuestId = StreetQuestQuestCatalog.ResolveNextQuestId(quest, record);
+            if (string.IsNullOrEmpty(nextQuestId))
             {
                 record.CurrentQuestId = string.Empty;
                 record.CurrentQuestState = StreetQuestQuestProgressState.Completed;
             }
             else
             {
-                record.CurrentQuestId = quest.NextQuestId;
+                record.CurrentQuestId = nextQuestId;
                 record.CurrentQuestState = StreetQuestQuestProgressState.NotStarted;
             }
 
@@ -498,6 +539,145 @@ namespace StreetQuestRPG
 
             var holder = GetPlayerInventoryHolder();
             return holder?.GetAmountByItemName(itemName) ?? 0;
+        }
+
+        public static void RecordCharacterInteraction(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return;
+
+            var quest = GetCurrentQuest();
+            if (quest == null)
+                return;
+
+            var objective = quest.Objectives.FirstOrDefault(value =>
+                value != null &&
+                value.ObjectiveType == StreetQuestQuestObjectiveType.TalkToCharacter &&
+                string.Equals(value.CharacterId, characterId, StringComparison.OrdinalIgnoreCase));
+            if (objective == null)
+                return;
+
+            MarkObjectiveToken(objective.GetTrackingToken(quest.Id));
+        }
+
+        public static void TickWorldObjectives()
+        {
+            var quest = GetCurrentQuest();
+            if (quest == null || GetQuestProgress(quest.Id) != StreetQuestQuestProgressState.Active)
+                return;
+
+            var playerPosition = PlayerHelper.PlayerController != null
+                ? PlayerHelper.PlayerController.transform.position
+                : PlayerHelper.GetPosition();
+
+            foreach (var objective in quest.Objectives.Where(value => value != null))
+            {
+                if (objective.ObjectiveType != StreetQuestQuestObjectiveType.VisitLocation || objective.worldPosition == null)
+                    continue;
+
+                if (Vector3.Distance(playerPosition, objective.worldPosition.ToVector3()) > objective.Radius)
+                    continue;
+
+                MarkObjectiveToken(objective.GetTrackingToken(quest.Id));
+            }
+        }
+
+        public static string ResolveActiveAppearanceId(StreetQuestCharacterDefinition character)
+        {
+            if (character == null)
+                return null;
+
+            if (character.appearanceFlagMappings != null)
+            {
+                foreach (var mapping in character.appearanceFlagMappings)
+                {
+                    if (mapping == null ||
+                        string.IsNullOrWhiteSpace(mapping.storyFlagId) ||
+                        string.IsNullOrWhiteSpace(mapping.appearanceId))
+                    {
+                        continue;
+                    }
+
+                    if (HasStoryFlag(mapping.storyFlagId))
+                        return mapping.appearanceId;
+                }
+            }
+
+            return character.defaultAppearanceId;
+        }
+
+        private static bool AreAllObjectivesSatisfied(StreetQuestQuestDefinition quest)
+        {
+            foreach (var objective in quest.Objectives)
+            {
+                if (!IsObjectiveSatisfied(quest, objective))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsObjectiveSatisfied(StreetQuestQuestDefinition quest, StreetQuestQuestObjectiveDefinition objective)
+        {
+            if (quest == null || objective == null)
+                return true;
+
+            switch (objective.ObjectiveType)
+            {
+                case StreetQuestQuestObjectiveType.BringItem:
+                    return GetPlayerItemAmount(objective.ItemName) >= objective.Amount;
+                case StreetQuestQuestObjectiveType.TalkToCharacter:
+                case StreetQuestQuestObjectiveType.VisitLocation:
+                    return HasObjectiveToken(objective.GetTrackingToken(quest.Id));
+                case StreetQuestQuestObjectiveType.HaveStoryFlag:
+                    return HasStoryFlag(objective.StoryFlagId);
+                case StreetQuestQuestObjectiveType.CompleteQuest:
+                    return GetQuestStateRecord().CompletedQuestIds.Contains(objective.QuestId);
+                default:
+                    return true;
+            }
+        }
+
+        private static bool TryConsumeQuestObjectives(StreetQuestQuestDefinition quest)
+        {
+            foreach (var objective in quest.Objectives.Where(value => value != null))
+            {
+                if (objective.ObjectiveType != StreetQuestQuestObjectiveType.BringItem)
+                    continue;
+
+                if (!TryConsumeQuestItems(objective.ItemName, objective.Amount))
+                    return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(quest.RequiredItemName))
+                return true;
+
+            return TryConsumeQuestItems(quest.RequiredItemName, quest.RequiredAmount);
+        }
+
+        private static void GrantRewards(StreetQuestQuestDefinition quest)
+        {
+            if (quest == null)
+                return;
+
+            if (quest.Rewards.Length == 0)
+            {
+                GrantReward(quest.RewardAmount);
+                return;
+            }
+
+            foreach (var reward in quest.Rewards.Where(value => value != null))
+            {
+                switch (reward.RewardType)
+                {
+                    case StreetQuestQuestRewardType.Cash:
+                        GrantReward(reward.Amount);
+                        break;
+                    case StreetQuestQuestRewardType.StoryFlag:
+                        AddStoryFlag(reward.StoryFlagId);
+                        break;
+                }
+            }
         }
 
         private static bool TryConsumeQuestItems(string itemName, int amount)
@@ -565,6 +745,26 @@ namespace StreetQuestRPG
                 return new StreetQuestQuestStateRecord();
 
             return record;
+        }
+
+        private static bool HasObjectiveToken(string objectiveToken)
+        {
+            if (string.IsNullOrWhiteSpace(objectiveToken))
+                return false;
+
+            return GetQuestStateRecord().ObjectiveTokens.Contains(objectiveToken);
+        }
+
+        private static void MarkObjectiveToken(string objectiveToken)
+        {
+            if (string.IsNullOrWhiteSpace(objectiveToken))
+                return;
+
+            var record = GetQuestStateRecord();
+            if (!record.AddObjectiveToken(objectiveToken))
+                return;
+
+            SaveQuestStateRecord(record);
         }
 
         private static void SaveQuestStateRecord(StreetQuestQuestStateRecord record)
@@ -698,14 +898,23 @@ namespace StreetQuestRPG
 
         private static void DestroySpawnedOutdoorQuestGiver()
         {
-            LogDebug($"DestroySpawnedOutdoorQuestGiver root={DescribeObject(SpawnedQuestGiverRoot)} controller={DescribeObject(SpawnedQuestGiverController)}");
-            if (SpawnedQuestGiverRoot != null)
-            {
-                UnityEngine.Object.Destroy(SpawnedQuestGiverRoot);
-                SpawnedQuestGiverRoot = null;
-            }
+            foreach (var characterId in SpawnedCharacterRoots.Keys.ToList())
+                DestroySpawnedCharacter(characterId);
+        }
 
-            SpawnedQuestGiverController = null;
+        private static void DestroySpawnedCharacter(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return;
+
+            if (SpawnedCharacterControllers.TryGetValue(characterId, out var controller) && controller != null)
+                CharacterIdsByControllerInstanceId.Remove(controller.GetInstanceID());
+
+            if (SpawnedCharacterRoots.TryGetValue(characterId, out var root) && root != null)
+                UnityEngine.Object.Destroy(root);
+
+            SpawnedCharacterRoots.Remove(characterId);
+            SpawnedCharacterControllers.Remove(characterId);
         }
 
         private static void EnsureQuestGiverCtaBehaviorInstalled()
@@ -786,12 +995,21 @@ namespace StreetQuestRPG
 
         internal static bool IsSpawnedQuestGiverController(object controller)
         {
-            if (controller == null || SpawnedQuestGiverController == null)
+            if (controller == null)
                 return false;
 
-            return ReferenceEquals(controller, SpawnedQuestGiverController)
-                   || (controller is UnityEngine.Object unityObject
-                       && unityObject.GetInstanceID() == SpawnedQuestGiverController.GetInstanceID());
+            return controller is UnityEngine.Object unityObject &&
+                   CharacterIdsByControllerInstanceId.ContainsKey(unityObject.GetInstanceID());
+        }
+
+        internal static string GetCharacterIdForController(object controller)
+        {
+            if (controller is not UnityEngine.Object unityObject)
+                return null;
+
+            return CharacterIdsByControllerInstanceId.TryGetValue(unityObject.GetInstanceID(), out var characterId)
+                ? characterId
+                : null;
         }
 
         private static Vector3? GetQuestGiverSpawnPosition(StreetQuestCharacterDefinition character)
@@ -1221,8 +1439,15 @@ namespace StreetQuestRPG
             public override bool ShouldShow(EntityController entityController) =>
                 IsSpawnedQuestGiverController(entityController);
 
-            public override (string, Action) GetCta(EntityController entityController) =>
-                (QuestGiverCtaKey, () => TryOpenQuestDialog(QuestDialogType));
+            public override (string, Action) GetCta(EntityController entityController)
+            {
+                var characterId = GetCharacterIdForController(entityController);
+                var character = StreetQuestCharacterCatalog.Get(characterId) ?? StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+                var ctaKey = string.IsNullOrWhiteSpace(character?.ctaKey) ? QuestGiverCtaKey : character.ctaKey;
+                var dialogTypeKey = string.IsNullOrWhiteSpace(character?.dialogTypeKey) ? "streetquest_mack_dialog" : character.dialogTypeKey;
+                var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);
+                return (ctaKey, () => TryOpenQuestDialog(dialogType));
+            }
         }
 
         private static object GetMemberValue(object instance, string memberName)

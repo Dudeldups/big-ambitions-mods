@@ -4,36 +4,103 @@ using System.Linq;
 
 namespace StreetQuestRPG
 {
+    [Serializable]
     internal sealed class StreetQuestQuestStateRecord
     {
         private const char SegmentSeparator = '|';
         private const char CompletedSeparator = ',';
 
-        public string CurrentQuestId { get; set; } = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
-        public StreetQuestQuestProgressState CurrentQuestState { get; set; } =
-            StreetQuestQuestProgressState.NotStarted;
-        public int IntroStage { get; set; }
-        public HashSet<string> CompletedQuestIds { get; } = new();
+        public string currentQuestId = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
+        public string currentQuestState = StreetQuestQuestProgressState.NotStarted.ToString();
+        public int introStage;
+        public List<string> completedQuestIds = new();
+        public List<string> storyFlags = new();
+        public List<string> objectiveTokens = new();
+
+        public string CurrentQuestId
+        {
+            get => currentQuestId ?? string.Empty;
+            set => currentQuestId = value ?? string.Empty;
+        }
+
+        public StreetQuestQuestProgressState CurrentQuestState
+        {
+            get => Enum.TryParse(currentQuestState, out StreetQuestQuestProgressState parsed)
+                ? parsed
+                : StreetQuestQuestProgressState.NotStarted;
+            set => currentQuestState = value.ToString();
+        }
+
+        public int IntroStage
+        {
+            get => introStage;
+            set => introStage = value;
+        }
+
+        public HashSet<string> CompletedQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> StoryFlags { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ObjectiveTokens { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public string Serialize()
         {
-            var completed = string.Join(
-                CompletedSeparator.ToString(),
-                CompletedQuestIds.OrderBy(value => value, StringComparer.Ordinal));
-            return string.Join(
-                SegmentSeparator.ToString(),
-                CurrentQuestId ?? string.Empty,
-                CurrentQuestState,
-                IntroStage,
-                completed);
+            SyncListsFromSets();
+            return UnityEngine.JsonUtility.ToJson(this);
+        }
+
+        public bool AddStoryFlag(string storyFlagId)
+        {
+            if (string.IsNullOrWhiteSpace(storyFlagId))
+                return false;
+
+            var changed = StoryFlags.Add(storyFlagId);
+            if (changed)
+                SyncListsFromSets();
+            return changed;
+        }
+
+        public void AddStoryFlags(IEnumerable<string> storyFlagIds)
+        {
+            if (storyFlagIds == null)
+                return;
+
+            var changed = false;
+            foreach (var storyFlagId in storyFlagIds)
+                changed |= AddStoryFlag(storyFlagId);
+
+            if (changed)
+                SyncListsFromSets();
+        }
+
+        public bool AddObjectiveToken(string objectiveToken)
+        {
+            if (string.IsNullOrWhiteSpace(objectiveToken))
+                return false;
+
+            var changed = ObjectiveTokens.Add(objectiveToken);
+            if (changed)
+                SyncListsFromSets();
+            return changed;
         }
 
         public static StreetQuestQuestStateRecord Deserialize(string serializedValue)
         {
-            var record = new StreetQuestQuestStateRecord();
             if (string.IsNullOrWhiteSpace(serializedValue))
-                return record;
+                return CreateInitialized();
 
+            var trimmed = serializedValue.TrimStart();
+            if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                var record = UnityEngine.JsonUtility.FromJson<StreetQuestQuestStateRecord>(serializedValue) ?? CreateInitialized();
+                record.SyncSetsFromLists();
+                return record;
+            }
+
+            return DeserializeLegacy(serializedValue);
+        }
+
+        private static StreetQuestQuestStateRecord DeserializeLegacy(string serializedValue)
+        {
+            var record = CreateInitialized();
             var segments = serializedValue.Split(SegmentSeparator);
             if (segments.Length > 0 && !string.IsNullOrWhiteSpace(segments[0]))
                 record.CurrentQuestId = segments[0];
@@ -42,8 +109,14 @@ namespace StreetQuestRPG
                 Enum.TryParse(segments[1], out StreetQuestQuestProgressState progressState))
                 record.CurrentQuestState = progressState;
 
-            if (segments.Length > 2 && int.TryParse(segments[2], out var introStage))
-                record.IntroStage = introStage;
+            if (segments.Length > 2 && int.TryParse(segments[2], out var parsedIntroStage))
+            {
+                record.IntroStage = parsedIntroStage;
+                if (parsedIntroStage >= 1)
+                    record.AddStoryFlag("streetquest:flag_mack_intro_started");
+                if (parsedIntroStage >= 2)
+                    record.AddStoryFlag("streetquest:flag_mack_offer_unlocked");
+            }
 
             if (segments.Length > 3 && !string.IsNullOrWhiteSpace(segments[3]))
             {
@@ -54,11 +127,40 @@ namespace StreetQuestRPG
                 }
             }
 
-            if (string.IsNullOrEmpty(record.CurrentQuestId) &&
-                record.CurrentQuestState != StreetQuestQuestProgressState.Completed)
-                record.CurrentQuestState = StreetQuestQuestProgressState.Completed;
-
+            record.SyncListsFromSets();
             return record;
+        }
+
+        private static StreetQuestQuestStateRecord CreateInitialized()
+        {
+            var record = new StreetQuestQuestStateRecord();
+            record.SyncSetsFromLists();
+            return record;
+        }
+
+        private void SyncSetsFromLists()
+        {
+            CompletedQuestIds.Clear();
+            StoryFlags.Clear();
+            ObjectiveTokens.Clear();
+
+            foreach (var questId in completedQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
+                CompletedQuestIds.Add(questId);
+            foreach (var storyFlagId in storyFlags.Where(value => !string.IsNullOrWhiteSpace(value)))
+                StoryFlags.Add(storyFlagId);
+            foreach (var objectiveToken in objectiveTokens.Where(value => !string.IsNullOrWhiteSpace(value)))
+                ObjectiveTokens.Add(objectiveToken);
+
+            if (string.IsNullOrEmpty(CurrentQuestId) &&
+                CurrentQuestState != StreetQuestQuestProgressState.Completed)
+                CurrentQuestState = StreetQuestQuestProgressState.Completed;
+        }
+
+        private void SyncListsFromSets()
+        {
+            completedQuestIds = CompletedQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+            storyFlags = StoryFlags.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+            objectiveTokens = ObjectiveTokens.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
         }
     }
 }

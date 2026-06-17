@@ -112,6 +112,7 @@ namespace StreetQuestRPG
                 overlayHeaderKey = StreetQuestShared.HomelessNameKey,
                 ctaKey = "streetquest:cta_talk",
                 fallbackLabel = "MACK",
+                defaultAppearanceId = "homeless_start",
                 gender = "Male",
                 ageInDays = 42 * 365,
                 appearanceSeed = 104729,
@@ -135,7 +136,38 @@ namespace StreetQuestRPG
                 colliderCenterFallback = new StreetQuestVector3Data(0f, 0.95f, 0f),
                 colliderSizeFallback = new StreetQuestVector3Data(1.8f, 1.9f, 1.2f),
                 interactionRendererLocalPosition = new StreetQuestVector3Data(0f, 0.9f, 0f),
-                interactionRendererLocalScale = new StreetQuestVector3Data(0.08f, 0.08f, 0.08f)
+                interactionRendererLocalScale = new StreetQuestVector3Data(0.08f, 0.08f, 0.08f),
+                introStageOneTextKey = "streetquest:dialog_intro_back_off",
+                introStageOneConfirmTextKey = "streetquest:dialog_whats_up",
+                introStageOneCompletedFlagId = "streetquest:flag_mack_intro_started",
+                introStageTwoTextKey = "streetquest:dialog_intro_backstory",
+                introStageTwoConfirmTextKey = "streetquest:dialog_yes",
+                introStageTwoCompletedFlagId = "streetquest:flag_mack_offer_unlocked",
+                appearances = new[]
+                {
+                    new StreetQuestCharacterAppearanceDefinition
+                    {
+                        id = "homeless_start",
+                        fallbackLabel = "MACK",
+                        gender = "Male",
+                        ageInDays = 42 * 365,
+                        appearanceSeed = 104729,
+                        prefabNames = new[]
+                        {
+                            "Characters/Homeless",
+                            "Prefabs/Characters/Homeless",
+                            "Homeless"
+                        }
+                    },
+                    new StreetQuestCharacterAppearanceDefinition
+                    {
+                        id = "apartment_mack",
+                        fallbackLabel = "MACK",
+                        gender = "Male",
+                        ageInDays = 42 * 365,
+                        appearanceSeed = 104729
+                    }
+                }
             };
         }
     }

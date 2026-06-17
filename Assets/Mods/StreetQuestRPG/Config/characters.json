@@ -11,10 +11,17 @@
       "overlayHeaderKey": "streetquest:homeless_name",
       "ctaKey": "streetquest:cta_talk",
       "fallbackLabel": "MACK",
+      "defaultAppearanceId": "homeless_start",
       "gender": "Male",
       "ageInDays": 15330,
       "appearanceSeed": 104729,
       "enabled": true,
+      "introStageOneTextKey": "streetquest:dialog_intro_back_off",
+      "introStageOneConfirmTextKey": "streetquest:dialog_whats_up",
+      "introStageOneCompletedFlagId": "streetquest:flag_mack_intro_started",
+      "introStageTwoTextKey": "streetquest:dialog_intro_backstory",
+      "introStageTwoConfirmTextKey": "streetquest:dialog_yes",
+      "introStageTwoCompletedFlagId": "streetquest:flag_mack_offer_unlocked",
       "useFixedSpawnPosition": true,
       "prefabNames": [
         "Characters/Homeless",
@@ -33,7 +40,34 @@
       "colliderCenterFallback": { "x": 0.0, "y": 0.95, "z": 0.0 },
       "colliderSizeFallback": { "x": 1.8, "y": 1.9, "z": 1.2 },
       "interactionRendererLocalPosition": { "x": 0.0, "y": 0.9, "z": 0.0 },
-      "interactionRendererLocalScale": { "x": 0.08, "y": 0.08, "z": 0.08 }
+      "interactionRendererLocalScale": { "x": 0.08, "y": 0.08, "z": 0.08 },
+      "appearances": [
+        {
+          "id": "homeless_start",
+          "fallbackLabel": "MACK",
+          "gender": "Male",
+          "ageInDays": 15330,
+          "appearanceSeed": 104729,
+          "prefabNames": [
+            "Characters/Homeless",
+            "Prefabs/Characters/Homeless",
+            "Homeless"
+          ]
+        },
+        {
+          "id": "apartment_mack",
+          "fallbackLabel": "MACK",
+          "gender": "Male",
+          "ageInDays": 15330,
+          "appearanceSeed": 105001
+        }
+      ],
+      "appearanceFlagMappings": [
+        {
+          "storyFlagId": "streetquest:flag_mack_apartment",
+          "appearanceId": "apartment_mack"
+        }
+      ]
     }
   ]
 }

@@ -17,6 +17,7 @@ namespace StreetQuestRPG
         public string overlayHeaderKey;
         public string ctaKey;
         public string fallbackLabel;
+        public string defaultAppearanceId;
         public string gender;
         public int ageInDays;
         public int appearanceSeed;
@@ -36,6 +37,14 @@ namespace StreetQuestRPG
         public StreetQuestVector3Data colliderSizeFallback;
         public StreetQuestVector3Data interactionRendererLocalPosition;
         public StreetQuestVector3Data interactionRendererLocalScale;
+        public StreetQuestCharacterAppearanceDefinition[] appearances;
+        public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
+        public string introStageOneTextKey;
+        public string introStageOneConfirmTextKey;
+        public string introStageOneCompletedFlagId;
+        public string introStageTwoTextKey;
+        public string introStageTwoConfirmTextKey;
+        public string introStageTwoCompletedFlagId;
 
         public bool HasPrefabNames => prefabNames != null && prefabNames.Any(value => !string.IsNullOrWhiteSpace(value));
 
@@ -53,6 +62,16 @@ namespace StreetQuestRPG
         public Vector3 InteractionRendererLocalPositionOr(Vector3 fallback) => interactionRendererLocalPosition != null ? interactionRendererLocalPosition.ToVector3() : fallback;
         public Vector3 InteractionRendererLocalScaleOr(Vector3 fallback) => interactionRendererLocalScale != null ? interactionRendererLocalScale.ToVector3() : fallback;
 
+        public StreetQuestCharacterAppearanceDefinition FindAppearance(string appearanceId)
+        {
+            if (appearances == null || appearances.Length == 0 || string.IsNullOrWhiteSpace(appearanceId))
+                return null;
+
+            return appearances.FirstOrDefault(value =>
+                value != null &&
+                string.Equals(value.id, appearanceId, StringComparison.OrdinalIgnoreCase));
+        }
+
         public void FillMissingValuesFrom(StreetQuestCharacterDefinition fallback)
         {
             if (fallback == null)
@@ -68,6 +87,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(overlayHeaderKey)) overlayHeaderKey = fallback.overlayHeaderKey;
             if (string.IsNullOrWhiteSpace(ctaKey)) ctaKey = fallback.ctaKey;
             if (string.IsNullOrWhiteSpace(fallbackLabel)) fallbackLabel = fallback.fallbackLabel;
+            if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;
             if (string.IsNullOrWhiteSpace(gender)) gender = fallback.gender;
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;
             if (appearanceSeed == 0) appearanceSeed = fallback.appearanceSeed;
@@ -85,6 +105,8 @@ namespace StreetQuestRPG
             colliderSizeFallback ??= fallback.colliderSizeFallback;
             interactionRendererLocalPosition ??= fallback.interactionRendererLocalPosition;
             interactionRendererLocalScale ??= fallback.interactionRendererLocalScale;
+            appearances ??= fallback.appearances;
+            appearanceFlagMappings ??= fallback.appearanceFlagMappings;
         }
     }
 }

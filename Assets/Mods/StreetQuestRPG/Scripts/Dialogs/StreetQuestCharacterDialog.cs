@@ -5,11 +5,20 @@ using UI.Dialog;
 
 namespace StreetQuestRPG
 {
-    public sealed class StreetQuestMackDialog : Dialog
+    public sealed class StreetQuestCharacterDialog : Dialog
     {
-        public StreetQuestMackDialog()
+        private readonly string _characterId;
+        private readonly StreetQuestCharacterDefinition _character;
+
+        public StreetQuestCharacterDialog(string characterId)
         {
-            npcNameKey = StreetQuestShared.HomelessNameKey;
+            _characterId = characterId;
+            _character = StreetQuestCharacterCatalog.Get(characterId) ?? StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            npcNameKey = string.IsNullOrWhiteSpace(_character?.nameKey)
+                ? StreetQuestShared.HomelessNameKey
+                : _character.nameKey;
+
+            StreetQuestShared.RecordCharacterInteraction(_characterId);
             DialogController.current.ShowEntry(Start());
         }
 
@@ -20,16 +29,20 @@ namespace StreetQuestRPG
                 return BuildEndEntry("streetquest:dialog_finished");
 
             var progress = StreetQuestShared.GetQuestProgress(currentQuest.Id);
-            if (progress == StreetQuestQuestProgressState.NotStarted)
+            if (progress == StreetQuestQuestProgressState.NotStarted &&
+                string.Equals(currentQuest.GiverCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
             {
-                var introStage = StreetQuestShared.GetHomelessIntroStage();
-                if (introStage <= 0)
-                    return BuildBackOffEntry(currentQuest);
-                if (introStage == 1)
-                    return BuildBackstoryEntry(currentQuest);
+                if (ShouldShowIntroStageOne())
+                    return BuildIntroStageOneEntry(currentQuest);
+
+                if (ShouldShowIntroStageTwo())
+                    return BuildIntroStageTwoEntry(currentQuest);
 
                 return BuildOfferEntry(currentQuest);
             }
+
+            if (!string.Equals(currentQuest.TurnInCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
+                return BuildEndEntry("streetquest:dialog_finished");
 
             return progress switch
             {
@@ -39,42 +52,49 @@ namespace StreetQuestRPG
             };
         }
 
-        private DialogEntry BuildBackOffEntry(StreetQuestQuestDefinition quest)
+        private bool ShouldShowIntroStageOne() =>
+            !string.IsNullOrWhiteSpace(_character?.introStageOneTextKey) &&
+            !string.IsNullOrWhiteSpace(_character?.introStageOneCompletedFlagId) &&
+            !StreetQuestShared.HasStoryFlag(_character.introStageOneCompletedFlagId);
+
+        private bool ShouldShowIntroStageTwo() =>
+            !string.IsNullOrWhiteSpace(_character?.introStageTwoTextKey) &&
+            !string.IsNullOrWhiteSpace(_character?.introStageTwoCompletedFlagId) &&
+            !StreetQuestShared.HasStoryFlag(_character.introStageTwoCompletedFlagId);
+
+        private DialogEntry BuildIntroStageOneEntry(StreetQuestQuestDefinition quest)
         {
             return new DialogEntry
             {
                 headerKey = npcNameKey,
-                messageData = "streetquest:dialog_intro_back_off".Localize(),
+                messageData = _character.introStageOneTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = "streetquest:dialog_whats_up".Localize(),
-                OnConfirm = () => OnAskWhatsUp(quest),
+                ConfirmTextOverride = (_character.introStageOneConfirmTextKey ?? "streetquest:dialog_whats_up").Localize(),
+                OnConfirm = () => OnAdvanceIntroStage(quest, _character.introStageOneCompletedFlagId, BuildIntroStageTwoEntry),
                 OnCancel = DialogController.current.FinishDialog
             };
         }
 
-        private DialogEntry OnAskWhatsUp(StreetQuestQuestDefinition quest)
-        {
-            StreetQuestShared.UnlockHomelessBackstory();
-            return BuildBackstoryEntry(quest);
-        }
-
-        private DialogEntry BuildBackstoryEntry(StreetQuestQuestDefinition quest)
+        private DialogEntry BuildIntroStageTwoEntry(StreetQuestQuestDefinition quest)
         {
             return new DialogEntry
             {
                 headerKey = npcNameKey,
-                messageData = "streetquest:dialog_intro_backstory".Localize(),
+                messageData = _character.introStageTwoTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = "streetquest:dialog_yes".Localize(),
-                OnConfirm = () => OnAgreeToHelp(quest),
+                ConfirmTextOverride = (_character.introStageTwoConfirmTextKey ?? "streetquest:dialog_yes").Localize(),
+                OnConfirm = () => OnAdvanceIntroStage(quest, _character.introStageTwoCompletedFlagId, BuildOfferEntry),
                 OnCancel = DialogController.current.FinishDialog
             };
         }
 
-        private DialogEntry OnAgreeToHelp(StreetQuestQuestDefinition quest)
+        private DialogEntry OnAdvanceIntroStage(
+            StreetQuestQuestDefinition quest,
+            string storyFlagId,
+            System.Func<StreetQuestQuestDefinition, DialogEntry> nextBuilder)
         {
-            StreetQuestShared.UnlockHomelessQuestOffer();
-            return BuildOfferEntry(quest);
+            StreetQuestShared.AddStoryFlag(storyFlagId);
+            return nextBuilder(quest);
         }
 
         private DialogEntry BuildOfferEntry(StreetQuestQuestDefinition quest)
@@ -100,8 +120,9 @@ namespace StreetQuestRPG
 
         private DialogEntry BuildActiveEntry(StreetQuestQuestDefinition quest)
         {
+            StreetQuestShared.RecordCharacterInteraction(_characterId);
             if (StreetQuestShared.CanTurnIn(quest) &&
-                quest.TurnInContactId == StreetQuestShared.HomelessContactId)
+                string.Equals(quest.TurnInCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
             {
                 StreetQuestShared.MarkReadyToTurnIn(quest);
                 return BuildReadyToTurnInEntry(quest);
@@ -144,8 +165,7 @@ namespace StreetQuestRPG
             };
         }
 
-        private DialogEntry BuildEndEntry(string messageKey) =>
-            BuildConversationEntry(messageKey, CloseDialog);
+        private DialogEntry BuildEndEntry(string messageKey) => BuildConversationEntry(messageKey, CloseDialog);
 
         private static DialogEntry CloseDialog()
         {
