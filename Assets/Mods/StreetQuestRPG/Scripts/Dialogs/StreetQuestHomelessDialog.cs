@@ -47,9 +47,7 @@ namespace StreetQuestRPG
                 messageData = "streetquest:dialog_intro_back_off".Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = "streetquest:dialog_whats_up".Localize(),
-                SecondOptionTextOverride = "streetquest:dialog_leave",
                 OnConfirm = () => OnAskWhatsUp(quest),
-                OnSecondOption = CloseDialog,
                 OnCancel = DialogController.current.FinishDialog
             };
         }
@@ -68,9 +66,7 @@ namespace StreetQuestRPG
                 messageData = "streetquest:dialog_intro_backstory".Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = "streetquest:dialog_yes".Localize(),
-                SecondOptionTextOverride = "streetquest:dialog_no",
                 OnConfirm = () => OnAgreeToHelp(quest),
-                OnSecondOption = CloseDialog,
                 OnCancel = DialogController.current.FinishDialog
             };
         }
@@ -89,9 +85,7 @@ namespace StreetQuestRPG
                 messageData = quest.OfferTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = "streetquest:dialog_yes".Localize(),
-                SecondOptionTextOverride = "streetquest:dialog_no",
                 OnConfirm = () => OnAcceptQuest(quest),
-                OnSecondOption = CloseDialog,
                 OnCancel = DialogController.current.FinishDialog
             };
         }
@@ -124,9 +118,7 @@ namespace StreetQuestRPG
                 messageData = quest.ReadyTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = "streetquest:dialog_turn_in".Localize(),
-                SecondOptionTextOverride = "streetquest:dialog_not_yet",
                 OnConfirm = () => OnCompleteQuest(quest),
-                OnSecondOption = CloseDialog,
                 OnCancel = DialogController.current.FinishDialog
             };
         }
