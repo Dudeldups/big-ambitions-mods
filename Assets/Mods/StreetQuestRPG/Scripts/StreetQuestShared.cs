@@ -744,13 +744,13 @@ namespace StreetQuestRPG
                 visualRoot.transform.localRotation = Quaternion.Euler(QuestGiverVisualLocalEulerAngles);
                 visualRoot.transform.localScale = Vector3.one;
 
-                DisableVisualOnlyScripts(visualRoot);
-
                 foreach (var collider in visualRoot.GetComponentsInChildren<Collider>(true))
                     collider.enabled = false;
 
                 foreach (var rigidbody in visualRoot.GetComponentsInChildren<Rigidbody>(true))
                     rigidbody.isKinematic = true;
+
+                InitializeQuestGiverVisual(visualRoot);
 
                 return true;
             }
@@ -762,15 +762,46 @@ namespace StreetQuestRPG
             }
         }
 
-        private static void DisableVisualOnlyScripts(GameObject root)
+        private static void InitializeQuestGiverVisual(GameObject root)
         {
             if (root == null)
                 return;
 
-            foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+            try
             {
-                if (behaviour != null)
-                    behaviour.enabled = false;
+                var homelessType = FindType("Entities.Homeless") ?? FindType("Homeless");
+                var homeless = homelessType != null ? root.GetComponent(homelessType) : null;
+                if (homeless != null)
+                {
+                    InvokeParameterlessMethod(homeless, "Init");
+                    InvokeParameterlessMethod(homeless, "Enable");
+                }
+
+                var appearanceSetterType = FindType("AppearanceSetter");
+                var appearanceSetter = appearanceSetterType != null
+                    ? root.GetComponent(appearanceSetterType)
+                    : null;
+                if (appearanceSetter != null)
+                    InvokeParameterlessMethod(appearanceSetter, "SetAppearance");
+
+                var baseHumanType = FindType("BaseHuman");
+                var baseHuman = baseHumanType != null ? root.GetComponent(baseHumanType) : null;
+                if (baseHuman != null)
+                    InvokeParameterlessMethod(baseHuman, "ResetAnimator");
+
+                foreach (var animator in root.GetComponentsInChildren<Animator>(true))
+                {
+                    if (animator == null)
+                        continue;
+
+                    animator.enabled = true;
+                    animator.Rebind();
+                    animator.Update(0f);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to initialize quest giver visual. {exception}");
             }
         }
 
