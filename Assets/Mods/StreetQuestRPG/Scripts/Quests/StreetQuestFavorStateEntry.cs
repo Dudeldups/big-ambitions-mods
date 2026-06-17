@@ -4,7 +4,7 @@ namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
     [Serializable]
-    internal sealed class StreetQuestAffinityStateEntry
+    internal sealed class StreetQuestFavorStateEntry
     {
         public string characterId;
         public int value;

@@ -137,7 +137,7 @@ namespace StreetQuestRPG
                 nextQuestIds = Array.Empty<string>(),
                 requiredQuestIds = Array.Empty<string>(),
                 requiredStoryFlags = Array.Empty<string>(),
-                requiredAffinities = Array.Empty<StreetQuestQuestAffinityRequirementDefinition>(),
+                requiredFavors = Array.Empty<StreetQuestQuestFavorRequirementDefinition>(),
                 objectives = new[]
                 {
                     new StreetQuestQuestObjectiveDefinition
@@ -177,16 +177,16 @@ namespace StreetQuestRPG
             stateRecord ??= new StreetQuestQuestStateRecord();
             var questRequirementsMet = quest.RequiredQuestIds.All(value => stateRecord.CompletedQuestIds.Contains(value));
             var flagRequirementsMet = quest.RequiredStoryFlags.All(value => stateRecord.StoryFlags.Contains(value));
-            var affinityRequirementsMet = quest.RequiredAffinities.All(requirement =>
+            var favorRequirementsMet = quest.RequiredFavors.All(requirement =>
             {
                 if (requirement == null || string.IsNullOrWhiteSpace(requirement.CharacterId))
                     return true;
 
-                var affinity = stateRecord.GetAffinity(requirement.CharacterId);
-                return affinity >= requirement.MinValue && affinity <= requirement.MaxValue;
+                var favor = stateRecord.GetFavor(requirement.CharacterId);
+                return favor >= requirement.MinValue && favor <= requirement.MaxValue;
             });
 
-            return questRequirementsMet && flagRequirementsMet && affinityRequirementsMet;
+            return questRequirementsMet && flagRequirementsMet && favorRequirementsMet;
         }
     }
 }

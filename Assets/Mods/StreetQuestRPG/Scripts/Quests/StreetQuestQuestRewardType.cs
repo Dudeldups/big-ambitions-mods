@@ -5,6 +5,6 @@ namespace StreetQuestRPG
         None = 0,
         Cash = 1,
         StoryFlag = 2,
-        Affinity = 3
+        Favor = 3
     }
 }

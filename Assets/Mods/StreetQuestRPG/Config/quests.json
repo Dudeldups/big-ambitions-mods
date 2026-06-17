@@ -6,7 +6,7 @@
       "turnInCharacterId": "mack",
       "requiredQuestIds": [],
       "requiredStoryFlags": [],
-      "requiredAffinities": [
+      "requiredFavors": [
         {
           "characterId": "mack",
           "minValue": -100,
@@ -27,7 +27,7 @@
           "amount": 35
         },
         {
-          "type": "Affinity",
+          "type": "Favor",
           "characterId": "mack",
           "amount": 5
         }

@@ -11,6 +11,7 @@ using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
+using Localizor;
 using Player.HUD.ItemInfoOverlays;
 using UI.Notification;
 using UnityEngine;
@@ -459,25 +460,25 @@ namespace StreetQuestRPG
                 SaveQuestStateRecord(record);
         }
 
-        public static int GetAffinity(string characterId)
+        public static int GetFavor(string characterId)
         {
-            return GetQuestStateRecord().GetAffinity(characterId);
+            return GetQuestStateRecord().GetFavor(characterId);
         }
 
-        public static bool SetAffinity(string characterId, int value)
+        public static bool SetFavor(string characterId, int value)
         {
             var record = GetQuestStateRecord();
-            if (!record.SetAffinity(characterId, value))
+            if (!record.SetFavor(characterId, value))
                 return false;
 
             SaveQuestStateRecord(record);
             return true;
         }
 
-        public static bool ChangeAffinity(string characterId, int delta)
+        public static bool ChangeFavor(string characterId, int delta)
         {
             var record = GetQuestStateRecord();
-            if (!record.ChangeAffinity(characterId, delta))
+            if (!record.ChangeFavor(characterId, delta))
                 return false;
 
             SaveQuestStateRecord(record);
@@ -538,7 +539,7 @@ namespace StreetQuestRPG
             if (record.CurrentQuestId != quest.Id)
                 return false;
 
-            GrantRewards(quest);
+            var rewardSummary = GrantRewards(quest);
             record.AddStoryFlags(quest.CompletedStoryFlags);
             record.CompletedQuestIds.Add(quest.Id);
 
@@ -555,6 +556,7 @@ namespace StreetQuestRPG
             }
 
             SaveQuestStateRecord(record);
+            ShowRewardSummaryNotification(rewardSummary);
             return true;
         }
 
@@ -678,26 +680,34 @@ namespace StreetQuestRPG
             return true;
         }
 
-        private static void GrantRewards(StreetQuestQuestDefinition quest)
+        private static StreetQuestRewardSummary GrantRewards(StreetQuestQuestDefinition quest)
         {
+            var summary = new StreetQuestRewardSummary();
             if (quest == null)
-                return;
+                return summary;
+
+            var hasFavorReward = quest.Rewards.Any(value =>
+                value != null && value.RewardType == StreetQuestQuestRewardType.Favor);
 
             foreach (var reward in quest.Rewards.Where(value => value != null))
             {
                 switch (reward.RewardType)
                 {
                     case StreetQuestQuestRewardType.Cash:
-                        GrantReward(reward.Amount);
+                        GrantReward(reward.Amount, showNotification: !hasFavorReward);
+                        summary.CashAmount += reward.Amount;
                         break;
                     case StreetQuestQuestRewardType.StoryFlag:
                         AddStoryFlag(reward.StoryFlagId);
                         break;
-                    case StreetQuestQuestRewardType.Affinity:
-                        ChangeAffinity(reward.CharacterId, reward.Amount);
+                    case StreetQuestQuestRewardType.Favor:
+                        ChangeFavor(reward.CharacterId, reward.Amount);
+                        summary.AddFavorDelta(reward.CharacterId, reward.Amount);
                         break;
                 }
             }
+
+            return summary;
         }
 
         private static bool TryConsumeQuestItems(string itemName, int amount)
@@ -731,7 +741,7 @@ namespace StreetQuestRPG
             return PlayerHelper.GetCurrentCargoHolder();
         }
 
-        private static void GrantReward(int rewardAmount)
+        private static void GrantReward(int rewardAmount, bool showNotification)
         {
             if (rewardAmount <= 0)
                 return;
@@ -742,12 +752,94 @@ namespace StreetQuestRPG
             };
             var transactionInfo = new TransactionInfo("streetquest:transaction_reward", transactionData, false);
 
-            if (!GameManager.ChangeMoneySafe(rewardAmount, transactionInfo, showNotification: true))
+            if (!GameManager.ChangeMoneySafe(rewardAmount, transactionInfo, showNotification: showNotification))
             {
                 var saveGame = SaveGameManager.Current;
                 if (saveGame != null)
                     saveGame.Money += rewardAmount;
             }
+        }
+
+        private static void ShowRewardSummaryNotification(StreetQuestRewardSummary summary)
+        {
+            if (summary == null || !summary.HasFavorChanges)
+                return;
+
+            var favorChanges = summary.FavorDeltas.ToList();
+            if (favorChanges.Count == 1)
+            {
+                var favorChange = favorChanges[0];
+                var amount = Math.Abs(favorChange.Value).ToString();
+                var npcName = ResolveCharacterDisplayName(favorChange.Key);
+                var baseKey = favorChange.Value >= 0
+                    ? "streetquest:popup_favor_gain"
+                    : "streetquest:popup_favor_loss";
+
+                var message = baseKey.Localize(new Dictionary<string, string>
+                {
+                    { "amount", amount },
+                    { "npcname", npcName }
+                }).ToString();
+
+                if (summary.CashAmount > 0)
+                {
+                    var combinedKey = favorChange.Value >= 0
+                        ? "streetquest:popup_favor_gain_with_cash"
+                        : "streetquest:popup_favor_loss_with_cash";
+                    message = combinedKey.Localize(new Dictionary<string, string>
+                    {
+                        { "favor", amount },
+                        { "npcname", npcName },
+                        { "amount", summary.CashAmount.ToString() }
+                    }).ToString();
+                }
+                else if (favorChange.Value < 0)
+                {
+                    message = "streetquest:popup_favor_loss".Localize(new Dictionary<string, string>
+                    {
+                        { "amount", amount },
+                        { "npcname", npcName }
+                    }).ToString();
+                }
+
+                ShowDebugNotification(message, $"streetquest-reward-{favorChange.Key}");
+                return;
+            }
+
+            var lines = new List<string>();
+            foreach (var favorChange in favorChanges)
+            {
+                var baseKey = favorChange.Value >= 0
+                    ? "streetquest:popup_favor_gain"
+                    : "streetquest:popup_favor_loss";
+                lines.Add(baseKey.Localize(new Dictionary<string, string>
+                {
+                    { "amount", Math.Abs(favorChange.Value).ToString() },
+                    { "npcname", ResolveCharacterDisplayName(favorChange.Key) }
+                }).ToString());
+            }
+
+            if (summary.CashAmount > 0)
+            {
+                lines.Add("streetquest:popup_reward_cash_only".Localize(new Dictionary<string, string>
+                {
+                    { "amount", summary.CashAmount.ToString() }
+                }).ToString());
+            }
+
+            ShowDebugNotification(string.Join("\n", lines), "streetquest-reward-summary");
+        }
+
+        private static string ResolveCharacterDisplayName(string characterId)
+        {
+            var character = StreetQuestCharacterCatalog.Get(characterId);
+            if (!string.IsNullOrWhiteSpace(character?.nameKey))
+                return character.nameKey.Localize().ToString();
+
+            if (!string.IsNullOrWhiteSpace(character?.displayName))
+                return character.displayName;
+
+            return characterId ?? "NPC";
         }
 
         private static StreetQuestQuestStateRecord GetQuestStateRecord()
@@ -1531,6 +1623,23 @@ namespace StreetQuestRPG
             public string MemberName { get; set; } = string.Empty;
             public int OriginalDialogType { get; set; }
             public object Target { get; set; }
+        }
+
+        private sealed class StreetQuestRewardSummary
+        {
+            public int CashAmount { get; set; }
+            public Dictionary<string, int> FavorDeltas { get; } = new(StringComparer.OrdinalIgnoreCase);
+            public bool HasFavorChanges => FavorDeltas.Count > 0;
+
+            public void AddFavorDelta(string characterId, int delta)
+            {
+                if (string.IsNullOrWhiteSpace(characterId) || delta == 0)
+                    return;
+
+                FavorDeltas[characterId] = FavorDeltas.TryGetValue(characterId, out var existing)
+                    ? existing + delta
+                    : delta;
+            }
         }
 
     }

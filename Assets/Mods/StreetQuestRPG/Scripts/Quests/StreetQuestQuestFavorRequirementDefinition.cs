@@ -4,7 +4,7 @@ namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
     [Serializable]
-    internal sealed class StreetQuestQuestAffinityRequirementDefinition
+    internal sealed class StreetQuestQuestFavorRequirementDefinition
     {
         public string characterId;
         public int minValue = -100;

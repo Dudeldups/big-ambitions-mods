@@ -41,5 +41,10 @@
   "streetquest:dialog_q3_accept_manager": "Make it look respectable and make it quick.",
   "streetquest:dialog_q3_complete_player": "I brought the flowers.",
   "streetquest:dialog_q3_complete_manager": "You came through every time. Here's the rest of your money. You've earned your reputation.",
-  "streetquest:transaction_reward": "Street job reward"
+  "streetquest:transaction_reward": "Street job reward",
+  "streetquest:popup_favor_gain": "You gained {amount} favor with {npcname}.",
+  "streetquest:popup_favor_gain_with_cash": "You gained {favor} favor with {npcname} and ${amount}.",
+  "streetquest:popup_favor_loss": "You lost {amount} favor with {npcname}.",
+  "streetquest:popup_favor_loss_with_cash": "You lost {favor} favor with {npcname} and gained ${amount}.",
+  "streetquest:popup_reward_cash_only": "You gained ${amount}."
 }

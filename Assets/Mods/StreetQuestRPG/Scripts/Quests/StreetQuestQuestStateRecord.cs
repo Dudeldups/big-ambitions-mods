@@ -16,7 +16,7 @@ namespace StreetQuestRPG
         public List<string> completedQuestIds = new();
         public List<string> storyFlags = new();
         public List<string> objectiveTokens = new();
-        public List<StreetQuestAffinityStateEntry> affinityEntries = new();
+        public List<StreetQuestFavorStateEntry> favorEntries = new();
 
         public string CurrentQuestId
         {
@@ -41,7 +41,7 @@ namespace StreetQuestRPG
         public HashSet<string> CompletedQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> StoryFlags { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> ObjectiveTokens { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public Dictionary<string, int> AffinityByCharacterId { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> FavorByCharacterId { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public string Serialize()
         {
@@ -84,34 +84,34 @@ namespace StreetQuestRPG
             return changed;
         }
 
-        public int GetAffinity(string characterId)
+        public int GetFavor(string characterId)
         {
             if (string.IsNullOrWhiteSpace(characterId))
                 return 0;
 
-            return AffinityByCharacterId.TryGetValue(characterId, out var value) ? value : 0;
+            return FavorByCharacterId.TryGetValue(characterId, out var value) ? value : 0;
         }
 
-        public bool SetAffinity(string characterId, int value)
+        public bool SetFavor(string characterId, int value)
         {
             if (string.IsNullOrWhiteSpace(characterId))
                 return false;
 
             var clamped = Math.Max(-100, Math.Min(100, value));
-            if (AffinityByCharacterId.TryGetValue(characterId, out var existing) && existing == clamped)
+            if (FavorByCharacterId.TryGetValue(characterId, out var existing) && existing == clamped)
                 return false;
 
-            AffinityByCharacterId[characterId] = clamped;
+            FavorByCharacterId[characterId] = clamped;
             SyncListsFromSets();
             return true;
         }
 
-        public bool ChangeAffinity(string characterId, int delta)
+        public bool ChangeFavor(string characterId, int delta)
         {
             if (string.IsNullOrWhiteSpace(characterId) || delta == 0)
                 return false;
 
-            return SetAffinity(characterId, GetAffinity(characterId) + delta);
+            return SetFavor(characterId, GetFavor(characterId) + delta);
         }
 
         public static StreetQuestQuestStateRecord Deserialize(string serializedValue)
@@ -175,7 +175,7 @@ namespace StreetQuestRPG
             CompletedQuestIds.Clear();
             StoryFlags.Clear();
             ObjectiveTokens.Clear();
-            AffinityByCharacterId.Clear();
+            FavorByCharacterId.Clear();
 
             foreach (var questId in completedQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
                 CompletedQuestIds.Add(questId);
@@ -183,8 +183,8 @@ namespace StreetQuestRPG
                 StoryFlags.Add(storyFlagId);
             foreach (var objectiveToken in objectiveTokens.Where(value => !string.IsNullOrWhiteSpace(value)))
                 ObjectiveTokens.Add(objectiveToken);
-            foreach (var affinityEntry in affinityEntries.Where(value => value != null && !string.IsNullOrWhiteSpace(value.characterId)))
-                AffinityByCharacterId[affinityEntry.characterId] = Math.Max(-100, Math.Min(100, affinityEntry.value));
+            foreach (var favorEntry in favorEntries.Where(value => value != null && !string.IsNullOrWhiteSpace(value.characterId)))
+                FavorByCharacterId[favorEntry.characterId] = Math.Max(-100, Math.Min(100, favorEntry.value));
 
             if (string.IsNullOrEmpty(CurrentQuestId) &&
                 CurrentQuestState != StreetQuestQuestProgressState.Completed)
@@ -196,9 +196,9 @@ namespace StreetQuestRPG
             completedQuestIds = CompletedQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             storyFlags = StoryFlags.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             objectiveTokens = ObjectiveTokens.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
-            affinityEntries = AffinityByCharacterId
+            favorEntries = FavorByCharacterId
                 .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(value => new StreetQuestAffinityStateEntry
+                .Select(value => new StreetQuestFavorStateEntry
                 {
                     characterId = value.Key,
                     value = value.Value
