@@ -1,0 +1,18 @@
+{
+  "mods": [
+    {
+      "modName": "CameraTools",
+      "sourceDir": "Assets/Mods/CameraTools",
+      "assemblyName": "CameraTools",
+      "modsLocalFolder": "CameraTools",
+      "enabled": true
+    },
+    {
+      "modName": "Gun Store",
+      "sourceDir": "Assets/Mods/Gun Store",
+      "assemblyName": "GunStore-BusinessType",
+      "modsLocalFolder": "Gun Store",
+      "enabled": true
+    }
+  ]
+}
