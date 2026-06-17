@@ -251,7 +251,10 @@ namespace CameraTools
         private bool needsVehicleDistanceReapply;
         private float nextUiStateRefreshTime;
         private float nextHiddenUiRefreshTime;
+        private float nextWorldTextOverlaySearchTime;
         private PendingVcamDiagnostic? pendingVcamDiagnostic;
+        private RectTransform? producerOverlayRect;
+        private RectTransform? worldTextSectionRect;
         private bool scenicViewEnabled;
         private RendererState[] scenicViewRendererStates = Array.Empty<RendererState>();
         private Component? scenicViewTargetRoot;
@@ -347,7 +350,10 @@ namespace CameraTools
             runtime.needsVehicleDistanceReapply = false;
             runtime.nextUiStateRefreshTime = 0f;
             runtime.nextHiddenUiRefreshTime = 0f;
+            runtime.nextWorldTextOverlaySearchTime = 0f;
             runtime.pendingVcamDiagnostic = null;
+            runtime.producerOverlayRect = null;
+            runtime.worldTextSectionRect = null;
             runtime.scenicViewEnabled = false;
             runtime.scenicViewRendererStates = Array.Empty<RendererState>();
             runtime.scenicViewTargetRoot = null;
@@ -422,6 +428,7 @@ namespace CameraTools
             RefreshScenicViewState();
             HandleHideUiHotkey();
             RefreshHiddenUiState();
+            KeepWorldTextOverlayOnScreen(cityMapOpen);
             HandleVehicleDebugHotkeys();
             var gameplayActive = IsGameplayActive();
             HandleIndoorCameraDebugHotkey(cityMapOpen, gameplayActive);
@@ -611,6 +618,11 @@ namespace CameraTools
             CameraToolsFileLogger.Log("indoor-camera-debug.log", "cameratools-indoor-camera-debug.log", message);
         }
 
+        private static void LogJobBoardUiDebug(string message)
+        {
+            CameraToolsFileLogger.Log("jobboard-ui-debug.log", "cameratools-jobboard-ui-debug.log", message);
+        }
+
         private static Array? GetCinemachinePipeline(Type virtualCameraType, object virtualCamera)
         {
             var getPipelineMethod = virtualCameraType.GetMethod("GetComponentPipeline", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -669,14 +681,19 @@ namespace CameraTools
 
         private void HandleIndoorCameraDebugHotkey(bool cityMapOpen, bool gameplayActive)
         {
-            if (settings == null || !settings.EnableIndoorCameraDebugLogging)
+            if (settings == null)
                 return;
 
-            if (!cityMapOpen && gameplayActive)
+            if (settings.EnableIndoorCameraDebugLogging && !cityMapOpen && gameplayActive)
                 MaybeLogIndoorCameraState();
 
             if (Input.GetKeyDown(KeyCode.F4))
-                DumpIndoorCameraDiagnostics("manual");
+            {
+                if (settings.EnableJobBoardUiDebugLogging)
+                    DumpJobBoardUiDiagnostics("manual");
+                else if (settings.EnableIndoorCameraDebugLogging)
+                    DumpIndoorCameraDiagnostics("manual");
+            }
         }
 
         private void MaybeLogIndoorCameraState()

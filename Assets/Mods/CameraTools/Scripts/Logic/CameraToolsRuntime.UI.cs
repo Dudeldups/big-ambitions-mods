@@ -24,6 +24,7 @@ namespace CameraTools
             "camera_tools_hide_map_markers"
         };
         private static GameObject? cachedKnownMapMarkerRoot;
+        private const float WorldTextOverlayScreenMargin = 24f;
 
         private void HandleHideUiHotkey()
         {
@@ -103,6 +104,97 @@ namespace CameraTools
                 return;
 
             ApplyHiddenUi();
+        }
+
+        private void KeepWorldTextOverlayOnScreen(bool cityMapOpen)
+        {
+            if (cityMapOpen || isUiHidden || Screen.width <= 0 || Screen.height <= 0)
+                return;
+
+            if (!TryResolveWorldTextOverlay(out var overlayRect, out var textSectionRect))
+                return;
+
+            if (!overlayRect.gameObject.activeInHierarchy || !textSectionRect.gameObject.activeInHierarchy)
+                return;
+
+            if (!TryGetScreenRect(overlayRect, out var minX, out var minY, out var maxX, out var maxY))
+                return;
+
+            var deltaX = 0f;
+            var deltaY = 0f;
+            var margin = WorldTextOverlayScreenMargin;
+
+            if (minX < margin)
+                deltaX = margin - minX;
+            else if (maxX > Screen.width - margin)
+                deltaX = (Screen.width - margin) - maxX;
+
+            if (minY < margin)
+                deltaY = margin - minY;
+            else if (maxY > Screen.height - margin)
+                deltaY = (Screen.height - margin) - maxY;
+
+            if (Mathf.Abs(deltaX) <= 0.01f && Mathf.Abs(deltaY) <= 0.01f)
+                return;
+
+            var canvas = overlayRect.GetComponentInParent<Canvas>(true);
+            var scaleFactor = canvas != null && canvas.scaleFactor > 0.0001f ? canvas.scaleFactor : 1f;
+            overlayRect.anchoredPosition += new Vector2(deltaX / scaleFactor, deltaY / scaleFactor);
+        }
+
+        private bool TryResolveWorldTextOverlay(out RectTransform overlayRect, out RectTransform textSectionRect)
+        {
+            overlayRect = producerOverlayRect!;
+            textSectionRect = worldTextSectionRect!;
+
+            if (IsValidWorldTextOverlayRect(producerOverlayRect) && IsValidWorldTextOverlayRect(worldTextSectionRect))
+            {
+                overlayRect = producerOverlayRect!;
+                textSectionRect = worldTextSectionRect!;
+                return true;
+            }
+
+            if (Time.unscaledTime < nextWorldTextOverlaySearchTime)
+                return false;
+
+            nextWorldTextOverlaySearchTime = Time.unscaledTime + 0.5f;
+            producerOverlayRect = null;
+            worldTextSectionRect = null;
+
+            foreach (var rectTransform in Resources.FindObjectsOfTypeAll<RectTransform>())
+            {
+                if (rectTransform == null)
+                    continue;
+
+                var path = GetHierarchyPath(rectTransform);
+                if (producerOverlayRect == null &&
+                    path.IndexOf("Canvases/InteriorDesignerUI/Overlays/ProducerOverlay", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    path.EndsWith("/ProducerOverlay", StringComparison.OrdinalIgnoreCase))
+                {
+                    producerOverlayRect = rectTransform;
+                }
+                else if (worldTextSectionRect == null &&
+                    path.IndexOf("Canvases/InteriorDesignerUI/Overlays/ProducerOverlay/WorldTextSection", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    path.EndsWith("/WorldTextSection", StringComparison.OrdinalIgnoreCase))
+                {
+                    worldTextSectionRect = rectTransform;
+                }
+
+                if (producerOverlayRect != null && worldTextSectionRect != null)
+                    break;
+            }
+
+            if (!IsValidWorldTextOverlayRect(producerOverlayRect) || !IsValidWorldTextOverlayRect(worldTextSectionRect))
+                return false;
+
+            overlayRect = producerOverlayRect!;
+            textSectionRect = worldTextSectionRect!;
+            return true;
+        }
+
+        private static bool IsValidWorldTextOverlayRect(RectTransform? rectTransform)
+        {
+            return rectTransform != null && rectTransform.gameObject != null;
         }
 
         private void ApplyHiddenUi()

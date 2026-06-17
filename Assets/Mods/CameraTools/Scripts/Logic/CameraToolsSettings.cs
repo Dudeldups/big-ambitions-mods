@@ -22,7 +22,9 @@ namespace CameraTools
 
         public bool HideMapMarkersWithUi { get; set; } = false;
 
-        public bool EnableCameraToolsDebug { get; set; } = false;
+        public bool EnableCameraToolsDebug { get; set; } = true;
+
+        public bool EnableJobBoardUiDebugLogging { get; set; } = true;
 
         public bool EnableVehicleDebugLogging { get; set; } = false;
 
