@@ -13,6 +13,7 @@ namespace StreetQuestRPG
         public string[] nextQuestIds;
         public string[] requiredQuestIds;
         public string[] requiredStoryFlags;
+        public StreetQuestQuestAffinityRequirementDefinition[] requiredAffinities;
         public StreetQuestQuestObjectiveDefinition[] objectives;
         public StreetQuestQuestRewardDefinition[] rewards;
         public string[] acceptedStoryFlags;
@@ -34,6 +35,7 @@ namespace StreetQuestRPG
         public string[] NextQuestIds => nextQuestIds ?? Array.Empty<string>();
         public string[] RequiredQuestIds => requiredQuestIds ?? Array.Empty<string>();
         public string[] RequiredStoryFlags => requiredStoryFlags ?? Array.Empty<string>();
+        public StreetQuestQuestAffinityRequirementDefinition[] RequiredAffinities => requiredAffinities ?? Array.Empty<StreetQuestQuestAffinityRequirementDefinition>();
         public StreetQuestQuestObjectiveDefinition[] Objectives => objectives ?? Array.Empty<StreetQuestQuestObjectiveDefinition>();
         public StreetQuestQuestRewardDefinition[] Rewards => rewards ?? Array.Empty<StreetQuestQuestRewardDefinition>();
         public string[] AcceptedStoryFlags => acceptedStoryFlags ?? Array.Empty<string>();
@@ -60,6 +62,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(turnInCharacterId)) turnInCharacterId = fallback.turnInCharacterId;
             if (requiredQuestIds == null || requiredQuestIds.Length == 0) requiredQuestIds = fallback.requiredQuestIds;
             if (requiredStoryFlags == null || requiredStoryFlags.Length == 0) requiredStoryFlags = fallback.requiredStoryFlags;
+            if (requiredAffinities == null || requiredAffinities.Length == 0) requiredAffinities = fallback.requiredAffinities;
             if (objectives == null || objectives.Length == 0) objectives = fallback.objectives;
             if (rewards == null || rewards.Length == 0) rewards = fallback.rewards;
             if (acceptedStoryFlags == null || acceptedStoryFlags.Length == 0) acceptedStoryFlags = fallback.acceptedStoryFlags;

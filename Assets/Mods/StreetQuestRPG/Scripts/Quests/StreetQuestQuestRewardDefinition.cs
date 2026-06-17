@@ -9,9 +9,11 @@ namespace StreetQuestRPG
         public string type;
         public int amount;
         public string storyFlagId;
+        public string characterId;
 
         public int Amount => amount;
         public string StoryFlagId => storyFlagId;
+        public string CharacterId => characterId;
 
         public StreetQuestQuestRewardType RewardType
         {

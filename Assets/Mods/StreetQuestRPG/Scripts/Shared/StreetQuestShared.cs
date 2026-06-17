@@ -459,6 +459,31 @@ namespace StreetQuestRPG
                 SaveQuestStateRecord(record);
         }
 
+        public static int GetAffinity(string characterId)
+        {
+            return GetQuestStateRecord().GetAffinity(characterId);
+        }
+
+        public static bool SetAffinity(string characterId, int value)
+        {
+            var record = GetQuestStateRecord();
+            if (!record.SetAffinity(characterId, value))
+                return false;
+
+            SaveQuestStateRecord(record);
+            return true;
+        }
+
+        public static bool ChangeAffinity(string characterId, int delta)
+        {
+            var record = GetQuestStateRecord();
+            if (!record.ChangeAffinity(characterId, delta))
+                return false;
+
+            SaveQuestStateRecord(record);
+            return true;
+        }
+
         public static bool AcceptQuest(StreetQuestQuestDefinition quest)
         {
             if (quest == null)
@@ -466,7 +491,8 @@ namespace StreetQuestRPG
 
             var record = GetQuestStateRecord();
             if (record.CurrentQuestId != quest.Id ||
-                record.CurrentQuestState != StreetQuestQuestProgressState.NotStarted)
+                record.CurrentQuestState != StreetQuestQuestProgressState.NotStarted ||
+                !StreetQuestQuestCatalog.AreRequirementsMet(quest, record))
                 return false;
 
             record.CurrentQuestState = StreetQuestQuestProgressState.Active;
@@ -666,6 +692,9 @@ namespace StreetQuestRPG
                         break;
                     case StreetQuestQuestRewardType.StoryFlag:
                         AddStoryFlag(reward.StoryFlagId);
+                        break;
+                    case StreetQuestQuestRewardType.Affinity:
+                        ChangeAffinity(reward.CharacterId, reward.Amount);
                         break;
                 }
             }

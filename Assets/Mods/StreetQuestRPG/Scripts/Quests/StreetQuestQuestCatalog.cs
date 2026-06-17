@@ -100,9 +100,7 @@ namespace StreetQuestRPG
                 if (!QuestsById.TryGetValue(nextQuestId, out var nextQuest) || nextQuest == null || !nextQuest.Enabled)
                     continue;
 
-                var questRequirementsMet = nextQuest.RequiredQuestIds.All(value => stateRecord.CompletedQuestIds.Contains(value));
-                var flagRequirementsMet = nextQuest.RequiredStoryFlags.All(value => stateRecord.StoryFlags.Contains(value));
-                if (questRequirementsMet && flagRequirementsMet)
+                if (AreRequirementsMet(nextQuest, stateRecord))
                     return nextQuest.Id;
             }
 
@@ -139,6 +137,7 @@ namespace StreetQuestRPG
                 nextQuestIds = Array.Empty<string>(),
                 requiredQuestIds = Array.Empty<string>(),
                 requiredStoryFlags = Array.Empty<string>(),
+                requiredAffinities = Array.Empty<StreetQuestQuestAffinityRequirementDefinition>(),
                 objectives = new[]
                 {
                     new StreetQuestQuestObjectiveDefinition
@@ -168,6 +167,26 @@ namespace StreetQuestRPG
                 completedManagerMessageKey = "streetquest:dialog_q1_complete_manager",
                 enabled = true
             };
+        }
+
+        public static bool AreRequirementsMet(StreetQuestQuestDefinition quest, StreetQuestQuestStateRecord stateRecord)
+        {
+            if (quest == null)
+                return false;
+
+            stateRecord ??= new StreetQuestQuestStateRecord();
+            var questRequirementsMet = quest.RequiredQuestIds.All(value => stateRecord.CompletedQuestIds.Contains(value));
+            var flagRequirementsMet = quest.RequiredStoryFlags.All(value => stateRecord.StoryFlags.Contains(value));
+            var affinityRequirementsMet = quest.RequiredAffinities.All(requirement =>
+            {
+                if (requirement == null || string.IsNullOrWhiteSpace(requirement.CharacterId))
+                    return true;
+
+                var affinity = stateRecord.GetAffinity(requirement.CharacterId);
+                return affinity >= requirement.MinValue && affinity <= requirement.MaxValue;
+            });
+
+            return questRequirementsMet && flagRequirementsMet && affinityRequirementsMet;
         }
     }
 }

@@ -6,6 +6,13 @@
       "turnInCharacterId": "mack",
       "requiredQuestIds": [],
       "requiredStoryFlags": [],
+      "requiredAffinities": [
+        {
+          "characterId": "mack",
+          "minValue": -100,
+          "maxValue": 100
+        }
+      ],
       "objectives": [
         {
           "id": "bring_hotdog",
@@ -18,6 +25,11 @@
         {
           "type": "Cash",
           "amount": 35
+        },
+        {
+          "type": "Affinity",
+          "characterId": "mack",
+          "amount": 5
         }
       ],
       "acceptedStoryFlags": [],
