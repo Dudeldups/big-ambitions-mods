@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using BAModAPI;
+using BigAmbitions.Characters;
 using BigAmbitions.Items;
 using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
@@ -33,6 +34,9 @@ namespace StreetQuestRPG
             "Prefabs/Characters/Homeless",
             "Homeless"
         };
+        private const Gender QuestGiverVisualGender = Gender.Male;
+        private const int QuestGiverVisualAgeInDays = 42 * 365;
+        private const int QuestGiverVisualSeed = 104729;
         private const string SellerStandOverlayHeaderKey = HomelessNameKey;
         private const string QuestGiverCtaKey = "streetquest:cta_talk";
         private static readonly Vector3 QuestGiverVisualLocalPosition = new(0f, 0f, 0f);
@@ -782,7 +786,7 @@ namespace StreetQuestRPG
                     ? root.GetComponent(appearanceSetterType)
                     : null;
                 if (appearanceSetter != null)
-                    InvokeParameterlessMethod(appearanceSetter, "SetAppearance");
+                    ApplyFixedQuestGiverAppearance(appearanceSetter);
 
                 var baseHumanType = FindType("BaseHuman");
                 var baseHuman = baseHumanType != null ? root.GetComponent(baseHumanType) : null;
@@ -802,6 +806,43 @@ namespace StreetQuestRPG
             catch (Exception exception)
             {
                 Debug.LogWarning($"StreetQuestRPG: Failed to initialize quest giver visual. {exception}");
+            }
+        }
+
+        private static void ApplyFixedQuestGiverAppearance(Component appearanceSetter)
+        {
+            if (appearanceSetter == null)
+                return;
+
+            try
+            {
+                var setterType = appearanceSetter.GetType();
+                var setRandomAppearanceMethod = setterType.GetMethod(
+                    "SetRandomAppearance",
+                    ReflectionFlags,
+                    null,
+                    new[]
+                    {
+                        typeof(Gender),
+                        typeof(int),
+                        typeof(int)
+                    },
+                    null);
+
+                if (setRandomAppearanceMethod != null)
+                {
+                    setRandomAppearanceMethod.Invoke(
+                        appearanceSetter,
+                        new object[] { QuestGiverVisualGender, QuestGiverVisualAgeInDays, QuestGiverVisualSeed });
+                    return;
+                }
+
+                InvokeParameterlessMethod(appearanceSetter, "SetAppearance");
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to apply fixed quest giver appearance. {exception}");
+                InvokeParameterlessMethod(appearanceSetter, "SetAppearance");
             }
         }
 
