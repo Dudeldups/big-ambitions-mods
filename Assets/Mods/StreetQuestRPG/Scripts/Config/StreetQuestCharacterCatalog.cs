@@ -106,7 +106,7 @@ namespace StreetQuestRPG
                 displayName = "Mack",
                 nameKey = StreetQuestShared.HomelessNameKey,
                 contactId = StreetQuestShared.HomelessContactId,
-                dialogTypeKey = "streetquest_homeless_dialog",
+                dialogTypeKey = "streetquest_mack_dialog",
                 gameObjectName = "StreetQuestRPG.OutdoorQuestGiver",
                 visualObjectName = "MackVisual",
                 overlayHeaderKey = StreetQuestShared.HomelessNameKey,

@@ -5,9 +5,9 @@ using UI.Dialog;
 
 namespace StreetQuestRPG
 {
-    public sealed class StreetQuestHomelessDialog : Dialog
+    public sealed class StreetQuestMackDialog : Dialog
     {
-        public StreetQuestHomelessDialog()
+        public StreetQuestMackDialog()
         {
             npcNameKey = StreetQuestShared.HomelessNameKey;
             DialogController.current.ShowEntry(Start());
@@ -140,8 +140,7 @@ namespace StreetQuestRPG
                 messageData = messageKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = "streetquest:dialog_close".Localize(),
-                OnConfirm = onConfirm,
-                OnCancel = DialogController.current.FinishDialog
+                OnConfirm = onConfirm
             };
         }
 

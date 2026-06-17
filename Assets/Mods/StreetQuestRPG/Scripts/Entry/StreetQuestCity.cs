@@ -21,12 +21,12 @@ namespace StreetQuestRPG
 
             var defaultQuestGiver = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
             var dialogTypeKey = string.IsNullOrWhiteSpace(defaultQuestGiver?.dialogTypeKey)
-                ? "streetquest_homeless_dialog"
+                ? "streetquest_mack_dialog"
                 : defaultQuestGiver.dialogTypeKey;
             var questDialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);
 
             StreetQuestShared.CleanupLegacyContacts();
-            CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestHomelessDialog());
+            CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestMackDialog());
             EnsureWatcher(questDialogType);
 
             return Task.CompletedTask;

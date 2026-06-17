@@ -5,7 +5,7 @@
       "displayName": "Mack",
       "nameKey": "streetquest:homeless_name",
       "contactId": "streetquest:homeless_contact",
-      "dialogTypeKey": "streetquest_homeless_dialog",
+      "dialogTypeKey": "streetquest_mack_dialog",
       "gameObjectName": "StreetQuestRPG.OutdoorQuestGiver",
       "visualObjectName": "MackVisual",
       "overlayHeaderKey": "streetquest:homeless_name",
