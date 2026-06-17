@@ -247,7 +247,7 @@ namespace StreetQuestRPG
                     (Component)root.AddComponent(sellerStandControllerType);
 
                 SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
-                SetMemberValue(sellerStandController, "simpleOverlayType", 0);
+                SetMemberValue(sellerStandController, "simpleOverlayType", 4);
                 SetMemberValue(sellerStandController, "detailedOverlayType", 1024);
                 SetMemberValue(sellerStandController, "customOverlayHeaderKey", SellerStandOverlayHeaderKey);
                 SetMemberValue(sellerStandController, "blockOutline", true);
@@ -276,7 +276,7 @@ namespace StreetQuestRPG
                 SpawnedQuestGiverController = sellerStandController;
                 LogDebug(
                     $"EnsureSpawnedOutdoorQuestGiver spawned root={DescribeObject(root)} controller={DescribeObject(sellerStandController)} " +
-                    $"position={FormatVector3(root.transform.position)} overlaySimple=0 overlayDetailed=1024 header={SellerStandOverlayHeaderKey} blockOutline=true");
+                    $"position={FormatVector3(root.transform.position)} overlaySimple=4 overlayDetailed=1024 header={SellerStandOverlayHeaderKey} blockOutline=true");
                 ShowDebugNotification(
                     $"Quest giver spawned at {FormatVector3(root.transform.position)}",
                     "streetquest-debug-spawn");
