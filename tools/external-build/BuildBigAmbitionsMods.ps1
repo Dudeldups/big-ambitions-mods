@@ -185,6 +185,7 @@ function New-ModInfo {
         Enabled = $enabled
         HasThumbnail = (Test-Path -LiteralPath (Join-Path $sourceDir "thumbnail.png") -PathType Leaf)
         HasLocales = (Test-Path -LiteralPath (Join-Path $sourceDir "Locales") -PathType Container)
+        HasConfig = (Test-Path -LiteralPath (Join-Path $sourceDir "Config") -PathType Container)
         Sources = @($sources)
     }
 }
@@ -566,6 +567,13 @@ function Install-ModOutput {
     } else {
         Write-BuildWarning ("Mod '" + $Mod.ModName + "' is missing Locales folder at " + $locales)
     }
+
+    $config = Join-Path $Mod.SourceDir "Config"
+    if (Test-Path -LiteralPath $config -PathType Container) {
+        $configTarget = Join-Path $installRoot "Config"
+        Copy-DirectoryUpdate -Source $config -Destination $configTarget
+        Write-Step ("Copied Config path: " + $configTarget)
+    }
 }
 
 function Test-BuiltDll {
@@ -626,6 +634,9 @@ foreach ($mod in $detectedMods) {
         }
         if (-not $mod.HasLocales) {
             Write-BuildWarning ("Mod '" + $mod.ModName + "' is missing Locales folder at " + (Join-Path $mod.SourceDir "Locales"))
+        }
+        if (-not $mod.HasConfig) {
+            Write-Step ("  - note: " + $mod.ModName + " has no Config folder to copy")
         }
     }
 }
