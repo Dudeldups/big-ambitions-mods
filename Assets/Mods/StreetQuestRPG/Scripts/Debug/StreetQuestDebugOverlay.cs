@@ -59,8 +59,8 @@ namespace StreetQuestRPG
                 return;
 
             EnsureStyles();
-            CaptureHotControl();
             _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "StreetQuest Debug", _windowStyle);
+            CaptureHotControl();
             ConsumePointerEvents();
             ConsumeScrollWheelIfMouseOverWindow();
         }
@@ -212,11 +212,21 @@ namespace StreetQuestRPG
 
             if (!satisfied &&
                 objective.ObjectiveType == StreetQuestQuestObjectiveType.BringItem &&
+                objective.InventorySource != StreetQuestQuestInventorySource.Quest &&
                 !string.IsNullOrWhiteSpace(objective.ItemName))
             {
                 var amountToGive = Mathf.Max(1, objective.Amount - StreetQuestShared.GetPlayerItemAmount(objective.ItemName));
                 if (GUILayout.Button($"Spawn item ({amountToGive})", _buttonStyle, GUILayout.Width(150f)))
                     StreetQuestShared.TryGivePlayerQuestItem(objective.ItemName, amountToGive);
+            }
+
+            if (!satisfied &&
+                objective.ObjectiveType == StreetQuestQuestObjectiveType.BringItem &&
+                objective.InventorySource == StreetQuestQuestInventorySource.Quest &&
+                objective.worldPosition != null)
+            {
+                if (GUILayout.Button("Teleport to item", _buttonStyle, GUILayout.Width(150f)))
+                    StreetQuestShared.TeleportPlayerToWorldPosition(objective.worldPosition.ToVector3());
             }
 
             if (objective.ObjectiveType == StreetQuestQuestObjectiveType.VisitLocation &&
