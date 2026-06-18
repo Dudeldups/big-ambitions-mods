@@ -11,6 +11,7 @@ namespace StreetQuestRPG
         private float _nextSpawnRetryAtSeconds;
         private float _nextObjectiveTickAtSeconds;
         private bool _spawnEnsured;
+        private StreetQuestDebugOverlay _debugOverlay;
 
         public void Initialize()
         {
@@ -18,11 +19,15 @@ namespace StreetQuestRPG
             _nextSpawnRetryAtSeconds = 0f;
             _nextObjectiveTickAtSeconds = 0f;
             _spawnEnsured = false;
+            _debugOverlay = GetComponent<StreetQuestDebugOverlay>();
+            if (_debugOverlay == null && StreetQuestDebugSettings.Enabled)
+                _debugOverlay = gameObject.AddComponent<StreetQuestDebugOverlay>();
         }
 
         private void Update()
         {
             _elapsedSeconds += Time.unscaledDeltaTime;
+            _debugOverlay?.TickToggle();
 
             if (Input.GetKeyDown(KeyCode.F8))
                 StreetQuestShared.LogCoordinateSnapshot();

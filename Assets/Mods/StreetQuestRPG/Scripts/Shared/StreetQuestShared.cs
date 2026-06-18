@@ -379,6 +379,11 @@ namespace StreetQuestRPG
             return StreetQuestQuestCatalog.Get(record.CurrentQuestId);
         }
 
+        public static StreetQuestQuestStateRecord GetQuestStateSnapshot()
+        {
+            return GetQuestStateRecord();
+        }
+
         public static StreetQuestQuestProgressState GetQuestProgress(string questId)
         {
             var record = GetQuestStateRecord();
@@ -569,6 +574,13 @@ namespace StreetQuestRPG
             return holder?.GetAmountByItemName(itemName) ?? 0;
         }
 
+        public static Vector3 GetPlayerWorldPosition()
+        {
+            return PlayerHelper.PlayerController != null
+                ? PlayerHelper.PlayerController.transform.position
+                : PlayerHelper.GetPosition();
+        }
+
         public static void RecordCharacterInteraction(string characterId)
         {
             if (string.IsNullOrWhiteSpace(characterId))
@@ -632,6 +644,39 @@ namespace StreetQuestRPG
             }
 
             return character.defaultAppearanceId;
+        }
+
+        public static bool IsObjectiveSatisfiedForDebug(
+            StreetQuestQuestDefinition quest,
+            StreetQuestQuestObjectiveDefinition objective)
+        {
+            return IsObjectiveSatisfied(quest, objective);
+        }
+
+        public static bool TeleportPlayerToCharacter(string characterId)
+        {
+            var character = StreetQuestCharacterCatalog.Get(characterId);
+            var playerController = PlayerHelper.PlayerController;
+            if (character == null || playerController == null)
+                return false;
+
+            var targetPosition = character.PositionOr(Vector3.zero) + new Vector3(0f, 0f, 2f);
+            var targetForward = FlattenDirection(character.ForwardOr(Vector3.forward));
+            if (targetForward.sqrMagnitude < 0.001f)
+                targetForward = Vector3.forward;
+
+            var characterController = playerController.GetComponent<CharacterController>();
+            var wasEnabled = characterController != null && characterController.enabled;
+            if (wasEnabled)
+                characterController.enabled = false;
+
+            playerController.transform.position = targetPosition;
+            playerController.transform.rotation = Quaternion.LookRotation(-targetForward, Vector3.up);
+
+            if (wasEnabled)
+                characterController.enabled = true;
+
+            return true;
         }
 
         private static bool AreAllObjectivesSatisfied(StreetQuestQuestDefinition quest)

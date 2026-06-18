@@ -1,6 +1,7 @@
 using Dialogs;
 using Entities;
 using Localizor;
+using System.Linq;
 using UI.Dialog;
 
 namespace StreetQuestRPG
@@ -32,11 +33,8 @@ namespace StreetQuestRPG
             if (progress == StreetQuestQuestProgressState.NotStarted &&
                 string.Equals(currentQuest.GiverCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
             {
-                if (ShouldShowIntroStageOne())
+                if (HasIntroFlow())
                     return BuildIntroStageOneEntry(currentQuest);
-
-                if (ShouldShowIntroStageTwo())
-                    return BuildIntroStageTwoEntry(currentQuest);
 
                 return BuildOfferEntry(currentQuest);
             }
@@ -52,15 +50,8 @@ namespace StreetQuestRPG
             };
         }
 
-        private bool ShouldShowIntroStageOne() =>
-            !string.IsNullOrWhiteSpace(_character?.introStageOneTextKey) &&
-            !string.IsNullOrWhiteSpace(_character?.introStageOneCompletedFlagId) &&
-            !StreetQuestShared.HasStoryFlag(_character.introStageOneCompletedFlagId);
-
-        private bool ShouldShowIntroStageTwo() =>
-            !string.IsNullOrWhiteSpace(_character?.introStageTwoTextKey) &&
-            !string.IsNullOrWhiteSpace(_character?.introStageTwoCompletedFlagId) &&
-            !StreetQuestShared.HasStoryFlag(_character.introStageTwoCompletedFlagId);
+        private bool HasIntroFlow() =>
+            !string.IsNullOrWhiteSpace(_character?.introStageOneTextKey);
 
         private DialogEntry BuildIntroStageOneEntry(StreetQuestQuestDefinition quest)
         {
@@ -93,18 +84,22 @@ namespace StreetQuestRPG
             string storyFlagId,
             System.Func<StreetQuestQuestDefinition, DialogEntry> nextBuilder)
         {
-            StreetQuestShared.AddStoryFlag(storyFlagId);
             return nextBuilder(quest);
         }
 
         private DialogEntry BuildOfferEntry(StreetQuestQuestDefinition quest)
         {
+            var confirmTextKey = quest.Objectives.Any(value =>
+                value != null && value.ObjectiveType == StreetQuestQuestObjectiveType.BringItem)
+                ? "streetquest:dialog_on_my_way"
+                : "streetquest:dialog_yes";
+
             return new DialogEntry
             {
                 headerKey = npcNameKey,
                 messageData = quest.OfferTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = "streetquest:dialog_yes".Localize(),
+                ConfirmTextOverride = confirmTextKey.Localize(),
                 OnConfirm = () => OnAcceptQuest(quest),
                 OnCancel = DialogController.current.FinishDialog
             };
@@ -115,7 +110,7 @@ namespace StreetQuestRPG
             if (!StreetQuestShared.AcceptQuest(quest))
                 return BuildActiveEntry(quest);
 
-            return BuildConversationEntry(quest.AcceptedManagerMessageKey, CloseDialog);
+            return BuildConversationEntry(quest.AcceptedManagerMessageKey);
         }
 
         private DialogEntry BuildActiveEntry(StreetQuestQuestDefinition quest)
@@ -128,7 +123,7 @@ namespace StreetQuestRPG
                 return BuildReadyToTurnInEntry(quest);
             }
 
-            return BuildConversationEntry(quest.ActiveTextKey, CloseDialog);
+            return BuildConversationEntry(quest.ActiveTextKey);
         }
 
         private DialogEntry BuildReadyToTurnInEntry(StreetQuestQuestDefinition quest)
@@ -148,29 +143,22 @@ namespace StreetQuestRPG
         {
             StreetQuestShared.MarkReadyToTurnIn(quest);
             if (!StreetQuestShared.CompleteQuest(quest))
-                return BuildConversationEntry(quest.ActiveTextKey, CloseDialog);
+                return BuildConversationEntry(quest.ActiveTextKey);
 
-            return BuildConversationEntry(quest.CompletedManagerMessageKey, CloseDialog);
+            return BuildConversationEntry(quest.CompletedManagerMessageKey);
         }
 
-        private DialogEntry BuildConversationEntry(string messageKey, System.Func<DialogEntry> onConfirm)
+        private DialogEntry BuildConversationEntry(string messageKey)
         {
             return new DialogEntry
             {
                 headerKey = npcNameKey,
                 messageData = messageKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = "streetquest:dialog_close".Localize(),
-                OnConfirm = onConfirm
+                OnCancel = DialogController.current.FinishDialog
             };
         }
 
-        private DialogEntry BuildEndEntry(string messageKey) => BuildConversationEntry(messageKey, CloseDialog);
-
-        private static DialogEntry CloseDialog()
-        {
-            DialogController.current.FinishDialog();
-            return null;
-        }
+        private DialogEntry BuildEndEntry(string messageKey) => BuildConversationEntry(messageKey);
     }
 }
