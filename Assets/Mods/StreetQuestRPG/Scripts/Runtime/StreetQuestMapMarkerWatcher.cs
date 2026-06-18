@@ -512,10 +512,31 @@ namespace StreetQuestRPG
                 }
 
                 PrepareMarkerVisual(blobCloneObject);
+                ApplyCustomMarkerIcon(blobCloneObject.transform);
             }
 
             StreetQuestShared.LogDebug($"Map marker visual source=vanilla_blob template={template.name}");
             return true;
+        }
+
+        private void ApplyCustomMarkerIcon(Transform rootTransform)
+        {
+            if (rootTransform == null)
+                return;
+
+            var iconRect = FindChildRectTransform(rootTransform, "Icon");
+            if (iconRect == null)
+                return;
+
+            var iconImage = iconRect.GetComponent<Image>();
+            if (iconImage == null)
+                return;
+
+            iconImage.sprite = GetMarkerSprite();
+            iconImage.color = Color.white;
+            iconImage.material = null;
+            iconImage.preserveAspect = true;
+            iconImage.SetNativeSize();
         }
 
         private static void PrepareMarkerVisual(GameObject rootObject)
