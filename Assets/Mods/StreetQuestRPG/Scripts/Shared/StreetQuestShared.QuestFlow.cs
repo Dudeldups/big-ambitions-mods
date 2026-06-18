@@ -78,7 +78,7 @@ namespace StreetQuestRPG
             if (record.CurrentQuestId != quest.Id)
                 return false;
 
-            var rewardSummary = GrantRewards(quest);
+            var rewardSummary = GrantRewards(quest, record);
             record.AddStoryFlags(quest.CompletedStoryFlags);
             record.CompletedQuestIds.Add(quest.Id);
 
@@ -154,10 +154,12 @@ namespace StreetQuestRPG
         }
 
 
-        private static StreetQuestRewardSummary GrantRewards(StreetQuestQuestDefinition quest)
+        private static StreetQuestRewardSummary GrantRewards(
+            StreetQuestQuestDefinition quest,
+            StreetQuestQuestStateRecord record)
         {
             var summary = new StreetQuestRewardSummary();
-            if (quest == null)
+            if (quest == null || record == null)
                 return summary;
 
             var hasFavorReward = quest.Rewards.Any(value =>
@@ -172,11 +174,11 @@ namespace StreetQuestRPG
                         summary.CashAmount += reward.Amount;
                         break;
                     case StreetQuestQuestRewardType.StoryFlag:
-                        AddStoryFlag(reward.StoryFlagId);
+                        record.AddStoryFlag(reward.StoryFlagId);
                         break;
                     case StreetQuestQuestRewardType.Favor:
-                        ChangeFavor(reward.CharacterId, reward.Amount);
-                        summary.AddFavorDelta(reward.CharacterId, reward.Amount);
+                        if (record.ChangeFavor(reward.CharacterId, reward.Amount))
+                            summary.AddFavorDelta(reward.CharacterId, reward.Amount);
                         break;
                 }
             }
