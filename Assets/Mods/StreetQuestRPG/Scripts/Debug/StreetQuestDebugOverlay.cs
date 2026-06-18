@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BigAmbitions.SaveSystem.Legacy;
+using Helpers;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -47,12 +49,12 @@ namespace StreetQuestRPG
 
         public bool ShouldBlockGameplayInput()
         {
-            return StreetQuestDebugSettings.Enabled && _visible && IsMouseOverWindow();
+            return StreetQuestDebugSettings.Enabled && _visible && IsInActiveGameSession() && IsMouseOverWindow();
         }
 
         private void OnGUI()
         {
-            if (!StreetQuestDebugSettings.Enabled || !_visible)
+            if (!StreetQuestDebugSettings.Enabled || !_visible || !IsInActiveGameSession())
                 return;
 
             EnsureStyles();
@@ -403,6 +405,11 @@ namespace StreetQuestRPG
         {
             var mousePosition = Input.mousePosition;
             return new Vector2(mousePosition.x, Screen.height - mousePosition.y);
+        }
+
+        private static bool IsInActiveGameSession()
+        {
+            return SaveGameManager.Current != null && PlayerHelper.PlayerController != null;
         }
     }
 }
