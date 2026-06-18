@@ -13,6 +13,8 @@ namespace StreetQuestRPG
         private static IModLogger _logger;
         private static bool _dialogsRegistered;
 
+        internal static string CurrentModRootPath => _modRootPath;
+
         public static void Configure(ModContext context, string source)
         {
             if (context == null)
@@ -40,6 +42,12 @@ namespace StreetQuestRPG
                 watcher = _watcherObject.AddComponent<StreetQuestPhysicalQuestGiverWatcher>();
 
             watcher.Initialize();
+
+            var mapMarkerWatcher = _watcherObject.GetComponent<StreetQuestMapMarkerWatcher>();
+            if (mapMarkerWatcher == null)
+                mapMarkerWatcher = _watcherObject.AddComponent<StreetQuestMapMarkerWatcher>();
+
+            mapMarkerWatcher.Initialize();
         }
 
         public static bool EnsureCityRuntimeReady()

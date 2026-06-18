@@ -158,6 +158,21 @@ namespace StreetQuestRPG
             return string.Empty;
         }
 
+        internal static bool TryGetCharacterWorldPosition(string characterId, out Vector3 worldPosition)
+        {
+            worldPosition = default;
+            var definition = StreetQuestCharacterCatalog.Get(characterId);
+            if (definition == null)
+                return false;
+
+            var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
+            if (runtimeDefinition == null || !runtimeDefinition.enabled)
+                return false;
+
+            worldPosition = runtimeDefinition.PositionOr(Vector3.zero);
+            return true;
+        }
+
 
         private static StreetQuestQuestStateRecord GetQuestStateRecord()
         {

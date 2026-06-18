@@ -115,7 +115,7 @@ namespace StreetQuestRPG
         }
 
 
-        private static void LogDebug(string message)
+        internal static void LogDebug(string message)
         {
             if (string.IsNullOrWhiteSpace(DebugLogFilePath))
                 return;

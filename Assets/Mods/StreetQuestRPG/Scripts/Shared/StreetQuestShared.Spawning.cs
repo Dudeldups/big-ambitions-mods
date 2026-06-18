@@ -42,6 +42,20 @@ namespace StreetQuestRPG
         }
 
 
+        internal static bool TryGetSpawnedCharacterRoot(string characterId, out GameObject root)
+        {
+            root = null;
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            if (!SpawnedCharacterRoots.TryGetValue(characterId, out var existingRoot) || existingRoot == null)
+                return false;
+
+            root = existingRoot;
+            return true;
+        }
+
+
         private static bool EnsureSpawnedCharacter(StreetQuestCharacterDefinition character)
         {
             if (character == null || string.IsNullOrWhiteSpace(character.id))
@@ -97,6 +111,11 @@ namespace StreetQuestRPG
                     : runtimeDefinition.gameObjectName;
                 var root = new GameObject(rootName);
                 root.name = rootName;
+
+                var itemsContainer = ResolveItemsContainerTransform();
+                if (itemsContainer != null)
+                    root.transform.SetParent(itemsContainer, false);
+
                 root.transform.position = spawnPosition.Value;
                 root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
 
@@ -309,6 +328,43 @@ namespace StreetQuestRPG
         {
             direction.y = 0f;
             return direction.normalized;
+        }
+
+
+        private static Transform ResolveItemsContainerTransform()
+        {
+            foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (transform == null)
+                    continue;
+
+                if (string.Equals(GetHierarchyPath(transform), "GameManager/ItemsContainer", StringComparison.OrdinalIgnoreCase))
+                    return transform;
+            }
+
+            foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (transform == null)
+                    continue;
+
+                if (string.Equals(transform.name, "ItemsContainer", StringComparison.OrdinalIgnoreCase))
+                    return transform;
+            }
+
+            return null;
+        }
+
+
+        private static string GetHierarchyPath(Transform transform)
+        {
+            if (transform == null)
+                return string.Empty;
+
+            var names = new Stack<string>();
+            for (var current = transform; current != null; current = current.parent)
+                names.Push(current.name);
+
+            return string.Join("/", names);
         }
 
 
