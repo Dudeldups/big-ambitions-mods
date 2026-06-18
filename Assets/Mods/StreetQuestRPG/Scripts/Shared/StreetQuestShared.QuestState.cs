@@ -250,6 +250,8 @@ namespace StreetQuestRPG
             saveGame.modData ??= new Dictionary<string, string>();
             var serialized = record.Serialize();
             saveGame.modData[QuestStateModDataKey] = serialized;
+            saveGame.hasEverUsedMods = true;
+            SaveGameManager.MarkChange();
             CachedQuestStateOwner = saveGame;
             CachedQuestStateRecord = record;
             LogDebug($"SaveQuestStateRecord questId={record.CurrentQuestId} state={record.CurrentQuestState} serialized={serialized}");
