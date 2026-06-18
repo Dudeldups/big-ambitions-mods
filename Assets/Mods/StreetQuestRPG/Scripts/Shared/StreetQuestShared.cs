@@ -679,6 +679,59 @@ namespace StreetQuestRPG
             return true;
         }
 
+        public static bool TeleportPlayerToWorldPosition(Vector3 worldPosition)
+        {
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+                return false;
+
+            var characterController = playerController.GetComponent<CharacterController>();
+            var wasEnabled = characterController != null && characterController.enabled;
+            if (wasEnabled)
+                characterController.enabled = false;
+
+            playerController.transform.position = worldPosition + new Vector3(0f, 0f, 1.5f);
+
+            if (wasEnabled)
+                characterController.enabled = true;
+
+            return true;
+        }
+
+        public static bool TryGivePlayerQuestItem(string itemName, int amount)
+        {
+            if (string.IsNullOrWhiteSpace(itemName) || amount <= 0)
+                return false;
+
+            var holder = GetPlayerInventoryHolder();
+            if (holder == null)
+            {
+                LogDebug($"TryGivePlayerQuestItem failed: no cargo holder for {itemName} x{amount}");
+                return false;
+            }
+
+            var beforeAmount = holder.GetAmountByItemName(itemName);
+            if (!TryAddQuestItemToCargo(holder, itemName, amount))
+            {
+                LogDebug($"TryGivePlayerQuestItem failed: add method not found or unsuccessful for {itemName} x{amount} holderType={holder.GetType().FullName}");
+                return false;
+            }
+
+            var afterAmount = holder.GetAmountByItemName(itemName);
+            var grantedAmount = Mathf.Max(0, afterAmount - beforeAmount);
+            var succeeded = grantedAmount > 0;
+            LogDebug($"TryGivePlayerQuestItem item={itemName} requested={amount} granted={grantedAmount} holderType={holder.GetType().FullName}");
+
+            if (succeeded)
+            {
+                ShowDebugNotification(
+                    $"Spawned {grantedAmount}x {itemName}",
+                    $"streetquest-debug-spawn-{itemName}");
+            }
+
+            return succeeded;
+        }
+
         private static bool AreAllObjectivesSatisfied(StreetQuestQuestDefinition quest)
         {
             foreach (var objective in quest.Objectives)
@@ -779,6 +832,116 @@ namespace StreetQuestRPG
             }
 
             return remainingAmount <= 0;
+        }
+
+        private static bool TryAddQuestItemToCargo(ICargoHolder holder, string itemName, int amount)
+        {
+            if (holder == null || string.IsNullOrWhiteSpace(itemName) || amount <= 0)
+                return false;
+
+            var methodNames = new[]
+            {
+                "AddToCargo",
+                "AddCargo",
+                "TryAddCargo",
+                "IncreaseCargo",
+                "CreateCargo"
+            };
+
+            foreach (var methodName in methodNames)
+            {
+                if (TryInvokeQuestItemAddMethod(holder, methodName, itemName, amount, out var success))
+                {
+                    LogDebug($"TryAddQuestItemToCargo used method={methodName} item={itemName} amount={amount} success={success}");
+                    if (success)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryInvokeQuestItemAddMethod(
+            object target,
+            string methodName,
+            string itemName,
+            int amount,
+            out bool success)
+        {
+            success = false;
+            if (target == null || string.IsNullOrWhiteSpace(methodName))
+                return false;
+
+            for (var instanceType = target.GetType(); instanceType != null; instanceType = instanceType.BaseType)
+            {
+                var methods = instanceType.GetMethods(ReflectionFlags)
+                    .Where(value => string.Equals(value.Name, methodName, StringComparison.Ordinal))
+                    .ToArray();
+
+                foreach (var method in methods)
+                {
+                    if (!TryBuildQuestItemAddArguments(method.GetParameters(), itemName, amount, out var arguments, out var repeatCount))
+                        continue;
+
+                    var invoked = false;
+                    var aggregateSuccess = true;
+                    for (var index = 0; index < repeatCount; index++)
+                    {
+                        var result = method.Invoke(target, arguments);
+                        invoked = true;
+
+                        if (method.ReturnType == typeof(bool) && result is bool boolResult)
+                            aggregateSuccess &= boolResult;
+                    }
+
+                    if (!invoked)
+                        continue;
+
+                    success = aggregateSuccess;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryBuildQuestItemAddArguments(
+            ParameterInfo[] parameters,
+            string itemName,
+            int amount,
+            out object[] arguments,
+            out int repeatCount)
+        {
+            arguments = null;
+            repeatCount = 1;
+            if (parameters == null)
+                return false;
+
+            if (parameters.Length == 2 &&
+                parameters[0].ParameterType == typeof(string) &&
+                parameters[1].ParameterType == typeof(int))
+            {
+                arguments = new object[] { itemName, amount };
+                return true;
+            }
+
+            if (parameters.Length == 2 &&
+                parameters[0].ParameterType == typeof(int) &&
+                parameters[1].ParameterType == typeof(string))
+            {
+                arguments = new object[] { amount, itemName };
+                return true;
+            }
+
+            if (parameters.Length == 1 &&
+                parameters[0].ParameterType == typeof(string))
+            {
+                arguments = new object[] { itemName };
+                repeatCount = amount;
+                return true;
+            }
+
+            return false;
         }
 
         private static ICargoHolder GetPlayerInventoryHolder()

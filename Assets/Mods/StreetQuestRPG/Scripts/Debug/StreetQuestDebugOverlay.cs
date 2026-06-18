@@ -16,6 +16,7 @@ namespace StreetQuestRPG
         private static Vector2 _favorScroll;
         private static bool _visible = true;
         private static int _selectedTab;
+        private static bool _positionInitialized;
         private static GUIStyle _windowStyle;
         private static GUIStyle _panelStyle;
         private static GUIStyle _tabStyle;
@@ -137,6 +138,7 @@ namespace StreetQuestRPG
                     GUILayout.Label(
                         $"{(satisfied ? "[Done]" : "[ ]")} {BuildObjectiveDebugText(currentQuest, objective)}",
                         _textStyle);
+                    DrawObjectiveDebugActions(objective, satisfied);
                 }
             }
 
@@ -195,8 +197,50 @@ namespace StreetQuestRPG
 
         private static string FormatVector3(Vector3 value) => $"{value.x:0.00}, {value.y:0.00}, {value.z:0.00}";
 
+        private static void DrawObjectiveDebugActions(
+            StreetQuestQuestObjectiveDefinition objective,
+            bool satisfied)
+        {
+            if (objective == null)
+                return;
+
+            GUILayout.BeginHorizontal();
+
+            if (!satisfied &&
+                objective.ObjectiveType == StreetQuestQuestObjectiveType.BringItem &&
+                !string.IsNullOrWhiteSpace(objective.ItemName))
+            {
+                var amountToGive = Mathf.Max(1, objective.Amount - StreetQuestShared.GetPlayerItemAmount(objective.ItemName));
+                if (GUILayout.Button($"Spawn item ({amountToGive})", _buttonStyle, GUILayout.Width(150f)))
+                    StreetQuestShared.TryGivePlayerQuestItem(objective.ItemName, amountToGive);
+            }
+
+            if (objective.ObjectiveType == StreetQuestQuestObjectiveType.VisitLocation &&
+                objective.worldPosition != null)
+            {
+                if (GUILayout.Button("Teleport to item", _buttonStyle, GUILayout.Width(150f)))
+                    StreetQuestShared.TeleportPlayerToWorldPosition(objective.worldPosition.ToVector3());
+            }
+
+            if (objective.ObjectiveType == StreetQuestQuestObjectiveType.TalkToCharacter &&
+                !string.IsNullOrWhiteSpace(objective.CharacterId))
+            {
+                if (GUILayout.Button("Teleport to NPC", _buttonStyle, GUILayout.Width(150f)))
+                    StreetQuestShared.TeleportPlayerToCharacter(objective.CharacterId);
+            }
+
+            GUILayout.EndHorizontal();
+        }
+
         private static void EnsureStyles()
         {
+            if (!_positionInitialized)
+            {
+                _windowRect.x = 24f;
+                _windowRect.y = Mathf.Max(24f, (Screen.height - _windowRect.height) * 0.5f);
+                _positionInitialized = true;
+            }
+
             if (_windowStyle != null)
                 return;
 
