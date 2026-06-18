@@ -34,7 +34,7 @@ namespace StreetQuestRPG
                 string.Equals(currentQuest.GiverCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
             {
                 if (HasIntroFlow(currentQuest))
-                    return BuildIntroStageOneEntry(currentQuest);
+                    return BuildIntroStageEntry(currentQuest, 0);
 
                 return BuildOfferEntry(currentQuest);
             }
@@ -51,39 +51,40 @@ namespace StreetQuestRPG
         }
 
         private static bool HasIntroFlow(StreetQuestQuestDefinition quest) =>
-            !string.IsNullOrWhiteSpace(quest?.IntroStageOneTextKey);
+            quest?.IntroStages.Any(stage => stage != null && !string.IsNullOrWhiteSpace(stage.TextKey)) == true;
 
-        private DialogEntry BuildIntroStageOneEntry(StreetQuestQuestDefinition quest)
+        private DialogEntry BuildIntroStageEntry(StreetQuestQuestDefinition quest, int stageIndex)
         {
+            var stages = quest?.IntroStages
+                .Where(stage => stage != null && !string.IsNullOrWhiteSpace(stage.TextKey))
+                .ToArray();
+            if (stages == null || stageIndex < 0 || stageIndex >= stages.Length)
+                return BuildOfferEntry(quest);
+
+            var stage = stages[stageIndex];
+            System.Func<DialogEntry> nextEntryBuilder = stageIndex + 1 < stages.Length
+                ? () => BuildIntroStageEntry(quest, stageIndex + 1)
+                : () => BuildOfferEntry(quest);
+
             return new DialogEntry
             {
                 headerKey = npcNameKey,
-                messageData = quest.IntroStageOneTextKey.Localize(),
+                messageData = stage.TextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = (quest.IntroStageOneConfirmTextKey ?? "streetquest:dialog_whats_up").Localize(),
-                OnConfirm = () => OnAdvanceIntroStage(quest, BuildIntroStageTwoEntry),
+                ConfirmTextOverride = ResolveIntroConfirmTextKey(stage, stageIndex).Localize(),
+                OnConfirm = nextEntryBuilder,
                 OnCancel = DialogController.current.FinishDialog
             };
         }
 
-        private DialogEntry BuildIntroStageTwoEntry(StreetQuestQuestDefinition quest)
+        private static string ResolveIntroConfirmTextKey(StreetQuestQuestIntroStageDefinition stage, int stageIndex)
         {
-            return new DialogEntry
-            {
-                headerKey = npcNameKey,
-                messageData = quest.IntroStageTwoTextKey.Localize(),
-                Template = DialogEntry.TemplateType.Text,
-                ConfirmTextOverride = (quest.IntroStageTwoConfirmTextKey ?? "streetquest:dialog_yes").Localize(),
-                OnConfirm = () => OnAdvanceIntroStage(quest, BuildOfferEntry),
-                OnCancel = DialogController.current.FinishDialog
-            };
-        }
+            if (!string.IsNullOrWhiteSpace(stage?.ConfirmTextKey))
+                return stage.ConfirmTextKey;
 
-        private DialogEntry OnAdvanceIntroStage(
-            StreetQuestQuestDefinition quest,
-            System.Func<StreetQuestQuestDefinition, DialogEntry> nextBuilder)
-        {
-            return nextBuilder(quest);
+            return stageIndex == 0
+                ? "streetquest:dialog_whats_up"
+                : "streetquest:dialog_yes";
         }
 
         private DialogEntry BuildOfferEntry(StreetQuestQuestDefinition quest)

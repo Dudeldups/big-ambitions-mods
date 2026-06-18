@@ -40,8 +40,6 @@ namespace StreetQuestRPG
             }
 
             record.CurrentQuestState = StreetQuestQuestProgressState.Active;
-            if (record.IntroStage < HomelessIntroStageCanOfferQuest)
-                record.IntroStage = HomelessIntroStageCanOfferQuest;
             record.AddStoryFlags(quest.AcceptedStoryFlags);
             SaveQuestStateRecord(record);
             LogDebug($"AcceptQuest saved quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState}");

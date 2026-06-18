@@ -20,10 +20,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestQuestRewardDefinition[] rewards;
         [DataMember] public string[] acceptedStoryFlags;
         [DataMember] public string[] completedStoryFlags;
-        [DataMember] public string introStageOneTextKey;
-        [DataMember] public string introStageOneConfirmTextKey;
-        [DataMember] public string introStageTwoTextKey;
-        [DataMember] public string introStageTwoConfirmTextKey;
+        [DataMember] public StreetQuestQuestIntroStageDefinition[] introStages;
         [DataMember] public string offerTextKey;
         [DataMember] public string activeTextKey;
         [DataMember] public string readyTextKey;
@@ -46,10 +43,7 @@ namespace StreetQuestRPG
         public StreetQuestQuestRewardDefinition[] Rewards => rewards ?? Array.Empty<StreetQuestQuestRewardDefinition>();
         public string[] AcceptedStoryFlags => acceptedStoryFlags ?? Array.Empty<string>();
         public string[] CompletedStoryFlags => completedStoryFlags ?? Array.Empty<string>();
-        public string IntroStageOneTextKey => introStageOneTextKey;
-        public string IntroStageOneConfirmTextKey => introStageOneConfirmTextKey;
-        public string IntroStageTwoTextKey => introStageTwoTextKey;
-        public string IntroStageTwoConfirmTextKey => introStageTwoConfirmTextKey;
+        public StreetQuestQuestIntroStageDefinition[] IntroStages => introStages ?? Array.Empty<StreetQuestQuestIntroStageDefinition>();
         public string OfferTextKey => offerTextKey;
         public string ActiveTextKey => activeTextKey;
         public string ReadyTextKey => readyTextKey;
@@ -77,10 +71,7 @@ namespace StreetQuestRPG
             if (rewards == null || rewards.Length == 0) rewards = fallback.rewards;
             if (acceptedStoryFlags == null || acceptedStoryFlags.Length == 0) acceptedStoryFlags = fallback.acceptedStoryFlags;
             if (completedStoryFlags == null || completedStoryFlags.Length == 0) completedStoryFlags = fallback.completedStoryFlags;
-            if (string.IsNullOrWhiteSpace(introStageOneTextKey)) introStageOneTextKey = fallback.introStageOneTextKey;
-            if (string.IsNullOrWhiteSpace(introStageOneConfirmTextKey)) introStageOneConfirmTextKey = fallback.introStageOneConfirmTextKey;
-            if (string.IsNullOrWhiteSpace(introStageTwoTextKey)) introStageTwoTextKey = fallback.introStageTwoTextKey;
-            if (string.IsNullOrWhiteSpace(introStageTwoConfirmTextKey)) introStageTwoConfirmTextKey = fallback.introStageTwoConfirmTextKey;
+            if (introStages == null || introStages.Length == 0) introStages = fallback.introStages;
             if (string.IsNullOrWhiteSpace(offerTextKey)) offerTextKey = fallback.offerTextKey;
             if (string.IsNullOrWhiteSpace(activeTextKey)) activeTextKey = fallback.activeTextKey;
             if (string.IsNullOrWhiteSpace(readyTextKey)) readyTextKey = fallback.readyTextKey;

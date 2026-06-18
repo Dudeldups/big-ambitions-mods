@@ -45,49 +45,6 @@ namespace StreetQuestRPG
                 : StreetQuestQuestProgressState.NotStarted;
         }
 
-
-        public static bool HasIntroducedHomelessQuestline()
-        {
-            return HasStoryFlag("streetquest:flag_mack_intro_started")
-                   || HasStoryFlag("streetquest:flag_mack_offer_unlocked")
-                   || GetQuestStateRecord().CompletedQuestIds.Count > 0
-                   || GetQuestStateRecord().CurrentQuestState != StreetQuestQuestProgressState.NotStarted
-                   || GetQuestStateRecord().CurrentQuestId != (StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty);
-        }
-
-
-        public static int GetHomelessIntroStage()
-        {
-            if (HasStoryFlag("streetquest:flag_mack_offer_unlocked"))
-                return HomelessIntroStageCanOfferQuest;
-            if (HasStoryFlag("streetquest:flag_mack_intro_started"))
-                return HomelessIntroStageKnowsPast;
-            return HomelessIntroStageInitial;
-        }
-
-
-        public static void AdvanceHomelessIntroStage(int stage)
-        {
-            var record = GetQuestStateRecord();
-            if (stage <= record.IntroStage)
-                return;
-
-            record.IntroStage = stage;
-            if (stage >= HomelessIntroStageKnowsPast)
-                record.AddStoryFlag("streetquest:flag_mack_intro_started");
-            if (stage >= HomelessIntroStageCanOfferQuest)
-                record.AddStoryFlag("streetquest:flag_mack_offer_unlocked");
-            SaveQuestStateRecord(record);
-            RefreshSpawnedCharacters();
-        }
-
-
-        public static void UnlockHomelessBackstory() => AdvanceHomelessIntroStage(HomelessIntroStageKnowsPast);
-
-
-        public static void UnlockHomelessQuestOffer() => AdvanceHomelessIntroStage(HomelessIntroStageCanOfferQuest);
-
-
         public static bool HasStoryFlag(string storyFlagId)
         {
             if (string.IsNullOrWhiteSpace(storyFlagId))

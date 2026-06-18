@@ -326,9 +326,13 @@ namespace StreetQuestRPG
                 var characterId = GetCharacterIdForController(entityController);
                 var character = StreetQuestCharacterCatalog.Get(characterId);
                 var ctaKey = string.IsNullOrWhiteSpace(character?.ctaKey) ? QuestGiverCtaKey : character.ctaKey;
+                var ctaText = ctaKey.Localize(new Dictionary<string, string>
+                {
+                    { "npcname", ResolveCharacterDisplayName(characterId) }
+                }).ToString();
                 var dialogTypeKey = string.IsNullOrWhiteSpace(character?.dialogTypeKey) ? "streetquest_mack_dialog" : character.dialogTypeKey;
                 var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);
-                return (ctaKey, () => TryOpenQuestDialog(dialogType));
+                return (ctaText, () => TryOpenQuestDialog(dialogType));
             }
         }
     }

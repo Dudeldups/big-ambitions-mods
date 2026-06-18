@@ -22,9 +22,6 @@ namespace StreetQuestRPG
     internal static partial class StreetQuestShared
     {
         private const string QuestStateModDataKey = "streetquest:quest_state_v1";
-        private const int HomelessIntroStageInitial = 0;
-        private const int HomelessIntroStageKnowsPast = 1;
-        private const int HomelessIntroStageCanOfferQuest = 2;
         private const string SpawnedQuestGiverName = "StreetQuestRPG.OutdoorQuestGiver";
         private const string QuestGiverCtaKey = "streetquest:cta_talk";
         private const string SellerStandOverlayHeaderKey = MackNameKey;
