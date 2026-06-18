@@ -17,6 +17,7 @@ namespace StreetQuestRPG
         [DataMember] public string visualObjectName;
         [DataMember] public string overlayHeaderKey;
         [DataMember] public string ctaKey;
+        [DataMember] public string professionKey;
         [DataMember] public string defaultAppearanceId;
         [DataMember] public string gender;
         [DataMember] public int ageInDays;
@@ -81,6 +82,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(visualObjectName)) visualObjectName = fallback.visualObjectName;
             if (string.IsNullOrWhiteSpace(overlayHeaderKey)) overlayHeaderKey = fallback.overlayHeaderKey;
             if (string.IsNullOrWhiteSpace(ctaKey)) ctaKey = fallback.ctaKey;
+            if (string.IsNullOrWhiteSpace(professionKey)) professionKey = fallback.professionKey;
             if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;
             if (string.IsNullOrWhiteSpace(gender)) gender = fallback.gender;
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;

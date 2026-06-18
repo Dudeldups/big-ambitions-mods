@@ -10,6 +10,7 @@
       "visualObjectName": "MackVisual",
       "overlayHeaderKey": "streetquest:mack_name",
       "ctaKey": "streetquest:cta_talk",
+      "professionKey": "streetquest:mack_profession",
       "defaultAppearanceId": "mack_homeless",
       "gender": "Male",
       "ageInDays": 15330,

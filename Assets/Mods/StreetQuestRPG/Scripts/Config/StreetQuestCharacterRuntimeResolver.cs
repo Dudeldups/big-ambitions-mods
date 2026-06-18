@@ -251,6 +251,7 @@ namespace StreetQuestRPG
                 visualObjectName = definition.visualObjectName,
                 overlayHeaderKey = definition.overlayHeaderKey,
                 ctaKey = definition.ctaKey,
+                professionKey = definition.professionKey,
                 defaultAppearanceId = definition.defaultAppearanceId,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,

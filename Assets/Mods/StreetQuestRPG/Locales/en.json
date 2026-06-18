@@ -1,5 +1,6 @@
 {
   "streetquest:mack_name": "Mack",
+  "streetquest:mack_profession": "Homeless man",
   "streetquest:cta_talk": "Talk to {npcname}",
   "streetquest:mack_description": "A fixer running quiet errands from a borrowed city desk.",
   "streetquest:dialog_leave": "Leave",
@@ -13,6 +14,7 @@
   "streetquest:dialog_q1_offer": "If you're serious, then keep it simple. Could you get me a hotdog? I'm starving.",
   "streetquest:dialog_q1_active": "Still hungry over here. Bring me a hotdog when you can.",
   "streetquest:dialog_q1_ready": "That smells amazing. Hand over the hotdog and I'll pay you what I can.",
+  "streetquest:help_q1_active": "Bring Mack a hotdog.",
   "streetquest:dialog_q1_accept_manager": "Thanks. Just one hotdog will do.",
   "streetquest:dialog_q1_complete_manager": "You actually came back. Thanks. Here, take this for your trouble.",
   "streetquest:dialog_q1_finished": "You did right by me. That's all I've got for now, but people around the city talk. More work will find you.",

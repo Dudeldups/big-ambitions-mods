@@ -17,6 +17,7 @@ namespace StreetQuestRPG
         [SerializeField] public List<string> completedQuestIds = new();
         [SerializeField] public List<string> storyFlags = new();
         [SerializeField] public List<string> objectiveTokens = new();
+        [SerializeField] public List<string> knownCharacterIds = new();
         [SerializeField] public List<string> favorCharacterIds = new();
         [SerializeField] public List<int> favorValues = new();
 
@@ -43,6 +44,7 @@ namespace StreetQuestRPG
         public HashSet<string> CompletedQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> StoryFlags { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> ObjectiveTokens { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> KnownCharacterIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> FavorByCharacterId { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public string Serialize()
@@ -92,6 +94,18 @@ namespace StreetQuestRPG
                 return 0;
 
             return FavorByCharacterId.TryGetValue(characterId, out var value) ? value : 0;
+        }
+
+        public bool AddKnownCharacter(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            var changed = KnownCharacterIds.Add(characterId);
+            if (changed)
+                SyncListsFromSets();
+
+            return changed;
         }
 
         public bool SetFavor(string characterId, int value)
@@ -184,12 +198,14 @@ namespace StreetQuestRPG
             completedQuestIds ??= new List<string>();
             storyFlags ??= new List<string>();
             objectiveTokens ??= new List<string>();
+            knownCharacterIds ??= new List<string>();
             favorCharacterIds ??= new List<string>();
             favorValues ??= new List<int>();
 
             CompletedQuestIds.Clear();
             StoryFlags.Clear();
             ObjectiveTokens.Clear();
+            KnownCharacterIds.Clear();
             FavorByCharacterId.Clear();
 
             foreach (var questId in completedQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
@@ -198,6 +214,8 @@ namespace StreetQuestRPG
                 StoryFlags.Add(storyFlagId);
             foreach (var objectiveToken in objectiveTokens.Where(value => !string.IsNullOrWhiteSpace(value)))
                 ObjectiveTokens.Add(objectiveToken);
+            foreach (var characterId in knownCharacterIds.Where(value => !string.IsNullOrWhiteSpace(value)))
+                KnownCharacterIds.Add(characterId);
             for (var index = 0; index < Math.Min(favorCharacterIds.Count, favorValues.Count); index++)
             {
                 var characterId = favorCharacterIds[index];
@@ -217,6 +235,7 @@ namespace StreetQuestRPG
             completedQuestIds = CompletedQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             storyFlags = StoryFlags.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             objectiveTokens = ObjectiveTokens.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+            knownCharacterIds = KnownCharacterIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             var orderedFavorEntries = FavorByCharacterId
                 .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
                 .ToList();

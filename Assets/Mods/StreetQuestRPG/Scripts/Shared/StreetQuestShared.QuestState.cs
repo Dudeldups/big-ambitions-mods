@@ -33,6 +33,10 @@ namespace StreetQuestRPG
             return GetQuestStateRecord();
         }
 
+        public static IReadOnlyCollection<string> GetKnownCharacterIds()
+        {
+            return GetQuestStateRecord().KnownCharacterIds;
+        }
 
         public static StreetQuestQuestProgressState GetQuestProgress(string questId)
         {
@@ -51,6 +55,14 @@ namespace StreetQuestRPG
                 return false;
 
             return GetQuestStateRecord().StoryFlags.Contains(storyFlagId);
+        }
+
+        public static bool HasMetCharacter(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            return GetQuestStateRecord().KnownCharacterIds.Contains(characterId);
         }
 
 
@@ -115,8 +127,17 @@ namespace StreetQuestRPG
             return true;
         }
 
+        public static bool RecordKnownCharacter(string characterId)
+        {
+            var record = GetQuestStateRecord();
+            if (!record.AddKnownCharacter(characterId))
+                return false;
 
-        private static string ResolveCharacterDisplayName(string characterId)
+            SaveQuestStateRecord(record);
+            return true;
+        }
+
+        internal static string ResolveCharacterDisplayName(string characterId)
         {
             var character = StreetQuestCharacterCatalog.Get(characterId);
             if (!string.IsNullOrWhiteSpace(character?.nameKey))
@@ -126,6 +147,15 @@ namespace StreetQuestRPG
                 return character.displayName;
 
             return characterId ?? "NPC";
+        }
+
+        internal static string ResolveCharacterProfession(string characterId)
+        {
+            var character = StreetQuestCharacterCatalog.Get(characterId);
+            if (!string.IsNullOrWhiteSpace(character?.professionKey))
+                return character.professionKey.Localize().ToString();
+
+            return string.Empty;
         }
 
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using BigAmbitions.SaveSystem.Legacy;
 using Helpers;
+using Localizor;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -16,8 +17,10 @@ namespace StreetQuestRPG
         private static Rect _windowRect = new(24f, 24f, Width, Height);
         private static Vector2 _questScroll;
         private static Vector2 _favorScroll;
+        private static Vector2 _peopleScroll;
         private static bool _visible = true;
         private static int _selectedTab;
+        private static string _selectedCharacterId;
         private static bool _positionInitialized;
         private static GUIStyle _windowStyle;
         private static GUIStyle _panelStyle;
@@ -35,7 +38,8 @@ namespace StreetQuestRPG
         private enum DebugTab
         {
             Quests = 0,
-            Favor = 1
+            Favor = 1,
+            People = 2
         }
 
         public void TickToggle()
@@ -84,6 +88,9 @@ namespace StreetQuestRPG
                 case DebugTab.Favor:
                     DrawFavorTab();
                     break;
+                case DebugTab.People:
+                    DrawPeopleTab();
+                    break;
             }
             GUILayout.EndVertical();
 
@@ -103,6 +110,7 @@ namespace StreetQuestRPG
             GUILayout.BeginHorizontal();
             DrawTabButton(DebugTab.Quests, "Quests");
             DrawTabButton(DebugTab.Favor, "Favor");
+            DrawTabButton(DebugTab.People, "People");
             GUILayout.EndHorizontal();
         }
 
@@ -183,6 +191,52 @@ namespace StreetQuestRPG
             GUILayout.EndScrollView();
         }
 
+        private static void DrawPeopleTab()
+        {
+            var knownCharacterIds = StreetQuestShared.GetKnownCharacterIds()
+                .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            GUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
+
+            _peopleScroll = GUILayout.BeginScrollView(_peopleScroll, GUILayout.Width(180f), GUILayout.ExpandHeight(true));
+            if (knownCharacterIds.Length == 0)
+            {
+                GUILayout.Label("No NPCs met yet.", _textStyle);
+            }
+            else
+            {
+                foreach (var characterId in knownCharacterIds)
+                {
+                    var label = StreetQuestShared.ResolveCharacterDisplayName(characterId);
+                    var isSelected = string.Equals(_selectedCharacterId, characterId, StringComparison.OrdinalIgnoreCase);
+                    if (GUILayout.Button(label, isSelected ? _activeTabStyle : _buttonStyle, GUILayout.Height(28f)))
+                        _selectedCharacterId = characterId;
+                }
+            }
+            GUILayout.EndScrollView();
+
+            GUILayout.Space(8f);
+            GUILayout.BeginVertical(GUILayout.ExpandHeight(true));
+            if (knownCharacterIds.Length == 0)
+            {
+                GUILayout.Label("Talk to someone first to add them here.", _textStyle);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_selectedCharacterId) ||
+                    !knownCharacterIds.Contains(_selectedCharacterId, StringComparer.OrdinalIgnoreCase))
+                {
+                    _selectedCharacterId = knownCharacterIds[0];
+                }
+
+                DrawKnownCharacterDetails(_selectedCharacterId);
+            }
+
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+        }
+
         private static string BuildObjectiveDebugText(
             StreetQuestQuestDefinition quest,
             StreetQuestQuestObjectiveDefinition objective)
@@ -196,6 +250,73 @@ namespace StreetQuestRPG
                 StreetQuestQuestObjectiveType.CompleteQuest => $"Complete {objective.QuestId}",
                 _ => objective.Id
             };
+        }
+
+        private static void DrawKnownCharacterDetails(string characterId)
+        {
+            var character = StreetQuestCharacterCatalog.Get(characterId);
+            if (character == null)
+            {
+                GUILayout.Label("Unknown NPC.", _textStyle);
+                return;
+            }
+
+            GUILayout.Label(StreetQuestShared.ResolveCharacterDisplayName(characterId), _headerStyle);
+            var ageYears = character.ageInDays > 0 ? Mathf.FloorToInt(character.ageInDays / 365f) : 0;
+            GUILayout.Label($"Age: {(ageYears > 0 ? ageYears.ToString() : "Unknown")}", _textStyle);
+
+            var profession = StreetQuestShared.ResolveCharacterProfession(characterId);
+            GUILayout.Label(
+                $"Profession: {(string.IsNullOrWhiteSpace(profession) ? "Unknown" : profession)}",
+                _textStyle);
+            GUILayout.Label($"Favor: {StreetQuestShared.GetFavor(characterId)}", _textStyle);
+
+            GUILayout.Space(10f);
+            GUILayout.Label("Current Quest", _headerStyle);
+
+            var currentQuest = StreetQuestShared.GetCurrentQuest();
+            var currentProgress = currentQuest != null
+                ? StreetQuestShared.GetQuestProgress(currentQuest.Id)
+                : StreetQuestQuestProgressState.Completed;
+            var isQuestRelevant = currentQuest != null &&
+                currentProgress != StreetQuestQuestProgressState.Completed &&
+                (string.Equals(currentQuest.GiverCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(currentQuest.TurnInCharacterId, characterId, StringComparison.OrdinalIgnoreCase));
+
+            if (!isQuestRelevant)
+            {
+                GUILayout.Label("No active quest with this NPC.", _textStyle);
+            }
+            else if (!string.IsNullOrWhiteSpace(currentQuest.HelpTextKey))
+            {
+                GUILayout.Label(currentQuest.HelpTextKey.Localize().ToString(), _textStyle);
+            }
+            else
+            {
+                GUILayout.Label(BuildQuestHelpFallback(currentQuest), _textStyle);
+            }
+
+            GUILayout.Space(10f);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Teleport", _buttonStyle, GUILayout.Width(120f)))
+                StreetQuestShared.TeleportPlayerToCharacter(characterId);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+        }
+
+        private static string BuildQuestHelpFallback(StreetQuestQuestDefinition quest)
+        {
+            if (quest == null)
+                return "No active quest.";
+
+            var activeObjectives = quest.Objectives
+                .Where(value => value != null && !StreetQuestShared.IsObjectiveSatisfiedForDebug(quest, value))
+                .Select(value => BuildObjectiveDebugText(quest, value))
+                .ToArray();
+
+            return activeObjectives.Length == 0
+                ? "Quest ready to turn in."
+                : string.Join("\n", activeObjectives);
         }
 
         private static string FormatVector3(Vector3 value) => $"{value.x:0.00}, {value.y:0.00}, {value.z:0.00}";

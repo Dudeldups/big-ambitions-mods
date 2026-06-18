@@ -24,6 +24,7 @@ namespace StreetQuestRPG
         [DataMember] public string offerTextKey;
         [DataMember] public string activeTextKey;
         [DataMember] public string readyTextKey;
+        [DataMember] public string helpTextKey;
         [DataMember] public string acceptedManagerMessageKey;
         [DataMember] public string completedManagerMessageKey;
         [DataMember] public string finishedTextKey;
@@ -47,6 +48,7 @@ namespace StreetQuestRPG
         public string OfferTextKey => offerTextKey;
         public string ActiveTextKey => activeTextKey;
         public string ReadyTextKey => readyTextKey;
+        public string HelpTextKey => helpTextKey;
         public string AcceptedManagerMessageKey => acceptedManagerMessageKey;
         public string CompletedManagerMessageKey => completedManagerMessageKey;
         public string FinishedTextKey => finishedTextKey;
@@ -75,6 +77,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(offerTextKey)) offerTextKey = fallback.offerTextKey;
             if (string.IsNullOrWhiteSpace(activeTextKey)) activeTextKey = fallback.activeTextKey;
             if (string.IsNullOrWhiteSpace(readyTextKey)) readyTextKey = fallback.readyTextKey;
+            if (string.IsNullOrWhiteSpace(helpTextKey)) helpTextKey = fallback.helpTextKey;
             if (string.IsNullOrWhiteSpace(acceptedManagerMessageKey)) acceptedManagerMessageKey = fallback.acceptedManagerMessageKey;
             if (string.IsNullOrWhiteSpace(completedManagerMessageKey)) completedManagerMessageKey = fallback.completedManagerMessageKey;
             if (string.IsNullOrWhiteSpace(finishedTextKey)) finishedTextKey = fallback.finishedTextKey;

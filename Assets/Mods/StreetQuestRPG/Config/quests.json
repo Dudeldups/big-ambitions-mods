@@ -47,6 +47,7 @@
       "offerTextKey": "streetquest:dialog_q1_offer",
       "activeTextKey": "streetquest:dialog_q1_active",
       "readyTextKey": "streetquest:dialog_q1_ready",
+      "helpTextKey": "streetquest:help_q1_active",
       "acceptedManagerMessageKey": "streetquest:dialog_q1_accept_manager",
       "completedManagerMessageKey": "streetquest:dialog_q1_complete_manager",
       "finishedTextKey": "streetquest:dialog_q1_finished",

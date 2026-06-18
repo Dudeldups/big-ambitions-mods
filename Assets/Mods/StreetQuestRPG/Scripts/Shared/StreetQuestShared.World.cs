@@ -34,6 +34,8 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(characterId))
                 return;
 
+            RecordKnownCharacter(characterId);
+
             var quest = GetCurrentQuest();
             if (quest == null)
                 return;
