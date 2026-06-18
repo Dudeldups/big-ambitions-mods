@@ -14,15 +14,14 @@ namespace StreetQuestRPG
 
         public Task OnLoadAsync(ModContext context)
         {
-            StreetQuestShared.InitializeDebugLogging(context, nameof(StreetQuestInit));
-            StreetQuestCharacterCatalog.Initialize(context?.ModRootPath, context?.Logger);
-            StreetQuestQuestCatalog.Initialize(context?.ModRootPath, context?.Logger);
+            StreetQuestRuntimeBootstrap.Configure(context, nameof(StreetQuestInit));
+            StreetQuestRuntimeBootstrap.EnsureWatcher();
             return Task.CompletedTask;
         }
 
         public Task OnUnloadAsync()
         {
-            StreetQuestShared.RestorePatchedDialogs();
+            StreetQuestRuntimeBootstrap.Shutdown();
             return Task.CompletedTask;
         }
     }

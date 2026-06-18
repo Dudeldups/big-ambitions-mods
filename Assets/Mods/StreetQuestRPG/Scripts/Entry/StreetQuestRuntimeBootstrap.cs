@@ -1,0 +1,83 @@
+using System;
+using System.Linq;
+using BAModAPI;
+using Dialogs;
+using UnityEngine;
+
+namespace StreetQuestRPG
+{
+    internal static class StreetQuestRuntimeBootstrap
+    {
+        private static GameObject _watcherObject;
+        private static string _modRootPath;
+        private static IModLogger _logger;
+        private static bool _dialogsRegistered;
+
+        public static void Configure(ModContext context, string source)
+        {
+            if (context == null)
+                return;
+
+            StreetQuestShared.InitializeDebugLogging(context, source);
+            _modRootPath = context.ModRootPath;
+            _logger = context.Logger;
+            StreetQuestCharacterCatalog.Initialize(_modRootPath, _logger);
+            StreetQuestQuestCatalog.Initialize(_modRootPath, _logger);
+        }
+
+        public static void EnsureWatcher()
+        {
+            if (_watcherObject == null)
+            {
+                _watcherObject = new GameObject("StreetQuestRPG.PhysicalQuestGiverWatcher");
+                UnityEngine.Object.DontDestroyOnLoad(_watcherObject);
+            }
+
+            var watcher = _watcherObject.GetComponent<StreetQuestPhysicalQuestGiverWatcher>();
+            if (watcher == null)
+                watcher = _watcherObject.AddComponent<StreetQuestPhysicalQuestGiverWatcher>();
+
+            watcher.Initialize();
+        }
+
+        public static bool EnsureCityRuntimeReady()
+        {
+            StreetQuestCharacterCatalog.Initialize(_modRootPath, _logger);
+            StreetQuestQuestCatalog.Initialize(_modRootPath, _logger);
+
+            StreetQuestShared.CleanupLegacyContacts();
+            RegisterDialogs();
+            return StreetQuestCharacterCatalog.All.Any(value => value != null && value.enabled);
+        }
+
+        public static void Shutdown()
+        {
+            if (_watcherObject != null)
+            {
+                UnityEngine.Object.Destroy(_watcherObject);
+                _watcherObject = null;
+            }
+
+            _dialogsRegistered = false;
+            StreetQuestShared.RestorePatchedDialogs();
+        }
+
+        private static void RegisterDialogs()
+        {
+            if (_dialogsRegistered)
+                return;
+
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
+            {
+                var dialogTypeKey = string.IsNullOrWhiteSpace(character.dialogTypeKey)
+                    ? "streetquest_mack_dialog"
+                    : character.dialogTypeKey;
+                var questDialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);
+                var capturedCharacterId = character.id;
+                CallDialogFactory.RegisterDialog(questDialogType, () => new StreetQuestCharacterDialog(capturedCharacterId));
+            }
+
+            _dialogsRegistered = true;
+        }
+    }
+}
