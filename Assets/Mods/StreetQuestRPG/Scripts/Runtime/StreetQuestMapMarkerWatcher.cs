@@ -13,9 +13,11 @@ namespace StreetQuestRPG
     internal sealed class StreetQuestMapMarkerWatcher : MonoBehaviour
     {
         private const bool PreferNativePoiMarkers = false;
-        private const float UpdateIntervalSeconds = 0.05f;
-        private const float MarkerVerticalOffset = 10f;
-        private const float MarkerSize = 120f;
+        private const float UpdateIntervalSeconds = 0f;
+        private const float MarkerVerticalOffset = 0f;
+        private const float MarkerSmoothTime = 0.06f;
+        private const float MarkerSnapDistance = 32f;
+        private const float MarkerDeadzoneDistance = 0.35f;
 
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -52,6 +54,8 @@ namespace StreetQuestRPG
         private readonly Dictionary<string, Component> _nativePoiComponents = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Transform> _nativePoiTargetAnchors = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, RectTransform> _markerRoots = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Vector2> _markerAnchoredPositions = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Vector2> _markerAnchoredVelocities = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> _markerVisibilityStates = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _markerStatusReasons = new(StringComparer.OrdinalIgnoreCase);
         private string _lastLifecycleState;
@@ -174,6 +178,8 @@ namespace StreetQuestRPG
                 if (_markerRoots.TryGetValue(existing, out var staleRoot) && staleRoot != null)
                     Destroy(staleRoot.gameObject);
                 _markerRoots.Remove(existing);
+                _markerAnchoredPositions.Remove(existing);
+                _markerAnchoredVelocities.Remove(existing);
                 _markerVisibilityStates.Remove(existing);
                 _markerStatusReasons.Remove(existing);
                 StreetQuestShared.LogDebug($"Map marker removed characterId={existing}");
@@ -218,7 +224,41 @@ namespace StreetQuestRPG
                     continue;
                 }
 
-                markerRoot.anchoredPosition = anchoredPosition + new Vector2(0f, MarkerVerticalOffset);
+                var targetAnchoredPosition = anchoredPosition + new Vector2(0f, MarkerVerticalOffset);
+                if (!_markerAnchoredPositions.TryGetValue(characterId, out var currentAnchoredPosition))
+                {
+                    currentAnchoredPosition = targetAnchoredPosition;
+                }
+
+                if (!_markerAnchoredVelocities.TryGetValue(characterId, out var currentVelocity))
+                {
+                    currentVelocity = Vector2.zero;
+                }
+
+                var distance = Vector2.Distance(currentAnchoredPosition, targetAnchoredPosition);
+                if (distance <= MarkerDeadzoneDistance)
+                {
+                    markerRoot.anchoredPosition = currentAnchoredPosition;
+                }
+                else if (distance >= MarkerSnapDistance)
+                {
+                    currentAnchoredPosition = targetAnchoredPosition;
+                    markerRoot.anchoredPosition = currentAnchoredPosition;
+                }
+                else
+                {
+                    currentAnchoredPosition = Vector2.SmoothDamp(
+                        currentAnchoredPosition,
+                        targetAnchoredPosition,
+                        ref currentVelocity,
+                        MarkerSmoothTime,
+                        Mathf.Infinity,
+                        Mathf.Max(Time.unscaledDeltaTime, 0.0001f));
+                    markerRoot.anchoredPosition = currentAnchoredPosition;
+                }
+
+                _markerAnchoredPositions[characterId] = currentAnchoredPosition;
+                _markerAnchoredVelocities[characterId] = currentVelocity;
                 markerRoot.gameObject.SetActive(true);
                 MaybeLogMarkerScreenRect(characterId, markerRoot);
                 LogMarkerState(
@@ -250,8 +290,8 @@ namespace StreetQuestRPG
             rectTransform.SetParent(_streetQuestRoot, false);
             rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            rectTransform.sizeDelta = new Vector2(MarkerSize, MarkerSize);
+            rectTransform.pivot = template.pivot;
+            rectTransform.sizeDelta = template.sizeDelta;
             rectTransform.localScale = Vector3.one;
             rectTransform.localRotation = Quaternion.identity;
             rectTransform.SetAsLastSibling();
@@ -423,27 +463,63 @@ namespace StreetQuestRPG
             if (template == null || markerRoot == null)
                 return false;
 
+            var pointer = FindChildRectTransform(template, "POIPointer");
             var blob = FindChildRectTransform(template, "POIBlob");
-            if (blob == null)
+            if (blob == null && pointer == null)
                 return false;
 
-            var blobCloneObject = Instantiate(blob.gameObject, markerRoot, false);
-            blobCloneObject.name = "StreetQuestMarkerBlob";
-            blobCloneObject.SetActive(true);
-
-            var blobCloneRect = blobCloneObject.GetComponent<RectTransform>();
-            if (blobCloneRect != null)
+            if (pointer != null)
             {
-                blobCloneRect.anchorMin = new Vector2(0.5f, 0.5f);
-                blobCloneRect.anchorMax = new Vector2(0.5f, 0.5f);
-                blobCloneRect.pivot = new Vector2(0.5f, 0.5f);
-                blobCloneRect.anchoredPosition = Vector2.zero;
-                blobCloneRect.sizeDelta = new Vector2(MarkerSize, MarkerSize);
-                blobCloneRect.localScale = Vector3.one;
-                blobCloneRect.localRotation = Quaternion.identity;
+                var pointerCloneObject = Instantiate(pointer.gameObject, markerRoot, false);
+                pointerCloneObject.name = "StreetQuestMarkerPointer";
+                pointerCloneObject.SetActive(true);
+
+                var pointerCloneRect = pointerCloneObject.GetComponent<RectTransform>();
+                if (pointerCloneRect != null)
+                {
+                    pointerCloneRect.anchorMin = pointer.anchorMin;
+                    pointerCloneRect.anchorMax = pointer.anchorMax;
+                    pointerCloneRect.pivot = pointer.pivot;
+                    pointerCloneRect.anchoredPosition = pointer.anchoredPosition;
+                    pointerCloneRect.sizeDelta = pointer.sizeDelta;
+                    pointerCloneRect.localScale = Vector3.one;
+                    pointerCloneRect.localRotation = Quaternion.identity;
+                }
+
+                PrepareMarkerVisual(pointerCloneObject);
             }
 
-            foreach (var canvasGroup in blobCloneObject.GetComponentsInChildren<CanvasGroup>(includeInactive: true))
+            if (blob != null)
+            {
+                var blobCloneObject = Instantiate(blob.gameObject, markerRoot, false);
+                blobCloneObject.name = "StreetQuestMarkerBlob";
+                blobCloneObject.SetActive(true);
+
+                var blobCloneRect = blobCloneObject.GetComponent<RectTransform>();
+                if (blobCloneRect != null)
+                {
+                    blobCloneRect.anchorMin = blob.anchorMin;
+                    blobCloneRect.anchorMax = blob.anchorMax;
+                    blobCloneRect.pivot = blob.pivot;
+                    blobCloneRect.anchoredPosition = blob.anchoredPosition;
+                    blobCloneRect.sizeDelta = blob.sizeDelta;
+                    blobCloneRect.localScale = Vector3.one;
+                    blobCloneRect.localRotation = Quaternion.identity;
+                }
+
+                PrepareMarkerVisual(blobCloneObject);
+            }
+
+            StreetQuestShared.LogDebug($"Map marker visual source=vanilla_blob template={template.name}");
+            return true;
+        }
+
+        private static void PrepareMarkerVisual(GameObject rootObject)
+        {
+            if (rootObject == null)
+                return;
+
+            foreach (var canvasGroup in rootObject.GetComponentsInChildren<CanvasGroup>(includeInactive: true))
             {
                 if (canvasGroup == null)
                     continue;
@@ -453,7 +529,7 @@ namespace StreetQuestRPG
                 canvasGroup.blocksRaycasts = false;
             }
 
-            foreach (var image in blobCloneObject.GetComponentsInChildren<Image>(includeInactive: true))
+            foreach (var image in rootObject.GetComponentsInChildren<Image>(includeInactive: true))
             {
                 if (image == null)
                     continue;
@@ -462,9 +538,6 @@ namespace StreetQuestRPG
                 image.enabled = true;
                 image.material = null;
             }
-
-            StreetQuestShared.LogDebug($"Map marker visual source=vanilla_blob template={template.name}");
-            return true;
         }
 
         private RectTransform ResolvePoiMarkerTemplate()
@@ -1422,6 +1495,8 @@ namespace StreetQuestRPG
             }
 
             _markerRoots.Clear();
+            _markerAnchoredPositions.Clear();
+            _markerAnchoredVelocities.Clear();
             _nativePoiComponents.Clear();
             _nativePoiTargetAnchors.Clear();
             _nativePoiLastTargetPositions.Clear();
