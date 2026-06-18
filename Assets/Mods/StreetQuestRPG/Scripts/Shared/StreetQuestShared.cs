@@ -570,8 +570,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrEmpty(itemName))
                 return 0;
 
-            var holder = GetPlayerInventoryHolder();
-            return holder?.GetAmountByItemName(itemName) ?? 0;
+            return GetVanillaPlayerItemAmount(itemName) + StreetQuestInventoryService.GetAmount(itemName);
         }
 
         public static Vector3 GetPlayerWorldPosition()
@@ -703,33 +702,16 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(itemName) || amount <= 0)
                 return false;
 
-            var holder = GetPlayerInventoryHolder();
-            if (holder == null)
-            {
-                LogDebug($"TryGivePlayerQuestItem failed: no cargo holder for {itemName} x{amount}");
+            var succeeded = StreetQuestInventoryService.AddItem(itemName, amount);
+            LogDebug($"TryGivePlayerQuestItem item={itemName} requested={amount} succeeded={succeeded}");
+            if (!succeeded)
                 return false;
-            }
 
-            var beforeAmount = holder.GetAmountByItemName(itemName);
-            if (!TryAddQuestItemToCargo(holder, itemName, amount))
-            {
-                LogDebug($"TryGivePlayerQuestItem failed: add method not found or unsuccessful for {itemName} x{amount} holderType={holder.GetType().FullName}");
-                return false;
-            }
-
-            var afterAmount = holder.GetAmountByItemName(itemName);
-            var grantedAmount = Mathf.Max(0, afterAmount - beforeAmount);
-            var succeeded = grantedAmount > 0;
-            LogDebug($"TryGivePlayerQuestItem item={itemName} requested={amount} granted={grantedAmount} holderType={holder.GetType().FullName}");
-
-            if (succeeded)
-            {
-                ShowDebugNotification(
-                    $"Spawned {grantedAmount}x {itemName}",
-                    $"streetquest-debug-spawn-{itemName}");
-            }
-
-            return succeeded;
+            var displayName = StreetQuestInventoryService.GetDisplayName(itemName);
+            ShowDebugNotification(
+                $"Added {amount}x {displayName} to quest inventory",
+                $"streetquest-debug-spawn-{itemName}");
+            return true;
         }
 
         private static bool AreAllObjectivesSatisfied(StreetQuestQuestDefinition quest)
@@ -813,135 +795,35 @@ namespace StreetQuestRPG
             if (string.IsNullOrEmpty(itemName) || amount <= 0)
                 return false;
 
-            var holder = GetPlayerInventoryHolder();
-            if (holder == null || holder.GetAmountByItemName(itemName) < amount)
-                return false;
-
             var remainingAmount = amount;
-            var cargoInstances = holder.GetCargoInstances();
-            if (cargoInstances == null)
-                return false;
 
-            foreach (var cargoInstance in cargoInstances.Where(x => x != null && x.itemName == itemName).ToList())
+            var holder = GetPlayerInventoryHolder();
+            var cargoInstances = holder?.GetCargoInstances();
+            if (cargoInstances != null)
             {
-                var amountToRemove = Math.Min(cargoInstance.amount, remainingAmount);
-                holder.ReduceFromCargo(cargoInstance, amountToRemove);
-                remainingAmount -= amountToRemove;
-                if (remainingAmount <= 0)
-                    return true;
+                foreach (var cargoInstance in cargoInstances.Where(x => x != null && x.itemName == itemName).ToList())
+                {
+                    var amountToRemove = Math.Min(cargoInstance.amount, remainingAmount);
+                    holder.ReduceFromCargo(cargoInstance, amountToRemove);
+                    remainingAmount -= amountToRemove;
+                    if (remainingAmount <= 0)
+                        return true;
+                }
+            }
+
+            if (remainingAmount > 0 && StreetQuestInventoryService.GetAmount(itemName) >= remainingAmount)
+            {
+                if (StreetQuestInventoryService.RemoveItem(itemName, remainingAmount))
+                    remainingAmount = 0;
             }
 
             return remainingAmount <= 0;
         }
 
-        private static bool TryAddQuestItemToCargo(ICargoHolder holder, string itemName, int amount)
+        private static int GetVanillaPlayerItemAmount(string itemName)
         {
-            if (holder == null || string.IsNullOrWhiteSpace(itemName) || amount <= 0)
-                return false;
-
-            var methodNames = new[]
-            {
-                "AddToCargo",
-                "AddCargo",
-                "TryAddCargo",
-                "IncreaseCargo",
-                "CreateCargo"
-            };
-
-            foreach (var methodName in methodNames)
-            {
-                if (TryInvokeQuestItemAddMethod(holder, methodName, itemName, amount, out var success))
-                {
-                    LogDebug($"TryAddQuestItemToCargo used method={methodName} item={itemName} amount={amount} success={success}");
-                    if (success)
-                        return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static bool TryInvokeQuestItemAddMethod(
-            object target,
-            string methodName,
-            string itemName,
-            int amount,
-            out bool success)
-        {
-            success = false;
-            if (target == null || string.IsNullOrWhiteSpace(methodName))
-                return false;
-
-            for (var instanceType = target.GetType(); instanceType != null; instanceType = instanceType.BaseType)
-            {
-                var methods = instanceType.GetMethods(ReflectionFlags)
-                    .Where(value => string.Equals(value.Name, methodName, StringComparison.Ordinal))
-                    .ToArray();
-
-                foreach (var method in methods)
-                {
-                    if (!TryBuildQuestItemAddArguments(method.GetParameters(), itemName, amount, out var arguments, out var repeatCount))
-                        continue;
-
-                    var invoked = false;
-                    var aggregateSuccess = true;
-                    for (var index = 0; index < repeatCount; index++)
-                    {
-                        var result = method.Invoke(target, arguments);
-                        invoked = true;
-
-                        if (method.ReturnType == typeof(bool) && result is bool boolResult)
-                            aggregateSuccess &= boolResult;
-                    }
-
-                    if (!invoked)
-                        continue;
-
-                    success = aggregateSuccess;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static bool TryBuildQuestItemAddArguments(
-            ParameterInfo[] parameters,
-            string itemName,
-            int amount,
-            out object[] arguments,
-            out int repeatCount)
-        {
-            arguments = null;
-            repeatCount = 1;
-            if (parameters == null)
-                return false;
-
-            if (parameters.Length == 2 &&
-                parameters[0].ParameterType == typeof(string) &&
-                parameters[1].ParameterType == typeof(int))
-            {
-                arguments = new object[] { itemName, amount };
-                return true;
-            }
-
-            if (parameters.Length == 2 &&
-                parameters[0].ParameterType == typeof(int) &&
-                parameters[1].ParameterType == typeof(string))
-            {
-                arguments = new object[] { amount, itemName };
-                return true;
-            }
-
-            if (parameters.Length == 1 &&
-                parameters[0].ParameterType == typeof(string))
-            {
-                arguments = new object[] { itemName };
-                repeatCount = amount;
-                return true;
-            }
-
-            return false;
+            var holder = GetPlayerInventoryHolder();
+            return holder?.GetAmountByItemName(itemName) ?? 0;
         }
 
         private static ICargoHolder GetPlayerInventoryHolder()

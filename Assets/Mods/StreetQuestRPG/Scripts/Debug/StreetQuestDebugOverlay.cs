@@ -25,6 +25,10 @@ namespace StreetQuestRPG
         private static GUIStyle _textStyle;
         private static GUIStyle _buttonStyle;
         private static int _hotControlId;
+        private static Texture2D _windowTexture;
+        private static Texture2D _panelTexture;
+        private static Texture2D _tabTexture;
+        private static Texture2D _activeTabTexture;
 
         private enum DebugTab
         {
@@ -244,14 +248,36 @@ namespace StreetQuestRPG
             if (_windowStyle != null)
                 return;
 
+            _windowTexture ??= CreateTexture(new Color(0.14f, 0.14f, 0.14f, 1f));
+            _panelTexture ??= CreateTexture(new Color(0.18f, 0.18f, 0.18f, 1f));
+            _tabTexture ??= CreateTexture(new Color(0.26f, 0.26f, 0.26f, 1f));
+            _activeTabTexture ??= CreateTexture(Color.white);
+
             _windowStyle = new GUIStyle(GUI.skin.window);
             _windowStyle.fontSize = 15;
+            _windowStyle.normal.background = _windowTexture;
+            _windowStyle.onNormal.background = _windowTexture;
+            _windowStyle.normal.textColor = Color.white;
+            _windowStyle.padding = new RectOffset(10, 10, 24, 10);
 
             _panelStyle = new GUIStyle(GUI.skin.box);
             _panelStyle.normal.textColor = Color.white;
+            _panelStyle.normal.background = _panelTexture;
 
             _tabStyle = new GUIStyle(GUI.skin.button);
             _tabStyle.fontSize = 13;
+            _tabStyle.normal.background = _tabTexture;
+            _tabStyle.hover.background = _tabTexture;
+            _tabStyle.active.background = _tabTexture;
+            _tabStyle.focused.background = _tabTexture;
+            _tabStyle.onNormal.background = _tabTexture;
+            _tabStyle.onHover.background = _tabTexture;
+            _tabStyle.onActive.background = _tabTexture;
+            _tabStyle.onFocused.background = _tabTexture;
+            _tabStyle.normal.textColor = Color.white;
+            _tabStyle.hover.textColor = Color.white;
+            _tabStyle.active.textColor = Color.white;
+            _tabStyle.focused.textColor = Color.white;
 
             _activeTabStyle = new GUIStyle(_tabStyle);
             _activeTabStyle.normal.textColor = Color.black;
@@ -262,14 +288,14 @@ namespace StreetQuestRPG
             _activeTabStyle.onHover.textColor = Color.black;
             _activeTabStyle.onActive.textColor = Color.black;
             _activeTabStyle.onFocused.textColor = Color.black;
-            _activeTabStyle.normal.background = Texture2D.whiteTexture;
-            _activeTabStyle.hover.background = Texture2D.whiteTexture;
-            _activeTabStyle.active.background = Texture2D.whiteTexture;
-            _activeTabStyle.focused.background = Texture2D.whiteTexture;
-            _activeTabStyle.onNormal.background = Texture2D.whiteTexture;
-            _activeTabStyle.onHover.background = Texture2D.whiteTexture;
-            _activeTabStyle.onActive.background = Texture2D.whiteTexture;
-            _activeTabStyle.onFocused.background = Texture2D.whiteTexture;
+            _activeTabStyle.normal.background = _activeTabTexture;
+            _activeTabStyle.hover.background = _activeTabTexture;
+            _activeTabStyle.active.background = _activeTabTexture;
+            _activeTabStyle.focused.background = _activeTabTexture;
+            _activeTabStyle.onNormal.background = _activeTabTexture;
+            _activeTabStyle.onHover.background = _activeTabTexture;
+            _activeTabStyle.onActive.background = _activeTabTexture;
+            _activeTabStyle.onFocused.background = _activeTabTexture;
 
             _headerStyle = new GUIStyle(GUI.skin.label);
             _headerStyle.fontSize = 14;
@@ -283,6 +309,14 @@ namespace StreetQuestRPG
 
             _buttonStyle = new GUIStyle(GUI.skin.button);
             _buttonStyle.fontSize = 12;
+        }
+
+        private static Texture2D CreateTexture(Color color)
+        {
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            texture.SetPixel(0, 0, color);
+            texture.Apply(false, false);
+            return texture;
         }
 
         private static void ConsumeScrollWheelIfMouseOverWindow()
