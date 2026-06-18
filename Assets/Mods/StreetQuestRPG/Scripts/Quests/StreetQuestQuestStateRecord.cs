@@ -1,22 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
+using System.Text;
 
 namespace StreetQuestRPG
 {
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestQuestStateRecord
     {
         private const char SegmentSeparator = '|';
         private const char CompletedSeparator = ',';
 
-        public string currentQuestId = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
-        public string currentQuestState = StreetQuestQuestProgressState.NotStarted.ToString();
-        public int introStage;
-        public List<string> completedQuestIds = new();
-        public List<string> storyFlags = new();
-        public List<string> objectiveTokens = new();
-        public List<StreetQuestFavorStateEntry> favorEntries = new();
+        [DataMember(Name = "currentQuestId")] public string currentQuestId = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
+        [DataMember(Name = "currentQuestState")] public string currentQuestState = StreetQuestQuestProgressState.NotStarted.ToString();
+        [DataMember(Name = "introStage")] public int introStage;
+        [DataMember(Name = "completedQuestIds")] public List<string> completedQuestIds = new();
+        [DataMember(Name = "storyFlags")] public List<string> storyFlags = new();
+        [DataMember(Name = "objectiveTokens")] public List<string> objectiveTokens = new();
+        [DataMember(Name = "favorEntries")] public List<StreetQuestFavorStateEntry> favorEntries = new();
 
         public string CurrentQuestId
         {
@@ -46,7 +50,10 @@ namespace StreetQuestRPG
         public string Serialize()
         {
             SyncListsFromSets();
-            return UnityEngine.JsonUtility.ToJson(this);
+            var serializer = new DataContractJsonSerializer(typeof(StreetQuestQuestStateRecord));
+            using var stream = new MemoryStream();
+            serializer.WriteObject(stream, this);
+            return Encoding.UTF8.GetString(stream.ToArray());
         }
 
         public bool AddStoryFlag(string storyFlagId)
@@ -119,15 +126,24 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(serializedValue))
                 return CreateInitialized();
 
-            var trimmed = serializedValue.TrimStart();
-            if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            try
             {
-                var record = UnityEngine.JsonUtility.FromJson<StreetQuestQuestStateRecord>(serializedValue) ?? CreateInitialized();
-                record.SyncSetsFromLists();
-                return record;
-            }
+                var trimmed = serializedValue.TrimStart();
+                if (trimmed.StartsWith("{", StringComparison.Ordinal))
+                {
+                    var serializer = new DataContractJsonSerializer(typeof(StreetQuestQuestStateRecord));
+                    using var stream = new MemoryStream(Encoding.UTF8.GetBytes(serializedValue));
+                    var record = serializer.ReadObject(stream) as StreetQuestQuestStateRecord ?? CreateInitialized();
+                    record.SyncSetsFromLists();
+                    return record;
+                }
 
-            return DeserializeLegacy(serializedValue);
+                return DeserializeLegacy(serializedValue);
+            }
+            catch
+            {
+                return CreateInitialized();
+            }
         }
 
         private static StreetQuestQuestStateRecord DeserializeLegacy(string serializedValue)
@@ -172,6 +188,11 @@ namespace StreetQuestRPG
 
         private void SyncSetsFromLists()
         {
+            completedQuestIds ??= new List<string>();
+            storyFlags ??= new List<string>();
+            objectiveTokens ??= new List<string>();
+            favorEntries ??= new List<StreetQuestFavorStateEntry>();
+
             CompletedQuestIds.Clear();
             StoryFlags.Clear();
             ObjectiveTokens.Clear();

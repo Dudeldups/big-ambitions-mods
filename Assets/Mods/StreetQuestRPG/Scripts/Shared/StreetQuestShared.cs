@@ -60,6 +60,8 @@ namespace StreetQuestRPG
         private static Vector3? PreferredQuestGiverSpawnPosition;
         private static bool QuestGiverCtaInstalled;
         private static string DebugLogFilePath;
+        private static object CachedQuestStateOwner;
+        private static StreetQuestQuestStateRecord CachedQuestStateRecord;
 
         public const string MackContactId = "streetquest:mack_contact";
         public const string MackNameKey = "streetquest:mack_name";

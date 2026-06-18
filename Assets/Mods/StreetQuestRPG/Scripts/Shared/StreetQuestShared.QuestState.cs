@@ -176,17 +176,52 @@ namespace StreetQuestRPG
         {
             var saveGame = SaveGameManager.Current;
             if (saveGame?.modData == null)
+            {
+                CachedQuestStateOwner = null;
+                CachedQuestStateRecord = null;
+                LogDebug("GetQuestStateRecord returning new record: modData missing");
                 return new StreetQuestQuestStateRecord();
+            }
+
+            if (ReferenceEquals(CachedQuestStateOwner, saveGame) && CachedQuestStateRecord != null)
+            {
+                LogDebug($"GetQuestStateRecord cache hit questId={CachedQuestStateRecord.CurrentQuestId} state={CachedQuestStateRecord.CurrentQuestState} completed={CachedQuestStateRecord.CompletedQuestIds.Count} flags={CachedQuestStateRecord.StoryFlags.Count} tokens={CachedQuestStateRecord.ObjectiveTokens.Count}");
+                return CachedQuestStateRecord;
+            }
 
             if (!saveGame.modData.TryGetValue(QuestStateModDataKey, out var serializedRecord))
-                return new StreetQuestQuestStateRecord();
+            {
+                CachedQuestStateOwner = saveGame;
+                CachedQuestStateRecord = new StreetQuestQuestStateRecord();
+                LogDebug("GetQuestStateRecord returning new record: modData key missing");
+                return CachedQuestStateRecord;
+            }
 
-            var record = StreetQuestQuestStateRecord.Deserialize(serializedRecord);
-            if (!string.IsNullOrEmpty(record.CurrentQuestId) &&
-                StreetQuestQuestCatalog.Get(record.CurrentQuestId) == null)
-                return new StreetQuestQuestStateRecord();
+            try
+            {
+                var record = StreetQuestQuestStateRecord.Deserialize(serializedRecord);
+                if (!string.IsNullOrEmpty(record.CurrentQuestId) &&
+                    StreetQuestQuestCatalog.Get(record.CurrentQuestId) == null)
+                {
+                    CachedQuestStateOwner = saveGame;
+                    CachedQuestStateRecord = new StreetQuestQuestStateRecord();
+                    LogDebug($"GetQuestStateRecord returning new record: unknown questId={record.CurrentQuestId}");
+                    return CachedQuestStateRecord;
+                }
 
-            return record;
+                CachedQuestStateOwner = saveGame;
+                CachedQuestStateRecord = record;
+                LogDebug($"GetQuestStateRecord loaded questId={record.CurrentQuestId} state={record.CurrentQuestState} completed={record.CompletedQuestIds.Count} flags={record.StoryFlags.Count} tokens={record.ObjectiveTokens.Count}");
+                return record;
+            }
+            catch (Exception exception)
+            {
+                CachedQuestStateOwner = saveGame;
+                CachedQuestStateRecord = new StreetQuestQuestStateRecord();
+                LogDebug($"GetQuestStateRecord failed: {exception}");
+                Debug.LogWarning($"StreetQuestRPG: Failed to read quest state. Resetting mod state for this session. {exception}");
+                return CachedQuestStateRecord;
+            }
         }
 
 
@@ -219,7 +254,11 @@ namespace StreetQuestRPG
                 return;
 
             saveGame.modData ??= new Dictionary<string, string>();
-            saveGame.modData[QuestStateModDataKey] = record.Serialize();
+            var serialized = record.Serialize();
+            saveGame.modData[QuestStateModDataKey] = serialized;
+            CachedQuestStateOwner = saveGame;
+            CachedQuestStateRecord = record;
+            LogDebug($"SaveQuestStateRecord questId={record.CurrentQuestId} state={record.CurrentQuestState} serialized={serialized}");
         }
     }
 }

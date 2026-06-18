@@ -24,20 +24,27 @@ namespace StreetQuestRPG
         public static bool AcceptQuest(StreetQuestQuestDefinition quest)
         {
             if (quest == null)
+            {
+                LogDebug("AcceptQuest aborted: quest=<null>");
                 return false;
+            }
 
             var record = GetQuestStateRecord();
+            LogDebug($"AcceptQuest start quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState}");
             if (record.CurrentQuestId != quest.Id ||
                 record.CurrentQuestState != StreetQuestQuestProgressState.NotStarted ||
                 !StreetQuestQuestCatalog.AreRequirementsMet(quest, record))
+            {
+                LogDebug($"AcceptQuest aborted quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState} requirementsMet={StreetQuestQuestCatalog.AreRequirementsMet(quest, record)}");
                 return false;
+            }
 
             record.CurrentQuestState = StreetQuestQuestProgressState.Active;
             if (record.IntroStage < HomelessIntroStageCanOfferQuest)
                 record.IntroStage = HomelessIntroStageCanOfferQuest;
             record.AddStoryFlags(quest.AcceptedStoryFlags);
             SaveQuestStateRecord(record);
-            RefreshSpawnedCharacters();
+            LogDebug($"AcceptQuest saved quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState}");
             return true;
         }
 
