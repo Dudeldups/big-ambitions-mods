@@ -20,13 +20,16 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestQuestRewardDefinition[] rewards;
         [DataMember] public string[] acceptedStoryFlags;
         [DataMember] public string[] completedStoryFlags;
+        [DataMember] public string introStageOneTextKey;
+        [DataMember] public string introStageOneConfirmTextKey;
+        [DataMember] public string introStageTwoTextKey;
+        [DataMember] public string introStageTwoConfirmTextKey;
         [DataMember] public string offerTextKey;
         [DataMember] public string activeTextKey;
         [DataMember] public string readyTextKey;
-        [DataMember] public string acceptedPlayerMessageKey;
         [DataMember] public string acceptedManagerMessageKey;
-        [DataMember] public string completedPlayerMessageKey;
         [DataMember] public string completedManagerMessageKey;
+        [DataMember] public string finishedTextKey;
         [DataMember] public bool enabled = true;
 
         public string Id => id;
@@ -43,13 +46,16 @@ namespace StreetQuestRPG
         public StreetQuestQuestRewardDefinition[] Rewards => rewards ?? Array.Empty<StreetQuestQuestRewardDefinition>();
         public string[] AcceptedStoryFlags => acceptedStoryFlags ?? Array.Empty<string>();
         public string[] CompletedStoryFlags => completedStoryFlags ?? Array.Empty<string>();
+        public string IntroStageOneTextKey => introStageOneTextKey;
+        public string IntroStageOneConfirmTextKey => introStageOneConfirmTextKey;
+        public string IntroStageTwoTextKey => introStageTwoTextKey;
+        public string IntroStageTwoConfirmTextKey => introStageTwoConfirmTextKey;
         public string OfferTextKey => offerTextKey;
         public string ActiveTextKey => activeTextKey;
         public string ReadyTextKey => readyTextKey;
-        public string AcceptedPlayerMessageKey => acceptedPlayerMessageKey;
         public string AcceptedManagerMessageKey => acceptedManagerMessageKey;
-        public string CompletedPlayerMessageKey => completedPlayerMessageKey;
         public string CompletedManagerMessageKey => completedManagerMessageKey;
+        public string FinishedTextKey => finishedTextKey;
         public bool Enabled => enabled;
 
         public string GiverContactId => ResolveContactId(giverCharacterId, StreetQuestShared.MackContactId);
@@ -71,13 +77,16 @@ namespace StreetQuestRPG
             if (rewards == null || rewards.Length == 0) rewards = fallback.rewards;
             if (acceptedStoryFlags == null || acceptedStoryFlags.Length == 0) acceptedStoryFlags = fallback.acceptedStoryFlags;
             if (completedStoryFlags == null || completedStoryFlags.Length == 0) completedStoryFlags = fallback.completedStoryFlags;
+            if (string.IsNullOrWhiteSpace(introStageOneTextKey)) introStageOneTextKey = fallback.introStageOneTextKey;
+            if (string.IsNullOrWhiteSpace(introStageOneConfirmTextKey)) introStageOneConfirmTextKey = fallback.introStageOneConfirmTextKey;
+            if (string.IsNullOrWhiteSpace(introStageTwoTextKey)) introStageTwoTextKey = fallback.introStageTwoTextKey;
+            if (string.IsNullOrWhiteSpace(introStageTwoConfirmTextKey)) introStageTwoConfirmTextKey = fallback.introStageTwoConfirmTextKey;
             if (string.IsNullOrWhiteSpace(offerTextKey)) offerTextKey = fallback.offerTextKey;
             if (string.IsNullOrWhiteSpace(activeTextKey)) activeTextKey = fallback.activeTextKey;
             if (string.IsNullOrWhiteSpace(readyTextKey)) readyTextKey = fallback.readyTextKey;
-            if (string.IsNullOrWhiteSpace(acceptedPlayerMessageKey)) acceptedPlayerMessageKey = fallback.acceptedPlayerMessageKey;
             if (string.IsNullOrWhiteSpace(acceptedManagerMessageKey)) acceptedManagerMessageKey = fallback.acceptedManagerMessageKey;
-            if (string.IsNullOrWhiteSpace(completedPlayerMessageKey)) completedPlayerMessageKey = fallback.completedPlayerMessageKey;
             if (string.IsNullOrWhiteSpace(completedManagerMessageKey)) completedManagerMessageKey = fallback.completedManagerMessageKey;
+            if (string.IsNullOrWhiteSpace(finishedTextKey)) finishedTextKey = fallback.finishedTextKey;
         }
 
         private static string ResolveContactId(string characterId, string fallbackContactId)

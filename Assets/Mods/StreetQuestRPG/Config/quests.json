@@ -34,13 +34,16 @@
       ],
       "acceptedStoryFlags": [],
       "completedStoryFlags": [],
+      "introStageOneTextKey": "streetquest:dialog_q1_intro_back_off",
+      "introStageOneConfirmTextKey": "streetquest:dialog_whats_up",
+      "introStageTwoTextKey": "streetquest:dialog_q1_intro_backstory",
+      "introStageTwoConfirmTextKey": "streetquest:dialog_yes",
       "offerTextKey": "streetquest:dialog_q1_offer",
       "activeTextKey": "streetquest:dialog_q1_active",
       "readyTextKey": "streetquest:dialog_q1_ready",
-      "acceptedPlayerMessageKey": "streetquest:dialog_q1_accept_player",
       "acceptedManagerMessageKey": "streetquest:dialog_q1_accept_manager",
-      "completedPlayerMessageKey": "streetquest:dialog_q1_complete_player",
       "completedManagerMessageKey": "streetquest:dialog_q1_complete_manager",
+      "finishedTextKey": "streetquest:dialog_q1_finished",
       "enabled": true
     }
   ]

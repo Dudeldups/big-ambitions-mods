@@ -106,6 +106,25 @@ namespace StreetQuestRPG
             return string.IsNullOrWhiteSpace(quest.NextQuestId) ? null : quest.NextQuestId;
         }
 
+        public static StreetQuestQuestDefinition GetLastCompletedQuest(StreetQuestQuestStateRecord stateRecord)
+        {
+            EnsureInitializedWithoutFile();
+            if (stateRecord == null || stateRecord.CompletedQuestIds.Count == 0)
+                return null;
+
+            var current = FirstQuest;
+            StreetQuestQuestDefinition lastCompleted = null;
+            while (current != null && stateRecord.CompletedQuestIds.Contains(current.Id))
+            {
+                lastCompleted = current;
+                var nextQuestId = current.NextQuestIds.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+                                  ?? current.NextQuestId;
+                current = string.IsNullOrWhiteSpace(nextQuestId) ? null : Get(nextQuestId);
+            }
+
+            return lastCompleted ?? All.FirstOrDefault(value => value != null && stateRecord.CompletedQuestIds.Contains(value.Id));
+        }
+
         private static void EnsureInitializedWithoutFile()
         {
             if (_initialized)

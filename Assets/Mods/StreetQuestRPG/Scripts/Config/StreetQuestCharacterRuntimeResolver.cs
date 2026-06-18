@@ -276,13 +276,7 @@ namespace StreetQuestRPG
                 interactionRendererLocalScale = definition.interactionRendererLocalScale,
                 appearances = definition.appearances,
                 appearanceFlagMappings = definition.appearanceFlagMappings,
-                states = definition.states,
-                introStageOneTextKey = definition.introStageOneTextKey,
-                introStageOneConfirmTextKey = definition.introStageOneConfirmTextKey,
-                introStageOneCompletedFlagId = definition.introStageOneCompletedFlagId,
-                introStageTwoTextKey = definition.introStageTwoTextKey,
-                introStageTwoConfirmTextKey = definition.introStageTwoConfirmTextKey,
-                introStageTwoCompletedFlagId = definition.introStageTwoCompletedFlagId
+                states = definition.states
             };
         }
 

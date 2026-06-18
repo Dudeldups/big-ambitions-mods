@@ -41,12 +41,6 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterAppearanceDefinition[] appearances;
         [DataMember] public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
         [DataMember] public StreetQuestCharacterStateDefinition[] states;
-        [DataMember] public string introStageOneTextKey;
-        [DataMember] public string introStageOneConfirmTextKey;
-        [DataMember] public string introStageOneCompletedFlagId;
-        [DataMember] public string introStageTwoTextKey;
-        [DataMember] public string introStageTwoConfirmTextKey;
-        [DataMember] public string introStageTwoCompletedFlagId;
 
         public bool HasPrefabNames => prefabNames != null && prefabNames.Any(value => !string.IsNullOrWhiteSpace(value));
 

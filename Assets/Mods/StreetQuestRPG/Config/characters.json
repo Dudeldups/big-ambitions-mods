@@ -16,12 +16,6 @@
       "ageInDays": 15330,
       "appearanceSeed": 104729,
       "enabled": true,
-      "introStageOneTextKey": "streetquest:dialog_intro_back_off",
-      "introStageOneConfirmTextKey": "streetquest:dialog_whats_up",
-      "introStageOneCompletedFlagId": "streetquest:flag_mack_intro_started",
-      "introStageTwoTextKey": "streetquest:dialog_intro_backstory",
-      "introStageTwoConfirmTextKey": "streetquest:dialog_yes",
-      "introStageTwoCompletedFlagId": "streetquest:flag_mack_offer_unlocked",
       "useFixedSpawnPosition": true,
       "prefabNames": [
         "Characters/Homeless",
