@@ -26,17 +26,34 @@ namespace StreetQuestRPG
             if (rewardAmount <= 0)
                 return;
 
+            var saveGame = SaveGameManager.Current;
+            var moneyBefore = saveGame?.Money ?? 0f;
             var transactionData = new Dictionary<string, string>
             {
                 { "amount", rewardAmount.ToString() }
             };
             var transactionInfo = new TransactionInfo("streetquest:transaction_reward", transactionData, false);
 
-            if (!GameManager.ChangeMoneySafe(rewardAmount, transactionInfo, showNotification: showNotification))
+            var changedMoneySafely = GameManager.ChangeMoneySafe(rewardAmount, transactionInfo, showNotification: showNotification);
+            var moneyAfter = saveGame?.Money ?? 0f;
+            var expectedMoney = moneyBefore + rewardAmount;
+
+            if (!changedMoneySafely || saveGame == null)
             {
-                var saveGame = SaveGameManager.Current;
                 if (saveGame != null)
-                    saveGame.Money += rewardAmount;
+                {
+                    saveGame.Money = expectedMoney;
+                    saveGame.hasEverUsedMods = true;
+                    SaveGameManager.MarkChange();
+                }
+                return;
+            }
+
+            if (Math.Abs(moneyAfter - expectedMoney) > 0.01f)
+            {
+                saveGame.Money = expectedMoney;
+                saveGame.hasEverUsedMods = true;
+                SaveGameManager.MarkChange();
             }
         }
 

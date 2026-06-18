@@ -17,7 +17,8 @@ namespace StreetQuestRPG
         [SerializeField] public List<string> completedQuestIds = new();
         [SerializeField] public List<string> storyFlags = new();
         [SerializeField] public List<string> objectiveTokens = new();
-        [SerializeField] public List<StreetQuestFavorStateEntry> favorEntries = new();
+        [SerializeField] public List<string> favorCharacterIds = new();
+        [SerializeField] public List<int> favorValues = new();
 
         public string CurrentQuestId
         {
@@ -183,7 +184,8 @@ namespace StreetQuestRPG
             completedQuestIds ??= new List<string>();
             storyFlags ??= new List<string>();
             objectiveTokens ??= new List<string>();
-            favorEntries ??= new List<StreetQuestFavorStateEntry>();
+            favorCharacterIds ??= new List<string>();
+            favorValues ??= new List<int>();
 
             CompletedQuestIds.Clear();
             StoryFlags.Clear();
@@ -196,8 +198,14 @@ namespace StreetQuestRPG
                 StoryFlags.Add(storyFlagId);
             foreach (var objectiveToken in objectiveTokens.Where(value => !string.IsNullOrWhiteSpace(value)))
                 ObjectiveTokens.Add(objectiveToken);
-            foreach (var favorEntry in favorEntries.Where(value => value != null && !string.IsNullOrWhiteSpace(value.characterId)))
-                FavorByCharacterId[favorEntry.characterId] = Math.Max(-100, Math.Min(100, favorEntry.value));
+            for (var index = 0; index < Math.Min(favorCharacterIds.Count, favorValues.Count); index++)
+            {
+                var characterId = favorCharacterIds[index];
+                if (string.IsNullOrWhiteSpace(characterId))
+                    continue;
+
+                FavorByCharacterId[characterId] = Math.Max(-100, Math.Min(100, favorValues[index]));
+            }
 
             if (string.IsNullOrEmpty(CurrentQuestId) &&
                 CurrentQuestState != StreetQuestQuestProgressState.Completed)
@@ -209,14 +217,11 @@ namespace StreetQuestRPG
             completedQuestIds = CompletedQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             storyFlags = StoryFlags.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             objectiveTokens = ObjectiveTokens.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
-            favorEntries = FavorByCharacterId
+            var orderedFavorEntries = FavorByCharacterId
                 .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(value => new StreetQuestFavorStateEntry
-                {
-                    characterId = value.Key,
-                    value = value.Value
-                })
                 .ToList();
+            favorCharacterIds = orderedFavorEntries.Select(value => value.Key).ToList();
+            favorValues = orderedFavorEntries.Select(value => value.Value).ToList();
         }
     }
 }
