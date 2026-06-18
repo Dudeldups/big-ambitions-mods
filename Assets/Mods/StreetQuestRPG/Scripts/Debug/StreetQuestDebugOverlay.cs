@@ -47,10 +47,7 @@ namespace StreetQuestRPG
 
         public bool ShouldBlockGameplayInput()
         {
-            if (!StreetQuestDebugSettings.Enabled || !_visible)
-                return false;
-
-            return IsMouseOverWindow() || GUIUtility.hotControl == _hotControlId;
+            return StreetQuestDebugSettings.Enabled && _visible && IsMouseOverWindow();
         }
 
         private void OnGUI()
@@ -59,8 +56,8 @@ namespace StreetQuestRPG
                 return;
 
             EnsureStyles();
-            _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "StreetQuest Debug", _windowStyle);
             CaptureHotControl();
+            _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "StreetQuest Debug", _windowStyle);
             ConsumePointerEvents();
             ConsumeScrollWheelIfMouseOverWindow();
         }
@@ -335,14 +332,17 @@ namespace StreetQuestRPG
             if (currentEvent == null || currentEvent.type != EventType.ScrollWheel)
                 return;
 
-            if (IsMouseOverWindow())
+            if (_windowRect.Contains(currentEvent.mousePosition))
                 currentEvent.Use();
         }
 
         private static void ConsumePointerEvents()
         {
             var currentEvent = Event.current;
-            if (currentEvent == null || !IsMouseOverWindow())
+            if (currentEvent == null)
+                return;
+
+            if (!IsMouseOverWindow())
                 return;
 
             switch (currentEvent.type)
@@ -396,9 +396,13 @@ namespace StreetQuestRPG
 
         private static bool IsMouseOverWindow()
         {
+            return _windowRect.Contains(GetGuiMousePositionFromInput());
+        }
+
+        private static Vector2 GetGuiMousePositionFromInput()
+        {
             var mousePosition = Input.mousePosition;
-            var guiMousePosition = new Vector2(mousePosition.x, Screen.height - mousePosition.y);
-            return _windowRect.Contains(guiMousePosition);
+            return new Vector2(mousePosition.x, Screen.height - mousePosition.y);
         }
     }
 }
