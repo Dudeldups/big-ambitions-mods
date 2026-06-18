@@ -28,7 +28,7 @@ namespace StreetQuestRPG
                 RemoveLegacyQuestGiverCtaBehaviors();
                 LogDebug("CleanupLegacyContacts start");
                 SaveGameManager.Current?.Contacts?.RemoveAll(contact =>
-                    contact != null && (contact.id == HomelessContactId || contact.id == CourierContactId));
+                    contact != null && contact.id == MackContactId);
 
                 var notificationsField = typeof(Contact).GetField(
                     "AddedContactNotifications",
@@ -36,7 +36,7 @@ namespace StreetQuestRPG
                 if (notificationsField?.GetValue(null) is List<Contact> notifications)
                 {
                     notifications.RemoveAll(contact =>
-                        contact != null && (contact.id == HomelessContactId || contact.id == CourierContactId));
+                        contact != null && contact.id == MackContactId);
                 }
             }
             catch (Exception exception)

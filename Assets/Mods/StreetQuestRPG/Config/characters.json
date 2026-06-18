@@ -3,15 +3,15 @@
     {
       "id": "mack",
       "displayName": "Mack",
-      "nameKey": "streetquest:homeless_name",
-      "contactId": "streetquest:homeless_contact",
+      "nameKey": "streetquest:mack_name",
+      "contactId": "streetquest:mack_contact",
       "dialogTypeKey": "streetquest_mack_dialog",
       "gameObjectName": "StreetQuestRPG.OutdoorQuestGiver",
       "visualObjectName": "MackVisual",
-      "overlayHeaderKey": "streetquest:homeless_name",
+      "overlayHeaderKey": "streetquest:mack_name",
       "ctaKey": "streetquest:cta_talk",
       "fallbackLabel": "MACK",
-      "defaultAppearanceId": "homeless_start",
+      "defaultAppearanceId": "mack_homeless",
       "gender": "Male",
       "ageInDays": 15330,
       "appearanceSeed": 104729,
@@ -43,7 +43,7 @@
       "interactionRendererLocalScale": { "x": 0.08, "y": 0.08, "z": 0.08 },
       "appearances": [
         {
-          "id": "homeless_start",
+          "id": "mack_homeless",
           "fallbackLabel": "MACK",
           "gender": "Male",
           "ageInDays": 15330,

@@ -104,15 +104,15 @@ namespace StreetQuestRPG
             {
                 id = DefaultQuestGiverId,
                 displayName = "Mack",
-                nameKey = StreetQuestShared.HomelessNameKey,
-                contactId = StreetQuestShared.HomelessContactId,
+                nameKey = StreetQuestShared.MackNameKey,
+                contactId = StreetQuestShared.MackContactId,
                 dialogTypeKey = "streetquest_mack_dialog",
                 gameObjectName = "StreetQuestRPG.OutdoorQuestGiver",
                 visualObjectName = "MackVisual",
-                overlayHeaderKey = StreetQuestShared.HomelessNameKey,
+                overlayHeaderKey = StreetQuestShared.MackNameKey,
                 ctaKey = "streetquest:cta_talk",
                 fallbackLabel = "MACK",
-                defaultAppearanceId = "homeless_start",
+                defaultAppearanceId = "mack_homeless",
                 gender = "Male",
                 ageInDays = 42 * 365,
                 appearanceSeed = 104729,
@@ -147,7 +147,7 @@ namespace StreetQuestRPG
                 {
                     new StreetQuestCharacterAppearanceDefinition
                     {
-                        id = "homeless_start",
+                        id = "mack_homeless",
                         fallbackLabel = "MACK",
                         gender = "Male",
                         ageInDays = 42 * 365,

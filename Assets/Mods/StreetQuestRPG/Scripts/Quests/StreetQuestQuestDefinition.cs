@@ -50,8 +50,8 @@ namespace StreetQuestRPG
         public string CompletedManagerMessageKey => completedManagerMessageKey;
         public bool Enabled => enabled;
 
-        public string GiverContactId => ResolveContactId(giverCharacterId, StreetQuestShared.HomelessContactId);
-        public string TurnInContactId => ResolveContactId(turnInCharacterId, StreetQuestShared.HomelessContactId);
+        public string GiverContactId => ResolveContactId(giverCharacterId, StreetQuestShared.MackContactId);
+        public string TurnInContactId => ResolveContactId(turnInCharacterId, StreetQuestShared.MackContactId);
 
         public void FillMissingValuesFrom(StreetQuestQuestDefinition fallback)
         {

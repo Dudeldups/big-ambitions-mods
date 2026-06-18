@@ -36,7 +36,7 @@ namespace StreetQuestRPG
         private const Gender QuestGiverVisualGender = Gender.Male;
         private const int QuestGiverVisualAgeInDays = 42 * 365;
         private const int QuestGiverVisualSeed = 104729;
-        private const string SellerStandOverlayHeaderKey = HomelessNameKey;
+        private const string SellerStandOverlayHeaderKey = MackNameKey;
         private static readonly Vector3 QuestGiverVisualLocalPosition = new(0f, 0f, 0f);
         private static readonly Vector3 QuestGiverVisualLocalEulerAngles = new(0f, 90f, 0f);
         private static readonly Vector3 InteractionRendererLocalPosition = new(0f, 0.9f, 0f);
@@ -61,12 +61,10 @@ namespace StreetQuestRPG
         private static bool QuestGiverCtaInstalled;
         private static string DebugLogFilePath;
 
-        public const string HomelessContactId = "streetquest:homeless_contact";
-        public const string CourierContactId = "streetquest:courier_contact";
-        public const string HomelessNameKey = "streetquest:homeless_name";
-        public const string CourierNameKey = "streetquest:courier_name";
+        public const string MackContactId = "streetquest:mack_contact";
+        public const string MackNameKey = "streetquest:mack_name";
 
-        public static readonly Address HomelessAddress = new("ba:street_secondavenue", 6);
+        public static readonly Address MackAddress = new("ba:street_secondavenue", 6);
         public static readonly string[] ExperimentalItemHostNames =
         {
             "ba:itemname_casinoblackjacktable",
@@ -84,7 +82,7 @@ namespace StreetQuestRPG
                     result |= StreetQuestPhysicalQuestGiverInstallResult.RuntimeItem;
             }
 
-            if (TryOverrideSpecialServiceDialog(HomelessAddress, dialogType))
+            if (TryOverrideSpecialServiceDialog(MackAddress, dialogType))
                 result |= StreetQuestPhysicalQuestGiverInstallResult.SpecialService;
 
             LogDebug($"TryInstallPhysicalQuestGiver result={result}");
