@@ -90,6 +90,31 @@ namespace StreetQuestRPG
         }
 
 
+        private static void ShowInfoNotification(string message, string duplicateIdentifier = null, float duration = 6f)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            try
+            {
+                Notifications.Show(
+                    NotificationType.Info,
+                    message,
+                    null,
+                    duration,
+                    duplicateIdentifier,
+                    null,
+                    false,
+                    false);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"StreetQuestRPG: Failed to show info notification. {exception}");
+                Debug.Log(message);
+            }
+        }
+
+
         private static void LogDebug(string message)
         {
             if (string.IsNullOrWhiteSpace(DebugLogFilePath))

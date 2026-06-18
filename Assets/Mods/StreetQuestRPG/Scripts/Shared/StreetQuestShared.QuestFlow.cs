@@ -72,14 +72,22 @@ namespace StreetQuestRPG
 
         public static bool CompleteQuest(StreetQuestQuestDefinition quest)
         {
+            LogDebug($"CompleteQuest start quest={(quest?.Id ?? "<null>")}");
             if (quest == null || !CanTurnIn(quest) || !TryConsumeQuestObjectives(quest))
+            {
+                LogDebug($"CompleteQuest aborted quest={(quest?.Id ?? "<null>")} canTurnIn={CanTurnIn(quest)}");
                 return false;
+            }
 
             var record = GetQuestStateRecord();
             if (record.CurrentQuestId != quest.Id)
+            {
+                LogDebug($"CompleteQuest aborted quest={quest.Id} currentQuestId={record.CurrentQuestId}");
                 return false;
+            }
 
             var rewardSummary = GrantRewards(quest, record);
+            LogDebug($"CompleteQuest rewards quest={quest.Id} cash={rewardSummary.CashAmount} favorChanges={rewardSummary.FavorDeltas.Count} favorMack={record.GetFavor(StreetQuestCharacterCatalog.DefaultQuestGiverId)}");
             record.AddStoryFlags(quest.CompletedStoryFlags);
             record.CompletedQuestIds.Add(quest.Id);
 
@@ -96,6 +104,7 @@ namespace StreetQuestRPG
             }
 
             SaveQuestStateRecord(record);
+            LogDebug($"CompleteQuest saved quest={quest.Id} nextQuestId={record.CurrentQuestId} state={record.CurrentQuestState} favorMack={record.GetFavor(StreetQuestCharacterCatalog.DefaultQuestGiverId)}");
             RefreshSpawnedCharacters();
             ShowRewardSummaryNotification(rewardSummary);
             return true;
@@ -169,6 +178,7 @@ namespace StreetQuestRPG
 
             foreach (var reward in quest.Rewards.Where(value => value != null))
             {
+                LogDebug($"GrantRewards quest={(quest?.Id ?? "<null>")} rewardType={reward.RewardType} amount={reward.Amount} characterId={reward.CharacterId ?? "<null>"} storyFlagId={reward.StoryFlagId ?? "<null>"}");
                 switch (reward.RewardType)
                 {
                     case StreetQuestQuestRewardType.Cash:

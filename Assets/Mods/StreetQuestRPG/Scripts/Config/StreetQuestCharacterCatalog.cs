@@ -22,7 +22,6 @@ namespace StreetQuestRPG
                 return;
 
             CharactersById.Clear();
-            AddOrReplace(CreateDefaultQuestGiver());
 
             var configPath = string.IsNullOrWhiteSpace(modRootPath)
                 ? null
@@ -38,7 +37,6 @@ namespace StreetQuestRPG
                     {
                         foreach (var definition in loadedFile.characters.Where(value => value != null))
                         {
-                            definition.FillMissingValuesFrom(CreateDefaultQuestGiver());
                             if (!string.IsNullOrWhiteSpace(definition.id))
                                 AddOrReplace(definition);
                         }
@@ -48,12 +46,12 @@ namespace StreetQuestRPG
                 }
                 catch (Exception exception)
                 {
-                    logger?.Warn($"StreetQuestRPG: Failed to load character config from {configPath}. Using defaults. {exception}");
+                    logger?.Warn($"StreetQuestRPG: Failed to load character config from {configPath}. Character catalog will stay empty. {exception}");
                 }
             }
             else
             {
-                logger?.Info($"StreetQuestRPG: No character config found at {configPath ?? "<null>"}. Using built-in defaults.");
+                logger?.Warn($"StreetQuestRPG: No character config found at {configPath ?? "<null>"}. Character catalog will stay empty.");
             }
 
             _initialized = true;
@@ -71,7 +69,7 @@ namespace StreetQuestRPG
         public static StreetQuestCharacterDefinition GetDefaultQuestGiver()
         {
             EnsureInitializedWithoutFile();
-            return Get(DefaultQuestGiverId) ?? CreateDefaultQuestGiver();
+            return Get(DefaultQuestGiverId);
         }
 
         public static void Reload(string modRootPath, IModLogger logger = null)
@@ -86,7 +84,6 @@ namespace StreetQuestRPG
                 return;
 
             CharactersById.Clear();
-            AddOrReplace(CreateDefaultQuestGiver());
             _initialized = true;
         }
 
@@ -96,90 +93,6 @@ namespace StreetQuestRPG
                 return;
 
             CharactersById[definition.id] = definition;
-        }
-
-        private static StreetQuestCharacterDefinition CreateDefaultQuestGiver()
-        {
-            return new StreetQuestCharacterDefinition
-            {
-                id = DefaultQuestGiverId,
-                displayName = "Mack",
-                nameKey = StreetQuestShared.MackNameKey,
-                contactId = StreetQuestShared.MackContactId,
-                dialogTypeKey = "streetquest_mack_dialog",
-                gameObjectName = "StreetQuestRPG.OutdoorQuestGiver",
-                visualObjectName = "MackVisual",
-                overlayHeaderKey = StreetQuestShared.MackNameKey,
-                ctaKey = "streetquest:cta_talk",
-                fallbackLabel = "MACK",
-                defaultAppearanceId = "mack_homeless",
-                gender = "Male",
-                ageInDays = 42 * 365,
-                appearanceSeed = 104729,
-                enabled = true,
-                useFixedSpawnPosition = true,
-                prefabNames = new[]
-                {
-                    "Characters/Homeless",
-                    "Prefabs/Characters/Homeless",
-                    "Homeless"
-                },
-                position = new StreetQuestVector3Data(301.58f, 0.09f, -188.47f),
-                forward = new StreetQuestVector3Data(0f, 0f, -1f),
-                localPosition = new StreetQuestVector3Data(0f, 0f, 0f),
-                localEulerAngles = new StreetQuestVector3Data(0f, 90f, 0f),
-                localScale = new StreetQuestVector3Data(1f, 1f, 1f),
-                navTargetLocalOffset = new StreetQuestVector3Data(0f, 0f, 1.25f),
-                sellerPositionLocalOffset = new StreetQuestVector3Data(0f, 0f, -0.85f),
-                colliderCenterWithPrefab = new StreetQuestVector3Data(0f, 1.05f, -0.05f),
-                colliderSizeWithPrefab = new StreetQuestVector3Data(1.3f, 2.1f, 0.55f),
-                colliderCenterFallback = new StreetQuestVector3Data(0f, 0.95f, 0f),
-                colliderSizeFallback = new StreetQuestVector3Data(1.8f, 1.9f, 1.2f),
-                interactionRendererLocalPosition = new StreetQuestVector3Data(0f, 0.9f, 0f),
-                interactionRendererLocalScale = new StreetQuestVector3Data(0.08f, 0.08f, 0.08f),
-                introStageOneTextKey = "streetquest:dialog_intro_back_off",
-                introStageOneConfirmTextKey = "streetquest:dialog_whats_up",
-                introStageOneCompletedFlagId = "streetquest:flag_mack_intro_started",
-                introStageTwoTextKey = "streetquest:dialog_intro_backstory",
-                introStageTwoConfirmTextKey = "streetquest:dialog_yes",
-                introStageTwoCompletedFlagId = "streetquest:flag_mack_offer_unlocked",
-                appearances = new[]
-                {
-                    new StreetQuestCharacterAppearanceDefinition
-                    {
-                        id = "mack_homeless",
-                        fallbackLabel = "MACK",
-                        gender = "Male",
-                        ageInDays = 42 * 365,
-                        appearanceSeed = 104729,
-                        prefabNames = new[]
-                        {
-                            "Characters/Homeless",
-                            "Prefabs/Characters/Homeless",
-                            "Homeless"
-                        }
-                    },
-                    new StreetQuestCharacterAppearanceDefinition
-                    {
-                        id = "apartment_mack",
-                        fallbackLabel = "MACK",
-                        gender = "Male",
-                        ageInDays = 42 * 365,
-                        appearanceSeed = 104729
-                    }
-                },
-                states = new[]
-                {
-                    new StreetQuestCharacterStateDefinition
-                    {
-                        id = "mack_apartment",
-                        requiredStoryFlags = new[] { "streetquest:flag_mack_apartment" },
-                        appearanceId = "apartment_mack",
-                        position = new StreetQuestVector3Data(301.58f, 0.09f, -188.47f),
-                        forward = new StreetQuestVector3Data(0f, 0f, -1f)
-                    }
-                }
-            };
         }
     }
 }

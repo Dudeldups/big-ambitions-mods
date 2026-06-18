@@ -2,6 +2,7 @@ using System;
 
 namespace StreetQuestRPG
 {
+#pragma warning disable CS0649
     [Serializable]
     internal sealed class StreetQuestQuestDefinition
     {
@@ -86,4 +87,5 @@ namespace StreetQuestRPG
                 : character.contactId;
         }
     }
+#pragma warning restore CS0649
 }

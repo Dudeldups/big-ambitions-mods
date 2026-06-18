@@ -14,7 +14,7 @@ namespace StreetQuestRPG
         public StreetQuestCharacterDialog(string characterId)
         {
             _characterId = characterId;
-            _character = StreetQuestCharacterCatalog.Get(characterId) ?? StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            _character = StreetQuestCharacterCatalog.Get(characterId);
             npcNameKey = string.IsNullOrWhiteSpace(_character?.nameKey)
                 ? StreetQuestShared.MackNameKey
                 : _character.nameKey;

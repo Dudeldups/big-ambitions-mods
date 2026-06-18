@@ -43,8 +43,14 @@ namespace StreetQuestRPG
 
         private static void ShowRewardSummaryNotification(StreetQuestRewardSummary summary)
         {
+            LogDebug(summary == null
+                ? "ShowRewardSummaryNotification skipped: summary null"
+                : $"ShowRewardSummaryNotification start cash={summary.CashAmount} favorChanges={summary.FavorDeltas.Count}");
             if (summary == null || !summary.HasFavorChanges)
+            {
+                LogDebug("ShowRewardSummaryNotification skipped: no favor changes");
                 return;
+            }
 
             var favorChanges = summary.FavorDeltas.ToList();
             if (favorChanges.Count == 1)
@@ -83,7 +89,8 @@ namespace StreetQuestRPG
                     }).ToString();
                 }
 
-                ShowDebugNotification(message, $"streetquest-reward-{favorChange.Key}");
+                LogDebug($"ShowRewardSummaryNotification single message={message}");
+                ShowInfoNotification(message);
                 return;
             }
 
@@ -108,7 +115,9 @@ namespace StreetQuestRPG
                 }).ToString());
             }
 
-            ShowDebugNotification(string.Join("\n", lines), "streetquest-reward-summary");
+            var combinedMessage = string.Join("\n", lines);
+            LogDebug($"ShowRewardSummaryNotification multi message={combinedMessage}");
+            ShowInfoNotification(combinedMessage);
         }
 
 

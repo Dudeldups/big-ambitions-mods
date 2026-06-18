@@ -35,7 +35,6 @@ namespace StreetQuestRPG
                 return;
 
             QuestsById.Clear();
-            AddOrReplace(CreateDefaultQuest());
 
             var configPath = string.IsNullOrWhiteSpace(modRootPath)
                 ? null
@@ -51,7 +50,6 @@ namespace StreetQuestRPG
                     {
                         foreach (var quest in loadedFile.quests.Where(value => value != null))
                         {
-                            quest.FillMissingValuesFrom(CreateDefaultQuest());
                             if (!string.IsNullOrWhiteSpace(quest.id))
                                 AddOrReplace(quest);
                         }
@@ -61,12 +59,12 @@ namespace StreetQuestRPG
                 }
                 catch (Exception exception)
                 {
-                    logger?.Warn($"StreetQuestRPG: Failed to load quest config from {configPath}. Using defaults. {exception}");
+                    logger?.Warn($"StreetQuestRPG: Failed to load quest config from {configPath}. Quest catalog will stay empty. {exception}");
                 }
             }
             else
             {
-                logger?.Info($"StreetQuestRPG: No quest config found at {configPath ?? "<null>"}. Using built-in defaults.");
+                logger?.Warn($"StreetQuestRPG: No quest config found at {configPath ?? "<null>"}. Quest catalog will stay empty.");
             }
 
             _initialized = true;
@@ -113,7 +111,6 @@ namespace StreetQuestRPG
                 return;
 
             QuestsById.Clear();
-            AddOrReplace(CreateDefaultQuest());
             _initialized = true;
         }
 
@@ -124,51 +121,6 @@ namespace StreetQuestRPG
 
             QuestsById[quest.id] = quest;
         }
-
-        private static StreetQuestQuestDefinition CreateDefaultQuest()
-        {
-            return new StreetQuestQuestDefinition
-            {
-                id = DefaultQuestId,
-                giverCharacterId = StreetQuestCharacterCatalog.DefaultQuestGiverId,
-                turnInCharacterId = StreetQuestCharacterCatalog.DefaultQuestGiverId,
-                previousQuestId = null,
-                nextQuestId = null,
-                nextQuestIds = Array.Empty<string>(),
-                requiredQuestIds = Array.Empty<string>(),
-                requiredStoryFlags = Array.Empty<string>(),
-                requiredFavors = Array.Empty<StreetQuestQuestFavorRequirementDefinition>(),
-                objectives = new[]
-                {
-                    new StreetQuestQuestObjectiveDefinition
-                    {
-                        id = "bring_hotdog",
-                        type = nameof(StreetQuestQuestObjectiveType.BringItem),
-                        itemName = "ba:itemname_hotdog",
-                        amount = 1
-                    }
-                },
-                rewards = new[]
-                {
-                    new StreetQuestQuestRewardDefinition
-                    {
-                        type = nameof(StreetQuestQuestRewardType.Cash),
-                        amount = 35
-                    }
-                },
-                acceptedStoryFlags = Array.Empty<string>(),
-                completedStoryFlags = Array.Empty<string>(),
-                offerTextKey = "streetquest:dialog_q1_offer",
-                activeTextKey = "streetquest:dialog_q1_active",
-                readyTextKey = "streetquest:dialog_q1_ready",
-                acceptedPlayerMessageKey = "streetquest:dialog_q1_accept_player",
-                acceptedManagerMessageKey = "streetquest:dialog_q1_accept_manager",
-                completedPlayerMessageKey = "streetquest:dialog_q1_complete_player",
-                completedManagerMessageKey = "streetquest:dialog_q1_complete_manager",
-                enabled = true
-            };
-        }
-
         public static bool AreRequirementsMet(StreetQuestQuestDefinition quest, StreetQuestQuestStateRecord stateRecord)
         {
             if (quest == null)

@@ -190,9 +190,9 @@ namespace StreetQuestRPG
                 ? playerController.transform.position
                 : PlayerHelper.GetPosition();
 
-            var defaultQuestGiver = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            var questGiverPosition = defaultQuestGiver != null &&
-                                     SpawnedCharacterRoots.TryGetValue(defaultQuestGiver.id, out var spawnedRoot) &&
+            var configuredQuestGiver = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            var questGiverPosition = configuredQuestGiver != null &&
+                                     SpawnedCharacterRoots.TryGetValue(configuredQuestGiver.id, out var spawnedRoot) &&
                                      spawnedRoot != null
                 ? spawnedRoot.transform.position
                 : (Vector3?)null;
@@ -331,7 +331,9 @@ namespace StreetQuestRPG
 
         private static Vector3? GetQuestGiverSpawnPosition(StreetQuestCharacterDefinition character)
         {
-            character ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (character == null)
+                return null;
+
             if (character.useFixedSpawnPosition)
                 return character.PositionOr(FixedSpawnPosition);
 
@@ -371,7 +373,7 @@ namespace StreetQuestRPG
             public override (string, Action) GetCta(EntityController entityController)
             {
                 var characterId = GetCharacterIdForController(entityController);
-                var character = StreetQuestCharacterCatalog.Get(characterId) ?? StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+                var character = StreetQuestCharacterCatalog.Get(characterId);
                 var ctaKey = string.IsNullOrWhiteSpace(character?.ctaKey) ? QuestGiverCtaKey : character.ctaKey;
                 var dialogTypeKey = string.IsNullOrWhiteSpace(character?.dialogTypeKey) ? "streetquest_mack_dialog" : character.dialogTypeKey;
                 var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(dialogTypeKey);

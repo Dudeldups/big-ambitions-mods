@@ -15,8 +15,13 @@ namespace StreetQuestRPG
 
         public static GameObject CreateHost(StreetQuestCharacterDefinition definition, Transform parent = null)
         {
-            definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (definition == null)
+                return null;
+
             definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
+            if (definition == null)
+                return null;
+
             var root = new GameObject(string.IsNullOrWhiteSpace(definition.gameObjectName)
                 ? $"StreetQuestRPG.Character.{definition.id}"
                 : definition.gameObjectName);
@@ -41,9 +46,11 @@ namespace StreetQuestRPG
             if (parent == null)
                 return false;
 
-            definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (definition == null)
+                return false;
+
             definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
-            if (!definition.HasPrefabNames)
+            if (definition == null || !definition.HasPrefabNames)
                 return false;
 
             try
@@ -85,8 +92,13 @@ namespace StreetQuestRPG
             if (parent == null)
                 return null;
 
-            definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (definition == null)
+                return null;
+
             definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
+            if (definition == null)
+                return null;
+
             var proxy = GameObject.CreatePrimitive(PrimitiveType.Cube);
             proxy.name = "InteractionRendererProxy";
             proxy.transform.SetParent(parent, false);
@@ -127,8 +139,13 @@ namespace StreetQuestRPG
             if (parent == null)
                 return;
 
-            definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (definition == null)
+                return;
+
             definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
+            if (definition == null)
+                return;
+
             var countertop = CreateVisualBlock(
                 parent,
                 "Countertop",
@@ -164,8 +181,13 @@ namespace StreetQuestRPG
             if (root == null)
                 return null;
 
-            definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
+            if (definition == null)
+                return null;
+
             definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
+            if (definition == null)
+                return null;
+
             var collider = root.AddComponent<BoxCollider>();
             collider.center = visualPrefabAttached
                 ? definition.ColliderCenterWithPrefabOr(new Vector3(0f, 1.05f, -0.05f))
