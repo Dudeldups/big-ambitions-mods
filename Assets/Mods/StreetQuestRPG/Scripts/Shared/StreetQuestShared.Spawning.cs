@@ -106,7 +106,12 @@ namespace StreetQuestRPG
 
                 var interactionRenderer = StreetQuestCharacterCreator.CreateInvisibleInteractionRendererProxy(
                     root.transform,
-                    runtimeDefinition) ?? CreateInteractionRendererProxy(root.transform);
+                    runtimeDefinition);
+                if (interactionRenderer == null)
+                {
+                    DestroySpawnedCharacter(character.id);
+                    return false;
+                }
 
                 StreetQuestCharacterCreator.AddInteractionCollider(root, runtimeDefinition, hasVisual);
 
@@ -149,60 +154,6 @@ namespace StreetQuestRPG
                 DestroySpawnedCharacter(character.id);
                 return false;
             }
-        }
-
-
-        public static void MoveSpawnedQuestGiverToPlayer()
-        {
-            var playerController = PlayerHelper.PlayerController;
-            if (playerController == null)
-            {
-                Debug.LogWarning("StreetQuestRPG: Could not move quest giver because the player controller is unavailable.");
-                return;
-            }
-
-            var playerForward = FlattenDirection(playerController.transform.forward);
-            if (playerForward.sqrMagnitude < 0.001f)
-                playerForward = Vector3.forward;
-
-            var newPosition = playerController.transform.position + playerForward.normalized * DefaultSpawnOffsetFromPlayer.z;
-            PreferredQuestGiverSpawnPosition = newPosition;
-
-            var character = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            if (!EnsureSpawnedOutdoorQuestGiver() ||
-                character == null ||
-                !SpawnedCharacterRoots.TryGetValue(character.id, out var spawnedRoot) ||
-                spawnedRoot == null)
-                return;
-
-            spawnedRoot.transform.position = newPosition;
-            spawnedRoot.transform.rotation = Quaternion.LookRotation(-playerForward.normalized, Vector3.up);
-            ShowDebugNotification(
-                $"Quest giver moved to {FormatVector3(newPosition)}",
-                "streetquest-debug-move");
-        }
-
-
-        public static void LogCoordinateSnapshot()
-        {
-            var playerController = PlayerHelper.PlayerController;
-            var playerPosition = playerController != null
-                ? playerController.transform.position
-                : PlayerHelper.GetPosition();
-
-            var configuredQuestGiver = StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            var questGiverPosition = configuredQuestGiver != null &&
-                                     SpawnedCharacterRoots.TryGetValue(configuredQuestGiver.id, out var spawnedRoot) &&
-                                     spawnedRoot != null
-                ? spawnedRoot.transform.position
-                : (Vector3?)null;
-
-            ShowDebugNotification(
-                $"Player {FormatVector3(playerPosition)}"
-                + (questGiverPosition.HasValue
-                    ? $" | Quest giver {FormatVector3(questGiverPosition.Value)}"
-                    : " | Quest giver not spawned"),
-                "streetquest-debug-coords");
         }
 
 

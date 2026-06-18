@@ -68,7 +68,6 @@ namespace StreetQuestRPG
             }
 
             _dialogsRegistered = false;
-            StreetQuestShared.RestorePatchedDialogs();
         }
 
         private static void RegisterDialogs()
