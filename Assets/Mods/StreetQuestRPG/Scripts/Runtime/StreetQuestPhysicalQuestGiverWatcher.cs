@@ -29,6 +29,9 @@ namespace StreetQuestRPG
             _elapsedSeconds += Time.unscaledDeltaTime;
             _debugOverlay?.TickToggle();
 
+            if (_debugOverlay != null && _debugOverlay.ShouldBlockGameplayInput())
+                Input.ResetInputAxes();
+
             if (Input.GetKeyDown(KeyCode.F8))
                 StreetQuestShared.LogCoordinateSnapshot();
 

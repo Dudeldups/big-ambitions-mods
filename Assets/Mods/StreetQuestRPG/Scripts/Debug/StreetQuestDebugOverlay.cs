@@ -40,6 +40,14 @@ namespace StreetQuestRPG
                 _visible = !_visible;
         }
 
+        public bool ShouldBlockGameplayInput()
+        {
+            if (!StreetQuestDebugSettings.Enabled || !_visible)
+                return false;
+
+            return IsMouseOverWindow() || GUIUtility.hotControl == _hotControlId;
+        }
+
         private void OnGUI()
         {
             if (!StreetQuestDebugSettings.Enabled || !_visible)
@@ -202,8 +210,22 @@ namespace StreetQuestRPG
             _tabStyle.fontSize = 13;
 
             _activeTabStyle = new GUIStyle(_tabStyle);
-            _activeTabStyle.normal.textColor = Color.white;
+            _activeTabStyle.normal.textColor = Color.black;
+            _activeTabStyle.hover.textColor = Color.black;
+            _activeTabStyle.active.textColor = Color.black;
+            _activeTabStyle.focused.textColor = Color.black;
+            _activeTabStyle.onNormal.textColor = Color.black;
+            _activeTabStyle.onHover.textColor = Color.black;
+            _activeTabStyle.onActive.textColor = Color.black;
+            _activeTabStyle.onFocused.textColor = Color.black;
             _activeTabStyle.normal.background = Texture2D.whiteTexture;
+            _activeTabStyle.hover.background = Texture2D.whiteTexture;
+            _activeTabStyle.active.background = Texture2D.whiteTexture;
+            _activeTabStyle.focused.background = Texture2D.whiteTexture;
+            _activeTabStyle.onNormal.background = Texture2D.whiteTexture;
+            _activeTabStyle.onHover.background = Texture2D.whiteTexture;
+            _activeTabStyle.onActive.background = Texture2D.whiteTexture;
+            _activeTabStyle.onFocused.background = Texture2D.whiteTexture;
 
             _headerStyle = new GUIStyle(GUI.skin.label);
             _headerStyle.fontSize = 14;
