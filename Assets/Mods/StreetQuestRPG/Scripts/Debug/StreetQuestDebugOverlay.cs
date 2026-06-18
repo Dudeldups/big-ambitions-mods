@@ -278,8 +278,11 @@ namespace StreetQuestRPG
             var currentProgress = currentQuest != null
                 ? StreetQuestShared.GetQuestProgress(currentQuest.Id)
                 : StreetQuestQuestProgressState.Completed;
+            var hasAcceptedQuestState =
+                currentProgress == StreetQuestQuestProgressState.Active ||
+                currentProgress == StreetQuestQuestProgressState.ReadyToTurnIn;
             var isQuestRelevant = currentQuest != null &&
-                currentProgress != StreetQuestQuestProgressState.Completed &&
+                hasAcceptedQuestState &&
                 (string.Equals(currentQuest.GiverCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(currentQuest.TurnInCharacterId, characterId, StringComparison.OrdinalIgnoreCase));
 
