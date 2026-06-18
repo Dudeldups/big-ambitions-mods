@@ -9,11 +9,10 @@ namespace StreetQuestRPG
     {
         [DataMember] public string id;
         [DataMember] public string visualObjectName;
-        [DataMember] public string fallbackLabel;
         [DataMember] public string gender;
         [DataMember] public int ageInDays;
         [DataMember] public int appearanceSeed;
-        [DataMember] public string[] prefabNames;
+        [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data localPosition;
         [DataMember] public StreetQuestVector3Data localEulerAngles;
         [DataMember] public StreetQuestVector3Data localScale;

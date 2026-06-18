@@ -10,18 +10,13 @@
       "visualObjectName": "MackVisual",
       "overlayHeaderKey": "streetquest:mack_name",
       "ctaKey": "streetquest:cta_talk",
-      "fallbackLabel": "MACK",
       "defaultAppearanceId": "mack_homeless",
       "gender": "Male",
       "ageInDays": 15330,
       "appearanceSeed": 104729,
       "enabled": true,
       "useFixedSpawnPosition": true,
-      "prefabNames": [
-        "Characters/Homeless",
-        "Prefabs/Characters/Homeless",
-        "Homeless"
-      ],
+      "prefabName": "Characters/Homeless",
       "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
       "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
@@ -38,19 +33,13 @@
       "appearances": [
         {
           "id": "mack_homeless",
-          "fallbackLabel": "MACK",
           "gender": "Male",
           "ageInDays": 15330,
           "appearanceSeed": 104729,
-          "prefabNames": [
-            "Characters/Homeless",
-            "Prefabs/Characters/Homeless",
-            "Homeless"
-          ]
+          "prefabName": "Characters/Homeless"
         },
         {
           "id": "apartment_mack",
-          "fallbackLabel": "MACK",
           "gender": "Male",
           "ageInDays": 15330,
           "appearanceSeed": 105001

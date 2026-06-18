@@ -50,17 +50,12 @@ namespace StreetQuestRPG
                 return false;
 
             definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
-            if (definition == null || !definition.HasPrefabNames)
+            if (definition == null || !definition.HasPrefabName)
                 return false;
 
             try
             {
-                foreach (var prefabName in definition.prefabNames.Where(value => !string.IsNullOrWhiteSpace(value)))
-                {
-                    visualRoot = PrefabHelper.CreatePrefab(prefabName, parent);
-                    if (visualRoot != null)
-                        break;
-                }
+                visualRoot = PrefabHelper.CreatePrefab(definition.prefabName, parent);
 
                 if (visualRoot == null)
                     return false;
@@ -163,9 +158,7 @@ namespace StreetQuestRPG
             label.transform.SetParent(parent, false);
             label.transform.localPosition = new Vector3(0f, 1.75f, -0.24f);
             var textMesh = label.AddComponent<TextMesh>();
-            textMesh.text = string.IsNullOrWhiteSpace(definition.fallbackLabel)
-                ? (definition.displayName ?? definition.id ?? "NPC").ToUpperInvariant()
-                : definition.fallbackLabel;
+            textMesh.text = (definition.displayName ?? definition.id ?? "NPC").ToUpperInvariant();
             textMesh.fontSize = 72;
             textMesh.characterSize = 0.06f;
             textMesh.anchor = TextAnchor.MiddleCenter;

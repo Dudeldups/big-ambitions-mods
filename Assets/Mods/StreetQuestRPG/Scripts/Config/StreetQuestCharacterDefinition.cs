@@ -17,14 +17,13 @@ namespace StreetQuestRPG
         [DataMember] public string visualObjectName;
         [DataMember] public string overlayHeaderKey;
         [DataMember] public string ctaKey;
-        [DataMember] public string fallbackLabel;
         [DataMember] public string defaultAppearanceId;
         [DataMember] public string gender;
         [DataMember] public int ageInDays;
         [DataMember] public int appearanceSeed;
         [DataMember] public bool enabled = true;
         [DataMember] public bool useFixedSpawnPosition = true;
-        [DataMember] public string[] prefabNames;
+        [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data forward;
         [DataMember] public StreetQuestVector3Data localPosition;
@@ -42,7 +41,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
         [DataMember] public StreetQuestCharacterStateDefinition[] states;
 
-        public bool HasPrefabNames => prefabNames != null && prefabNames.Any(value => !string.IsNullOrWhiteSpace(value));
+        public bool HasPrefabName => !string.IsNullOrWhiteSpace(prefabName);
 
         public Vector3 PositionOr(Vector3 fallback) => position != null ? position.ToVector3() : fallback;
         public Vector3 ForwardOr(Vector3 fallback) => forward != null ? forward.ToVector3() : fallback;
@@ -82,12 +81,11 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(visualObjectName)) visualObjectName = fallback.visualObjectName;
             if (string.IsNullOrWhiteSpace(overlayHeaderKey)) overlayHeaderKey = fallback.overlayHeaderKey;
             if (string.IsNullOrWhiteSpace(ctaKey)) ctaKey = fallback.ctaKey;
-            if (string.IsNullOrWhiteSpace(fallbackLabel)) fallbackLabel = fallback.fallbackLabel;
             if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;
             if (string.IsNullOrWhiteSpace(gender)) gender = fallback.gender;
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;
             if (appearanceSeed == 0) appearanceSeed = fallback.appearanceSeed;
-            if (prefabNames == null || prefabNames.Length == 0) prefabNames = fallback.prefabNames;
+            if (string.IsNullOrWhiteSpace(prefabName)) prefabName = fallback.prefabName;
             position ??= fallback.position;
             forward ??= fallback.forward;
             localPosition ??= fallback.localPosition;

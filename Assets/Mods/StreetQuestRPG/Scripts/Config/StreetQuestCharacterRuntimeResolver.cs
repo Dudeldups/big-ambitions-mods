@@ -95,7 +95,7 @@ namespace StreetQuestRPG
                 SerializeVector(runtime.colliderSizeFallback),
                 SerializeVector(runtime.interactionRendererLocalPosition),
                 SerializeVector(runtime.interactionRendererLocalScale),
-                runtime.prefabNames == null ? string.Empty : string.Join(",", runtime.prefabNames)
+                runtime.prefabName ?? string.Empty
             });
         }
 
@@ -210,16 +210,14 @@ namespace StreetQuestRPG
                 : activeAppearance.id;
             if (!string.IsNullOrWhiteSpace(activeAppearance.visualObjectName))
                 resolved.visualObjectName = activeAppearance.visualObjectName;
-            if (!string.IsNullOrWhiteSpace(activeAppearance.fallbackLabel))
-                resolved.fallbackLabel = activeAppearance.fallbackLabel;
             if (!string.IsNullOrWhiteSpace(activeAppearance.gender))
                 resolved.gender = activeAppearance.gender;
             if (activeAppearance.ageInDays > 0)
                 resolved.ageInDays = activeAppearance.ageInDays;
             if (activeAppearance.appearanceSeed != 0)
                 resolved.appearanceSeed = activeAppearance.appearanceSeed;
-            if (activeAppearance.prefabNames != null && activeAppearance.prefabNames.Length > 0)
-                resolved.prefabNames = activeAppearance.prefabNames;
+            if (!string.IsNullOrWhiteSpace(activeAppearance.prefabName))
+                resolved.prefabName = activeAppearance.prefabName;
             if (activeAppearance.localPosition != null)
                 resolved.localPosition = activeAppearance.localPosition;
             if (activeAppearance.localEulerAngles != null)
@@ -253,14 +251,13 @@ namespace StreetQuestRPG
                 visualObjectName = definition.visualObjectName,
                 overlayHeaderKey = definition.overlayHeaderKey,
                 ctaKey = definition.ctaKey,
-                fallbackLabel = definition.fallbackLabel,
                 defaultAppearanceId = definition.defaultAppearanceId,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,
                 appearanceSeed = definition.appearanceSeed,
                 enabled = definition.enabled,
                 useFixedSpawnPosition = definition.useFixedSpawnPosition,
-                prefabNames = definition.prefabNames,
+                prefabName = definition.prefabName,
                 position = definition.position,
                 forward = definition.forward,
                 localPosition = definition.localPosition,
