@@ -49,7 +49,6 @@ namespace StreetQuestRPG
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Dictionary<string, int> OriginalDialogTypesByAddress = new();
-        private static readonly Dictionary<int, PatchedItemDialogTarget> OriginalDialogTypesByItemTarget = new();
         private static readonly object LogSync = new();
         private static readonly string PreferredWorkspaceLogDirectory =
             @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Logs\Mods";
@@ -65,23 +64,11 @@ namespace StreetQuestRPG
         public const string MackNameKey = "streetquest:mack_name";
 
         public static readonly Address MackAddress = new("ba:street_secondavenue", 6);
-        public static readonly string[] ExperimentalItemHostNames =
-        {
-            "ba:itemname_casinoblackjacktable",
-            "ba:itemname_casinoroulettetable",
-            "ba:itemname_casinoslotmachine"
-        };
 
         public static StreetQuestPhysicalQuestGiverInstallResult TryInstallPhysicalQuestGiver(CallDialogType dialogType)
         {
             LogDebug($"TryInstallPhysicalQuestGiver start dialogType={dialogType}");
             var result = StreetQuestPhysicalQuestGiverInstallResult.None;
-            foreach (var itemHostName in ExperimentalItemHostNames)
-            {
-                if (TryOverrideRuntimeItemDialog(itemHostName, dialogType))
-                    result |= StreetQuestPhysicalQuestGiverInstallResult.RuntimeItem;
-            }
-
             if (TryOverrideSpecialServiceDialog(MackAddress, dialogType))
                 result |= StreetQuestPhysicalQuestGiverInstallResult.SpecialService;
 

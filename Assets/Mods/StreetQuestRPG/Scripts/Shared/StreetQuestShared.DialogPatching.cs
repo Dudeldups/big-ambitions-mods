@@ -27,27 +27,6 @@ namespace StreetQuestRPG
             LogDebug("RestorePatchedDialogs start");
             DestroySpawnedOutdoorQuestGiver();
 
-            foreach (var patchedTarget in OriginalDialogTypesByItemTarget.Values.ToList())
-            {
-                if (patchedTarget.Target == null)
-                    continue;
-
-                try
-                {
-                    SetMemberValue(
-                        patchedTarget.Target,
-                        patchedTarget.MemberName,
-                        (CallDialogType)patchedTarget.OriginalDialogType);
-                }
-                catch (Exception exception)
-                {
-                    Debug.LogWarning(
-                        $"StreetQuestRPG: Failed to restore item dialog for {patchedTarget.ItemName}. {exception}");
-                }
-            }
-
-            OriginalDialogTypesByItemTarget.Clear();
-
             foreach (var originalDialogType in OriginalDialogTypesByAddress.ToList())
             {
                 var splitIndex = originalDialogType.Key.LastIndexOf(':');
@@ -109,47 +88,6 @@ namespace StreetQuestRPG
         }
 
 
-        private static bool TryOverrideRuntimeItemDialog(
-            string itemName,
-            CallDialogType dialogType,
-            bool preserveOriginal = true)
-        {
-            if (string.IsNullOrEmpty(itemName))
-                return false;
-
-            var patchedAny = false;
-            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
-            {
-                if (behaviour == null)
-                    continue;
-
-                if (!string.Equals(GetMemberValue(behaviour, "itemName") as string, itemName, StringComparison.Ordinal))
-                    continue;
-
-                var currentDialogValue = GetMemberValue(behaviour, "callDialogType");
-                if (currentDialogValue == null)
-                    continue;
-
-                var instanceId = behaviour.GetInstanceID();
-                if (preserveOriginal && !OriginalDialogTypesByItemTarget.ContainsKey(instanceId))
-                {
-                    OriginalDialogTypesByItemTarget[instanceId] = new PatchedItemDialogTarget
-                    {
-                        ItemName = itemName,
-                        MemberName = "callDialogType",
-                        OriginalDialogType = Convert.ToInt32(currentDialogValue),
-                        Target = behaviour
-                    };
-                }
-
-                if (SetMemberValue(behaviour, "callDialogType", dialogType))
-                    patchedAny = true;
-            }
-
-            return patchedAny;
-        }
-
-
         internal static void TryOpenQuestDialog(CallDialogType dialogType)
         {
             try
@@ -192,14 +130,5 @@ namespace StreetQuestRPG
 
 
         private static string GetAddressKey(Address address) => $"{address.streetName}:{address.streetNumber}";
-
-
-        private sealed class PatchedItemDialogTarget
-        {
-            public string ItemName { get; set; } = string.Empty;
-            public string MemberName { get; set; } = string.Empty;
-            public int OriginalDialogType { get; set; }
-            public object Target { get; set; }
-        }
     }
 }

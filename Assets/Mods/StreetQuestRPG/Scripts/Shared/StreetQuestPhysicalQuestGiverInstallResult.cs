@@ -23,7 +23,6 @@ namespace StreetQuestRPG
     internal enum StreetQuestPhysicalQuestGiverInstallResult
     {
         None = 0,
-        RuntimeItem = 1 << 0,
-        SpecialService = 1 << 1
+        SpecialService = 1 << 0
     }
 }
