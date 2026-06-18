@@ -179,21 +179,16 @@ namespace StreetQuestRPG
             {
                 CachedQuestStateOwner = null;
                 CachedQuestStateRecord = null;
-                LogDebug("GetQuestStateRecord returning new record: modData missing");
                 return new StreetQuestQuestStateRecord();
             }
 
             if (ReferenceEquals(CachedQuestStateOwner, saveGame) && CachedQuestStateRecord != null)
-            {
-                LogDebug($"GetQuestStateRecord cache hit questId={CachedQuestStateRecord.CurrentQuestId} state={CachedQuestStateRecord.CurrentQuestState} completed={CachedQuestStateRecord.CompletedQuestIds.Count} flags={CachedQuestStateRecord.StoryFlags.Count} tokens={CachedQuestStateRecord.ObjectiveTokens.Count}");
                 return CachedQuestStateRecord;
-            }
 
             if (!saveGame.modData.TryGetValue(QuestStateModDataKey, out var serializedRecord))
             {
                 CachedQuestStateOwner = saveGame;
                 CachedQuestStateRecord = new StreetQuestQuestStateRecord();
-                LogDebug("GetQuestStateRecord returning new record: modData key missing");
                 return CachedQuestStateRecord;
             }
 
@@ -211,7 +206,6 @@ namespace StreetQuestRPG
 
                 CachedQuestStateOwner = saveGame;
                 CachedQuestStateRecord = record;
-                LogDebug($"GetQuestStateRecord loaded questId={record.CurrentQuestId} state={record.CurrentQuestState} completed={record.CompletedQuestIds.Count} flags={record.StoryFlags.Count} tokens={record.ObjectiveTokens.Count}");
                 return record;
             }
             catch (Exception exception)
