@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace StreetQuestRPG
 {
+    [DefaultExecutionOrder(-10000)]
     internal sealed class StreetQuestPhysicalQuestGiverWatcher : MonoBehaviour
     {
         private const float SpawnRetryIntervalSeconds = 2f;
@@ -30,12 +31,6 @@ namespace StreetQuestRPG
             _debugOverlay?.TickToggle();
             if (_debugOverlay != null && _debugOverlay.ShouldBlockGameplayInput())
                 Input.ResetInputAxes();
-
-            if (Input.GetKeyDown(KeyCode.F8))
-                StreetQuestShared.LogCoordinateSnapshot();
-
-            if (Input.GetKeyDown(KeyCode.F9))
-                StreetQuestShared.MoveSpawnedQuestGiverToPlayer();
 
             if (!_spawnEnsured && _elapsedSeconds >= _nextSpawnRetryAtSeconds)
             {
