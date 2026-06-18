@@ -574,6 +574,14 @@ function Install-ModOutput {
         Copy-DirectoryUpdate -Source $config -Destination $configTarget
         Write-Step ("Copied Config path: " + $configTarget)
     }
+
+    $personIcon = Join-Path $Mod.SourceDir "person.png"
+    if (Test-Path -LiteralPath $personIcon -PathType Leaf) {
+        $personIconTarget = Join-Path $installRoot "person.png"
+        New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
+        Copy-ItemWithRetry -Source $personIcon -Destination $personIconTarget
+        Write-Step ("Copied marker icon path: " + $personIconTarget)
+    }
 }
 
 function Test-BuiltDll {

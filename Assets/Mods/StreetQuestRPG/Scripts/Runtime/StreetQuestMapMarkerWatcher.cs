@@ -13,6 +13,7 @@ namespace StreetQuestRPG
     [DefaultExecutionOrder(-9990)]
     internal sealed class StreetQuestMapMarkerWatcher : MonoBehaviour
     {
+        private static readonly bool EnableMarkerDebugLogging = false;
         private const bool PreferNativePoiMarkers = false;
         private const float UpdateIntervalSeconds = 0f;
         private const float MarkerVerticalOffset = 0f;
@@ -42,8 +43,7 @@ namespace StreetQuestRPG
             "poi",
             "point"
         };
-        private static readonly string MarkerIconPath =
-            @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Assets\Mods\StreetQuestRPG\TestIcon.png";
+        private const string MarkerIconFileName = "person.png";
 
         private float _elapsedSeconds;
         private float _nextRefreshAtSeconds;
@@ -139,7 +139,7 @@ namespace StreetQuestRPG
                 if (!string.Equals(_lastCalibrationSnapshot, calibrationSnapshot, StringComparison.Ordinal))
                 {
                     _lastCalibrationSnapshot = calibrationSnapshot;
-                    StreetQuestShared.LogDebug(
+                    DebugLog(
                         $"Map marker calibration scaleX={_calibration.scaleX:F4} offsetX={_calibration.offsetX:F2} scaleY={_calibration.scaleY:F4} offsetY={_calibration.offsetY:F2}");
                 }
                 return;
@@ -187,7 +187,7 @@ namespace StreetQuestRPG
                 _markerAnchoredVelocities.Remove(existing);
                 _markerVisibilityStates.Remove(existing);
                 _markerStatusReasons.Remove(existing);
-                StreetQuestShared.LogDebug($"Map marker removed characterId={existing}");
+                DebugLog($"Map marker removed characterId={existing}");
             }
 
             foreach (var characterId in knownCharacterIds)
@@ -283,7 +283,7 @@ namespace StreetQuestRPG
             var template = ResolvePoiMarkerTemplate();
             if (template == null)
             {
-                StreetQuestShared.LogDebug($"Map marker template missing for characterId={characterId}");
+                DebugLog($"Map marker template missing for characterId={characterId}");
                 return null;
             }
 
@@ -308,11 +308,11 @@ namespace StreetQuestRPG
                 image.raycastTarget = false;
                 image.preserveAspect = true;
                 image.enabled = true;
-                StreetQuestShared.LogDebug($"Map marker visual fallback=plain_image characterId={characterId}");
+                DebugLog($"Map marker visual fallback=plain_image characterId={characterId}");
             }
 
             _markerRoots[characterId] = rectTransform;
-            StreetQuestShared.LogDebug(
+            DebugLog(
                 $"Map marker created characterId={characterId} template={template.name} anchorMin={FormatVector2(template.anchorMin)} anchorMax={FormatVector2(template.anchorMax)} pivot={FormatVector2(template.pivot)} size={FormatVector2(template.sizeDelta)}");
             return rectTransform;
         }
@@ -350,7 +350,7 @@ namespace StreetQuestRPG
             TryInvokeMethod(poiComponent, "Initialize");
             ConfigureNativePoiComponent(poiComponent, characterId, worldPosition);
             _nativePoiComponents[characterId] = poiComponent;
-            StreetQuestShared.LogDebug($"Native POI created characterId={characterId} template={template.name}");
+            DebugLog($"Native POI created characterId={characterId} template={template.name}");
             return true;
         }
 
@@ -376,7 +376,7 @@ namespace StreetQuestRPG
             var targetTransform = ResolveNativePoiTargetTransform(characterId);
             if (targetTransform == null)
             {
-                StreetQuestShared.LogDebug($"Native POI target missing characterId={characterId} world={FormatVector3(worldPosition)}");
+                DebugLog($"Native POI target missing characterId={characterId} world={FormatVector3(worldPosition)}");
                 return;
             }
 
@@ -392,7 +392,7 @@ namespace StreetQuestRPG
 
             TryInvokeMethod(poiComponent, "UpdatePosition");
             _nativePoiLastTargetPositions[characterId] = targetTransform.position;
-            StreetQuestShared.LogDebug($"Native POI configured characterId={characterId} target={FormatMemberValue(targetTransform)} hidden=False permanent=True initialized=True");
+            DebugLog($"Native POI configured characterId={characterId} target={FormatMemberValue(targetTransform)} hidden=False permanent=True initialized=True");
         }
 
         private Transform ResolveNativePoiTargetTransform(string characterId)
@@ -421,7 +421,7 @@ namespace StreetQuestRPG
                 anchorTransform = anchorObject.transform;
                 anchorTransform.SetParent(targetParent, worldPositionStays: false);
                 _nativePoiTargetAnchors[characterId] = anchorTransform;
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     $"Native POI anchor created characterId={characterId} parent={GetHierarchyPath(targetParent)}");
             }
 
@@ -515,7 +515,7 @@ namespace StreetQuestRPG
                 ApplyCustomMarkerIcon(blobCloneObject.transform);
             }
 
-            StreetQuestShared.LogDebug($"Map marker visual source=vanilla_blob template={template.name}");
+            DebugLog($"Map marker visual source=vanilla_blob template={template.name}");
             return true;
         }
 
@@ -593,14 +593,14 @@ namespace StreetQuestRPG
                     continue;
 
                 _poiMarkerTemplate = childRect;
-                StreetQuestShared.LogDebug($"Resolved map marker template: {GetHierarchyPath(childRect)}");
+                DebugLog($"Resolved map marker template: {GetHierarchyPath(childRect)}");
                 return _poiMarkerTemplate;
             }
 
             if (fallbackTemplate != null)
             {
                 _poiMarkerTemplate = fallbackTemplate;
-                StreetQuestShared.LogDebug($"Resolved fallback map marker template: {GetHierarchyPath(fallbackTemplate)}");
+                DebugLog($"Resolved fallback map marker template: {GetHierarchyPath(fallbackTemplate)}");
                 return _poiMarkerTemplate;
             }
 
@@ -657,7 +657,7 @@ namespace StreetQuestRPG
                 }
 
                 _nativePoiTemplate = childRect;
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     $"Resolved native POI runtime template: {GetHierarchyPath(childRect)} target={targetPath}");
                 return _nativePoiTemplate;
             }
@@ -665,13 +665,13 @@ namespace StreetQuestRPG
             if (fallbackTemplate != null)
             {
                 _nativePoiTemplate = fallbackTemplate;
-                StreetQuestShared.LogDebug($"Resolved native POI fallback template: {GetHierarchyPath(_nativePoiTemplate)}");
+                DebugLog($"Resolved native POI fallback template: {GetHierarchyPath(_nativePoiTemplate)}");
                 return _nativePoiTemplate;
             }
 
             _nativePoiTemplate = ResolvePoiMarkerTemplate();
             if (_nativePoiTemplate != null)
-                StreetQuestShared.LogDebug($"Resolved native POI last-resort template: {GetHierarchyPath(_nativePoiTemplate)}");
+                DebugLog($"Resolved native POI last-resort template: {GetHierarchyPath(_nativePoiTemplate)}");
 
             return _nativePoiTemplate;
         }
@@ -703,7 +703,7 @@ namespace StreetQuestRPG
                 if (!string.Equals(_lastPoiRootPath, hierarchyPath, StringComparison.Ordinal))
                 {
                     _lastPoiRootPath = hierarchyPath;
-                    StreetQuestShared.LogDebug($"Resolved POI root: {hierarchyPath}");
+                    DebugLog($"Resolved POI root: {hierarchyPath}");
                 }
                 return true;
             }
@@ -728,7 +728,7 @@ namespace StreetQuestRPG
             _streetQuestRoot.sizeDelta = poiRoot.rect.size;
             _streetQuestRoot.anchoredPosition = Vector2.zero;
             _streetQuestRoot.SetAsLastSibling();
-            StreetQuestShared.LogDebug($"Created StreetQuest POI root under {GetHierarchyPath(poiRoot)} size={FormatVector2(_streetQuestRoot.sizeDelta)}");
+            DebugLog($"Created StreetQuest POI root under {GetHierarchyPath(poiRoot)} size={FormatVector2(_streetQuestRoot.sizeDelta)}");
         }
 
         private Sprite GetMarkerSprite()
@@ -736,11 +736,12 @@ namespace StreetQuestRPG
             if (_markerSprite != null)
                 return _markerSprite;
 
-            if (File.Exists(MarkerIconPath))
+            var markerIconPath = ResolveInstalledMarkerIconPath();
+            if (!string.IsNullOrWhiteSpace(markerIconPath) && File.Exists(markerIconPath))
             {
                 try
                 {
-                    var bytes = File.ReadAllBytes(MarkerIconPath);
+                    var bytes = File.ReadAllBytes(markerIconPath);
                     var iconTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                     iconTexture.filterMode = FilterMode.Bilinear;
                     if (iconTexture.LoadImage(bytes, false))
@@ -750,21 +751,21 @@ namespace StreetQuestRPG
                             new Rect(0f, 0f, iconTexture.width, iconTexture.height),
                             new Vector2(0.5f, 0.5f),
                             100f);
-                        StreetQuestShared.LogDebug(
-                            $"Loaded marker sprite from TestIcon.png size={iconTexture.width}x{iconTexture.height}");
+                        DebugLog(
+                            $"Loaded marker sprite from {MarkerIconFileName} size={iconTexture.width}x{iconTexture.height}");
                         return _markerSprite;
                     }
                 }
                 catch (Exception exception)
                 {
-                    StreetQuestShared.LogDebug($"Failed loading marker sprite from TestIcon.png: {exception.Message}");
+                    StreetQuestShared.LogDebug($"Failed loading marker sprite from {MarkerIconFileName}: {exception.Message}");
                 }
             }
 
             _markerSprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/UISprite.psd");
             if (_markerSprite != null)
             {
-                StreetQuestShared.LogDebug("Loaded built-in UI sprite for map marker.");
+                DebugLog("Loaded built-in UI sprite for map marker.");
                 return _markerSprite;
             }
 
@@ -779,8 +780,28 @@ namespace StreetQuestRPG
 
             texture.Apply(false, false);
             _markerSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
-            StreetQuestShared.LogDebug("Loaded fallback solid sprite for map marker.");
+            DebugLog("Loaded fallback solid sprite for map marker.");
             return _markerSprite;
+        }
+
+        private static string ResolveInstalledMarkerIconPath()
+        {
+            try
+            {
+                var assemblyLocation = Assembly.GetExecutingAssembly().Location;
+                if (string.IsNullOrWhiteSpace(assemblyLocation))
+                    return null;
+
+                var modDirectory = Path.GetDirectoryName(assemblyLocation);
+                if (string.IsNullOrWhiteSpace(modDirectory))
+                    return null;
+
+                return Path.Combine(modDirectory, MarkerIconFileName);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private bool TryBuildCalibration(RectTransform poiRoot, out CalibrationData calibration)
@@ -836,7 +857,7 @@ namespace StreetQuestRPG
                 offsetY = minUiY - (((maxUiY - minUiY) / (maxWorldZ - minWorldZ)) * minWorldZ)
             };
 
-            StreetQuestShared.LogDebug(
+            DebugLog(
                 $"Map marker calibration succeeded samples={samples.Count} scaleX={calibration.scaleX:F4} scaleY={calibration.scaleY:F4}");
             return true;
         }
@@ -1293,7 +1314,7 @@ namespace StreetQuestRPG
 
             Destroy(markerRoot.gameObject);
             _markerRoots.Remove(characterId);
-            StreetQuestShared.LogDebug($"Destroyed custom marker root characterId={characterId}");
+            DebugLog($"Destroyed custom marker root characterId={characterId}");
         }
 
         private void DestroyMarkerImages()
@@ -1340,7 +1361,7 @@ namespace StreetQuestRPG
                 return;
 
             _lastLifecycleState = state;
-            StreetQuestShared.LogDebug($"MapMarkerWatcher: {state}");
+            DebugLog($"MapMarkerWatcher: {state}");
         }
 
         private void LogKnownCharacters(IReadOnlyCollection<string> knownCharacterIds)
@@ -1353,7 +1374,7 @@ namespace StreetQuestRPG
                 return;
 
             _lastKnownCharacterSnapshot = snapshot;
-            StreetQuestShared.LogDebug($"Map marker known NPCs: {snapshot}");
+            DebugLog($"Map marker known NPCs: {snapshot}");
         }
 
         private void LogMarkerState(string characterId, bool isVisible, string reason)
@@ -1366,16 +1387,27 @@ namespace StreetQuestRPG
 
             _markerVisibilityStates[characterId] = isVisible;
             _markerStatusReasons[characterId] = reason;
-            StreetQuestShared.LogDebug($"Map marker characterId={characterId} visible={isVisible} reason={reason}");
+            DebugLog($"Map marker characterId={characterId} visible={isVisible} reason={reason}");
         }
 
         private void MaybeLogVerbose(string message)
         {
+            if (!EnableMarkerDebugLogging)
+                return;
+
             if (_elapsedSeconds < _nextVerboseLogAtSeconds)
                 return;
 
             _nextVerboseLogAtSeconds = _elapsedSeconds + 2f;
             StreetQuestShared.LogDebug($"MapMarkerWatcher: {message}");
+        }
+
+        private static void DebugLog(string message)
+        {
+            if (!EnableMarkerDebugLogging || string.IsNullOrWhiteSpace(message))
+                return;
+
+            StreetQuestShared.LogDebug(message);
         }
 
         private static string FormatVector2(Vector2 value)
