@@ -1,27 +1,28 @@
 using System;
+using System.Runtime.Serialization;
 
 namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestCharacterAppearanceDefinition
     {
-        public string id;
-        public string visualObjectName;
-        public string fallbackLabel;
-        public string gender;
-        public int ageInDays;
-        public int appearanceSeed;
-        public string[] prefabNames;
-        public StreetQuestVector3Data localPosition;
-        public StreetQuestVector3Data localEulerAngles;
-        public StreetQuestVector3Data localScale;
-        public StreetQuestVector3Data colliderCenterWithPrefab;
-        public StreetQuestVector3Data colliderSizeWithPrefab;
-        public StreetQuestVector3Data colliderCenterFallback;
-        public StreetQuestVector3Data colliderSizeFallback;
-        public StreetQuestVector3Data interactionRendererLocalPosition;
-        public StreetQuestVector3Data interactionRendererLocalScale;
+        [DataMember] public string id;
+        [DataMember] public string visualObjectName;
+        [DataMember] public string fallbackLabel;
+        [DataMember] public string gender;
+        [DataMember] public int ageInDays;
+        [DataMember] public int appearanceSeed;
+        [DataMember] public string[] prefabNames;
+        [DataMember] public StreetQuestVector3Data localPosition;
+        [DataMember] public StreetQuestVector3Data localEulerAngles;
+        [DataMember] public StreetQuestVector3Data localScale;
+        [DataMember] public StreetQuestVector3Data colliderCenterWithPrefab;
+        [DataMember] public StreetQuestVector3Data colliderSizeWithPrefab;
+        [DataMember] public StreetQuestVector3Data colliderCenterFallback;
+        [DataMember] public StreetQuestVector3Data colliderSizeFallback;
+        [DataMember] public StreetQuestVector3Data interactionRendererLocalPosition;
+        [DataMember] public StreetQuestVector3Data interactionRendererLocalScale;
     }
 #pragma warning restore CS0649
 }

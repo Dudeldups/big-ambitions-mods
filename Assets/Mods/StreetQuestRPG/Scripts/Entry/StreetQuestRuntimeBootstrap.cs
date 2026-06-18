@@ -21,8 +21,10 @@ namespace StreetQuestRPG
             StreetQuestShared.InitializeDebugLogging(context, source);
             _modRootPath = context.ModRootPath;
             _logger = context.Logger;
-            StreetQuestCharacterCatalog.Initialize(_modRootPath, _logger);
-            StreetQuestQuestCatalog.Initialize(_modRootPath, _logger);
+            StreetQuestCharacterCatalog.Reload(_modRootPath, _logger);
+            StreetQuestQuestCatalog.Reload(_modRootPath, _logger);
+            _dialogsRegistered = false;
+            StreetQuestShared.LogBootstrapState($"Configure source={source}");
         }
 
         public static void EnsureWatcher()
@@ -42,8 +44,15 @@ namespace StreetQuestRPG
 
         public static bool EnsureCityRuntimeReady()
         {
+            if (string.IsNullOrWhiteSpace(_modRootPath))
+            {
+                StreetQuestShared.LogBootstrapState("EnsureCityRuntimeReady skipped: modRootPath missing");
+                return false;
+            }
+
             StreetQuestCharacterCatalog.Initialize(_modRootPath, _logger);
             StreetQuestQuestCatalog.Initialize(_modRootPath, _logger);
+            StreetQuestShared.LogBootstrapState("EnsureCityRuntimeReady after initialize");
 
             StreetQuestShared.CleanupLegacyContacts();
             RegisterDialogs();

@@ -1,32 +1,33 @@
 using System;
+using System.Runtime.Serialization;
 
 namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestQuestDefinition
     {
-        public string id;
-        public string giverCharacterId;
-        public string turnInCharacterId;
-        public string previousQuestId;
-        public string nextQuestId;
-        public string[] nextQuestIds;
-        public string[] requiredQuestIds;
-        public string[] requiredStoryFlags;
-        public StreetQuestQuestFavorRequirementDefinition[] requiredFavors;
-        public StreetQuestQuestObjectiveDefinition[] objectives;
-        public StreetQuestQuestRewardDefinition[] rewards;
-        public string[] acceptedStoryFlags;
-        public string[] completedStoryFlags;
-        public string offerTextKey;
-        public string activeTextKey;
-        public string readyTextKey;
-        public string acceptedPlayerMessageKey;
-        public string acceptedManagerMessageKey;
-        public string completedPlayerMessageKey;
-        public string completedManagerMessageKey;
-        public bool enabled = true;
+        [DataMember] public string id;
+        [DataMember] public string giverCharacterId;
+        [DataMember] public string turnInCharacterId;
+        [DataMember] public string previousQuestId;
+        [DataMember] public string nextQuestId;
+        [DataMember] public string[] nextQuestIds;
+        [DataMember] public string[] requiredQuestIds;
+        [DataMember] public string[] requiredStoryFlags;
+        [DataMember] public StreetQuestQuestFavorRequirementDefinition[] requiredFavors;
+        [DataMember] public StreetQuestQuestObjectiveDefinition[] objectives;
+        [DataMember] public StreetQuestQuestRewardDefinition[] rewards;
+        [DataMember] public string[] acceptedStoryFlags;
+        [DataMember] public string[] completedStoryFlags;
+        [DataMember] public string offerTextKey;
+        [DataMember] public string activeTextKey;
+        [DataMember] public string readyTextKey;
+        [DataMember] public string acceptedPlayerMessageKey;
+        [DataMember] public string acceptedManagerMessageKey;
+        [DataMember] public string completedPlayerMessageKey;
+        [DataMember] public string completedManagerMessageKey;
+        [DataMember] public bool enabled = true;
 
         public string Id => id;
         public string GiverCharacterId => giverCharacterId;

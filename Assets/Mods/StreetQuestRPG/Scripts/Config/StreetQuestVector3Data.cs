@@ -1,14 +1,15 @@
 using System;
+using System.Runtime.Serialization;
 using UnityEngine;
 
 namespace StreetQuestRPG
 {
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestVector3Data
     {
-        public float x;
-        public float y;
-        public float z;
+        [DataMember] public float x;
+        [DataMember] public float y;
+        [DataMember] public float z;
 
         public StreetQuestVector3Data()
         {

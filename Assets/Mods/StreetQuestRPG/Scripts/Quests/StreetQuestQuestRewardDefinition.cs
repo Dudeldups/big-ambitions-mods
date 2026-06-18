@@ -1,15 +1,16 @@
 using System;
+using System.Runtime.Serialization;
 
 namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestQuestRewardDefinition
     {
-        public string type;
-        public int amount;
-        public string storyFlagId;
-        public string characterId;
+        [DataMember] public string type;
+        [DataMember] public int amount;
+        [DataMember] public string storyFlagId;
+        [DataMember] public string characterId;
 
         public int Amount => amount;
         public string StoryFlagId => storyFlagId;

@@ -133,5 +133,26 @@ namespace StreetQuestRPG
             {
             }
         }
+
+
+        public static void LogBootstrapState(string source)
+        {
+            try
+            {
+                var characterCount = StreetQuestCharacterCatalog.All.Count;
+                var questCount = StreetQuestQuestCatalog.All.Count;
+                LogDebug($"BootstrapState source={source} characters={characterCount} quests={questCount}");
+            }
+            catch (Exception exception)
+            {
+                LogDebug($"BootstrapState source={source} failed: {exception}");
+            }
+        }
+
+
+        public static void LogConfigLoadFailure(string configType, string path, Exception exception)
+        {
+            LogDebug($"ConfigLoadFailure type={configType} path={path} exception={exception}");
+        }
     }
 }

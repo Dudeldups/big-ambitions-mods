@@ -1,51 +1,52 @@
 using System;
 using System.Linq;
+using System.Runtime.Serialization;
 using UnityEngine;
 
 namespace StreetQuestRPG
 {
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestCharacterDefinition
     {
-        public string id;
-        public string displayName;
-        public string nameKey;
-        public string contactId;
-        public string dialogTypeKey;
-        public string gameObjectName;
-        public string visualObjectName;
-        public string overlayHeaderKey;
-        public string ctaKey;
-        public string fallbackLabel;
-        public string defaultAppearanceId;
-        public string gender;
-        public int ageInDays;
-        public int appearanceSeed;
-        public bool enabled = true;
-        public bool useFixedSpawnPosition = true;
-        public string[] prefabNames;
-        public StreetQuestVector3Data position;
-        public StreetQuestVector3Data forward;
-        public StreetQuestVector3Data localPosition;
-        public StreetQuestVector3Data localEulerAngles;
-        public StreetQuestVector3Data localScale;
-        public StreetQuestVector3Data navTargetLocalOffset;
-        public StreetQuestVector3Data sellerPositionLocalOffset;
-        public StreetQuestVector3Data colliderCenterWithPrefab;
-        public StreetQuestVector3Data colliderSizeWithPrefab;
-        public StreetQuestVector3Data colliderCenterFallback;
-        public StreetQuestVector3Data colliderSizeFallback;
-        public StreetQuestVector3Data interactionRendererLocalPosition;
-        public StreetQuestVector3Data interactionRendererLocalScale;
-        public StreetQuestCharacterAppearanceDefinition[] appearances;
-        public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
-        public StreetQuestCharacterStateDefinition[] states;
-        public string introStageOneTextKey;
-        public string introStageOneConfirmTextKey;
-        public string introStageOneCompletedFlagId;
-        public string introStageTwoTextKey;
-        public string introStageTwoConfirmTextKey;
-        public string introStageTwoCompletedFlagId;
+        [DataMember] public string id;
+        [DataMember] public string displayName;
+        [DataMember] public string nameKey;
+        [DataMember] public string contactId;
+        [DataMember] public string dialogTypeKey;
+        [DataMember] public string gameObjectName;
+        [DataMember] public string visualObjectName;
+        [DataMember] public string overlayHeaderKey;
+        [DataMember] public string ctaKey;
+        [DataMember] public string fallbackLabel;
+        [DataMember] public string defaultAppearanceId;
+        [DataMember] public string gender;
+        [DataMember] public int ageInDays;
+        [DataMember] public int appearanceSeed;
+        [DataMember] public bool enabled = true;
+        [DataMember] public bool useFixedSpawnPosition = true;
+        [DataMember] public string[] prefabNames;
+        [DataMember] public StreetQuestVector3Data position;
+        [DataMember] public StreetQuestVector3Data forward;
+        [DataMember] public StreetQuestVector3Data localPosition;
+        [DataMember] public StreetQuestVector3Data localEulerAngles;
+        [DataMember] public StreetQuestVector3Data localScale;
+        [DataMember] public StreetQuestVector3Data navTargetLocalOffset;
+        [DataMember] public StreetQuestVector3Data sellerPositionLocalOffset;
+        [DataMember] public StreetQuestVector3Data colliderCenterWithPrefab;
+        [DataMember] public StreetQuestVector3Data colliderSizeWithPrefab;
+        [DataMember] public StreetQuestVector3Data colliderCenterFallback;
+        [DataMember] public StreetQuestVector3Data colliderSizeFallback;
+        [DataMember] public StreetQuestVector3Data interactionRendererLocalPosition;
+        [DataMember] public StreetQuestVector3Data interactionRendererLocalScale;
+        [DataMember] public StreetQuestCharacterAppearanceDefinition[] appearances;
+        [DataMember] public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
+        [DataMember] public StreetQuestCharacterStateDefinition[] states;
+        [DataMember] public string introStageOneTextKey;
+        [DataMember] public string introStageOneConfirmTextKey;
+        [DataMember] public string introStageOneCompletedFlagId;
+        [DataMember] public string introStageTwoTextKey;
+        [DataMember] public string introStageTwoConfirmTextKey;
+        [DataMember] public string introStageTwoCompletedFlagId;
 
         public bool HasPrefabNames => prefabNames != null && prefabNames.Any(value => !string.IsNullOrWhiteSpace(value));
 

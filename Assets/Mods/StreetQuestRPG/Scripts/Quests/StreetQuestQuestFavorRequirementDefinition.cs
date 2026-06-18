@@ -1,14 +1,15 @@
 using System;
+using System.Runtime.Serialization;
 
 namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestQuestFavorRequirementDefinition
     {
-        public string characterId;
-        public int minValue = -100;
-        public int maxValue = 100;
+        [DataMember] public string characterId;
+        [DataMember] public int minValue = -100;
+        [DataMember] public int maxValue = 100;
 
         public string CharacterId => characterId;
         public int MinValue => minValue < -100 ? -100 : minValue;

@@ -31,8 +31,7 @@ namespace StreetQuestRPG
             {
                 try
                 {
-                    var json = File.ReadAllText(configPath);
-                    var loadedFile = UnityEngine.JsonUtility.FromJson<StreetQuestCharacterConfigFile>(json);
+                    var loadedFile = StreetQuestJsonFileLoader.Load<StreetQuestCharacterConfigFile>(configPath);
                     if (loadedFile?.characters != null)
                     {
                         foreach (var definition in loadedFile.characters.Where(value => value != null))
@@ -42,10 +41,12 @@ namespace StreetQuestRPG
                         }
                     }
 
+                    StreetQuestShared.LogBootstrapState($"CharacterCatalog.Initialize path={configPath} loaded={loadedFile?.characters?.Length ?? 0}");
                     logger?.Info($"StreetQuestRPG: Loaded character config from {configPath}. Characters={CharactersById.Count}");
                 }
                 catch (Exception exception)
                 {
+                    StreetQuestShared.LogBootstrapState($"CharacterCatalog.Initialize failed path={configPath}");
                     logger?.Warn($"StreetQuestRPG: Failed to load character config from {configPath}. Character catalog will stay empty. {exception}");
                 }
             }

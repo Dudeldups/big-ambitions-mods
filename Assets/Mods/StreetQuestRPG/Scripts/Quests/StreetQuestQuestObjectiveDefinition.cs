@@ -1,23 +1,24 @@
 using System;
+using System.Runtime.Serialization;
 
 namespace StreetQuestRPG
 {
 #pragma warning disable CS0649
-    [Serializable]
+    [Serializable, DataContract]
     internal sealed class StreetQuestQuestObjectiveDefinition
     {
-        public string id;
-        public string type;
-        public string itemName;
-        public int amount = 1;
-        public string characterId;
-        public string questId;
-        public string storyFlagId;
-        public string inventorySource;
-        public string locationId;
-        public StreetQuestVector3Data worldPosition;
-        public float radius = 2.5f;
-        public string progressTextKey;
+        [DataMember] public string id;
+        [DataMember] public string type;
+        [DataMember] public string itemName;
+        [DataMember] public int amount = 1;
+        [DataMember] public string characterId;
+        [DataMember] public string questId;
+        [DataMember] public string storyFlagId;
+        [DataMember] public string inventorySource;
+        [DataMember] public string locationId;
+        [DataMember] public StreetQuestVector3Data worldPosition;
+        [DataMember] public float radius = 2.5f;
+        [DataMember] public string progressTextKey;
 
         public string Id => string.IsNullOrWhiteSpace(id) ? "objective" : id;
         public string ItemName => itemName;

@@ -44,8 +44,7 @@ namespace StreetQuestRPG
             {
                 try
                 {
-                    var json = File.ReadAllText(configPath);
-                    var loadedFile = UnityEngine.JsonUtility.FromJson<StreetQuestQuestConfigFile>(json);
+                    var loadedFile = StreetQuestJsonFileLoader.Load<StreetQuestQuestConfigFile>(configPath);
                     if (loadedFile?.quests != null)
                     {
                         foreach (var quest in loadedFile.quests.Where(value => value != null))
@@ -55,10 +54,12 @@ namespace StreetQuestRPG
                         }
                     }
 
+                    StreetQuestShared.LogBootstrapState($"QuestCatalog.Initialize path={configPath} loaded={loadedFile?.quests?.Length ?? 0}");
                     logger?.Info($"StreetQuestRPG: Loaded quest config from {configPath}. Quests={QuestsById.Count}");
                 }
                 catch (Exception exception)
                 {
+                    StreetQuestShared.LogBootstrapState($"QuestCatalog.Initialize failed path={configPath}");
                     logger?.Warn($"StreetQuestRPG: Failed to load quest config from {configPath}. Quest catalog will stay empty. {exception}");
                 }
             }
