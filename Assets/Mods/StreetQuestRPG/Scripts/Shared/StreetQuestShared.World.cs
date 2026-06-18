@@ -72,31 +72,6 @@ namespace StreetQuestRPG
         }
 
 
-        public static string ResolveActiveAppearanceId(StreetQuestCharacterDefinition character)
-        {
-            if (character == null)
-                return null;
-
-            if (character.appearanceFlagMappings != null)
-            {
-                foreach (var mapping in character.appearanceFlagMappings)
-                {
-                    if (mapping == null ||
-                        string.IsNullOrWhiteSpace(mapping.storyFlagId) ||
-                        string.IsNullOrWhiteSpace(mapping.appearanceId))
-                    {
-                        continue;
-                    }
-
-                    if (HasStoryFlag(mapping.storyFlagId))
-                        return mapping.appearanceId;
-                }
-            }
-
-            return character.defaultAppearanceId;
-        }
-
-
         public static bool IsObjectiveSatisfiedForDebug(
             StreetQuestQuestDefinition quest,
             StreetQuestQuestObjectiveDefinition objective)
@@ -107,7 +82,8 @@ namespace StreetQuestRPG
 
         public static bool TeleportPlayerToCharacter(string characterId)
         {
-            var character = StreetQuestCharacterCatalog.Get(characterId);
+            var character = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(
+                StreetQuestCharacterCatalog.Get(characterId));
             var playerController = PlayerHelper.PlayerController;
             if (character == null || playerController == null)
                 return false;

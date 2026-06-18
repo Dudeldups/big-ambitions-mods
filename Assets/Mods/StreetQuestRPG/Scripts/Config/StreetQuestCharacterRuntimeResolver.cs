@@ -1,0 +1,298 @@
+using System;
+using System.Linq;
+using UnityEngine;
+
+namespace StreetQuestRPG
+{
+    internal static class StreetQuestCharacterRuntimeResolver
+    {
+        public static StreetQuestCharacterDefinition ResolveRuntimeDefinition(StreetQuestCharacterDefinition definition)
+        {
+            if (definition == null)
+                return null;
+
+            var resolved = CloneDefinition(definition);
+            var activeState = ResolveActiveState(definition);
+            if (activeState != null)
+                ApplyStateOverrides(resolved, activeState);
+
+            var activeAppearanceId = ResolveActiveAppearanceId(definition, activeState);
+            var activeAppearance = definition.FindAppearance(activeAppearanceId);
+            if (activeAppearance != null)
+                ApplyAppearanceOverrides(resolved, activeAppearance);
+
+            return resolved;
+        }
+
+        public static StreetQuestCharacterStateDefinition ResolveActiveState(StreetQuestCharacterDefinition definition)
+        {
+            if (definition?.states == null || definition.states.Length == 0)
+                return null;
+
+            var record = StreetQuestShared.GetQuestStateSnapshot();
+            foreach (var state in definition.states.Where(value => value != null))
+            {
+                if (StateMatches(state, record))
+                    return state;
+            }
+
+            return null;
+        }
+
+        public static string ResolveActiveAppearanceId(
+            StreetQuestCharacterDefinition character,
+            StreetQuestCharacterStateDefinition activeState = null)
+        {
+            if (character == null)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(activeState?.appearanceId))
+                return activeState.appearanceId;
+
+            if (character.appearanceFlagMappings != null)
+            {
+                foreach (var mapping in character.appearanceFlagMappings)
+                {
+                    if (mapping == null ||
+                        string.IsNullOrWhiteSpace(mapping.storyFlagId) ||
+                        string.IsNullOrWhiteSpace(mapping.appearanceId))
+                    {
+                        continue;
+                    }
+
+                    if (StreetQuestShared.HasStoryFlag(mapping.storyFlagId))
+                        return mapping.appearanceId;
+                }
+            }
+
+            return character.defaultAppearanceId;
+        }
+
+        public static string BuildRuntimeStateSignature(StreetQuestCharacterDefinition definition)
+        {
+            var runtime = ResolveRuntimeDefinition(definition);
+            if (runtime == null)
+                return string.Empty;
+
+            return string.Join("|", new[]
+            {
+                runtime.enabled.ToString(),
+                runtime.useFixedSpawnPosition.ToString(),
+                runtime.defaultAppearanceId ?? string.Empty,
+                runtime.gender ?? string.Empty,
+                runtime.ageInDays.ToString(),
+                runtime.appearanceSeed.ToString(),
+                SerializeVector(runtime.position),
+                SerializeVector(runtime.forward),
+                SerializeVector(runtime.localPosition),
+                SerializeVector(runtime.localEulerAngles),
+                SerializeVector(runtime.localScale),
+                SerializeVector(runtime.navTargetLocalOffset),
+                SerializeVector(runtime.sellerPositionLocalOffset),
+                SerializeVector(runtime.colliderCenterWithPrefab),
+                SerializeVector(runtime.colliderSizeWithPrefab),
+                SerializeVector(runtime.colliderCenterFallback),
+                SerializeVector(runtime.colliderSizeFallback),
+                SerializeVector(runtime.interactionRendererLocalPosition),
+                SerializeVector(runtime.interactionRendererLocalScale),
+                runtime.prefabNames == null ? string.Empty : string.Join(",", runtime.prefabNames)
+            });
+        }
+
+        private static bool StateMatches(
+            StreetQuestCharacterStateDefinition state,
+            StreetQuestQuestStateRecord record)
+        {
+            if (state == null)
+                return false;
+
+            if (state.requiredStoryFlags != null &&
+                state.requiredStoryFlags.Any(flagId =>
+                    !string.IsNullOrWhiteSpace(flagId) &&
+                    !StreetQuestShared.HasStoryFlag(flagId)))
+            {
+                return false;
+            }
+
+            if (state.forbiddenStoryFlags != null &&
+                state.forbiddenStoryFlags.Any(flagId =>
+                    !string.IsNullOrWhiteSpace(flagId) &&
+                    StreetQuestShared.HasStoryFlag(flagId)))
+            {
+                return false;
+            }
+
+            if (record != null)
+            {
+                if (state.requiredCompletedQuestIds != null &&
+                    state.requiredCompletedQuestIds.Any(questId =>
+                        !string.IsNullOrWhiteSpace(questId) &&
+                        !record.CompletedQuestIds.Contains(questId)))
+                {
+                    return false;
+                }
+
+                if (state.forbiddenCompletedQuestIds != null &&
+                    state.forbiddenCompletedQuestIds.Any(questId =>
+                        !string.IsNullOrWhiteSpace(questId) &&
+                        record.CompletedQuestIds.Contains(questId)))
+                {
+                    return false;
+                }
+
+                if (state.requiredFavors != null &&
+                    state.requiredFavors.Any(requirement =>
+                        requirement != null &&
+                        (record.GetFavor(requirement.CharacterId) < requirement.MinValue ||
+                         record.GetFavor(requirement.CharacterId) > requirement.MaxValue)))
+                {
+                    return false;
+                }
+            }
+            else if (state.requiredCompletedQuestIds?.Length > 0 || state.requiredFavors?.Length > 0)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static void ApplyStateOverrides(
+            StreetQuestCharacterDefinition resolved,
+            StreetQuestCharacterStateDefinition state)
+        {
+            if (resolved == null || state == null)
+                return;
+
+            if (state.overrideEnabled)
+                resolved.enabled = state.enabled;
+            if (state.overrideUseFixedSpawnPosition)
+                resolved.useFixedSpawnPosition = state.useFixedSpawnPosition;
+            if (!string.IsNullOrWhiteSpace(state.appearanceId))
+                resolved.defaultAppearanceId = state.appearanceId;
+            if (state.position != null)
+                resolved.position = state.position;
+            if (state.forward != null)
+                resolved.forward = state.forward;
+            if (state.localPosition != null)
+                resolved.localPosition = state.localPosition;
+            if (state.localEulerAngles != null)
+                resolved.localEulerAngles = state.localEulerAngles;
+            if (state.localScale != null)
+                resolved.localScale = state.localScale;
+            if (state.navTargetLocalOffset != null)
+                resolved.navTargetLocalOffset = state.navTargetLocalOffset;
+            if (state.sellerPositionLocalOffset != null)
+                resolved.sellerPositionLocalOffset = state.sellerPositionLocalOffset;
+            if (state.colliderCenterWithPrefab != null)
+                resolved.colliderCenterWithPrefab = state.colliderCenterWithPrefab;
+            if (state.colliderSizeWithPrefab != null)
+                resolved.colliderSizeWithPrefab = state.colliderSizeWithPrefab;
+            if (state.colliderCenterFallback != null)
+                resolved.colliderCenterFallback = state.colliderCenterFallback;
+            if (state.colliderSizeFallback != null)
+                resolved.colliderSizeFallback = state.colliderSizeFallback;
+            if (state.interactionRendererLocalPosition != null)
+                resolved.interactionRendererLocalPosition = state.interactionRendererLocalPosition;
+            if (state.interactionRendererLocalScale != null)
+                resolved.interactionRendererLocalScale = state.interactionRendererLocalScale;
+        }
+
+        private static void ApplyAppearanceOverrides(
+            StreetQuestCharacterDefinition resolved,
+            StreetQuestCharacterAppearanceDefinition activeAppearance)
+        {
+            if (resolved == null || activeAppearance == null)
+                return;
+
+            resolved.defaultAppearanceId = string.IsNullOrWhiteSpace(activeAppearance.id)
+                ? resolved.defaultAppearanceId
+                : activeAppearance.id;
+            if (!string.IsNullOrWhiteSpace(activeAppearance.visualObjectName))
+                resolved.visualObjectName = activeAppearance.visualObjectName;
+            if (!string.IsNullOrWhiteSpace(activeAppearance.fallbackLabel))
+                resolved.fallbackLabel = activeAppearance.fallbackLabel;
+            if (!string.IsNullOrWhiteSpace(activeAppearance.gender))
+                resolved.gender = activeAppearance.gender;
+            if (activeAppearance.ageInDays > 0)
+                resolved.ageInDays = activeAppearance.ageInDays;
+            if (activeAppearance.appearanceSeed != 0)
+                resolved.appearanceSeed = activeAppearance.appearanceSeed;
+            if (activeAppearance.prefabNames != null && activeAppearance.prefabNames.Length > 0)
+                resolved.prefabNames = activeAppearance.prefabNames;
+            if (activeAppearance.localPosition != null)
+                resolved.localPosition = activeAppearance.localPosition;
+            if (activeAppearance.localEulerAngles != null)
+                resolved.localEulerAngles = activeAppearance.localEulerAngles;
+            if (activeAppearance.localScale != null)
+                resolved.localScale = activeAppearance.localScale;
+            if (activeAppearance.colliderCenterWithPrefab != null)
+                resolved.colliderCenterWithPrefab = activeAppearance.colliderCenterWithPrefab;
+            if (activeAppearance.colliderSizeWithPrefab != null)
+                resolved.colliderSizeWithPrefab = activeAppearance.colliderSizeWithPrefab;
+            if (activeAppearance.colliderCenterFallback != null)
+                resolved.colliderCenterFallback = activeAppearance.colliderCenterFallback;
+            if (activeAppearance.colliderSizeFallback != null)
+                resolved.colliderSizeFallback = activeAppearance.colliderSizeFallback;
+            if (activeAppearance.interactionRendererLocalPosition != null)
+                resolved.interactionRendererLocalPosition = activeAppearance.interactionRendererLocalPosition;
+            if (activeAppearance.interactionRendererLocalScale != null)
+                resolved.interactionRendererLocalScale = activeAppearance.interactionRendererLocalScale;
+        }
+
+        private static StreetQuestCharacterDefinition CloneDefinition(StreetQuestCharacterDefinition definition)
+        {
+            return new StreetQuestCharacterDefinition
+            {
+                id = definition.id,
+                displayName = definition.displayName,
+                nameKey = definition.nameKey,
+                contactId = definition.contactId,
+                dialogTypeKey = definition.dialogTypeKey,
+                gameObjectName = definition.gameObjectName,
+                visualObjectName = definition.visualObjectName,
+                overlayHeaderKey = definition.overlayHeaderKey,
+                ctaKey = definition.ctaKey,
+                fallbackLabel = definition.fallbackLabel,
+                defaultAppearanceId = definition.defaultAppearanceId,
+                gender = definition.gender,
+                ageInDays = definition.ageInDays,
+                appearanceSeed = definition.appearanceSeed,
+                enabled = definition.enabled,
+                useFixedSpawnPosition = definition.useFixedSpawnPosition,
+                prefabNames = definition.prefabNames,
+                position = definition.position,
+                forward = definition.forward,
+                localPosition = definition.localPosition,
+                localEulerAngles = definition.localEulerAngles,
+                localScale = definition.localScale,
+                navTargetLocalOffset = definition.navTargetLocalOffset,
+                sellerPositionLocalOffset = definition.sellerPositionLocalOffset,
+                colliderCenterWithPrefab = definition.colliderCenterWithPrefab,
+                colliderSizeWithPrefab = definition.colliderSizeWithPrefab,
+                colliderCenterFallback = definition.colliderCenterFallback,
+                colliderSizeFallback = definition.colliderSizeFallback,
+                interactionRendererLocalPosition = definition.interactionRendererLocalPosition,
+                interactionRendererLocalScale = definition.interactionRendererLocalScale,
+                appearances = definition.appearances,
+                appearanceFlagMappings = definition.appearanceFlagMappings,
+                states = definition.states,
+                introStageOneTextKey = definition.introStageOneTextKey,
+                introStageOneConfirmTextKey = definition.introStageOneConfirmTextKey,
+                introStageOneCompletedFlagId = definition.introStageOneCompletedFlagId,
+                introStageTwoTextKey = definition.introStageTwoTextKey,
+                introStageTwoConfirmTextKey = definition.introStageTwoConfirmTextKey,
+                introStageTwoCompletedFlagId = definition.introStageTwoCompletedFlagId
+            };
+        }
+
+        private static string SerializeVector(StreetQuestVector3Data value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            var vector = value.ToVector3();
+            return $"{vector.x:F3},{vector.y:F3},{vector.z:F3}";
+        }
+    }
+}

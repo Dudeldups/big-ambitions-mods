@@ -16,7 +16,7 @@ namespace StreetQuestRPG
         public static GameObject CreateHost(StreetQuestCharacterDefinition definition, Transform parent = null)
         {
             definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            definition = ResolveRuntimeDefinition(definition);
+            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             var root = new GameObject(string.IsNullOrWhiteSpace(definition.gameObjectName)
                 ? $"StreetQuestRPG.Character.{definition.id}"
                 : definition.gameObjectName);
@@ -42,7 +42,7 @@ namespace StreetQuestRPG
                 return false;
 
             definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            definition = ResolveRuntimeDefinition(definition);
+            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             if (!definition.HasPrefabNames)
                 return false;
 
@@ -86,7 +86,7 @@ namespace StreetQuestRPG
                 return null;
 
             definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            definition = ResolveRuntimeDefinition(definition);
+            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             var proxy = GameObject.CreatePrimitive(PrimitiveType.Cube);
             proxy.name = "InteractionRendererProxy";
             proxy.transform.SetParent(parent, false);
@@ -128,7 +128,7 @@ namespace StreetQuestRPG
                 return;
 
             definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            definition = ResolveRuntimeDefinition(definition);
+            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             var countertop = CreateVisualBlock(
                 parent,
                 "Countertop",
@@ -165,7 +165,7 @@ namespace StreetQuestRPG
                 return null;
 
             definition ??= StreetQuestCharacterCatalog.GetDefaultQuestGiver();
-            definition = ResolveRuntimeDefinition(definition);
+            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             var collider = root.AddComponent<BoxCollider>();
             collider.center = visualPrefabAttached
                 ? definition.ColliderCenterWithPrefabOr(new Vector3(0f, 1.05f, -0.05f))
@@ -284,96 +284,6 @@ namespace StreetQuestRPG
                 return gender;
 
             return Gender.Male;
-        }
-
-        private static StreetQuestCharacterDefinition ResolveRuntimeDefinition(StreetQuestCharacterDefinition definition)
-        {
-            if (definition == null)
-                return null;
-
-            var resolved = CloneDefinition(definition);
-            var activeAppearanceId = StreetQuestShared.ResolveActiveAppearanceId(definition);
-            var activeAppearance = definition.FindAppearance(activeAppearanceId);
-            if (activeAppearance == null)
-                return resolved;
-
-            if (!string.IsNullOrWhiteSpace(activeAppearance.visualObjectName))
-                resolved.visualObjectName = activeAppearance.visualObjectName;
-            if (!string.IsNullOrWhiteSpace(activeAppearance.fallbackLabel))
-                resolved.fallbackLabel = activeAppearance.fallbackLabel;
-            if (!string.IsNullOrWhiteSpace(activeAppearance.gender))
-                resolved.gender = activeAppearance.gender;
-            if (activeAppearance.ageInDays > 0)
-                resolved.ageInDays = activeAppearance.ageInDays;
-            if (activeAppearance.appearanceSeed != 0)
-                resolved.appearanceSeed = activeAppearance.appearanceSeed;
-            if (activeAppearance.prefabNames != null && activeAppearance.prefabNames.Length > 0)
-                resolved.prefabNames = activeAppearance.prefabNames;
-            if (activeAppearance.localPosition != null)
-                resolved.localPosition = activeAppearance.localPosition;
-            if (activeAppearance.localEulerAngles != null)
-                resolved.localEulerAngles = activeAppearance.localEulerAngles;
-            if (activeAppearance.localScale != null)
-                resolved.localScale = activeAppearance.localScale;
-            if (activeAppearance.colliderCenterWithPrefab != null)
-                resolved.colliderCenterWithPrefab = activeAppearance.colliderCenterWithPrefab;
-            if (activeAppearance.colliderSizeWithPrefab != null)
-                resolved.colliderSizeWithPrefab = activeAppearance.colliderSizeWithPrefab;
-            if (activeAppearance.colliderCenterFallback != null)
-                resolved.colliderCenterFallback = activeAppearance.colliderCenterFallback;
-            if (activeAppearance.colliderSizeFallback != null)
-                resolved.colliderSizeFallback = activeAppearance.colliderSizeFallback;
-            if (activeAppearance.interactionRendererLocalPosition != null)
-                resolved.interactionRendererLocalPosition = activeAppearance.interactionRendererLocalPosition;
-            if (activeAppearance.interactionRendererLocalScale != null)
-                resolved.interactionRendererLocalScale = activeAppearance.interactionRendererLocalScale;
-
-            return resolved;
-        }
-
-        private static StreetQuestCharacterDefinition CloneDefinition(StreetQuestCharacterDefinition definition)
-        {
-            return new StreetQuestCharacterDefinition
-            {
-                id = definition.id,
-                displayName = definition.displayName,
-                nameKey = definition.nameKey,
-                contactId = definition.contactId,
-                dialogTypeKey = definition.dialogTypeKey,
-                gameObjectName = definition.gameObjectName,
-                visualObjectName = definition.visualObjectName,
-                overlayHeaderKey = definition.overlayHeaderKey,
-                ctaKey = definition.ctaKey,
-                fallbackLabel = definition.fallbackLabel,
-                defaultAppearanceId = definition.defaultAppearanceId,
-                gender = definition.gender,
-                ageInDays = definition.ageInDays,
-                appearanceSeed = definition.appearanceSeed,
-                enabled = definition.enabled,
-                useFixedSpawnPosition = definition.useFixedSpawnPosition,
-                prefabNames = definition.prefabNames,
-                position = definition.position,
-                forward = definition.forward,
-                localPosition = definition.localPosition,
-                localEulerAngles = definition.localEulerAngles,
-                localScale = definition.localScale,
-                navTargetLocalOffset = definition.navTargetLocalOffset,
-                sellerPositionLocalOffset = definition.sellerPositionLocalOffset,
-                colliderCenterWithPrefab = definition.colliderCenterWithPrefab,
-                colliderSizeWithPrefab = definition.colliderSizeWithPrefab,
-                colliderCenterFallback = definition.colliderCenterFallback,
-                colliderSizeFallback = definition.colliderSizeFallback,
-                interactionRendererLocalPosition = definition.interactionRendererLocalPosition,
-                interactionRendererLocalScale = definition.interactionRendererLocalScale,
-                appearances = definition.appearances,
-                appearanceFlagMappings = definition.appearanceFlagMappings,
-                introStageOneTextKey = definition.introStageOneTextKey,
-                introStageOneConfirmTextKey = definition.introStageOneConfirmTextKey,
-                introStageOneCompletedFlagId = definition.introStageOneCompletedFlagId,
-                introStageTwoTextKey = definition.introStageTwoTextKey,
-                introStageTwoConfirmTextKey = definition.introStageTwoConfirmTextKey,
-                introStageTwoCompletedFlagId = definition.introStageTwoCompletedFlagId
-            };
         }
 
         private static GameObject CreateVisualBlock(

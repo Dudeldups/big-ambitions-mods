@@ -167,6 +167,17 @@ namespace StreetQuestRPG
                         ageInDays = 42 * 365,
                         appearanceSeed = 104729
                     }
+                },
+                states = new[]
+                {
+                    new StreetQuestCharacterStateDefinition
+                    {
+                        id = "mack_apartment",
+                        requiredStoryFlags = new[] { "streetquest:flag_mack_apartment" },
+                        appearanceId = "apartment_mack",
+                        position = new StreetQuestVector3Data(301.58f, 0.09f, -188.47f),
+                        forward = new StreetQuestVector3Data(0f, 0f, -1f)
+                    }
                 }
             };
         }

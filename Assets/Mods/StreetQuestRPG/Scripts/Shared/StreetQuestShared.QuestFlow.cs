@@ -37,6 +37,7 @@ namespace StreetQuestRPG
                 record.IntroStage = HomelessIntroStageCanOfferQuest;
             record.AddStoryFlags(quest.AcceptedStoryFlags);
             SaveQuestStateRecord(record);
+            RefreshSpawnedCharacters();
             return true;
         }
 
@@ -95,6 +96,7 @@ namespace StreetQuestRPG
             }
 
             SaveQuestStateRecord(record);
+            RefreshSpawnedCharacters();
             ShowRewardSummaryNotification(rewardSummary);
             return true;
         }

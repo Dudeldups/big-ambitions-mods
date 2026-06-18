@@ -39,6 +39,7 @@ namespace StreetQuestRPG
         public StreetQuestVector3Data interactionRendererLocalScale;
         public StreetQuestCharacterAppearanceDefinition[] appearances;
         public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
+        public StreetQuestCharacterStateDefinition[] states;
         public string introStageOneTextKey;
         public string introStageOneConfirmTextKey;
         public string introStageOneCompletedFlagId;
@@ -107,6 +108,7 @@ namespace StreetQuestRPG
             interactionRendererLocalScale ??= fallback.interactionRendererLocalScale;
             appearances ??= fallback.appearances;
             appearanceFlagMappings ??= fallback.appearanceFlagMappings;
+            states ??= fallback.states;
         }
     }
 }

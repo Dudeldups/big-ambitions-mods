@@ -78,6 +78,7 @@ namespace StreetQuestRPG
             if (stage >= HomelessIntroStageCanOfferQuest)
                 record.AddStoryFlag("streetquest:flag_mack_offer_unlocked");
             SaveQuestStateRecord(record);
+            RefreshSpawnedCharacters();
         }
 
 
@@ -106,6 +107,7 @@ namespace StreetQuestRPG
                 return;
 
             SaveQuestStateRecord(record);
+            RefreshSpawnedCharacters();
         }
 
 
@@ -120,7 +122,10 @@ namespace StreetQuestRPG
                 changed |= record.AddStoryFlag(storyFlagId);
 
             if (changed)
+            {
                 SaveQuestStateRecord(record);
+                RefreshSpawnedCharacters();
+            }
         }
 
 
@@ -137,6 +142,7 @@ namespace StreetQuestRPG
                 return false;
 
             SaveQuestStateRecord(record);
+            RefreshSpawnedCharacters();
             return true;
         }
 
@@ -148,6 +154,7 @@ namespace StreetQuestRPG
                 return false;
 
             SaveQuestStateRecord(record);
+            RefreshSpawnedCharacters();
             return true;
         }
 

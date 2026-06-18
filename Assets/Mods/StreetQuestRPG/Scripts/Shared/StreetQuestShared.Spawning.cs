@@ -27,7 +27,7 @@ namespace StreetQuestRPG
             RemoveLegacyQuestGiverCtaBehaviors();
             EnsureQuestGiverCtaBehaviorInstalled();
             var spawnedAny = false;
-            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null))
             {
                 spawnedAny |= EnsureSpawnedCharacter(character);
             }
@@ -36,17 +36,38 @@ namespace StreetQuestRPG
         }
 
 
+        public static void RefreshSpawnedCharacters()
+        {
+            EnsureSpawnedOutdoorQuestGiver();
+        }
+
+
         private static bool EnsureSpawnedCharacter(StreetQuestCharacterDefinition character)
         {
             if (character == null || string.IsNullOrWhiteSpace(character.id))
                 return false;
 
+            var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
+            if (runtimeDefinition == null)
+                return false;
+
+            if (!runtimeDefinition.enabled)
+            {
+                DestroySpawnedCharacter(character.id);
+                return false;
+            }
+
+            var stateSignature = StreetQuestCharacterRuntimeResolver.BuildRuntimeStateSignature(character);
             if (SpawnedCharacterRoots.TryGetValue(character.id, out var existingRoot) &&
                 existingRoot != null &&
                 SpawnedCharacterControllers.TryGetValue(character.id, out var existingController) &&
                 existingController != null)
             {
-                return true;
+                if (SpawnedCharacterStateSignatures.TryGetValue(character.id, out var existingSignature) &&
+                    string.Equals(existingSignature, stateSignature, StringComparison.Ordinal))
+                    return true;
+
+                DestroySpawnedCharacter(character.id);
             }
 
             try
@@ -58,40 +79,40 @@ namespace StreetQuestRPG
                     return false;
                 }
 
-                var spawnPosition = GetQuestGiverSpawnPosition(character);
+                var spawnPosition = GetQuestGiverSpawnPosition(runtimeDefinition);
                 if (!spawnPosition.HasValue)
                     return false;
 
                 var playerController = PlayerHelper.PlayerController;
-                var facingForward = character.useFixedSpawnPosition
-                    ? FlattenDirection(character.ForwardOr(FixedForward))
+                var facingForward = runtimeDefinition.useFixedSpawnPosition
+                    ? FlattenDirection(runtimeDefinition.ForwardOr(FixedForward))
                     : playerController != null
                         ? FlattenDirection(playerController.transform.forward)
                         : Vector3.forward;
                 if (facingForward.sqrMagnitude < 0.001f)
                     facingForward = Vector3.forward;
 
-                var rootName = string.IsNullOrWhiteSpace(character.gameObjectName)
+                var rootName = string.IsNullOrWhiteSpace(runtimeDefinition.gameObjectName)
                     ? $"{SpawnedQuestGiverName}.{character.id}"
-                    : character.gameObjectName;
+                    : runtimeDefinition.gameObjectName;
                 var root = new GameObject(rootName);
                 root.name = rootName;
                 root.transform.position = spawnPosition.Value;
                 root.transform.rotation = Quaternion.LookRotation(-facingForward, Vector3.up);
 
-                var hasVisual = StreetQuestCharacterCreator.TryAttachPrefabVisual(root.transform, character, out var _);
+                var hasVisual = StreetQuestCharacterCreator.TryAttachPrefabVisual(root.transform, runtimeDefinition, out var _);
                 if (!hasVisual)
-                    StreetQuestCharacterCreator.BuildFallbackStandVisual(root.transform, character);
+                    StreetQuestCharacterCreator.BuildFallbackStandVisual(root.transform, runtimeDefinition);
 
                 var interactionRenderer = StreetQuestCharacterCreator.CreateInvisibleInteractionRendererProxy(
                     root.transform,
-                    character) ?? CreateInteractionRendererProxy(root.transform);
+                    runtimeDefinition) ?? CreateInteractionRendererProxy(root.transform);
 
-                StreetQuestCharacterCreator.AddInteractionCollider(root, character, hasVisual);
+                StreetQuestCharacterCreator.AddInteractionCollider(root, runtimeDefinition, hasVisual);
 
                 var navTarget = new GameObject("NavMeshTarget").transform;
                 navTarget.SetParent(root.transform, false);
-                navTarget.localPosition = character.NavTargetLocalOffsetOr(NavTargetLocalOffset);
+                navTarget.localPosition = runtimeDefinition.NavTargetLocalOffsetOr(NavTargetLocalOffset);
 
                 var sellerStandController = (Component)root.AddComponent(sellerStandControllerType);
                 SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
@@ -100,7 +121,7 @@ namespace StreetQuestRPG
                 SetMemberValue(
                     sellerStandController,
                     "customOverlayHeaderKey",
-                    string.IsNullOrWhiteSpace(character.overlayHeaderKey) ? SellerStandOverlayHeaderKey : character.overlayHeaderKey);
+                    string.IsNullOrWhiteSpace(runtimeDefinition.overlayHeaderKey) ? SellerStandOverlayHeaderKey : runtimeDefinition.overlayHeaderKey);
                 SetMemberValue(sellerStandController, "blockOutline", true);
                 SetMemberValue(sellerStandController, "renderers", new[] { interactionRenderer });
                 SetMemberValue(sellerStandController, "navMeshTargets", new[] { navTarget });
@@ -109,13 +130,14 @@ namespace StreetQuestRPG
                 {
                     var sellerPosition = new GameObject("SellerPosition").transform;
                     sellerPosition.SetParent(root.transform, false);
-                    sellerPosition.localPosition = character.SellerPositionLocalOffsetOr(SellerPositionLocalOffset);
+                    sellerPosition.localPosition = runtimeDefinition.SellerPositionLocalOffsetOr(SellerPositionLocalOffset);
                     SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
                 }
 
                 InvokeParameterlessMethod(sellerStandController, "Show");
                 SpawnedCharacterRoots[character.id] = root;
                 SpawnedCharacterControllers[character.id] = sellerStandController;
+                SpawnedCharacterStateSignatures[character.id] = stateSignature;
                 CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
                 LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
                 return true;
@@ -204,6 +226,7 @@ namespace StreetQuestRPG
 
             SpawnedCharacterRoots.Remove(characterId);
             SpawnedCharacterControllers.Remove(characterId);
+            SpawnedCharacterStateSignatures.Remove(characterId);
         }
 
 
