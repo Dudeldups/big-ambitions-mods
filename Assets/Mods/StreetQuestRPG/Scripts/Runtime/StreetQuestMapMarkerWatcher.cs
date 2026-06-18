@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -41,6 +42,8 @@ namespace StreetQuestRPG
             "poi",
             "point"
         };
+        private static readonly string MarkerIconPath =
+            @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Assets\Mods\StreetQuestRPG\TestIcon.png";
 
         private float _elapsedSeconds;
         private float _nextRefreshAtSeconds;
@@ -61,9 +64,8 @@ namespace StreetQuestRPG
         private string _lastLifecycleState;
         private string _lastKnownCharacterSnapshot;
         private string _lastPoiRootPath;
+        private string _lastCalibrationSnapshot;
         private float _nextVerboseLogAtSeconds;
-        private bool _dumpedPoiSampleDiagnostics;
-        private bool _dumpedPoiRuntimeDiagnostics;
         private RectTransform _poiMarkerTemplate;
         private RectTransform _nativePoiTemplate;
         private Transform _nativePoiTargetParent;
@@ -84,9 +86,8 @@ namespace StreetQuestRPG
             _lastLifecycleState = null;
             _lastKnownCharacterSnapshot = null;
             _lastPoiRootPath = null;
+            _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
-            _dumpedPoiSampleDiagnostics = false;
-            _dumpedPoiRuntimeDiagnostics = false;
             DestroyLingeringStreetQuestMapObjects();
             DestroyMarkerImages();
         }
@@ -122,8 +123,6 @@ namespace StreetQuestRPG
             }
 
             EnsureStreetQuestRoot(poiRoot);
-            DumpPoiDiagnosticsOnce(poiRoot);
-            DumpPoiRuntimeDiagnosticsOnce(poiRoot);
             EnsureCalibration(poiRoot);
             UpdateKnownNpcMarkers();
         }
@@ -135,8 +134,14 @@ namespace StreetQuestRPG
             if (_hasCalibration)
             {
                 _loggedCalibrationFailure = false;
-                MaybeLogVerbose(
-                    $"Using calibration scaleX={_calibration.scaleX:F4} offsetX={_calibration.offsetX:F2} scaleY={_calibration.scaleY:F4} offsetY={_calibration.offsetY:F2}");
+                var calibrationSnapshot =
+                    $"{_calibration.scaleX:F4}|{_calibration.offsetX:F2}|{_calibration.scaleY:F4}|{_calibration.offsetY:F2}";
+                if (!string.Equals(_lastCalibrationSnapshot, calibrationSnapshot, StringComparison.Ordinal))
+                {
+                    _lastCalibrationSnapshot = calibrationSnapshot;
+                    StreetQuestShared.LogDebug(
+                        $"Map marker calibration scaleX={_calibration.scaleX:F4} offsetX={_calibration.offsetX:F2} scaleY={_calibration.scaleY:F4} offsetY={_calibration.offsetY:F2}");
+                }
                 return;
             }
 
@@ -260,7 +265,6 @@ namespace StreetQuestRPG
                 _markerAnchoredPositions[characterId] = currentAnchoredPosition;
                 _markerAnchoredVelocities[characterId] = currentVelocity;
                 markerRoot.gameObject.SetActive(true);
-                MaybeLogMarkerScreenRect(characterId, markerRoot);
                 LogMarkerState(
                     characterId,
                     true,
@@ -711,6 +715,31 @@ namespace StreetQuestRPG
             if (_markerSprite != null)
                 return _markerSprite;
 
+            if (File.Exists(MarkerIconPath))
+            {
+                try
+                {
+                    var bytes = File.ReadAllBytes(MarkerIconPath);
+                    var iconTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    iconTexture.filterMode = FilterMode.Bilinear;
+                    if (iconTexture.LoadImage(bytes, false))
+                    {
+                        _markerSprite = Sprite.Create(
+                            iconTexture,
+                            new Rect(0f, 0f, iconTexture.width, iconTexture.height),
+                            new Vector2(0.5f, 0.5f),
+                            100f);
+                        StreetQuestShared.LogDebug(
+                            $"Loaded marker sprite from TestIcon.png size={iconTexture.width}x{iconTexture.height}");
+                        return _markerSprite;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    StreetQuestShared.LogDebug($"Failed loading marker sprite from TestIcon.png: {exception.Message}");
+                }
+            }
+
             _markerSprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/UISprite.psd");
             if (_markerSprite != null)
             {
@@ -731,60 +760,6 @@ namespace StreetQuestRPG
             _markerSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
             StreetQuestShared.LogDebug("Loaded fallback solid sprite for map marker.");
             return _markerSprite;
-        }
-
-        private void DumpPoiDiagnosticsOnce(RectTransform poiRoot)
-        {
-            if (_dumpedPoiSampleDiagnostics || poiRoot == null)
-                return;
-
-            _dumpedPoiSampleDiagnostics = true;
-
-            try
-            {
-                var childRects = poiRoot.GetComponentsInChildren<RectTransform>(includeInactive: false)
-                    .Where(value => value != null && value != poiRoot && value != _streetQuestRoot)
-                    .Take(8)
-                    .ToArray();
-
-                StreetQuestShared.LogDebug($"POI diagnostic dump start childCount={childRects.Length} root={GetHierarchyPath(poiRoot)}");
-
-                foreach (var childRect in childRects)
-                    LogPoiDiagnosticEntry(childRect);
-            }
-            catch (Exception exception)
-            {
-                StreetQuestShared.LogDebug($"POI diagnostic dump failed: {exception}");
-            }
-        }
-
-        private void DumpPoiRuntimeDiagnosticsOnce(RectTransform poiRoot)
-        {
-            if (_dumpedPoiRuntimeDiagnostics || poiRoot == null)
-                return;
-
-            _dumpedPoiRuntimeDiagnostics = true;
-
-            try
-            {
-                LogTransformComponentChain("POI runtime chain", poiRoot.transform, 3);
-
-                foreach (RectTransform childRect in poiRoot)
-                {
-                    if (childRect == null)
-                        continue;
-
-                    var pointOfInterest = childRect.GetComponent("PointOfInterest");
-                    if (pointOfInterest == null)
-                        continue;
-
-                    LogPointOfInterestRuntime(childRect, pointOfInterest);
-                }
-            }
-            catch (Exception exception)
-            {
-                StreetQuestShared.LogDebug($"POI runtime diagnostic dump failed: {exception}");
-            }
         }
 
         private bool TryBuildCalibration(RectTransform poiRoot, out CalibrationData calibration)
@@ -1024,180 +999,6 @@ namespace StreetQuestRPG
             return false;
         }
 
-        private void LogPoiDiagnosticEntry(RectTransform rectTransform)
-        {
-            var builder = new StringBuilder();
-            builder.Append("POI child: path=");
-            builder.Append(GetHierarchyPath(rectTransform));
-            builder.Append(", anchored=");
-            builder.Append(FormatVector2(rectTransform.anchoredPosition));
-            builder.Append(", size=");
-            builder.Append(FormatVector2(rectTransform.sizeDelta));
-            builder.Append(", components=[");
-
-            var firstComponent = true;
-            foreach (var component in rectTransform.GetComponents<Component>())
-            {
-                if (component == null)
-                    continue;
-
-                if (!firstComponent)
-                    builder.Append("; ");
-
-                firstComponent = false;
-                builder.Append(component.GetType().FullName);
-
-                var interestingMembers = DescribeInterestingMembers(component);
-                if (!string.IsNullOrWhiteSpace(interestingMembers))
-                {
-                    builder.Append(" {");
-                    builder.Append(interestingMembers);
-                    builder.Append("}");
-                }
-            }
-
-            builder.Append(']');
-            StreetQuestShared.LogDebug(builder.ToString());
-
-            if (TryExtractWorldPosition(rectTransform, out var extractedWorldPosition))
-            {
-                StreetQuestShared.LogDebug(
-                    $"POI child extracted world: path={GetHierarchyPath(rectTransform)} world={FormatVector3(extractedWorldPosition)}");
-            }
-            else
-            {
-                StreetQuestShared.LogDebug($"POI child extracted world: path={GetHierarchyPath(rectTransform)} world=<none>");
-            }
-        }
-
-        private string DescribeInterestingMembers(Component component)
-        {
-            var values = new List<string>();
-            var type = component.GetType();
-
-            foreach (var field in type.GetFields(ReflectionFlags))
-            {
-                if (!ShouldInspectMember(field.Name))
-                    continue;
-
-                try
-                {
-                    var value = field.GetValue(component);
-                    values.Add($"{field.Name}={FormatMemberValue(value)}");
-                }
-                catch
-                {
-                }
-            }
-
-            foreach (var property in type.GetProperties(ReflectionFlags))
-            {
-                if (!property.CanRead || property.GetIndexParameters().Length > 0 || !ShouldInspectMember(property.Name))
-                    continue;
-
-                try
-                {
-                    var value = property.GetValue(component, null);
-                    values.Add($"{property.Name}={FormatMemberValue(value)}");
-                }
-                catch
-                {
-                }
-            }
-
-            return string.Join(", ", values.Distinct(StringComparer.Ordinal));
-        }
-
-        private void LogTransformComponentChain(string label, Transform start, int maxDepth)
-        {
-            var depth = 0;
-            for (var current = start; current != null && depth < maxDepth; current = current.parent, depth++)
-            {
-                var componentNames = current.GetComponents<Component>()
-                    .Where(value => value != null)
-                    .Select(value => value.GetType().FullName)
-                    .ToArray();
-                StreetQuestShared.LogDebug(
-                    $"{label}: depth={depth} path={GetHierarchyPath(current)} components=[{string.Join(", ", componentNames)}]");
-            }
-        }
-
-        private void LogPointOfInterestRuntime(RectTransform rectTransform, Component pointOfInterest)
-        {
-            if (rectTransform == null || pointOfInterest == null)
-                return;
-
-            var type = pointOfInterest.GetType();
-            var builder = new StringBuilder();
-            builder.Append("POI runtime: path=");
-            builder.Append(GetHierarchyPath(rectTransform));
-            builder.Append(", type=");
-            builder.Append(type.FullName);
-            builder.Append(", target=");
-            builder.Append(ReadNamedMemberSnapshot(pointOfInterest, "target"));
-            builder.Append(", targetAddress=");
-            builder.Append(ReadNamedMemberSnapshot(pointOfInterest, "targetAddress"));
-            builder.Append(", pointerRectTransform=");
-            builder.Append(ReadNamedMemberSnapshot(pointOfInterest, "pointerRectTransform"));
-            builder.Append(", buildingIcon=");
-            builder.Append(ReadNamedMemberSnapshot(pointOfInterest, "buildingIcon"));
-            StreetQuestShared.LogDebug(builder.ToString());
-
-            var methodNames = type.GetMethods(ReflectionFlags)
-                .Where(method => method != null)
-                .Select(method => method.Name)
-                .Where(name =>
-                    name.IndexOf("target", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("address", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("setup", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("init", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("refresh", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("update", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("create", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("show", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("hide", StringComparison.OrdinalIgnoreCase) >= 0)
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .ToArray();
-
-            StreetQuestShared.LogDebug(
-                $"POI runtime methods type={type.FullName} methods=[{string.Join(", ", methodNames)}]");
-
-            var initializeMethods = type.GetMethods(ReflectionFlags)
-                .Where(method => method != null && string.Equals(method.Name, "Initialize", StringComparison.Ordinal))
-                .ToArray();
-            foreach (var method in initializeMethods)
-            {
-                var parameters = method.GetParameters()
-                    .Select(parameter => $"{parameter.ParameterType.FullName} {parameter.Name}")
-                    .ToArray();
-                StreetQuestShared.LogDebug(
-                    $"POI runtime initialize-signature type={type.FullName} signature={method.ReturnType.FullName} Initialize({string.Join(", ", parameters)})");
-            }
-
-            var fieldSnapshots = type.GetFields(ReflectionFlags)
-                .Where(field => field != null)
-                .Select(field => $"{field.FieldType.FullName} {field.Name}={SafeReadMemberValue(() => field.GetValue(pointOfInterest))}")
-                .ToArray();
-            StreetQuestShared.LogDebug(
-                $"POI runtime fields type={type.FullName} fields=[{string.Join("; ", fieldSnapshots)}]");
-
-            var propertySnapshots = type.GetProperties(ReflectionFlags)
-                .Where(property => property != null && property.GetIndexParameters().Length == 0)
-                .Select(property => $"{property.PropertyType.FullName} {property.Name}={SafeReadMemberValue(() => property.CanRead ? property.GetValue(pointOfInterest, null) : "<write-only>")}")
-                .ToArray();
-            StreetQuestShared.LogDebug(
-                $"POI runtime properties type={type.FullName} properties=[{string.Join("; ", propertySnapshots)}]");
-        }
-
-        private string ReadNamedMemberSnapshot(object instance, string memberName)
-        {
-            if (!TryReadMemberValue(instance, memberName, out var value))
-                return "<missing>";
-
-            return FormatMemberValue(value);
-        }
-
         private static bool SetNamedFieldValue(object instance, string fieldName, object value)
         {
             if (instance == null || string.IsNullOrWhiteSpace(fieldName))
@@ -1235,18 +1036,6 @@ namespace StreetQuestRPG
             catch
             {
                 return false;
-            }
-        }
-
-        private static string SafeReadMemberValue(Func<object> getter)
-        {
-            try
-            {
-                return FormatMemberValue(getter());
-            }
-            catch (Exception exception)
-            {
-                return $"<error:{exception.GetType().Name}>";
             }
         }
 
@@ -1566,23 +1355,6 @@ namespace StreetQuestRPG
 
             _nextVerboseLogAtSeconds = _elapsedSeconds + 2f;
             StreetQuestShared.LogDebug($"MapMarkerWatcher: {message}");
-        }
-
-        private void MaybeLogMarkerScreenRect(string characterId, RectTransform rectTransform)
-        {
-            if (rectTransform == null || string.IsNullOrWhiteSpace(characterId))
-                return;
-
-            if (_elapsedSeconds < _nextVerboseLogAtSeconds)
-                return;
-
-            _nextVerboseLogAtSeconds = _elapsedSeconds + 2f;
-            var corners = new Vector3[4];
-            rectTransform.GetWorldCorners(corners);
-            StreetQuestShared.LogDebug(
-                $"Map marker screenRect characterId={characterId} " +
-                $"bl={FormatVector3(corners[0])} tl={FormatVector3(corners[1])} tr={FormatVector3(corners[2])} br={FormatVector3(corners[3])} " +
-                $"active={rectTransform.gameObject.activeInHierarchy} canvas={rectTransform.GetComponentInParent<Canvas>()?.name ?? "<none>"}");
         }
 
         private static string FormatVector2(Vector2 value)
