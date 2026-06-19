@@ -71,9 +71,13 @@ namespace StreetQuestRPG
         private void DrawWindow(int windowId)
         {
             var playerPosition = StreetQuestShared.GetPlayerWorldPosition();
-            GUILayout.Label(
-                $"Position: {playerPosition.x:0.00}, {playerPosition.y:0.00}, {playerPosition.z:0.00}",
-                _headerStyle);
+            var positionText = FormatVector3(playerPosition);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"Position: {positionText}", _headerStyle);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Copy", _buttonStyle, GUILayout.Width(90f)))
+                CopyCoordinatesToClipboard(positionText);
+            GUILayout.EndHorizontal();
 
             GUILayout.Space(6f);
             DrawTabs();
@@ -139,6 +143,11 @@ namespace StreetQuestRPG
             else
             {
                 GUILayout.Label($"ID: {currentQuest.Id}", _textStyle);
+                GUILayout.Label($"Track: {currentQuest.QuestType}", _textStyle);
+                if (!string.IsNullOrWhiteSpace(currentQuest.QuestLineId))
+                    GUILayout.Label($"Line: {currentQuest.QuestLineId}", _textStyle);
+                if (!string.IsNullOrWhiteSpace(currentQuest.QuestCode))
+                    GUILayout.Label($"Code: {currentQuest.QuestCode}", _textStyle);
                 GUILayout.Label($"Giver: {currentQuest.GiverCharacterId}", _textStyle);
                 GUILayout.Label($"Turn-in: {currentQuest.TurnInCharacterId}", _textStyle);
                 GUILayout.Label($"State: {currentProgress}", _textStyle);
@@ -162,7 +171,18 @@ namespace StreetQuestRPG
             else
             {
                 foreach (var questId in state.CompletedQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
-                    GUILayout.Label(questId, _textStyle);
+                {
+                    var quest = StreetQuestQuestCatalog.Get(questId);
+                    if (quest == null)
+                    {
+                        GUILayout.Label(questId, _textStyle);
+                        continue;
+                    }
+
+                    var lineSuffix = string.IsNullOrWhiteSpace(quest.QuestLineId) ? string.Empty : $" [{quest.QuestLineId}]";
+                    var codePrefix = string.IsNullOrWhiteSpace(quest.QuestCode) ? quest.Id : quest.QuestCode;
+                    GUILayout.Label($"{quest.QuestType}: {codePrefix}{lineSuffix}", _textStyle);
+                }
             }
 
             GUILayout.EndScrollView();
@@ -323,6 +343,15 @@ namespace StreetQuestRPG
         }
 
         private static string FormatVector3(Vector3 value) => $"{value.x:0.00}, {value.y:0.00}, {value.z:0.00}";
+
+        private static void CopyCoordinatesToClipboard(string positionText)
+        {
+            if (string.IsNullOrWhiteSpace(positionText))
+                return;
+
+            GUIUtility.systemCopyBuffer = positionText;
+            StreetQuestShared.NotifyInfo($"Copied coordinates: {positionText}", "streetquest:debug_coordinates_copied", 2.5f);
+        }
 
         private static void DrawObjectiveDebugActions(
             StreetQuestQuestObjectiveDefinition objective,
