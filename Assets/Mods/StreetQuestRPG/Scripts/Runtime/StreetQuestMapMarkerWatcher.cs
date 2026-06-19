@@ -12,7 +12,7 @@ namespace StreetQuestRPG
     [DefaultExecutionOrder(-9990)]
     internal sealed class StreetQuestMapMarkerWatcher : MonoBehaviour
     {
-        private static readonly bool EnableMarkerDebugLogging = true;
+        private static readonly bool EnableMarkerDebugLogging = false;
         private const bool PreferNativePoiMarkers = false;
         private const float UpdateIntervalSeconds = 0f;
         private const float MarkerVerticalOffset = 0f;
@@ -216,7 +216,7 @@ namespace StreetQuestRPG
             if (_loggedCalibrationFailure)
                 return;
 
-            StreetQuestShared.LogDebug(
+            DebugLog(
                 "Map marker calibration failed: could not resolve player POI + map camera projection. " +
                 "NPC map markers are hidden instead of falling back to moving vanilla/player marker samples.");
             _loggedCalibrationFailure = true;
@@ -486,7 +486,7 @@ namespace StreetQuestRPG
             var parent = rowTemplate.parent;
             if (parent == null)
             {
-                StreetQuestShared.LogDebug($"Map filter toggle clone failed: row parent missing for rowTemplate={GetHierarchyPath(rowTemplate)}.");
+                DebugLog($"Map filter toggle clone failed: row parent missing for rowTemplate={GetHierarchyPath(rowTemplate)}.");
                 return;
             }
 
@@ -505,7 +505,7 @@ namespace StreetQuestRPG
             {
                 Destroy(rowObject);
                 _mapFilterRowObject = null;
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     $"Map filter toggle clone failed: cloned row has no Toggle component. rowTemplate={GetHierarchyPath(rowTemplate)} cloneTemplate={GetHierarchyPath(cloneTemplate)}");
                 return;
             }
@@ -520,7 +520,7 @@ namespace StreetQuestRPG
             rowObject.transform.SetSiblingIndex(siblingIndex);
             SetMapFilterVisible(_mapFilterVisible, persist: false);
 
-            StreetQuestShared.LogDebug(
+            DebugLog(
                 $"Map filter toggle created label={MapFilterLabel} persisted={_mapFilterVisible} stableFrames={_mapFilterStableFrames} " +
                 $"templateToggle={(templateToggle != null ? GetHierarchyPath(templateToggle.transform) : "<none>")} " +
                 $"rowTemplate={GetHierarchyPath(rowTemplate)} cloneTemplate={GetHierarchyPath(cloneTemplate)} parent={GetHierarchyPath(parent)} " +
@@ -592,7 +592,7 @@ namespace StreetQuestRPG
                 return;
 
             _nextMapFilterReadinessLogAtSeconds = _elapsedSeconds + 0.5f;
-            StreetQuestShared.LogDebug(message);
+            DebugLog(message);
         }
 
         private void SetMapFilterVisibleFromUi(bool visible)
@@ -616,7 +616,7 @@ namespace StreetQuestRPG
             if (!visible)
                 HideMarkerNameplate();
 
-            StreetQuestShared.LogDebug($"Map filter StreetQuest NPCs visible={visible} persist={persist}");
+            DebugLog($"Map filter StreetQuest NPCs visible={visible} persist={persist}");
         }
 
         private Transform ResolveMapFilterCloneTemplateRow(Transform anchorRow)
@@ -1670,28 +1670,28 @@ namespace StreetQuestRPG
                 }
 
                 _poiMarkerTemplate = childRect;
-                StreetQuestShared.LogDebug($"Resolved map marker template: {GetHierarchyPath(childRect)}");
+                DebugLog($"Resolved map marker template: {GetHierarchyPath(childRect)}");
                 return _poiMarkerTemplate;
             }
 
             if (structuredFallbackTemplate != null)
             {
                 _poiMarkerTemplate = structuredFallbackTemplate;
-                StreetQuestShared.LogDebug($"Resolved structured fallback map marker template: {GetHierarchyPath(structuredFallbackTemplate)}");
+                DebugLog($"Resolved structured fallback map marker template: {GetHierarchyPath(structuredFallbackTemplate)}");
                 return _poiMarkerTemplate;
             }
 
             if (dynamicStructuredTemplate != null)
             {
                 _poiMarkerTemplate = dynamicStructuredTemplate;
-                StreetQuestShared.LogDebug($"Resolved dynamic/player map marker template: {GetHierarchyPath(dynamicStructuredTemplate)}");
+                DebugLog($"Resolved dynamic/player map marker template: {GetHierarchyPath(dynamicStructuredTemplate)}");
                 return _poiMarkerTemplate;
             }
 
             if (fallbackTemplate != null)
             {
                 _poiMarkerTemplate = fallbackTemplate;
-                StreetQuestShared.LogDebug($"Resolved fallback map marker template: {GetHierarchyPath(fallbackTemplate)}");
+                DebugLog($"Resolved fallback map marker template: {GetHierarchyPath(fallbackTemplate)}");
                 return _poiMarkerTemplate;
             }
 
@@ -1881,7 +1881,7 @@ namespace StreetQuestRPG
                 }
                 catch (Exception exception)
                 {
-                    StreetQuestShared.LogDebug($"Failed loading marker sprite from {MarkerIconFileName}: {exception.Message}");
+                    DebugLog($"Failed loading marker sprite from {MarkerIconFileName}: {exception.Message}");
                 }
             }
 
@@ -1967,7 +1967,7 @@ namespace StreetQuestRPG
             if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
             {
                 _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     $"Map marker projection calibration playerWorld={FormatVector3(playerWorldPosition)} " +
                     $"playerUi={FormatVector2(playerAnchoredPosition)} projectedPlayerUi={FormatVector2(projectedPlayerPosition)} " +
                     $"offset={FormatVector2(_projectionOffset)} camera={GetHierarchyPath(projectionCamera.transform)} " +
@@ -2079,7 +2079,7 @@ namespace StreetQuestRPG
             var namedTemplate = _poiRoot.Find("Template") as RectTransform;
             if (namedTemplate != null && namedTemplate.GetComponent("PointOfInterest") != null)
             {
-                StreetQuestShared.LogDebug($"Resolved calibration POI template from named Template: {GetHierarchyPath(namedTemplate)}");
+                DebugLog($"Resolved calibration POI template from named Template: {GetHierarchyPath(namedTemplate)}");
                 return namedTemplate;
             }
 
@@ -2101,12 +2101,12 @@ namespace StreetQuestRPG
                     continue;
                 }
 
-                StreetQuestShared.LogDebug($"Resolved calibration POI template from non-dynamic POI: {GetHierarchyPath(childRect)}");
+                DebugLog($"Resolved calibration POI template from non-dynamic POI: {GetHierarchyPath(childRect)}");
                 return childRect;
             }
 
             if (dynamicTemplate != null)
-                StreetQuestShared.LogDebug($"Resolved calibration POI template from dynamic fallback: {GetHierarchyPath(dynamicTemplate)}");
+                DebugLog($"Resolved calibration POI template from dynamic fallback: {GetHierarchyPath(dynamicTemplate)}");
 
             return dynamicTemplate;
         }
@@ -2165,7 +2165,7 @@ namespace StreetQuestRPG
                 if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
                 {
                     _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
-                    StreetQuestShared.LogDebug(
+                    DebugLog(
                         "Map marker calibration anchors collapsed to the same UI position; " +
                         $"A={FormatVector2(uiA)} B={FormatVector2(uiB)} C={FormatVector2(uiC)}. " +
                         "This usually means the cloned POI target was not replaced correctly.");
@@ -2192,7 +2192,7 @@ namespace StreetQuestRPG
             if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
             {
                 _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     "Map marker calibration anchors " +
                     $"A world={FormatVector3(worldA)} ui={FormatVector2(uiA)} " +
                     $"B world={FormatVector3(worldB)} ui={FormatVector2(uiB)} " +
@@ -2238,7 +2238,7 @@ namespace StreetQuestRPG
                     if (targetParent != null)
                         _calibrationAnchorTargets[i].SetParent(targetParent, worldPositionStays: true);
 
-                    StreetQuestShared.LogDebug(
+                    DebugLog(
                         $"Map marker calibration target created name={anchorName} parent={(targetParent != null ? GetHierarchyPath(targetParent) : "<none>")} world={FormatVector3(_calibrationAnchorWorldPositions[i])}");
                 }
 
@@ -2278,7 +2278,7 @@ namespace StreetQuestRPG
                 _calibrationAnchorRects[i] = rectTransform;
                 _calibrationAnchorPoiComponents[i] = poiComponent;
 
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     $"Map marker calibration POI created name={anchorName} template={template.name} targetWorld={FormatVector3(_calibrationAnchorWorldPositions[i])} rectPath={GetHierarchyPath(rectTransform)}");
             }
 
@@ -2327,7 +2327,7 @@ namespace StreetQuestRPG
             _calibrationAnchorWorldPositions[2] = basePosition + new Vector3(-CalibrationAnchorSpan, 0f, CalibrationAnchorSpan);
             _calibrationAnchorWorldPositionsInitialized = true;
 
-            StreetQuestShared.LogDebug(
+            DebugLog(
                 $"Map marker calibration anchor world positions initialized base={FormatVector3(basePosition)} " +
                 $"A={FormatVector3(_calibrationAnchorWorldPositions[0])} " +
                 $"B={FormatVector3(_calibrationAnchorWorldPositions[1])} " +
@@ -2365,7 +2365,7 @@ namespace StreetQuestRPG
                 poiComponent.gameObject.name = $"StreetQuestCalibrationPoi.{anchorName}";
 
             TryReadMemberValue(poiComponent, "target", out var targetReadback);
-            StreetQuestShared.LogDebug(
+            DebugLog(
                 $"Map marker calibration POI configured name={anchorName} requestedTarget={FormatMemberValue(targetTransform)} " +
                 $"preInitializeTargetSet={preInitializeTargetSet} targetSet={targetSet} targetReadback={FormatMemberValue(targetReadback)} " +
                 $"offsetSet={offsetSet} hiddenSet={hiddenSet} permanentSet={permanentSet} enabledSet={enabledSet}");
@@ -2462,7 +2462,7 @@ namespace StreetQuestRPG
             if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
             {
                 _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
-                StreetQuestShared.LogDebug(
+                DebugLog(
                     $"Map marker calibration fallback succeeded samples={samples.Count} scaleX={scaleX:F4} scaleY={scaleY:F4}");
             }
             return true;
