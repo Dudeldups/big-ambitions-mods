@@ -59,9 +59,9 @@ namespace StreetQuestRPG
         private const int NameplateBackgroundHeight = 32;
         private const int NameplateCornerRadiusPixels = 5;
         private const int MapFilterRequiredStableFrames = 2;
-        private static readonly Color MarkerBlobColor = new Color32(228, 158, 92, 255);
-        private static readonly Color MarkerPointerColor = new Color32(238, 238, 238, 255);
-        private static readonly Color MarkerOutlineColor = Color.white;
+        private static readonly Color MarkerBlobColor = new Color32(244, 188, 116, 255);
+        private static readonly Color MarkerPointerColor = new Color32(250, 250, 250, 255);
+        private static readonly Color MarkerOutlineColor = new Color32(252, 252, 252, 255);
         private const float ProjectionOffsetSanityLimit = 256f;
 
         private float _elapsedSeconds;
@@ -1651,25 +1651,27 @@ namespace StreetQuestRPG
             if (rootTransform == null)
                 return;
 
-            foreach (var image in rootTransform.GetComponentsInChildren<Image>(includeInactive: true))
+            var images = rootTransform
+                .GetComponentsInChildren<Image>(includeInactive: true)
+                .Where(image => image != null && !IsMarkerIconTransform(image.transform))
+                .ToArray();
+
+            if (isPointer)
             {
-                if (image == null)
-                    continue;
-
-                if (IsMarkerIconTransform(image.transform))
-                    continue;
-
-                if (isPointer)
-                {
+                foreach (var image in images)
                     image.color = MarkerPointerColor;
-                    continue;
-                }
+                return;
+            }
 
+            for (var i = 0; i < images.Length; i++)
+            {
+                var image = images[i];
                 var imageName = image.name ?? string.Empty;
                 if (imageName.IndexOf("outline", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     imageName.IndexOf("border", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     imageName.IndexOf("ring", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    imageName.IndexOf("stroke", StringComparison.OrdinalIgnoreCase) >= 0)
+                    imageName.IndexOf("stroke", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    (images.Length > 1 && i == 0))
                 {
                     image.color = MarkerOutlineColor;
                     continue;
