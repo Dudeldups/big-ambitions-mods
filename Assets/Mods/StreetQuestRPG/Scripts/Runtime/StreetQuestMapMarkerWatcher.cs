@@ -48,6 +48,7 @@ namespace StreetQuestRPG
         private float _elapsedSeconds;
         private float _nextRefreshAtSeconds;
         private Type _cityMapType;
+        private PropertyInfo _cityMapIsOpenProperty;
         private RectTransform _poiRoot;
         private RectTransform _streetQuestRoot;
         private Sprite _markerSprite;
@@ -77,6 +78,7 @@ namespace StreetQuestRPG
             _nextRefreshAtSeconds = 0f;
             _poiRoot = null;
             _streetQuestRoot = null;
+            _cityMapIsOpenProperty = null;
             _poiMarkerTemplate = null;
             _nativePoiTemplate = null;
             _nativePoiTargetParent = null;
@@ -89,6 +91,11 @@ namespace StreetQuestRPG
             _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
             DestroyLingeringStreetQuestMapObjects();
+            DestroyMarkerImages();
+        }
+
+        private void OnDestroy()
+        {
             DestroyMarkerImages();
         }
 
@@ -680,11 +687,16 @@ namespace StreetQuestRPG
         {
             poiRoot = null;
 
-            if (_poiRoot != null && _poiRoot.gameObject != null)
+            if (_poiRoot != null &&
+                _poiRoot.gameObject != null &&
+                _poiRoot.gameObject.activeInHierarchy &&
+                IsUnderCityMap(_poiRoot))
             {
                 poiRoot = _poiRoot;
                 return true;
             }
+
+            _poiRoot = null;
 
             foreach (var rectTransform in Resources.FindObjectsOfTypeAll<RectTransform>())
             {
@@ -714,7 +726,15 @@ namespace StreetQuestRPG
         private void EnsureStreetQuestRoot(RectTransform poiRoot)
         {
             if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null && _streetQuestRoot.parent == poiRoot)
+            {
+                _streetQuestRoot.anchorMin = new Vector2(0.5f, 0.5f);
+                _streetQuestRoot.anchorMax = new Vector2(0.5f, 0.5f);
+                _streetQuestRoot.pivot = new Vector2(0.5f, 0.5f);
+                _streetQuestRoot.sizeDelta = poiRoot.rect.size;
+                _streetQuestRoot.anchoredPosition = Vector2.zero;
+                _streetQuestRoot.SetAsLastSibling();
                 return;
+            }
 
             if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null)
                 Destroy(_streetQuestRoot.gameObject);
@@ -1210,8 +1230,8 @@ namespace StreetQuestRPG
             if (_cityMapType == null)
                 return false;
 
-            var isOpenProperty = _cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
-            return isOpenProperty?.GetValue(null) as bool? ?? false;
+            _cityMapIsOpenProperty ??= _cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
+            return _cityMapIsOpenProperty?.GetValue(null) as bool? ?? false;
         }
 
         private static Type FindType(string typeName)

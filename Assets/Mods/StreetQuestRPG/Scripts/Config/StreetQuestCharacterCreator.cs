@@ -64,11 +64,13 @@ namespace StreetQuestRPG
                     ? $"{definition.displayName ?? definition.id}Visual"
                     : definition.visualObjectName;
                 visualRoot.transform.SetParent(parent, false);
+                visualRoot.SetActive(true);
                 visualRoot.transform.localPosition = definition.LocalPositionOr(Vector3.zero);
                 visualRoot.transform.localRotation = Quaternion.Euler(definition.LocalEulerAnglesOr(Vector3.zero));
                 visualRoot.transform.localScale = definition.LocalScaleOr(Vector3.one);
 
                 DisablePhysics(visualRoot);
+                EnableVisualRenderers(visualRoot);
                 InitializeHumanoidVisual(visualRoot, definition);
                 return true;
             }
@@ -198,6 +200,20 @@ namespace StreetQuestRPG
 
             foreach (var rigidbody in root.GetComponentsInChildren<Rigidbody>(true))
                 rigidbody.isKinematic = true;
+        }
+
+        private static void EnableVisualRenderers(GameObject root)
+        {
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null)
+                    continue;
+
+                renderer.enabled = true;
+                var rendererGameObject = renderer.gameObject;
+                if (rendererGameObject != null && !rendererGameObject.activeSelf)
+                    rendererGameObject.SetActive(true);
+            }
         }
 
         private static void InitializeHumanoidVisual(GameObject root, StreetQuestCharacterDefinition definition)
