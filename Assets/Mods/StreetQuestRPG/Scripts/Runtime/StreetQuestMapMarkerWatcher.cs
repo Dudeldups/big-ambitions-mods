@@ -59,6 +59,10 @@ namespace StreetQuestRPG
         private const int NameplateBackgroundHeight = 32;
         private const int NameplateCornerRadiusPixels = 5;
         private const int MapFilterRequiredStableFrames = 2;
+        private static readonly Color MarkerBlobColor = new Color32(228, 158, 92, 255);
+        private static readonly Color MarkerPointerColor = new Color32(238, 238, 238, 255);
+        private static readonly Color MarkerOutlineColor = Color.white;
+        private const float ProjectionOffsetSanityLimit = 256f;
 
         private float _elapsedSeconds;
         private float _nextRefreshAtSeconds;
@@ -261,9 +265,9 @@ namespace StreetQuestRPG
 
             foreach (var characterId in knownCharacterIds)
             {
-                if (!StreetQuestShared.TryGetCharacterWorldPosition(characterId, out var worldPosition))
+                if (!TryGetCharacterMapWorldPosition(characterId, out var worldPosition))
                 {
-                    LogMarkerState(characterId, false, "No live world position resolved for character.");
+                    LogMarkerState(characterId, false, "No map world position resolved for character.");
                     SetMarkerActive(characterId, false);
                     continue;
                 }
@@ -301,6 +305,7 @@ namespace StreetQuestRPG
                 var targetAnchoredPosition = anchoredPosition + new Vector2(0f, MarkerVerticalOffset);
                 markerRoot.anchoredPosition = targetAnchoredPosition;
                 ApplyPlayerMarkerVisualSize(markerRoot);
+                ApplyFixedStreetQuestMarkerVisualColors(markerRoot);
                 _markerAnchoredPositions[characterId] = targetAnchoredPosition;
                 _markerAnchoredVelocities[characterId] = Vector2.zero;
                 markerRoot.gameObject.SetActive(true);
@@ -309,6 +314,33 @@ namespace StreetQuestRPG
                     true,
                     "Placed marker with player-projection calibration.");
             }
+        }
+
+        private static bool TryGetCharacterMapWorldPosition(string characterId, out Vector3 worldPosition)
+        {
+            worldPosition = default;
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            var definition = StreetQuestCharacterCatalog.Get(characterId);
+            if (definition == null)
+                return false;
+
+            var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
+            if (runtimeDefinition != null)
+            {
+                if (!runtimeDefinition.enabled)
+                    return false;
+
+                worldPosition = runtimeDefinition.PositionOr(Vector3.zero);
+                return true;
+            }
+
+            if (!definition.enabled)
+                return false;
+
+            worldPosition = definition.PositionOr(Vector3.zero);
+            return true;
         }
 
         private void EnsureMarkerHoverTarget(RectTransform markerRoot, string characterId)
@@ -1358,7 +1390,7 @@ namespace StreetQuestRPG
                 if (image == null)
                     image = markerObject.AddComponent<Image>();
                 image.sprite = GetMarkerSprite();
-                image.color = new Color(1f, 0f, 1f, 1f);
+                image.color = MarkerBlobColor;
                 image.raycastTarget = false;
                 image.preserveAspect = true;
                 image.enabled = true;
@@ -1548,6 +1580,7 @@ namespace StreetQuestRPG
                 }
 
                 PrepareMarkerVisual(pointerCloneObject);
+                ApplyFixedStreetQuestMarkerColors(pointerCloneObject.transform, isPointer: true);
             }
 
             if (blob != null)
@@ -1569,11 +1602,98 @@ namespace StreetQuestRPG
                 }
 
                 PrepareMarkerVisual(blobCloneObject);
+                ApplyFixedStreetQuestMarkerColors(blobCloneObject.transform, isPointer: false);
                 ApplyCustomMarkerIcon(blobCloneObject.transform);
             }
 
             DebugLog($"Map marker visual source=vanilla_blob template={template.name}");
             return true;
+        }
+
+        private static void ApplyFixedStreetQuestMarkerVisualColors(Transform markerRoot)
+        {
+            if (markerRoot == null)
+                return;
+
+            var pointer = markerRoot.Find("StreetQuestMarkerPointer");
+            if (pointer != null)
+                ApplyFixedStreetQuestMarkerColors(pointer, isPointer: true);
+
+            var blob = markerRoot.Find("StreetQuestMarkerBlob");
+            if (blob != null)
+                ApplyFixedStreetQuestMarkerColors(blob, isPointer: false);
+        }
+
+        private static void StripMarkerRuntimeComponents(GameObject rootObject)
+        {
+            if (rootObject == null)
+                return;
+
+            foreach (var component in rootObject.GetComponentsInChildren<Component>(includeInactive: true).ToArray())
+            {
+                if (component == null)
+                    continue;
+
+                if (component is Transform ||
+                    component is CanvasRenderer ||
+                    component is Graphic ||
+                    component is CanvasGroup)
+                {
+                    continue;
+                }
+
+                Destroy(component);
+            }
+        }
+
+        private static void ApplyFixedStreetQuestMarkerColors(Transform rootTransform, bool isPointer)
+        {
+            if (rootTransform == null)
+                return;
+
+            foreach (var image in rootTransform.GetComponentsInChildren<Image>(includeInactive: true))
+            {
+                if (image == null)
+                    continue;
+
+                if (IsMarkerIconTransform(image.transform))
+                    continue;
+
+                if (isPointer)
+                {
+                    image.color = MarkerPointerColor;
+                    continue;
+                }
+
+                var imageName = image.name ?? string.Empty;
+                if (imageName.IndexOf("outline", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    imageName.IndexOf("border", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    imageName.IndexOf("ring", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    imageName.IndexOf("stroke", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    image.color = MarkerOutlineColor;
+                    continue;
+                }
+
+                image.color = MarkerBlobColor;
+            }
+        }
+
+        private static bool IsMarkerIconTransform(Transform transform)
+        {
+            var current = transform;
+            while (current != null)
+            {
+                if (!string.IsNullOrWhiteSpace(current.name) &&
+                    current.name.IndexOf("icon", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+
+                current = current.parent;
+            }
+
+            return false;
         }
 
         private void ApplyCustomMarkerIcon(Transform rootTransform)
@@ -1599,6 +1719,8 @@ namespace StreetQuestRPG
         {
             if (rootObject == null)
                 return;
+
+            StripMarkerRuntimeComponents(rootObject);
 
             foreach (var canvasGroup in rootObject.GetComponentsInChildren<CanvasGroup>(includeInactive: true))
             {
@@ -1935,12 +2057,6 @@ namespace StreetQuestRPG
             if (poiRoot == null)
                 return false;
 
-            if (!TryResolvePlayerPoiSample(out var playerRect, out var playerWorldPosition, out var playerAnchoredPosition))
-            {
-                MaybeLogVerbose("Projection calibration failed: no live Player PointOfInterest sample found.");
-                return false;
-            }
-
             var projectionCamera = ResolveMapProjectionCamera();
             if (projectionCamera == null)
             {
@@ -1949,17 +2065,48 @@ namespace StreetQuestRPG
             }
 
             var uiCamera = ResolveCanvasCamera(poiRoot);
+            if (!TryResolvePlayerPoiSample(out var playerRect, out var playerWorldPosition, out var playerAnchoredPosition))
+            {
+                _useProjectionCalibration = true;
+                _projectionCamera = projectionCamera;
+                _projectionUiCamera = uiCamera;
+                _projectionOffset = Vector2.zero;
+                _lastPlayerPoiRect = null;
+                _lastPlayerWorldPosition = default;
+                _lastPlayerUiPosition = default;
+
+                if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
+                {
+                    _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
+                    DebugLog(
+                        $"Map marker projection calibration using direct projection fallback; no live Player POI sample. " +
+                        $"camera={GetHierarchyPath(projectionCamera.transform)} uiCamera={(_projectionUiCamera != null ? GetHierarchyPath(_projectionUiCamera.transform) : "<overlay>")}");
+                }
+
+                return true;
+            }
+
             if (!TryProjectWorldPositionToPoiLocal(playerWorldPosition, projectionCamera, uiCamera, out var projectedPlayerPosition))
             {
+                _useProjectionCalibration = true;
+                _projectionCamera = projectionCamera;
+                _projectionUiCamera = uiCamera;
+                _projectionOffset = Vector2.zero;
+                _lastPlayerPoiRect = playerRect;
+                _lastPlayerWorldPosition = playerWorldPosition;
+                _lastPlayerUiPosition = playerAnchoredPosition;
                 MaybeLogVerbose(
-                    $"Projection calibration failed: could not project player world={FormatVector3(playerWorldPosition)} with camera={projectionCamera.name}.");
-                return false;
+                    $"Projection calibration fell back to direct projection: could not project player world={FormatVector3(playerWorldPosition)} with camera={projectionCamera.name}.");
+                return true;
             }
 
             _useProjectionCalibration = true;
             _projectionCamera = projectionCamera;
             _projectionUiCamera = uiCamera;
-            _projectionOffset = playerAnchoredPosition - projectedPlayerPosition;
+            var projectionOffset = playerAnchoredPosition - projectedPlayerPosition;
+            _projectionOffset = projectionOffset.sqrMagnitude > ProjectionOffsetSanityLimit * ProjectionOffsetSanityLimit
+                ? Vector2.zero
+                : projectionOffset;
             _lastPlayerPoiRect = playerRect;
             _lastPlayerWorldPosition = playerWorldPosition;
             _lastPlayerUiPosition = playerAnchoredPosition;
@@ -2490,6 +2637,7 @@ namespace StreetQuestRPG
                 pointerCloneObject.name = "StreetQuestNativePointer";
                 pointerCloneObject.SetActive(true);
                 PrepareMarkerVisual(pointerCloneObject);
+                ApplyFixedStreetQuestMarkerColors(pointerCloneObject.transform, isPointer: true);
             }
 
             if (blob != null)
@@ -2498,6 +2646,7 @@ namespace StreetQuestRPG
                 blobCloneObject.name = "StreetQuestNativeBlob";
                 blobCloneObject.SetActive(true);
                 PrepareMarkerVisual(blobCloneObject);
+                ApplyFixedStreetQuestMarkerColors(blobCloneObject.transform, isPointer: false);
                 ApplyCustomMarkerIcon(blobCloneObject.transform);
             }
         }
