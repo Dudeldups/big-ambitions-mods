@@ -1600,7 +1600,6 @@ namespace StreetQuestRPG
 
             _hoveredCharacterId = characterId;
             ShowTooltip(characterId);
-            DebugLog($"Map marker hover enter characterId={characterId}");
         }
 
         internal void HandleMarkerPointerExit(string characterId)
@@ -1609,15 +1608,6 @@ namespace StreetQuestRPG
                 return;
 
             HideTooltip();
-            DebugLog($"Map marker hover exit characterId={characterId}");
-        }
-
-        internal void HandleMarkerPointerClick(string characterId)
-        {
-            if (string.IsNullOrWhiteSpace(characterId))
-                return;
-
-            StreetQuestShared.LogDebug($"Map marker click characterId={characterId}");
         }
 
         private void ShowTooltip(string characterId)

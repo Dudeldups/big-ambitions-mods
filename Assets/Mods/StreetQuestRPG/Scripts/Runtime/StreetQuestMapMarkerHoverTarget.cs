@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 
 namespace StreetQuestRPG
 {
-    internal sealed class StreetQuestMapMarkerHoverTarget : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
+    internal sealed class StreetQuestMapMarkerHoverTarget : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         internal StreetQuestMapMarkerWatcher Owner;
         internal string CharacterId;
@@ -16,11 +16,6 @@ namespace StreetQuestRPG
         public void OnPointerExit(PointerEventData eventData)
         {
             Owner?.HandleMarkerPointerExit(CharacterId);
-        }
-
-        public void OnPointerClick(PointerEventData eventData)
-        {
-            Owner?.HandleMarkerPointerClick(CharacterId);
         }
     }
 }
