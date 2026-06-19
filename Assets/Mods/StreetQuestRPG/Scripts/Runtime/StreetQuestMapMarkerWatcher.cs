@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using BigAmbitions.SaveSystem.Legacy;
+using Localizor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -21,6 +21,7 @@ namespace StreetQuestRPG
         private const float MarkerSmoothTime = 0.06f;
         private const float MarkerSnapDistance = 32f;
         private const float MarkerDeadzoneDistance = 0.35f;
+        private const string NpcMapFilterPrefsKey = "streetquest.map_filter_npcs";
 
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -52,6 +53,10 @@ namespace StreetQuestRPG
         private PropertyInfo _cityMapIsOpenProperty;
         private RectTransform _poiRoot;
         private RectTransform _streetQuestRoot;
+        private RectTransform _mapFilterContainer;
+        private GameObject _mapFilterTemplateRow;
+        private GameObject _npcFilterRow;
+        private Toggle _npcFilterToggle;
         private RectTransform _tooltipRoot;
         private Text _tooltipText;
         private Sprite _tooltipBackgroundSprite;
@@ -69,6 +74,7 @@ namespace StreetQuestRPG
         private string _lastLifecycleState;
         private string _lastKnownCharacterSnapshot;
         private string _lastPoiRootPath;
+        private string _lastFilterContainerPath;
         private string _lastCalibrationSnapshot;
         private float _nextVerboseLogAtSeconds;
         private string _hoveredCharacterId;
@@ -76,6 +82,7 @@ namespace StreetQuestRPG
         private RectTransform _nativePoiTemplate;
         private Transform _nativePoiTargetParent;
         private readonly Dictionary<string, Vector3> _nativePoiLastTargetPositions = new(StringComparer.OrdinalIgnoreCase);
+        private bool _npcMarkersVisible = true;
 
         public void Initialize()
         {
@@ -83,6 +90,10 @@ namespace StreetQuestRPG
             _nextRefreshAtSeconds = 0f;
             _poiRoot = null;
             _streetQuestRoot = null;
+            _mapFilterContainer = null;
+            _mapFilterTemplateRow = null;
+            _npcFilterRow = null;
+            _npcFilterToggle = null;
             _tooltipRoot = null;
             _tooltipText = null;
             _tooltipBackgroundSprite = null;
@@ -96,9 +107,11 @@ namespace StreetQuestRPG
             _lastLifecycleState = null;
             _lastKnownCharacterSnapshot = null;
             _lastPoiRootPath = null;
+            _lastFilterContainerPath = null;
             _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
             _hoveredCharacterId = null;
+            _npcMarkersVisible = UnityEngine.PlayerPrefs.GetInt(NpcMapFilterPrefsKey, 1) != 0;
             DestroyLingeringStreetQuestMapObjects();
             DestroyMarkerImages();
         }
@@ -139,7 +152,14 @@ namespace StreetQuestRPG
             }
 
             EnsureStreetQuestRoot(poiRoot);
+            EnsureNpcFilterToggle();
             EnsureCalibration(poiRoot);
+            if (!_npcMarkersVisible)
+            {
+                HideStreetQuestRoot();
+                return;
+            }
+
             UpdateKnownNpcMarkers();
             UpdateTooltipPosition();
         }
@@ -765,6 +785,377 @@ namespace StreetQuestRPG
             _streetQuestRoot.SetAsLastSibling();
             EnsureTooltipRoot();
             DebugLog($"Created StreetQuest POI root under {GetHierarchyPath(poiRoot)} size={FormatVector2(_streetQuestRoot.sizeDelta)}");
+        }
+
+        private void EnsureNpcFilterToggle()
+        {
+            if (!TryResolveMapFilterTemplate(out var filterContainer, out var templateRow))
+                return;
+
+            CleanupDuplicateNpcFilterRows(filterContainer);
+
+            if ((_npcFilterRow == null || _npcFilterRow.transform.parent != filterContainer) &&
+                TryFindExistingNpcFilterRow(filterContainer, out var existingRow))
+            {
+                _npcFilterRow = existingRow;
+                _npcFilterToggle = existingRow != null
+                    ? existingRow.GetComponentInChildren<Toggle>(includeInactive: true)
+                    : null;
+            }
+
+            if (_npcFilterRow != null &&
+                _npcFilterRow.gameObject != null &&
+                _npcFilterRow.transform.parent == filterContainer &&
+                _npcFilterToggle != null)
+            {
+                _npcFilterToggle.isOn = _npcMarkersVisible;
+                ConfigureNpcFilterRow(_npcFilterRow, filterContainer);
+                return;
+            }
+
+            var rowObject = Instantiate(templateRow, filterContainer, false);
+            rowObject.name = "StreetQuestNpcFilter";
+            rowObject.SetActive(true);
+            rowObject.transform.SetAsLastSibling();
+            StripNonUiComponents(rowObject);
+
+            var toggle = rowObject.GetComponentInChildren<Toggle>(includeInactive: true);
+            if (toggle == null)
+            {
+                StreetQuestShared.LogDebug("Map filter setup failed: cloned row has no Toggle component.");
+                Destroy(rowObject);
+                return;
+            }
+
+            toggle.onValueChanged.RemoveAllListeners();
+            toggle.isOn = _npcMarkersVisible;
+            toggle.onValueChanged.AddListener(HandleNpcFilterToggleChanged);
+            _npcFilterRow = rowObject;
+            _npcFilterToggle = toggle;
+            ConfigureNpcFilterRow(rowObject, filterContainer);
+
+        }
+
+        private bool TryResolveMapFilterTemplate(out Transform filterContainer, out GameObject templateRow)
+        {
+            filterContainer = null;
+            templateRow = null;
+
+            if (_mapFilterContainer != null &&
+                _mapFilterContainer.gameObject != null &&
+                _mapFilterContainer.gameObject.activeInHierarchy &&
+                IsUnderCityMap(_mapFilterContainer) &&
+                _mapFilterTemplateRow != null)
+            {
+                filterContainer = _mapFilterContainer;
+                templateRow = _mapFilterTemplateRow;
+                return true;
+            }
+
+            _mapFilterContainer = null;
+            _mapFilterTemplateRow = null;
+
+            foreach (var toggle in Resources.FindObjectsOfTypeAll<Toggle>())
+            {
+                if (toggle == null || toggle.gameObject == null || !toggle.gameObject.activeInHierarchy)
+                    continue;
+
+                var path = GetHierarchyPath(toggle.transform);
+                if (!IsUnderCityMap(toggle.transform))
+                    continue;
+
+                var lowerPath = path.ToLowerInvariant();
+                if (lowerPath.IndexOf("filter", StringComparison.OrdinalIgnoreCase) < 0 &&
+                    lowerPath.IndexOf("legend", StringComparison.OrdinalIgnoreCase) < 0 &&
+                    lowerPath.IndexOf("category", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                var row = toggle.transform.parent != null ? toggle.transform.parent.gameObject : toggle.gameObject;
+                var container = row.transform.parent;
+                if (container == null)
+                    continue;
+
+                _mapFilterContainer = container as RectTransform;
+                _mapFilterTemplateRow = row;
+                filterContainer = container;
+                templateRow = row;
+                var containerPath = GetHierarchyPath(container);
+                if (!string.Equals(_lastFilterContainerPath, containerPath, StringComparison.Ordinal))
+                {
+                    _lastFilterContainerPath = containerPath;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private void HandleNpcFilterToggleChanged(bool isOn)
+        {
+            _npcMarkersVisible = isOn;
+            UnityEngine.PlayerPrefs.SetInt(NpcMapFilterPrefsKey, isOn ? 1 : 0);
+            UnityEngine.PlayerPrefs.Save();
+
+            if (isOn)
+            {
+                if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null)
+                    _streetQuestRoot.gameObject.SetActive(true);
+            }
+            else
+            {
+                HideStreetQuestRoot();
+            }
+        }
+
+        private static Text ResolveFilterRowLabel(Transform root)
+        {
+            if (root == null)
+                return null;
+
+            foreach (var text in root.GetComponentsInChildren<Text>(includeInactive: true))
+            {
+                if (text == null)
+                    continue;
+
+                var lowerName = text.name.ToLowerInvariant();
+                if (lowerName.Contains("label") || lowerName.Contains("text") || lowerName.Contains("title"))
+                    return text;
+            }
+
+            return root.GetComponentInChildren<Text>(includeInactive: true);
+        }
+
+        private void ConfigureNpcFilterRow(GameObject rowObject, Transform filterContainer)
+        {
+            if (rowObject == null)
+                return;
+
+            var label = "streetquest:map_filter_npcs".Localize().ToString();
+            ForceFilterRowLabel(rowObject.transform, label);
+
+            var iconImage = ResolveFilterRowIcon(rowObject.transform);
+            if (iconImage != null)
+            {
+                iconImage.sprite = GetMarkerSprite();
+                iconImage.color = Color.white;
+                iconImage.material = null;
+                iconImage.preserveAspect = true;
+                iconImage.SetNativeSize();
+            }
+
+            MoveNpcFilterRowBelowHideClosedBusinesses(rowObject.transform, filterContainer);
+        }
+
+        private static void ForceFilterRowLabel(Transform root, string label)
+        {
+            if (root == null || string.IsNullOrWhiteSpace(label))
+                return;
+
+            foreach (var text in root.GetComponentsInChildren<Text>(includeInactive: true))
+            {
+                if (text == null)
+                    continue;
+
+                text.gameObject.SetActive(true);
+                text.enabled = true;
+                text.text = label;
+                if (text.color.a < 0.99f)
+                    text.color = new Color(text.color.r, text.color.g, text.color.b, 1f);
+            }
+
+            foreach (var component in root.GetComponentsInChildren<Component>(includeInactive: true))
+            {
+                if (component == null || component is Text)
+                    continue;
+
+                var type = component.GetType();
+                var typeName = type.FullName ?? type.Name ?? string.Empty;
+                if (typeName.IndexOf("TextMeshPro", StringComparison.OrdinalIgnoreCase) < 0 &&
+                    typeName.IndexOf("TMP_Text", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                var textProperty = type.GetProperty("text", ReflectionFlags);
+                if (textProperty != null && textProperty.CanWrite)
+                {
+                    try
+                    {
+                        textProperty.SetValue(component, label, null);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                var enabledProperty = type.GetProperty("enabled", ReflectionFlags);
+                if (enabledProperty != null && enabledProperty.CanWrite)
+                {
+                    try
+                    {
+                        enabledProperty.SetValue(component, true, null);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                if (component is Behaviour behaviour)
+                    behaviour.gameObject.SetActive(true);
+            }
+        }
+
+        private Image ResolveFilterRowIcon(Transform root)
+        {
+            if (root == null)
+                return null;
+
+            var toggleTransform = _npcFilterToggle != null ? _npcFilterToggle.transform : null;
+            Image fallback = null;
+            var bestX = float.MaxValue;
+
+            foreach (var image in root.GetComponentsInChildren<Image>(includeInactive: true))
+            {
+                if (image == null || image.transform == root)
+                    continue;
+
+                if (toggleTransform != null && image.transform.IsChildOf(toggleTransform))
+                    continue;
+
+                var rect = image.rectTransform;
+                if (rect == null)
+                    continue;
+
+                var size = rect.rect.size;
+                if (size.x < 12f || size.y < 12f)
+                    continue;
+
+                var name = image.name.ToLowerInvariant();
+                if (name.Contains("icon") || name.Contains("image") || name.Contains("sprite"))
+                    return image;
+
+                var x = rect.anchoredPosition.x;
+                if (x < bestX)
+                {
+                    bestX = x;
+                    fallback = image;
+                }
+            }
+
+            return fallback;
+        }
+
+        private void MoveNpcFilterRowBelowHideClosedBusinesses(Transform rowTransform, Transform filterContainer)
+        {
+            if (rowTransform == null || filterContainer == null)
+                return;
+
+            var targetLabel = "hide closed businesses";
+            foreach (Transform child in filterContainer)
+            {
+                if (child == null || child == rowTransform)
+                    continue;
+
+                var childName = child.name ?? string.Empty;
+                if (childName.IndexOf("closed", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    childName.IndexOf("hide", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    rowTransform.SetSiblingIndex(child.GetSiblingIndex() + 1);
+                    return;
+                }
+
+                foreach (var text in child.GetComponentsInChildren<Text>(includeInactive: true))
+                {
+                    if (text == null || string.IsNullOrWhiteSpace(text.text))
+                        continue;
+
+                    var visibleText = text.text.Trim();
+                    if (visibleText.Equals(targetLabel, StringComparison.OrdinalIgnoreCase) ||
+                        visibleText.IndexOf("closed", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        rowTransform.SetSiblingIndex(child.GetSiblingIndex() + 1);
+                        return;
+                    }
+                }
+            }
+
+            rowTransform.SetAsLastSibling();
+        }
+
+        private static void StripNonUiComponents(GameObject rowObject)
+        {
+            if (rowObject == null)
+                return;
+
+            foreach (var component in rowObject.GetComponentsInChildren<Component>(includeInactive: true))
+            {
+                if (component == null)
+                    continue;
+
+                if (component is Transform ||
+                    component is RectTransform ||
+                    component is CanvasRenderer ||
+                    component is Image ||
+                    component is Toggle ||
+                    component is Text ||
+                    component is LayoutElement ||
+                    component is HorizontalLayoutGroup ||
+                    component is VerticalLayoutGroup ||
+                    component is ContentSizeFitter)
+                {
+                    continue;
+                }
+
+                UnityEngine.Object.Destroy(component);
+            }
+        }
+
+        private static bool TryFindExistingNpcFilterRow(Transform filterContainer, out GameObject rowObject)
+        {
+            rowObject = null;
+            if (filterContainer == null)
+                return false;
+
+            foreach (Transform child in filterContainer)
+            {
+                if (child == null || child.gameObject == null)
+                    continue;
+
+                if (!string.Equals(child.gameObject.name, "StreetQuestNpcFilter", StringComparison.Ordinal))
+                    continue;
+
+                rowObject = child.gameObject;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void CleanupDuplicateNpcFilterRows(Transform filterContainer)
+        {
+            if (filterContainer == null)
+                return;
+
+            var foundPrimary = false;
+            foreach (Transform child in filterContainer)
+            {
+                if (child == null || child.gameObject == null)
+                    continue;
+
+                if (!string.Equals(child.gameObject.name, "StreetQuestNpcFilter", StringComparison.Ordinal))
+                    continue;
+
+                if (!foundPrimary)
+                {
+                    foundPrimary = true;
+                    continue;
+                }
+
+                Destroy(child.gameObject);
+            }
         }
 
         private void EnsureTooltipRoot()
