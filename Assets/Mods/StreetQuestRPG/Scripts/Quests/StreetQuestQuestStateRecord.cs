@@ -10,6 +10,7 @@ namespace StreetQuestRPG
     {
         private const char SegmentSeparator = '|';
         private const char CompletedSeparator = ',';
+        private static readonly string[] DefaultKnownCharacterIds = { "mack" };
 
         [SerializeField] public string currentQuestId = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
         [SerializeField] public string currentQuestState = StreetQuestQuestProgressState.NotStarted.ToString();
@@ -216,6 +217,10 @@ namespace StreetQuestRPG
                 ObjectiveTokens.Add(objectiveToken);
             foreach (var characterId in knownCharacterIds.Where(value => !string.IsNullOrWhiteSpace(value)))
                 KnownCharacterIds.Add(characterId);
+
+            foreach (var defaultCharacterId in DefaultKnownCharacterIds)
+                KnownCharacterIds.Add(defaultCharacterId);
+
             for (var index = 0; index < Math.Min(favorCharacterIds.Count, favorValues.Count); index++)
             {
                 var characterId = favorCharacterIds[index];
@@ -228,6 +233,8 @@ namespace StreetQuestRPG
             if (string.IsNullOrEmpty(CurrentQuestId) &&
                 CurrentQuestState != StreetQuestQuestProgressState.Completed)
                 CurrentQuestState = StreetQuestQuestProgressState.Completed;
+
+            SyncListsFromSets();
         }
 
         private void SyncListsFromSets()

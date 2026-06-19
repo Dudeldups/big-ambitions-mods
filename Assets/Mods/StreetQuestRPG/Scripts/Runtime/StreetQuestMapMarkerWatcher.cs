@@ -4,9 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using BigAmbitions.SaveSystem.Legacy;
-using Localizor;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace StreetQuestRPG
@@ -15,14 +13,12 @@ namespace StreetQuestRPG
     internal sealed class StreetQuestMapMarkerWatcher : MonoBehaviour
     {
         private static readonly bool EnableMarkerDebugLogging = false;
-        private static readonly bool EnableMarkerLifecycleLogging = false;
         private const bool PreferNativePoiMarkers = false;
         private const float UpdateIntervalSeconds = 0f;
         private const float MarkerVerticalOffset = 0f;
         private const float MarkerSmoothTime = 0.06f;
         private const float MarkerSnapDistance = 32f;
         private const float MarkerDeadzoneDistance = 0.35f;
-        private const string NpcMapFilterPrefsKey = "streetquest.map_filter_npcs";
 
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -54,13 +50,6 @@ namespace StreetQuestRPG
         private PropertyInfo _cityMapIsOpenProperty;
         private RectTransform _poiRoot;
         private RectTransform _streetQuestRoot;
-        private RectTransform _mapFilterContainer;
-        private GameObject _mapFilterTemplateRow;
-        private GameObject _npcFilterRow;
-        private Toggle _npcFilterToggle;
-        private RectTransform _tooltipRoot;
-        private Text _tooltipText;
-        private Sprite _tooltipBackgroundSprite;
         private Sprite _markerSprite;
         private bool _loggedCalibrationFailure;
         private bool _hasCalibration;
@@ -75,16 +64,12 @@ namespace StreetQuestRPG
         private string _lastLifecycleState;
         private string _lastKnownCharacterSnapshot;
         private string _lastPoiRootPath;
-        private string _lastFilterContainerPath;
         private string _lastCalibrationSnapshot;
         private float _nextVerboseLogAtSeconds;
-        private string _hoveredCharacterId;
-        private string _lastRefreshSnapshot;
         private RectTransform _poiMarkerTemplate;
         private RectTransform _nativePoiTemplate;
         private Transform _nativePoiTargetParent;
         private readonly Dictionary<string, Vector3> _nativePoiLastTargetPositions = new(StringComparer.OrdinalIgnoreCase);
-        private bool _npcMarkersVisible = true;
 
         public void Initialize()
         {
@@ -92,13 +77,6 @@ namespace StreetQuestRPG
             _nextRefreshAtSeconds = 0f;
             _poiRoot = null;
             _streetQuestRoot = null;
-            _mapFilterContainer = null;
-            _mapFilterTemplateRow = null;
-            _npcFilterRow = null;
-            _npcFilterToggle = null;
-            _tooltipRoot = null;
-            _tooltipText = null;
-            _tooltipBackgroundSprite = null;
             _cityMapIsOpenProperty = null;
             _poiMarkerTemplate = null;
             _nativePoiTemplate = null;
@@ -109,12 +87,8 @@ namespace StreetQuestRPG
             _lastLifecycleState = null;
             _lastKnownCharacterSnapshot = null;
             _lastPoiRootPath = null;
-            _lastFilterContainerPath = null;
             _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
-            _hoveredCharacterId = null;
-            _lastRefreshSnapshot = null;
-            _npcMarkersVisible = UnityEngine.PlayerPrefs.GetInt(NpcMapFilterPrefsKey, 1) != 0;
             DestroyLingeringStreetQuestMapObjects();
             DestroyMarkerImages();
         }
@@ -148,17 +122,6 @@ namespace StreetQuestRPG
 
             LogLifecycleState("City map open; refreshing StreetQuest map markers.");
 
-            var knownCharacterIds = StreetQuestShared.GetKnownCharacterIds()
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            LogKnownCharacters(knownCharacterIds);
-            if (knownCharacterIds.Length == 0)
-            {
-                HideStreetQuestRoot();
-                return;
-            }
-
             if (!TryResolvePoiRoot(out var poiRoot))
             {
                 MaybeLogVerbose("POI root not found while city map is open.");
@@ -166,15 +129,8 @@ namespace StreetQuestRPG
             }
 
             EnsureStreetQuestRoot(poiRoot);
-            EnsureNpcFilterToggle();
             EnsureCalibration(poiRoot);
-            if (!_npcMarkersVisible)
-            {
-                HideStreetQuestRoot();
-                return;
-            }
-            UpdateKnownNpcMarkers(knownCharacterIds);
-            UpdateTooltipPosition();
+            UpdateKnownNpcMarkers();
         }
 
         private void EnsureCalibration(RectTransform poiRoot)
@@ -202,13 +158,17 @@ namespace StreetQuestRPG
             _loggedCalibrationFailure = true;
         }
 
-        private void UpdateKnownNpcMarkers(IReadOnlyCollection<string> knownCharacterIds)
+        private void UpdateKnownNpcMarkers()
         {
             if (_streetQuestRoot == null)
                 return;
 
             _streetQuestRoot.gameObject.SetActive(true);
-            LogRefreshSnapshot(knownCharacterIds.Count, _streetQuestRoot.gameObject.activeSelf);
+            var knownCharacterIds = StreetQuestShared.GetKnownCharacterIds()
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            LogKnownCharacters(knownCharacterIds);
             var seen = new HashSet<string>(knownCharacterIds, StringComparer.OrdinalIgnoreCase);
 
             foreach (var existing in _markerRoots.Keys.ToArray())
@@ -232,8 +192,6 @@ namespace StreetQuestRPG
                 _markerAnchoredVelocities.Remove(existing);
                 _markerVisibilityStates.Remove(existing);
                 _markerStatusReasons.Remove(existing);
-                if (string.Equals(_hoveredCharacterId, existing, StringComparison.OrdinalIgnoreCase))
-                    HideTooltip();
                 DebugLog($"Map marker removed characterId={existing}");
             }
 
@@ -346,7 +304,6 @@ namespace StreetQuestRPG
             rectTransform.localScale = Vector3.one;
             rectTransform.localRotation = Quaternion.identity;
             rectTransform.SetAsLastSibling();
-            EnsureMarkerHoverTarget(rectTransform, characterId);
 
             if (!TryAttachVanillaMarkerVisual(template, rectTransform))
             {
@@ -374,6 +331,7 @@ namespace StreetQuestRPG
 
             if (_nativePoiComponents.TryGetValue(characterId, out var existingPoi) && existingPoi != null)
             {
+                existingPoi.gameObject.SetActive(true);
                 UpdateNativePoiComponent(existingPoi, characterId, worldPosition);
                 return true;
             }
@@ -389,6 +347,7 @@ namespace StreetQuestRPG
             var poiObject = Instantiate(template.gameObject, _poiRoot, false);
             poiObject.name = $"StreetQuestNativePoi.{characterId}";
             poiObject.SetActive(true);
+            AttachNativePoiVisuals(template, poiObject.transform);
 
             var poiComponent = poiObject.GetComponent(pointOfInterestTemplate.GetType().Name) as Component;
             if (poiComponent == null)
@@ -637,12 +596,15 @@ namespace StreetQuestRPG
                 if (string.Equals(childRect.name, "Template", StringComparison.OrdinalIgnoreCase))
                 {
                     fallbackTemplate ??= childRect;
-                    if (HasMarkerVisualStructure(childRect))
+                    if (HasMarkerVisualStructure(childRect) && !IsDynamicPoiTemplate(childRect))
                         structuredFallbackTemplate ??= childRect;
                     continue;
                 }
 
                 if (!HasMarkerVisualStructure(childRect))
+                    continue;
+
+                if (IsDynamicPoiTemplate(childRect))
                     continue;
 
                 if (!childRect.gameObject.activeInHierarchy)
@@ -677,6 +639,15 @@ namespace StreetQuestRPG
 
             return FindChildRectTransform(rectTransform, "POIBlob") != null ||
                    FindChildRectTransform(rectTransform, "POIPointer") != null;
+        }
+
+        private static bool IsDynamicPoiTemplate(RectTransform rectTransform)
+        {
+            if (rectTransform == null)
+                return false;
+
+            var pointOfInterest = rectTransform.GetComponent("PointOfInterest");
+            return pointOfInterest != null && IsDynamicPoiTarget(pointOfInterest);
         }
 
         private RectTransform ResolveNativePoiTemplate()
@@ -813,451 +784,7 @@ namespace StreetQuestRPG
             _streetQuestRoot.sizeDelta = poiRoot.rect.size;
             _streetQuestRoot.anchoredPosition = Vector2.zero;
             _streetQuestRoot.SetAsLastSibling();
-            EnsureTooltipRoot();
-            LogLifecycleEvent($"Created StreetQuest POI root under {GetHierarchyPath(poiRoot)} size={FormatVector2(_streetQuestRoot.sizeDelta)}");
-        }
-
-        private void EnsureNpcFilterToggle()
-        {
-            if (!TryResolveMapFilterTemplate(out var filterContainer, out var templateRow))
-                return;
-
-            CleanupDuplicateNpcFilterRows(filterContainer);
-
-            if ((_npcFilterRow == null || _npcFilterRow.transform.parent != filterContainer) &&
-                TryFindExistingNpcFilterRow(filterContainer, out var existingRow))
-            {
-                _npcFilterRow = existingRow;
-                _npcFilterToggle = existingRow != null
-                    ? existingRow.GetComponentInChildren<Toggle>(includeInactive: true)
-                    : null;
-            }
-
-            if (_npcFilterRow != null &&
-                _npcFilterRow.gameObject != null &&
-                _npcFilterRow.transform.parent == filterContainer &&
-                _npcFilterToggle != null)
-            {
-                _npcFilterToggle.isOn = _npcMarkersVisible;
-                ConfigureNpcFilterRow(_npcFilterRow, filterContainer);
-                return;
-            }
-
-            var rowObject = Instantiate(templateRow, filterContainer, false);
-            rowObject.name = "StreetQuestNpcFilter";
-            rowObject.SetActive(true);
-            rowObject.transform.SetAsLastSibling();
-            StripNonUiComponents(rowObject);
-
-            var toggle = rowObject.GetComponentInChildren<Toggle>(includeInactive: true);
-            if (toggle == null)
-            {
-                StreetQuestShared.LogDebug("Map filter setup failed: cloned row has no Toggle component.");
-                Destroy(rowObject);
-                return;
-            }
-
-            toggle.onValueChanged.RemoveAllListeners();
-            toggle.isOn = _npcMarkersVisible;
-            toggle.onValueChanged.AddListener(HandleNpcFilterToggleChanged);
-            _npcFilterRow = rowObject;
-            _npcFilterToggle = toggle;
-            ConfigureNpcFilterRow(rowObject, filterContainer);
-
-        }
-
-        private bool TryResolveMapFilterTemplate(out Transform filterContainer, out GameObject templateRow)
-        {
-            filterContainer = null;
-            templateRow = null;
-
-            if (_mapFilterContainer != null &&
-                _mapFilterContainer.gameObject != null &&
-                _mapFilterContainer.gameObject.activeInHierarchy &&
-                IsUnderCityMap(_mapFilterContainer) &&
-                _mapFilterTemplateRow != null)
-            {
-                filterContainer = _mapFilterContainer;
-                templateRow = _mapFilterTemplateRow;
-                return true;
-            }
-
-            _mapFilterContainer = null;
-            _mapFilterTemplateRow = null;
-
-            foreach (var toggle in Resources.FindObjectsOfTypeAll<Toggle>())
-            {
-                if (toggle == null || toggle.gameObject == null || !toggle.gameObject.activeInHierarchy)
-                    continue;
-
-                var path = GetHierarchyPath(toggle.transform);
-                if (!IsUnderCityMap(toggle.transform))
-                    continue;
-
-                var lowerPath = path.ToLowerInvariant();
-                if (lowerPath.IndexOf("filter", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    lowerPath.IndexOf("legend", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    lowerPath.IndexOf("category", StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    continue;
-                }
-
-                var row = toggle.transform.parent != null ? toggle.transform.parent.gameObject : toggle.gameObject;
-                var container = row.transform.parent;
-                if (container == null)
-                    continue;
-
-                _mapFilterContainer = container as RectTransform;
-                _mapFilterTemplateRow = row;
-                filterContainer = container;
-                templateRow = row;
-                var containerPath = GetHierarchyPath(container);
-                if (!string.Equals(_lastFilterContainerPath, containerPath, StringComparison.Ordinal))
-                {
-                    _lastFilterContainerPath = containerPath;
-                }
-
-                return true;
-            }
-
-            return false;
-        }
-
-        private void HandleNpcFilterToggleChanged(bool isOn)
-        {
-            _npcMarkersVisible = isOn;
-            UnityEngine.PlayerPrefs.SetInt(NpcMapFilterPrefsKey, isOn ? 1 : 0);
-            UnityEngine.PlayerPrefs.Save();
-
-            if (isOn)
-            {
-                if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null)
-                    _streetQuestRoot.gameObject.SetActive(true);
-            }
-            else
-            {
-                HideStreetQuestRoot();
-            }
-        }
-
-        private static Text ResolveFilterRowLabel(Transform root)
-        {
-            if (root == null)
-                return null;
-
-            foreach (var text in root.GetComponentsInChildren<Text>(includeInactive: true))
-            {
-                if (text == null)
-                    continue;
-
-                var lowerName = text.name.ToLowerInvariant();
-                if (lowerName.Contains("label") || lowerName.Contains("text") || lowerName.Contains("title"))
-                    return text;
-            }
-
-            return root.GetComponentInChildren<Text>(includeInactive: true);
-        }
-
-        private void ConfigureNpcFilterRow(GameObject rowObject, Transform filterContainer)
-        {
-            if (rowObject == null)
-                return;
-
-            var label = "streetquest:map_filter_npcs".Localize().ToString();
-            ForceFilterRowLabel(rowObject.transform, label);
-
-            var iconImage = ResolveFilterRowIcon(rowObject.transform);
-            if (iconImage != null)
-            {
-                iconImage.sprite = GetMarkerSprite();
-                iconImage.color = Color.white;
-                iconImage.material = null;
-                iconImage.preserveAspect = true;
-                iconImage.SetNativeSize();
-            }
-
-            MoveNpcFilterRowBelowHideClosedBusinesses(rowObject.transform, filterContainer);
-        }
-
-        private static void ForceFilterRowLabel(Transform root, string label)
-        {
-            if (root == null || string.IsNullOrWhiteSpace(label))
-                return;
-
-            foreach (var text in root.GetComponentsInChildren<Text>(includeInactive: true))
-            {
-                if (text == null)
-                    continue;
-
-                text.gameObject.SetActive(true);
-                text.enabled = true;
-                text.text = label;
-                if (text.color.a < 0.99f)
-                    text.color = new Color(text.color.r, text.color.g, text.color.b, 1f);
-            }
-
-            foreach (var component in root.GetComponentsInChildren<Component>(includeInactive: true))
-            {
-                if (component == null || component is Text)
-                    continue;
-
-                var type = component.GetType();
-                var typeName = type.FullName ?? type.Name ?? string.Empty;
-                if (typeName.IndexOf("TextMeshPro", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    typeName.IndexOf("TMP_Text", StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    continue;
-                }
-
-                var textProperty = type.GetProperty("text", ReflectionFlags);
-                if (textProperty != null && textProperty.CanWrite)
-                {
-                    try
-                    {
-                        textProperty.SetValue(component, label, null);
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                var enabledProperty = type.GetProperty("enabled", ReflectionFlags);
-                if (enabledProperty != null && enabledProperty.CanWrite)
-                {
-                    try
-                    {
-                        enabledProperty.SetValue(component, true, null);
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                if (component is Behaviour behaviour)
-                    behaviour.gameObject.SetActive(true);
-            }
-        }
-
-        private Image ResolveFilterRowIcon(Transform root)
-        {
-            if (root == null)
-                return null;
-
-            var toggleTransform = _npcFilterToggle != null ? _npcFilterToggle.transform : null;
-            Image fallback = null;
-            var bestX = float.MaxValue;
-
-            foreach (var image in root.GetComponentsInChildren<Image>(includeInactive: true))
-            {
-                if (image == null || image.transform == root)
-                    continue;
-
-                if (toggleTransform != null && image.transform.IsChildOf(toggleTransform))
-                    continue;
-
-                var rect = image.rectTransform;
-                if (rect == null)
-                    continue;
-
-                var size = rect.rect.size;
-                if (size.x < 12f || size.y < 12f)
-                    continue;
-
-                var name = image.name.ToLowerInvariant();
-                if (name.Contains("icon") || name.Contains("image") || name.Contains("sprite"))
-                    return image;
-
-                var x = rect.anchoredPosition.x;
-                if (x < bestX)
-                {
-                    bestX = x;
-                    fallback = image;
-                }
-            }
-
-            return fallback;
-        }
-
-        private void MoveNpcFilterRowBelowHideClosedBusinesses(Transform rowTransform, Transform filterContainer)
-        {
-            if (rowTransform == null || filterContainer == null)
-                return;
-
-            var targetLabel = "hide closed businesses";
-            foreach (Transform child in filterContainer)
-            {
-                if (child == null || child == rowTransform)
-                    continue;
-
-                var childName = child.name ?? string.Empty;
-                if (childName.IndexOf("closed", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                    childName.IndexOf("hide", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    rowTransform.SetSiblingIndex(child.GetSiblingIndex() + 1);
-                    return;
-                }
-
-                foreach (var text in child.GetComponentsInChildren<Text>(includeInactive: true))
-                {
-                    if (text == null || string.IsNullOrWhiteSpace(text.text))
-                        continue;
-
-                    var visibleText = text.text.Trim();
-                    if (visibleText.Equals(targetLabel, StringComparison.OrdinalIgnoreCase) ||
-                        visibleText.IndexOf("closed", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        rowTransform.SetSiblingIndex(child.GetSiblingIndex() + 1);
-                        return;
-                    }
-                }
-            }
-
-            rowTransform.SetAsLastSibling();
-        }
-
-        private static void StripNonUiComponents(GameObject rowObject)
-        {
-            if (rowObject == null)
-                return;
-
-            foreach (var component in rowObject.GetComponentsInChildren<Component>(includeInactive: true))
-            {
-                if (component == null)
-                    continue;
-
-                if (component is Transform ||
-                    component is RectTransform ||
-                    component is CanvasRenderer ||
-                    component is Image ||
-                    component is Toggle ||
-                    component is Text ||
-                    component is LayoutElement ||
-                    component is HorizontalLayoutGroup ||
-                    component is VerticalLayoutGroup ||
-                    component is ContentSizeFitter)
-                {
-                    continue;
-                }
-
-                UnityEngine.Object.Destroy(component);
-            }
-        }
-
-        private static bool TryFindExistingNpcFilterRow(Transform filterContainer, out GameObject rowObject)
-        {
-            rowObject = null;
-            if (filterContainer == null)
-                return false;
-
-            foreach (Transform child in filterContainer)
-            {
-                if (child == null || child.gameObject == null)
-                    continue;
-
-                if (!string.Equals(child.gameObject.name, "StreetQuestNpcFilter", StringComparison.Ordinal))
-                    continue;
-
-                rowObject = child.gameObject;
-                return true;
-            }
-
-            return false;
-        }
-
-        private void CleanupDuplicateNpcFilterRows(Transform filterContainer)
-        {
-            if (filterContainer == null)
-                return;
-
-            var foundPrimary = false;
-            foreach (Transform child in filterContainer)
-            {
-                if (child == null || child.gameObject == null)
-                    continue;
-
-                if (!string.Equals(child.gameObject.name, "StreetQuestNpcFilter", StringComparison.Ordinal))
-                    continue;
-
-                if (!foundPrimary)
-                {
-                    foundPrimary = true;
-                    continue;
-                }
-
-                Destroy(child.gameObject);
-            }
-        }
-
-        private void EnsureTooltipRoot()
-        {
-            if (_streetQuestRoot == null)
-                return;
-
-            if (_tooltipRoot != null && _tooltipRoot.gameObject != null && _tooltipRoot.parent == _streetQuestRoot)
-            {
-                _tooltipRoot.SetAsLastSibling();
-                return;
-            }
-
-            if (_tooltipRoot != null && _tooltipRoot.gameObject != null)
-                Destroy(_tooltipRoot.gameObject);
-
-            var tooltipObject = new GameObject("StreetQuestMarkerTooltip", typeof(RectTransform), typeof(Image));
-            _tooltipRoot = tooltipObject.GetComponent<RectTransform>();
-            _tooltipRoot.SetParent(_streetQuestRoot, false);
-            _tooltipRoot.anchorMin = new Vector2(0.5f, 0.5f);
-            _tooltipRoot.anchorMax = new Vector2(0.5f, 0.5f);
-            _tooltipRoot.pivot = new Vector2(0.5f, 0f);
-            _tooltipRoot.sizeDelta = new Vector2(180f, 44f);
-            _tooltipRoot.anchoredPosition = Vector2.zero;
-            _tooltipRoot.SetAsLastSibling();
-
-            var background = tooltipObject.GetComponent<Image>();
-            background.sprite = GetTooltipBackgroundSprite();
-            background.type = Image.Type.Sliced;
-            background.color = Color.white;
-            background.raycastTarget = false;
-
-            var textObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
-            var textRect = textObject.GetComponent<RectTransform>();
-            textRect.SetParent(_tooltipRoot, false);
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(10f, 8f);
-            textRect.offsetMax = new Vector2(-10f, -8f);
-
-            _tooltipText = textObject.GetComponent<Text>();
-            _tooltipText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            _tooltipText.fontSize = 20;
-            _tooltipText.alignment = TextAnchor.MiddleCenter;
-            _tooltipText.color = Color.white;
-            _tooltipText.raycastTarget = false;
-            _tooltipText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _tooltipText.verticalOverflow = VerticalWrapMode.Truncate;
-
-            _tooltipRoot.gameObject.SetActive(false);
-        }
-
-        private void EnsureMarkerHoverTarget(RectTransform markerRoot, string characterId)
-        {
-            if (markerRoot == null)
-                return;
-
-            var hitImage = markerRoot.GetComponent<Image>();
-            if (hitImage == null)
-                hitImage = markerRoot.gameObject.AddComponent<Image>();
-
-            hitImage.color = new Color(1f, 1f, 1f, 0.01f);
-            hitImage.sprite ??= Resources.GetBuiltinResource<Sprite>("UI/Skin/UISprite.psd");
-            hitImage.type = Image.Type.Sliced;
-            hitImage.raycastTarget = true;
-
-            var hoverTarget = markerRoot.GetComponent<StreetQuestMapMarkerHoverTarget>();
-            if (hoverTarget == null)
-                hoverTarget = markerRoot.gameObject.AddComponent<StreetQuestMapMarkerHoverTarget>();
-
-            hoverTarget.Owner = this;
-            hoverTarget.CharacterId = characterId;
+            DebugLog($"Created StreetQuest POI root under {GetHierarchyPath(poiRoot)} size={FormatVector2(_streetQuestRoot.sizeDelta)}");
         }
 
         private Sprite GetMarkerSprite()
@@ -1313,62 +840,6 @@ namespace StreetQuestRPG
             return _markerSprite;
         }
 
-        private Sprite GetTooltipBackgroundSprite()
-        {
-            if (_tooltipBackgroundSprite != null)
-                return _tooltipBackgroundSprite;
-
-            const int width = 32;
-            const int height = 32;
-            const int radius = 6;
-            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
-            {
-                filterMode = FilterMode.Bilinear,
-                wrapMode = TextureWrapMode.Clamp
-            };
-
-            var fill = new Color(0f, 0f, 0f, 1f);
-            var clear = new Color(0f, 0f, 0f, 0f);
-
-            for (var y = 0; y < height; y++)
-            {
-                for (var x = 0; x < width; x++)
-                {
-                    var dx = 0f;
-                    var dy = 0f;
-
-                    if (x < radius)
-                        dx = radius - x;
-                    else if (x >= width - radius)
-                        dx = x - (width - radius - 1);
-
-                    if (y < radius)
-                        dy = radius - y;
-                    else if (y >= height - radius)
-                        dy = y - (height - radius - 1);
-
-                    if (dx <= 0f || dy <= 0f)
-                    {
-                        texture.SetPixel(x, y, fill);
-                        continue;
-                    }
-
-                    texture.SetPixel(x, y, (dx * dx) + (dy * dy) <= (radius * radius) ? fill : clear);
-                }
-            }
-
-            texture.Apply(false, false);
-            _tooltipBackgroundSprite = Sprite.Create(
-                texture,
-                new Rect(0f, 0f, width, height),
-                new Vector2(0.5f, 0.5f),
-                100f,
-                0u,
-                SpriteMeshType.FullRect,
-                new Vector4(radius, radius, radius, radius));
-            return _tooltipBackgroundSprite;
-        }
-
         private static string ResolveInstalledMarkerIconPath()
         {
             try
@@ -1392,13 +863,29 @@ namespace StreetQuestRPG
         private bool TryBuildCalibration(RectTransform poiRoot, out CalibrationData calibration)
         {
             calibration = default;
-            var samples = CollectCalibrationSamples(poiRoot, requireActiveVisible: true);
-            if (samples.Count < 2)
-                samples = CollectCalibrationSamples(poiRoot, requireActiveVisible: false);
+            var samples = new List<CalibrationSample>();
+
+            foreach (RectTransform childRect in poiRoot)
+            {
+                if (childRect == null || childRect == _streetQuestRoot)
+                    continue;
+
+                if (!IsUsableCalibrationPoi(childRect))
+                    continue;
+
+                if (!TryExtractCalibrationWorldPosition(childRect, out var worldPosition))
+                    continue;
+
+                var anchoredPosition = childRect.anchoredPosition;
+                if (float.IsNaN(anchoredPosition.x) || float.IsNaN(anchoredPosition.y))
+                    continue;
+
+                samples.Add(new CalibrationSample(worldPosition, anchoredPosition));
+            }
 
             if (samples.Count < 2)
             {
-                MaybeLogVerbose($"Map marker calibration aborted: only {samples.Count} usable samples found.");
+                MaybeLogVerbose("Map marker calibration aborted: fewer than 2 usable vanilla POI samples.");
                 return false;
             }
 
@@ -1413,8 +900,7 @@ namespace StreetQuestRPG
 
             if (Mathf.Abs(maxWorldX - minWorldX) < 0.01f || Mathf.Abs(maxWorldZ - minWorldZ) < 0.01f)
             {
-                MaybeLogVerbose(
-                    $"Map marker calibration aborted: insufficient world spread x=({minWorldX:F2},{maxWorldX:F2}) z=({minWorldZ:F2},{maxWorldZ:F2})");
+                MaybeLogVerbose("Map marker calibration aborted: world POI span too small.");
                 return false;
             }
 
@@ -1431,47 +917,50 @@ namespace StreetQuestRPG
             return true;
         }
 
-        private List<CalibrationSample> CollectCalibrationSamples(RectTransform poiRoot, bool requireActiveVisible)
+        private void AttachNativePoiVisuals(RectTransform template, Transform poiRootTransform)
         {
-            var samples = new List<CalibrationSample>();
-            if (poiRoot == null)
-                return samples;
+            if (template == null || poiRootTransform == null)
+                return;
 
-            foreach (RectTransform childRect in poiRoot)
+            foreach (var image in poiRootTransform.GetComponentsInChildren<Image>(includeInactive: true))
             {
-                if (childRect == null || childRect == _streetQuestRoot)
+                if (image == null)
                     continue;
 
-                if (!IsUsableCalibrationPoi(childRect, requireActiveVisible))
-                    continue;
-
-                if (!TryExtractCalibrationWorldPosition(childRect, out var worldPosition))
-                    continue;
-
-                var anchoredPosition = childRect.anchoredPosition;
-                if (float.IsNaN(anchoredPosition.x) || float.IsNaN(anchoredPosition.y))
-                    continue;
-
-                samples.Add(new CalibrationSample(worldPosition, anchoredPosition));
+                image.enabled = false;
+                image.raycastTarget = false;
             }
 
-            return samples;
+            var pointer = FindChildRectTransform(template, "POIPointer");
+            var blob = FindChildRectTransform(template, "POIBlob");
+            if (pointer != null)
+            {
+                var pointerCloneObject = Instantiate(pointer.gameObject, poiRootTransform, false);
+                pointerCloneObject.name = "StreetQuestNativePointer";
+                pointerCloneObject.SetActive(true);
+                PrepareMarkerVisual(pointerCloneObject);
+            }
+
+            if (blob != null)
+            {
+                var blobCloneObject = Instantiate(blob.gameObject, poiRootTransform, false);
+                blobCloneObject.name = "StreetQuestNativeBlob";
+                blobCloneObject.SetActive(true);
+                PrepareMarkerVisual(blobCloneObject);
+                ApplyCustomMarkerIcon(blobCloneObject.transform);
+            }
         }
 
-        private bool IsUsableCalibrationPoi(RectTransform rectTransform, bool requireActiveVisible)
+        private bool IsUsableCalibrationPoi(RectTransform rectTransform)
         {
-            if (rectTransform == null)
-                return false;
-
-            if (requireActiveVisible && !rectTransform.gameObject.activeInHierarchy)
+            if (rectTransform == null || !rectTransform.gameObject.activeInHierarchy)
                 return false;
 
             var pointOfInterest = rectTransform.GetComponent("PointOfInterest");
             if (pointOfInterest == null)
                 return false;
 
-            if (requireActiveVisible &&
-                TryReadMemberValue(pointOfInterest, "hidden", out var hiddenValue) &&
+            if (TryReadMemberValue(pointOfInterest, "hidden", out var hiddenValue) &&
                 hiddenValue is bool hidden &&
                 hidden)
             {
@@ -1639,6 +1128,41 @@ namespace StreetQuestRPG
             }
 
             return false;
+        }
+
+        private static bool IsDynamicPoiTarget(object pointOfInterest)
+        {
+            if (pointOfInterest == null)
+                return false;
+
+            if (!TryReadMemberValue(pointOfInterest, "target", out var targetValue) || targetValue == null)
+                return false;
+
+            if (!TryGetTargetHierarchyPath(targetValue, out var targetPath))
+                return false;
+
+            return targetPath.StartsWith("GameManager/ItemsContainer/", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(targetPath, "GameManager/ItemsContainer", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(targetPath, "GameManager/Player", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryGetTargetHierarchyPath(object candidate, out string path)
+        {
+            path = null;
+            switch (candidate)
+            {
+                case Transform transform:
+                    path = GetHierarchyPath(transform);
+                    return !string.IsNullOrWhiteSpace(path);
+                case Component component:
+                    path = GetHierarchyPath(component.transform);
+                    return !string.IsNullOrWhiteSpace(path);
+                case GameObject gameObject:
+                    path = GetHierarchyPath(gameObject.transform);
+                    return !string.IsNullOrWhiteSpace(path);
+                default:
+                    return false;
+            }
         }
 
         private static bool SetNamedFieldValue(object instance, string fieldName, object value)
@@ -1896,18 +1420,25 @@ namespace StreetQuestRPG
         {
             if (_markerRoots.TryGetValue(characterId, out var markerRoot) && markerRoot != null)
                 markerRoot.gameObject.SetActive(active);
+
+            if (_nativePoiComponents.TryGetValue(characterId, out var poiComponent) &&
+                poiComponent != null &&
+                poiComponent.gameObject != null)
+            {
+                poiComponent.gameObject.SetActive(active);
+            }
         }
 
         private void HideStreetQuestRoot()
         {
             if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null)
-            {
-                if (_streetQuestRoot.gameObject.activeSelf)
-                    LogLifecycleEvent("Hiding StreetQuest marker root.");
                 _streetQuestRoot.gameObject.SetActive(false);
-            }
 
-            HideTooltip();
+            foreach (var poiComponent in _nativePoiComponents.Values)
+            {
+                if (poiComponent != null && poiComponent.gameObject != null)
+                    poiComponent.gameObject.SetActive(false);
+            }
         }
 
         private void DestroyCustomMarkerRoot(string characterId)
@@ -1920,8 +1451,6 @@ namespace StreetQuestRPG
 
             Destroy(markerRoot.gameObject);
             _markerRoots.Remove(characterId);
-            if (string.Equals(_hoveredCharacterId, characterId, StringComparison.OrdinalIgnoreCase))
-                HideTooltip();
             DebugLog($"Destroyed custom marker root characterId={characterId}");
         }
 
@@ -1941,11 +1470,6 @@ namespace StreetQuestRPG
             _nativePoiLastTargetPositions.Clear();
             _markerVisibilityStates.Clear();
             _markerStatusReasons.Clear();
-            _hoveredCharacterId = null;
-            if (_tooltipRoot != null && _tooltipRoot.gameObject != null)
-                Destroy(_tooltipRoot.gameObject);
-            _tooltipRoot = null;
-            _tooltipText = null;
         }
 
         private void DestroyLingeringStreetQuestMapObjects()
@@ -1974,7 +1498,7 @@ namespace StreetQuestRPG
                 return;
 
             _lastLifecycleState = state;
-            LogLifecycleEvent(state);
+            DebugLog($"MapMarkerWatcher: {state}");
         }
 
         private void LogKnownCharacters(IReadOnlyCollection<string> knownCharacterIds)
@@ -1987,17 +1511,7 @@ namespace StreetQuestRPG
                 return;
 
             _lastKnownCharacterSnapshot = snapshot;
-            LogLifecycleEvent($"Map marker known NPCs: {snapshot}");
-        }
-
-        private void LogRefreshSnapshot(int knownNpcCount, bool rootActive)
-        {
-            var snapshot = $"{knownNpcCount}|{rootActive}";
-            if (string.Equals(_lastRefreshSnapshot, snapshot, StringComparison.Ordinal))
-                return;
-
-            _lastRefreshSnapshot = snapshot;
-            LogLifecycleEvent($"Refreshing known NPC markers count={knownNpcCount} rootActive={rootActive}");
+            DebugLog($"Map marker known NPCs: {snapshot}");
         }
 
         private void LogMarkerState(string characterId, bool isVisible, string reason)
@@ -2010,15 +1524,7 @@ namespace StreetQuestRPG
 
             _markerVisibilityStates[characterId] = isVisible;
             _markerStatusReasons[characterId] = reason;
-            LogLifecycleEvent($"Map marker characterId={characterId} visible={isVisible} reason={reason}");
-        }
-
-        private static void LogLifecycleEvent(string message)
-        {
-            if (!EnableMarkerLifecycleLogging || string.IsNullOrWhiteSpace(message))
-                return;
-
-            StreetQuestShared.LogDebug($"MapMarkerWatcher: {message}");
+            DebugLog($"Map marker characterId={characterId} visible={isVisible} reason={reason}");
         }
 
         private void MaybeLogVerbose(string message)
@@ -2049,56 +1555,6 @@ namespace StreetQuestRPG
         private static string FormatVector3(Vector3 value)
         {
             return $"({value.x:F2}, {value.y:F2}, {value.z:F2})";
-        }
-
-        internal void HandleMarkerPointerEnter(string characterId)
-        {
-            if (string.IsNullOrWhiteSpace(characterId))
-                return;
-
-            _hoveredCharacterId = characterId;
-            ShowTooltip(characterId);
-        }
-
-        internal void HandleMarkerPointerExit(string characterId)
-        {
-            if (!string.Equals(_hoveredCharacterId, characterId, StringComparison.OrdinalIgnoreCase))
-                return;
-
-            HideTooltip();
-        }
-
-        private void ShowTooltip(string characterId)
-        {
-            EnsureTooltipRoot();
-            if (_tooltipRoot == null || _tooltipText == null)
-                return;
-
-            _tooltipText.text = StreetQuestShared.ResolveCharacterDisplayName(characterId);
-            _tooltipRoot.gameObject.SetActive(true);
-            _tooltipRoot.SetAsLastSibling();
-            UpdateTooltipPosition();
-        }
-
-        private void HideTooltip()
-        {
-            _hoveredCharacterId = null;
-            if (_tooltipRoot != null && _tooltipRoot.gameObject != null)
-                _tooltipRoot.gameObject.SetActive(false);
-        }
-
-        private void UpdateTooltipPosition()
-        {
-            if (string.IsNullOrWhiteSpace(_hoveredCharacterId) ||
-                _tooltipRoot == null ||
-                !_tooltipRoot.gameObject.activeSelf ||
-                !_markerRoots.TryGetValue(_hoveredCharacterId, out var markerRoot) ||
-                markerRoot == null)
-            {
-                return;
-            }
-
-            _tooltipRoot.anchoredPosition = markerRoot.anchoredPosition + new Vector2(0f, 40f);
         }
 
         private readonly struct CalibrationSample
