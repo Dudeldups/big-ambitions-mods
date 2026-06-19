@@ -21,6 +21,10 @@ namespace StreetQuestRPG
 {
     internal static partial class StreetQuestShared
     {
+        private const float DebugTeleportNpcDistance = 2f;
+        private const float DebugTeleportNavMeshProbeRadius = 4f;
+        private const float DebugTeleportGroundOffset = 0.05f;
+
         public static Vector3 GetPlayerWorldPosition()
         {
             return PlayerHelper.PlayerController != null
@@ -90,23 +94,24 @@ namespace StreetQuestRPG
             if (character == null || playerController == null)
                 return false;
 
-            var targetPosition = character.PositionOr(Vector3.zero) + new Vector3(0f, 0f, 2f);
-            var targetForward = FlattenDirection(character.ForwardOr(Vector3.forward));
-            if (targetForward.sqrMagnitude < 0.001f)
-                targetForward = Vector3.forward;
+            var characterPosition = character.PositionOr(Vector3.zero);
+            var characterForward = FlattenDirection(character.ForwardOr(Vector3.forward));
+            if (TryGetSpawnedCharacterRoot(characterId, out var spawnedRoot) && spawnedRoot != null)
+            {
+                characterPosition = spawnedRoot.transform.position;
+                var spawnedForward = FlattenDirection(spawnedRoot.transform.forward);
+                if (spawnedForward.sqrMagnitude >= 0.001f)
+                    characterForward = spawnedForward;
+            }
 
-            var characterController = playerController.GetComponent<CharacterController>();
-            var wasEnabled = characterController != null && characterController.enabled;
-            if (wasEnabled)
-                characterController.enabled = false;
+            if (characterForward.sqrMagnitude < 0.001f)
+                characterForward = Vector3.forward;
 
-            playerController.transform.position = targetPosition;
-            playerController.transform.rotation = Quaternion.LookRotation(-targetForward, Vector3.up);
+            var targetPosition = characterPosition + (characterForward.normalized * DebugTeleportNpcDistance);
+            targetPosition.y = characterPosition.y + DebugTeleportGroundOffset;
+            var targetRotation = Quaternion.LookRotation(-characterForward.normalized, Vector3.up);
 
-            if (wasEnabled)
-                characterController.enabled = true;
-
-            return true;
+            return TeleportPlayerToExactPosition(playerController, targetPosition, targetRotation, applyRotation: true, $"character={characterId}");
         }
 
 
@@ -116,17 +121,119 @@ namespace StreetQuestRPG
             if (playerController == null)
                 return false;
 
-            var characterController = playerController.GetComponent<CharacterController>();
-            var wasEnabled = characterController != null && characterController.enabled;
-            if (wasEnabled)
-                characterController.enabled = false;
+            return TeleportPlayerToExactPosition(
+                playerController,
+                worldPosition + new Vector3(0f, 0f, 1.5f),
+                Quaternion.identity,
+                applyRotation: false,
+                $"world={FormatVector3(worldPosition)}");
+        }
 
-            playerController.transform.position = worldPosition + new Vector3(0f, 0f, 1.5f);
 
-            if (wasEnabled)
-                characterController.enabled = true;
+        private static bool TeleportPlayerToExactPosition(
+            Component playerController,
+            Vector3 requestedPosition,
+            Quaternion requestedRotation,
+            bool applyRotation,
+            string source)
+        {
+            if (playerController == null)
+                return false;
 
+            var playerTransform = playerController.transform;
+            var finalPosition = ResolveDebugTeleportLandingPosition(requestedPosition);
+            var characterControllers = playerTransform.GetComponentsInChildren<CharacterController>(true);
+            var navMeshAgents = playerTransform.GetComponentsInChildren<UnityEngine.AI.NavMeshAgent>(true);
+            var rigidbodies = playerTransform.GetComponentsInChildren<Rigidbody>(true);
+            var characterControllerStates = characterControllers.Select(value => value != null && value.enabled).ToArray();
+            var navMeshAgentStates = navMeshAgents.Select(value => value != null && value.enabled).ToArray();
+
+            try
+            {
+                foreach (var rigidbody in rigidbodies)
+                {
+                    if (rigidbody == null)
+                        continue;
+
+                    rigidbody.velocity = Vector3.zero;
+                    rigidbody.angularVelocity = Vector3.zero;
+                }
+
+                foreach (var characterController in characterControllers)
+                {
+                    if (characterController != null)
+                        characterController.enabled = false;
+                }
+
+                for (var i = 0; i < navMeshAgents.Length; i++)
+                {
+                    var agent = navMeshAgents[i];
+                    if (agent == null || !agent.enabled)
+                        continue;
+
+                    if (agent.isOnNavMesh)
+                        agent.ResetPath();
+
+                    agent.enabled = false;
+                }
+
+                if (applyRotation)
+                    playerTransform.SetPositionAndRotation(finalPosition, requestedRotation);
+                else
+                    playerTransform.position = finalPosition;
+
+                Physics.SyncTransforms();
+            }
+            finally
+            {
+                for (var i = 0; i < navMeshAgents.Length; i++)
+                {
+                    var agent = navMeshAgents[i];
+                    if (agent == null)
+                        continue;
+
+                    agent.enabled = navMeshAgentStates.Length > i && navMeshAgentStates[i];
+                    if (!agent.enabled)
+                        continue;
+
+                    if (agent.isOnNavMesh)
+                    {
+                        agent.Warp(finalPosition);
+                        agent.ResetPath();
+                    }
+                }
+
+                for (var i = 0; i < characterControllers.Length; i++)
+                {
+                    var characterController = characterControllers[i];
+                    if (characterController != null && characterControllerStates.Length > i)
+                        characterController.enabled = characterControllerStates[i];
+                }
+
+                Physics.SyncTransforms();
+            }
+
+            LogDebug(
+                $"DebugTeleport source={source} requested={FormatVector3(requestedPosition)} final={FormatVector3(finalPosition)} " +
+                $"navAgents={navMeshAgents.Length} characterControllers={characterControllers.Length}");
             return true;
+        }
+
+
+        private static Vector3 ResolveDebugTeleportLandingPosition(Vector3 requestedPosition)
+        {
+            if (UnityEngine.AI.NavMesh.SamplePosition(
+                    requestedPosition,
+                    out var navMeshHit,
+                    DebugTeleportNavMeshProbeRadius,
+                    UnityEngine.AI.NavMesh.AllAreas))
+            {
+                var position = navMeshHit.position;
+                position.y += DebugTeleportGroundOffset;
+                return position;
+            }
+
+            return requestedPosition;
         }
     }
 }
