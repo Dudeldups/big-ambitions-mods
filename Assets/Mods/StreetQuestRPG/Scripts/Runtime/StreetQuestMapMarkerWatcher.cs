@@ -102,7 +102,7 @@ namespace StreetQuestRPG
         private RectTransform _lastPlayerPoiRect;
         private Vector3 _lastPlayerWorldPosition;
         private Vector2 _lastPlayerUiPosition;
-        private bool _mapFilterVisible = true;
+        private bool _mapFilterVisible;
         private int _mapFilterStableFrames;
         private string _mapFilterReadinessSignature;
         private float _nextMapFilterReadinessLogAtSeconds;
@@ -145,7 +145,7 @@ namespace StreetQuestRPG
             _lastPlayerPoiRect = null;
             _lastPlayerWorldPosition = default;
             _lastPlayerUiPosition = default;
-            _mapFilterVisible = UnityEngine.PlayerPrefs.GetInt(MapFilterPrefsKey, 1) != 0;
+            _mapFilterVisible = UnityEngine.PlayerPrefs.GetInt(MapFilterPrefsKey, 0) != 0;
             _mapFilterStableFrames = 0;
             _mapFilterReadinessSignature = null;
             _nextMapFilterReadinessLogAtSeconds = 0f;
@@ -333,7 +333,7 @@ namespace StreetQuestRPG
                 LogMarkerState(
                     characterId,
                     true,
-                    "Placed marker with player-projection calibration.");
+                    $"Placed marker with player-projection calibration. filterVisible={_mapFilterVisible}");
             }
         }
 
@@ -576,7 +576,7 @@ namespace StreetQuestRPG
 
             var siblingIndex = Mathf.Min(rowTemplate.GetSiblingIndex() + 1, parent.childCount - 1);
             rowObject.transform.SetSiblingIndex(siblingIndex);
-            SetMapFilterVisible(_mapFilterVisible, persist: false);
+            ApplyMapFilterVisibility(_mapFilterVisible, "toggle-created", persist: false);
 
             DebugLog(
                 $"Map filter toggle created label={MapFilterLabel} persisted={_mapFilterVisible} stableFrames={_mapFilterStableFrames} " +
@@ -655,10 +655,10 @@ namespace StreetQuestRPG
 
         private void SetMapFilterVisibleFromUi(bool visible)
         {
-            SetMapFilterVisible(visible, persist: true);
+            ApplyMapFilterVisibility(visible, "people-ui", persist: true);
         }
 
-        private void SetMapFilterVisible(bool visible, bool persist)
+        private void ApplyMapFilterVisibility(bool visible, string source, bool persist)
         {
             _mapFilterVisible = visible;
 
@@ -676,6 +676,10 @@ namespace StreetQuestRPG
 
             if (!visible)
                 HideMarkerNameplate();
+
+            DebugLog(
+                $"Map filter apply source={source} visible={visible} persist={persist} " +
+                $"masterKnown={(_mapFilterMasterToggle != null ? _mapFilterMasterToggle.isOn.ToString() : "<null>")}");
         }
 
         private void SyncWithMapFilterMasterToggle()
@@ -691,6 +695,10 @@ namespace StreetQuestRPG
             {
                 _mapFilterMasterToggleResolvedForSession = true;
                 masterToggle = ResolveMapFilterMasterToggle();
+                DebugLog(
+                    $"Map filter master resolve attempted found={(masterToggle != null)} " +
+                    $"path={(masterToggle != null ? GetHierarchyPath(masterToggle.transform) : "<none>")} " +
+                    $"isOn={(masterToggle != null ? masterToggle.isOn.ToString() : "<n/a>")}");
             }
 
             if (masterToggle == null || masterToggle.gameObject == null || !masterToggle.gameObject.activeInHierarchy)
@@ -705,12 +713,11 @@ namespace StreetQuestRPG
             {
                 DetachMapFilterMasterToggleListener();
                 _mapFilterMasterToggle = masterToggle;
-                var needsImmediateSync = !_lastMapFilterMasterToggleValue.HasValue || _mapFilterVisible != masterToggle.isOn;
                 _lastMapFilterMasterToggleValue = masterToggle.isOn;
                 AttachMapFilterMasterToggleListener(masterToggle);
-
-                if (needsImmediateSync)
-                    SetMapFilterVisible(masterToggle.isOn, persist: true);
+                DebugLog(
+                    $"Map filter master attached path={GetHierarchyPath(masterToggle.transform)} isOn={masterToggle.isOn} " +
+                    $"peopleVisible={_mapFilterVisible}");
 
                 return;
             }
@@ -719,7 +726,8 @@ namespace StreetQuestRPG
                 return;
 
             _lastMapFilterMasterToggleValue = masterToggle.isOn;
-            SetMapFilterVisible(masterToggle.isOn, persist: true);
+            DebugLog($"Map filter master changed via update isOn={masterToggle.isOn}");
+            ApplyMapFilterVisibility(masterToggle.isOn, "master-update", persist: true);
         }
 
         private void AttachMapFilterMasterToggleListener(Toggle masterToggle)
@@ -743,7 +751,8 @@ namespace StreetQuestRPG
         private void HandleMapFilterMasterToggleChanged(bool isOn)
         {
             _lastMapFilterMasterToggleValue = isOn;
-            SetMapFilterVisible(isOn, persist: true);
+            DebugLog($"Map filter master changed via listener isOn={isOn}");
+            ApplyMapFilterVisibility(isOn, "master-listener", persist: true);
         }
 
         private Toggle ResolveMapFilterMasterToggle()
