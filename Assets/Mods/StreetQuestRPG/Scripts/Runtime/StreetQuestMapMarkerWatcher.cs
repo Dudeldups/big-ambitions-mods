@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using BigAmbitions.SaveSystem.Legacy;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace StreetQuestRPG
@@ -51,6 +52,9 @@ namespace StreetQuestRPG
         private PropertyInfo _cityMapIsOpenProperty;
         private RectTransform _poiRoot;
         private RectTransform _streetQuestRoot;
+        private RectTransform _tooltipRoot;
+        private Text _tooltipText;
+        private Sprite _tooltipBackgroundSprite;
         private Sprite _markerSprite;
         private bool _loggedCalibrationFailure;
         private bool _hasCalibration;
@@ -67,6 +71,7 @@ namespace StreetQuestRPG
         private string _lastPoiRootPath;
         private string _lastCalibrationSnapshot;
         private float _nextVerboseLogAtSeconds;
+        private string _hoveredCharacterId;
         private RectTransform _poiMarkerTemplate;
         private RectTransform _nativePoiTemplate;
         private Transform _nativePoiTargetParent;
@@ -78,6 +83,9 @@ namespace StreetQuestRPG
             _nextRefreshAtSeconds = 0f;
             _poiRoot = null;
             _streetQuestRoot = null;
+            _tooltipRoot = null;
+            _tooltipText = null;
+            _tooltipBackgroundSprite = null;
             _cityMapIsOpenProperty = null;
             _poiMarkerTemplate = null;
             _nativePoiTemplate = null;
@@ -90,6 +98,7 @@ namespace StreetQuestRPG
             _lastPoiRootPath = null;
             _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
+            _hoveredCharacterId = null;
             DestroyLingeringStreetQuestMapObjects();
             DestroyMarkerImages();
         }
@@ -132,6 +141,7 @@ namespace StreetQuestRPG
             EnsureStreetQuestRoot(poiRoot);
             EnsureCalibration(poiRoot);
             UpdateKnownNpcMarkers();
+            UpdateTooltipPosition();
         }
 
         private void EnsureCalibration(RectTransform poiRoot)
@@ -194,6 +204,8 @@ namespace StreetQuestRPG
                 _markerAnchoredVelocities.Remove(existing);
                 _markerVisibilityStates.Remove(existing);
                 _markerStatusReasons.Remove(existing);
+                if (string.Equals(_hoveredCharacterId, existing, StringComparison.OrdinalIgnoreCase))
+                    HideTooltip();
                 DebugLog($"Map marker removed characterId={existing}");
             }
 
@@ -306,10 +318,13 @@ namespace StreetQuestRPG
             rectTransform.localScale = Vector3.one;
             rectTransform.localRotation = Quaternion.identity;
             rectTransform.SetAsLastSibling();
+            EnsureMarkerHoverTarget(rectTransform, characterId);
 
             if (!TryAttachVanillaMarkerVisual(template, rectTransform))
             {
-                var image = markerObject.AddComponent<Image>();
+                var image = markerObject.GetComponent<Image>();
+                if (image == null)
+                    image = markerObject.AddComponent<Image>();
                 image.sprite = GetMarkerSprite();
                 image.color = new Color(1f, 0f, 1f, 1f);
                 image.raycastTarget = false;
@@ -748,7 +763,80 @@ namespace StreetQuestRPG
             _streetQuestRoot.sizeDelta = poiRoot.rect.size;
             _streetQuestRoot.anchoredPosition = Vector2.zero;
             _streetQuestRoot.SetAsLastSibling();
+            EnsureTooltipRoot();
             DebugLog($"Created StreetQuest POI root under {GetHierarchyPath(poiRoot)} size={FormatVector2(_streetQuestRoot.sizeDelta)}");
+        }
+
+        private void EnsureTooltipRoot()
+        {
+            if (_streetQuestRoot == null)
+                return;
+
+            if (_tooltipRoot != null && _tooltipRoot.gameObject != null && _tooltipRoot.parent == _streetQuestRoot)
+            {
+                _tooltipRoot.SetAsLastSibling();
+                return;
+            }
+
+            if (_tooltipRoot != null && _tooltipRoot.gameObject != null)
+                Destroy(_tooltipRoot.gameObject);
+
+            var tooltipObject = new GameObject("StreetQuestMarkerTooltip", typeof(RectTransform), typeof(Image));
+            _tooltipRoot = tooltipObject.GetComponent<RectTransform>();
+            _tooltipRoot.SetParent(_streetQuestRoot, false);
+            _tooltipRoot.anchorMin = new Vector2(0.5f, 0.5f);
+            _tooltipRoot.anchorMax = new Vector2(0.5f, 0.5f);
+            _tooltipRoot.pivot = new Vector2(0.5f, 0f);
+            _tooltipRoot.sizeDelta = new Vector2(180f, 44f);
+            _tooltipRoot.anchoredPosition = Vector2.zero;
+            _tooltipRoot.SetAsLastSibling();
+
+            var background = tooltipObject.GetComponent<Image>();
+            background.sprite = GetTooltipBackgroundSprite();
+            background.type = Image.Type.Sliced;
+            background.color = Color.white;
+            background.raycastTarget = false;
+
+            var textObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
+            var textRect = textObject.GetComponent<RectTransform>();
+            textRect.SetParent(_tooltipRoot, false);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(10f, 8f);
+            textRect.offsetMax = new Vector2(-10f, -8f);
+
+            _tooltipText = textObject.GetComponent<Text>();
+            _tooltipText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            _tooltipText.fontSize = 20;
+            _tooltipText.alignment = TextAnchor.MiddleCenter;
+            _tooltipText.color = Color.white;
+            _tooltipText.raycastTarget = false;
+            _tooltipText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _tooltipText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            _tooltipRoot.gameObject.SetActive(false);
+        }
+
+        private void EnsureMarkerHoverTarget(RectTransform markerRoot, string characterId)
+        {
+            if (markerRoot == null)
+                return;
+
+            var hitImage = markerRoot.GetComponent<Image>();
+            if (hitImage == null)
+                hitImage = markerRoot.gameObject.AddComponent<Image>();
+
+            hitImage.color = new Color(1f, 1f, 1f, 0.01f);
+            hitImage.sprite ??= Resources.GetBuiltinResource<Sprite>("UI/Skin/UISprite.psd");
+            hitImage.type = Image.Type.Sliced;
+            hitImage.raycastTarget = true;
+
+            var hoverTarget = markerRoot.GetComponent<StreetQuestMapMarkerHoverTarget>();
+            if (hoverTarget == null)
+                hoverTarget = markerRoot.gameObject.AddComponent<StreetQuestMapMarkerHoverTarget>();
+
+            hoverTarget.Owner = this;
+            hoverTarget.CharacterId = characterId;
         }
 
         private Sprite GetMarkerSprite()
@@ -802,6 +890,62 @@ namespace StreetQuestRPG
             _markerSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
             DebugLog("Loaded fallback solid sprite for map marker.");
             return _markerSprite;
+        }
+
+        private Sprite GetTooltipBackgroundSprite()
+        {
+            if (_tooltipBackgroundSprite != null)
+                return _tooltipBackgroundSprite;
+
+            const int width = 32;
+            const int height = 32;
+            const int radius = 6;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            var fill = new Color(0f, 0f, 0f, 1f);
+            var clear = new Color(0f, 0f, 0f, 0f);
+
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    var dx = 0f;
+                    var dy = 0f;
+
+                    if (x < radius)
+                        dx = radius - x;
+                    else if (x >= width - radius)
+                        dx = x - (width - radius - 1);
+
+                    if (y < radius)
+                        dy = radius - y;
+                    else if (y >= height - radius)
+                        dy = y - (height - radius - 1);
+
+                    if (dx <= 0f || dy <= 0f)
+                    {
+                        texture.SetPixel(x, y, fill);
+                        continue;
+                    }
+
+                    texture.SetPixel(x, y, (dx * dx) + (dy * dy) <= (radius * radius) ? fill : clear);
+                }
+            }
+
+            texture.Apply(false, false);
+            _tooltipBackgroundSprite = Sprite.Create(
+                texture,
+                new Rect(0f, 0f, width, height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0u,
+                SpriteMeshType.FullRect,
+                new Vector4(radius, radius, radius, radius));
+            return _tooltipBackgroundSprite;
         }
 
         private static string ResolveInstalledMarkerIconPath()
@@ -1322,6 +1466,8 @@ namespace StreetQuestRPG
         {
             if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null)
                 _streetQuestRoot.gameObject.SetActive(false);
+
+            HideTooltip();
         }
 
         private void DestroyCustomMarkerRoot(string characterId)
@@ -1334,6 +1480,8 @@ namespace StreetQuestRPG
 
             Destroy(markerRoot.gameObject);
             _markerRoots.Remove(characterId);
+            if (string.Equals(_hoveredCharacterId, characterId, StringComparison.OrdinalIgnoreCase))
+                HideTooltip();
             DebugLog($"Destroyed custom marker root characterId={characterId}");
         }
 
@@ -1353,6 +1501,11 @@ namespace StreetQuestRPG
             _nativePoiLastTargetPositions.Clear();
             _markerVisibilityStates.Clear();
             _markerStatusReasons.Clear();
+            _hoveredCharacterId = null;
+            if (_tooltipRoot != null && _tooltipRoot.gameObject != null)
+                Destroy(_tooltipRoot.gameObject);
+            _tooltipRoot = null;
+            _tooltipText = null;
         }
 
         private void DestroyLingeringStreetQuestMapObjects()
@@ -1438,6 +1591,66 @@ namespace StreetQuestRPG
         private static string FormatVector3(Vector3 value)
         {
             return $"({value.x:F2}, {value.y:F2}, {value.z:F2})";
+        }
+
+        internal void HandleMarkerPointerEnter(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return;
+
+            _hoveredCharacterId = characterId;
+            ShowTooltip(characterId);
+            DebugLog($"Map marker hover enter characterId={characterId}");
+        }
+
+        internal void HandleMarkerPointerExit(string characterId)
+        {
+            if (!string.Equals(_hoveredCharacterId, characterId, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            HideTooltip();
+            DebugLog($"Map marker hover exit characterId={characterId}");
+        }
+
+        internal void HandleMarkerPointerClick(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return;
+
+            StreetQuestShared.LogDebug($"Map marker click characterId={characterId}");
+        }
+
+        private void ShowTooltip(string characterId)
+        {
+            EnsureTooltipRoot();
+            if (_tooltipRoot == null || _tooltipText == null)
+                return;
+
+            _tooltipText.text = StreetQuestShared.ResolveCharacterDisplayName(characterId);
+            _tooltipRoot.gameObject.SetActive(true);
+            _tooltipRoot.SetAsLastSibling();
+            UpdateTooltipPosition();
+        }
+
+        private void HideTooltip()
+        {
+            _hoveredCharacterId = null;
+            if (_tooltipRoot != null && _tooltipRoot.gameObject != null)
+                _tooltipRoot.gameObject.SetActive(false);
+        }
+
+        private void UpdateTooltipPosition()
+        {
+            if (string.IsNullOrWhiteSpace(_hoveredCharacterId) ||
+                _tooltipRoot == null ||
+                !_tooltipRoot.gameObject.activeSelf ||
+                !_markerRoots.TryGetValue(_hoveredCharacterId, out var markerRoot) ||
+                markerRoot == null)
+            {
+                return;
+            }
+
+            _tooltipRoot.anchoredPosition = markerRoot.anchoredPosition + new Vector2(0f, 40f);
         }
 
         private readonly struct CalibrationSample
