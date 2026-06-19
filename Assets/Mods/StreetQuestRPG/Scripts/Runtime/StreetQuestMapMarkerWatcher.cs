@@ -84,7 +84,6 @@ namespace StreetQuestRPG
         private string _lastLifecycleState;
         private string _lastKnownCharacterSnapshot;
         private string _lastPoiRootPath;
-        private string _lastCalibrationSnapshot;
         private float _nextVerboseLogAtSeconds;
         private RectTransform _poiMarkerTemplate;
         private RectTransform _nativePoiTemplate;
@@ -109,12 +108,15 @@ namespace StreetQuestRPG
         private float _nextMapFilterReadinessLogAtSeconds;
         private Toggle _mapFilterToggle;
         private GameObject _mapFilterRowObject;
-        private bool _loggedMapFilterFailure;
+        private Toggle _mapFilterMasterToggle;
+        private bool? _lastMapFilterMasterToggleValue;
+        private bool _mapFilterMasterToggleResolvedForSession;
         private RectTransform _nameplateRoot;
         private Text _nameplateText;
         private Sprite _nameplateBackgroundSprite;
         private RectTransform _hoveredMarkerRoot;
         private string _hoveredCharacterId;
+        private bool _projectionCalibrationLockedForSession;
 
         public void Initialize()
         {
@@ -132,7 +134,6 @@ namespace StreetQuestRPG
             _lastLifecycleState = null;
             _lastKnownCharacterSnapshot = null;
             _lastPoiRootPath = null;
-            _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
             _nextCalibrationLogAtSeconds = 0f;
             _calibrationAnchorWorldPositionsInitialized = false;
@@ -149,11 +150,14 @@ namespace StreetQuestRPG
             _nextMapFilterReadinessLogAtSeconds = 0f;
             _mapFilterToggle = null;
             _mapFilterRowObject = null;
-            _loggedMapFilterFailure = false;
+            _mapFilterMasterToggle = null;
+            _lastMapFilterMasterToggleValue = null;
+            _mapFilterMasterToggleResolvedForSession = false;
             _nameplateRoot = null;
             _nameplateText = null;
             _hoveredMarkerRoot = null;
             _hoveredCharacterId = null;
+            _projectionCalibrationLockedForSession = false;
             DestroyLingeringStreetQuestMapObjects();
             DestroyMarkerImages();
         }
@@ -182,6 +186,10 @@ namespace StreetQuestRPG
             {
                 _mapFilterStableFrames = 0;
                 _mapFilterReadinessSignature = null;
+                _mapFilterMasterToggle = null;
+                _lastMapFilterMasterToggleValue = null;
+                _mapFilterMasterToggleResolvedForSession = false;
+                _projectionCalibrationLockedForSession = false;
                 LogLifecycleState("City map closed; hiding StreetQuest map markers.");
                 HideStreetQuestRoot();
                 return;
@@ -199,20 +207,30 @@ namespace StreetQuestRPG
             EnsureCalibration(poiRoot);
             UpdateKnownNpcMarkers();
             EnsureMapFilterToggle();
+            SyncWithMapFilterMasterToggle();
             UpdateNameplatePosition();
         }
 
         private void EnsureCalibration(RectTransform poiRoot)
         {
+            if (_projectionCalibrationLockedForSession &&
+                _hasCalibration &&
+                _poiRoot == poiRoot)
+            {
+                return;
+            }
+
             _poiRoot = poiRoot;
 
             _hasCalibration = TryBuildProjectionCalibration(poiRoot);
             if (_hasCalibration)
             {
+                _projectionCalibrationLockedForSession = true;
                 _loggedCalibrationFailure = false;
                 return;
             }
 
+            _projectionCalibrationLockedForSession = false;
             _useProjectionCalibration = false;
             _projectionCamera = null;
             _projectionUiCamera = null;
@@ -547,6 +565,9 @@ namespace StreetQuestRPG
             _mapFilterToggle.onValueChanged.RemoveAllListeners();
             _mapFilterToggle.isOn = _mapFilterVisible;
             _mapFilterToggle.onValueChanged.AddListener(SetMapFilterVisibleFromUi);
+            _mapFilterMasterToggle = null;
+            _lastMapFilterMasterToggleValue = null;
+            _mapFilterMasterToggleResolvedForSession = false;
 
             var siblingIndex = Mathf.Min(rowTemplate.GetSiblingIndex() + 1, parent.childCount - 1);
             rowObject.transform.SetSiblingIndex(siblingIndex);
@@ -645,10 +666,105 @@ namespace StreetQuestRPG
             if (_streetQuestRoot != null && _streetQuestRoot.gameObject != null)
                 _streetQuestRoot.gameObject.SetActive(visible);
 
+            if (_mapFilterToggle != null && _mapFilterToggle.gameObject != null && _mapFilterToggle.isOn != visible)
+                _mapFilterToggle.SetIsOnWithoutNotify(visible);
+
             if (!visible)
                 HideMarkerNameplate();
 
             DebugLog($"Map filter StreetQuest NPCs visible={visible} persist={persist}");
+        }
+
+        private void SyncWithMapFilterMasterToggle()
+        {
+            Toggle masterToggle = null;
+            if (_mapFilterMasterToggle != null &&
+                _mapFilterMasterToggle.gameObject != null &&
+                _mapFilterMasterToggle.gameObject.activeInHierarchy)
+            {
+                masterToggle = _mapFilterMasterToggle;
+            }
+            else if (!_mapFilterMasterToggleResolvedForSession)
+            {
+                _mapFilterMasterToggleResolvedForSession = true;
+                masterToggle = ResolveMapFilterMasterToggle();
+                if (masterToggle != null)
+                {
+                    DebugLog(
+                        $"Map filter master toggle resolved path={GetHierarchyPath(masterToggle.transform)} label={ResolveToggleLabel(masterToggle)} isOn={masterToggle.isOn}");
+                }
+            }
+
+            if (masterToggle == null || masterToggle.gameObject == null || !masterToggle.gameObject.activeInHierarchy)
+            {
+                _mapFilterMasterToggle = null;
+                _lastMapFilterMasterToggleValue = null;
+                return;
+            }
+
+            if (!ReferenceEquals(_mapFilterMasterToggle, masterToggle))
+            {
+                _mapFilterMasterToggle = masterToggle;
+                var needsImmediateSync = !_lastMapFilterMasterToggleValue.HasValue || _mapFilterVisible != masterToggle.isOn;
+                _lastMapFilterMasterToggleValue = masterToggle.isOn;
+                DebugLog(
+                    $"Map filter master toggle attached path={GetHierarchyPath(masterToggle.transform)} isOn={masterToggle.isOn}");
+
+                if (needsImmediateSync)
+                    SetMapFilterVisible(masterToggle.isOn, persist: true);
+
+                return;
+            }
+
+            if (_lastMapFilterMasterToggleValue.HasValue && _lastMapFilterMasterToggleValue.Value == masterToggle.isOn)
+                return;
+
+            _lastMapFilterMasterToggleValue = masterToggle.isOn;
+            DebugLog($"Map filter master toggle changed isOn={masterToggle.isOn}");
+            SetMapFilterVisible(masterToggle.isOn, persist: true);
+        }
+
+        private Toggle ResolveMapFilterMasterToggle()
+        {
+            Toggle best = null;
+            var bestScore = int.MinValue;
+
+            foreach (var toggle in Resources.FindObjectsOfTypeAll<Toggle>())
+            {
+                if (toggle == null || toggle.gameObject == null || !toggle.gameObject.activeInHierarchy)
+                    continue;
+
+                var path = GetHierarchyPath(toggle.transform);
+                if (!IsMapFilterPath(path) || path.IndexOf("StreetQuest", StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+
+                var label = ResolveToggleLabel(toggle);
+                if (string.IsNullOrWhiteSpace(label))
+                    continue;
+
+                var normalized = label.Replace(" ", string.Empty);
+                var score = 0;
+                if (normalized.IndexOf("ENABLE/DISABLEALL", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 200;
+                if (normalized.IndexOf("ENABLEDISABLEALL", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 200;
+                if (label.IndexOf("enable", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 40;
+                if (label.IndexOf("disable", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 40;
+                if (label.IndexOf("all", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 40;
+                if (path.IndexOf("Filter", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 10;
+
+                if (score <= bestScore)
+                    continue;
+
+                bestScore = score;
+                best = toggle;
+            }
+
+            return bestScore > 0 ? best : null;
         }
 
         private Transform ResolveMapFilterCloneTemplateRow(Transform anchorRow)
@@ -3193,7 +3309,9 @@ namespace StreetQuestRPG
 
             _mapFilterRowObject = null;
             _mapFilterToggle = null;
-            _loggedMapFilterFailure = false;
+            _mapFilterMasterToggle = null;
+            _lastMapFilterMasterToggleValue = null;
+            _mapFilterMasterToggleResolvedForSession = false;
         }
 
         private void DestroyMarkerImages()
