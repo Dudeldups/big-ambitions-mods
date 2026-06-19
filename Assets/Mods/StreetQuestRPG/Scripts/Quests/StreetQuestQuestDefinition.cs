@@ -8,6 +8,9 @@ namespace StreetQuestRPG
     internal sealed class StreetQuestQuestDefinition
     {
         [DataMember] public string id;
+        [DataMember] public string type;
+        [DataMember] public string questLineId;
+        [DataMember] public string questCode;
         [DataMember] public string giverCharacterId;
         [DataMember] public string turnInCharacterId;
         [DataMember] public string previousQuestId;
@@ -31,6 +34,13 @@ namespace StreetQuestRPG
         [DataMember] public bool enabled = true;
 
         public string Id => id;
+        public StreetQuestQuestType QuestType =>
+            !string.IsNullOrWhiteSpace(type) &&
+            Enum.TryParse(type, true, out StreetQuestQuestType parsed)
+                ? parsed
+                : StreetQuestQuestType.Main;
+        public string QuestLineId => questLineId;
+        public string QuestCode => questCode;
         public string GiverCharacterId => giverCharacterId;
         public string TurnInCharacterId => turnInCharacterId;
         public string PreviousQuestId => previousQuestId;
@@ -63,6 +73,9 @@ namespace StreetQuestRPG
                 return;
 
             if (string.IsNullOrWhiteSpace(id)) id = fallback.id;
+            if (string.IsNullOrWhiteSpace(type)) type = fallback.type;
+            if (string.IsNullOrWhiteSpace(questLineId)) questLineId = fallback.questLineId;
+            if (string.IsNullOrWhiteSpace(questCode)) questCode = fallback.questCode;
             if (string.IsNullOrWhiteSpace(giverCharacterId)) giverCharacterId = fallback.giverCharacterId;
             if (string.IsNullOrWhiteSpace(turnInCharacterId)) turnInCharacterId = fallback.turnInCharacterId;
             if (requiredQuestIds == null || requiredQuestIds.Length == 0) requiredQuestIds = fallback.requiredQuestIds;

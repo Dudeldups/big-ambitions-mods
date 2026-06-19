@@ -1,7 +1,10 @@
 {
   "quests": [
     {
-      "id": "streetquest:q1_hotdog",
+      "id": "streetquest:main_mack_001_hotdog",
+      "type": "Main",
+      "questLineId": "mack_main",
+      "questCode": "main_001",
       "giverCharacterId": "mack",
       "turnInCharacterId": "mack",
       "requiredQuestIds": [],

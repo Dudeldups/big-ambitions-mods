@@ -114,6 +114,11 @@ namespace StreetQuestRPG
             }
         }
 
+        internal static void NotifyInfo(string message, string duplicateIdentifier = null, float duration = 4f)
+        {
+            ShowInfoNotification(message, duplicateIdentifier, duration);
+        }
+
 
         internal static void LogDebug(string message)
         {

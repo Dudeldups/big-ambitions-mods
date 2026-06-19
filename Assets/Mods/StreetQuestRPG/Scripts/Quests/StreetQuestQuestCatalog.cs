@@ -8,7 +8,7 @@ namespace StreetQuestRPG
 {
     internal static class StreetQuestQuestCatalog
     {
-        public const string DefaultQuestId = "streetquest:q1_hotdog";
+        public const string DefaultQuestId = "streetquest:main_mack_001_hotdog";
         private const string ConfigRelativePath = "Config/quests.json";
 
         private static readonly Dictionary<string, StreetQuestQuestDefinition> QuestsById =
