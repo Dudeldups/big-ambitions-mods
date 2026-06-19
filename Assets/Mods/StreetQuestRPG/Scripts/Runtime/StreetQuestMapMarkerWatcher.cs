@@ -12,7 +12,7 @@ namespace StreetQuestRPG
     [DefaultExecutionOrder(-9990)]
     internal sealed class StreetQuestMapMarkerWatcher : MonoBehaviour
     {
-        private static readonly bool EnableMarkerDebugLogging = false;
+        private static readonly bool EnableMarkerDebugLogging = true;
         private const bool PreferNativePoiMarkers = false;
         private const float UpdateIntervalSeconds = 0f;
         private const float MarkerVerticalOffset = 0f;
@@ -31,6 +31,13 @@ namespace StreetQuestRPG
             "MapIcons",
             "Icons"
         };
+        private static readonly string[] CalibrationAnchorNames =
+        {
+            "A",
+            "B",
+            "C"
+        };
+        private const float CalibrationAnchorSpan = 600f;
         private static readonly string[] PositionMemberKeywords =
         {
             "position",
@@ -70,6 +77,19 @@ namespace StreetQuestRPG
         private RectTransform _nativePoiTemplate;
         private Transform _nativePoiTargetParent;
         private readonly Dictionary<string, Vector3> _nativePoiLastTargetPositions = new(StringComparer.OrdinalIgnoreCase);
+        private readonly RectTransform[] _calibrationAnchorRects = new RectTransform[3];
+        private readonly Component[] _calibrationAnchorPoiComponents = new Component[3];
+        private readonly Transform[] _calibrationAnchorTargets = new Transform[3];
+        private readonly Vector3[] _calibrationAnchorWorldPositions = new Vector3[3];
+        private bool _calibrationAnchorWorldPositionsInitialized;
+        private float _nextCalibrationLogAtSeconds;
+        private bool _useProjectionCalibration;
+        private Camera _projectionCamera;
+        private Camera _projectionUiCamera;
+        private Vector2 _projectionOffset;
+        private RectTransform _lastPlayerPoiRect;
+        private Vector3 _lastPlayerWorldPosition;
+        private Vector2 _lastPlayerUiPosition;
 
         public void Initialize()
         {
@@ -89,6 +109,15 @@ namespace StreetQuestRPG
             _lastPoiRootPath = null;
             _lastCalibrationSnapshot = null;
             _nextVerboseLogAtSeconds = 0f;
+            _nextCalibrationLogAtSeconds = 0f;
+            _calibrationAnchorWorldPositionsInitialized = false;
+            _useProjectionCalibration = false;
+            _projectionCamera = null;
+            _projectionUiCamera = null;
+            _projectionOffset = Vector2.zero;
+            _lastPlayerPoiRect = null;
+            _lastPlayerWorldPosition = default;
+            _lastPlayerUiPosition = default;
             DestroyLingeringStreetQuestMapObjects();
             DestroyMarkerImages();
         }
@@ -136,25 +165,24 @@ namespace StreetQuestRPG
         private void EnsureCalibration(RectTransform poiRoot)
         {
             _poiRoot = poiRoot;
-            _hasCalibration = TryBuildCalibration(poiRoot, out _calibration);
+
+            _hasCalibration = TryBuildProjectionCalibration(poiRoot);
             if (_hasCalibration)
             {
                 _loggedCalibrationFailure = false;
-                var calibrationSnapshot =
-                    $"{_calibration.scaleX:F4}|{_calibration.offsetX:F2}|{_calibration.scaleY:F4}|{_calibration.offsetY:F2}";
-                if (!string.Equals(_lastCalibrationSnapshot, calibrationSnapshot, StringComparison.Ordinal))
-                {
-                    _lastCalibrationSnapshot = calibrationSnapshot;
-                    DebugLog(
-                        $"Map marker calibration scaleX={_calibration.scaleX:F4} offsetX={_calibration.offsetX:F2} scaleY={_calibration.scaleY:F4} offsetY={_calibration.offsetY:F2}");
-                }
                 return;
             }
+
+            _useProjectionCalibration = false;
+            _projectionCamera = null;
+            _projectionUiCamera = null;
 
             if (_loggedCalibrationFailure)
                 return;
 
-            StreetQuestShared.LogDebug("Map marker calibration failed: could not derive vanilla POI world-to-map mapping.");
+            StreetQuestShared.LogDebug(
+                "Map marker calibration failed: could not resolve player POI + map camera projection. " +
+                "NPC map markers are hidden instead of falling back to moving vanilla/player marker samples.");
             _loggedCalibrationFailure = true;
         }
 
@@ -235,46 +263,34 @@ namespace StreetQuestRPG
                 }
 
                 var targetAnchoredPosition = anchoredPosition + new Vector2(0f, MarkerVerticalOffset);
-                if (!_markerAnchoredPositions.TryGetValue(characterId, out var currentAnchoredPosition))
-                {
-                    currentAnchoredPosition = targetAnchoredPosition;
-                }
-
-                if (!_markerAnchoredVelocities.TryGetValue(characterId, out var currentVelocity))
-                {
-                    currentVelocity = Vector2.zero;
-                }
-
-                var distance = Vector2.Distance(currentAnchoredPosition, targetAnchoredPosition);
-                if (distance <= MarkerDeadzoneDistance)
-                {
-                    markerRoot.anchoredPosition = currentAnchoredPosition;
-                }
-                else if (distance >= MarkerSnapDistance)
-                {
-                    currentAnchoredPosition = targetAnchoredPosition;
-                    markerRoot.anchoredPosition = currentAnchoredPosition;
-                }
-                else
-                {
-                    currentAnchoredPosition = Vector2.SmoothDamp(
-                        currentAnchoredPosition,
-                        targetAnchoredPosition,
-                        ref currentVelocity,
-                        MarkerSmoothTime,
-                        Mathf.Infinity,
-                        Mathf.Max(Time.unscaledDeltaTime, 0.0001f));
-                    markerRoot.anchoredPosition = currentAnchoredPosition;
-                }
-
-                _markerAnchoredPositions[characterId] = currentAnchoredPosition;
-                _markerAnchoredVelocities[characterId] = currentVelocity;
+                markerRoot.anchoredPosition = targetAnchoredPosition;
+                ApplyPlayerMarkerVisualSize(markerRoot);
+                _markerAnchoredPositions[characterId] = targetAnchoredPosition;
+                _markerAnchoredVelocities[characterId] = Vector2.zero;
                 markerRoot.gameObject.SetActive(true);
                 LogMarkerState(
                     characterId,
                     true,
-                    $"Placed marker world={FormatVector3(worldPosition)} ui={FormatVector2(markerRoot.anchoredPosition)} sibling={markerRoot.GetSiblingIndex()}");
+                    "Placed marker with dummy-anchor calibration.");
             }
+        }
+
+        private void ApplyPlayerMarkerVisualSize(RectTransform markerRoot)
+        {
+            if (markerRoot == null)
+                return;
+
+            var playerRect = _lastPlayerPoiRect;
+            if (playerRect == null || playerRect.gameObject == null)
+            {
+                TryResolvePlayerPoiSample(out playerRect, out _, out _);
+            }
+
+            if (playerRect == null)
+                return;
+
+            markerRoot.sizeDelta = playerRect.sizeDelta;
+            markerRoot.localScale = playerRect.localScale;
         }
 
         private RectTransform GetOrCreateMarkerRoot(string characterId)
@@ -545,7 +561,6 @@ namespace StreetQuestRPG
             iconImage.color = Color.white;
             iconImage.material = null;
             iconImage.preserveAspect = true;
-            iconImage.SetNativeSize();
         }
 
         private static void PrepareMarkerVisual(GameObject rootObject)
@@ -584,10 +599,14 @@ namespace StreetQuestRPG
 
             RectTransform fallbackTemplate = null;
             RectTransform structuredFallbackTemplate = null;
+            RectTransform dynamicStructuredTemplate = null;
 
             foreach (RectTransform childRect in _poiRoot)
             {
                 if (childRect == null || childRect == _streetQuestRoot)
+                    continue;
+
+                if (IsCalibrationAnchorRect(childRect))
                     continue;
 
                 if (childRect.GetComponent("PointOfInterest") == null)
@@ -596,36 +615,51 @@ namespace StreetQuestRPG
                 if (string.Equals(childRect.name, "Template", StringComparison.OrdinalIgnoreCase))
                 {
                     fallbackTemplate ??= childRect;
-                    if (HasMarkerVisualStructure(childRect) && !IsDynamicPoiTemplate(childRect))
-                        structuredFallbackTemplate ??= childRect;
+                    if (HasMarkerVisualStructure(childRect))
+                    {
+                        if (!IsDynamicPoiTemplate(childRect))
+                            structuredFallbackTemplate ??= childRect;
+                        else
+                            dynamicStructuredTemplate ??= childRect;
+                    }
                     continue;
                 }
 
                 if (!HasMarkerVisualStructure(childRect))
                     continue;
 
-                if (IsDynamicPoiTemplate(childRect))
-                    continue;
-
                 if (!childRect.gameObject.activeInHierarchy)
                     continue;
 
+                if (IsDynamicPoiTemplate(childRect))
+                {
+                    dynamicStructuredTemplate ??= childRect;
+                    continue;
+                }
+
                 _poiMarkerTemplate = childRect;
-                DebugLog($"Resolved map marker template: {GetHierarchyPath(childRect)}");
+                StreetQuestShared.LogDebug($"Resolved map marker template: {GetHierarchyPath(childRect)}");
                 return _poiMarkerTemplate;
             }
 
             if (structuredFallbackTemplate != null)
             {
                 _poiMarkerTemplate = structuredFallbackTemplate;
-                DebugLog($"Resolved structured fallback map marker template: {GetHierarchyPath(structuredFallbackTemplate)}");
+                StreetQuestShared.LogDebug($"Resolved structured fallback map marker template: {GetHierarchyPath(structuredFallbackTemplate)}");
+                return _poiMarkerTemplate;
+            }
+
+            if (dynamicStructuredTemplate != null)
+            {
+                _poiMarkerTemplate = dynamicStructuredTemplate;
+                StreetQuestShared.LogDebug($"Resolved dynamic/player map marker template: {GetHierarchyPath(dynamicStructuredTemplate)}");
                 return _poiMarkerTemplate;
             }
 
             if (fallbackTemplate != null)
             {
                 _poiMarkerTemplate = fallbackTemplate;
-                DebugLog($"Resolved fallback map marker template: {GetHierarchyPath(fallbackTemplate)}");
+                StreetQuestShared.LogDebug($"Resolved fallback map marker template: {GetHierarchyPath(fallbackTemplate)}");
                 return _poiMarkerTemplate;
             }
 
@@ -860,6 +894,478 @@ namespace StreetQuestRPG
             }
         }
 
+        private bool TryBuildProjectionCalibration(RectTransform poiRoot)
+        {
+            _useProjectionCalibration = false;
+
+            if (poiRoot == null)
+                return false;
+
+            if (!TryResolvePlayerPoiSample(out var playerRect, out var playerWorldPosition, out var playerAnchoredPosition))
+            {
+                MaybeLogVerbose("Projection calibration failed: no live Player PointOfInterest sample found.");
+                return false;
+            }
+
+            var projectionCamera = ResolveMapProjectionCamera();
+            if (projectionCamera == null)
+            {
+                MaybeLogVerbose("Projection calibration failed: no map/render camera found.");
+                return false;
+            }
+
+            var uiCamera = ResolveCanvasCamera(poiRoot);
+            if (!TryProjectWorldPositionToPoiLocal(playerWorldPosition, projectionCamera, uiCamera, out var projectedPlayerPosition))
+            {
+                MaybeLogVerbose(
+                    $"Projection calibration failed: could not project player world={FormatVector3(playerWorldPosition)} with camera={projectionCamera.name}.");
+                return false;
+            }
+
+            _useProjectionCalibration = true;
+            _projectionCamera = projectionCamera;
+            _projectionUiCamera = uiCamera;
+            _projectionOffset = playerAnchoredPosition - projectedPlayerPosition;
+            _lastPlayerPoiRect = playerRect;
+            _lastPlayerWorldPosition = playerWorldPosition;
+            _lastPlayerUiPosition = playerAnchoredPosition;
+
+            if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
+            {
+                _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
+                StreetQuestShared.LogDebug(
+                    $"Map marker projection calibration playerWorld={FormatVector3(playerWorldPosition)} " +
+                    $"playerUi={FormatVector2(playerAnchoredPosition)} projectedPlayerUi={FormatVector2(projectedPlayerPosition)} " +
+                    $"offset={FormatVector2(_projectionOffset)} camera={GetHierarchyPath(projectionCamera.transform)} " +
+                    $"uiCamera={(_projectionUiCamera != null ? GetHierarchyPath(_projectionUiCamera.transform) : "<overlay>")}");
+            }
+
+            return true;
+        }
+
+        private bool TryResolvePlayerPoiSample(out RectTransform playerRect, out Vector3 playerWorldPosition, out Vector2 playerAnchoredPosition)
+        {
+            playerRect = null;
+            playerWorldPosition = default;
+            playerAnchoredPosition = default;
+
+            if (_poiRoot == null)
+                return false;
+
+            foreach (RectTransform childRect in _poiRoot)
+            {
+                if (childRect == null || childRect == _streetQuestRoot)
+                    continue;
+
+                if (IsCalibrationAnchorRect(childRect))
+                    continue;
+
+                var pointOfInterest = childRect.GetComponent("PointOfInterest");
+                if (pointOfInterest == null)
+                    continue;
+
+                if (!TryReadMemberValue(pointOfInterest, "target", out var targetValue) || targetValue == null)
+                    continue;
+
+                if (!TryGetTargetHierarchyPath(targetValue, out var targetPath))
+                    continue;
+
+                if (!string.Equals(targetPath, "GameManager/Player", StringComparison.OrdinalIgnoreCase) &&
+                    !targetPath.EndsWith("/Player", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!TryResolveTargetWorldPosition(targetValue, out playerWorldPosition))
+                    continue;
+
+                playerRect = childRect;
+                playerAnchoredPosition = childRect.anchoredPosition;
+                return true;
+            }
+
+            return false;
+        }
+
+        private Camera ResolveMapProjectionCamera()
+        {
+            var mainCamera = Camera.main;
+            if (mainCamera != null && mainCamera.gameObject != null && mainCamera.gameObject.activeInHierarchy)
+                return mainCamera;
+
+            foreach (var camera in Resources.FindObjectsOfTypeAll<Camera>())
+            {
+                if (camera == null || camera.gameObject == null)
+                    continue;
+
+                if (!camera.gameObject.activeInHierarchy || !camera.enabled)
+                    continue;
+
+                return camera;
+            }
+
+            return null;
+        }
+
+        private static Camera ResolveCanvasCamera(RectTransform rectTransform)
+        {
+            if (rectTransform == null)
+                return null;
+
+            var canvas = rectTransform.GetComponentInParent<Canvas>();
+            if (canvas == null || canvas.renderMode == RenderMode.ScreenSpaceOverlay)
+                return null;
+
+            return canvas.worldCamera != null ? canvas.worldCamera : Camera.main;
+        }
+
+        private bool TryProjectWorldPositionToPoiLocal(Vector3 worldPosition, Camera projectionCamera, Camera uiCamera, out Vector2 localPosition)
+        {
+            localPosition = Vector2.zero;
+
+            if (projectionCamera == null || _poiRoot == null)
+                return false;
+
+            var screenPosition = projectionCamera.WorldToScreenPoint(worldPosition);
+            if (float.IsNaN(screenPosition.x) || float.IsNaN(screenPosition.y) || float.IsNaN(screenPosition.z))
+                return false;
+
+            return RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _poiRoot,
+                new Vector2(screenPosition.x, screenPosition.y),
+                uiCamera,
+                out localPosition);
+        }
+
+        private RectTransform ResolveCalibrationPoiTemplate()
+        {
+            if (_poiRoot == null)
+                return null;
+
+            var namedTemplate = _poiRoot.Find("Template") as RectTransform;
+            if (namedTemplate != null && namedTemplate.GetComponent("PointOfInterest") != null)
+            {
+                StreetQuestShared.LogDebug($"Resolved calibration POI template from named Template: {GetHierarchyPath(namedTemplate)}");
+                return namedTemplate;
+            }
+
+            RectTransform dynamicTemplate = null;
+            foreach (RectTransform childRect in _poiRoot)
+            {
+                if (childRect == null || childRect == _streetQuestRoot)
+                    continue;
+
+                if (IsCalibrationAnchorRect(childRect))
+                    continue;
+
+                if (childRect.GetComponent("PointOfInterest") == null)
+                    continue;
+
+                if (IsDynamicPoiTemplate(childRect))
+                {
+                    dynamicTemplate ??= childRect;
+                    continue;
+                }
+
+                StreetQuestShared.LogDebug($"Resolved calibration POI template from non-dynamic POI: {GetHierarchyPath(childRect)}");
+                return childRect;
+            }
+
+            if (dynamicTemplate != null)
+                StreetQuestShared.LogDebug($"Resolved calibration POI template from dynamic fallback: {GetHierarchyPath(dynamicTemplate)}");
+
+            return dynamicTemplate;
+        }
+
+        private bool IsCalibrationAnchorRect(RectTransform rectTransform)
+        {
+            if (rectTransform == null)
+                return false;
+
+            for (var i = 0; i < 3; i++)
+            {
+                if (_calibrationAnchorRects[i] == rectTransform)
+                    return true;
+            }
+
+            return rectTransform.name.StartsWith("StreetQuestCalibrationPoi.", StringComparison.Ordinal);
+        }
+
+        private bool TryBuildCalibrationFromAnchors(RectTransform poiRoot, out CalibrationData calibration)
+        {
+            calibration = default;
+
+            if (!EnsureCalibrationAnchors(poiRoot))
+                return false;
+
+            var uiPositions = new Vector2[3];
+            for (var i = 0; i < 3; i++)
+            {
+                var poiComponent = _calibrationAnchorPoiComponents[i];
+                var rectTransform = _calibrationAnchorRects[i];
+                var targetTransform = _calibrationAnchorTargets[i];
+
+                if (poiComponent == null || rectTransform == null || targetTransform == null)
+                    return false;
+
+                targetTransform.position = _calibrationAnchorWorldPositions[i];
+                TryInvokeMethod(poiComponent, "UpdatePosition");
+
+                var anchoredPosition = rectTransform.anchoredPosition;
+                if (float.IsNaN(anchoredPosition.x) || float.IsNaN(anchoredPosition.y))
+                    return false;
+
+                uiPositions[i] = anchoredPosition;
+            }
+
+            var worldA = _calibrationAnchorWorldPositions[0];
+            var worldB = _calibrationAnchorWorldPositions[1];
+            var worldC = _calibrationAnchorWorldPositions[2];
+
+            var uiA = uiPositions[0];
+            var uiB = uiPositions[1];
+            var uiC = uiPositions[2];
+
+            if (Vector2.Distance(uiA, uiB) < 0.01f || Vector2.Distance(uiA, uiC) < 0.01f)
+            {
+                if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
+                {
+                    _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
+                    StreetQuestShared.LogDebug(
+                        "Map marker calibration anchors collapsed to the same UI position; " +
+                        $"A={FormatVector2(uiA)} B={FormatVector2(uiB)} C={FormatVector2(uiC)}. " +
+                        "This usually means the cloned POI target was not replaced correctly.");
+                }
+
+                return false;
+            }
+
+            var worldXSpan = worldB.x - worldA.x;
+            var worldZSpan = worldC.z - worldA.z;
+            if (Mathf.Abs(worldXSpan) < 0.01f || Mathf.Abs(worldZSpan) < 0.01f)
+                return false;
+
+            calibration = new CalibrationData
+            {
+                worldXToUiX = (uiB.x - uiA.x) / worldXSpan,
+                worldZToUiX = (uiC.x - uiA.x) / worldZSpan,
+                uiXOffset = uiA.x - (((uiB.x - uiA.x) / worldXSpan) * worldA.x) - (((uiC.x - uiA.x) / worldZSpan) * worldA.z),
+                worldXToUiY = (uiB.y - uiA.y) / worldXSpan,
+                worldZToUiY = (uiC.y - uiA.y) / worldZSpan,
+                uiYOffset = uiA.y - (((uiB.y - uiA.y) / worldXSpan) * worldA.x) - (((uiC.y - uiA.y) / worldZSpan) * worldA.z)
+            };
+
+            if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
+            {
+                _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
+                StreetQuestShared.LogDebug(
+                    "Map marker calibration anchors " +
+                    $"A world={FormatVector3(worldA)} ui={FormatVector2(uiA)} " +
+                    $"B world={FormatVector3(worldB)} ui={FormatVector2(uiB)} " +
+                    $"C world={FormatVector3(worldC)} ui={FormatVector2(uiC)}");
+            }
+
+            return true;
+        }
+
+        private bool EnsureCalibrationAnchors(RectTransform poiRoot)
+        {
+            if (poiRoot == null)
+                return false;
+
+            if (HaveValidCalibrationAnchors(poiRoot))
+                return true;
+
+            var template = ResolveCalibrationPoiTemplate();
+            if (template == null)
+            {
+                MaybeLogVerbose("Calibration anchors could not be created because no POI template was found.");
+                return false;
+            }
+
+            var pointOfInterestTemplate = template.GetComponent("PointOfInterest");
+            if (pointOfInterestTemplate == null)
+            {
+                MaybeLogVerbose($"Calibration anchor template has no PointOfInterest component: {GetHierarchyPath(template)}");
+                return false;
+            }
+
+            InitializeCalibrationAnchorWorldPositions();
+            var targetParent = ResolveNativePoiTargetParent();
+
+            for (var i = 0; i < 3; i++)
+            {
+                var anchorName = CalibrationAnchorNames[i];
+
+                if (_calibrationAnchorTargets[i] == null)
+                {
+                    var targetObject = new GameObject($"StreetQuestCalibrationTarget.{anchorName}");
+                    _calibrationAnchorTargets[i] = targetObject.transform;
+                    if (targetParent != null)
+                        _calibrationAnchorTargets[i].SetParent(targetParent, worldPositionStays: true);
+
+                    StreetQuestShared.LogDebug(
+                        $"Map marker calibration target created name={anchorName} parent={(targetParent != null ? GetHierarchyPath(targetParent) : "<none>")} world={FormatVector3(_calibrationAnchorWorldPositions[i])}");
+                }
+
+                _calibrationAnchorTargets[i].position = _calibrationAnchorWorldPositions[i];
+
+                if (_calibrationAnchorRects[i] != null &&
+                    _calibrationAnchorRects[i].gameObject != null &&
+                    _calibrationAnchorRects[i].parent == poiRoot &&
+                    _calibrationAnchorPoiComponents[i] != null)
+                {
+                    continue;
+                }
+
+                var poiObject = Instantiate(template.gameObject, poiRoot, false);
+                poiObject.name = $"StreetQuestCalibrationPoi.{anchorName}";
+                poiObject.SetActive(true);
+
+                var poiComponent = poiObject.GetComponent(pointOfInterestTemplate.GetType().Name) as Component;
+                if (poiComponent == null)
+                {
+                    Destroy(poiObject);
+                    MaybeLogVerbose($"Calibration anchor POI component missing after clone name={anchorName}");
+                    return false;
+                }
+
+                var rectTransform = poiObject.GetComponent<RectTransform>();
+                if (rectTransform == null)
+                {
+                    Destroy(poiObject);
+                    MaybeLogVerbose($"Calibration anchor RectTransform missing after clone name={anchorName}");
+                    return false;
+                }
+
+                ConfigureCalibrationAnchorPoi(poiComponent, _calibrationAnchorTargets[i], anchorName);
+                poiObject.name = $"StreetQuestCalibrationPoi.{anchorName}";
+                HideCalibrationAnchorVisuals(poiObject);
+                _calibrationAnchorRects[i] = rectTransform;
+                _calibrationAnchorPoiComponents[i] = poiComponent;
+
+                StreetQuestShared.LogDebug(
+                    $"Map marker calibration POI created name={anchorName} template={template.name} targetWorld={FormatVector3(_calibrationAnchorWorldPositions[i])} rectPath={GetHierarchyPath(rectTransform)}");
+            }
+
+            return HaveValidCalibrationAnchors(poiRoot);
+        }
+
+        private bool HaveValidCalibrationAnchors(RectTransform poiRoot)
+        {
+            if (poiRoot == null)
+                return false;
+
+            for (var i = 0; i < 3; i++)
+            {
+                if (_calibrationAnchorRects[i] == null ||
+                    _calibrationAnchorRects[i].gameObject == null ||
+                    _calibrationAnchorRects[i].parent != poiRoot ||
+                    _calibrationAnchorPoiComponents[i] == null ||
+                    _calibrationAnchorTargets[i] == null)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void InitializeCalibrationAnchorWorldPositions()
+        {
+            if (_calibrationAnchorWorldPositionsInitialized)
+                return;
+
+            var basePosition = Vector3.zero;
+            var knownCharacterIds = StreetQuestShared.GetKnownCharacterIds()
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            foreach (var characterId in knownCharacterIds)
+            {
+                if (StreetQuestShared.TryGetCharacterWorldPosition(characterId, out basePosition))
+                    break;
+            }
+
+            _calibrationAnchorWorldPositions[0] = basePosition + new Vector3(-CalibrationAnchorSpan, 0f, -CalibrationAnchorSpan);
+            _calibrationAnchorWorldPositions[1] = basePosition + new Vector3(CalibrationAnchorSpan, 0f, -CalibrationAnchorSpan);
+            _calibrationAnchorWorldPositions[2] = basePosition + new Vector3(-CalibrationAnchorSpan, 0f, CalibrationAnchorSpan);
+            _calibrationAnchorWorldPositionsInitialized = true;
+
+            StreetQuestShared.LogDebug(
+                $"Map marker calibration anchor world positions initialized base={FormatVector3(basePosition)} " +
+                $"A={FormatVector3(_calibrationAnchorWorldPositions[0])} " +
+                $"B={FormatVector3(_calibrationAnchorWorldPositions[1])} " +
+                $"C={FormatVector3(_calibrationAnchorWorldPositions[2])}");
+        }
+
+        private void ConfigureCalibrationAnchorPoi(Component poiComponent, Transform targetTransform, string anchorName)
+        {
+            if (poiComponent == null || targetTransform == null)
+                return;
+
+            var preInitializeTargetSet = SetNamedFieldValue(poiComponent, "target", targetTransform);
+            SetNamedFieldValue(poiComponent, "offset", Vector3.zero);
+            SetNamedFieldValue(poiComponent, "hidden", false);
+            SetNamedFieldValue(poiComponent, "isGuider", false);
+            SetNamedFieldValue(poiComponent, "_isQuestGuider", false);
+            SetNamedFieldValue(poiComponent, "_text", string.Empty);
+            SetNamedFieldValue(poiComponent, "<targetAddress>k__BackingField", null);
+            SetNamedFieldValue(poiComponent, "<Permanent>k__BackingField", true);
+
+            TryInvokeMethod(poiComponent, "Initialize");
+
+            var targetSet = SetNamedFieldValue(poiComponent, "target", targetTransform);
+            var offsetSet = SetNamedFieldValue(poiComponent, "offset", Vector3.zero);
+            var hiddenSet = SetNamedFieldValue(poiComponent, "hidden", false);
+            SetNamedFieldValue(poiComponent, "isGuider", false);
+            SetNamedFieldValue(poiComponent, "_isQuestGuider", false);
+            SetNamedFieldValue(poiComponent, "_text", string.Empty);
+            SetNamedFieldValue(poiComponent, "<targetAddress>k__BackingField", null);
+            var permanentSet = SetNamedFieldValue(poiComponent, "<Permanent>k__BackingField", true);
+            var enabledSet = SetNamedFieldValue(poiComponent, "enabled", true);
+            TryInvokeMethod(poiComponent, "UpdatePosition");
+
+            if (poiComponent.gameObject != null)
+                poiComponent.gameObject.name = $"StreetQuestCalibrationPoi.{anchorName}";
+
+            TryReadMemberValue(poiComponent, "target", out var targetReadback);
+            StreetQuestShared.LogDebug(
+                $"Map marker calibration POI configured name={anchorName} requestedTarget={FormatMemberValue(targetTransform)} " +
+                $"preInitializeTargetSet={preInitializeTargetSet} targetSet={targetSet} targetReadback={FormatMemberValue(targetReadback)} " +
+                $"offsetSet={offsetSet} hiddenSet={hiddenSet} permanentSet={permanentSet} enabledSet={enabledSet}");
+        }
+
+        private static void HideCalibrationAnchorVisuals(GameObject rootObject)
+        {
+            if (rootObject == null)
+                return;
+
+            foreach (var canvasGroup in rootObject.GetComponentsInChildren<CanvasGroup>(includeInactive: true))
+            {
+                if (canvasGroup == null)
+                    continue;
+
+                canvasGroup.alpha = 0f;
+                canvasGroup.interactable = false;
+                canvasGroup.blocksRaycasts = false;
+            }
+
+            foreach (var image in rootObject.GetComponentsInChildren<Image>(includeInactive: true))
+            {
+                if (image == null)
+                    continue;
+
+                var color = image.color;
+                color.a = 0f;
+                image.color = color;
+                image.raycastTarget = false;
+                image.enabled = true;
+                image.material = null;
+            }
+        }
+
         private bool TryBuildCalibration(RectTransform poiRoot, out CalibrationData calibration)
         {
             calibration = default;
@@ -868,6 +1374,9 @@ namespace StreetQuestRPG
             foreach (RectTransform childRect in poiRoot)
             {
                 if (childRect == null || childRect == _streetQuestRoot)
+                    continue;
+
+                if (IsCalibrationAnchorRect(childRect))
                     continue;
 
                 if (!IsUsableCalibrationPoi(childRect))
@@ -885,7 +1394,7 @@ namespace StreetQuestRPG
 
             if (samples.Count < 2)
             {
-                MaybeLogVerbose("Map marker calibration aborted: fewer than 2 usable vanilla POI samples.");
+                MaybeLogVerbose("Map marker calibration fallback aborted: fewer than 2 usable vanilla POI samples.");
                 return false;
             }
 
@@ -900,20 +1409,28 @@ namespace StreetQuestRPG
 
             if (Mathf.Abs(maxWorldX - minWorldX) < 0.01f || Mathf.Abs(maxWorldZ - minWorldZ) < 0.01f)
             {
-                MaybeLogVerbose("Map marker calibration aborted: world POI span too small.");
+                MaybeLogVerbose("Map marker calibration fallback aborted: world POI span too small.");
                 return false;
             }
 
+            var scaleX = (maxUiX - minUiX) / (maxWorldX - minWorldX);
+            var scaleY = (maxUiY - minUiY) / (maxWorldZ - minWorldZ);
             calibration = new CalibrationData
             {
-                scaleX = (maxUiX - minUiX) / (maxWorldX - minWorldX),
-                offsetX = minUiX - (((maxUiX - minUiX) / (maxWorldX - minWorldX)) * minWorldX),
-                scaleY = (maxUiY - minUiY) / (maxWorldZ - minWorldZ),
-                offsetY = minUiY - (((maxUiY - minUiY) / (maxWorldZ - minWorldZ)) * minWorldZ)
+                worldXToUiX = scaleX,
+                worldZToUiX = 0f,
+                uiXOffset = minUiX - (scaleX * minWorldX),
+                worldXToUiY = 0f,
+                worldZToUiY = scaleY,
+                uiYOffset = minUiY - (scaleY * minWorldZ)
             };
 
-            DebugLog(
-                $"Map marker calibration succeeded samples={samples.Count} scaleX={calibration.scaleX:F4} scaleY={calibration.scaleY:F4}");
+            if (_elapsedSeconds >= _nextCalibrationLogAtSeconds)
+            {
+                _nextCalibrationLogAtSeconds = _elapsedSeconds + 2f;
+                StreetQuestShared.LogDebug(
+                    $"Map marker calibration fallback succeeded samples={samples.Count} scaleX={scaleX:F4} scaleY={scaleY:F4}");
+            }
             return true;
         }
 
@@ -1021,9 +1538,23 @@ namespace StreetQuestRPG
             if (!_hasCalibration)
                 return false;
 
+            if (_useProjectionCalibration)
+            {
+                var projectionCamera = _projectionCamera != null ? _projectionCamera : ResolveMapProjectionCamera();
+                var uiCamera = _projectionUiCamera != null ? _projectionUiCamera : ResolveCanvasCamera(_poiRoot);
+                if (projectionCamera == null ||
+                    !TryProjectWorldPositionToPoiLocal(worldPosition, projectionCamera, uiCamera, out var projectedPosition))
+                {
+                    return false;
+                }
+
+                anchoredPosition = projectedPosition + _projectionOffset;
+                return true;
+            }
+
             anchoredPosition = new Vector2(
-                (_calibration.scaleX * worldPosition.x) + _calibration.offsetX,
-                (_calibration.scaleY * worldPosition.z) + _calibration.offsetY);
+                (_calibration.worldXToUiX * worldPosition.x) + (_calibration.worldZToUiX * worldPosition.z) + _calibration.uiXOffset,
+                (_calibration.worldXToUiY * worldPosition.x) + (_calibration.worldZToUiY * worldPosition.z) + _calibration.uiYOffset);
             return true;
         }
 
@@ -1170,13 +1701,27 @@ namespace StreetQuestRPG
             if (instance == null || string.IsNullOrWhiteSpace(fieldName))
                 return false;
 
-            var field = instance.GetType().GetField(fieldName, ReflectionFlags);
-            if (field == null)
+            var type = instance.GetType();
+            var field = type.GetField(fieldName, ReflectionFlags);
+            if (field != null)
+            {
+                try
+                {
+                    field.SetValue(instance, value);
+                    return true;
+                }
+                catch
+                {
+                }
+            }
+
+            var property = type.GetProperty(fieldName, ReflectionFlags);
+            if (property == null || !property.CanWrite || property.GetIndexParameters().Length > 0)
                 return false;
 
             try
             {
-                field.SetValue(instance, value);
+                property.SetValue(instance, value, null);
                 return true;
             }
             catch
@@ -1468,6 +2013,21 @@ namespace StreetQuestRPG
             _nativePoiComponents.Clear();
             _nativePoiTargetAnchors.Clear();
             _nativePoiLastTargetPositions.Clear();
+
+            for (var i = 0; i < 3; i++)
+            {
+                if (_calibrationAnchorRects[i] != null)
+                    Destroy(_calibrationAnchorRects[i].gameObject);
+                if (_calibrationAnchorTargets[i] != null)
+                    Destroy(_calibrationAnchorTargets[i].gameObject);
+
+                _calibrationAnchorRects[i] = null;
+                _calibrationAnchorPoiComponents[i] = null;
+                _calibrationAnchorTargets[i] = null;
+                _calibrationAnchorWorldPositions[i] = default;
+            }
+
+            _calibrationAnchorWorldPositionsInitialized = false;
             _markerVisibilityStates.Clear();
             _markerStatusReasons.Clear();
         }
@@ -1483,6 +2043,8 @@ namespace StreetQuestRPG
                 if (!name.StartsWith("StreetQuestMapMarker.", StringComparison.Ordinal) &&
                     !name.StartsWith("StreetQuestNativePoi.", StringComparison.Ordinal) &&
                     !name.StartsWith("StreetQuestPoiTarget.", StringComparison.Ordinal) &&
+                    !name.StartsWith("StreetQuestCalibrationPoi.", StringComparison.Ordinal) &&
+                    !name.StartsWith("StreetQuestCalibrationTarget.", StringComparison.Ordinal) &&
                     !string.Equals(name, "StreetQuestPOIs", StringComparison.Ordinal))
                 {
                     continue;
@@ -1571,10 +2133,12 @@ namespace StreetQuestRPG
 
         private struct CalibrationData
         {
-            public float scaleX;
-            public float offsetX;
-            public float scaleY;
-            public float offsetY;
+            public float worldXToUiX;
+            public float worldZToUiX;
+            public float uiXOffset;
+            public float worldXToUiY;
+            public float worldZToUiY;
+            public float uiYOffset;
         }
     }
 }
