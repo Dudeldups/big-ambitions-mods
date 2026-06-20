@@ -260,6 +260,22 @@ namespace StreetQuestRPG
             if (!root.activeSelf)
                 root.SetActive(true);
 
+            var walker = root.GetComponent<StreetQuestCharacterWalker>();
+            if (walker != null)
+            {
+                if (SpawnedCharacterControllers.TryGetValue(characterId, out var walkerController) && walkerController != null)
+                {
+                    SetMemberValue(walkerController, "primaryInteractionEnabled", visible);
+                    if (visible)
+                        TryInvokeParameterlessMethod(walkerController, "Show");
+                    else if (!TryInvokeParameterlessMethod(walkerController, "Hide"))
+                        SetMemberValue(walkerController, "blockOutline", true);
+                }
+
+                walker.OnVisibilityChanged(visible);
+                return;
+            }
+
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer != null)
@@ -290,16 +306,19 @@ namespace StreetQuestRPG
                 else if (!TryInvokeParameterlessMethod(controller, "Hide"))
                     SetMemberValue(controller, "blockOutline", true);
             }
-
-            var walker = root.GetComponent<StreetQuestCharacterWalker>();
-            walker?.OnVisibilityChanged(visible);
         }
 
 
         private static void EnsureCharacterWalker(GameObject root, StreetQuestCharacterDefinition definition)
         {
-            if (root == null || definition?.walkAwayTargetPosition == null)
+            if (root == null || definition == null)
                 return;
+
+            if (definition.walkAwayTargetPosition == null &&
+                (definition.walkInWaypoints == null || definition.walkInWaypoints.Length == 0))
+            {
+                return;
+            }
 
             var walker = root.GetComponent<StreetQuestCharacterWalker>();
             if (walker == null)
@@ -315,7 +334,11 @@ namespace StreetQuestRPG
                 Quaternion.LookRotation(-spawnForward, Vector3.up),
                 definition.WalkAwayTargetPositionOr(root.transform.position),
                 definition.walkAwaySpeed,
-                definition.despawnAfterWalkAway);
+                definition.despawnAfterWalkAway,
+                definition.WalkInWaypointsOrEmpty(),
+                definition.walkInUnitsPerGameMinute,
+                definition.walkInArrivalHour,
+                definition.walkInArrivalMinute);
         }
 
 

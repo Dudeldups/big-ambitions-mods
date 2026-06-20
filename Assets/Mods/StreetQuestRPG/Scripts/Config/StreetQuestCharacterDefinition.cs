@@ -32,6 +32,10 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data walkAwayTargetPosition;
         [DataMember] public float walkAwaySpeed = 1.4f;
         [DataMember] public bool despawnAfterWalkAway;
+        [DataMember] public StreetQuestVector3Data[] walkInWaypoints;
+        [DataMember] public float walkInUnitsPerGameMinute = 6f;
+        [DataMember] public int walkInArrivalHour = 8;
+        [DataMember] public int walkInArrivalMinute;
         [DataMember] public StreetQuestVector3Data localPosition;
         [DataMember] public StreetQuestVector3Data localEulerAngles;
         [DataMember] public StreetQuestVector3Data localScale;
@@ -54,6 +58,9 @@ namespace StreetQuestRPG
         public Vector3 PositionOr(Vector3 fallback) => position != null ? position.ToVector3() : fallback;
         public Vector3 ForwardOr(Vector3 fallback) => forward != null ? forward.ToVector3() : fallback;
         public Vector3 WalkAwayTargetPositionOr(Vector3 fallback) => walkAwayTargetPosition != null ? walkAwayTargetPosition.ToVector3() : fallback;
+        public Vector3[] WalkInWaypointsOrEmpty() => walkInWaypoints == null
+            ? Array.Empty<Vector3>()
+            : walkInWaypoints.Where(value => value != null).Select(value => value.ToVector3()).ToArray();
         public Vector3 LocalPositionOr(Vector3 fallback) => localPosition != null ? localPosition.ToVector3() : fallback;
         public Vector3 LocalEulerAnglesOr(Vector3 fallback) => localEulerAngles != null ? localEulerAngles.ToVector3() : fallback;
         public Vector3 LocalScaleOr(Vector3 fallback) => localScale != null ? localScale.ToVector3() : fallback;
@@ -107,6 +114,10 @@ namespace StreetQuestRPG
             walkAwayTargetPosition ??= fallback.walkAwayTargetPosition;
             if (walkAwaySpeed <= 0f) walkAwaySpeed = fallback.walkAwaySpeed;
             despawnAfterWalkAway = despawnAfterWalkAway || fallback.despawnAfterWalkAway;
+            walkInWaypoints ??= fallback.walkInWaypoints;
+            if (walkInUnitsPerGameMinute <= 0f) walkInUnitsPerGameMinute = fallback.walkInUnitsPerGameMinute;
+            if (walkInArrivalHour <= 0 && fallback.walkInArrivalHour > 0) walkInArrivalHour = fallback.walkInArrivalHour;
+            if (walkInArrivalMinute <= 0 && fallback.walkInArrivalMinute > 0) walkInArrivalMinute = fallback.walkInArrivalMinute;
             localPosition ??= fallback.localPosition;
             localEulerAngles ??= fallback.localEulerAngles;
             localScale ??= fallback.localScale;

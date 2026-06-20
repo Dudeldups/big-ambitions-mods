@@ -77,6 +77,12 @@
           "walkAwayTargetPosition": { "x": 252.57, "y": 0.09, "z": -8.67 },
           "walkAwaySpeed": 1.35,
           "despawnAfterWalkAway": true,
+          "walkInWaypoints": [
+            { "x": 252.57, "y": 0.09, "z": -188.47 }
+          ],
+          "walkInUnitsPerGameMinute": 6.0,
+          "walkInArrivalHour": 8,
+          "walkInArrivalMinute": 0,
           "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
           "hiddenChildObjectNames": ["DonationBucket", "DissambledBox"]
         }

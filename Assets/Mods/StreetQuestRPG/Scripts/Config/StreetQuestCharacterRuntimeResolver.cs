@@ -158,6 +158,10 @@ namespace StreetQuestRPG
                 SerializeVector(runtime.walkAwayTargetPosition),
                 runtime.walkAwaySpeed.ToString("F3"),
                 runtime.despawnAfterWalkAway.ToString(),
+                SerializeVectorArray(runtime.walkInWaypoints),
+                runtime.walkInUnitsPerGameMinute.ToString("F3"),
+                runtime.walkInArrivalHour.ToString(),
+                runtime.walkInArrivalMinute.ToString(),
                 SerializeVector(runtime.localPosition),
                 SerializeVector(runtime.localEulerAngles),
                 SerializeVector(runtime.localScale),
@@ -358,6 +362,10 @@ namespace StreetQuestRPG
                 walkAwayTargetPosition = definition.walkAwayTargetPosition,
                 walkAwaySpeed = definition.walkAwaySpeed,
                 despawnAfterWalkAway = definition.despawnAfterWalkAway,
+                walkInWaypoints = definition.walkInWaypoints,
+                walkInUnitsPerGameMinute = definition.walkInUnitsPerGameMinute,
+                walkInArrivalHour = definition.walkInArrivalHour,
+                walkInArrivalMinute = definition.walkInArrivalMinute,
                 localPosition = definition.localPosition,
                 localEulerAngles = definition.localEulerAngles,
                 localScale = definition.localScale,
@@ -384,6 +392,14 @@ namespace StreetQuestRPG
 
             var vector = value.ToVector3();
             return $"{vector.x:F3},{vector.y:F3},{vector.z:F3}";
+        }
+
+        private static string SerializeVectorArray(StreetQuestVector3Data[] values)
+        {
+            if (values == null || values.Length == 0)
+                return string.Empty;
+
+            return string.Join(";", values.Where(value => value != null).Select(SerializeVector));
         }
 
         private static string SerializeSchedule(StreetQuestCharacterScheduleDefinition schedule)
