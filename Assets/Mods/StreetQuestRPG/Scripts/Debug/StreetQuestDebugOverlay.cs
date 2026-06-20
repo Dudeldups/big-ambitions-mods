@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace StreetQuestRPG
 {
-    internal sealed class StreetQuestDebugOverlay : MonoBehaviour
+    internal sealed partial class StreetQuestDebugOverlay : MonoBehaviour
     {
         private const int WindowId = 184240;
         private const float Width = 540f;
@@ -18,6 +18,7 @@ namespace StreetQuestRPG
         private static Vector2 _questScroll;
         private static Vector2 _favorScroll;
         private static Vector2 _peopleScroll;
+        private static Vector2 _waypointScroll;
         private static bool _visible = true;
         private static int _selectedTab;
         private static string _selectedCharacterId;
@@ -39,7 +40,8 @@ namespace StreetQuestRPG
         {
             Quests = 0,
             Favor = 1,
-            People = 2
+            People = 2,
+            Waypoints = 3
         }
 
         public void TickToggle()
@@ -95,6 +97,9 @@ namespace StreetQuestRPG
                 case DebugTab.People:
                     DrawPeopleTab();
                     break;
+                case DebugTab.Waypoints:
+                    DrawWaypointsTab();
+                    break;
             }
             GUILayout.EndVertical();
 
@@ -115,6 +120,7 @@ namespace StreetQuestRPG
             DrawTabButton(DebugTab.Quests, "Quests");
             DrawTabButton(DebugTab.Favor, "Favor");
             DrawTabButton(DebugTab.People, "People");
+            DrawTabButton(DebugTab.Waypoints, "Waypoints");
             GUILayout.EndHorizontal();
         }
 
