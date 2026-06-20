@@ -128,6 +128,22 @@ namespace StreetQuestRPG
             if (runtime == null)
                 return string.Empty;
 
+            return BuildRuntimeStateSignature(runtime, useResolvedDefinition: true);
+        }
+
+        public static string BuildRuntimeStateSignature(
+            StreetQuestCharacterDefinition definition,
+            bool useResolvedDefinition)
+        {
+            if (definition == null)
+                return string.Empty;
+
+            var runtime = useResolvedDefinition
+                ? CloneDefinition(definition)
+                : ResolveRuntimeDefinition(definition);
+            if (runtime == null)
+                return string.Empty;
+
             return string.Join("|", new[]
             {
                 runtime.enabled.ToString(),

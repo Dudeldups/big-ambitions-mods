@@ -77,6 +77,25 @@ namespace StreetQuestRPG
         }
 
 
+        private static bool TryInvokeParameterlessMethod(object instance, string methodName)
+        {
+            if (instance == null || string.IsNullOrEmpty(methodName))
+                return false;
+
+            for (var instanceType = instance.GetType(); instanceType != null; instanceType = instanceType.BaseType)
+            {
+                var method = instanceType.GetMethod(methodName, ReflectionFlags, null, Type.EmptyTypes, null);
+                if (method == null)
+                    continue;
+
+                method.Invoke(instance, null);
+                return true;
+            }
+
+            return false;
+        }
+
+
         private static string DescribeObject(object value)
         {
             if (value == null)

@@ -92,7 +92,9 @@ namespace StreetQuestRPG
                 return false;
             }
 
-            var stateSignature = StreetQuestCharacterRuntimeResolver.BuildRuntimeStateSignature(character);
+            var stateSignature = StreetQuestCharacterRuntimeResolver.BuildRuntimeStateSignature(
+                runtimeDefinition,
+                useResolvedDefinition: true);
             if (SpawnedCharacterRoots.TryGetValue(character.id, out var existingRoot) &&
                 existingRoot != null)
             {
@@ -108,7 +110,7 @@ namespace StreetQuestRPG
                     string.Equals(existingSignature, stateSignature, StringComparison.Ordinal) &&
                     hasExpectedController)
                 {
-                    SetSpawnedCharacterActive(character.id, activateAfterSpawn);
+                    SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
                     return true;
                 }
 
@@ -203,8 +205,7 @@ namespace StreetQuestRPG
                     CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
                 }
 
-                if (!activateAfterSpawn)
-                    root.SetActive(false);
+                SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
 
                 LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
                 return true;
@@ -247,7 +248,7 @@ namespace StreetQuestRPG
         }
 
 
-        private static void SetSpawnedCharacterActive(string characterId, bool active)
+        private static void SetSpawnedCharacterVisibility(string characterId, bool visible)
         {
             if (string.IsNullOrWhiteSpace(characterId))
                 return;
@@ -255,10 +256,39 @@ namespace StreetQuestRPG
             if (!SpawnedCharacterRoots.TryGetValue(characterId, out var root) || root == null)
                 return;
 
-            if (root.activeSelf == active)
-                return;
+            if (!root.activeSelf)
+                root.SetActive(true);
 
-            root.SetActive(active);
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer != null)
+                    renderer.enabled = visible;
+            }
+
+            foreach (var collider in root.GetComponentsInChildren<Collider>(true))
+            {
+                if (collider != null)
+                    collider.enabled = visible;
+            }
+
+            foreach (var animator in root.GetComponentsInChildren<Animator>(true))
+            {
+                if (animator == null)
+                    continue;
+
+                animator.enabled = visible;
+                if (visible)
+                    animator.Update(0f);
+            }
+
+            if (SpawnedCharacterControllers.TryGetValue(characterId, out var controller) && controller != null)
+            {
+                SetMemberValue(controller, "primaryInteractionEnabled", visible);
+                if (visible)
+                    TryInvokeParameterlessMethod(controller, "Show");
+                else if (!TryInvokeParameterlessMethod(controller, "Hide"))
+                    SetMemberValue(controller, "blockOutline", true);
+            }
         }
 
 
