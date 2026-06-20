@@ -43,6 +43,19 @@ namespace StreetQuestRPG
         }
 
 
+        internal static void ResetSpawnRuntimeState()
+        {
+            DestroySpawnedOutdoorQuestGiver();
+            CharacterIdsByControllerInstanceId.Clear();
+            SpawnedCharacterRoots.Clear();
+            SpawnedCharacterControllers.Clear();
+            SpawnedCharacterStateSignatures.Clear();
+            PreferredQuestGiverSpawnPosition = null;
+            QuestGiverCtaInstalled = false;
+            LogDebug("ResetSpawnRuntimeState completed");
+        }
+
+
         internal static bool TryGetSpawnedCharacterRoot(string characterId, out GameObject root)
         {
             root = null;

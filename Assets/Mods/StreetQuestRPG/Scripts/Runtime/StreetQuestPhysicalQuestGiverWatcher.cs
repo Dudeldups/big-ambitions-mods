@@ -25,17 +25,23 @@ namespace StreetQuestRPG
             if (_initialized)
                 return;
 
+            ResetRuntimeState();
             _elapsedSeconds = 0f;
-            _nextSpawnRetryAtSeconds = 0f;
             _nextObjectiveTickAtSeconds = 0f;
-            _nextBootstrapRetryAtSeconds = 0f;
-            _lastScheduleHourKey = int.MinValue;
-            _spawnEnsured = false;
-            _bootstrapEnsured = false;
             _debugOverlay = GetComponent<StreetQuestDebugOverlay>();
             if (_debugOverlay == null && StreetQuestDebugSettings.Enabled)
                 _debugOverlay = gameObject.AddComponent<StreetQuestDebugOverlay>();
             _initialized = true;
+        }
+
+        internal void ResetRuntimeState()
+        {
+            _nextSpawnRetryAtSeconds = 0f;
+            _nextBootstrapRetryAtSeconds = 0f;
+            _lastScheduleHourKey = int.MinValue;
+            _spawnEnsured = false;
+            _bootstrapEnsured = false;
+            StreetQuestShared.LogSchedule("watcher runtime state reset");
         }
 
         private void Update()
@@ -69,6 +75,7 @@ namespace StreetQuestRPG
                 StreetQuestShared.TryGetCurrentGameHourKey(out var hourKey) &&
                 hourKey != _lastScheduleHourKey)
             {
+                StreetQuestShared.LogSchedule($"hour tick previous={_lastScheduleHourKey} current={hourKey}");
                 _lastScheduleHourKey = hourKey;
                 StreetQuestShared.RefreshSchedulesIfVisibilityChanged();
             }

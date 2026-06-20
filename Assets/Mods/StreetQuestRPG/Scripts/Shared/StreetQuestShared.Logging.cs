@@ -159,5 +159,11 @@ namespace StreetQuestRPG
         {
             LogDebug($"ConfigLoadFailure type={configType} path={path} exception={exception}");
         }
+
+
+        internal static void LogSchedule(string message)
+        {
+            LogDebug($"Schedule: {message}");
+        }
     }
 }

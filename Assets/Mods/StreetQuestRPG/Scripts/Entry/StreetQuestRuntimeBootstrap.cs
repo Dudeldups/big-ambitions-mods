@@ -23,11 +23,17 @@ namespace StreetQuestRPG
             StreetQuestShared.InitializeDebugLogging(context, source);
             _modRootPath = context.ModRootPath;
             _logger = context.Logger;
+            StreetQuestShared.ResetSpawnRuntimeState();
             StreetQuestCharacterRuntimeResolver.ClearCache();
             StreetQuestShared.ClearScheduleCaches();
             StreetQuestCharacterCatalog.Reload(_modRootPath, _logger);
             StreetQuestQuestCatalog.Reload(_modRootPath, _logger);
             _dialogsRegistered = false;
+            if (_watcherObject != null)
+            {
+                var watcher = _watcherObject.GetComponent<StreetQuestPhysicalQuestGiverWatcher>();
+                watcher?.ResetRuntimeState();
+            }
             StreetQuestShared.LogBootstrapState($"Configure source={source}");
         }
 

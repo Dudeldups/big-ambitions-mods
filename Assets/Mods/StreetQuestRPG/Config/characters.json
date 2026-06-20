@@ -74,8 +74,7 @@
       "professionKey": "streetquest:fran_profession",
       "defaultAppearanceId": "fran_default",
       "schedule": {
-        "mode": "NearestBuildingOpenStatus",
-        "nearestBuildingMaxDistance": 35.0
+        "mode": "Always"
       },
       "gender": "Female",
       "ageInDays": 12410,
@@ -119,8 +118,7 @@
       "professionKey": "streetquest:julia_profession",
       "defaultAppearanceId": "julia_default",
       "schedule": {
-        "mode": "NearestBuildingOpenStatus",
-        "nearestBuildingMaxDistance": 35.0
+        "mode": "Always"
       },
       "gender": "Female",
       "ageInDays": 3650,
