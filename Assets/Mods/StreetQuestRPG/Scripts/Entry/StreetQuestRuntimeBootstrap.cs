@@ -23,6 +23,7 @@ namespace StreetQuestRPG
             StreetQuestShared.InitializeDebugLogging(context, source);
             _modRootPath = context.ModRootPath;
             _logger = context.Logger;
+            StreetQuestCharacterRuntimeResolver.ClearCache();
             StreetQuestCharacterCatalog.Reload(_modRootPath, _logger);
             StreetQuestQuestCatalog.Reload(_modRootPath, _logger);
             _dialogsRegistered = false;

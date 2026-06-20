@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -6,10 +7,32 @@ namespace StreetQuestRPG
 {
     internal static class StreetQuestCharacterRuntimeResolver
     {
+        private static readonly Dictionary<string, RuntimeCacheEntry> RuntimeCacheByCharacterId =
+            new Dictionary<string, RuntimeCacheEntry>(StringComparer.OrdinalIgnoreCase);
+
+        public static void ClearCache()
+        {
+            RuntimeCacheByCharacterId.Clear();
+        }
+
         public static StreetQuestCharacterDefinition ResolveRuntimeDefinition(StreetQuestCharacterDefinition definition)
         {
             if (definition == null)
                 return null;
+
+            var stateVersion = StreetQuestShared.GetQuestStateVersion();
+            var minuteKey = StreetQuestShared.TryGetCurrentGameMinuteKey(out var resolvedMinuteKey)
+                ? resolvedMinuteKey
+                : int.MinValue;
+            if (!string.IsNullOrWhiteSpace(definition.id) &&
+                RuntimeCacheByCharacterId.TryGetValue(definition.id, out var cachedEntry) &&
+                cachedEntry != null &&
+                cachedEntry.StateVersion == stateVersion &&
+                cachedEntry.MinuteKey == minuteKey &&
+                cachedEntry.RuntimeDefinition != null)
+            {
+                return CloneDefinition(cachedEntry.RuntimeDefinition);
+            }
 
             var resolved = CloneDefinition(definition);
             var activeState = ResolveActiveState(definition);
@@ -23,6 +46,16 @@ namespace StreetQuestRPG
 
             if (!StreetQuestShared.IsScheduleActive(resolved))
                 resolved.enabled = false;
+
+            if (!string.IsNullOrWhiteSpace(definition.id))
+            {
+                RuntimeCacheByCharacterId[definition.id] = new RuntimeCacheEntry
+                {
+                    StateVersion = stateVersion,
+                    MinuteKey = minuteKey,
+                    RuntimeDefinition = CloneDefinition(resolved)
+                };
+            }
 
             return resolved;
         }
@@ -307,6 +340,13 @@ namespace StreetQuestRPG
                 schedule.address ?? string.Empty,
                 schedule.nearestBuildingMaxDistance.ToString("F2")
             });
+        }
+
+        private sealed class RuntimeCacheEntry
+        {
+            public int StateVersion;
+            public int MinuteKey;
+            public StreetQuestCharacterDefinition RuntimeDefinition;
         }
     }
 }

@@ -21,6 +21,8 @@ namespace StreetQuestRPG
 {
     internal static partial class StreetQuestShared
     {
+        private static int QuestStateVersion { get; set; }
+
         public static StreetQuestQuestDefinition GetCurrentQuest()
         {
             return GetCurrentMainQuest();
@@ -47,6 +49,11 @@ namespace StreetQuestRPG
         public static StreetQuestQuestStateRecord GetQuestStateSnapshot()
         {
             return GetQuestStateRecord();
+        }
+
+        internal static int GetQuestStateVersion()
+        {
+            return QuestStateVersion;
         }
 
         public static IReadOnlyCollection<string> GetKnownCharacterIds()
@@ -337,6 +344,7 @@ namespace StreetQuestRPG
             SaveGameManager.MarkChange();
             CachedQuestStateOwner = saveGame;
             CachedQuestStateRecord = record;
+            QuestStateVersion++;
             LogDebug($"SaveQuestStateRecord mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} activeSideCount={record.ActiveSideQuestIds.Count} readySideCount={record.ReadySideQuestIds.Count} serialized={serialized}");
         }
     }

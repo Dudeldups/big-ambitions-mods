@@ -15,12 +15,16 @@ namespace StreetQuestRPG
         private float _nextObjectiveTickAtSeconds;
         private float _nextBootstrapRetryAtSeconds;
         private int _lastScheduleMinuteKey;
+        private bool _initialized;
         private bool _spawnEnsured;
         private bool _bootstrapEnsured;
         private StreetQuestDebugOverlay _debugOverlay;
 
         public void Initialize()
         {
+            if (_initialized)
+                return;
+
             _elapsedSeconds = 0f;
             _nextSpawnRetryAtSeconds = 0f;
             _nextObjectiveTickAtSeconds = 0f;
@@ -31,6 +35,7 @@ namespace StreetQuestRPG
             _debugOverlay = GetComponent<StreetQuestDebugOverlay>();
             if (_debugOverlay == null && StreetQuestDebugSettings.Enabled)
                 _debugOverlay = gameObject.AddComponent<StreetQuestDebugOverlay>();
+            _initialized = true;
         }
 
         private void Update()
@@ -54,7 +59,8 @@ namespace StreetQuestRPG
 
             if (!_spawnEnsured && _elapsedSeconds >= _nextSpawnRetryAtSeconds)
             {
-                _spawnEnsured = StreetQuestShared.EnsureSpawnedOutdoorQuestGiver();
+                StreetQuestShared.EnsureSpawnedOutdoorQuestGiver();
+                _spawnEnsured = _bootstrapEnsured;
                 _nextSpawnRetryAtSeconds = _elapsedSeconds + SpawnRetryIntervalSeconds;
             }
 

@@ -236,45 +236,8 @@ namespace StreetQuestRPG
         private static bool TryResolveWorldPosition(object candidate, out Vector3 worldPosition)
         {
             worldPosition = default;
-            if (candidate == null)
-                return false;
-
-            switch (candidate)
-            {
-                case Transform transform:
-                    worldPosition = transform.position;
-                    return true;
-                case Component component:
-                    worldPosition = component.transform.position;
-                    return true;
-                case GameObject gameObject:
-                    worldPosition = gameObject.transform.position;
-                    return true;
-                case Vector3 vector3:
-                    worldPosition = vector3;
-                    return true;
-            }
-
-            if (TryReadMemberValue(candidate, "position", out var positionValue))
-            {
-                switch (positionValue)
-                {
-                    case Vector3 vector3:
-                        worldPosition = vector3;
-                        return true;
-                    case Transform transform:
-                        worldPosition = transform.position;
-                        return true;
-                    case Component component:
-                        worldPosition = component.transform.position;
-                        return true;
-                    case GameObject gameObject:
-                        worldPosition = gameObject.transform.position;
-                        return true;
-                }
-            }
-
-            return TryResolveWorldPositionRecursive(candidate, new HashSet<object>(), 0, out worldPosition);
+            return TryResolveDirectWorldPosition(candidate, out worldPosition) ||
+                   TryResolveWorldPositionRecursive(candidate, new HashSet<object>(), 0, out worldPosition);
         }
 
         private static bool TryResolveWorldPositionRecursive(
@@ -299,7 +262,7 @@ namespace StreetQuestRPG
                     continue;
                 }
 
-                if (TryResolveWorldPosition(value, out worldPosition) ||
+                if (TryResolveDirectWorldPosition(value, out worldPosition) ||
                     TryResolveWorldPositionRecursive(value, visited, depth + 1, out worldPosition))
                 {
                     return true;
@@ -321,7 +284,7 @@ namespace StreetQuestRPG
                     continue;
                 }
 
-                if (TryResolveWorldPosition(value, out worldPosition) ||
+                if (TryResolveDirectWorldPosition(value, out worldPosition) ||
                     TryResolveWorldPositionRecursive(value, visited, depth + 1, out worldPosition))
                 {
                     return true;
@@ -329,6 +292,50 @@ namespace StreetQuestRPG
             }
 
             return false;
+        }
+
+        private static bool TryResolveDirectWorldPosition(object candidate, out Vector3 worldPosition)
+        {
+            worldPosition = default;
+            if (candidate == null)
+                return false;
+
+            switch (candidate)
+            {
+                case Transform transform:
+                    worldPosition = transform.position;
+                    return true;
+                case Component component:
+                    worldPosition = component.transform.position;
+                    return true;
+                case GameObject gameObject:
+                    worldPosition = gameObject.transform.position;
+                    return true;
+                case Vector3 vector3:
+                    worldPosition = vector3;
+                    return true;
+            }
+
+            if (!TryReadMemberValue(candidate, "position", out var positionValue))
+                return false;
+
+            switch (positionValue)
+            {
+                case Vector3 vector3:
+                    worldPosition = vector3;
+                    return true;
+                case Transform transform:
+                    worldPosition = transform.position;
+                    return true;
+                case Component component:
+                    worldPosition = component.transform.position;
+                    return true;
+                case GameObject gameObject:
+                    worldPosition = gameObject.transform.position;
+                    return true;
+                default:
+                    return false;
+            }
         }
     }
 }
