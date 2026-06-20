@@ -47,6 +47,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterAppearanceDefinition[] appearances;
         [DataMember] public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
         [DataMember] public StreetQuestCharacterStateDefinition[] states;
+        [DataMember] public StreetQuestCharacterDefinition[] alternateActors;
 
         public bool HasPrefabName => !string.IsNullOrWhiteSpace(prefabName);
 
@@ -73,6 +74,11 @@ namespace StreetQuestRPG
             return appearances.FirstOrDefault(value =>
                 value != null &&
                 string.Equals(value.id, appearanceId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public StreetQuestCharacterDefinition ShallowCopy()
+        {
+            return (StreetQuestCharacterDefinition)MemberwiseClone();
         }
 
         public void FillMissingValuesFrom(StreetQuestCharacterDefinition fallback)

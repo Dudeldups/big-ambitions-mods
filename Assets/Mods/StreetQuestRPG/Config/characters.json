@@ -55,49 +55,30 @@
       "states": [
         {
           "id": "mack_apartment",
-          "requiredStoryFlags": [ "streetquest:flag_mack_apartment" ],
+          "requiredStoryFlags": ["streetquest:flag_mack_apartment"],
           "appearanceId": "apartment_mack",
           "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
           "forward": { "x": 0.0, "y": 0.0, "z": -1.0 }
         }
-      ]
-    },
-    {
-      "id": "mack_after_hours_actor",
-      "displayName": "Mack",
-      "nameKey": "streetquest:mack_name",
-      "gameObjectName": "StreetQuestRPG.AfterHoursActor",
-      "visualObjectName": "MackAfterHoursVisual",
-      "professionKey": "streetquest:mack_profession",
-      "defaultAppearanceId": "mack_after_hours_actor_default",
-      "schedule": {
-        "mode": "DailyWindow",
-        "startHour": 22,
-        "endHour": 8
-      },
-      "gender": "Male",
-      "ageInDays": 15330,
-      "appearanceSeed": 104729,
-      "enabled": true,
-      "interactable": false,
-      "useFixedSpawnPosition": true,
-      "prefabName": "Characters/Homeless",
-      "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
-      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
-      "walkAwayTargetPosition": { "x": 301.90, "y": 0.09, "z": -175.80 },
-      "walkAwaySpeed": 1.35,
-      "despawnAfterWalkAway": true,
-      "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
-      "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
-      "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
-      "appearances": [
+      ],
+      "alternateActors": [
         {
-          "id": "mack_after_hours_actor_default",
-          "gender": "Male",
-          "ageInDays": 15330,
-          "appearanceSeed": 104729,
-          "prefabName": "Characters/Homeless",
-          "hiddenChildObjectNames": [ "DonationBucket", "DissambledBox" ]
+          "id": "mack_after_hours_actor",
+          "gameObjectName": "StreetQuestRPG.AfterHoursActor",
+          "visualObjectName": "MackAfterHoursVisual",
+          "enabled": true,
+          "schedule": {
+            "mode": "DailyWindow",
+            "startHour": 22,
+            "endHour": 8
+          },
+          "interactable": false,
+          "useFixedSpawnPosition": true,
+          "walkAwayTargetPosition": { "x": 252.57, "y": 0.09, "z": -8.67 },
+          "walkAwaySpeed": 1.35,
+          "despawnAfterWalkAway": true,
+          "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+          "hiddenChildObjectNames": ["DonationBucket", "DissambledBox"]
         }
       ]
     },
@@ -123,7 +104,7 @@
       "interactable": true,
       "useFixedSpawnPosition": true,
       "prefabName": "Characters/Homeless",
-      "position": { "x": 838.85, "y": 0.01, "z": -123.10 },
+      "position": { "x": 838.85, "y": 0.01, "z": -123.1 },
       "forward": { "x": -1.0, "y": 0.0, "z": 0.0 },
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
@@ -193,8 +174,8 @@
       "states": [
         {
           "id": "julia_visible",
-          "requiredStoryFlags": [ "streetquest:flag_julia_visible" ],
-          "forbiddenStoryFlags": [ "streetquest:flag_julia_found" ],
+          "requiredStoryFlags": ["streetquest:flag_julia_visible"],
+          "forbiddenStoryFlags": ["streetquest:flag_julia_found"],
           "overrideEnabled": true,
           "enabled": true,
           "position": { "x": 836.05, "y": 0.01, "z": -121.12 },

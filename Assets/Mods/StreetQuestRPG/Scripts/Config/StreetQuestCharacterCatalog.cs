@@ -36,8 +36,7 @@ namespace StreetQuestRPG
                     {
                         foreach (var definition in loadedFile.characters.Where(value => value != null))
                         {
-                            if (!string.IsNullOrWhiteSpace(definition.id))
-                                AddOrReplace(definition);
+                            RegisterDefinitionTree(definition);
                         }
                     }
 
@@ -94,6 +93,28 @@ namespace StreetQuestRPG
                 return;
 
             CharactersById[definition.id] = definition;
+        }
+
+        private static void RegisterDefinitionTree(StreetQuestCharacterDefinition definition)
+        {
+            if (definition == null || string.IsNullOrWhiteSpace(definition.id))
+                return;
+
+            AddOrReplace(definition);
+
+            if (definition.alternateActors == null || definition.alternateActors.Length == 0)
+                return;
+
+            foreach (var alternateActor in definition.alternateActors.Where(value => value != null))
+            {
+                if (string.IsNullOrWhiteSpace(alternateActor.id))
+                    continue;
+
+                var expanded = alternateActor.ShallowCopy();
+                expanded.alternateActors = null;
+                expanded.FillMissingValuesFrom(definition);
+                AddOrReplace(expanded);
+            }
         }
     }
 }

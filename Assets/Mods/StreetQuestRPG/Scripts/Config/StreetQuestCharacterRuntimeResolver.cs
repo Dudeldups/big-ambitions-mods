@@ -372,7 +372,8 @@ namespace StreetQuestRPG
                 hiddenChildObjectNames = definition.hiddenChildObjectNames,
                 appearances = definition.appearances,
                 appearanceFlagMappings = definition.appearanceFlagMappings,
-                states = definition.states
+                states = definition.states,
+                alternateActors = definition.alternateActors
             };
         }
 
