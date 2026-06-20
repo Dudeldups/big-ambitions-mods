@@ -63,9 +63,7 @@
       "questCode": "side_001",
       "giverCharacterId": "fran",
       "turnInCharacterId": "fran",
-      "requiredQuestIds": [
-        "streetquest:main_mack_001_hotdog"
-      ],
+      "requiredQuestIds": [],
       "requiredStoryFlags": [],
       "requiredFavors": [],
       "objectives": [
