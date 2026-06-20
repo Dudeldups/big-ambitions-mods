@@ -1,10 +1,10 @@
 {
   "quests": [
     {
-      "id": "streetquest:main_mack_001_hotdog",
+      "id": "streetquest:main_q1_hotdog",
       "type": "Main",
       "questLineId": "mack_main",
-      "questCode": "main_001",
+      "questCode": "main_q1",
       "giverCharacterId": "mack",
       "turnInCharacterId": "mack",
       "requiredQuestIds": [],
@@ -39,28 +39,28 @@
       "completedStoryFlags": [],
       "introStages": [
         {
-          "textKey": "streetquest:dialog_q1_intro_back_off",
+          "textKey": "streetquest:dialog_main_q1_intro_back_off",
           "confirmTextKey": "streetquest:dialog_whats_up"
         },
         {
-          "textKey": "streetquest:dialog_q1_intro_backstory",
+          "textKey": "streetquest:dialog_main_q1_intro_backstory",
           "confirmTextKey": "streetquest:dialog_yes"
         }
       ],
-      "offerTextKey": "streetquest:dialog_q1_offer",
-      "activeTextKey": "streetquest:dialog_q1_active",
-      "readyTextKey": "streetquest:dialog_q1_ready",
-      "helpTextKey": "streetquest:help_q1_active",
-      "acceptedManagerMessageKey": "streetquest:dialog_q1_accept_manager",
-      "completedManagerMessageKey": "streetquest:dialog_q1_complete_manager",
-      "finishedTextKey": "streetquest:dialog_q1_finished",
+      "offerTextKey": "streetquest:dialog_main_q1_offer",
+      "activeTextKey": "streetquest:dialog_main_q1_active",
+      "readyTextKey": "streetquest:dialog_main_q1_ready",
+      "helpTextKey": "streetquest:help_main_q1_active",
+      "acceptedManagerMessageKey": "streetquest:dialog_main_q1_accept_manager",
+      "completedManagerMessageKey": "streetquest:dialog_main_q1_complete_manager",
+      "finishedTextKey": "streetquest:dialog_main_q1_finished",
       "enabled": true
     },
     {
-      "id": "streetquest:side_fran_001_find_julia",
+      "id": "streetquest:fran_q1_find_julia",
       "type": "Side",
       "questLineId": "fran_side",
-      "questCode": "side_001",
+      "questCode": "fran_q1",
       "giverCharacterId": "fran",
       "turnInCharacterId": "fran",
       "requiredQuestIds": [],
@@ -71,9 +71,9 @@
           "id": "talk_to_julia",
           "type": "TalkToCharacter",
           "characterId": "julia",
-          "dialogTextKey": "streetquest:dialog_side_fran_julia_intro",
-          "confirmTextKey": "streetquest:dialog_side_fran_julia_confirm",
-          "afterConfirmTextKey": "streetquest:dialog_side_fran_julia_after",
+          "dialogTextKey": "streetquest:dialog_fran_q1_julia_intro",
+          "confirmTextKey": "streetquest:dialog_fran_q1_julia_confirm",
+          "afterConfirmTextKey": "streetquest:dialog_fran_q1_julia_after",
           "completedStoryFlags": [
             "streetquest:flag_julia_found"
           ]
@@ -102,17 +102,17 @@
       ],
       "introStages": [
         {
-          "textKey": "streetquest:dialog_side_fran_intro",
+          "textKey": "streetquest:dialog_fran_q1_intro",
           "confirmTextKey": "streetquest:dialog_whats_up"
         }
       ],
-      "offerTextKey": "streetquest:dialog_side_fran_offer",
-      "activeTextKey": "streetquest:dialog_side_fran_active",
-      "readyTextKey": "streetquest:dialog_side_fran_ready",
-      "helpTextKey": "streetquest:help_side_fran_active",
-      "acceptedManagerMessageKey": "streetquest:dialog_side_fran_accept_manager",
-      "completedManagerMessageKey": "streetquest:dialog_side_fran_complete_manager",
-      "finishedTextKey": "streetquest:dialog_side_fran_finished",
+      "offerTextKey": "streetquest:dialog_fran_q1_offer",
+      "activeTextKey": "streetquest:dialog_fran_q1_active",
+      "readyTextKey": "streetquest:dialog_fran_q1_ready",
+      "helpTextKey": "streetquest:help_fran_q1_active",
+      "acceptedManagerMessageKey": "streetquest:dialog_fran_q1_accept_manager",
+      "completedManagerMessageKey": "streetquest:dialog_fran_q1_complete_manager",
+      "finishedTextKey": "streetquest:dialog_fran_q1_finished",
       "enabled": true
     }
   ]

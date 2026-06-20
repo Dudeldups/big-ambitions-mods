@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
-using System.Reflection;
 using BAModAPI;
 using BigAmbitions.SaveSystem.Legacy;
 using Dialogs;
+using Entities;
 using UI.Smartphone.Apps.Contacts;
 
 namespace StreetQuestRPG
@@ -29,25 +29,30 @@ namespace StreetQuestRPG
 
             var category = ResolveContactCategory(character.contactCategory);
             var descriptionKey = ResolveContactDescriptionKey(character);
-            var contactType = FindType("Contact");
-            var getContactMethod = contactType?.GetMethod(
-                "GetContact",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[] { typeof(string), typeof(ContactCategoryName), typeof(string) },
-                null);
-            var contact = getContactMethod?.Invoke(null, new object[] { contactId, category, descriptionKey });
+            Contact contact;
+            try
+            {
+                contact = Contact.GetContact(contactId, category, descriptionKey);
+            }
+            catch (Exception exception)
+            {
+                LogDebug($"GrantContactReward failed character={characterId} exception={exception}");
+                return false;
+            }
+
             if (contact == null)
                 return false;
 
             if (!string.IsNullOrWhiteSpace(character.dialogTypeKey))
             {
                 var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(character.dialogTypeKey);
-                var property = contact.GetType().GetProperty("callDialogTypeOverride", BindingFlags.Public | BindingFlags.Instance);
-                property?.SetValue(contact, dialogType);
+                contact.callDialogTypeOverride = dialogType;
             }
 
-            return !existedBefore;
+            var existsAfter = SaveGameManager.Current?.Contacts?.Any(existingContact =>
+                existingContact != null &&
+                string.Equals(existingContact.id, contactId, StringComparison.OrdinalIgnoreCase)) == true;
+            return !existedBefore && existsAfter;
         }
 
         private static string ResolveContactId(StreetQuestCharacterDefinition character)

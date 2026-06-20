@@ -127,15 +127,15 @@ namespace StreetQuestRPG
         {
             LogDebug(summary == null
                 ? "ShowRewardSummaryNotification skipped: summary null"
-                : $"ShowRewardSummaryNotification start cash={summary.CashAmount} favorChanges={summary.FavorDeltas.Count} contacts={summary.AddedContactCharacterIds.Count}");
-            if (summary == null || !summary.HasAnyPopupContent)
+                : $"ShowRewardSummaryNotification start cash={summary.CashAmount} favorChanges={summary.FavorDeltas.Count}");
+            if (summary == null || !summary.HasFavorChanges)
             {
-                LogDebug("ShowRewardSummaryNotification skipped: no popup content");
+                LogDebug("ShowRewardSummaryNotification skipped: no favor changes");
                 return;
             }
 
             var favorChanges = summary.FavorDeltas.ToList();
-            if (favorChanges.Count == 1 && summary.AddedContactCharacterIds.Count == 0)
+            if (favorChanges.Count == 1)
             {
                 var favorChange = favorChanges[0];
                 var amount = Math.Abs(favorChange.Value).ToString();
@@ -177,14 +177,6 @@ namespace StreetQuestRPG
             }
 
             var lines = new List<string>();
-            foreach (var characterId in summary.AddedContactCharacterIds)
-            {
-                lines.Add("streetquest:popup_contact_added".Localize(new Dictionary<string, string>
-                {
-                    { "npcname", ResolveCharacterDisplayName(characterId) }
-                }).ToString());
-            }
-
             foreach (var favorChange in favorChanges)
             {
                 var baseKey = favorChange.Value >= 0
@@ -215,9 +207,7 @@ namespace StreetQuestRPG
         {
             public int CashAmount { get; set; }
             public Dictionary<string, int> FavorDeltas { get; } = new(StringComparer.OrdinalIgnoreCase);
-            public HashSet<string> AddedContactCharacterIds { get; } = new(StringComparer.OrdinalIgnoreCase);
             public bool HasFavorChanges => FavorDeltas.Count > 0;
-            public bool HasAnyPopupContent => HasFavorChanges || AddedContactCharacterIds.Count > 0 || CashAmount > 0;
 
             public void AddFavorDelta(string characterId, int delta)
             {
@@ -227,14 +217,6 @@ namespace StreetQuestRPG
                 FavorDeltas[characterId] = FavorDeltas.TryGetValue(characterId, out var existing)
                     ? existing + delta
                     : delta;
-            }
-
-            public void AddContact(string characterId)
-            {
-                if (string.IsNullOrWhiteSpace(characterId))
-                    return;
-
-                AddedContactCharacterIds.Add(characterId);
             }
         }
     }

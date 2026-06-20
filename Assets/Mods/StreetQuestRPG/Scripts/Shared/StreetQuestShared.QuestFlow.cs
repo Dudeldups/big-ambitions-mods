@@ -241,8 +241,7 @@ namespace StreetQuestRPG
                             summary.AddFavorDelta(reward.CharacterId, reward.Amount);
                         break;
                     case StreetQuestQuestRewardType.Contact:
-                        if (GrantContactReward(reward.CharacterId))
-                            summary.AddContact(reward.CharacterId);
+                        GrantContactReward(reward.CharacterId);
                         break;
                 }
             }
