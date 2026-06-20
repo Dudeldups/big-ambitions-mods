@@ -9,6 +9,7 @@ namespace StreetQuestRPG
     {
         private const float NavMeshProbeRadius = 6f;
         private const float ArrivalDistance = 0.35f;
+        private const float RotationLerpSpeed = 8f;
 
         private string _characterId;
         private Vector3 _spawnPosition;
@@ -62,7 +63,10 @@ namespace StreetQuestRPG
             if (!_walking || _agent == null || !_agent.enabled)
                 return;
 
-            UpdateAnimatorState(true);
+            var velocity = _agent.velocity;
+            var isMoving = velocity.sqrMagnitude > 0.01f;
+            UpdateAnimatorState(isMoving, velocity.magnitude);
+            UpdateFacing(velocity);
 
             if (_agent.pathPending)
                 return;
@@ -76,7 +80,7 @@ namespace StreetQuestRPG
             _walking = false;
             _completed = true;
             _agent.ResetPath();
-            UpdateAnimatorState(false);
+            UpdateAnimatorState(false, 0f);
             StreetQuestShared.LogDebug($"WalkAwayArrived character={_characterId} final={FormatVector3(transform.position)}");
 
             if (_despawnAfterArrival)
@@ -117,10 +121,10 @@ namespace StreetQuestRPG
             _walking = _agent.SetDestination(targetPosition);
 
             LogAnimatorParametersOnce();
-            UpdateAnimatorState(_walking);
+            UpdateAnimatorState(_walking, _walking ? _agent.speed : 0f);
             StreetQuestShared.LogDebug(
                 $"WalkAwayBegin character={_characterId} start={FormatVector3(startPosition)} target={FormatVector3(targetPosition)} " +
-                $"speed={_agent.speed:F2} setDestination={_walking}");
+                $"speed={_agent.speed:F2} baseOffset={_agent.baseOffset:F2} setDestination={_walking}");
         }
 
         private void ResetWalker()
@@ -139,7 +143,7 @@ namespace StreetQuestRPG
             if (_agent != null && _agent.enabled && _agent.isOnNavMesh)
                 _agent.Warp(_spawnPosition);
 
-            UpdateAnimatorState(false);
+            UpdateAnimatorState(false, 0f);
             StreetQuestShared.LogDebug($"WalkAwayReset character={_characterId} spawn={FormatVector3(_spawnPosition)}");
         }
 
@@ -172,22 +176,32 @@ namespace StreetQuestRPG
             _agent.stoppingDistance = 0.1f;
             _agent.radius = 0.2f;
             _agent.height = 1.8f;
+            _agent.baseOffset = 0f;
             _agent.autoBraking = true;
             _agent.updateRotation = true;
             _agent.updateUpAxis = true;
         }
 
-        private void UpdateAnimatorState(bool walking)
+        private void UpdateAnimatorState(bool walking, float velocityMagnitude)
         {
-            var velocity = _agent != null ? _agent.velocity.magnitude : 0f;
             foreach (var animator in _animators)
             {
                 if (animator == null)
                     continue;
 
-                TrySetAnimatorFloat(animator, velocity);
+                TrySetAnimatorFloat(animator, velocityMagnitude);
                 TrySetAnimatorBool(animator, walking);
             }
+        }
+
+        private void UpdateFacing(Vector3 velocity)
+        {
+            velocity.y = 0f;
+            if (velocity.sqrMagnitude < 0.0001f)
+                return;
+
+            var targetRotation = Quaternion.LookRotation(velocity.normalized, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * RotationLerpSpeed);
         }
 
         private void LogAnimatorParametersOnce()
@@ -211,12 +225,20 @@ namespace StreetQuestRPG
 
         private static void TrySetAnimatorFloat(Animator animator, float velocity)
         {
-            foreach (var parameterName in new[] { "Speed", "speed", "MoveSpeed", "Movement", "Velocity", "WalkSpeed" })
+            foreach (var parameterName in new[] { "Speed", "speed", "MoveSpeed", "Movement", "Velocity", "WalkSpeed", "AnimationSpeed", "Forward" })
             {
                 if (!HasParameter(animator, parameterName, AnimatorControllerParameterType.Float))
                     continue;
 
-                animator.SetFloat(parameterName, velocity);
+                float value;
+                if (string.Equals(parameterName, "Forward", StringComparison.Ordinal))
+                    value = velocity > 0.01f ? 0.45f : 0f;
+                else if (string.Equals(parameterName, "AnimationSpeed", StringComparison.Ordinal))
+                    value = velocity > 0.01f ? 0.65f : 0f;
+                else
+                    value = velocity;
+
+                animator.SetFloat(parameterName, value);
             }
         }
 
@@ -229,6 +251,9 @@ namespace StreetQuestRPG
 
                 animator.SetBool(parameterName, walking);
             }
+
+            if (HasParameter(animator, "Running", AnimatorControllerParameterType.Bool))
+                animator.SetBool("Running", false);
         }
 
         private static bool HasParameter(Animator animator, string parameterName, AnimatorControllerParameterType type)
