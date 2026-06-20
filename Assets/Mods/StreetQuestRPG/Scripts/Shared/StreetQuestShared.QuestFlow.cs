@@ -59,6 +59,7 @@ namespace StreetQuestRPG
             record.AddStoryFlags(quest.AcceptedStoryFlags);
             SaveQuestStateRecord(record);
             LogDebug($"AcceptQuest saved quest={quest.Id} type={quest.QuestType} mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState}");
+            RefreshSpawnedCharacters();
             return true;
         }
 

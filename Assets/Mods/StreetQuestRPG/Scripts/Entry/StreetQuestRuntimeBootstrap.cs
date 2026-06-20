@@ -64,7 +64,7 @@ namespace StreetQuestRPG
 
             StreetQuestShared.CleanupLegacyContacts();
             RegisterDialogs();
-            return StreetQuestCharacterCatalog.All.Any(value => value != null && value.enabled);
+            return StreetQuestCharacterCatalog.All.Any(value => value != null);
         }
 
         public static void Shutdown()
@@ -83,7 +83,7 @@ namespace StreetQuestRPG
             if (_dialogsRegistered)
                 return;
 
-            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null))
             {
                 var dialogTypeKey = string.IsNullOrWhiteSpace(character.dialogTypeKey)
                     ? "streetquest_mack_dialog"
