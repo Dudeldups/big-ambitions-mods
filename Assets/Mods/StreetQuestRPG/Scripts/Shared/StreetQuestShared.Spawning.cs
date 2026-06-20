@@ -314,7 +314,7 @@ namespace StreetQuestRPG
             if (root == null || definition == null)
                 return;
 
-            if (definition.walkAwayTargetPosition == null &&
+            if ((definition.walkAwayWaypoints == null || definition.walkAwayWaypoints.Length == 0) &&
                 (definition.walkInWaypoints == null || definition.walkInWaypoints.Length == 0))
             {
                 return;
@@ -332,7 +332,7 @@ namespace StreetQuestRPG
                 definition.id,
                 definition.PositionOr(root.transform.position),
                 Quaternion.LookRotation(-spawnForward, Vector3.up),
-                definition.WalkAwayTargetPositionOr(root.transform.position),
+                definition.WalkAwayWaypointsOrEmpty(),
                 definition.walkAwaySpeed,
                 definition.despawnAfterWalkAway,
                 definition.WalkInWaypointsOrEmpty(),

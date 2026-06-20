@@ -29,7 +29,7 @@ namespace StreetQuestRPG
         [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data forward;
-        [DataMember] public StreetQuestVector3Data walkAwayTargetPosition;
+        [DataMember] public StreetQuestVector3Data[] walkAwayWaypoints;
         [DataMember] public float walkAwaySpeed = 1.4f;
         [DataMember] public bool despawnAfterWalkAway;
         [DataMember] public StreetQuestVector3Data[] walkInWaypoints;
@@ -57,7 +57,9 @@ namespace StreetQuestRPG
 
         public Vector3 PositionOr(Vector3 fallback) => position != null ? position.ToVector3() : fallback;
         public Vector3 ForwardOr(Vector3 fallback) => forward != null ? forward.ToVector3() : fallback;
-        public Vector3 WalkAwayTargetPositionOr(Vector3 fallback) => walkAwayTargetPosition != null ? walkAwayTargetPosition.ToVector3() : fallback;
+        public Vector3[] WalkAwayWaypointsOrEmpty() => walkAwayWaypoints == null
+            ? Array.Empty<Vector3>()
+            : walkAwayWaypoints.Where(value => value != null).Select(value => value.ToVector3()).ToArray();
         public Vector3[] WalkInWaypointsOrEmpty() => walkInWaypoints == null
             ? Array.Empty<Vector3>()
             : walkInWaypoints.Where(value => value != null).Select(value => value.ToVector3()).ToArray();
@@ -111,7 +113,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(prefabName)) prefabName = fallback.prefabName;
             position ??= fallback.position;
             forward ??= fallback.forward;
-            walkAwayTargetPosition ??= fallback.walkAwayTargetPosition;
+            walkAwayWaypoints ??= fallback.walkAwayWaypoints;
             if (walkAwaySpeed <= 0f) walkAwaySpeed = fallback.walkAwaySpeed;
             despawnAfterWalkAway = despawnAfterWalkAway || fallback.despawnAfterWalkAway;
             walkInWaypoints ??= fallback.walkInWaypoints;

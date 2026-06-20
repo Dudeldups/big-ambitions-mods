@@ -155,7 +155,7 @@ namespace StreetQuestRPG
                 SerializeSchedule(runtime.schedule),
                 SerializeVector(runtime.position),
                 SerializeVector(runtime.forward),
-                SerializeVector(runtime.walkAwayTargetPosition),
+                SerializeVectorArray(runtime.walkAwayWaypoints),
                 runtime.walkAwaySpeed.ToString("F3"),
                 runtime.despawnAfterWalkAway.ToString(),
                 SerializeVectorArray(runtime.walkInWaypoints),
@@ -262,12 +262,20 @@ namespace StreetQuestRPG
                 resolved.position = state.position;
             if (state.forward != null)
                 resolved.forward = state.forward;
-            if (state.walkAwayTargetPosition != null)
-                resolved.walkAwayTargetPosition = state.walkAwayTargetPosition;
+            if (state.walkAwayWaypoints != null)
+                resolved.walkAwayWaypoints = state.walkAwayWaypoints;
             if (state.walkAwaySpeed > 0f)
                 resolved.walkAwaySpeed = state.walkAwaySpeed;
             if (state.overrideDespawnAfterWalkAway)
                 resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
+            if (state.walkInWaypoints != null)
+                resolved.walkInWaypoints = state.walkInWaypoints;
+            if (state.walkInUnitsPerGameMinute > 0f)
+                resolved.walkInUnitsPerGameMinute = state.walkInUnitsPerGameMinute;
+            if (state.walkInArrivalHour > 0)
+                resolved.walkInArrivalHour = state.walkInArrivalHour;
+            if (state.walkInArrivalMinute > 0)
+                resolved.walkInArrivalMinute = state.walkInArrivalMinute;
             if (state.localPosition != null)
                 resolved.localPosition = state.localPosition;
             if (state.localEulerAngles != null)
@@ -359,7 +367,7 @@ namespace StreetQuestRPG
                 prefabName = definition.prefabName,
                 position = definition.position,
                 forward = definition.forward,
-                walkAwayTargetPosition = definition.walkAwayTargetPosition,
+                walkAwayWaypoints = definition.walkAwayWaypoints,
                 walkAwaySpeed = definition.walkAwaySpeed,
                 despawnAfterWalkAway = definition.despawnAfterWalkAway,
                 walkInWaypoints = definition.walkInWaypoints,
