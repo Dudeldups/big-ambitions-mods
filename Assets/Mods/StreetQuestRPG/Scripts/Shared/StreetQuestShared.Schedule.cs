@@ -54,6 +54,7 @@ namespace StreetQuestRPG
         internal static bool RefreshSchedulesIfVisibilityChanged()
         {
             var anyChanged = false;
+            var anyVisibleNow = false;
             foreach (var character in StreetQuestCharacterCatalog.All)
             {
                 if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
@@ -70,13 +71,25 @@ namespace StreetQuestRPG
                     continue;
 
                 LastKnownScheduleVisibilityByCharacterId[character.id] = visibleNow;
+                if (visibleNow)
+                {
+                    EnsureSpawnedCharacter(character);
+                    anyVisibleNow = true;
+                }
+                else
+                {
+                    DestroySpawnedCharacter(character.id);
+                }
+
                 anyChanged = true;
             }
 
             if (!anyChanged)
                 return false;
 
-            RefreshSpawnedCharacters();
+            if (anyVisibleNow)
+                EnsureQuestGiverCtaBehaviorInstalled();
+
             return true;
         }
 
@@ -245,6 +258,12 @@ namespace StreetQuestRPG
 
             try
             {
+                if (TryGetCurrentGameTime(out _, out var hour, out _) &&
+                    registration.OpensWithinHours(hour))
+                {
+                    return true;
+                }
+
                 object openStatus = registration.GetOpenStatus();
                 if (openStatus is bool boolStatus)
                     return boolStatus;
