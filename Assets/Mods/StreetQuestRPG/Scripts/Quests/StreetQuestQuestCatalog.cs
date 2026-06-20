@@ -17,15 +17,25 @@ namespace StreetQuestRPG
         private static bool _initialized;
 
         public static IReadOnlyCollection<StreetQuestQuestDefinition> All => QuestsById.Values;
+        public static IEnumerable<StreetQuestQuestDefinition> AllOrdered =>
+            QuestsById.Values
+                .Where(value => value != null)
+                .OrderBy(value => value.QuestType)
+                .ThenBy(value => value.QuestLineId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(value => value.QuestCode ?? value.Id, StringComparer.OrdinalIgnoreCase);
 
         public static StreetQuestQuestDefinition FirstQuest
         {
             get
             {
                 EnsureInitializedWithoutFile();
-                return QuestsById.Values
-                           .FirstOrDefault(value => value.Enabled && string.IsNullOrWhiteSpace(value.PreviousQuestId))
-                       ?? QuestsById.Values.FirstOrDefault(value => value.Enabled);
+                return AllOrdered
+                           .FirstOrDefault(value =>
+                               value.Enabled &&
+                               value.QuestType == StreetQuestQuestType.Main &&
+                               string.IsNullOrWhiteSpace(value.PreviousQuestId))
+                       ?? AllOrdered.FirstOrDefault(value => value.Enabled && value.QuestType == StreetQuestQuestType.Main)
+                       ?? AllOrdered.FirstOrDefault(value => value.Enabled);
             }
         }
 
@@ -132,6 +142,24 @@ namespace StreetQuestRPG
 
             QuestsById.Clear();
             _initialized = true;
+        }
+
+        public static StreetQuestQuestDefinition GetLastCompletedQuestForCharacter(
+            StreetQuestQuestStateRecord stateRecord,
+            string characterId)
+        {
+            EnsureInitializedWithoutFile();
+            if (stateRecord == null || string.IsNullOrWhiteSpace(characterId))
+                return null;
+
+            return AllOrdered.LastOrDefault(quest =>
+                quest != null &&
+                stateRecord.CompletedQuestIds.Contains(quest.Id) &&
+                (string.Equals(quest.GiverCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(quest.TurnInCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
+                 quest.Objectives.Any(objective =>
+                     objective != null &&
+                     string.Equals(objective.CharacterId, characterId, StringComparison.OrdinalIgnoreCase))));
         }
 
         private static void AddOrReplace(StreetQuestQuestDefinition quest)

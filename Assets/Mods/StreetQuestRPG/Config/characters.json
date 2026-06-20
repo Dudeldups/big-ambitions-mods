@@ -55,6 +55,99 @@
           "forward": { "x": 0.0, "y": 0.0, "z": -1.0 }
         }
       ]
+    },
+    {
+      "id": "fran",
+      "displayName": "Fran",
+      "nameKey": "streetquest:fran_name",
+      "contactId": "streetquest:fran_contact",
+      "dialogTypeKey": "streetquest_fran_dialog",
+      "gameObjectName": "StreetQuestRPG.IndoorQuestGiver",
+      "visualObjectName": "FranVisual",
+      "overlayHeaderKey": "streetquest:fran_name",
+      "ctaKey": "streetquest:cta_talk",
+      "professionKey": "streetquest:fran_profession",
+      "defaultAppearanceId": "fran_default",
+      "gender": "Female",
+      "ageInDays": 12410,
+      "appearanceSeed": 22073,
+      "enabled": true,
+      "useFixedSpawnPosition": true,
+      "prefabName": "Characters/Homeless",
+      "position": { "x": 838.85, "y": 0.01, "z": -123.10 },
+      "forward": { "x": -1.0, "y": 0.0, "z": 0.0 },
+      "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
+      "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.15 },
+      "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.85 },
+      "colliderCenterWithPrefab": { "x": 0.0, "y": 1.05, "z": -0.05 },
+      "colliderSizeWithPrefab": { "x": 1.3, "y": 2.1, "z": 0.55 },
+      "colliderCenterFallback": { "x": 0.0, "y": 0.95, "z": 0.0 },
+      "colliderSizeFallback": { "x": 1.8, "y": 1.9, "z": 1.2 },
+      "interactionRendererLocalPosition": { "x": 0.0, "y": 0.9, "z": 0.0 },
+      "interactionRendererLocalScale": { "x": 0.08, "y": 0.08, "z": 0.08 },
+      "appearances": [
+        {
+          "id": "fran_default",
+          "gender": "Female",
+          "ageInDays": 12410,
+          "appearanceSeed": 22073,
+          "prefabName": "Characters/Homeless"
+        }
+      ]
+    },
+    {
+      "id": "julia",
+      "displayName": "Julia",
+      "nameKey": "streetquest:julia_name",
+      "contactId": "streetquest:julia_contact",
+      "dialogTypeKey": "streetquest_julia_dialog",
+      "gameObjectName": "StreetQuestRPG.IndoorQuestGiver",
+      "visualObjectName": "JuliaVisual",
+      "overlayHeaderKey": "streetquest:julia_name",
+      "ctaKey": "streetquest:cta_talk",
+      "professionKey": "streetquest:julia_profession",
+      "defaultAppearanceId": "julia_default",
+      "gender": "Female",
+      "ageInDays": 3650,
+      "appearanceSeed": 32119,
+      "enabled": false,
+      "useFixedSpawnPosition": true,
+      "prefabName": "Characters/Homeless",
+      "position": { "x": 836.05, "y": 0.01, "z": -121.12 },
+      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+      "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "localScale": { "x": 0.92, "y": 0.92, "z": 0.92 },
+      "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.0 },
+      "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.75 },
+      "colliderCenterWithPrefab": { "x": 0.0, "y": 1.0, "z": -0.05 },
+      "colliderSizeWithPrefab": { "x": 1.1, "y": 2.0, "z": 0.5 },
+      "colliderCenterFallback": { "x": 0.0, "y": 0.9, "z": 0.0 },
+      "colliderSizeFallback": { "x": 1.5, "y": 1.8, "z": 1.0 },
+      "interactionRendererLocalPosition": { "x": 0.0, "y": 0.82, "z": 0.0 },
+      "interactionRendererLocalScale": { "x": 0.075, "y": 0.075, "z": 0.075 },
+      "appearances": [
+        {
+          "id": "julia_default",
+          "gender": "Female",
+          "ageInDays": 3650,
+          "appearanceSeed": 32119,
+          "prefabName": "Characters/Homeless"
+        }
+      ],
+      "states": [
+        {
+          "id": "julia_visible",
+          "requiredStoryFlags": [ "streetquest:flag_julia_visible" ],
+          "forbiddenStoryFlags": [ "streetquest:flag_julia_found" ],
+          "overrideEnabled": true,
+          "enabled": true,
+          "position": { "x": 836.05, "y": 0.01, "z": -121.12 },
+          "forward": { "x": 0.0, "y": 0.0, "z": -1.0 }
+        }
+      ]
     }
   ]
 }

@@ -25,11 +25,16 @@ namespace StreetQuestRPG
 
         private DialogEntry Start()
         {
-            var currentQuest = StreetQuestShared.GetCurrentQuest();
+            var currentQuest = StreetQuestShared.GetRelevantQuestForCharacter(_characterId);
             if (currentQuest == null)
                 return BuildFinishedEntry();
 
             var progress = StreetQuestShared.GetQuestProgress(currentQuest.Id);
+            var talkObjective = currentQuest.Objectives.FirstOrDefault(value =>
+                value != null &&
+                value.ObjectiveType == StreetQuestQuestObjectiveType.TalkToCharacter &&
+                string.Equals(value.CharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase));
+
             if (progress == StreetQuestQuestProgressState.NotStarted &&
                 string.Equals(currentQuest.GiverCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
             {
@@ -37,6 +42,19 @@ namespace StreetQuestRPG
                     return BuildIntroStageEntry(currentQuest, 0);
 
                 return BuildOfferEntry(currentQuest);
+            }
+
+            if (progress == StreetQuestQuestProgressState.Active && talkObjective != null)
+            {
+                if (StreetQuestShared.IsObjectiveSatisfiedForDebug(currentQuest, talkObjective))
+                {
+                    if (!string.IsNullOrWhiteSpace(talkObjective.AfterConfirmTextKey))
+                        return BuildConversationEntry(talkObjective.AfterConfirmTextKey);
+
+                    return BuildFinishedEntry();
+                }
+
+                return BuildTalkObjectiveEntry(currentQuest, talkObjective);
             }
 
             if (!string.Equals(currentQuest.TurnInCharacterId, _characterId, System.StringComparison.OrdinalIgnoreCase))
@@ -113,6 +131,37 @@ namespace StreetQuestRPG
             return BuildConversationEntry(quest.AcceptedManagerMessageKey);
         }
 
+        private DialogEntry BuildTalkObjectiveEntry(
+            StreetQuestQuestDefinition quest,
+            StreetQuestQuestObjectiveDefinition objective)
+        {
+            var confirmTextKey = string.IsNullOrWhiteSpace(objective.ConfirmTextKey)
+                ? "streetquest:dialog_yes"
+                : objective.ConfirmTextKey;
+
+            return new DialogEntry
+            {
+                headerKey = npcNameKey,
+                messageData = objective.DialogTextKey.Localize(),
+                Template = DialogEntry.TemplateType.Text,
+                ConfirmTextOverride = confirmTextKey.Localize(),
+                OnConfirm = () => OnCompleteTalkObjective(quest, objective),
+                OnCancel = DialogController.current.FinishDialog
+            };
+        }
+
+        private DialogEntry OnCompleteTalkObjective(
+            StreetQuestQuestDefinition quest,
+            StreetQuestQuestObjectiveDefinition objective)
+        {
+            StreetQuestShared.CompleteTalkObjectiveInteraction(quest, objective);
+
+            if (!string.IsNullOrWhiteSpace(objective.AfterConfirmTextKey))
+                return BuildConversationEntry(objective.AfterConfirmTextKey);
+
+            return BuildFinishedEntry();
+        }
+
         private DialogEntry BuildActiveEntry(StreetQuestQuestDefinition quest)
         {
             StreetQuestShared.RecordCharacterInteraction(_characterId);
@@ -150,9 +199,11 @@ namespace StreetQuestRPG
 
         private DialogEntry BuildFinishedEntry()
         {
-            var finishedQuest = StreetQuestQuestCatalog.GetLastCompletedQuest(StreetQuestShared.GetQuestStateSnapshot());
+            var finishedQuest = StreetQuestQuestCatalog.GetLastCompletedQuestForCharacter(
+                StreetQuestShared.GetQuestStateSnapshot(),
+                _characterId);
             var messageKey = string.IsNullOrWhiteSpace(finishedQuest?.FinishedTextKey)
-                ? "streetquest:dialog_q1_finished"
+                ? "streetquest:dialog_generic_finished"
                 : finishedQuest.FinishedTextKey;
             return BuildConversationEntry(messageKey);
         }

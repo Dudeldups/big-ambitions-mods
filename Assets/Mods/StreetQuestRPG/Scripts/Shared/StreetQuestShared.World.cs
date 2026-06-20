@@ -39,41 +39,48 @@ namespace StreetQuestRPG
                 return;
 
             RecordKnownCharacter(characterId);
+        }
 
-            var quest = GetCurrentQuest();
-            if (quest == null)
-                return;
+        public static bool CompleteTalkObjectiveInteraction(
+            StreetQuestQuestDefinition quest,
+            StreetQuestQuestObjectiveDefinition objective)
+        {
+            if (quest == null || objective == null || objective.ObjectiveType != StreetQuestQuestObjectiveType.TalkToCharacter)
+                return false;
 
-            var objective = quest.Objectives.FirstOrDefault(value =>
-                value != null &&
-                value.ObjectiveType == StreetQuestQuestObjectiveType.TalkToCharacter &&
-                string.Equals(value.CharacterId, characterId, StringComparison.OrdinalIgnoreCase));
-            if (objective == null)
-                return;
-
+            RecordKnownCharacter(objective.CharacterId);
             MarkObjectiveToken(objective.GetTrackingToken(quest.Id));
+            AddStoryFlags(objective.CompletedStoryFlags);
+            return true;
         }
 
 
         public static void TickWorldObjectives()
         {
-            var quest = GetCurrentQuest();
-            if (quest == null || GetQuestProgress(quest.Id) != StreetQuestQuestProgressState.Active)
-                return;
-
             var playerPosition = PlayerHelper.PlayerController != null
                 ? PlayerHelper.PlayerController.transform.position
                 : PlayerHelper.GetPosition();
 
-            foreach (var objective in quest.Objectives.Where(value => value != null))
+            var quests = new List<StreetQuestQuestDefinition>();
+            var mainQuest = GetCurrentMainQuest();
+            if (mainQuest != null)
+                quests.Add(mainQuest);
+            quests.AddRange(GetActiveSideQuests());
+
+            foreach (var quest in quests.Where(value =>
+                         value != null &&
+                         GetQuestProgress(value.Id) == StreetQuestQuestProgressState.Active))
             {
-                if (objective.ObjectiveType != StreetQuestQuestObjectiveType.VisitLocation || objective.worldPosition == null)
-                    continue;
+                foreach (var objective in quest.Objectives.Where(value => value != null))
+                {
+                    if (objective.ObjectiveType != StreetQuestQuestObjectiveType.VisitLocation || objective.worldPosition == null)
+                        continue;
 
-                if (Vector3.Distance(playerPosition, objective.worldPosition.ToVector3()) > objective.Radius)
-                    continue;
+                    if (Vector3.Distance(playerPosition, objective.worldPosition.ToVector3()) > objective.Radius)
+                        continue;
 
-                MarkObjectiveToken(objective.GetTrackingToken(quest.Id));
+                    MarkObjectiveToken(objective.GetTrackingToken(quest.Id));
+                }
             }
         }
 

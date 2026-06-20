@@ -55,6 +55,63 @@
       "completedManagerMessageKey": "streetquest:dialog_q1_complete_manager",
       "finishedTextKey": "streetquest:dialog_q1_finished",
       "enabled": true
+    },
+    {
+      "id": "streetquest:side_fran_001_find_julia",
+      "type": "Side",
+      "questLineId": "fran_side",
+      "questCode": "side_001",
+      "giverCharacterId": "fran",
+      "turnInCharacterId": "fran",
+      "requiredQuestIds": [
+        "streetquest:main_mack_001_hotdog"
+      ],
+      "requiredStoryFlags": [],
+      "requiredFavors": [],
+      "objectives": [
+        {
+          "id": "talk_to_julia",
+          "type": "TalkToCharacter",
+          "characterId": "julia",
+          "dialogTextKey": "streetquest:dialog_side_fran_julia_intro",
+          "confirmTextKey": "streetquest:dialog_side_fran_julia_confirm",
+          "afterConfirmTextKey": "streetquest:dialog_side_fran_julia_after",
+          "completedStoryFlags": [
+            "streetquest:flag_julia_found"
+          ]
+        }
+      ],
+      "rewards": [
+        {
+          "type": "Cash",
+          "amount": 60
+        },
+        {
+          "type": "Favor",
+          "characterId": "fran",
+          "amount": 8
+        }
+      ],
+      "acceptedStoryFlags": [
+        "streetquest:flag_julia_visible"
+      ],
+      "completedStoryFlags": [
+        "streetquest:flag_julia_returned"
+      ],
+      "introStages": [
+        {
+          "textKey": "streetquest:dialog_side_fran_intro",
+          "confirmTextKey": "streetquest:dialog_whats_up"
+        }
+      ],
+      "offerTextKey": "streetquest:dialog_side_fran_offer",
+      "activeTextKey": "streetquest:dialog_side_fran_active",
+      "readyTextKey": "streetquest:dialog_side_fran_ready",
+      "helpTextKey": "streetquest:help_side_fran_active",
+      "acceptedManagerMessageKey": "streetquest:dialog_side_fran_accept_manager",
+      "completedManagerMessageKey": "streetquest:dialog_side_fran_complete_manager",
+      "finishedTextKey": "streetquest:dialog_side_fran_finished",
+      "enabled": true
     }
   ]
 }

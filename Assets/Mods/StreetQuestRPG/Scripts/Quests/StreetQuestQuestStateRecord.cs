@@ -12,28 +12,30 @@ namespace StreetQuestRPG
         private const char CompletedSeparator = ',';
         private static readonly string[] DefaultKnownCharacterIds = { "mack" };
 
-        [SerializeField] public string currentQuestId = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
-        [SerializeField] public string currentQuestState = StreetQuestQuestProgressState.NotStarted.ToString();
+        [SerializeField] public string currentMainQuestId = StreetQuestQuestCatalog.FirstQuest?.Id ?? string.Empty;
+        [SerializeField] public string currentMainQuestState = StreetQuestQuestProgressState.NotStarted.ToString();
         [SerializeField] public int introStage;
         [SerializeField] public List<string> completedQuestIds = new();
+        [SerializeField] public List<string> activeSideQuestIds = new();
+        [SerializeField] public List<string> readySideQuestIds = new();
         [SerializeField] public List<string> storyFlags = new();
         [SerializeField] public List<string> objectiveTokens = new();
         [SerializeField] public List<string> knownCharacterIds = new();
         [SerializeField] public List<string> favorCharacterIds = new();
         [SerializeField] public List<int> favorValues = new();
 
-        public string CurrentQuestId
+        public string CurrentMainQuestId
         {
-            get => currentQuestId ?? string.Empty;
-            set => currentQuestId = value ?? string.Empty;
+            get => currentMainQuestId ?? string.Empty;
+            set => currentMainQuestId = value ?? string.Empty;
         }
 
-        public StreetQuestQuestProgressState CurrentQuestState
+        public StreetQuestQuestProgressState CurrentMainQuestState
         {
-            get => Enum.TryParse(currentQuestState, out StreetQuestQuestProgressState parsed)
+            get => Enum.TryParse(currentMainQuestState, out StreetQuestQuestProgressState parsed)
                 ? parsed
                 : StreetQuestQuestProgressState.NotStarted;
-            set => currentQuestState = value.ToString();
+            set => currentMainQuestState = value.ToString();
         }
 
         public int IntroStage
@@ -43,6 +45,8 @@ namespace StreetQuestRPG
         }
 
         public HashSet<string> CompletedQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ActiveSideQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ReadySideQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> StoryFlags { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> ObjectiveTokens { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> KnownCharacterIds { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -87,6 +91,45 @@ namespace StreetQuestRPG
             if (changed)
                 SyncListsFromSets();
             return changed;
+        }
+
+        public bool TryActivateSideQuest(string questId)
+        {
+            if (string.IsNullOrWhiteSpace(questId) || CompletedQuestIds.Contains(questId))
+                return false;
+
+            var changed = ActiveSideQuestIds.Add(questId);
+            ReadySideQuestIds.Remove(questId);
+            if (changed)
+                SyncListsFromSets();
+
+            return changed;
+        }
+
+        public bool TryMarkSideQuestReady(string questId)
+        {
+            if (string.IsNullOrWhiteSpace(questId) || CompletedQuestIds.Contains(questId))
+                return false;
+
+            var removed = ActiveSideQuestIds.Remove(questId);
+            var added = ReadySideQuestIds.Add(questId);
+            if (removed || added)
+                SyncListsFromSets();
+
+            return added || removed;
+        }
+
+        public bool ClearSideQuest(string questId)
+        {
+            if (string.IsNullOrWhiteSpace(questId))
+                return false;
+
+            var removed = ActiveSideQuestIds.Remove(questId);
+            removed |= ReadySideQuestIds.Remove(questId);
+            if (removed)
+                SyncListsFromSets();
+
+            return removed;
         }
 
         public int GetFavor(string characterId)
@@ -159,11 +202,11 @@ namespace StreetQuestRPG
             var record = CreateInitialized();
             var segments = serializedValue.Split(SegmentSeparator);
             if (segments.Length > 0 && !string.IsNullOrWhiteSpace(segments[0]))
-                record.CurrentQuestId = segments[0];
+                record.CurrentMainQuestId = segments[0];
 
             if (segments.Length > 1 &&
                 Enum.TryParse(segments[1], out StreetQuestQuestProgressState progressState))
-                record.CurrentQuestState = progressState;
+                record.CurrentMainQuestState = progressState;
 
             if (segments.Length > 2 && int.TryParse(segments[2], out var parsedIntroStage))
             {
@@ -197,6 +240,8 @@ namespace StreetQuestRPG
         private void SyncSetsFromLists()
         {
             completedQuestIds ??= new List<string>();
+            activeSideQuestIds ??= new List<string>();
+            readySideQuestIds ??= new List<string>();
             storyFlags ??= new List<string>();
             objectiveTokens ??= new List<string>();
             knownCharacterIds ??= new List<string>();
@@ -204,6 +249,8 @@ namespace StreetQuestRPG
             favorValues ??= new List<int>();
 
             CompletedQuestIds.Clear();
+            ActiveSideQuestIds.Clear();
+            ReadySideQuestIds.Clear();
             StoryFlags.Clear();
             ObjectiveTokens.Clear();
             KnownCharacterIds.Clear();
@@ -211,6 +258,10 @@ namespace StreetQuestRPG
 
             foreach (var questId in completedQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
                 CompletedQuestIds.Add(questId);
+            foreach (var questId in activeSideQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
+                ActiveSideQuestIds.Add(questId);
+            foreach (var questId in readySideQuestIds.Where(value => !string.IsNullOrWhiteSpace(value)))
+                ReadySideQuestIds.Add(questId);
             foreach (var storyFlagId in storyFlags.Where(value => !string.IsNullOrWhiteSpace(value)))
                 StoryFlags.Add(storyFlagId);
             foreach (var objectiveToken in objectiveTokens.Where(value => !string.IsNullOrWhiteSpace(value)))
@@ -230,9 +281,9 @@ namespace StreetQuestRPG
                 FavorByCharacterId[characterId] = Math.Max(-100, Math.Min(100, favorValues[index]));
             }
 
-            if (string.IsNullOrEmpty(CurrentQuestId) &&
-                CurrentQuestState != StreetQuestQuestProgressState.Completed)
-                CurrentQuestState = StreetQuestQuestProgressState.Completed;
+            if (string.IsNullOrEmpty(CurrentMainQuestId) &&
+                CurrentMainQuestState != StreetQuestQuestProgressState.Completed)
+                CurrentMainQuestState = StreetQuestQuestProgressState.Completed;
 
             SyncListsFromSets();
         }
@@ -240,6 +291,8 @@ namespace StreetQuestRPG
         private void SyncListsFromSets()
         {
             completedQuestIds = CompletedQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+            activeSideQuestIds = ActiveSideQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+            readySideQuestIds = ReadySideQuestIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             storyFlags = StoryFlags.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             objectiveTokens = ObjectiveTokens.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
             knownCharacterIds = KnownCharacterIds.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();

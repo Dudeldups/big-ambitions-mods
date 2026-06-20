@@ -19,6 +19,10 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data worldPosition;
         [DataMember] public float radius = 2.5f;
         [DataMember] public string progressTextKey;
+        [DataMember] public string dialogTextKey;
+        [DataMember] public string confirmTextKey;
+        [DataMember] public string afterConfirmTextKey;
+        [DataMember] public string[] completedStoryFlags;
 
         public string Id => string.IsNullOrWhiteSpace(id) ? "objective" : id;
         public string ItemName => itemName;
@@ -30,6 +34,10 @@ namespace StreetQuestRPG
         public string LocationId => locationId;
         public float Radius => radius <= 0f ? 2.5f : radius;
         public string ProgressTextKey => progressTextKey;
+        public string DialogTextKey => dialogTextKey;
+        public string ConfirmTextKey => confirmTextKey;
+        public string AfterConfirmTextKey => afterConfirmTextKey;
+        public string[] CompletedStoryFlags => completedStoryFlags ?? Array.Empty<string>();
 
         public StreetQuestQuestObjectiveType ObjectiveType
         {

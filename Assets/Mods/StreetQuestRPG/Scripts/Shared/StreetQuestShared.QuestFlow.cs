@@ -30,19 +30,35 @@ namespace StreetQuestRPG
             }
 
             var record = GetQuestStateRecord();
-            LogDebug($"AcceptQuest start quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState}");
-            if (record.CurrentQuestId != quest.Id ||
-                record.CurrentQuestState != StreetQuestQuestProgressState.NotStarted ||
+            var progress = GetQuestProgress(quest.Id);
+            LogDebug($"AcceptQuest start quest={quest.Id} type={quest.QuestType} mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} progress={progress}");
+            if (progress != StreetQuestQuestProgressState.NotStarted ||
                 !StreetQuestQuestCatalog.AreRequirementsMet(quest, record))
             {
-                LogDebug($"AcceptQuest aborted quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState} requirementsMet={StreetQuestQuestCatalog.AreRequirementsMet(quest, record)}");
+                LogDebug($"AcceptQuest aborted quest={quest.Id} progress={progress} requirementsMet={StreetQuestQuestCatalog.AreRequirementsMet(quest, record)}");
                 return false;
             }
 
-            record.CurrentQuestState = StreetQuestQuestProgressState.Active;
+            if (quest.QuestType == StreetQuestQuestType.Main)
+            {
+                if (record.CurrentMainQuestId != quest.Id ||
+                    record.CurrentMainQuestState != StreetQuestQuestProgressState.NotStarted)
+                {
+                    LogDebug($"AcceptQuest aborted main quest={quest.Id} currentMainQuestId={record.CurrentMainQuestId} currentMainState={record.CurrentMainQuestState}");
+                    return false;
+                }
+
+                record.CurrentMainQuestState = StreetQuestQuestProgressState.Active;
+            }
+            else if (!record.TryActivateSideQuest(quest.Id))
+            {
+                LogDebug($"AcceptQuest aborted side quest={quest.Id} activation failed");
+                return false;
+            }
+
             record.AddStoryFlags(quest.AcceptedStoryFlags);
             SaveQuestStateRecord(record);
-            LogDebug($"AcceptQuest saved quest={quest.Id} currentQuestId={record.CurrentQuestId} state={record.CurrentQuestState}");
+            LogDebug($"AcceptQuest saved quest={quest.Id} type={quest.QuestType} mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState}");
             return true;
         }
 
@@ -62,16 +78,27 @@ namespace StreetQuestRPG
                 return false;
 
             var record = GetQuestStateRecord();
-            if (record.CurrentQuestId != quest.Id)
-                return false;
-
-            if (record.CurrentQuestState == StreetQuestQuestProgressState.Active)
+            if (quest.QuestType == StreetQuestQuestType.Main)
             {
-                record.CurrentQuestState = StreetQuestQuestProgressState.ReadyToTurnIn;
-                SaveQuestStateRecord(record);
+                if (record.CurrentMainQuestId != quest.Id)
+                    return false;
+
+                if (record.CurrentMainQuestState == StreetQuestQuestProgressState.Active)
+                {
+                    record.CurrentMainQuestState = StreetQuestQuestProgressState.ReadyToTurnIn;
+                    SaveQuestStateRecord(record);
+                }
+
+                return record.CurrentMainQuestState == StreetQuestQuestProgressState.ReadyToTurnIn;
             }
 
-            return record.CurrentQuestState == StreetQuestQuestProgressState.ReadyToTurnIn;
+            if (!record.ActiveSideQuestIds.Contains(quest.Id) && !record.ReadySideQuestIds.Contains(quest.Id))
+                return false;
+
+            if (record.TryMarkSideQuestReady(quest.Id))
+                SaveQuestStateRecord(record);
+
+            return record.ReadySideQuestIds.Contains(quest.Id);
         }
 
 
@@ -85,9 +112,17 @@ namespace StreetQuestRPG
             }
 
             var record = GetQuestStateRecord();
-            if (record.CurrentQuestId != quest.Id)
+            if (quest.QuestType == StreetQuestQuestType.Main && record.CurrentMainQuestId != quest.Id)
             {
-                LogDebug($"CompleteQuest aborted quest={quest.Id} currentQuestId={record.CurrentQuestId}");
+                LogDebug($"CompleteQuest aborted quest={quest.Id} currentMainQuestId={record.CurrentMainQuestId}");
+                return false;
+            }
+
+            if (quest.QuestType == StreetQuestQuestType.Side &&
+                !record.ActiveSideQuestIds.Contains(quest.Id) &&
+                !record.ReadySideQuestIds.Contains(quest.Id))
+            {
+                LogDebug($"CompleteQuest aborted side quest={quest.Id} not active");
                 return false;
             }
 
@@ -96,20 +131,27 @@ namespace StreetQuestRPG
             record.AddStoryFlags(quest.CompletedStoryFlags);
             record.CompletedQuestIds.Add(quest.Id);
 
-            var nextQuestId = StreetQuestQuestCatalog.ResolveNextQuestId(quest, record);
-            if (string.IsNullOrEmpty(nextQuestId))
+            if (quest.QuestType == StreetQuestQuestType.Main)
             {
-                record.CurrentQuestId = string.Empty;
-                record.CurrentQuestState = StreetQuestQuestProgressState.Completed;
+                var nextQuestId = StreetQuestQuestCatalog.ResolveNextQuestId(quest, record);
+                if (string.IsNullOrEmpty(nextQuestId))
+                {
+                    record.CurrentMainQuestId = string.Empty;
+                    record.CurrentMainQuestState = StreetQuestQuestProgressState.Completed;
+                }
+                else
+                {
+                    record.CurrentMainQuestId = nextQuestId;
+                    record.CurrentMainQuestState = StreetQuestQuestProgressState.NotStarted;
+                }
             }
             else
             {
-                record.CurrentQuestId = nextQuestId;
-                record.CurrentQuestState = StreetQuestQuestProgressState.NotStarted;
+                record.ClearSideQuest(quest.Id);
             }
 
             SaveQuestStateRecord(record);
-            LogDebug($"CompleteQuest saved quest={quest.Id} nextQuestId={record.CurrentQuestId} state={record.CurrentQuestState} favorMack={record.GetFavor(StreetQuestCharacterCatalog.DefaultQuestGiverId)}");
+            LogDebug($"CompleteQuest saved quest={quest.Id} mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} favorMack={record.GetFavor(StreetQuestCharacterCatalog.DefaultQuestGiverId)}");
             RefreshSpawnedCharacters();
             ShowRewardSummaryNotification(rewardSummary);
             return true;

@@ -23,8 +23,24 @@ namespace StreetQuestRPG
     {
         public static StreetQuestQuestDefinition GetCurrentQuest()
         {
+            return GetCurrentMainQuest();
+        }
+
+        public static StreetQuestQuestDefinition GetCurrentMainQuest()
+        {
             var record = GetQuestStateRecord();
-            return StreetQuestQuestCatalog.Get(record.CurrentQuestId);
+            return StreetQuestQuestCatalog.Get(record.CurrentMainQuestId);
+        }
+
+        public static IReadOnlyCollection<StreetQuestQuestDefinition> GetActiveSideQuests()
+        {
+            var record = GetQuestStateRecord();
+            return StreetQuestQuestCatalog.AllOrdered
+                .Where(quest =>
+                    quest != null &&
+                    quest.QuestType == StreetQuestQuestType.Side &&
+                    (record.ActiveSideQuestIds.Contains(quest.Id) || record.ReadySideQuestIds.Contains(quest.Id)))
+                .ToArray();
         }
 
 
@@ -44,9 +60,57 @@ namespace StreetQuestRPG
             if (record.CompletedQuestIds.Contains(questId))
                 return StreetQuestQuestProgressState.Completed;
 
-            return record.CurrentQuestId == questId
-                ? record.CurrentQuestState
-                : StreetQuestQuestProgressState.NotStarted;
+            if (record.CurrentMainQuestId == questId)
+                return record.CurrentMainQuestState;
+
+            if (record.ReadySideQuestIds.Contains(questId))
+                return StreetQuestQuestProgressState.ReadyToTurnIn;
+
+            if (record.ActiveSideQuestIds.Contains(questId))
+                return StreetQuestQuestProgressState.Active;
+
+            return StreetQuestQuestProgressState.NotStarted;
+        }
+
+        public static StreetQuestQuestDefinition GetRelevantQuestForCharacter(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return null;
+
+            var record = GetQuestStateRecord();
+            var candidateQuests = new List<StreetQuestQuestDefinition>();
+
+            var currentMainQuest = GetCurrentMainQuest();
+            if (currentMainQuest != null)
+                candidateQuests.Add(currentMainQuest);
+
+            candidateQuests.AddRange(GetActiveSideQuests());
+
+            var activeOrReadyQuest = candidateQuests.FirstOrDefault(quest =>
+                quest != null &&
+                GetQuestProgress(quest.Id) != StreetQuestQuestProgressState.NotStarted &&
+                IsQuestRelevantToCharacter(quest, characterId));
+            if (activeOrReadyQuest != null)
+                return activeOrReadyQuest;
+
+            return StreetQuestQuestCatalog.AllOrdered.FirstOrDefault(quest =>
+                quest != null &&
+                quest.Enabled &&
+                GetQuestProgress(quest.Id) == StreetQuestQuestProgressState.NotStarted &&
+                string.Equals(quest.GiverCharacterId, characterId, StringComparison.OrdinalIgnoreCase) &&
+                StreetQuestQuestCatalog.AreRequirementsMet(quest, record));
+        }
+
+        public static bool IsQuestRelevantToCharacter(StreetQuestQuestDefinition quest, string characterId)
+        {
+            if (quest == null || string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            return string.Equals(quest.GiverCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(quest.TurnInCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
+                   quest.Objectives.Any(objective =>
+                       objective != null &&
+                       string.Equals(objective.CharacterId, characterId, StringComparison.OrdinalIgnoreCase));
         }
 
         public static bool HasStoryFlag(string storyFlagId)
@@ -212,12 +276,12 @@ namespace StreetQuestRPG
             try
             {
                 var record = StreetQuestQuestStateRecord.Deserialize(serializedRecord);
-                if (!string.IsNullOrEmpty(record.CurrentQuestId) &&
-                    StreetQuestQuestCatalog.Get(record.CurrentQuestId) == null)
+                if (!string.IsNullOrEmpty(record.CurrentMainQuestId) &&
+                    StreetQuestQuestCatalog.Get(record.CurrentMainQuestId) == null)
                 {
                     CachedQuestStateOwner = saveGame;
                     CachedQuestStateRecord = StreetQuestQuestStateRecord.Deserialize(string.Empty);
-                    LogDebug($"GetQuestStateRecord returning new record: unknown questId={record.CurrentQuestId}");
+                    LogDebug($"GetQuestStateRecord returning new record: unknown mainQuestId={record.CurrentMainQuestId}");
                     SaveQuestStateRecord(CachedQuestStateRecord);
                     return CachedQuestStateRecord;
                 }
@@ -273,7 +337,7 @@ namespace StreetQuestRPG
             SaveGameManager.MarkChange();
             CachedQuestStateOwner = saveGame;
             CachedQuestStateRecord = record;
-            LogDebug($"SaveQuestStateRecord questId={record.CurrentQuestId} state={record.CurrentQuestState} serialized={serialized}");
+            LogDebug($"SaveQuestStateRecord mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} activeSideCount={record.ActiveSideQuestIds.Count} readySideCount={record.ReadySideQuestIds.Count} serialized={serialized}");
         }
     }
 }

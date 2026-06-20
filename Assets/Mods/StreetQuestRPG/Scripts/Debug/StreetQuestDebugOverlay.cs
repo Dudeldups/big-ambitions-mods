@@ -130,35 +130,21 @@ namespace StreetQuestRPG
             _questScroll = GUILayout.BeginScrollView(_questScroll, GUILayout.ExpandHeight(true));
 
             var state = StreetQuestShared.GetQuestStateSnapshot();
-            var currentQuest = StreetQuestShared.GetCurrentQuest();
-            var currentProgress = currentQuest != null
-                ? StreetQuestShared.GetQuestProgress(currentQuest.Id).ToString()
-                : "None";
+            DrawAcceptedQuestSection("Main Quest", StreetQuestShared.GetCurrentMainQuest());
 
-            GUILayout.Label("Accepted Quest", _headerStyle);
-            if (currentQuest == null)
+            var activeSideQuests = StreetQuestShared.GetActiveSideQuests();
+            GUILayout.Space(10f);
+            GUILayout.Label("Side Quests", _headerStyle);
+            if (activeSideQuests.Count == 0)
             {
-                GUILayout.Label("No active quest.", _textStyle);
+                GUILayout.Label("No active side quests.", _textStyle);
             }
             else
             {
-                GUILayout.Label($"ID: {currentQuest.Id}", _textStyle);
-                GUILayout.Label($"Track: {currentQuest.QuestType}", _textStyle);
-                if (!string.IsNullOrWhiteSpace(currentQuest.QuestLineId))
-                    GUILayout.Label($"Line: {currentQuest.QuestLineId}", _textStyle);
-                if (!string.IsNullOrWhiteSpace(currentQuest.QuestCode))
-                    GUILayout.Label($"Code: {currentQuest.QuestCode}", _textStyle);
-                GUILayout.Label($"Giver: {currentQuest.GiverCharacterId}", _textStyle);
-                GUILayout.Label($"Turn-in: {currentQuest.TurnInCharacterId}", _textStyle);
-                GUILayout.Label($"State: {currentProgress}", _textStyle);
-                GUILayout.Label("Objectives", _headerStyle);
-                foreach (var objective in currentQuest.Objectives.Where(value => value != null))
+                foreach (var sideQuest in activeSideQuests)
                 {
-                    var satisfied = StreetQuestShared.IsObjectiveSatisfiedForDebug(currentQuest, objective);
-                    GUILayout.Label(
-                        $"{(satisfied ? "[Done]" : "[ ]")} {BuildObjectiveDebugText(currentQuest, objective)}",
-                        _textStyle);
-                    DrawObjectiveDebugActions(objective, satisfied);
+                    DrawAcceptedQuestSection(null, sideQuest);
+                    GUILayout.Space(8f);
                 }
             }
 
@@ -186,6 +172,38 @@ namespace StreetQuestRPG
             }
 
             GUILayout.EndScrollView();
+        }
+
+        private static void DrawAcceptedQuestSection(string header, StreetQuestQuestDefinition quest)
+        {
+            if (!string.IsNullOrWhiteSpace(header))
+                GUILayout.Label(header, _headerStyle);
+
+            if (quest == null)
+            {
+                GUILayout.Label("No active quest.", _textStyle);
+                return;
+            }
+
+            var progress = StreetQuestShared.GetQuestProgress(quest.Id).ToString();
+            GUILayout.Label($"ID: {quest.Id}", _textStyle);
+            GUILayout.Label($"Track: {quest.QuestType}", _textStyle);
+            if (!string.IsNullOrWhiteSpace(quest.QuestLineId))
+                GUILayout.Label($"Line: {quest.QuestLineId}", _textStyle);
+            if (!string.IsNullOrWhiteSpace(quest.QuestCode))
+                GUILayout.Label($"Code: {quest.QuestCode}", _textStyle);
+            GUILayout.Label($"Giver: {quest.GiverCharacterId}", _textStyle);
+            GUILayout.Label($"Turn-in: {quest.TurnInCharacterId}", _textStyle);
+            GUILayout.Label($"State: {progress}", _textStyle);
+            GUILayout.Label("Objectives", _headerStyle);
+            foreach (var objective in quest.Objectives.Where(value => value != null))
+            {
+                var satisfied = StreetQuestShared.IsObjectiveSatisfiedForDebug(quest, objective);
+                GUILayout.Label(
+                    $"{(satisfied ? "[Done]" : "[ ]")} {BuildObjectiveDebugText(quest, objective)}",
+                    _textStyle);
+                DrawObjectiveDebugActions(objective, satisfied);
+            }
         }
 
         private static void DrawFavorTab()
@@ -294,7 +312,7 @@ namespace StreetQuestRPG
             GUILayout.Space(10f);
             GUILayout.Label("Current Quest", _headerStyle);
 
-            var currentQuest = StreetQuestShared.GetCurrentQuest();
+            var currentQuest = StreetQuestShared.GetRelevantQuestForCharacter(characterId);
             var currentProgress = currentQuest != null
                 ? StreetQuestShared.GetQuestProgress(currentQuest.Id)
                 : StreetQuestQuestProgressState.Completed;
@@ -303,8 +321,7 @@ namespace StreetQuestRPG
                 currentProgress == StreetQuestQuestProgressState.ReadyToTurnIn;
             var isQuestRelevant = currentQuest != null &&
                 hasAcceptedQuestState &&
-                (string.Equals(currentQuest.GiverCharacterId, characterId, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(currentQuest.TurnInCharacterId, characterId, StringComparison.OrdinalIgnoreCase));
+                StreetQuestShared.IsQuestRelevantToCharacter(currentQuest, characterId);
 
             if (!isQuestRelevant)
             {
