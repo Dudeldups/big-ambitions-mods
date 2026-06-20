@@ -74,13 +74,15 @@
           },
           "interactable": false,
           "useFixedSpawnPosition": true,
-          "walkAwayWaypoints": [{ "x": 252.57, "y": 0.09, "z": -8.67 }],
+          "walkAwayWaypoints": [{ "x": 384.78, "y": 0.09, "z": -194.39 }],
           "walkAwaySpeed": 1.35,
           "despawnAfterWalkAway": true,
           "walkInWaypoints": [
-            { "x": 252.57, "y": 0.09, "z": -8.67 },
-            { "x": 302.07, "y": 0.09, "z": -101.4 },
-            { "x": 302.27, "y": 0.09, "z": -168.78 }
+            { "x": 384.78, "y": 0.09, "z": -194.39 },
+            { "x": 385.76, "y": 0.09, "z": -198.11 },
+            { "x": 372.4, "y": 0.09, "z": -198.66 },
+            { "x": 354.03, "y": 0.09, "z": -197.99 },
+            { "x": 305.58, "y": 0.06, "z": -197.99 }
           ],
           "walkInSpeed": 1.35,
           "walkInArrivalHour": 8,
