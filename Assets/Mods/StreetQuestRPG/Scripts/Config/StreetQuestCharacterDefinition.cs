@@ -12,6 +12,8 @@ namespace StreetQuestRPG
         [DataMember] public string displayName;
         [DataMember] public string nameKey;
         [DataMember] public string contactId;
+        [DataMember] public string contactDescriptionKey;
+        [DataMember] public string contactCategory;
         [DataMember] public string dialogTypeKey;
         [DataMember] public string gameObjectName;
         [DataMember] public string visualObjectName;
@@ -32,6 +34,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data[] walkAwayWaypoints;
         [DataMember] public float walkAwaySpeed = 1.4f;
         [DataMember] public bool isRunning;
+        [DataMember] public string[] walkAwayCompletedStoryFlags;
         [DataMember] public bool despawnAfterWalkAway;
         [DataMember] public StreetQuestVector3Data[] walkInWaypoints;
         [DataMember] public float walkInSpeed = 6f;
@@ -100,6 +103,8 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(displayName)) displayName = fallback.displayName;
             if (string.IsNullOrWhiteSpace(nameKey)) nameKey = fallback.nameKey;
             if (string.IsNullOrWhiteSpace(contactId)) contactId = fallback.contactId;
+            if (string.IsNullOrWhiteSpace(contactDescriptionKey)) contactDescriptionKey = fallback.contactDescriptionKey;
+            if (string.IsNullOrWhiteSpace(contactCategory)) contactCategory = fallback.contactCategory;
             if (string.IsNullOrWhiteSpace(dialogTypeKey)) dialogTypeKey = fallback.dialogTypeKey;
             if (string.IsNullOrWhiteSpace(gameObjectName)) gameObjectName = fallback.gameObjectName;
             if (string.IsNullOrWhiteSpace(visualObjectName)) visualObjectName = fallback.visualObjectName;
@@ -117,6 +122,7 @@ namespace StreetQuestRPG
             walkAwayWaypoints ??= fallback.walkAwayWaypoints;
             if (walkAwaySpeed <= 0f) walkAwaySpeed = fallback.walkAwaySpeed;
             isRunning = isRunning || fallback.isRunning;
+            walkAwayCompletedStoryFlags ??= fallback.walkAwayCompletedStoryFlags;
             despawnAfterWalkAway = despawnAfterWalkAway || fallback.despawnAfterWalkAway;
             walkInWaypoints ??= fallback.walkInWaypoints;
             if (walkInSpeed <= 0f) walkInSpeed = fallback.walkInSpeed;

@@ -88,6 +88,10 @@
           "type": "Favor",
           "characterId": "fran",
           "amount": 8
+        },
+        {
+          "type": "Contact",
+          "characterId": "fran"
         }
       ],
       "acceptedStoryFlags": [

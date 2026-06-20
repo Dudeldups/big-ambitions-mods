@@ -338,6 +338,7 @@ namespace StreetQuestRPG
                 definition.WalkAwayWaypointsOrEmpty(),
                 definition.walkAwaySpeed,
                 definition.isRunning,
+                definition.walkAwayCompletedStoryFlags,
                 definition.despawnAfterWalkAway,
                 definition.WalkInWaypointsOrEmpty(),
                 definition.walkInSpeed,

@@ -170,6 +170,7 @@ namespace StreetQuestRPG
                 SerializeVectorArray(runtime.walkAwayWaypoints),
                 runtime.walkAwaySpeed.ToString("F3"),
                 runtime.isRunning.ToString(),
+                string.Join(",", runtime.walkAwayCompletedStoryFlags ?? Array.Empty<string>()),
                 runtime.despawnAfterWalkAway.ToString(),
                 SerializeVectorArray(runtime.walkInWaypoints),
                 runtime.walkInSpeed.ToString("F3"),
@@ -269,6 +270,7 @@ namespace StreetQuestRPG
             resolved.walkAwayWaypoints = null;
             resolved.walkAwaySpeed = 1.4f;
             resolved.isRunning = false;
+            resolved.walkAwayCompletedStoryFlags = null;
             resolved.despawnAfterWalkAway = false;
             resolved.walkInWaypoints = null;
             resolved.walkInSpeed = 6f;
@@ -320,6 +322,8 @@ namespace StreetQuestRPG
                 resolved.walkAwaySpeed = state.walkAwaySpeed;
             if (state.overrideIsRunning)
                 resolved.isRunning = state.isRunning;
+            if (state.walkAwayCompletedStoryFlags != null)
+                resolved.walkAwayCompletedStoryFlags = state.walkAwayCompletedStoryFlags;
             resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
             if (state.walkInWaypoints != null)
                 resolved.walkInWaypoints = state.walkInWaypoints;
@@ -403,6 +407,8 @@ namespace StreetQuestRPG
                 displayName = definition.displayName,
                 nameKey = definition.nameKey,
                 contactId = definition.contactId,
+                contactDescriptionKey = definition.contactDescriptionKey,
+                contactCategory = definition.contactCategory,
                 dialogTypeKey = definition.dialogTypeKey,
                 gameObjectName = definition.gameObjectName,
                 visualObjectName = definition.visualObjectName,
@@ -423,6 +429,7 @@ namespace StreetQuestRPG
                 walkAwayWaypoints = definition.walkAwayWaypoints,
                 walkAwaySpeed = definition.walkAwaySpeed,
                 isRunning = definition.isRunning,
+                walkAwayCompletedStoryFlags = definition.walkAwayCompletedStoryFlags,
                 despawnAfterWalkAway = definition.despawnAfterWalkAway,
                 walkInWaypoints = definition.walkInWaypoints,
                 walkInSpeed = definition.walkInSpeed,

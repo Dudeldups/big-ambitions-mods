@@ -3,6 +3,8 @@
   "streetquest:mack_profession": "Homeless man",
   "streetquest:fran_name": "Fran",
   "streetquest:fran_profession": "Worried mother",
+  "streetquest:fran_contact": "Fran",
+  "streetquest:fran_contact_description": "A grateful mother from Ika Bohag who said you are always welcome at dinner.",
   "streetquest:julia_name": "Julia",
   "streetquest:julia_profession": "Hide-and-seek champion",
   "streetquest:cta_talk": "Talk to {npcname}",
@@ -28,7 +30,7 @@
   "streetquest:dialog_side_fran_ready": "You found Julia? Thank goodness. Did you tell her her mother is searching half the store for her?",
   "streetquest:help_side_fran_active": "Find Julia inside Ika Bohag and tell her Fran is looking for her.",
   "streetquest:dialog_side_fran_accept_manager": "Thank you. She's tiny, fast, and way too proud of herself when she's hiding.",
-  "streetquest:dialog_side_fran_complete_manager": "Oh, thank goodness. That's my Julia. Thank you for getting through to her before I turned this whole shop upside down.",
+  "streetquest:dialog_side_fran_complete_manager": "Oh, thank goodness. That's my Julia. Thank you for getting through to her before I turned this whole shop upside down. Here, take this, and let me give you my number too.",
   "streetquest:dialog_side_fran_finished": "Julia is safe, and I owe you one. I finally get to breathe again.",
   "streetquest:dialog_side_fran_julia_intro": "Hihi, I'm the best at hide and seek. Mom still hasn't found me and I've been winning for ages.",
   "streetquest:dialog_side_fran_julia_confirm": "Your mom is looking for you.",
@@ -40,5 +42,6 @@
   "streetquest:popup_favor_loss": "You lost {amount} favor with {npcname}.",
   "streetquest:popup_favor_loss_with_cash": "You lost {favor} favor with {npcname} and gained ${amount}.",
   "streetquest:popup_reward_cash_only": "You gained ${amount}.",
+  "streetquest:popup_contact_added": "{npcname} was added to your contacts.",
   "streetquest:map_filter_npcs": "People"
 }

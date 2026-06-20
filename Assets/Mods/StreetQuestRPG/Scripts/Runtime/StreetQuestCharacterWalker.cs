@@ -19,6 +19,7 @@ namespace StreetQuestRPG
         private Vector3[] _walkAwayWaypoints = Array.Empty<Vector3>();
         private float _walkAwaySpeed;
         private bool _isRunning;
+        private string[] _walkAwayCompletedStoryFlags = Array.Empty<string>();
         private bool _hideAfterWalkAway;
         private Vector3[] _walkInWaypoints = Array.Empty<Vector3>();
         private int _walkInArrivalHour;
@@ -50,6 +51,7 @@ namespace StreetQuestRPG
             Vector3[] walkAwayWaypoints,
             float walkAwaySpeed,
             bool isRunning,
+            string[] walkAwayCompletedStoryFlags,
             bool hideAfterWalkAway,
             Vector3[] walkInWaypoints,
             float walkInSpeed,
@@ -62,6 +64,7 @@ namespace StreetQuestRPG
             _walkAwayWaypoints = walkAwayWaypoints ?? Array.Empty<Vector3>();
             _walkAwaySpeed = walkAwaySpeed > 0.01f ? walkAwaySpeed : 1.4f;
             _isRunning = isRunning;
+            _walkAwayCompletedStoryFlags = walkAwayCompletedStoryFlags ?? Array.Empty<string>();
             _hideAfterWalkAway = hideAfterWalkAway;
             _walkInWaypoints = walkInWaypoints ?? Array.Empty<Vector3>();
             _walkInSpeed = walkInSpeed > 0.01f ? walkInSpeed : 6f;
@@ -74,7 +77,7 @@ namespace StreetQuestRPG
             EnsureAgent();
             StreetQuestShared.LogDebug(
                 $"WalkCycleConfigured character={_characterId} spawn={FormatVector3(_spawnPosition)} " +
-                $"walkAwayWaypoints={_walkAwayWaypoints.Length} walkAwaySpeed={_walkAwaySpeed:F2} hideAfterWalkAway={_hideAfterWalkAway} walkInWaypoints={_walkInWaypoints.Length} " +
+                $"walkAwayWaypoints={_walkAwayWaypoints.Length} walkAwaySpeed={_walkAwaySpeed:F2} hideAfterWalkAway={_hideAfterWalkAway} walkAwayCompletedFlags={_walkAwayCompletedStoryFlags.Length} walkInWaypoints={_walkInWaypoints.Length} " +
                 $"walkAwayRoutePoints={_walkAwayRoutePoints.Length} walkInDistance={_walkInTotalDistance:F2} walkInSpeed={_walkInSpeed:F2} " +
                 $"isRunning={_isRunning} " +
                 $"walkInDurationMinutes={_walkInDurationMinutes:F2} " +
@@ -159,6 +162,9 @@ namespace StreetQuestRPG
             _agent.ResetPath();
             UpdateAnimatorState(false, 0f);
             StreetQuestShared.LogDebug($"WalkAwayArrived character={_characterId} final={FormatVector3(transform.position)}");
+
+            if (_walkAwayCompletedStoryFlags.Length > 0)
+                StreetQuestShared.AddStoryFlags(_walkAwayCompletedStoryFlags);
 
             if (_hideAfterWalkAway)
                 HideCharacterPresentation();
