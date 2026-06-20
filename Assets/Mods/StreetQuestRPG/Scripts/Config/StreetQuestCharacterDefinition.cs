@@ -29,6 +29,9 @@ namespace StreetQuestRPG
         [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data forward;
+        [DataMember] public StreetQuestVector3Data walkAwayTargetPosition;
+        [DataMember] public float walkAwaySpeed = 1.4f;
+        [DataMember] public bool despawnAfterWalkAway;
         [DataMember] public StreetQuestVector3Data localPosition;
         [DataMember] public StreetQuestVector3Data localEulerAngles;
         [DataMember] public StreetQuestVector3Data localScale;
@@ -49,6 +52,7 @@ namespace StreetQuestRPG
 
         public Vector3 PositionOr(Vector3 fallback) => position != null ? position.ToVector3() : fallback;
         public Vector3 ForwardOr(Vector3 fallback) => forward != null ? forward.ToVector3() : fallback;
+        public Vector3 WalkAwayTargetPositionOr(Vector3 fallback) => walkAwayTargetPosition != null ? walkAwayTargetPosition.ToVector3() : fallback;
         public Vector3 LocalPositionOr(Vector3 fallback) => localPosition != null ? localPosition.ToVector3() : fallback;
         public Vector3 LocalEulerAnglesOr(Vector3 fallback) => localEulerAngles != null ? localEulerAngles.ToVector3() : fallback;
         public Vector3 LocalScaleOr(Vector3 fallback) => localScale != null ? localScale.ToVector3() : fallback;
@@ -94,6 +98,9 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(prefabName)) prefabName = fallback.prefabName;
             position ??= fallback.position;
             forward ??= fallback.forward;
+            walkAwayTargetPosition ??= fallback.walkAwayTargetPosition;
+            if (walkAwaySpeed <= 0f) walkAwaySpeed = fallback.walkAwaySpeed;
+            despawnAfterWalkAway = despawnAfterWalkAway || fallback.despawnAfterWalkAway;
             localPosition ??= fallback.localPosition;
             localEulerAngles ??= fallback.localEulerAngles;
             localScale ??= fallback.localScale;

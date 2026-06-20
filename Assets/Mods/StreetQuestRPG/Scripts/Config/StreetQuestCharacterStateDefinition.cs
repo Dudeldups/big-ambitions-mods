@@ -23,6 +23,10 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data forward;
+        [DataMember] public StreetQuestVector3Data walkAwayTargetPosition;
+        [DataMember] public float walkAwaySpeed;
+        [DataMember] public bool overrideDespawnAfterWalkAway;
+        [DataMember] public bool despawnAfterWalkAway;
         [DataMember] public StreetQuestVector3Data localPosition;
         [DataMember] public StreetQuestVector3Data localEulerAngles;
         [DataMember] public StreetQuestVector3Data localScale;

@@ -155,6 +155,9 @@ namespace StreetQuestRPG
                 SerializeSchedule(runtime.schedule),
                 SerializeVector(runtime.position),
                 SerializeVector(runtime.forward),
+                SerializeVector(runtime.walkAwayTargetPosition),
+                runtime.walkAwaySpeed.ToString("F3"),
+                runtime.despawnAfterWalkAway.ToString(),
                 SerializeVector(runtime.localPosition),
                 SerializeVector(runtime.localEulerAngles),
                 SerializeVector(runtime.localScale),
@@ -255,6 +258,12 @@ namespace StreetQuestRPG
                 resolved.position = state.position;
             if (state.forward != null)
                 resolved.forward = state.forward;
+            if (state.walkAwayTargetPosition != null)
+                resolved.walkAwayTargetPosition = state.walkAwayTargetPosition;
+            if (state.walkAwaySpeed > 0f)
+                resolved.walkAwaySpeed = state.walkAwaySpeed;
+            if (state.overrideDespawnAfterWalkAway)
+                resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
             if (state.localPosition != null)
                 resolved.localPosition = state.localPosition;
             if (state.localEulerAngles != null)
@@ -346,6 +355,9 @@ namespace StreetQuestRPG
                 prefabName = definition.prefabName,
                 position = definition.position,
                 forward = definition.forward,
+                walkAwayTargetPosition = definition.walkAwayTargetPosition,
+                walkAwaySpeed = definition.walkAwaySpeed,
+                despawnAfterWalkAway = definition.despawnAfterWalkAway,
                 localPosition = definition.localPosition,
                 localEulerAngles = definition.localEulerAngles,
                 localScale = definition.localScale,

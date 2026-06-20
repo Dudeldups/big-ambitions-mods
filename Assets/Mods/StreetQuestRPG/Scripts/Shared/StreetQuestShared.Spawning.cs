@@ -205,6 +205,7 @@ namespace StreetQuestRPG
                     CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
                 }
 
+                EnsureCharacterWalker(root, runtimeDefinition);
                 SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
 
                 LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
@@ -289,6 +290,32 @@ namespace StreetQuestRPG
                 else if (!TryInvokeParameterlessMethod(controller, "Hide"))
                     SetMemberValue(controller, "blockOutline", true);
             }
+
+            var walker = root.GetComponent<StreetQuestCharacterWalker>();
+            walker?.OnVisibilityChanged(visible);
+        }
+
+
+        private static void EnsureCharacterWalker(GameObject root, StreetQuestCharacterDefinition definition)
+        {
+            if (root == null || definition?.walkAwayTargetPosition == null)
+                return;
+
+            var walker = root.GetComponent<StreetQuestCharacterWalker>();
+            if (walker == null)
+                walker = root.AddComponent<StreetQuestCharacterWalker>();
+
+            var spawnForward = FlattenDirection(definition.ForwardOr(FixedForward));
+            if (spawnForward.sqrMagnitude < 0.001f)
+                spawnForward = Vector3.forward;
+
+            walker.Configure(
+                definition.id,
+                definition.PositionOr(root.transform.position),
+                Quaternion.LookRotation(-spawnForward, Vector3.up),
+                definition.WalkAwayTargetPositionOr(root.transform.position),
+                definition.walkAwaySpeed,
+                definition.despawnAfterWalkAway);
         }
 
 
