@@ -36,7 +36,7 @@ namespace StreetQuestRPG
         private Animator[] _animators = Array.Empty<Animator>();
         private float _lastObservedMinuteOfDay = -1f;
         private float _walkInElapsedMinutes;
-        private float _walkInUnitsPerGameMinute;
+        private float _walkInSpeed;
         private float _walkInTotalDistance;
         private int _walkAwayRouteIndex;
         private Vector3[] _walkAwayRoutePoints = Array.Empty<Vector3>();
@@ -50,7 +50,7 @@ namespace StreetQuestRPG
             float walkAwaySpeed,
             bool hideAfterWalkAway,
             Vector3[] walkInWaypoints,
-            float walkInUnitsPerGameMinute,
+            float walkInSpeed,
             int walkInArrivalHour,
             int walkInArrivalMinute)
         {
@@ -61,7 +61,7 @@ namespace StreetQuestRPG
             _walkAwaySpeed = walkAwaySpeed > 0.01f ? walkAwaySpeed : 1.4f;
             _hideAfterWalkAway = hideAfterWalkAway;
             _walkInWaypoints = walkInWaypoints ?? Array.Empty<Vector3>();
-            _walkInUnitsPerGameMinute = walkInUnitsPerGameMinute > 0.01f ? walkInUnitsPerGameMinute : 6f;
+            _walkInSpeed = walkInSpeed > 0.01f ? walkInSpeed : 6f;
             _walkInArrivalHour = Mathf.Clamp(walkInArrivalHour, 0, 23);
             _walkInArrivalMinute = Mathf.Clamp(walkInArrivalMinute, 0, 59);
             _animators = GetComponentsInChildren<Animator>(true) ?? Array.Empty<Animator>();
@@ -72,7 +72,7 @@ namespace StreetQuestRPG
             StreetQuestShared.LogDebug(
                 $"WalkCycleConfigured character={_characterId} spawn={FormatVector3(_spawnPosition)} " +
                 $"walkAwayWaypoints={_walkAwayWaypoints.Length} walkAwaySpeed={_walkAwaySpeed:F2} hideAfterWalkAway={_hideAfterWalkAway} walkInWaypoints={_walkInWaypoints.Length} " +
-                $"walkAwayRoutePoints={_walkAwayRoutePoints.Length} walkInDistance={_walkInTotalDistance:F2} walkInUnitsPerGameMinute={_walkInUnitsPerGameMinute:F2} " +
+                $"walkAwayRoutePoints={_walkAwayRoutePoints.Length} walkInDistance={_walkInTotalDistance:F2} walkInSpeed={_walkInSpeed:F2} " +
                 $"walkInDurationMinutes={_walkInDurationMinutes:F2} " +
                 $"walkInStartMinuteOfDay={_walkInStartMinuteOfDay} walkInArrival={_walkInArrivalHour:D2}:{_walkInArrivalMinute:D2}");
         }
@@ -186,7 +186,7 @@ namespace StreetQuestRPG
                 return;
 
             _walkInElapsedMinutes += deltaMinutes;
-            var travelledDistance = Mathf.Min(_walkInElapsedMinutes * _walkInUnitsPerGameMinute, _walkInTotalDistance);
+            var travelledDistance = Mathf.Min(_walkInElapsedMinutes * _walkInSpeed, _walkInTotalDistance);
             var sampledPosition = SampleWalkInPosition(travelledDistance);
             var lookAheadDistance = Mathf.Min(_walkInTotalDistance, travelledDistance + 0.15f);
             var lookAheadPosition = SampleWalkInPosition(lookAheadDistance);
@@ -195,7 +195,7 @@ namespace StreetQuestRPG
             if (travelVector.sqrMagnitude > 0.0001f)
                 UpdateFacing(travelVector);
 
-            UpdateAnimatorState(travelledDistance < _walkInTotalDistance, _walkInUnitsPerGameMinute);
+            UpdateAnimatorState(travelledDistance < _walkInTotalDistance, _walkInSpeed);
 
             if (travelledDistance + 0.001f < _walkInTotalDistance)
                 return;
@@ -458,8 +458,8 @@ namespace StreetQuestRPG
             for (var index = 1; index < _walkInRoutePoints.Length; index++)
                 _walkInTotalDistance += Vector3.Distance(_walkInRoutePoints[index - 1], _walkInRoutePoints[index]);
 
-            _walkInDurationMinutes = _walkInUnitsPerGameMinute > 0.01f
-                ? _walkInTotalDistance / _walkInUnitsPerGameMinute
+            _walkInDurationMinutes = _walkInSpeed > 0.01f
+                ? _walkInTotalDistance / _walkInSpeed
                 : 0f;
             var arrivalMinuteOfDay = (_walkInArrivalHour * 60f) + _walkInArrivalMinute;
             _walkInStartMinuteOfDay = arrivalMinuteOfDay - _walkInDurationMinutes;
@@ -481,7 +481,7 @@ namespace StreetQuestRPG
             transform.position = _walkInRoutePoints[0];
             ShowCharacterPresentation();
             LogAnimatorParametersOnce();
-            UpdateAnimatorState(true, _walkInUnitsPerGameMinute);
+            UpdateAnimatorState(true, _walkInSpeed);
             StreetQuestShared.LogDebug(
                 $"WalkInBegin character={_characterId} minuteOfDay={currentMinuteOfDay} start={FormatVector3(_walkInRoutePoints[0])} " +
                 $"arrival={_walkInArrivalHour:D2}:{_walkInArrivalMinute:D2} durationMinutes={_walkInDurationMinutes:F2} routePoints={_walkInRoutePoints.Length}");

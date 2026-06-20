@@ -336,7 +336,7 @@ namespace StreetQuestRPG
                 definition.walkAwaySpeed,
                 definition.despawnAfterWalkAway,
                 definition.WalkInWaypointsOrEmpty(),
-                definition.walkInUnitsPerGameMinute,
+                definition.walkInSpeed,
                 definition.walkInArrivalHour,
                 definition.walkInArrivalMinute);
         }

@@ -77,8 +77,12 @@
           "walkAwayWaypoints": [{ "x": 252.57, "y": 0.09, "z": -8.67 }],
           "walkAwaySpeed": 1.35,
           "despawnAfterWalkAway": true,
-          "walkInWaypoints": [{ "x": 302.27, "y": 0.09, "z": -168.78 }],
-          "walkInUnitsPerGameMinute": 6.0,
+          "walkInWaypoints": [
+            { "x": 252.57, "y": 0.09, "z": -8.67 },
+            { "x": 302.07, "y": 0.09, "z": -101.4 },
+            { "x": 302.27, "y": 0.09, "z": -168.78 }
+          ],
+          "walkInSpeed": 1.35,
           "walkInArrivalHour": 8,
           "walkInArrivalMinute": 0,
           "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },

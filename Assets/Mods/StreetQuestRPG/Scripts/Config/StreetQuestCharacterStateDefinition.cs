@@ -28,7 +28,7 @@ namespace StreetQuestRPG
         [DataMember] public bool overrideDespawnAfterWalkAway;
         [DataMember] public bool despawnAfterWalkAway;
         [DataMember] public StreetQuestVector3Data[] walkInWaypoints;
-        [DataMember] public float walkInUnitsPerGameMinute;
+        [DataMember] public float walkInSpeed;
         [DataMember] public int walkInArrivalHour;
         [DataMember] public int walkInArrivalMinute;
         [DataMember] public StreetQuestVector3Data localPosition;

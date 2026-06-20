@@ -159,7 +159,7 @@ namespace StreetQuestRPG
                 runtime.walkAwaySpeed.ToString("F3"),
                 runtime.despawnAfterWalkAway.ToString(),
                 SerializeVectorArray(runtime.walkInWaypoints),
-                runtime.walkInUnitsPerGameMinute.ToString("F3"),
+                runtime.walkInSpeed.ToString("F3"),
                 runtime.walkInArrivalHour.ToString(),
                 runtime.walkInArrivalMinute.ToString(),
                 SerializeVector(runtime.localPosition),
@@ -270,8 +270,8 @@ namespace StreetQuestRPG
                 resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
             if (state.walkInWaypoints != null)
                 resolved.walkInWaypoints = state.walkInWaypoints;
-            if (state.walkInUnitsPerGameMinute > 0f)
-                resolved.walkInUnitsPerGameMinute = state.walkInUnitsPerGameMinute;
+            if (state.walkInSpeed > 0f)
+                resolved.walkInSpeed = state.walkInSpeed;
             if (state.walkInArrivalHour > 0)
                 resolved.walkInArrivalHour = state.walkInArrivalHour;
             if (state.walkInArrivalMinute > 0)
@@ -371,7 +371,7 @@ namespace StreetQuestRPG
                 walkAwaySpeed = definition.walkAwaySpeed,
                 despawnAfterWalkAway = definition.despawnAfterWalkAway,
                 walkInWaypoints = definition.walkInWaypoints,
-                walkInUnitsPerGameMinute = definition.walkInUnitsPerGameMinute,
+                walkInSpeed = definition.walkInSpeed,
                 walkInArrivalHour = definition.walkInArrivalHour,
                 walkInArrivalMinute = definition.walkInArrivalMinute,
                 localPosition = definition.localPosition,
