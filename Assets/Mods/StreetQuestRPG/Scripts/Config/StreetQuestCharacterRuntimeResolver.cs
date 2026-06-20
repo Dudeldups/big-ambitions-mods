@@ -60,6 +60,24 @@ namespace StreetQuestRPG
             return resolved;
         }
 
+        public static StreetQuestCharacterDefinition ResolveRuntimeDefinitionWithoutScheduleGate(StreetQuestCharacterDefinition definition)
+        {
+            if (definition == null)
+                return null;
+
+            var resolved = CloneDefinition(definition);
+            var activeState = ResolveActiveState(definition);
+            if (activeState != null)
+                ApplyStateOverrides(resolved, activeState);
+
+            var activeAppearanceId = ResolveActiveAppearanceId(definition, activeState);
+            var activeAppearance = definition.FindAppearance(activeAppearanceId);
+            if (activeAppearance != null)
+                ApplyAppearanceOverrides(resolved, activeAppearance);
+
+            return resolved;
+        }
+
         public static StreetQuestCharacterStateDefinition ResolveActiveState(StreetQuestCharacterDefinition definition)
         {
             if (definition?.states == null || definition.states.Length == 0)

@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Reflection;
 using BigAmbitions.Characters;
 using Helpers;
@@ -72,7 +71,6 @@ namespace StreetQuestRPG
                 DisablePhysics(visualRoot);
                 EnableVisualRenderers(visualRoot);
                 InitializeHumanoidVisual(visualRoot, definition);
-                LogVisualDiagnostics(visualRoot, definition);
                 StripHiddenChildObjects(visualRoot, definition);
                 return true;
             }
@@ -280,51 +278,9 @@ namespace StreetQuestRPG
                     if (!string.Equals(transform.name, hiddenName, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    StreetQuestShared.LogDebug(
-                        $"VisualStrip match character={definition.id ?? "<null>"} child={transform.name} path={BuildHierarchyPath(transform)}");
                     UnityEngine.Object.Destroy(transform.gameObject);
                 }
             }
-        }
-
-        private static void LogVisualDiagnostics(GameObject root, StreetQuestCharacterDefinition definition)
-        {
-            if (root == null || definition == null)
-                return;
-
-            if (!string.Equals(definition.id, "mack", StringComparison.OrdinalIgnoreCase))
-                return;
-
-            try
-            {
-                var childPaths = root
-                    .GetComponentsInChildren<Transform>(true)
-                    .Where(transform => transform != null && transform != root.transform)
-                    .Select(BuildHierarchyPath)
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-
-                StreetQuestShared.LogDebug(
-                    $"VisualHierarchy character={definition.id} prefab={definition.prefabName ?? "<null>"} childCount={childPaths.Length}");
-                foreach (var childPath in childPaths)
-                    StreetQuestShared.LogDebug($"VisualHierarchy child={childPath}");
-            }
-            catch (Exception exception)
-            {
-                StreetQuestShared.LogDebug($"VisualHierarchy failed character={definition.id}: {exception}");
-            }
-        }
-
-        private static string BuildHierarchyPath(Transform transform)
-        {
-            if (transform == null)
-                return string.Empty;
-
-            var parts = new System.Collections.Generic.Stack<string>();
-            for (var current = transform; current != null; current = current.parent)
-                parts.Push(current.name);
-
-            return string.Join("/", parts);
         }
 
         private static void ApplyConfiguredAppearance(Component appearanceSetter, StreetQuestCharacterDefinition definition)

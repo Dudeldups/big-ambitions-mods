@@ -33,6 +33,8 @@ namespace StreetQuestRPG
                 EnsureSpawnedCharacter(character);
             }
 
+            PrewarmScheduledCharacterPool();
+
             return hadConfiguredCharacters;
         }
 
@@ -70,12 +72,17 @@ namespace StreetQuestRPG
         }
 
 
-        private static bool EnsureSpawnedCharacter(StreetQuestCharacterDefinition character)
+        private static bool EnsureSpawnedCharacter(
+            StreetQuestCharacterDefinition character,
+            bool ignoreScheduleGate = false,
+            bool activateAfterSpawn = true)
         {
             if (character == null || string.IsNullOrWhiteSpace(character.id))
                 return false;
 
-            var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
+            var runtimeDefinition = ignoreScheduleGate
+                ? StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutScheduleGate(character)
+                : StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
             if (runtimeDefinition == null)
                 return false;
 
@@ -87,13 +94,23 @@ namespace StreetQuestRPG
 
             var stateSignature = StreetQuestCharacterRuntimeResolver.BuildRuntimeStateSignature(character);
             if (SpawnedCharacterRoots.TryGetValue(character.id, out var existingRoot) &&
-                existingRoot != null &&
-                SpawnedCharacterControllers.TryGetValue(character.id, out var existingController) &&
-                existingController != null)
+                existingRoot != null)
             {
+                var hasExpectedController = !runtimeDefinition.interactable ||
+                    (SpawnedCharacterControllers.TryGetValue(character.id, out var existingController) &&
+                     existingController != null);
+                if (!hasExpectedController)
+                {
+                    DestroySpawnedCharacter(character.id);
+                }
+
                 if (SpawnedCharacterStateSignatures.TryGetValue(character.id, out var existingSignature) &&
-                    string.Equals(existingSignature, stateSignature, StringComparison.Ordinal))
+                    string.Equals(existingSignature, stateSignature, StringComparison.Ordinal) &&
+                    hasExpectedController)
+                {
+                    SetSpawnedCharacterActive(character.id, activateAfterSpawn);
                     return true;
+                }
 
                 DestroySpawnedCharacter(character.id);
             }
@@ -185,6 +202,10 @@ namespace StreetQuestRPG
                     SpawnedCharacterControllers[character.id] = sellerStandController;
                     CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
                 }
+
+                if (!activateAfterSpawn)
+                    root.SetActive(false);
+
                 LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
                 return true;
             }
@@ -202,6 +223,42 @@ namespace StreetQuestRPG
         {
             foreach (var characterId in SpawnedCharacterRoots.Keys.ToList())
                 DestroySpawnedCharacter(characterId);
+        }
+
+
+        private static void PrewarmScheduledCharacterPool()
+        {
+            foreach (var character in StreetQuestCharacterCatalog.All)
+            {
+                if (character == null ||
+                    string.IsNullOrWhiteSpace(character.id) ||
+                    character.schedule == null ||
+                    SpawnedCharacterRoots.ContainsKey(character.id))
+                {
+                    continue;
+                }
+
+                var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutScheduleGate(character);
+                if (runtimeDefinition == null || !runtimeDefinition.enabled)
+                    continue;
+
+                EnsureSpawnedCharacter(character, ignoreScheduleGate: true, activateAfterSpawn: false);
+            }
+        }
+
+
+        private static void SetSpawnedCharacterActive(string characterId, bool active)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return;
+
+            if (!SpawnedCharacterRoots.TryGetValue(characterId, out var root) || root == null)
+                return;
+
+            if (root.activeSelf == active)
+                return;
+
+            root.SetActive(active);
         }
 
 

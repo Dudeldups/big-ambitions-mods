@@ -90,7 +90,7 @@ namespace StreetQuestRPG
                 }
                 else
                 {
-                    DestroySpawnedCharacter(character.id);
+                    SetSpawnedCharacterActive(character.id, false);
                 }
 
                 anyChanged = true;
