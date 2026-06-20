@@ -14,7 +14,7 @@ namespace StreetQuestRPG
         private float _nextSpawnRetryAtSeconds;
         private float _nextObjectiveTickAtSeconds;
         private float _nextBootstrapRetryAtSeconds;
-        private int _lastScheduleMinuteKey;
+        private int _lastScheduleHourKey;
         private bool _initialized;
         private bool _spawnEnsured;
         private bool _bootstrapEnsured;
@@ -29,7 +29,7 @@ namespace StreetQuestRPG
             _nextSpawnRetryAtSeconds = 0f;
             _nextObjectiveTickAtSeconds = 0f;
             _nextBootstrapRetryAtSeconds = 0f;
-            _lastScheduleMinuteKey = int.MinValue;
+            _lastScheduleHourKey = int.MinValue;
             _spawnEnsured = false;
             _bootstrapEnsured = false;
             _debugOverlay = GetComponent<StreetQuestDebugOverlay>();
@@ -60,15 +60,17 @@ namespace StreetQuestRPG
             if (!_spawnEnsured && _elapsedSeconds >= _nextSpawnRetryAtSeconds)
             {
                 StreetQuestShared.EnsureSpawnedOutdoorQuestGiver();
+                StreetQuestShared.UpdateScheduleVisibilitySnapshot();
                 _spawnEnsured = _bootstrapEnsured;
                 _nextSpawnRetryAtSeconds = _elapsedSeconds + SpawnRetryIntervalSeconds;
             }
 
-            if (StreetQuestShared.TryGetCurrentGameMinuteKey(out var minuteKey) &&
-                minuteKey != _lastScheduleMinuteKey)
+            if (_spawnEnsured &&
+                StreetQuestShared.TryGetCurrentGameHourKey(out var hourKey) &&
+                hourKey != _lastScheduleHourKey)
             {
-                _lastScheduleMinuteKey = minuteKey;
-                StreetQuestShared.RefreshSpawnedCharacters();
+                _lastScheduleHourKey = hourKey;
+                StreetQuestShared.RefreshSchedulesIfVisibilityChanged();
             }
 
             if (_elapsedSeconds >= _nextObjectiveTickAtSeconds)

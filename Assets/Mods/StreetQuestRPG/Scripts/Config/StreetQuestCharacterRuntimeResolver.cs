@@ -21,14 +21,14 @@ namespace StreetQuestRPG
                 return null;
 
             var stateVersion = StreetQuestShared.GetQuestStateVersion();
-            var minuteKey = StreetQuestShared.TryGetCurrentGameMinuteKey(out var resolvedMinuteKey)
-                ? resolvedMinuteKey
+            var hourKey = StreetQuestShared.TryGetCurrentGameHourKey(out var resolvedHourKey)
+                ? resolvedHourKey
                 : int.MinValue;
             if (!string.IsNullOrWhiteSpace(definition.id) &&
                 RuntimeCacheByCharacterId.TryGetValue(definition.id, out var cachedEntry) &&
                 cachedEntry != null &&
                 cachedEntry.StateVersion == stateVersion &&
-                cachedEntry.MinuteKey == minuteKey &&
+                cachedEntry.HourKey == hourKey &&
                 cachedEntry.RuntimeDefinition != null)
             {
                 return CloneDefinition(cachedEntry.RuntimeDefinition);
@@ -52,7 +52,7 @@ namespace StreetQuestRPG
                 RuntimeCacheByCharacterId[definition.id] = new RuntimeCacheEntry
                 {
                     StateVersion = stateVersion,
-                    MinuteKey = minuteKey,
+                    HourKey = hourKey,
                     RuntimeDefinition = CloneDefinition(resolved)
                 };
             }
@@ -345,7 +345,7 @@ namespace StreetQuestRPG
         private sealed class RuntimeCacheEntry
         {
             public int StateVersion;
-            public int MinuteKey;
+            public int HourKey;
             public StreetQuestCharacterDefinition RuntimeDefinition;
         }
     }

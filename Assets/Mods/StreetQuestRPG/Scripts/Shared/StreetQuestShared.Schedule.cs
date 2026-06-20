@@ -10,6 +10,11 @@ namespace StreetQuestRPG
 {
     internal static partial class StreetQuestShared
     {
+        private static readonly Dictionary<string, BuildingRegistration> CachedNearestScheduleBuildingByCharacterId =
+            new Dictionary<string, BuildingRegistration>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, bool> LastKnownScheduleVisibilityByCharacterId =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
         public static bool IsScheduleActive(StreetQuestCharacterDefinition character)
         {
             if (character == null)
@@ -18,13 +23,60 @@ namespace StreetQuestRPG
             return IsScheduleActive(character.schedule, character);
         }
 
-        internal static bool TryGetCurrentGameMinuteKey(out int minuteKey)
+        internal static bool TryGetCurrentGameHourKey(out int hourKey)
         {
-            minuteKey = 0;
-            if (!TryGetCurrentGameTime(out var day, out var hour, out var minute))
+            hourKey = 0;
+            if (!TryGetCurrentGameTime(out var day, out var hour, out _))
                 return false;
 
-            minuteKey = (day * 1440) + (hour * 60) + Mathf.FloorToInt(minute);
+            hourKey = (day * 24) + hour;
+            return true;
+        }
+
+        internal static void ClearScheduleCaches()
+        {
+            CachedNearestScheduleBuildingByCharacterId.Clear();
+            LastKnownScheduleVisibilityByCharacterId.Clear();
+        }
+
+        internal static void UpdateScheduleVisibilitySnapshot()
+        {
+            LastKnownScheduleVisibilityByCharacterId.Clear();
+            foreach (var character in StreetQuestCharacterCatalog.All)
+            {
+                if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
+                    continue;
+
+                LastKnownScheduleVisibilityByCharacterId[character.id] = IsScheduleActive(character);
+            }
+        }
+
+        internal static bool RefreshSchedulesIfVisibilityChanged()
+        {
+            var anyChanged = false;
+            foreach (var character in StreetQuestCharacterCatalog.All)
+            {
+                if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
+                    continue;
+
+                var visibleNow = IsScheduleActive(character);
+                if (!LastKnownScheduleVisibilityByCharacterId.TryGetValue(character.id, out var visibleBefore))
+                {
+                    LastKnownScheduleVisibilityByCharacterId[character.id] = visibleNow;
+                    continue;
+                }
+
+                if (visibleBefore == visibleNow)
+                    continue;
+
+                LastKnownScheduleVisibilityByCharacterId[character.id] = visibleNow;
+                anyChanged = true;
+            }
+
+            if (!anyChanged)
+                return false;
+
+            RefreshSpawnedCharacters();
             return true;
         }
 
@@ -144,6 +196,13 @@ namespace StreetQuestRPG
             if (character == null)
                 return null;
 
+            if (!string.IsNullOrWhiteSpace(character.id) &&
+                CachedNearestScheduleBuildingByCharacterId.TryGetValue(character.id, out var cachedRegistration) &&
+                cachedRegistration != null)
+            {
+                return cachedRegistration;
+            }
+
             var saveGame = SaveGameManager.Current;
             if (saveGame?.BuildingRegistrations == null || saveGame.BuildingRegistrations.Count == 0)
                 return null;
@@ -157,7 +216,9 @@ namespace StreetQuestRPG
                 if (registration == null || !registration.HasValidAddress)
                     continue;
 
-                if (!TryResolveWorldPosition(registration.Address, out var registrationPosition) &&
+                var building = BuildingHelper.GetBuilding(registration.Address);
+                if (!TryResolveWorldPosition(building, out var registrationPosition) &&
+                    !TryResolveWorldPosition(registration.Address, out registrationPosition) &&
                     !TryResolveWorldPosition(registration, out registrationPosition))
                 {
                     continue;
@@ -170,6 +231,9 @@ namespace StreetQuestRPG
                 bestDistanceSquared = distanceSquared;
                 bestRegistration = registration;
             }
+
+            if (!string.IsNullOrWhiteSpace(character.id) && bestRegistration != null)
+                CachedNearestScheduleBuildingByCharacterId[character.id] = bestRegistration;
 
             return bestRegistration;
         }
