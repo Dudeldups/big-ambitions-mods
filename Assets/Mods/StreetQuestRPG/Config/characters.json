@@ -41,9 +41,7 @@
       "states": [
         {
           "id": "mack_apartment",
-          "requiredStoryFlags": [
-            "streetquest:flag_mack_apartment"
-          ],
+          "requiredStoryFlags": ["streetquest:flag_mack_apartment"],
           "appearanceId": "apartment_mack",
           "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
           "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
@@ -80,10 +78,7 @@
           "visualObjectName": "MackAfterHoursVisual",
           "interactable": false,
           "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
-          "hiddenChildObjectNames": [
-            "DonationBucket",
-            "DissambledBox"
-          ],
+          "hiddenChildObjectNames": ["DonationBucket", "DissambledBox"],
           "states": [
             {
               "id": "mack_after_hours_state",
@@ -97,9 +92,7 @@
                 "startHour": 22,
                 "endHour": 8
               },
-              "walkAwayWaypoints": [
-                { "x": 384.78, "y": 0.09, "z": -194.39 }
-              ],
+              "walkAwayWaypoints": [{ "x": 384.78, "y": 0.09, "z": -194.39 }],
               "walkAwaySpeed": 1.35,
               "despawnAfterWalkAway": true,
               "walkInWaypoints": [
@@ -149,7 +142,7 @@
           "gender": "Female",
           "ageInDays": 12410,
           "appearanceSeed": 22073,
-          "prefabName": "Characters/Homeless"
+          "prefabName": "Characters/DummyHuman"
         }
       ],
       "states": [
@@ -182,7 +175,7 @@
       "interactable": true,
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
-      "localScale": { "x": 0.92, "y": 0.92, "z": 0.92 },
+      "localScale": { "x": 0.72, "y": 0.72, "z": 0.72 },
       "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.0 },
       "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.75 },
       "colliderCenterWithPrefab": { "x": 0.0, "y": 1.0, "z": -0.05 },
@@ -197,18 +190,14 @@
           "gender": "Female",
           "ageInDays": 3650,
           "appearanceSeed": 32119,
-          "prefabName": "Characters/Homeless"
+          "prefabName": "Characters/DummyHuman"
         }
       ],
       "states": [
         {
           "id": "julia_visible",
-          "requiredStoryFlags": [
-            "streetquest:flag_julia_visible"
-          ],
-          "forbiddenStoryFlags": [
-            "streetquest:flag_julia_found"
-          ],
+          "requiredStoryFlags": ["streetquest:flag_julia_visible"],
+          "forbiddenStoryFlags": ["streetquest:flag_julia_found"],
           "overrideEnabled": true,
           "enabled": true,
           "position": { "x": 836.05, "y": 0.01, "z": -121.12 },

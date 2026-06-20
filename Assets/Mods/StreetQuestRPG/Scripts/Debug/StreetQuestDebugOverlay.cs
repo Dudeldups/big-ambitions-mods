@@ -19,6 +19,7 @@ namespace StreetQuestRPG
         private static Vector2 _favorScroll;
         private static Vector2 _peopleScroll;
         private static Vector2 _waypointScroll;
+        private static Vector2 _appearancePrefabScroll;
         private static bool _visible = true;
         private static int _selectedTab;
         private static string _selectedCharacterId;
@@ -41,7 +42,8 @@ namespace StreetQuestRPG
             Quests = 0,
             Favor = 1,
             People = 2,
-            Waypoints = 3
+            Waypoints = 3,
+            Appearance = 4
         }
 
         public void TickToggle()
@@ -100,6 +102,9 @@ namespace StreetQuestRPG
                 case DebugTab.Waypoints:
                     DrawWaypointsTab();
                     break;
+                case DebugTab.Appearance:
+                    DrawAppearanceTab();
+                    break;
             }
             GUILayout.EndVertical();
 
@@ -121,6 +126,7 @@ namespace StreetQuestRPG
             DrawTabButton(DebugTab.Favor, "Favor");
             DrawTabButton(DebugTab.People, "People");
             DrawTabButton(DebugTab.Waypoints, "Waypoints");
+            DrawTabButton(DebugTab.Appearance, "Appearance");
             GUILayout.EndHorizontal();
         }
 
