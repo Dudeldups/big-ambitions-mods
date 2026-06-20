@@ -24,6 +24,7 @@ namespace StreetQuestRPG
         [DataMember] public int ageInDays;
         [DataMember] public int appearanceSeed;
         [DataMember] public bool enabled = true;
+        [DataMember] public bool interactable = true;
         [DataMember] public bool useFixedSpawnPosition = true;
         [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data position;
@@ -39,6 +40,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data colliderSizeFallback;
         [DataMember] public StreetQuestVector3Data interactionRendererLocalPosition;
         [DataMember] public StreetQuestVector3Data interactionRendererLocalScale;
+        [DataMember] public string[] hiddenChildObjectNames;
         [DataMember] public StreetQuestCharacterAppearanceDefinition[] appearances;
         [DataMember] public StreetQuestCharacterAppearanceFlagMapping[] appearanceFlagMappings;
         [DataMember] public StreetQuestCharacterStateDefinition[] states;
@@ -103,6 +105,7 @@ namespace StreetQuestRPG
             colliderSizeFallback ??= fallback.colliderSizeFallback;
             interactionRendererLocalPosition ??= fallback.interactionRendererLocalPosition;
             interactionRendererLocalScale ??= fallback.interactionRendererLocalScale;
+            hiddenChildObjectNames ??= fallback.hiddenChildObjectNames;
             appearances ??= fallback.appearances;
             appearanceFlagMappings ??= fallback.appearanceFlagMappings;
             states ??= fallback.states;

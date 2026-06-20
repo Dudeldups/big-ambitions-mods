@@ -68,7 +68,7 @@ namespace StreetQuestRPG
             var record = StreetQuestShared.GetQuestStateSnapshot();
             foreach (var state in definition.states.Where(value => value != null))
             {
-                if (StateMatches(state, record))
+                if (StateMatches(state, record, definition))
                     return state;
             }
 
@@ -138,10 +138,18 @@ namespace StreetQuestRPG
 
         private static bool StateMatches(
             StreetQuestCharacterStateDefinition state,
-            StreetQuestQuestStateRecord record)
+            StreetQuestQuestStateRecord record,
+            StreetQuestCharacterDefinition character)
         {
             if (state == null)
                 return false;
+
+            if (state.requireScheduleMatch)
+            {
+                var isScheduleActive = StreetQuestShared.IsScheduleActive(character?.schedule, character, true);
+                if (isScheduleActive != state.requiredScheduleActive)
+                    return false;
+            }
 
             if (state.requiredStoryFlags != null &&
                 state.requiredStoryFlags.Any(flagId =>
@@ -275,6 +283,8 @@ namespace StreetQuestRPG
                 resolved.interactionRendererLocalPosition = activeAppearance.interactionRendererLocalPosition;
             if (activeAppearance.interactionRendererLocalScale != null)
                 resolved.interactionRendererLocalScale = activeAppearance.interactionRendererLocalScale;
+            if (activeAppearance.hiddenChildObjectNames != null && activeAppearance.hiddenChildObjectNames.Length > 0)
+                resolved.hiddenChildObjectNames = activeAppearance.hiddenChildObjectNames;
         }
 
         private static StreetQuestCharacterDefinition CloneDefinition(StreetQuestCharacterDefinition definition)
@@ -297,6 +307,7 @@ namespace StreetQuestRPG
                 ageInDays = definition.ageInDays,
                 appearanceSeed = definition.appearanceSeed,
                 enabled = definition.enabled,
+                interactable = definition.interactable,
                 useFixedSpawnPosition = definition.useFixedSpawnPosition,
                 prefabName = definition.prefabName,
                 position = definition.position,
@@ -312,6 +323,7 @@ namespace StreetQuestRPG
                 colliderSizeFallback = definition.colliderSizeFallback,
                 interactionRendererLocalPosition = definition.interactionRendererLocalPosition,
                 interactionRendererLocalScale = definition.interactionRendererLocalScale,
+                hiddenChildObjectNames = definition.hiddenChildObjectNames,
                 appearances = definition.appearances,
                 appearanceFlagMappings = definition.appearanceFlagMappings,
                 states = definition.states

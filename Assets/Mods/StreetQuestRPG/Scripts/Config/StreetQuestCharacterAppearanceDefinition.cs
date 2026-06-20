@@ -22,6 +22,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data colliderSizeFallback;
         [DataMember] public StreetQuestVector3Data interactionRendererLocalPosition;
         [DataMember] public StreetQuestVector3Data interactionRendererLocalScale;
+        [DataMember] public string[] hiddenChildObjectNames;
     }
 #pragma warning restore CS0649
 }

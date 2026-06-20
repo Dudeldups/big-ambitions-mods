@@ -137,46 +137,54 @@ namespace StreetQuestRPG
                 if (!hasVisual)
                     StreetQuestCharacterCreator.BuildFallbackStandVisual(root.transform, runtimeDefinition);
 
-                var interactionRenderer = StreetQuestCharacterCreator.CreateInvisibleInteractionRendererProxy(
-                    root.transform,
-                    runtimeDefinition);
-                if (interactionRenderer == null)
+                Component sellerStandController = null;
+                if (runtimeDefinition.interactable)
                 {
-                    DestroySpawnedCharacter(character.id);
-                    return false;
+                    var interactionRenderer = StreetQuestCharacterCreator.CreateInvisibleInteractionRendererProxy(
+                        root.transform,
+                        runtimeDefinition);
+                    if (interactionRenderer == null)
+                    {
+                        DestroySpawnedCharacter(character.id);
+                        return false;
+                    }
+
+                    StreetQuestCharacterCreator.AddInteractionCollider(root, runtimeDefinition, hasVisual);
+
+                    var navTarget = new GameObject("NavMeshTarget").transform;
+                    navTarget.SetParent(root.transform, false);
+                    navTarget.localPosition = runtimeDefinition.NavTargetLocalOffsetOr(NavTargetLocalOffset);
+
+                    sellerStandController = (Component)root.AddComponent(sellerStandControllerType);
+                    SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
+                    SetMemberValue(sellerStandController, "simpleOverlayType", 4);
+                    SetMemberValue(sellerStandController, "detailedOverlayType", 1024);
+                    SetMemberValue(
+                        sellerStandController,
+                        "customOverlayHeaderKey",
+                        string.IsNullOrWhiteSpace(runtimeDefinition.overlayHeaderKey) ? SellerStandOverlayHeaderKey : runtimeDefinition.overlayHeaderKey);
+                    SetMemberValue(sellerStandController, "blockOutline", true);
+                    SetMemberValue(sellerStandController, "renderers", new[] { interactionRenderer });
+                    SetMemberValue(sellerStandController, "navMeshTargets", new[] { navTarget });
+                    SetMemberValue(sellerStandController, "itemsToSell", new[] { "ba:itemname_hotdog" });
+                    if (!hasVisual)
+                    {
+                        var sellerPosition = new GameObject("SellerPosition").transform;
+                        sellerPosition.SetParent(root.transform, false);
+                        sellerPosition.localPosition = runtimeDefinition.SellerPositionLocalOffsetOr(SellerPositionLocalOffset);
+                        SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
+                    }
+
+                    InvokeParameterlessMethod(sellerStandController, "Show");
                 }
 
-                StreetQuestCharacterCreator.AddInteractionCollider(root, runtimeDefinition, hasVisual);
-
-                var navTarget = new GameObject("NavMeshTarget").transform;
-                navTarget.SetParent(root.transform, false);
-                navTarget.localPosition = runtimeDefinition.NavTargetLocalOffsetOr(NavTargetLocalOffset);
-
-                var sellerStandController = (Component)root.AddComponent(sellerStandControllerType);
-                SetMemberValue(sellerStandController, "primaryInteractionEnabled", true);
-                SetMemberValue(sellerStandController, "simpleOverlayType", 4);
-                SetMemberValue(sellerStandController, "detailedOverlayType", 1024);
-                SetMemberValue(
-                    sellerStandController,
-                    "customOverlayHeaderKey",
-                    string.IsNullOrWhiteSpace(runtimeDefinition.overlayHeaderKey) ? SellerStandOverlayHeaderKey : runtimeDefinition.overlayHeaderKey);
-                SetMemberValue(sellerStandController, "blockOutline", true);
-                SetMemberValue(sellerStandController, "renderers", new[] { interactionRenderer });
-                SetMemberValue(sellerStandController, "navMeshTargets", new[] { navTarget });
-                SetMemberValue(sellerStandController, "itemsToSell", new[] { "ba:itemname_hotdog" });
-                if (!hasVisual)
-                {
-                    var sellerPosition = new GameObject("SellerPosition").transform;
-                    sellerPosition.SetParent(root.transform, false);
-                    sellerPosition.localPosition = runtimeDefinition.SellerPositionLocalOffsetOr(SellerPositionLocalOffset);
-                    SetMemberValue(sellerStandController, "sellerPosition", sellerPosition);
-                }
-
-                InvokeParameterlessMethod(sellerStandController, "Show");
                 SpawnedCharacterRoots[character.id] = root;
-                SpawnedCharacterControllers[character.id] = sellerStandController;
                 SpawnedCharacterStateSignatures[character.id] = stateSignature;
-                CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
+                if (sellerStandController != null)
+                {
+                    SpawnedCharacterControllers[character.id] = sellerStandController;
+                    CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
+                }
                 LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
                 return true;
             }

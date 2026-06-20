@@ -62,6 +62,42 @@
       ]
     },
     {
+      "id": "mack_after_hours_actor",
+      "displayName": "Mack",
+      "nameKey": "streetquest:mack_name",
+      "gameObjectName": "StreetQuestRPG.AfterHoursActor",
+      "visualObjectName": "MackAfterHoursVisual",
+      "professionKey": "streetquest:mack_profession",
+      "defaultAppearanceId": "mack_after_hours_actor_default",
+      "schedule": {
+        "mode": "DailyWindow",
+        "startHour": 22,
+        "endHour": 8
+      },
+      "gender": "Male",
+      "ageInDays": 15330,
+      "appearanceSeed": 104729,
+      "enabled": true,
+      "interactable": false,
+      "useFixedSpawnPosition": true,
+      "prefabName": "Characters/Homeless",
+      "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
+      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+      "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
+      "appearances": [
+        {
+          "id": "mack_after_hours_actor_default",
+          "gender": "Male",
+          "ageInDays": 15330,
+          "appearanceSeed": 104729,
+          "prefabName": "Characters/Homeless",
+          "hiddenChildObjectNames": [ "DonationBucket", "DissambledBox" ]
+        }
+      ]
+    },
+    {
       "id": "fran",
       "displayName": "Fran",
       "nameKey": "streetquest:fran_name",

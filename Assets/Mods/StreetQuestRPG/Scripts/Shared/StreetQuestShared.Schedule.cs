@@ -23,6 +23,17 @@ namespace StreetQuestRPG
             return IsScheduleActive(character.schedule, character);
         }
 
+        internal static bool IsScheduleActive(
+            StreetQuestCharacterScheduleDefinition schedule,
+            StreetQuestCharacterDefinition character,
+            bool defaultValue)
+        {
+            if (schedule == null || character == null)
+                return defaultValue;
+
+            return IsScheduleActive(schedule, character);
+        }
+
         internal static bool TryGetCurrentGameHourKey(out int hourKey)
         {
             hourKey = 0;
@@ -47,7 +58,7 @@ namespace StreetQuestRPG
                 if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
                     continue;
 
-                LastKnownScheduleVisibilityByCharacterId[character.id] = IsScheduleActive(character);
+                LastKnownScheduleVisibilityByCharacterId[character.id] = IsCharacterVisibleForScheduleRefresh(character);
             }
         }
 
@@ -60,7 +71,7 @@ namespace StreetQuestRPG
                 if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
                     continue;
 
-                var visibleNow = IsScheduleActive(character);
+                var visibleNow = IsCharacterVisibleForScheduleRefresh(character);
                 if (!LastKnownScheduleVisibilityByCharacterId.TryGetValue(character.id, out var visibleBefore))
                 {
                     LastKnownScheduleVisibilityByCharacterId[character.id] = visibleNow;
@@ -71,6 +82,7 @@ namespace StreetQuestRPG
                     continue;
 
                 LastKnownScheduleVisibilityByCharacterId[character.id] = visibleNow;
+
                 if (visibleNow)
                 {
                     EnsureSpawnedCharacter(character);
@@ -91,6 +103,12 @@ namespace StreetQuestRPG
                 EnsureQuestGiverCtaBehaviorInstalled();
 
             return true;
+        }
+
+        private static bool IsCharacterVisibleForScheduleRefresh(StreetQuestCharacterDefinition character)
+        {
+            var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
+            return runtimeDefinition != null && runtimeDefinition.enabled;
         }
 
         private static bool IsScheduleActive(

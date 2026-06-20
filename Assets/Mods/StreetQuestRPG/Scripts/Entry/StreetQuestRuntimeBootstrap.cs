@@ -93,6 +93,9 @@ namespace StreetQuestRPG
 
             foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null))
             {
+                if (!character.interactable)
+                    continue;
+
                 var dialogTypeKey = string.IsNullOrWhiteSpace(character.dialogTypeKey)
                     ? "streetquest_mack_dialog"
                     : character.dialogTypeKey;

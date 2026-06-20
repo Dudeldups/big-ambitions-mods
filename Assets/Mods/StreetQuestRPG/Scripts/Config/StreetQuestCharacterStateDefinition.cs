@@ -13,6 +13,8 @@ namespace StreetQuestRPG
         [DataMember] public string[] requiredCompletedQuestIds;
         [DataMember] public string[] forbiddenCompletedQuestIds;
         [DataMember] public StreetQuestQuestFavorRequirementDefinition[] requiredFavors;
+        [DataMember] public bool requireScheduleMatch;
+        [DataMember] public bool requiredScheduleActive = true;
         [DataMember] public bool overrideEnabled;
         [DataMember] public bool enabled = true;
         [DataMember] public bool overrideUseFixedSpawnPosition;
