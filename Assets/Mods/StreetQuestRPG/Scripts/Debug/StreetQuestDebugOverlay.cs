@@ -76,11 +76,39 @@ namespace StreetQuestRPG
         {
             var playerPosition = StreetQuestShared.GetPlayerWorldPosition();
             var positionText = FormatVector3(playerPosition);
+            var playerForward = PlayerHelper.PlayerController != null
+                ? NormalizeForward(PlayerHelper.PlayerController.transform.forward)
+                : Vector3.forward;
+            var playerYaw = PlayerHelper.PlayerController != null
+                ? NormalizeYaw(PlayerHelper.PlayerController.transform.eulerAngles.y)
+                : 0f;
             GUILayout.BeginHorizontal();
             GUILayout.Label($"Position: {positionText}", _headerStyle);
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Copy", _buttonStyle, GUILayout.Width(90f)))
                 CopyCoordinatesToClipboard(positionText);
+            if (GUILayout.Button("JSON", _buttonStyle, GUILayout.Width(90f)))
+                CopyCoordinatesJsonToClipboard(playerPosition);
+            GUILayout.EndHorizontal();
+
+            var forwardText = FormatVector3(playerForward);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"Forward: {forwardText}", _textStyle);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Copy", _buttonStyle, GUILayout.Width(90f)))
+                CopyForwardToClipboard(forwardText);
+            if (GUILayout.Button("JSON", _buttonStyle, GUILayout.Width(90f)))
+                CopyForwardJsonToClipboard(playerForward);
+            GUILayout.EndHorizontal();
+
+            var yawText = $"{playerYaw:0.00}";
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"Facing: {yawText}° yaw", _textStyle);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Copy", _buttonStyle, GUILayout.Width(90f)))
+                CopyYawToClipboard(yawText);
+            if (GUILayout.Button("JSON", _buttonStyle, GUILayout.Width(90f)))
+                CopyYawJsonToClipboard(playerYaw);
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6f);
@@ -373,6 +401,24 @@ namespace StreetQuestRPG
 
         private static string FormatVector3(Vector3 value) => $"{value.x:0.00}, {value.y:0.00}, {value.z:0.00}";
 
+        private static float NormalizeYaw(float yaw)
+        {
+            yaw %= 360f;
+            if (yaw < 0f)
+                yaw += 360f;
+
+            return yaw;
+        }
+
+        private static Vector3 NormalizeForward(Vector3 forward)
+        {
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                return Vector3.forward;
+
+            return forward.normalized;
+        }
+
         private static void CopyCoordinatesToClipboard(string positionText)
         {
             if (string.IsNullOrWhiteSpace(positionText))
@@ -380,6 +426,45 @@ namespace StreetQuestRPG
 
             GUIUtility.systemCopyBuffer = positionText;
             StreetQuestShared.NotifyInfo($"Copied coordinates: {positionText}", "streetquest:debug_coordinates_copied", 2.5f);
+        }
+
+        private static void CopyCoordinatesJsonToClipboard(Vector3 position)
+        {
+            var jsonText = $"{{ \"x\": {position.x:0.00}, \"y\": {position.y:0.00}, \"z\": {position.z:0.00} }}";
+            GUIUtility.systemCopyBuffer = jsonText;
+            StreetQuestShared.NotifyInfo($"Copied JSON coordinates: {jsonText}", "streetquest:debug_coordinates_json_copied", 2.5f);
+        }
+
+        private static void CopyForwardToClipboard(string forwardText)
+        {
+            if (string.IsNullOrWhiteSpace(forwardText))
+                return;
+
+            GUIUtility.systemCopyBuffer = forwardText;
+            StreetQuestShared.NotifyInfo($"Copied forward: {forwardText}", "streetquest:debug_forward_copied", 2.5f);
+        }
+
+        private static void CopyForwardJsonToClipboard(Vector3 forward)
+        {
+            var jsonText = $"{{ \"x\": {forward.x:0.00}, \"y\": {forward.y:0.00}, \"z\": {forward.z:0.00} }}";
+            GUIUtility.systemCopyBuffer = jsonText;
+            StreetQuestShared.NotifyInfo($"Copied JSON forward: {jsonText}", "streetquest:debug_forward_json_copied", 2.5f);
+        }
+
+        private static void CopyYawToClipboard(string yawText)
+        {
+            if (string.IsNullOrWhiteSpace(yawText))
+                return;
+
+            GUIUtility.systemCopyBuffer = yawText;
+            StreetQuestShared.NotifyInfo($"Copied yaw: {yawText}", "streetquest:debug_yaw_copied", 2.5f);
+        }
+
+        private static void CopyYawJsonToClipboard(float yaw)
+        {
+            var jsonText = $"{{ \"yaw\": {yaw:0.00} }}";
+            GUIUtility.systemCopyBuffer = jsonText;
+            StreetQuestShared.NotifyInfo($"Copied JSON yaw: {jsonText}", "streetquest:debug_yaw_json_copied", 2.5f);
         }
 
         private static void DrawObjectiveDebugActions(

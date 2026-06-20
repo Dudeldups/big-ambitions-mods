@@ -126,7 +126,7 @@
       "professionKey": "streetquest:fran_profession",
       "interactable": true,
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
-      "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "localEulerAngles": { "x": 0.0, "y": 180.0, "z": 0.0 },
       "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
       "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.15 },
       "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.85 },
@@ -149,6 +149,7 @@
         {
           "id": "fran_default",
           "appearanceId": "fran_default",
+          "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
           "overrideEnabled": true,
           "enabled": true,
           "overrideUseFixedSpawnPosition": true,
@@ -156,8 +157,36 @@
           "schedule": {
             "mode": "Always"
           },
-          "position": { "x": 838.85, "y": 0.01, "z": -123.1 },
-          "forward": { "x": -1.0, "y": 0.0, "z": 0.0 }
+          "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
+          "forward": { "x": 0.92, "y": 0.0, "z": -0.4 }
+        }
+      ],
+      "alternateActors": [
+        {
+          "id": "fran_exit_actor",
+          "gameObjectName": "StreetQuestRPG.FranExitActor",
+          "visualObjectName": "FranExitVisual",
+          "interactable": false,
+          "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+          "states": [
+            {
+              "id": "fran_exit",
+              "requiredStoryFlags": ["streetquest:flag_julia_returned"],
+              "appearanceId": "fran_default",
+              "overrideEnabled": true,
+              "enabled": true,
+              "overrideUseFixedSpawnPosition": true,
+              "useFixedSpawnPosition": true,
+              "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
+              "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
+              "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
+              "walkAwaySpeed": 1.5,
+              "despawnAfterWalkAway": true,
+              "schedule": {
+                "mode": "Always"
+              }
+            }
+          ]
         }
       ]
     },
@@ -174,7 +203,7 @@
       "professionKey": "streetquest:julia_profession",
       "interactable": true,
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
-      "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "localEulerAngles": { "x": 0.0, "y": 100.0, "z": 0.0 },
       "localScale": { "x": 0.72, "y": 0.72, "z": 0.72 },
       "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.0 },
       "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.75 },
@@ -200,7 +229,7 @@
           "forbiddenStoryFlags": ["streetquest:flag_julia_found"],
           "overrideEnabled": true,
           "enabled": true,
-          "position": { "x": 836.05, "y": 0.01, "z": -121.12 },
+          "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
           "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
           "appearanceId": "julia_default",
           "overrideUseFixedSpawnPosition": true,
@@ -208,6 +237,64 @@
           "schedule": {
             "mode": "Always"
           }
+        }
+      ],
+      "alternateActors": [
+        {
+          "id": "julia_running_home_actor",
+          "gameObjectName": "StreetQuestRPG.JuliaRunningHomeActor",
+          "visualObjectName": "JuliaRunningHomeVisual",
+          "interactable": false,
+          "isRunning": true,
+          "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+          "states": [
+            {
+              "id": "julia_running_home",
+              "requiredStoryFlags": ["streetquest:flag_julia_found"],
+              "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
+              "appearanceId": "julia_default",
+              "overrideEnabled": true,
+              "enabled": true,
+              "overrideUseFixedSpawnPosition": true,
+              "useFixedSpawnPosition": true,
+              "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
+              "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+              "walkAwayWaypoints": [{ "x": 810.38, "y": 0.01, "z": -102.74 }],
+              "walkAwaySpeed": 3,
+              "overrideIsRunning": true,
+              "isRunning": true,
+              "despawnAfterWalkAway": false,
+              "schedule": {
+                "mode": "Always"
+              }
+            }
+          ]
+        },
+        {
+          "id": "julia_exit_actor",
+          "gameObjectName": "StreetQuestRPG.JuliaExitActor",
+          "visualObjectName": "JuliaExitVisual",
+          "interactable": false,
+          "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+          "states": [
+            {
+              "id": "julia_exit",
+              "requiredStoryFlags": ["streetquest:flag_julia_returned"],
+              "appearanceId": "julia_default",
+              "overrideEnabled": true,
+              "enabled": true,
+              "overrideUseFixedSpawnPosition": true,
+              "useFixedSpawnPosition": true,
+              "position": { "x": 810.38, "y": 0.01, "z": -102.74 },
+              "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
+              "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
+              "walkAwaySpeed": 1.5,
+              "despawnAfterWalkAway": true,
+              "schedule": {
+                "mode": "Always"
+              }
+            }
+          ]
         }
       ]
     }

@@ -169,6 +169,7 @@ namespace StreetQuestRPG
                 SerializeVector(runtime.forward),
                 SerializeVectorArray(runtime.walkAwayWaypoints),
                 runtime.walkAwaySpeed.ToString("F3"),
+                runtime.isRunning.ToString(),
                 runtime.despawnAfterWalkAway.ToString(),
                 SerializeVectorArray(runtime.walkInWaypoints),
                 runtime.walkInSpeed.ToString("F3"),
@@ -267,6 +268,7 @@ namespace StreetQuestRPG
             resolved.forward = null;
             resolved.walkAwayWaypoints = null;
             resolved.walkAwaySpeed = 1.4f;
+            resolved.isRunning = false;
             resolved.despawnAfterWalkAway = false;
             resolved.walkInWaypoints = null;
             resolved.walkInSpeed = 6f;
@@ -316,6 +318,8 @@ namespace StreetQuestRPG
                 resolved.walkAwayWaypoints = state.walkAwayWaypoints;
             if (state.walkAwaySpeed > 0f)
                 resolved.walkAwaySpeed = state.walkAwaySpeed;
+            if (state.overrideIsRunning)
+                resolved.isRunning = state.isRunning;
             resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
             if (state.walkInWaypoints != null)
                 resolved.walkInWaypoints = state.walkInWaypoints;
@@ -418,6 +422,7 @@ namespace StreetQuestRPG
                 forward = definition.forward,
                 walkAwayWaypoints = definition.walkAwayWaypoints,
                 walkAwaySpeed = definition.walkAwaySpeed,
+                isRunning = definition.isRunning,
                 despawnAfterWalkAway = definition.despawnAfterWalkAway,
                 walkInWaypoints = definition.walkInWaypoints,
                 walkInSpeed = definition.walkInSpeed,

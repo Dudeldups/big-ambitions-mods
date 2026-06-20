@@ -18,6 +18,7 @@ namespace StreetQuestRPG
         private Quaternion _spawnRotation;
         private Vector3[] _walkAwayWaypoints = Array.Empty<Vector3>();
         private float _walkAwaySpeed;
+        private bool _isRunning;
         private bool _hideAfterWalkAway;
         private Vector3[] _walkInWaypoints = Array.Empty<Vector3>();
         private int _walkInArrivalHour;
@@ -48,6 +49,7 @@ namespace StreetQuestRPG
             Quaternion spawnRotation,
             Vector3[] walkAwayWaypoints,
             float walkAwaySpeed,
+            bool isRunning,
             bool hideAfterWalkAway,
             Vector3[] walkInWaypoints,
             float walkInSpeed,
@@ -59,6 +61,7 @@ namespace StreetQuestRPG
             _spawnRotation = spawnRotation;
             _walkAwayWaypoints = walkAwayWaypoints ?? Array.Empty<Vector3>();
             _walkAwaySpeed = walkAwaySpeed > 0.01f ? walkAwaySpeed : 1.4f;
+            _isRunning = isRunning;
             _hideAfterWalkAway = hideAfterWalkAway;
             _walkInWaypoints = walkInWaypoints ?? Array.Empty<Vector3>();
             _walkInSpeed = walkInSpeed > 0.01f ? walkInSpeed : 6f;
@@ -73,6 +76,7 @@ namespace StreetQuestRPG
                 $"WalkCycleConfigured character={_characterId} spawn={FormatVector3(_spawnPosition)} " +
                 $"walkAwayWaypoints={_walkAwayWaypoints.Length} walkAwaySpeed={_walkAwaySpeed:F2} hideAfterWalkAway={_hideAfterWalkAway} walkInWaypoints={_walkInWaypoints.Length} " +
                 $"walkAwayRoutePoints={_walkAwayRoutePoints.Length} walkInDistance={_walkInTotalDistance:F2} walkInSpeed={_walkInSpeed:F2} " +
+                $"isRunning={_isRunning} " +
                 $"walkInDurationMinutes={_walkInDurationMinutes:F2} " +
                 $"walkInStartMinuteOfDay={_walkInStartMinuteOfDay} walkInArrival={_walkInArrivalHour:D2}:{_walkInArrivalMinute:D2}");
         }
@@ -340,7 +344,7 @@ namespace StreetQuestRPG
                     continue;
 
                 TrySetAnimatorFloat(animator, velocityMagnitude);
-                TrySetAnimatorBool(animator, walking);
+                TrySetAnimatorBool(animator, walking, _isRunning);
             }
         }
 
@@ -410,7 +414,7 @@ namespace StreetQuestRPG
             }
         }
 
-        private static void TrySetAnimatorBool(Animator animator, bool walking)
+        private static void TrySetAnimatorBool(Animator animator, bool walking, bool isRunning)
         {
             foreach (var parameterName in new[] { "Walking", "IsWalking", "Walk", "Moving", "IsMoving" })
             {
@@ -421,7 +425,7 @@ namespace StreetQuestRPG
             }
 
             if (HasParameter(animator, "Running", AnimatorControllerParameterType.Bool))
-                animator.SetBool("Running", false);
+                animator.SetBool("Running", walking && isRunning);
         }
 
         private static bool HasParameter(Animator animator, string parameterName, AnimatorControllerParameterType type)

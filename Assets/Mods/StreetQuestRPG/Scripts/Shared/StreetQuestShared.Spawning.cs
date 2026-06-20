@@ -84,7 +84,10 @@ namespace StreetQuestRPG
                 ? StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutScheduleGate(character)
                 : StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
             if (runtimeDefinition == null)
+            {
+                DestroySpawnedCharacter(character.id);
                 return false;
+            }
 
             if (!runtimeDefinition.enabled)
             {
@@ -334,6 +337,7 @@ namespace StreetQuestRPG
                 Quaternion.LookRotation(-spawnForward, Vector3.up),
                 definition.WalkAwayWaypointsOrEmpty(),
                 definition.walkAwaySpeed,
+                definition.isRunning,
                 definition.despawnAfterWalkAway,
                 definition.WalkInWaypointsOrEmpty(),
                 definition.walkInSpeed,
