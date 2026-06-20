@@ -26,13 +26,14 @@ namespace StreetQuestRPG
             LogDebug("EnsureSpawnedOutdoorQuestGiver start");
             RemoveLegacyQuestGiverCtaBehaviors();
             EnsureQuestGiverCtaBehaviorInstalled();
-            var spawnedAny = false;
+            var hadConfiguredCharacters = false;
             foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null))
             {
-                spawnedAny |= EnsureSpawnedCharacter(character);
+                hadConfiguredCharacters = true;
+                EnsureSpawnedCharacter(character);
             }
 
-            return spawnedAny;
+            return hadConfiguredCharacters;
         }
 
 

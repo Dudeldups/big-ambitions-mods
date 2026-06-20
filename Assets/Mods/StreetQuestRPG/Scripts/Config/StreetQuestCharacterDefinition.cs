@@ -19,6 +19,7 @@ namespace StreetQuestRPG
         [DataMember] public string ctaKey;
         [DataMember] public string professionKey;
         [DataMember] public string defaultAppearanceId;
+        [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public string gender;
         [DataMember] public int ageInDays;
         [DataMember] public int appearanceSeed;
@@ -84,6 +85,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(ctaKey)) ctaKey = fallback.ctaKey;
             if (string.IsNullOrWhiteSpace(professionKey)) professionKey = fallback.professionKey;
             if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;
+            schedule ??= fallback.schedule;
             if (string.IsNullOrWhiteSpace(gender)) gender = fallback.gender;
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;
             if (appearanceSeed == 0) appearanceSeed = fallback.appearanceSeed;

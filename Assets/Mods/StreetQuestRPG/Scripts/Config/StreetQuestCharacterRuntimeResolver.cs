@@ -21,6 +21,9 @@ namespace StreetQuestRPG
             if (activeAppearance != null)
                 ApplyAppearanceOverrides(resolved, activeAppearance);
 
+            if (!StreetQuestShared.IsScheduleActive(resolved))
+                resolved.enabled = false;
+
             return resolved;
         }
 
@@ -82,6 +85,7 @@ namespace StreetQuestRPG
                 runtime.gender ?? string.Empty,
                 runtime.ageInDays.ToString(),
                 runtime.appearanceSeed.ToString(),
+                SerializeSchedule(runtime.schedule),
                 SerializeVector(runtime.position),
                 SerializeVector(runtime.forward),
                 SerializeVector(runtime.localPosition),
@@ -170,6 +174,8 @@ namespace StreetQuestRPG
                 resolved.useFixedSpawnPosition = state.useFixedSpawnPosition;
             if (!string.IsNullOrWhiteSpace(state.appearanceId))
                 resolved.defaultAppearanceId = state.appearanceId;
+            if (state.schedule != null)
+                resolved.schedule = state.schedule;
             if (state.position != null)
                 resolved.position = state.position;
             if (state.forward != null)
@@ -253,6 +259,7 @@ namespace StreetQuestRPG
                 ctaKey = definition.ctaKey,
                 professionKey = definition.professionKey,
                 defaultAppearanceId = definition.defaultAppearanceId,
+                schedule = definition.schedule,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,
                 appearanceSeed = definition.appearanceSeed,
@@ -285,6 +292,21 @@ namespace StreetQuestRPG
 
             var vector = value.ToVector3();
             return $"{vector.x:F3},{vector.y:F3},{vector.z:F3}";
+        }
+
+        private static string SerializeSchedule(StreetQuestCharacterScheduleDefinition schedule)
+        {
+            if (schedule == null)
+                return string.Empty;
+
+            return string.Join("|", new[]
+            {
+                schedule.mode ?? string.Empty,
+                schedule.startHour.ToString(),
+                schedule.endHour.ToString(),
+                schedule.address ?? string.Empty,
+                schedule.nearestBuildingMaxDistance.ToString("F2")
+            });
         }
     }
 }

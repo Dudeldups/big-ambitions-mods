@@ -12,6 +12,11 @@
       "ctaKey": "streetquest:cta_talk",
       "professionKey": "streetquest:mack_profession",
       "defaultAppearanceId": "mack_homeless",
+      "schedule": {
+        "mode": "DailyWindow",
+        "startHour": 8,
+        "endHour": 22
+      },
       "gender": "Male",
       "ageInDays": 15330,
       "appearanceSeed": 104729,
@@ -68,6 +73,10 @@
       "ctaKey": "streetquest:cta_talk",
       "professionKey": "streetquest:fran_profession",
       "defaultAppearanceId": "fran_default",
+      "schedule": {
+        "mode": "NearestBuildingOpenStatus",
+        "nearestBuildingMaxDistance": 35.0
+      },
       "gender": "Female",
       "ageInDays": 12410,
       "appearanceSeed": 22073,
@@ -109,6 +118,10 @@
       "ctaKey": "streetquest:cta_talk",
       "professionKey": "streetquest:julia_profession",
       "defaultAppearanceId": "julia_default",
+      "schedule": {
+        "mode": "NearestBuildingOpenStatus",
+        "nearestBuildingMaxDistance": 35.0
+      },
       "gender": "Female",
       "ageInDays": 3650,
       "appearanceSeed": 32119,

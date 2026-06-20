@@ -18,6 +18,7 @@ namespace StreetQuestRPG
         [DataMember] public bool overrideUseFixedSpawnPosition;
         [DataMember] public bool useFixedSpawnPosition = true;
         [DataMember] public string appearanceId;
+        [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data forward;
         [DataMember] public StreetQuestVector3Data localPosition;
