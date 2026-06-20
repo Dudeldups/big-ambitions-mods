@@ -15,6 +15,17 @@ namespace StreetQuestRPG
             RuntimeCacheByCharacterId.Clear();
         }
 
+        public static bool HasAnySchedule(StreetQuestCharacterDefinition definition)
+        {
+            return definition?.states != null &&
+                   definition.states.Any(state => state != null && state.schedule != null);
+        }
+
+        public static bool HasConfiguredStates(StreetQuestCharacterDefinition definition)
+        {
+            return definition?.states != null && definition.states.Any(state => state != null);
+        }
+
         public static StreetQuestCharacterDefinition ResolveRuntimeDefinition(StreetQuestCharacterDefinition definition)
         {
             if (definition == null)
@@ -34,10 +45,19 @@ namespace StreetQuestRPG
                 return CloneDefinition(cachedEntry.RuntimeDefinition);
             }
 
-            var resolved = CloneDefinition(definition);
+            if (!HasConfiguredStates(definition))
+            {
+                StreetQuestShared.LogDebug($"CharacterStateResolve failed character={definition.id ?? "<null>"} reason=no_states_configured");
+                return null;
+            }
+
             var activeState = ResolveActiveState(definition);
-            if (activeState != null)
-                ApplyStateOverrides(resolved, activeState);
+            if (activeState == null)
+                return null;
+
+            var resolved = CloneDefinition(definition);
+            ResetStateOwnedRuntimeFields(resolved);
+            ApplyStateOverrides(resolved, activeState);
 
             var activeAppearanceId = ResolveActiveAppearanceId(definition, activeState);
             var activeAppearance = definition.FindAppearance(activeAppearanceId);
@@ -65,10 +85,19 @@ namespace StreetQuestRPG
             if (definition == null)
                 return null;
 
-            var resolved = CloneDefinition(definition);
+            if (!HasConfiguredStates(definition))
+            {
+                StreetQuestShared.LogDebug($"CharacterStateResolveWithoutSchedule failed character={definition.id ?? "<null>"} reason=no_states_configured");
+                return null;
+            }
+
             var activeState = ResolveActiveState(definition);
-            if (activeState != null)
-                ApplyStateOverrides(resolved, activeState);
+            if (activeState == null)
+                return null;
+
+            var resolved = CloneDefinition(definition);
+            ResetStateOwnedRuntimeFields(resolved);
+            ApplyStateOverrides(resolved, activeState);
 
             var activeAppearanceId = ResolveActiveAppearanceId(definition, activeState);
             var activeAppearance = definition.FindAppearance(activeAppearanceId);
@@ -100,26 +129,9 @@ namespace StreetQuestRPG
             if (character == null)
                 return null;
 
-            if (!string.IsNullOrWhiteSpace(activeState?.appearanceId))
-                return activeState.appearanceId;
-
-            if (character.appearanceFlagMappings != null)
-            {
-                foreach (var mapping in character.appearanceFlagMappings)
-                {
-                    if (mapping == null ||
-                        string.IsNullOrWhiteSpace(mapping.storyFlagId) ||
-                        string.IsNullOrWhiteSpace(mapping.appearanceId))
-                    {
-                        continue;
-                    }
-
-                    if (StreetQuestShared.HasStoryFlag(mapping.storyFlagId))
-                        return mapping.appearanceId;
-                }
-            }
-
-            return character.defaultAppearanceId;
+            return string.IsNullOrWhiteSpace(activeState?.appearanceId)
+                ? null
+                : activeState.appearanceId;
         }
 
         public static string BuildRuntimeStateSignature(StreetQuestCharacterDefinition definition)
@@ -187,7 +199,8 @@ namespace StreetQuestRPG
 
             if (state.requireScheduleMatch)
             {
-                var isScheduleActive = StreetQuestShared.IsScheduleActive(character?.schedule, character, true);
+                var scheduleProbeCharacter = BuildScheduleProbeCharacter(character, state);
+                var isScheduleActive = StreetQuestShared.IsScheduleActive(state.schedule, scheduleProbeCharacter, true);
                 if (isScheduleActive != state.requiredScheduleActive)
                     return false;
             }
@@ -243,6 +256,43 @@ namespace StreetQuestRPG
             return true;
         }
 
+        private static void ResetStateOwnedRuntimeFields(StreetQuestCharacterDefinition resolved)
+        {
+            if (resolved == null)
+                return;
+
+            resolved.defaultAppearanceId = null;
+            resolved.schedule = null;
+            resolved.position = null;
+            resolved.forward = null;
+            resolved.walkAwayWaypoints = null;
+            resolved.walkAwaySpeed = 1.4f;
+            resolved.despawnAfterWalkAway = false;
+            resolved.walkInWaypoints = null;
+            resolved.walkInSpeed = 6f;
+            resolved.walkInArrivalHour = 8;
+            resolved.walkInArrivalMinute = 0;
+        }
+
+        private static StreetQuestCharacterDefinition BuildScheduleProbeCharacter(
+            StreetQuestCharacterDefinition character,
+            StreetQuestCharacterStateDefinition state)
+        {
+            var probe = character?.ShallowCopy() ?? new StreetQuestCharacterDefinition();
+            if (state == null)
+                return probe;
+
+            if (state.position != null)
+                probe.position = state.position;
+            if (state.forward != null)
+                probe.forward = state.forward;
+            if (state.schedule != null)
+                probe.schedule = state.schedule;
+
+            return probe;
+        }
+
+
         private static void ApplyStateOverrides(
             StreetQuestCharacterDefinition resolved,
             StreetQuestCharacterStateDefinition state)
@@ -266,15 +316,14 @@ namespace StreetQuestRPG
                 resolved.walkAwayWaypoints = state.walkAwayWaypoints;
             if (state.walkAwaySpeed > 0f)
                 resolved.walkAwaySpeed = state.walkAwaySpeed;
-            if (state.overrideDespawnAfterWalkAway)
-                resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
+            resolved.despawnAfterWalkAway = state.despawnAfterWalkAway;
             if (state.walkInWaypoints != null)
                 resolved.walkInWaypoints = state.walkInWaypoints;
             if (state.walkInSpeed > 0f)
                 resolved.walkInSpeed = state.walkInSpeed;
-            if (state.walkInArrivalHour > 0)
+            if (state.overrideWalkInArrivalTime || state.walkInArrivalHour > 0)
                 resolved.walkInArrivalHour = state.walkInArrivalHour;
-            if (state.walkInArrivalMinute > 0)
+            if (state.overrideWalkInArrivalTime || state.walkInArrivalMinute > 0)
                 resolved.walkInArrivalMinute = state.walkInArrivalMinute;
             if (state.localPosition != null)
                 resolved.localPosition = state.localPosition;

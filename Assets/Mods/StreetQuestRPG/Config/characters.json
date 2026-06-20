@@ -11,21 +11,7 @@
       "overlayHeaderKey": "streetquest:mack_name",
       "ctaKey": "streetquest:cta_talk",
       "professionKey": "streetquest:mack_profession",
-      "defaultAppearanceId": "mack_homeless",
-      "schedule": {
-        "mode": "DailyWindow",
-        "startHour": 8,
-        "endHour": 22
-      },
-      "gender": "Male",
-      "ageInDays": 15330,
-      "appearanceSeed": 104729,
-      "enabled": true,
       "interactable": true,
-      "useFixedSpawnPosition": true,
-      "prefabName": "Characters/Homeless",
-      "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
-      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
       "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
@@ -55,8 +41,34 @@
       "states": [
         {
           "id": "mack_apartment",
-          "requiredStoryFlags": ["streetquest:flag_mack_apartment"],
+          "requiredStoryFlags": [
+            "streetquest:flag_mack_apartment"
+          ],
           "appearanceId": "apartment_mack",
+          "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
+          "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "schedule": {
+            "mode": "DailyWindow",
+            "startHour": 8,
+            "endHour": 22
+          }
+        },
+        {
+          "id": "mack_homeless",
+          "appearanceId": "mack_homeless",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "schedule": {
+            "mode": "DailyWindow",
+            "startHour": 8,
+            "endHour": 22
+          },
           "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
           "forward": { "x": 0.0, "y": 0.0, "z": -1.0 }
         }
@@ -66,29 +78,45 @@
           "id": "mack_after_hours_actor",
           "gameObjectName": "StreetQuestRPG.AfterHoursActor",
           "visualObjectName": "MackAfterHoursVisual",
-          "enabled": true,
-          "schedule": {
-            "mode": "DailyWindow",
-            "startHour": 22,
-            "endHour": 8
-          },
           "interactable": false,
-          "useFixedSpawnPosition": true,
-          "walkAwayWaypoints": [{ "x": 384.78, "y": 0.09, "z": -194.39 }],
-          "walkAwaySpeed": 1.35,
-          "despawnAfterWalkAway": true,
-          "walkInWaypoints": [
-            { "x": 384.78, "y": 0.09, "z": -194.39 },
-            { "x": 385.76, "y": 0.09, "z": -198.11 },
-            { "x": 372.4, "y": 0.09, "z": -198.66 },
-            { "x": 354.03, "y": 0.09, "z": -197.99 },
-            { "x": 305.58, "y": 0.06, "z": -197.99 }
-          ],
-          "walkInSpeed": 1.35,
-          "walkInArrivalHour": 8,
-          "walkInArrivalMinute": 0,
           "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
-          "hiddenChildObjectNames": ["DonationBucket", "DissambledBox"]
+          "hiddenChildObjectNames": [
+            "DonationBucket",
+            "DissambledBox"
+          ],
+          "states": [
+            {
+              "id": "mack_after_hours_state",
+              "appearanceId": "mack_homeless",
+              "overrideEnabled": true,
+              "enabled": true,
+              "overrideUseFixedSpawnPosition": true,
+              "useFixedSpawnPosition": true,
+              "schedule": {
+                "mode": "DailyWindow",
+                "startHour": 22,
+                "endHour": 8
+              },
+              "walkAwayWaypoints": [
+                { "x": 384.78, "y": 0.09, "z": -194.39 }
+              ],
+              "walkAwaySpeed": 1.35,
+              "despawnAfterWalkAway": true,
+              "walkInWaypoints": [
+                { "x": 384.78, "y": 0.09, "z": -194.39 },
+                { "x": 385.76, "y": 0.09, "z": -198.11 },
+                { "x": 372.4, "y": 0.09, "z": -198.66 },
+                { "x": 354.03, "y": 0.09, "z": -197.99 },
+                { "x": 305.58, "y": 0.06, "z": -197.99 }
+              ],
+              "walkInSpeed": 1.35,
+              "walkInArrivalHour": 8,
+              "walkInArrivalMinute": 0,
+              "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
+              "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+              "overrideWalkInArrivalTime": true
+            }
+          ]
         }
       ]
     },
@@ -103,19 +131,7 @@
       "overlayHeaderKey": "streetquest:fran_name",
       "ctaKey": "streetquest:cta_talk",
       "professionKey": "streetquest:fran_profession",
-      "defaultAppearanceId": "fran_default",
-      "schedule": {
-        "mode": "Always"
-      },
-      "gender": "Female",
-      "ageInDays": 12410,
-      "appearanceSeed": 22073,
-      "enabled": true,
       "interactable": true,
-      "useFixedSpawnPosition": true,
-      "prefabName": "Characters/Homeless",
-      "position": { "x": 838.85, "y": 0.01, "z": -123.1 },
-      "forward": { "x": -1.0, "y": 0.0, "z": 0.0 },
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
       "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
@@ -135,6 +151,21 @@
           "appearanceSeed": 22073,
           "prefabName": "Characters/Homeless"
         }
+      ],
+      "states": [
+        {
+          "id": "fran_default",
+          "appearanceId": "fran_default",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "schedule": {
+            "mode": "Always"
+          },
+          "position": { "x": 838.85, "y": 0.01, "z": -123.1 },
+          "forward": { "x": -1.0, "y": 0.0, "z": 0.0 }
+        }
       ]
     },
     {
@@ -148,19 +179,7 @@
       "overlayHeaderKey": "streetquest:julia_name",
       "ctaKey": "streetquest:cta_talk",
       "professionKey": "streetquest:julia_profession",
-      "defaultAppearanceId": "julia_default",
-      "schedule": {
-        "mode": "Always"
-      },
-      "gender": "Female",
-      "ageInDays": 3650,
-      "appearanceSeed": 32119,
-      "enabled": false,
       "interactable": true,
-      "useFixedSpawnPosition": true,
-      "prefabName": "Characters/Homeless",
-      "position": { "x": 836.05, "y": 0.01, "z": -121.12 },
-      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
       "localScale": { "x": 0.92, "y": 0.92, "z": 0.92 },
@@ -184,12 +203,22 @@
       "states": [
         {
           "id": "julia_visible",
-          "requiredStoryFlags": ["streetquest:flag_julia_visible"],
-          "forbiddenStoryFlags": ["streetquest:flag_julia_found"],
+          "requiredStoryFlags": [
+            "streetquest:flag_julia_visible"
+          ],
+          "forbiddenStoryFlags": [
+            "streetquest:flag_julia_found"
+          ],
           "overrideEnabled": true,
           "enabled": true,
           "position": { "x": 836.05, "y": 0.01, "z": -121.12 },
-          "forward": { "x": 0.0, "y": 0.0, "z": -1.0 }
+          "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+          "appearanceId": "julia_default",
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "schedule": {
+            "mode": "Always"
+          }
         }
       ]
     }

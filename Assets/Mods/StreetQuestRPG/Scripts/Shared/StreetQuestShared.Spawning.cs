@@ -234,7 +234,7 @@ namespace StreetQuestRPG
             {
                 if (character == null ||
                     string.IsNullOrWhiteSpace(character.id) ||
-                    character.schedule == null ||
+                    !StreetQuestCharacterRuntimeResolver.HasAnySchedule(character) ||
                     SpawnedCharacterRoots.ContainsKey(character.id))
                 {
                     continue;

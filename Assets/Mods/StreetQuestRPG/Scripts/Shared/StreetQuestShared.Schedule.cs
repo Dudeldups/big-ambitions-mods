@@ -55,8 +55,12 @@ namespace StreetQuestRPG
             LastKnownScheduleVisibilityByCharacterId.Clear();
             foreach (var character in StreetQuestCharacterCatalog.All)
             {
-                if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
+                if (character == null ||
+                    string.IsNullOrWhiteSpace(character.id) ||
+                    !StreetQuestCharacterRuntimeResolver.HasAnySchedule(character))
+                {
                     continue;
+                }
 
                 LastKnownScheduleVisibilityByCharacterId[character.id] = IsCharacterVisibleForScheduleRefresh(character);
             }
@@ -68,8 +72,12 @@ namespace StreetQuestRPG
             var anyVisibleNow = false;
             foreach (var character in StreetQuestCharacterCatalog.All)
             {
-                if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
+                if (character == null ||
+                    string.IsNullOrWhiteSpace(character.id) ||
+                    !StreetQuestCharacterRuntimeResolver.HasAnySchedule(character))
+                {
                     continue;
+                }
 
                 var visibleNow = IsCharacterVisibleForScheduleRefresh(character);
                 if (!LastKnownScheduleVisibilityByCharacterId.TryGetValue(character.id, out var visibleBefore))
