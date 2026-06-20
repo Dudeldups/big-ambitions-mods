@@ -41,7 +41,6 @@ namespace StreetQuestRPG
             _lastScheduleHourKey = int.MinValue;
             _spawnEnsured = false;
             _bootstrapEnsured = false;
-            StreetQuestShared.LogSchedule("watcher runtime state reset");
         }
 
         private void Update()
@@ -75,7 +74,6 @@ namespace StreetQuestRPG
                 StreetQuestShared.TryGetCurrentGameHourKey(out var hourKey) &&
                 hourKey != _lastScheduleHourKey)
             {
-                StreetQuestShared.LogSchedule($"hour tick previous={_lastScheduleHourKey} current={hourKey}");
                 _lastScheduleHourKey = hourKey;
                 StreetQuestShared.RefreshSchedulesIfVisibilityChanged();
             }

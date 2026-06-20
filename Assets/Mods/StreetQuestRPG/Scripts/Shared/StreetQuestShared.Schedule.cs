@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Diagnostics;
 using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
 using Helpers;
@@ -48,18 +47,14 @@ namespace StreetQuestRPG
                 if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
                     continue;
 
-                var visible = IsScheduleActive(character);
-                LastKnownScheduleVisibilityByCharacterId[character.id] = visible;
-                LogSchedule($"snapshot character={character.id} mode={character.schedule.Mode} visible={visible}");
+                LastKnownScheduleVisibilityByCharacterId[character.id] = IsScheduleActive(character);
             }
         }
 
         internal static bool RefreshSchedulesIfVisibilityChanged()
         {
-            var stopwatch = Stopwatch.StartNew();
             var anyChanged = false;
             var anyVisibleNow = false;
-            var changes = new List<string>();
             foreach (var character in StreetQuestCharacterCatalog.All)
             {
                 if (character == null || string.IsNullOrWhiteSpace(character.id) || character.schedule == null)
@@ -86,21 +81,15 @@ namespace StreetQuestRPG
                     DestroySpawnedCharacter(character.id);
                 }
 
-                changes.Add($"{character.id}:{visibleBefore}->{visibleNow}");
                 anyChanged = true;
             }
 
-            stopwatch.Stop();
             if (!anyChanged)
-            {
-                LogSchedule($"hourly refresh no-op elapsedMs={stopwatch.ElapsedMilliseconds}");
                 return false;
-            }
 
             if (anyVisibleNow)
                 EnsureQuestGiverCtaBehaviorInstalled();
 
-            LogSchedule($"hourly refresh changed={string.Join(", ", changes)} elapsedMs={stopwatch.ElapsedMilliseconds}");
             return true;
         }
 
@@ -116,20 +105,11 @@ namespace StreetQuestRPG
                 case StreetQuestCharacterScheduleMode.Always:
                     return true;
                 case StreetQuestCharacterScheduleMode.DailyWindow:
-                    var withinWindow = TryIsWithinDailyWindow(schedule.startHour, schedule.endHour);
-                    LogSchedule(
-                        $"evaluate character={character?.id ?? "<null>"} mode=DailyWindow start={schedule.startHour} end={schedule.endHour} visible={withinWindow}");
-                    return withinWindow;
+                    return TryIsWithinDailyWindow(schedule.startHour, schedule.endHour);
                 case StreetQuestCharacterScheduleMode.BuildingOpenStatus:
-                    var foundByAddress = TryGetBuildingScheduleStatus(schedule, character, out var isOpenByAddress);
-                    LogSchedule(
-                        $"evaluate character={character?.id ?? "<null>"} mode=BuildingOpenStatus found={foundByAddress} visible={isOpenByAddress} address={schedule.address ?? "<null>"}");
-                    return foundByAddress && isOpenByAddress;
+                    return TryGetBuildingScheduleStatus(schedule, character, out var isOpenByAddress) && isOpenByAddress;
                 case StreetQuestCharacterScheduleMode.NearestBuildingOpenStatus:
-                    var foundByNearest = TryGetNearestBuildingScheduleStatus(schedule, character, out var isOpenByNearest);
-                    LogSchedule(
-                        $"evaluate character={character?.id ?? "<null>"} mode=NearestBuildingOpenStatus found={foundByNearest} visible={isOpenByNearest} maxDistance={schedule.nearestBuildingMaxDistance:F1}");
-                    return foundByNearest && isOpenByNearest;
+                    return TryGetNearestBuildingScheduleStatus(schedule, character, out var isOpenByNearest) && isOpenByNearest;
                 default:
                     return true;
             }
