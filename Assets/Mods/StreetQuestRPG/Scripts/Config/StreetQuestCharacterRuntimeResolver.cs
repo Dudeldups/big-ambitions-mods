@@ -160,6 +160,12 @@ namespace StreetQuestRPG
             {
                 runtime.enabled.ToString(),
                 runtime.useFixedSpawnPosition.ToString(),
+                runtime.showSpeechBubble.ToString(),
+                runtime.speechBubbleEmojiName ?? string.Empty,
+                runtime.speechBubbleTextKey ?? string.Empty,
+                runtime.speechBubbleVisibleSeconds.ToString("F3"),
+                runtime.speechBubbleIntervalSeconds.ToString("F3"),
+                SerializeVector(runtime.speechBubbleLocalOffset),
                 runtime.defaultAppearanceId ?? string.Empty,
                 runtime.gender ?? string.Empty,
                 runtime.ageInDays.ToString(),
@@ -268,6 +274,12 @@ namespace StreetQuestRPG
             resolved.schedule = null;
             resolved.position = null;
             resolved.forward = null;
+            resolved.showSpeechBubble = false;
+            resolved.speechBubbleEmojiName = null;
+            resolved.speechBubbleTextKey = null;
+            resolved.speechBubbleVisibleSeconds = 2.5f;
+            resolved.speechBubbleIntervalSeconds = 7f;
+            resolved.speechBubbleLocalOffset = null;
             resolved.walkAwayWaypoints = null;
             resolved.walkAwaySpeed = 1.4f;
             resolved.isRunning = false;
@@ -310,6 +322,18 @@ namespace StreetQuestRPG
                 resolved.enabled = state.enabled;
             if (state.overrideUseFixedSpawnPosition)
                 resolved.useFixedSpawnPosition = state.useFixedSpawnPosition;
+            if (state.overrideShowSpeechBubble)
+                resolved.showSpeechBubble = state.showSpeechBubble;
+            if (!string.IsNullOrWhiteSpace(state.speechBubbleEmojiName))
+                resolved.speechBubbleEmojiName = state.speechBubbleEmojiName;
+            if (!string.IsNullOrWhiteSpace(state.speechBubbleTextKey))
+                resolved.speechBubbleTextKey = state.speechBubbleTextKey;
+            if (state.speechBubbleVisibleSeconds > 0f)
+                resolved.speechBubbleVisibleSeconds = state.speechBubbleVisibleSeconds;
+            if (state.speechBubbleIntervalSeconds > 0f)
+                resolved.speechBubbleIntervalSeconds = state.speechBubbleIntervalSeconds;
+            if (state.speechBubbleLocalOffset != null)
+                resolved.speechBubbleLocalOffset = state.speechBubbleLocalOffset;
             if (!string.IsNullOrWhiteSpace(state.appearanceId))
                 resolved.defaultAppearanceId = state.appearanceId;
             if (state.schedule != null)
@@ -418,6 +442,12 @@ namespace StreetQuestRPG
                 visualObjectName = definition.visualObjectName,
                 overlayHeaderKey = definition.overlayHeaderKey,
                 ctaKey = definition.ctaKey,
+                showSpeechBubble = definition.showSpeechBubble,
+                speechBubbleEmojiName = definition.speechBubbleEmojiName,
+                speechBubbleTextKey = definition.speechBubbleTextKey,
+                speechBubbleVisibleSeconds = definition.speechBubbleVisibleSeconds,
+                speechBubbleIntervalSeconds = definition.speechBubbleIntervalSeconds,
+                speechBubbleLocalOffset = definition.speechBubbleLocalOffset,
                 professionKey = definition.professionKey,
                 defaultAppearanceId = definition.defaultAppearanceId,
                 schedule = definition.schedule,

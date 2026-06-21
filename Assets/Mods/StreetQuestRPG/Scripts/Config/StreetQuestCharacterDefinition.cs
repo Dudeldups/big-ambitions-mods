@@ -19,6 +19,12 @@ namespace StreetQuestRPG
         [DataMember] public string visualObjectName;
         [DataMember] public string overlayHeaderKey;
         [DataMember] public string ctaKey;
+        [DataMember] public bool showSpeechBubble;
+        [DataMember] public string speechBubbleEmojiName;
+        [DataMember] public string speechBubbleTextKey;
+        [DataMember] public float speechBubbleVisibleSeconds = 2.5f;
+        [DataMember] public float speechBubbleIntervalSeconds = 7f;
+        [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;
         [DataMember] public string professionKey;
         [DataMember] public string defaultAppearanceId;
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
@@ -62,6 +68,7 @@ namespace StreetQuestRPG
 
         public Vector3 PositionOr(Vector3 fallback) => position != null ? position.ToVector3() : fallback;
         public Vector3 ForwardOr(Vector3 fallback) => forward != null ? forward.ToVector3() : fallback;
+        public Vector3 SpeechBubbleLocalOffsetOr(Vector3 fallback) => speechBubbleLocalOffset != null ? speechBubbleLocalOffset.ToVector3() : fallback;
         public Vector3[] WalkAwayWaypointsOrEmpty() => walkAwayWaypoints == null
             ? Array.Empty<Vector3>()
             : walkAwayWaypoints.Where(value => value != null).Select(value => value.ToVector3()).ToArray();
@@ -111,6 +118,12 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(visualObjectName)) visualObjectName = fallback.visualObjectName;
             if (string.IsNullOrWhiteSpace(overlayHeaderKey)) overlayHeaderKey = fallback.overlayHeaderKey;
             if (string.IsNullOrWhiteSpace(ctaKey)) ctaKey = fallback.ctaKey;
+            showSpeechBubble = showSpeechBubble || fallback.showSpeechBubble;
+            if (string.IsNullOrWhiteSpace(speechBubbleEmojiName)) speechBubbleEmojiName = fallback.speechBubbleEmojiName;
+            if (string.IsNullOrWhiteSpace(speechBubbleTextKey)) speechBubbleTextKey = fallback.speechBubbleTextKey;
+            if (speechBubbleVisibleSeconds <= 0f) speechBubbleVisibleSeconds = fallback.speechBubbleVisibleSeconds;
+            if (speechBubbleIntervalSeconds <= 0f) speechBubbleIntervalSeconds = fallback.speechBubbleIntervalSeconds;
+            speechBubbleLocalOffset ??= fallback.speechBubbleLocalOffset;
             if (string.IsNullOrWhiteSpace(professionKey)) professionKey = fallback.professionKey;
             if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;
             schedule ??= fallback.schedule;

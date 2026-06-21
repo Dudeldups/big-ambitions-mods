@@ -19,6 +19,13 @@ namespace StreetQuestRPG
         [DataMember] public bool enabled = true;
         [DataMember] public bool overrideUseFixedSpawnPosition;
         [DataMember] public bool useFixedSpawnPosition = true;
+        [DataMember] public bool overrideShowSpeechBubble;
+        [DataMember] public bool showSpeechBubble;
+        [DataMember] public string speechBubbleEmojiName;
+        [DataMember] public string speechBubbleTextKey;
+        [DataMember] public float speechBubbleVisibleSeconds;
+        [DataMember] public float speechBubbleIntervalSeconds;
+        [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;
         [DataMember] public string appearanceId;
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public StreetQuestVector3Data position;

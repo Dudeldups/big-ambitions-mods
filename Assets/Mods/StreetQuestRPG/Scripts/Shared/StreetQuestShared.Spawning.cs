@@ -280,6 +280,7 @@ namespace StreetQuestRPG
                     CharacterIdsByControllerInstanceId[sellerStandController.GetInstanceID()] = character.id;
                 }
 
+                EnsureCharacterSpeechBubble(root, runtimeDefinition);
                 EnsureCharacterWalker(root, runtimeDefinition);
                 SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
 
@@ -338,6 +339,10 @@ namespace StreetQuestRPG
 
             if (!root.activeSelf)
                 root.SetActive(true);
+
+            var speechBubble = root.GetComponent<StreetQuestCharacterSpeechBubble>();
+            if (speechBubble != null)
+                speechBubble.OnVisibilityChanged(visible);
 
             var walker = root.GetComponent<StreetQuestCharacterWalker>();
             if (walker != null)
@@ -421,6 +426,27 @@ namespace StreetQuestRPG
                 definition.walkInSpeed,
                 definition.walkInArrivalHour,
                 definition.walkInArrivalMinute);
+        }
+
+
+        private static void EnsureCharacterSpeechBubble(GameObject root, StreetQuestCharacterDefinition definition)
+        {
+            if (root == null)
+                return;
+
+            var existingBubble = root.GetComponent<StreetQuestCharacterSpeechBubble>();
+            if (definition == null || !definition.interactable || !definition.showSpeechBubble)
+            {
+                if (existingBubble != null)
+                    UnityEngine.Object.Destroy(existingBubble);
+
+                return;
+            }
+
+            if (existingBubble == null)
+                existingBubble = root.AddComponent<StreetQuestCharacterSpeechBubble>();
+
+            existingBubble.Configure(root.transform, definition);
         }
 
 
