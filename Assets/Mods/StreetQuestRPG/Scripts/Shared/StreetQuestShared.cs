@@ -40,6 +40,8 @@ namespace StreetQuestRPG
         private static readonly Dictionary<string, Component> SpawnedCharacterControllers = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<int, string> CharacterIdsByControllerInstanceId = new();
         private static readonly Dictionary<string, string> SpawnedCharacterStateSignatures = new(StringComparer.OrdinalIgnoreCase);
+        private static Type CachedSellerStandControllerType;
+        private static Transform CachedItemsContainerTransform;
         private static Vector3? PreferredQuestGiverSpawnPosition;
         private static bool QuestGiverCtaInstalled;
         private static string DebugLogFilePath;

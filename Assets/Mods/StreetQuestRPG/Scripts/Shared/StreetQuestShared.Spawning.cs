@@ -64,6 +64,8 @@ namespace StreetQuestRPG
             SpawnedCharacterRoots.Clear();
             SpawnedCharacterControllers.Clear();
             SpawnedCharacterStateSignatures.Clear();
+            CachedSellerStandControllerType = null;
+            CachedItemsContainerTransform = null;
             PreferredQuestGiverSpawnPosition = null;
             QuestGiverCtaInstalled = false;
             LogDebug("ResetSpawnRuntimeState completed");
@@ -177,7 +179,7 @@ namespace StreetQuestRPG
 
             try
             {
-                var sellerStandControllerType = FindType("SellerStandController");
+                var sellerStandControllerType = ResolveSellerStandControllerType();
                 if (sellerStandControllerType == null)
                 {
                     LogDebug("EnsureSpawnedCharacter failed: SellerStandController type missing");
@@ -556,13 +558,19 @@ namespace StreetQuestRPG
 
         private static Transform ResolveItemsContainerTransform()
         {
+            if (CachedItemsContainerTransform != null)
+                return CachedItemsContainerTransform;
+
             foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
             {
                 if (transform == null)
                     continue;
 
                 if (string.Equals(GetHierarchyPath(transform), "GameManager/ItemsContainer", StringComparison.OrdinalIgnoreCase))
+                {
+                    CachedItemsContainerTransform = transform;
                     return transform;
+                }
             }
 
             foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
@@ -571,10 +579,23 @@ namespace StreetQuestRPG
                     continue;
 
                 if (string.Equals(transform.name, "ItemsContainer", StringComparison.OrdinalIgnoreCase))
+                {
+                    CachedItemsContainerTransform = transform;
                     return transform;
+                }
             }
 
             return null;
+        }
+
+
+        private static Type ResolveSellerStandControllerType()
+        {
+            if (CachedSellerStandControllerType != null)
+                return CachedSellerStandControllerType;
+
+            CachedSellerStandControllerType = FindType("SellerStandController");
+            return CachedSellerStandControllerType;
         }
 
 

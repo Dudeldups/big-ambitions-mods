@@ -11,6 +11,10 @@ namespace StreetQuestRPG
     {
         private static readonly BindingFlags ReflectionFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        private static Type _cachedHomelessType;
+        private static Type _cachedAppearanceSetterType;
+        private static Type _cachedBaseHumanType;
+        private static Material _cachedInvisibleProxyMaterial;
 
         public static GameObject CreateHost(StreetQuestCharacterDefinition definition, Transform parent = null)
         {
@@ -48,7 +52,6 @@ namespace StreetQuestRPG
             if (definition == null)
                 return false;
 
-            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             if (definition == null || !definition.HasPrefabName)
                 return false;
 
@@ -92,7 +95,6 @@ namespace StreetQuestRPG
             if (definition == null)
                 return null;
 
-            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             if (definition == null)
                 return null;
 
@@ -115,18 +117,10 @@ namespace StreetQuestRPG
             renderer.lightProbeUsage = LightProbeUsage.Off;
             renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
 
-            var material = CreateRuntimeMaterial(new Color(0f, 0f, 0f, 0f));
+            var material = GetOrCreateInvisibleProxyMaterial();
             if (material == null)
                 return renderer;
 
-            material.SetFloat("_Mode", 3f);
-            material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-            material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-            material.SetInt("_ZWrite", 0);
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.EnableKeyword("_ALPHABLEND_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.renderQueue = 3000;
             renderer.sharedMaterial = material;
             return renderer;
         }
@@ -139,7 +133,6 @@ namespace StreetQuestRPG
             if (definition == null)
                 return;
 
-            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             if (definition == null)
                 return;
 
@@ -179,7 +172,6 @@ namespace StreetQuestRPG
             if (definition == null)
                 return null;
 
-            definition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             if (definition == null)
                 return null;
 
@@ -223,7 +215,7 @@ namespace StreetQuestRPG
 
             try
             {
-                var homelessType = FindType("Entities.Homeless") ?? FindType("Homeless");
+                var homelessType = ResolveHomelessType();
                 var homeless = homelessType != null ? root.GetComponent(homelessType) : null;
                 if (homeless != null)
                 {
@@ -231,14 +223,14 @@ namespace StreetQuestRPG
                     InvokeParameterlessMethod(homeless, "Enable");
                 }
 
-                var appearanceSetterType = FindType("AppearanceSetter");
+                var appearanceSetterType = ResolveAppearanceSetterType();
                 var appearanceSetter = appearanceSetterType != null
                     ? root.GetComponent(appearanceSetterType)
                     : null;
                 if (appearanceSetter != null)
                     ApplyConfiguredAppearance(appearanceSetter, definition);
 
-                var baseHumanType = FindType("BaseHuman");
+                var baseHumanType = ResolveBaseHumanType();
                 var baseHuman = baseHumanType != null ? root.GetComponent(baseHumanType) : null;
                 if (baseHuman != null)
                     InvokeParameterlessMethod(baseHuman, "ResetAnimator");
@@ -387,6 +379,27 @@ namespace StreetQuestRPG
             return material;
         }
 
+        private static Material GetOrCreateInvisibleProxyMaterial()
+        {
+            if (_cachedInvisibleProxyMaterial != null)
+                return _cachedInvisibleProxyMaterial;
+
+            var material = CreateRuntimeMaterial(new Color(0f, 0f, 0f, 0f));
+            if (material == null)
+                return null;
+
+            material.SetFloat("_Mode", 3f);
+            material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.EnableKeyword("_ALPHABLEND_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = 3000;
+            _cachedInvisibleProxyMaterial = material;
+            return _cachedInvisibleProxyMaterial;
+        }
+
         private static Vector3 FlattenDirection(Vector3 direction)
         {
             direction.y = 0f;
@@ -429,6 +442,33 @@ namespace StreetQuestRPG
             }
 
             return null;
+        }
+
+        private static Type ResolveHomelessType()
+        {
+            if (_cachedHomelessType != null)
+                return _cachedHomelessType;
+
+            _cachedHomelessType = FindType("Entities.Homeless") ?? FindType("Homeless");
+            return _cachedHomelessType;
+        }
+
+        private static Type ResolveAppearanceSetterType()
+        {
+            if (_cachedAppearanceSetterType != null)
+                return _cachedAppearanceSetterType;
+
+            _cachedAppearanceSetterType = FindType("AppearanceSetter");
+            return _cachedAppearanceSetterType;
+        }
+
+        private static Type ResolveBaseHumanType()
+        {
+            if (_cachedBaseHumanType != null)
+                return _cachedBaseHumanType;
+
+            _cachedBaseHumanType = FindType("BaseHuman");
+            return _cachedBaseHumanType;
         }
 
         private static void InvokeParameterlessMethod(object instance, string methodName)
