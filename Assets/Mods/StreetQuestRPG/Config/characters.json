@@ -263,7 +263,7 @@
               "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
               "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
               "walkAwayWaypoints": [{ "x": 810.38, "y": 0.01, "z": -102.74 }],
-              "walkAwaySpeed": 3,
+              "walkAwaySpeed": 4.5,
               "overrideIsRunning": true,
               "isRunning": true,
               "despawnAfterWalkAway": false,
@@ -293,7 +293,9 @@
               "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
               "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
               "walkAwaySpeed": 1.5,
-              "walkAwayCompletedStoryFlags": ["streetquest:flag_fran_family_left"],
+              "walkAwayCompletedStoryFlags": [
+                "streetquest:flag_fran_family_left"
+              ],
               "despawnAfterWalkAway": true,
               "schedule": {
                 "mode": "Always"
