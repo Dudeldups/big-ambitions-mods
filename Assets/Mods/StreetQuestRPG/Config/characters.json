@@ -160,9 +160,29 @@
       ],
       "states": [
         {
-          "id": "fran_default",
-          "appearanceId": "fran_default",
+          "id": "fran_searching_no_callout",
+          "requiredStoryFlags": ["streetquest:flag_julia_visible"],
           "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
+          "appearanceId": "fran_default",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "overrideShowSpeechBubble": true,
+          "showSpeechBubble": false,
+          "schedule": {
+            "mode": "Always"
+          },
+          "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
+          "forward": { "x": 0.92, "y": 0.0, "z": -0.4 }
+        },
+        {
+          "id": "fran_default",
+          "forbiddenStoryFlags": [
+            "streetquest:flag_julia_visible",
+            "streetquest:flag_julia_returned"
+          ],
+          "appearanceId": "fran_default",
           "overrideEnabled": true,
           "enabled": true,
           "overrideUseFixedSpawnPosition": true,
@@ -220,11 +240,7 @@
       "visualObjectName": "JuliaVisual",
       "overlayHeaderKey": "streetquest:julia_name",
       "ctaKey": "streetquest:cta_talk",
-      "showSpeechBubble": true,
-      "speechBubbleEmojiName": "CommonYellowNeutral",
-      "speechBubbleVisibleSeconds": 2.4,
-      "speechBubbleIntervalSeconds": 7.5,
-      "speechBubbleLocalOffset": { "x": 0.0, "y": 1.85, "z": 0.0 },
+      "showSpeechBubble": false,
       "professionKey": "streetquest:profession_child",
       "interactable": true,
       "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
