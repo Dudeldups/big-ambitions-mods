@@ -36,6 +36,8 @@ namespace StreetQuestRPG
 
         private static void DrawAppearanceTab()
         {
+            _appearanceScroll = GUILayout.BeginScrollView(_appearanceScroll, GUILayout.ExpandHeight(true));
+
             GUILayout.Label("Appearance Preview", _headerStyle);
             GUILayout.Label("Spawn a character prefab in front of the player and tweak gender, age, seed, and scale until the NPC looks right.", _textStyle);
             GUILayout.Space(8f);
@@ -97,6 +99,8 @@ namespace StreetQuestRPG
             GUILayout.Label(
                 "Homeless, Pedestrian, CasinoCustomer, CinemaTheaterCustomer, FullServiceCustomer, GymCustomer, HairdresserCustomer, NightclubCustomer, NightclubOutsidePedestrian, SelfServiceCustomer, StreetPerformer, CarnivalPedestrian, WaterPedestrian, DummyHuman, DummyAi, HumanDefinitionLow",
                 _textStyle);
+
+            GUILayout.EndScrollView();
         }
 
         private static void SpawnOrRefreshAppearancePreview()

@@ -20,6 +20,7 @@ namespace StreetQuestRPG
         private static Vector2 _peopleScroll;
         private static Vector2 _waypointScroll;
         private static Vector2 _appearancePrefabScroll;
+        private static Vector2 _appearanceScroll;
         private static bool _visible = true;
         private static int _selectedTab;
         private static string _selectedCharacterId;
