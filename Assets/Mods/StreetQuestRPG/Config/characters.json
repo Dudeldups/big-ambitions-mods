@@ -143,7 +143,7 @@
           "id": "fran_default",
           "gender": "Female",
           "ageInDays": 12410,
-          "appearanceSeed": 22073,
+          "appearanceSeed": 12367,
           "prefabName": "Characters/DummyHuman"
         }
       ],
@@ -187,7 +187,9 @@
               "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
               "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
               "walkAwaySpeed": 1.5,
-              "walkAwayStartedStoryFlags": ["streetquest:flag_fran_departure_started"],
+              "walkAwayStartedStoryFlags": [
+                "streetquest:flag_fran_departure_started"
+              ],
               "despawnAfterWalkAway": true,
               "schedule": {
                 "mode": "Always"
@@ -300,7 +302,9 @@
               "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
               "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
               "walkAwaySpeed": 1.5,
-              "walkAwayStartedStoryFlags": ["streetquest:flag_julia_departure_started"],
+              "walkAwayStartedStoryFlags": [
+                "streetquest:flag_julia_departure_started"
+              ],
               "walkAwayCompletedStoryFlags": [
                 "streetquest:flag_fran_family_left"
               ],
