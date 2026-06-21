@@ -26,6 +26,7 @@ namespace StreetQuestRPG
         [DataMember] public string[] speechBubbleTextKeys;
         [DataMember] public float speechBubbleVisibleSeconds = 2.5f;
         [DataMember] public float speechBubbleIntervalSeconds = 7f;
+        [DataMember] public float speechBubbleMaxDistance = 14f;
         [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;
         [DataMember] public string professionKey;
         [DataMember] public string defaultAppearanceId;
@@ -127,6 +128,7 @@ namespace StreetQuestRPG
             speechBubbleTextKeys ??= fallback.speechBubbleTextKeys;
             if (speechBubbleVisibleSeconds <= 0f) speechBubbleVisibleSeconds = fallback.speechBubbleVisibleSeconds;
             if (speechBubbleIntervalSeconds <= 0f) speechBubbleIntervalSeconds = fallback.speechBubbleIntervalSeconds;
+            if (speechBubbleMaxDistance <= 0f) speechBubbleMaxDistance = fallback.speechBubbleMaxDistance;
             speechBubbleLocalOffset ??= fallback.speechBubbleLocalOffset;
             if (string.IsNullOrWhiteSpace(professionKey)) professionKey = fallback.professionKey;
             if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;

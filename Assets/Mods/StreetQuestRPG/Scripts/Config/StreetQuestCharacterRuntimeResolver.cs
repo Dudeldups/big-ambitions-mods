@@ -167,6 +167,7 @@ namespace StreetQuestRPG
                 string.Join(",", runtime.speechBubbleTextKeys ?? Array.Empty<string>()),
                 runtime.speechBubbleVisibleSeconds.ToString("F3"),
                 runtime.speechBubbleIntervalSeconds.ToString("F3"),
+                runtime.speechBubbleMaxDistance.ToString("F3"),
                 SerializeVector(runtime.speechBubbleLocalOffset),
                 runtime.defaultAppearanceId ?? string.Empty,
                 runtime.gender ?? string.Empty,
@@ -332,6 +333,8 @@ namespace StreetQuestRPG
                 resolved.speechBubbleVisibleSeconds = state.speechBubbleVisibleSeconds;
             if (state.speechBubbleIntervalSeconds > 0f)
                 resolved.speechBubbleIntervalSeconds = state.speechBubbleIntervalSeconds;
+            if (state.speechBubbleMaxDistance > 0f)
+                resolved.speechBubbleMaxDistance = state.speechBubbleMaxDistance;
             if (state.speechBubbleLocalOffset != null)
                 resolved.speechBubbleLocalOffset = state.speechBubbleLocalOffset;
             if (!string.IsNullOrWhiteSpace(state.appearanceId))
@@ -449,6 +452,7 @@ namespace StreetQuestRPG
                 speechBubbleTextKeys = definition.speechBubbleTextKeys,
                 speechBubbleVisibleSeconds = definition.speechBubbleVisibleSeconds,
                 speechBubbleIntervalSeconds = definition.speechBubbleIntervalSeconds,
+                speechBubbleMaxDistance = definition.speechBubbleMaxDistance,
                 speechBubbleLocalOffset = definition.speechBubbleLocalOffset,
                 professionKey = definition.professionKey,
                 defaultAppearanceId = definition.defaultAppearanceId,

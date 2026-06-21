@@ -22,6 +22,7 @@ namespace StreetQuestRPG
         private Vector3 _localOffset;
         private float _visibleSeconds;
         private float _intervalSeconds;
+        private float _maxDistance;
         private float _nextToggleAt;
         private bool _isVisible;
         private bool _isEnabled;
@@ -31,6 +32,7 @@ namespace StreetQuestRPG
         private string _currentText = "...";
         private Color32 _resolvedBackgroundColor = new(248, 231, 151, 255);
         private Color32 _resolvedTextColor = new(48, 42, 30, 255);
+        private float _sizeMultiplier = 1f;
 
         public void Configure(Transform anchor, StreetQuestCharacterDefinition definition)
         {
@@ -44,6 +46,9 @@ namespace StreetQuestRPG
             _localOffset = definition.SpeechBubbleLocalOffsetOr(new Vector3(0f, 1.95f, 0f));
             _visibleSeconds = Mathf.Max(0.75f, definition.speechBubbleVisibleSeconds);
             _intervalSeconds = Mathf.Max(_visibleSeconds + 0.5f, definition.speechBubbleIntervalSeconds);
+            _maxDistance = definition.speechBubbleMaxDistance > 0f ? definition.speechBubbleMaxDistance : 14f;
+            _maxDistance = ApplySpeechBubbleDistanceModifier(_maxDistance, definition.speechBubbleColor);
+            _sizeMultiplier = ResolveSpeechBubbleSizeMultiplier(definition.speechBubbleColor);
             _resolvedTexts = ResolveBubbleTexts(definition);
             _nextTextIndex = _resolvedTexts.Length > 1 ? UnityEngine.Random.Range(0, _resolvedTexts.Length) : 0;
             _currentText = GetNextResolvedText();
@@ -98,11 +103,28 @@ namespace StreetQuestRPG
             }
             else
             {
+                if (!IsPlayerCloseEnough())
+                {
+                    _nextToggleAt = Time.unscaledTime + Mathf.Max(0.75f, _intervalSeconds * 0.5f);
+                    return;
+                }
+
                 _currentText = GetNextResolvedText();
                 ApplyBubbleContent();
                 SetBubbleVisible(true);
                 _nextToggleAt = Time.unscaledTime + _visibleSeconds;
             }
+        }
+
+        private bool IsPlayerCloseEnough()
+        {
+            if (_anchor == null)
+                return false;
+
+            var playerPosition = StreetQuestShared.GetPlayerWorldPosition();
+            var anchorPosition = _anchor.position;
+            var maxDistanceSquared = _maxDistance * _maxDistance;
+            return (playerPosition - anchorPosition).sqrMagnitude <= maxDistanceSquared;
         }
 
         private void EnsureBubbleUi()
@@ -185,7 +207,7 @@ namespace StreetQuestRPG
             const float minHeight = 50f;
             const float maxHeight = 180f;
             var preferredWidth = Mathf.Max(80f, _textLabel.preferredWidth);
-            var width = Mathf.Clamp(preferredWidth + horizontalPadding, minWidth, maxWidth);
+            var width = Mathf.Clamp(preferredWidth + horizontalPadding, minWidth, maxWidth) * _sizeMultiplier;
             var textWidth = Mathf.Max(80f, width - horizontalPadding);
             var generationSettings = _textLabel.GetGenerationSettings(new Vector2(textWidth, 1000f));
             generationSettings.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -193,7 +215,7 @@ namespace StreetQuestRPG
             var preferredHeight = _textLabel.cachedTextGeneratorForLayout.GetPreferredHeight(text, generationSettings) /
                                   Mathf.Max(0.0001f, _textLabel.pixelsPerUnit);
             preferredHeight = Mathf.Max(24f, preferredHeight);
-            var height = Mathf.Clamp(preferredHeight + verticalPadding, minHeight, maxHeight);
+            var height = Mathf.Clamp(preferredHeight + verticalPadding, minHeight, maxHeight) * _sizeMultiplier;
             _backgroundRect.sizeDelta = new Vector2(width, height);
             _textRect.offsetMin = new Vector2(14f, 12f);
             _textRect.offsetMax = new Vector2(-14f, -8f);
@@ -338,6 +360,26 @@ namespace StreetQuestRPG
                     backgroundColor = new Color32(248, 231, 151, 255);
                     break;
             }
+        }
+
+        private static float ApplySpeechBubbleDistanceModifier(float baseDistance, string colorName)
+        {
+            if (string.IsNullOrWhiteSpace(colorName))
+                return baseDistance;
+
+            return string.Equals(colorName.Trim(), "red", StringComparison.OrdinalIgnoreCase)
+                ? baseDistance * 1.75f
+                : baseDistance;
+        }
+
+        private static float ResolveSpeechBubbleSizeMultiplier(string colorName)
+        {
+            if (string.IsNullOrWhiteSpace(colorName))
+                return 1f;
+
+            return string.Equals(colorName.Trim(), "red", StringComparison.OrdinalIgnoreCase)
+                ? 1.15f
+                : 1f;
         }
 
         private void SetBubbleVisible(bool visible)

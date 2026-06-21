@@ -135,6 +135,7 @@
       "ctaKey": "streetquest:cta_talk",
       "showSpeechBubble": true,
       "speechBubbleEmojiName": "Neutral",
+      "speechBubbleColor": "red",
       "speechBubbleTextKey": "streetquest:bubble_fran_call_julia",
       "speechBubbleVisibleSeconds": 2.6,
       "speechBubbleIntervalSeconds": 7.8,

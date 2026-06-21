@@ -27,6 +27,7 @@ namespace StreetQuestRPG
         [DataMember] public string[] speechBubbleTextKeys;
         [DataMember] public float speechBubbleVisibleSeconds;
         [DataMember] public float speechBubbleIntervalSeconds;
+        [DataMember] public float speechBubbleMaxDistance;
         [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;
         [DataMember] public string appearanceId;
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
