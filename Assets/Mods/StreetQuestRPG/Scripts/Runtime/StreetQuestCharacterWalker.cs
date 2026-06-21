@@ -19,6 +19,7 @@ namespace StreetQuestRPG
         private Vector3[] _walkAwayWaypoints = Array.Empty<Vector3>();
         private float _walkAwaySpeed;
         private bool _isRunning;
+        private string[] _walkAwayStartedStoryFlags = Array.Empty<string>();
         private string[] _walkAwayCompletedStoryFlags = Array.Empty<string>();
         private bool _hideAfterWalkAway;
         private Vector3[] _walkInWaypoints = Array.Empty<Vector3>();
@@ -33,6 +34,7 @@ namespace StreetQuestRPG
         private bool _walkInStartedThisCycle;
         private bool _presentationHidden;
         private bool _externalVisibility;
+        private bool _walkAwayStartFlagsApplied;
         private NavMeshAgent _agent;
         private Animator[] _animators = Array.Empty<Animator>();
         private float _lastObservedMinuteOfDay = -1f;
@@ -43,6 +45,8 @@ namespace StreetQuestRPG
         private Vector3[] _walkAwayRoutePoints = Array.Empty<Vector3>();
         private Vector3[] _walkInRoutePoints = Array.Empty<Vector3>();
 
+        public bool IsTransientlyActive => _walkingAway || _walkingIn;
+
         public void Configure(
             string characterId,
             Vector3 spawnPosition,
@@ -50,6 +54,7 @@ namespace StreetQuestRPG
             Vector3[] walkAwayWaypoints,
             float walkAwaySpeed,
             bool isRunning,
+            string[] walkAwayStartedStoryFlags,
             string[] walkAwayCompletedStoryFlags,
             bool hideAfterWalkAway,
             Vector3[] walkInWaypoints,
@@ -63,6 +68,7 @@ namespace StreetQuestRPG
             _walkAwayWaypoints = walkAwayWaypoints ?? Array.Empty<Vector3>();
             _walkAwaySpeed = walkAwaySpeed > 0.01f ? walkAwaySpeed : 1.4f;
             _isRunning = isRunning;
+            _walkAwayStartedStoryFlags = walkAwayStartedStoryFlags ?? Array.Empty<string>();
             _walkAwayCompletedStoryFlags = walkAwayCompletedStoryFlags ?? Array.Empty<string>();
             _hideAfterWalkAway = hideAfterWalkAway;
             _walkInWaypoints = walkInWaypoints ?? Array.Empty<Vector3>();
@@ -242,6 +248,8 @@ namespace StreetQuestRPG
             _walkAwayRouteIndex = 1;
             var firstTarget = _walkAwayRoutePoints[_walkAwayRouteIndex];
             _walkingAway = _agent.SetDestination(firstTarget);
+            if (_walkingAway)
+                ApplyWalkAwayStartFlagsOnce();
 
             UpdateAnimatorState(_walkingAway, _walkingAway ? _agent.speed : 0f);
         }
@@ -261,6 +269,7 @@ namespace StreetQuestRPG
             _walkInStartedThisCycle = false;
             _walkInElapsedMinutes = 0f;
             _walkAwayRouteIndex = 0;
+            _walkAwayStartFlagsApplied = false;
             _lastObservedMinuteOfDay = -1f;
             _presentationHidden = true;
             transform.SetPositionAndRotation(_spawnPosition, _spawnRotation);
@@ -269,6 +278,16 @@ namespace StreetQuestRPG
                 _agent.Warp(_spawnPosition);
 
             UpdateAnimatorState(false, 0f);
+        }
+
+        private void ApplyWalkAwayStartFlagsOnce()
+        {
+            if (_walkAwayStartFlagsApplied)
+                return;
+
+            _walkAwayStartFlagsApplied = true;
+            if (_walkAwayStartedStoryFlags.Length > 0)
+                StreetQuestShared.AddStoryFlags(_walkAwayStartedStoryFlags);
         }
 
         private void HideCharacterPresentation()

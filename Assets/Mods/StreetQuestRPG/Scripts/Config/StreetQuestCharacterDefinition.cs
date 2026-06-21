@@ -34,6 +34,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data[] walkAwayWaypoints;
         [DataMember] public float walkAwaySpeed = 1.4f;
         [DataMember] public bool isRunning;
+        [DataMember] public string[] walkAwayStartedStoryFlags;
         [DataMember] public string[] walkAwayCompletedStoryFlags;
         [DataMember] public bool despawnAfterWalkAway;
         [DataMember] public StreetQuestVector3Data[] walkInWaypoints;
@@ -122,6 +123,7 @@ namespace StreetQuestRPG
             walkAwayWaypoints ??= fallback.walkAwayWaypoints;
             if (walkAwaySpeed <= 0f) walkAwaySpeed = fallback.walkAwaySpeed;
             isRunning = isRunning || fallback.isRunning;
+            walkAwayStartedStoryFlags ??= fallback.walkAwayStartedStoryFlags;
             walkAwayCompletedStoryFlags ??= fallback.walkAwayCompletedStoryFlags;
             despawnAfterWalkAway = despawnAfterWalkAway || fallback.despawnAfterWalkAway;
             walkInWaypoints ??= fallback.walkInWaypoints;

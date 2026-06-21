@@ -137,6 +137,13 @@ namespace StreetQuestRPG
         {
             if (runtimeDefinition == null)
             {
+                if (PreserveTransientSpawnedCharacter(character?.id))
+                {
+                    stopwatch.Stop();
+                    LogDebug($"EnsureSpawnedCharacter preserve character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=transient_walker_active");
+                    return true;
+                }
+
                 stopwatch.Stop();
                 LogDebug($"EnsureSpawnedCharacter skip character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_definition_null");
                 DestroySpawnedCharacter(character.id);
@@ -145,6 +152,13 @@ namespace StreetQuestRPG
 
             if (!runtimeDefinition.enabled)
             {
+                if (PreserveTransientSpawnedCharacter(character.id))
+                {
+                    stopwatch.Stop();
+                    LogDebug($"EnsureSpawnedCharacter preserve character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=transient_walker_active_disabled");
+                    return true;
+                }
+
                 stopwatch.Stop();
                 LogDebug($"EnsureSpawnedCharacter skip character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_disabled");
                 DestroySpawnedCharacter(character.id);
@@ -400,6 +414,7 @@ namespace StreetQuestRPG
                 definition.WalkAwayWaypointsOrEmpty(),
                 definition.walkAwaySpeed,
                 definition.isRunning,
+                definition.walkAwayStartedStoryFlags,
                 definition.walkAwayCompletedStoryFlags,
                 definition.despawnAfterWalkAway,
                 definition.WalkInWaypointsOrEmpty(),
@@ -423,6 +438,19 @@ namespace StreetQuestRPG
             SpawnedCharacterRoots.Remove(characterId);
             SpawnedCharacterControllers.Remove(characterId);
             SpawnedCharacterStateSignatures.Remove(characterId);
+        }
+
+
+        private static bool PreserveTransientSpawnedCharacter(string characterId)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            if (!SpawnedCharacterRoots.TryGetValue(characterId, out var root) || root == null)
+                return false;
+
+            var walker = root.GetComponent<StreetQuestCharacterWalker>();
+            return walker != null && walker.IsTransientlyActive;
         }
 
 
