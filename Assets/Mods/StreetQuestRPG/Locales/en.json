@@ -9,6 +9,8 @@
   "streetquest:contact_group_friends_and_family": "Friends & Family",
   "streetquest:cta_talk": "Talk to {npcname}",
   "streetquest:mack_description": "A fixer running quiet errands from a borrowed city desk.",
+  "streetquest:bubble_drunk_hic": "*Hicks*",
+  "streetquest:bubble_drunk_burp": "*Burp*",
   "streetquest:dialog_leave": "Leave",
   "streetquest:dialog_whats_up": "What's up?",
   "streetquest:dialog_yes": "Yes",

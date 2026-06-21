@@ -22,7 +22,9 @@ namespace StreetQuestRPG
         [DataMember] public bool overrideShowSpeechBubble;
         [DataMember] public bool showSpeechBubble;
         [DataMember] public string speechBubbleEmojiName;
+        [DataMember] public string speechBubbleColor;
         [DataMember] public string speechBubbleTextKey;
+        [DataMember] public string[] speechBubbleTextKeys;
         [DataMember] public float speechBubbleVisibleSeconds;
         [DataMember] public float speechBubbleIntervalSeconds;
         [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;

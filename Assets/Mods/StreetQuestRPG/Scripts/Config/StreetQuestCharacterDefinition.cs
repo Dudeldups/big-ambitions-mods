@@ -21,7 +21,9 @@ namespace StreetQuestRPG
         [DataMember] public string ctaKey;
         [DataMember] public bool showSpeechBubble;
         [DataMember] public string speechBubbleEmojiName;
+        [DataMember] public string speechBubbleColor;
         [DataMember] public string speechBubbleTextKey;
+        [DataMember] public string[] speechBubbleTextKeys;
         [DataMember] public float speechBubbleVisibleSeconds = 2.5f;
         [DataMember] public float speechBubbleIntervalSeconds = 7f;
         [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;
@@ -120,7 +122,9 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(ctaKey)) ctaKey = fallback.ctaKey;
             showSpeechBubble = showSpeechBubble || fallback.showSpeechBubble;
             if (string.IsNullOrWhiteSpace(speechBubbleEmojiName)) speechBubbleEmojiName = fallback.speechBubbleEmojiName;
+            if (string.IsNullOrWhiteSpace(speechBubbleColor)) speechBubbleColor = fallback.speechBubbleColor;
             if (string.IsNullOrWhiteSpace(speechBubbleTextKey)) speechBubbleTextKey = fallback.speechBubbleTextKey;
+            speechBubbleTextKeys ??= fallback.speechBubbleTextKeys;
             if (speechBubbleVisibleSeconds <= 0f) speechBubbleVisibleSeconds = fallback.speechBubbleVisibleSeconds;
             if (speechBubbleIntervalSeconds <= 0f) speechBubbleIntervalSeconds = fallback.speechBubbleIntervalSeconds;
             speechBubbleLocalOffset ??= fallback.speechBubbleLocalOffset;

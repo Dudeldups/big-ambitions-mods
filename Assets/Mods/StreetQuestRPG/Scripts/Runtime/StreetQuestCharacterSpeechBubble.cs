@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Localizor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -25,8 +26,11 @@ namespace StreetQuestRPG
         private bool _isVisible;
         private bool _isEnabled;
         private bool _configured;
-        private bool _loggedVisibleOnce;
-        private string _resolvedText = "...";
+        private string[] _resolvedTexts = Array.Empty<string>();
+        private int _nextTextIndex;
+        private string _currentText = "...";
+        private Color32 _resolvedBackgroundColor = new(248, 231, 151, 255);
+        private Color32 _resolvedTextColor = new(48, 42, 30, 255);
 
         public void Configure(Transform anchor, StreetQuestCharacterDefinition definition)
         {
@@ -37,16 +41,19 @@ namespace StreetQuestRPG
             }
 
             _anchor = anchor;
-            _localOffset = definition.SpeechBubbleLocalOffsetOr(new Vector3(0f, 2.15f, 0f));
+            _localOffset = definition.SpeechBubbleLocalOffsetOr(new Vector3(0f, 1.95f, 0f));
             _visibleSeconds = Mathf.Max(0.75f, definition.speechBubbleVisibleSeconds);
             _intervalSeconds = Mathf.Max(_visibleSeconds + 0.5f, definition.speechBubbleIntervalSeconds);
-            _resolvedText = ResolveBubbleText(definition);
+            _resolvedTexts = ResolveBubbleTexts(definition);
+            _nextTextIndex = _resolvedTexts.Length > 1 ? UnityEngine.Random.Range(0, _resolvedTexts.Length) : 0;
+            _currentText = GetNextResolvedText();
+            ResolveBubbleColors(definition.speechBubbleColor, out _resolvedBackgroundColor, out _resolvedTextColor);
 
             EnsureBubbleUi();
-            ApplyBubbleText();
+            ApplyBubbleColors();
+            ApplyBubbleContent();
 
             _configured = true;
-            _loggedVisibleOnce = false;
             _nextToggleAt = Time.unscaledTime + UnityEngine.Random.Range(0.15f, 1.1f);
             SetBubbleVisible(false);
         }
@@ -91,6 +98,8 @@ namespace StreetQuestRPG
             }
             else
             {
+                _currentText = GetNextResolvedText();
+                ApplyBubbleContent();
                 SetBubbleVisible(true);
                 _nextToggleAt = Time.unscaledTime + _visibleSeconds;
             }
@@ -109,13 +118,13 @@ namespace StreetQuestRPG
             bubbleObject.transform.SetParent(canvas.transform, false);
             _bubbleRoot = bubbleObject.GetComponent<RectTransform>();
             _bubbleRoot.pivot = new Vector2(0.5f, 0.2f);
-            _bubbleRoot.anchorMin = new Vector2(0f, 0f);
-            _bubbleRoot.anchorMax = new Vector2(0f, 0f);
+            _bubbleRoot.anchorMin = Vector2.zero;
+            _bubbleRoot.anchorMax = Vector2.zero;
 
             var background = bubbleObject.GetComponent<Image>();
             background.sprite = GetBackgroundSprite();
             background.type = Image.Type.Sliced;
-            background.color = new Color32(248, 231, 151, 255);
+            background.raycastTarget = false;
             _backgroundRect = _bubbleRoot;
 
             var tailObject = new GameObject("Tail", typeof(RectTransform), typeof(Image));
@@ -124,13 +133,12 @@ namespace StreetQuestRPG
             _tailRect.anchorMin = new Vector2(0.5f, 0f);
             _tailRect.anchorMax = new Vector2(0.5f, 0f);
             _tailRect.pivot = new Vector2(0.5f, 1f);
-            _tailRect.anchoredPosition = new Vector2(0f, 2f);
-            _tailRect.sizeDelta = new Vector2(20f, 18f);
+            _tailRect.anchoredPosition = new Vector2(0f, 1f);
+            _tailRect.sizeDelta = new Vector2(16f, 14f);
 
             var tailImage = tailObject.GetComponent<Image>();
             tailImage.sprite = GetTailSprite();
             tailImage.type = Image.Type.Simple;
-            tailImage.color = new Color32(248, 231, 151, 255);
             tailImage.raycastTarget = false;
 
             var textObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
@@ -138,7 +146,7 @@ namespace StreetQuestRPG
             _textRect = textObject.GetComponent<RectTransform>();
             _textRect.anchorMin = Vector2.zero;
             _textRect.anchorMax = Vector2.one;
-            _textRect.offsetMin = new Vector2(14f, 16f);
+            _textRect.offsetMin = new Vector2(14f, 12f);
             _textRect.offsetMax = new Vector2(-14f, -8f);
 
             _textLabel = textObject.GetComponent<Text>();
@@ -147,7 +155,6 @@ namespace StreetQuestRPG
             _textLabel.alignment = TextAnchor.MiddleCenter;
             _textLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
             _textLabel.verticalOverflow = VerticalWrapMode.Overflow;
-            _textLabel.color = new Color32(48, 42, 30, 255);
             _textLabel.supportRichText = false;
             _textLabel.resizeTextForBestFit = true;
             _textLabel.resizeTextMinSize = 14;
@@ -157,33 +164,44 @@ namespace StreetQuestRPG
             SetBubbleVisible(false);
         }
 
-        private void ApplyBubbleText()
+        private void ApplyBubbleContent()
         {
-            if (_textLabel == null || _backgroundRect == null)
+            if (_backgroundRect == null || _textLabel == null)
                 return;
 
-            var text = string.IsNullOrWhiteSpace(_resolvedText) ? "..." : _resolvedText.Trim();
+            var text = string.IsNullOrWhiteSpace(_currentText) ? "..." : _currentText.Trim();
             _textLabel.text = text;
+            _textLabel.font = GetUiFont();
 
             var preferredWidth = Mathf.Max(80f, _textLabel.preferredWidth);
             var preferredHeight = Mathf.Max(24f, _textLabel.preferredHeight);
             var width = Mathf.Clamp(preferredWidth + 36f, 126f, 320f);
             var height = Mathf.Clamp(preferredHeight + 24f, 50f, 86f);
             _backgroundRect.sizeDelta = new Vector2(width, height);
+            _textRect.offsetMin = new Vector2(14f, 12f);
+            _textRect.offsetMax = new Vector2(-14f, -8f);
+            _tailRect.sizeDelta = text.Length > 8 ? new Vector2(18f, 16f) : new Vector2(16f, 14f);
+            _tailRect.anchoredPosition = new Vector2(0f, 1f);
+        }
 
-            if (_textRect != null)
-            {
-                _textRect.offsetMin = new Vector2(14f, 12f);
-                _textRect.offsetMax = new Vector2(-14f, -8f);
-            }
+        private void ApplyBubbleColors()
+        {
+            if (_bubbleRoot == null)
+                return;
+
+            var background = _bubbleRoot.GetComponent<Image>();
+            if (background != null)
+                background.color = _resolvedBackgroundColor;
 
             if (_tailRect != null)
             {
-                _tailRect.sizeDelta = text.Length > 8
-                    ? new Vector2(18f, 16f)
-                    : new Vector2(16f, 14f);
-                _tailRect.anchoredPosition = new Vector2(0f, 1f);
+                var tailImage = _tailRect.GetComponent<Image>();
+                if (tailImage != null)
+                    tailImage.color = _resolvedBackgroundColor;
             }
+
+            if (_textLabel != null)
+                _textLabel.color = _resolvedTextColor;
         }
 
         private void UpdateBubbleScreenPosition()
@@ -212,18 +230,48 @@ namespace StreetQuestRPG
             _bubbleRoot.position = screenPosition;
         }
 
-        private static string ResolveBubbleText(StreetQuestCharacterDefinition definition)
+        private static string[] ResolveBubbleTexts(StreetQuestCharacterDefinition definition)
         {
-            if (!string.IsNullOrWhiteSpace(definition?.speechBubbleTextKey))
-                return definition.speechBubbleTextKey.Localize().ToString();
+            if (definition == null)
+                return new[] { "..." };
 
-            return ResolveEmojiText(definition?.speechBubbleEmojiName);
+            if (definition.speechBubbleTextKeys != null && definition.speechBubbleTextKeys.Length > 0)
+            {
+                var localizedValues = definition.speechBubbleTextKeys
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value.Localize().ToString().Trim())
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToArray();
+                if (localizedValues.Length > 0)
+                    return localizedValues;
+            }
+
+            if (!string.IsNullOrWhiteSpace(definition.speechBubbleTextKey))
+            {
+                var localized = definition.speechBubbleTextKey.Localize().ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(localized))
+                    return new[] { localized };
+            }
+
+            var fallback = ResolveBubbleFallbackText(definition.speechBubbleEmojiName);
+            return new[] { string.IsNullOrWhiteSpace(fallback) ? "..." : fallback };
         }
 
-        private static string ResolveEmojiText(string emojiName)
+        private string GetNextResolvedText()
+        {
+            if (_resolvedTexts == null || _resolvedTexts.Length == 0)
+                return "...";
+
+            var index = Mathf.Clamp(_nextTextIndex, 0, _resolvedTexts.Length - 1);
+            var value = _resolvedTexts[index];
+            _nextTextIndex = (_nextTextIndex + 1) % _resolvedTexts.Length;
+            return string.IsNullOrWhiteSpace(value) ? "..." : value;
+        }
+
+        private static string ResolveBubbleFallbackText(string emojiName)
         {
             if (string.IsNullOrWhiteSpace(emojiName))
-                return "...";
+                return string.Empty;
 
             if (emojiName.IndexOf("question", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "?";
@@ -240,7 +288,39 @@ namespace StreetQuestRPG
             if (emojiName.IndexOf("sad", StringComparison.OrdinalIgnoreCase) >= 0)
                 return ":(";
 
+            if (emojiName.IndexOf("angry", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "!";
+
             return "...";
+        }
+
+        private static void ResolveBubbleColors(string colorName, out Color32 backgroundColor, out Color32 textColor)
+        {
+            textColor = new Color32(48, 42, 30, 255);
+            if (string.IsNullOrWhiteSpace(colorName))
+            {
+                backgroundColor = new Color32(248, 231, 151, 255);
+                return;
+            }
+
+            switch (colorName.Trim().ToLowerInvariant())
+            {
+                case "yellow":
+                    backgroundColor = new Color32(248, 231, 151, 255);
+                    break;
+                case "red":
+                    backgroundColor = new Color32(242, 162, 162, 255);
+                    break;
+                case "blue":
+                    backgroundColor = new Color32(170, 212, 247, 255);
+                    break;
+                case "neutral":
+                    backgroundColor = new Color32(246, 244, 238, 255);
+                    break;
+                default:
+                    backgroundColor = new Color32(248, 231, 151, 255);
+                    break;
+            }
         }
 
         private void SetBubbleVisible(bool visible)
@@ -248,9 +328,6 @@ namespace StreetQuestRPG
             _isVisible = visible;
             if (_bubbleRoot != null)
                 _bubbleRoot.gameObject.SetActive(visible);
-
-            if (visible && !_loggedVisibleOnce)
-                _loggedVisibleOnce = true;
         }
 
         private void DisableBubble()
@@ -357,9 +434,7 @@ namespace StreetQuestRPG
                 var progress = y / (float)(height - 1);
                 var halfWidth = Mathf.Lerp(2f, 20f, progress);
                 for (var x = 0; x < width; x++)
-                {
                     texture.SetPixel(x, y, Mathf.Abs(x - centerX) <= halfWidth ? fill : clear);
-                }
             }
 
             texture.Apply(false, true);
@@ -392,7 +467,7 @@ namespace StreetQuestRPG
             var cornerY = y < innerBottom ? innerBottom : innerTop - 1;
             var dx = x - cornerX;
             var dy = y - cornerY;
-            return (dx * dx) + (dy * dy) <= radius * radius;
+            return dx * dx + dy * dy <= radius * radius;
         }
 
         private static Font GetUiFont()

@@ -162,7 +162,9 @@ namespace StreetQuestRPG
                 runtime.useFixedSpawnPosition.ToString(),
                 runtime.showSpeechBubble.ToString(),
                 runtime.speechBubbleEmojiName ?? string.Empty,
+                runtime.speechBubbleColor ?? string.Empty,
                 runtime.speechBubbleTextKey ?? string.Empty,
+                string.Join(",", runtime.speechBubbleTextKeys ?? Array.Empty<string>()),
                 runtime.speechBubbleVisibleSeconds.ToString("F3"),
                 runtime.speechBubbleIntervalSeconds.ToString("F3"),
                 SerializeVector(runtime.speechBubbleLocalOffset),
@@ -320,8 +322,12 @@ namespace StreetQuestRPG
                 resolved.showSpeechBubble = state.showSpeechBubble;
             if (!string.IsNullOrWhiteSpace(state.speechBubbleEmojiName))
                 resolved.speechBubbleEmojiName = state.speechBubbleEmojiName;
+            if (!string.IsNullOrWhiteSpace(state.speechBubbleColor))
+                resolved.speechBubbleColor = state.speechBubbleColor;
             if (!string.IsNullOrWhiteSpace(state.speechBubbleTextKey))
                 resolved.speechBubbleTextKey = state.speechBubbleTextKey;
+            if (state.speechBubbleTextKeys != null && state.speechBubbleTextKeys.Length > 0)
+                resolved.speechBubbleTextKeys = state.speechBubbleTextKeys;
             if (state.speechBubbleVisibleSeconds > 0f)
                 resolved.speechBubbleVisibleSeconds = state.speechBubbleVisibleSeconds;
             if (state.speechBubbleIntervalSeconds > 0f)
@@ -438,7 +444,9 @@ namespace StreetQuestRPG
                 ctaKey = definition.ctaKey,
                 showSpeechBubble = definition.showSpeechBubble,
                 speechBubbleEmojiName = definition.speechBubbleEmojiName,
+                speechBubbleColor = definition.speechBubbleColor,
                 speechBubbleTextKey = definition.speechBubbleTextKey,
+                speechBubbleTextKeys = definition.speechBubbleTextKeys,
                 speechBubbleVisibleSeconds = definition.speechBubbleVisibleSeconds,
                 speechBubbleIntervalSeconds = definition.speechBubbleIntervalSeconds,
                 speechBubbleLocalOffset = definition.speechBubbleLocalOffset,
