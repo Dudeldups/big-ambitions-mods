@@ -49,7 +49,6 @@ namespace StreetQuestRPG
             _loggedVisibleOnce = false;
             _nextToggleAt = Time.unscaledTime + UnityEngine.Random.Range(0.15f, 1.1f);
             SetBubbleVisible(false);
-            StreetQuestShared.LogDebug($"SpeechBubble configured character={definition.id} text='{_resolvedText}'");
         }
 
         public void OnVisibilityChanged(bool visible)
@@ -251,10 +250,7 @@ namespace StreetQuestRPG
                 _bubbleRoot.gameObject.SetActive(visible);
 
             if (visible && !_loggedVisibleOnce)
-            {
                 _loggedVisibleOnce = true;
-                StreetQuestShared.LogDebug($"SpeechBubble visible text='{_resolvedText}'");
-            }
         }
 
         private void DisableBubble()

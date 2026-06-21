@@ -437,7 +437,6 @@ namespace StreetQuestRPG
             var existingBubble = root.GetComponent<StreetQuestCharacterSpeechBubble>();
             if (definition == null || !definition.interactable || !definition.showSpeechBubble)
             {
-                LogDebug($"EnsureCharacterSpeechBubble skip character={definition?.id ?? "<null>"} interactable={definition?.interactable.ToString() ?? "<null>"} showSpeechBubble={definition?.showSpeechBubble.ToString() ?? "<null>"}");
                 if (existingBubble != null)
                     UnityEngine.Object.Destroy(existingBubble);
 
@@ -447,7 +446,6 @@ namespace StreetQuestRPG
             if (existingBubble == null)
                 existingBubble = root.AddComponent<StreetQuestCharacterSpeechBubble>();
 
-            LogDebug($"EnsureCharacterSpeechBubble configure character={definition.id} textKey={definition.speechBubbleTextKey ?? "<null>"} emoji={definition.speechBubbleEmojiName ?? "<null>"}");
             existingBubble.Configure(root.transform, definition);
         }
 
