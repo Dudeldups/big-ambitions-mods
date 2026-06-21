@@ -16,6 +16,7 @@ using Player.HUD.ItemInfoOverlays;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace StreetQuestRPG
 {
@@ -23,6 +24,7 @@ namespace StreetQuestRPG
     {
         public static bool EnsureSpawnedOutdoorQuestGiver()
         {
+            var stopwatch = Stopwatch.StartNew();
             LogDebug("EnsureSpawnedOutdoorQuestGiver start");
             RemoveLegacyQuestGiverCtaBehaviors();
             EnsureQuestGiverCtaBehaviorInstalled();
@@ -34,6 +36,8 @@ namespace StreetQuestRPG
             }
 
             PrewarmScheduledCharacterPool();
+            stopwatch.Stop();
+            LogDebug($"EnsureSpawnedOutdoorQuestGiver end durationMs={stopwatch.ElapsedMilliseconds} configured={hadConfiguredCharacters} spawnedCount={SpawnedCharacterRoots.Count}");
 
             return hadConfiguredCharacters;
         }
@@ -41,7 +45,15 @@ namespace StreetQuestRPG
 
         public static void RefreshSpawnedCharacters()
         {
-            EnsureSpawnedOutdoorQuestGiver();
+            var stopwatch = Stopwatch.StartNew();
+            if (!QuestGiverCtaInstalled)
+                EnsureQuestGiverCtaBehaviorInstalled();
+
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null))
+                RefreshSpawnedCharacter(character);
+
+            stopwatch.Stop();
+            LogDebug($"RefreshSpawnedCharacters end durationMs={stopwatch.ElapsedMilliseconds} spawnedCount={SpawnedCharacterRoots.Count}");
         }
 
 
@@ -77,20 +89,61 @@ namespace StreetQuestRPG
             bool ignoreScheduleGate = false,
             bool activateAfterSpawn = true)
         {
+            var stopwatch = Stopwatch.StartNew();
             if (character == null || string.IsNullOrWhiteSpace(character.id))
                 return false;
 
             var runtimeDefinition = ignoreScheduleGate
                 ? StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutScheduleGate(character)
                 : StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
+            return EnsureSpawnedCharacter(character, runtimeDefinition, activateAfterSpawn, stopwatch);
+        }
+
+
+        private static bool RefreshSpawnedCharacter(StreetQuestCharacterDefinition character)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            if (character == null || string.IsNullOrWhiteSpace(character.id))
+                return false;
+
+            StreetQuestCharacterDefinition runtimeDefinition;
+            bool activateAfterSpawn;
+
+            if (StreetQuestCharacterRuntimeResolver.HasAnySchedule(character))
+            {
+                runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutScheduleGate(character);
+                activateAfterSpawn = runtimeDefinition != null &&
+                                     runtimeDefinition.enabled &&
+                                     IsScheduleActive(runtimeDefinition);
+            }
+            else
+            {
+                runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(character);
+                activateAfterSpawn = true;
+            }
+
+            return EnsureSpawnedCharacter(character, runtimeDefinition, activateAfterSpawn, stopwatch);
+        }
+
+
+        private static bool EnsureSpawnedCharacter(
+            StreetQuestCharacterDefinition character,
+            StreetQuestCharacterDefinition runtimeDefinition,
+            bool activateAfterSpawn,
+            Stopwatch stopwatch)
+        {
             if (runtimeDefinition == null)
             {
+                stopwatch.Stop();
+                LogDebug($"EnsureSpawnedCharacter skip character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_definition_null");
                 DestroySpawnedCharacter(character.id);
                 return false;
             }
 
             if (!runtimeDefinition.enabled)
             {
+                stopwatch.Stop();
+                LogDebug($"EnsureSpawnedCharacter skip character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_disabled");
                 DestroySpawnedCharacter(character.id);
                 return false;
             }
@@ -114,6 +167,8 @@ namespace StreetQuestRPG
                     hasExpectedController)
                 {
                     SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
+                    stopwatch.Stop();
+                    LogDebug($"EnsureSpawnedCharacter reuse character={character.id} durationMs={stopwatch.ElapsedMilliseconds} activate={activateAfterSpawn}");
                     return true;
                 }
 
@@ -211,12 +266,16 @@ namespace StreetQuestRPG
                 EnsureCharacterWalker(root, runtimeDefinition);
                 SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
 
+                stopwatch.Stop();
                 LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
+                LogDebug($"EnsureSpawnedCharacter spawnComplete character={character.id} durationMs={stopwatch.ElapsedMilliseconds} activate={activateAfterSpawn} interactable={runtimeDefinition.interactable}");
                 return true;
             }
             catch (Exception exception)
             {
+                stopwatch.Stop();
                 LogDebug($"EnsureSpawnedCharacter failed for {character.id}: {exception}");
+                LogDebug($"EnsureSpawnedCharacter failed character={character.id} durationMs={stopwatch.ElapsedMilliseconds}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to spawn quest giver '{character.id}'. {exception}");
                 DestroySpawnedCharacter(character.id);
                 return false;

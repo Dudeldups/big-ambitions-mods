@@ -16,6 +16,7 @@ using Player.HUD.ItemInfoOverlays;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace StreetQuestRPG
 {
@@ -23,6 +24,7 @@ namespace StreetQuestRPG
     {
         public static bool AcceptQuest(StreetQuestQuestDefinition quest)
         {
+            var stopwatch = Stopwatch.StartNew();
             if (quest == null)
             {
                 LogDebug("AcceptQuest aborted: quest=<null>");
@@ -60,6 +62,8 @@ namespace StreetQuestRPG
             SaveQuestStateRecord(record);
             LogDebug($"AcceptQuest saved quest={quest.Id} type={quest.QuestType} mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState}");
             RefreshSpawnedCharacters();
+            stopwatch.Stop();
+            LogDebug($"AcceptQuest end quest={quest.Id} durationMs={stopwatch.ElapsedMilliseconds}");
             return true;
         }
 
@@ -105,6 +109,7 @@ namespace StreetQuestRPG
 
         public static bool CompleteQuest(StreetQuestQuestDefinition quest)
         {
+            var stopwatch = Stopwatch.StartNew();
             LogDebug($"CompleteQuest start quest={(quest?.Id ?? "<null>")}");
             if (quest == null || !CanTurnIn(quest) || !TryConsumeQuestObjectives(quest))
             {
@@ -155,6 +160,8 @@ namespace StreetQuestRPG
             LogDebug($"CompleteQuest saved quest={quest.Id} mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} favorMack={record.GetFavor(StreetQuestCharacterCatalog.DefaultQuestGiverId)}");
             RefreshSpawnedCharacters();
             ShowRewardSummaryNotification(rewardSummary);
+            stopwatch.Stop();
+            LogDebug($"CompleteQuest end quest={quest.Id} durationMs={stopwatch.ElapsedMilliseconds}");
             return true;
         }
 

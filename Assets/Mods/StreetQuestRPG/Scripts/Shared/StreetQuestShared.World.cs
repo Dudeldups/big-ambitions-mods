@@ -16,6 +16,7 @@ using Player.HUD.ItemInfoOverlays;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace StreetQuestRPG
 {
@@ -45,12 +46,15 @@ namespace StreetQuestRPG
             StreetQuestQuestDefinition quest,
             StreetQuestQuestObjectiveDefinition objective)
         {
+            var stopwatch = Stopwatch.StartNew();
             if (quest == null || objective == null || objective.ObjectiveType != StreetQuestQuestObjectiveType.TalkToCharacter)
                 return false;
 
             RecordKnownCharacter(objective.CharacterId);
             MarkObjectiveToken(objective.GetTrackingToken(quest.Id));
             AddStoryFlags(objective.CompletedStoryFlags);
+            stopwatch.Stop();
+            LogDebug($"CompleteTalkObjectiveInteraction end quest={quest.Id} character={objective.CharacterId} durationMs={stopwatch.ElapsedMilliseconds}");
             return true;
         }
 
