@@ -114,7 +114,7 @@ namespace StreetQuestRPG
             if (canvas == null)
                 return;
 
-            var bubbleObject = new GameObject("StreetQuestSpeechBubbleUI", typeof(RectTransform), typeof(Image));
+            var bubbleObject = new GameObject("StreetQuestSpeechBubbleUI", typeof(RectTransform), typeof(Image), typeof(Outline));
             bubbleObject.transform.SetParent(canvas.transform, false);
             _bubbleRoot = bubbleObject.GetComponent<RectTransform>();
             _bubbleRoot.pivot = new Vector2(0.5f, 0.2f);
@@ -127,7 +127,12 @@ namespace StreetQuestRPG
             background.raycastTarget = false;
             _backgroundRect = _bubbleRoot;
 
-            var tailObject = new GameObject("Tail", typeof(RectTransform), typeof(Image));
+            var backgroundOutline = bubbleObject.GetComponent<Outline>();
+            backgroundOutline.effectColor = new Color32(255, 255, 255, 235);
+            backgroundOutline.effectDistance = new Vector2(2f, -2f);
+            backgroundOutline.useGraphicAlpha = true;
+
+            var tailObject = new GameObject("Tail", typeof(RectTransform), typeof(Image), typeof(Outline));
             tailObject.transform.SetParent(_bubbleRoot, false);
             _tailRect = tailObject.GetComponent<RectTransform>();
             _tailRect.anchorMin = new Vector2(0.5f, 0f);
@@ -141,6 +146,11 @@ namespace StreetQuestRPG
             tailImage.type = Image.Type.Simple;
             tailImage.raycastTarget = false;
 
+            var tailOutline = tailObject.GetComponent<Outline>();
+            tailOutline.effectColor = new Color32(255, 255, 255, 235);
+            tailOutline.effectDistance = new Vector2(2f, -2f);
+            tailOutline.useGraphicAlpha = true;
+
             var textObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
             textObject.transform.SetParent(_bubbleRoot, false);
             _textRect = textObject.GetComponent<RectTransform>();
@@ -153,7 +163,7 @@ namespace StreetQuestRPG
             _textLabel.font = GetUiFont();
             _textLabel.fontSize = 26;
             _textLabel.alignment = TextAnchor.MiddleCenter;
-            _textLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _textLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
             _textLabel.verticalOverflow = VerticalWrapMode.Overflow;
             _textLabel.supportRichText = false;
             _textLabel.resizeTextForBestFit = true;
@@ -173,14 +183,26 @@ namespace StreetQuestRPG
             _textLabel.text = text;
             _textLabel.font = GetUiFont();
 
+            const float horizontalPadding = 36f;
+            const float verticalPadding = 24f;
+            const float minWidth = 126f;
+            const float maxWidth = 420f;
+            const float minHeight = 50f;
+            const float maxHeight = 180f;
             var preferredWidth = Mathf.Max(80f, _textLabel.preferredWidth);
-            var preferredHeight = Mathf.Max(24f, _textLabel.preferredHeight);
-            var width = Mathf.Clamp(preferredWidth + 36f, 126f, 320f);
-            var height = Mathf.Clamp(preferredHeight + 24f, 50f, 86f);
+            var width = Mathf.Clamp(preferredWidth + horizontalPadding, minWidth, maxWidth);
+            var textWidth = Mathf.Max(80f, width - horizontalPadding);
+            var generationSettings = _textLabel.GetGenerationSettings(new Vector2(textWidth, 1000f));
+            generationSettings.horizontalOverflow = HorizontalWrapMode.Wrap;
+            generationSettings.verticalOverflow = VerticalWrapMode.Overflow;
+            var preferredHeight = _textLabel.cachedTextGeneratorForLayout.GetPreferredHeight(text, generationSettings) /
+                                  Mathf.Max(0.0001f, _textLabel.pixelsPerUnit);
+            preferredHeight = Mathf.Max(24f, preferredHeight);
+            var height = Mathf.Clamp(preferredHeight + verticalPadding, minHeight, maxHeight);
             _backgroundRect.sizeDelta = new Vector2(width, height);
             _textRect.offsetMin = new Vector2(14f, 12f);
             _textRect.offsetMax = new Vector2(-14f, -8f);
-            _tailRect.sizeDelta = text.Length > 8 ? new Vector2(18f, 16f) : new Vector2(16f, 14f);
+            _tailRect.sizeDelta = width > 180f ? new Vector2(18f, 16f) : new Vector2(16f, 14f);
             _tailRect.anchoredPosition = new Vector2(0f, 1f);
         }
 
@@ -380,7 +402,7 @@ namespace StreetQuestRPG
 
             const int width = 196;
             const int height = 92;
-            const int cornerRadius = 26;
+            const int cornerRadius = 12;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
             {
                 wrapMode = TextureWrapMode.Clamp,
@@ -407,7 +429,7 @@ namespace StreetQuestRPG
                 100f,
                 0,
                 SpriteMeshType.FullRect,
-                new Vector4(26f, 26f, 26f, 26f));
+                new Vector4(22f, 22f, 22f, 22f));
             _backgroundSprite.name = "StreetQuestSpeechBubbleSprite";
             return _backgroundSprite;
         }
