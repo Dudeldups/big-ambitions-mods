@@ -66,6 +66,7 @@ namespace StreetQuestRPG
             SpawnedCharacterStateSignatures.Clear();
             CachedSellerStandControllerType = null;
             CachedItemsContainerTransform = null;
+            CachedDialogUiInstance = null;
             PreferredQuestGiverSpawnPosition = null;
             QuestGiverCtaInstalled = false;
             LogDebug("ResetSpawnRuntimeState completed");

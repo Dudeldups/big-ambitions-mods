@@ -42,6 +42,12 @@ namespace StreetQuestRPG
         private static readonly Dictionary<string, string> SpawnedCharacterStateSignatures = new(StringComparer.OrdinalIgnoreCase);
         private static Type CachedSellerStandControllerType;
         private static Transform CachedItemsContainerTransform;
+        private static Type CachedDialogUiType;
+        private static Type CachedNavigationBlockerType;
+        private static Type CachedContactType;
+        private static Type CachedThirdPersonCharacterType;
+        private static MethodInfo CachedDialogUiShowDialogMethod;
+        private static UnityEngine.Object CachedDialogUiInstance;
         private static Vector3? PreferredQuestGiverSpawnPosition;
         private static bool QuestGiverCtaInstalled;
         private static string DebugLogFilePath;
