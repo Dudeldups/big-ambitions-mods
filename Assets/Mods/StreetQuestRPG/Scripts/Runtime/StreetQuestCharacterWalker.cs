@@ -32,7 +32,6 @@ namespace StreetQuestRPG
         private bool _walkingIn;
         private bool _walkInStartedThisCycle;
         private bool _presentationHidden;
-        private bool _loggedAnimatorParameters;
         private bool _externalVisibility;
         private NavMeshAgent _agent;
         private Animator[] _animators = Array.Empty<Animator>();
@@ -75,13 +74,6 @@ namespace StreetQuestRPG
             _configured = true;
 
             EnsureAgent();
-            StreetQuestShared.LogDebug(
-                $"WalkCycleConfigured character={_characterId} spawn={FormatVector3(_spawnPosition)} " +
-                $"walkAwayWaypoints={_walkAwayWaypoints.Length} walkAwaySpeed={_walkAwaySpeed:F2} hideAfterWalkAway={_hideAfterWalkAway} walkAwayCompletedFlags={_walkAwayCompletedStoryFlags.Length} walkInWaypoints={_walkInWaypoints.Length} " +
-                $"walkAwayRoutePoints={_walkAwayRoutePoints.Length} walkInDistance={_walkInTotalDistance:F2} walkInSpeed={_walkInSpeed:F2} " +
-                $"isRunning={_isRunning} " +
-                $"walkInDurationMinutes={_walkInDurationMinutes:F2} " +
-                $"walkInStartMinuteOfDay={_walkInStartMinuteOfDay} walkInArrival={_walkInArrivalHour:D2}:{_walkInArrivalMinute:D2}");
         }
 
         public void OnVisibilityChanged(bool visible)
@@ -90,8 +82,6 @@ namespace StreetQuestRPG
                 return;
 
             _externalVisibility = visible;
-            StreetQuestShared.LogDebug(
-                $"WalkCycleVisibility character={_characterId} visible={visible} walkingAway={_walkingAway} walkAwayCompleted={_walkAwayCompleted} walkingIn={_walkingIn} walkInStarted={_walkInStartedThisCycle}");
 
             if (visible)
             {
@@ -150,18 +140,13 @@ namespace StreetQuestRPG
                 _walkAwayRouteIndex++;
                 var nextPoint = _walkAwayRoutePoints[_walkAwayRouteIndex];
                 if (_agent.SetDestination(nextPoint))
-                {
-                    StreetQuestShared.LogDebug(
-                        $"WalkAwayAdvance character={_characterId} routeIndex={_walkAwayRouteIndex} target={FormatVector3(nextPoint)}");
                     return;
-                }
             }
 
             _walkingAway = false;
             _walkAwayCompleted = true;
             _agent.ResetPath();
             UpdateAnimatorState(false, 0f);
-            StreetQuestShared.LogDebug($"WalkAwayArrived character={_characterId} final={FormatVector3(transform.position)}");
 
             if (_walkAwayCompletedStoryFlags.Length > 0)
                 StreetQuestShared.AddStoryFlags(_walkAwayCompletedStoryFlags);
@@ -213,7 +198,6 @@ namespace StreetQuestRPG
             _walkingIn = false;
             transform.SetPositionAndRotation(_spawnPosition, _spawnRotation);
             UpdateAnimatorState(false, 0f);
-            StreetQuestShared.LogDebug($"WalkInArrived character={_characterId} minuteOfDay={currentMinuteOfDay} final={FormatVector3(transform.position)}");
 
             if (_externalVisibility)
                 HideCharacterPresentation();
@@ -259,11 +243,7 @@ namespace StreetQuestRPG
             var firstTarget = _walkAwayRoutePoints[_walkAwayRouteIndex];
             _walkingAway = _agent.SetDestination(firstTarget);
 
-            LogAnimatorParametersOnce();
             UpdateAnimatorState(_walkingAway, _walkingAway ? _agent.speed : 0f);
-            StreetQuestShared.LogDebug(
-                $"WalkAwayBegin character={_characterId} start={FormatVector3(startPosition)} target={FormatVector3(firstTarget)} " +
-                $"speed={_agent.speed:F2} baseOffset={_agent.baseOffset:F2} setDestination={_walkingAway} routePoints={_walkAwayRoutePoints.Length}");
         }
 
         private void ResetWalker()
@@ -289,7 +269,6 @@ namespace StreetQuestRPG
                 _agent.Warp(_spawnPosition);
 
             UpdateAnimatorState(false, 0f);
-            StreetQuestShared.LogDebug($"WalkAwayReset character={_characterId} spawn={FormatVector3(_spawnPosition)}");
         }
 
         private void HideCharacterPresentation()
@@ -382,25 +361,6 @@ namespace StreetQuestRPG
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * RotationLerpSpeed);
         }
 
-        private void LogAnimatorParametersOnce()
-        {
-            if (_loggedAnimatorParameters)
-                return;
-
-            _loggedAnimatorParameters = true;
-            foreach (var animator in _animators)
-            {
-                if (animator == null)
-                    continue;
-
-                var parameterSummary = string.Join(
-                    ",",
-                    animator.parameters.Select(value => $"{value.name}:{value.type}"));
-                StreetQuestShared.LogDebug(
-                    $"WalkAwayAnimatorParams character={_characterId} animator={animator.name} params=[{parameterSummary}]");
-            }
-        }
-
         private static void TrySetAnimatorFloat(Animator animator, float velocity)
         {
             foreach (var parameterName in new[] { "Speed", "speed", "MoveSpeed", "Movement", "Velocity", "WalkSpeed", "AnimationSpeed", "Forward" })
@@ -490,11 +450,7 @@ namespace StreetQuestRPG
 
             transform.position = _walkInRoutePoints[0];
             ShowCharacterPresentation();
-            LogAnimatorParametersOnce();
             UpdateAnimatorState(true, _walkInSpeed);
-            StreetQuestShared.LogDebug(
-                $"WalkInBegin character={_characterId} minuteOfDay={currentMinuteOfDay} start={FormatVector3(_walkInRoutePoints[0])} " +
-                $"arrival={_walkInArrivalHour:D2}:{_walkInArrivalMinute:D2} durationMinutes={_walkInDurationMinutes:F2} routePoints={_walkInRoutePoints.Length}");
         }
 
         private Vector3 SampleWalkInPosition(float travelledDistance)

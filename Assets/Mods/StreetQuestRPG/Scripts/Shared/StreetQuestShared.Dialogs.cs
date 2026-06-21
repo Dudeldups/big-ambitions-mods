@@ -3,7 +3,6 @@ using System.Linq;
 using System.Reflection;
 using Dialogs;
 using UnityEngine;
-using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace StreetQuestRPG
 {
@@ -11,19 +10,14 @@ namespace StreetQuestRPG
     {
         internal static void TryOpenQuestDialog(CallDialogType dialogType)
         {
-            var stopwatch = Stopwatch.StartNew();
             try
             {
                 var dialogUi = ResolveDialogUiInstance();
                 var showDialogMethod = ResolveDialogUiShowDialogMethod();
                 showDialogMethod.Invoke(dialogUi, new object[] { dialogType, null, null, null, null });
-                stopwatch.Stop();
-                LogDebug($"TryOpenQuestDialog success dialogType={dialogType} durationMs={stopwatch.ElapsedMilliseconds}");
             }
             catch (Exception exception)
             {
-                stopwatch.Stop();
-                LogDebug($"TryOpenQuestDialog failed dialogType={dialogType} durationMs={stopwatch.ElapsedMilliseconds} exception={exception}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to open physical quest dialog. {exception}");
             }
         }
