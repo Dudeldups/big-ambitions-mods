@@ -132,7 +132,7 @@ namespace StreetQuestRPG
             backgroundOutline.effectDistance = new Vector2(2f, -2f);
             backgroundOutline.useGraphicAlpha = true;
 
-            var tailObject = new GameObject("Tail", typeof(RectTransform), typeof(Image), typeof(Outline));
+            var tailObject = new GameObject("Tail", typeof(RectTransform), typeof(Image));
             tailObject.transform.SetParent(_bubbleRoot, false);
             _tailRect = tailObject.GetComponent<RectTransform>();
             _tailRect.anchorMin = new Vector2(0.5f, 0f);
@@ -145,11 +145,6 @@ namespace StreetQuestRPG
             tailImage.sprite = GetTailSprite();
             tailImage.type = Image.Type.Simple;
             tailImage.raycastTarget = false;
-
-            var tailOutline = tailObject.GetComponent<Outline>();
-            tailOutline.effectColor = new Color32(255, 255, 255, 235);
-            tailOutline.effectDistance = new Vector2(2f, -2f);
-            tailOutline.useGraphicAlpha = true;
 
             var textObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
             textObject.transform.SetParent(_bubbleRoot, false);
