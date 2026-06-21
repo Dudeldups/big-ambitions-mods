@@ -274,12 +274,6 @@ namespace StreetQuestRPG
             resolved.schedule = null;
             resolved.position = null;
             resolved.forward = null;
-            resolved.showSpeechBubble = false;
-            resolved.speechBubbleEmojiName = null;
-            resolved.speechBubbleTextKey = null;
-            resolved.speechBubbleVisibleSeconds = 2.5f;
-            resolved.speechBubbleIntervalSeconds = 7f;
-            resolved.speechBubbleLocalOffset = null;
             resolved.walkAwayWaypoints = null;
             resolved.walkAwaySpeed = 1.4f;
             resolved.isRunning = false;
