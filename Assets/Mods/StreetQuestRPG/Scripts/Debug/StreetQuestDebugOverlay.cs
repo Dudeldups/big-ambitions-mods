@@ -92,6 +92,10 @@ namespace StreetQuestRPG
                 CopyCoordinatesJsonToClipboard(playerPosition);
             GUILayout.EndHorizontal();
 
+            var currentAddress = StreetQuestShared.GetCurrentIndoorBuildingAddressKey();
+            var addressText = string.IsNullOrWhiteSpace(currentAddress) ? "Outdoors / none" : currentAddress;
+            GUILayout.Label($"Address: {addressText}", _textStyle);
+
             var forwardText = FormatVector3(playerForward);
             GUILayout.BeginHorizontal();
             GUILayout.Label($"Forward: {forwardText}", _textStyle);
