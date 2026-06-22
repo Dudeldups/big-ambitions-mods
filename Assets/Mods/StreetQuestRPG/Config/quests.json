@@ -114,6 +114,51 @@
       "completedManagerMessageKey": "streetquest:dialog_fran_q1_complete_manager",
       "finishedTextKey": "streetquest:dialog_fran_q1_finished",
       "enabled": true
+    },
+    {
+      "id": "streetquest:fran_q2_dinner_invite",
+      "type": "Side",
+      "questLineId": "fran_side",
+      "questCode": "fran_q2",
+      "giverCharacterId": "fran",
+      "turnInCharacterId": "fran",
+      "requiredQuestIds": [
+        "streetquest:fran_q1_find_julia"
+      ],
+      "requiredStoryFlags": [],
+      "requiredFavors": [],
+      "objectives": [
+        {
+          "id": "complete_dinner_visit",
+          "type": "HaveStoryFlag",
+          "storyFlagId": "streetquest:flag_fran_dinner_finished"
+        }
+      ],
+      "rewards": [
+        {
+          "type": "Favor",
+          "characterId": "fran",
+          "amount": 3
+        }
+      ],
+      "acceptedStoryFlags": [
+        "streetquest:flag_fran_apartment_access"
+      ],
+      "completedStoryFlags": [],
+      "introStages": [
+        {
+          "textKey": "streetquest:dialog_fran_q2_intro",
+          "confirmTextKey": "streetquest:dialog_whats_up"
+        }
+      ],
+      "offerTextKey": "streetquest:dialog_fran_q2_offer",
+      "activeTextKey": "streetquest:dialog_fran_q2_active",
+      "readyTextKey": "streetquest:dialog_fran_q2_ready",
+      "helpTextKey": "streetquest:help_fran_q2_active",
+      "acceptedManagerMessageKey": "streetquest:dialog_fran_q2_accept_manager",
+      "completedManagerMessageKey": "streetquest:dialog_fran_q2_complete_manager",
+      "finishedTextKey": "streetquest:dialog_fran_q2_finished",
+      "enabled": true
     }
   ]
 }

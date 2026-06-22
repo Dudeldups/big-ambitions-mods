@@ -128,6 +128,14 @@ namespace StreetQuestRPG
             if (!StreetQuestShared.AcceptQuest(quest))
                 return BuildActiveEntry(quest);
 
+            if (quest.AutoCompleteOnAccept)
+            {
+                if (StreetQuestShared.CompleteQuest(quest))
+                    return BuildConversationEntry(quest.CompletedManagerMessageKey);
+
+                return BuildFinishedEntry();
+            }
+
             return BuildConversationEntry(quest.AcceptedManagerMessageKey);
         }
 

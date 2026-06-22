@@ -31,6 +31,7 @@ namespace StreetQuestRPG
         [DataMember] public string acceptedManagerMessageKey;
         [DataMember] public string completedManagerMessageKey;
         [DataMember] public string finishedTextKey;
+        [DataMember] public bool autoCompleteOnAccept;
         [DataMember] public bool enabled = true;
 
         public string Id => id;
@@ -62,6 +63,7 @@ namespace StreetQuestRPG
         public string AcceptedManagerMessageKey => acceptedManagerMessageKey;
         public string CompletedManagerMessageKey => completedManagerMessageKey;
         public string FinishedTextKey => finishedTextKey;
+        public bool AutoCompleteOnAccept => autoCompleteOnAccept;
         public bool Enabled => enabled;
 
         public string GiverContactId => ResolveContactId(giverCharacterId, StreetQuestShared.MackContactId);
