@@ -167,6 +167,7 @@
           "id": "fran_searching_no_callout",
           "requiredStoryFlags": ["streetquest:flag_julia_visible"],
           "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
+          "buildingAddress": "ba:street_fourthstreet 50",
           "appearanceId": "fran_default",
           "overrideEnabled": true,
           "enabled": true,
@@ -186,6 +187,7 @@
             "streetquest:flag_julia_visible",
             "streetquest:flag_julia_returned"
           ],
+          "buildingAddress": "ba:street_fourthstreet 50",
           "appearanceId": "fran_default",
           "overrideEnabled": true,
           "enabled": true,
@@ -213,6 +215,7 @@
                 "streetquest:flag_fran_departure_started",
                 "streetquest:flag_fran_family_left"
               ],
+              "buildingAddress": "ba:street_fourthstreet 50",
               "appearanceId": "fran_default",
               "overrideEnabled": true,
               "enabled": true,
@@ -272,6 +275,7 @@
           "id": "julia_visible",
           "requiredStoryFlags": ["streetquest:flag_julia_visible"],
           "forbiddenStoryFlags": ["streetquest:flag_julia_found"],
+          "buildingAddress": "ba:street_fourthstreet 50",
           "overrideEnabled": true,
           "enabled": true,
           "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
@@ -297,6 +301,7 @@
               "id": "julia_running_home",
               "requiredStoryFlags": ["streetquest:flag_julia_found"],
               "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
+              "buildingAddress": "ba:street_fourthstreet 50",
               "appearanceId": "julia_default",
               "overrideEnabled": true,
               "enabled": true,
@@ -329,6 +334,7 @@
                 "streetquest:flag_julia_departure_started",
                 "streetquest:flag_fran_family_left"
               ],
+              "buildingAddress": "ba:street_fourthstreet 50",
               "appearanceId": "julia_default",
               "overrideEnabled": true,
               "enabled": true,
