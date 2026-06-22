@@ -21,6 +21,7 @@ namespace StreetQuestRPG
         private static string _currentIndoorAddress = string.Empty;
         private static bool _wasIndoorLastTick;
         private static bool _hasTicked;
+        private static bool _awaitingIndoorResumeFromSave;
         private static float _nextExteriorCandidateRefreshAtSeconds;
         private static string _lastLoggedExteriorCandidate = string.Empty;
         private static string _lastLoggedIndoorTransitionCandidate = string.Empty;
@@ -38,6 +39,7 @@ namespace StreetQuestRPG
             _currentIndoorAddress = string.Empty;
             _wasIndoorLastTick = false;
             _hasTicked = false;
+            _awaitingIndoorResumeFromSave = false;
             _nextExteriorCandidateRefreshAtSeconds = 0f;
             _lastLoggedExteriorCandidate = string.Empty;
             _lastLoggedIndoorTransitionCandidate = string.Empty;
@@ -53,24 +55,35 @@ namespace StreetQuestRPG
             if (!_hasTicked)
             {
                 _hasTicked = true;
+
+                if (TryRestorePersistedIndoorAddress(out var persistedAddress))
+                {
+                    _wasIndoorLastTick = true;
+                    _awaitingIndoorResumeFromSave = !isIndoor;
+                    shouldRefreshCharacters = SetCurrentIndoorAddress(persistedAddress);
+                    LogIndoorAddressResolved(
+                        persistedAddress,
+                        _awaitingIndoorResumeFromSave ? "save_state_pending_indoor_resume" : "save_state");
+                    return shouldRefreshCharacters;
+                }
+
                 _wasIndoorLastTick = isIndoor;
 
-                if (isIndoor)
-                {
-                    if (TryRestorePersistedIndoorAddress(out var persistedAddress))
-                    {
-                        shouldRefreshCharacters = SetCurrentIndoorAddress(persistedAddress);
-                        LogIndoorAddressResolved(persistedAddress, "save_state");
-                    }
-                }
-                else
-                {
-                    SetCurrentIndoorAddress(string.Empty);
-                    StreetQuestShared.PersistIndoorBuildingAddressKey(string.Empty);
+                if (!isIndoor)
                     UpdateExteriorCandidateIfDue(elapsedSeconds);
-                }
 
-                return shouldRefreshCharacters;
+                return false;
+            }
+
+            if (_awaitingIndoorResumeFromSave)
+            {
+                if (!isIndoor)
+                    return false;
+
+                _awaitingIndoorResumeFromSave = false;
+                _wasIndoorLastTick = true;
+                _lastLoggedClearedReason = string.Empty;
+                return false;
             }
 
             if (isIndoor != _wasIndoorLastTick)
