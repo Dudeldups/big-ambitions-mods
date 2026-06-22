@@ -61,6 +61,23 @@ namespace StreetQuestRPG
             return GetQuestStateRecord().KnownCharacterIds;
         }
 
+        internal static string GetPersistedIndoorBuildingAddress()
+        {
+            return GetQuestStateRecord().CurrentIndoorBuildingAddress;
+        }
+
+        internal static bool SetPersistedIndoorBuildingAddress(string addressKey)
+        {
+            var record = GetQuestStateRecord();
+            var normalized = NormalizeAddressKey(addressKey);
+            if (string.Equals(record.CurrentIndoorBuildingAddress, normalized, StringComparison.Ordinal))
+                return false;
+
+            record.CurrentIndoorBuildingAddress = normalized;
+            SaveQuestStateRecord(record);
+            return true;
+        }
+
         public static StreetQuestQuestProgressState GetQuestProgress(string questId)
         {
             var record = GetQuestStateRecord();

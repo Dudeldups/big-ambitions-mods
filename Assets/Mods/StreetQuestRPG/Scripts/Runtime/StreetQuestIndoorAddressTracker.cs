@@ -55,10 +55,22 @@ namespace StreetQuestRPG
                 _hasTicked = true;
                 _wasIndoorLastTick = isIndoor;
 
-                if (!isIndoor)
+                if (isIndoor)
+                {
+                    if (TryRestorePersistedIndoorAddress(out var persistedAddress))
+                    {
+                        shouldRefreshCharacters = SetCurrentIndoorAddress(persistedAddress);
+                        LogIndoorAddressResolved(persistedAddress, "save_state");
+                    }
+                }
+                else
+                {
+                    SetCurrentIndoorAddress(string.Empty);
+                    StreetQuestShared.PersistIndoorBuildingAddressKey(string.Empty);
                     UpdateExteriorCandidateIfDue(elapsedSeconds);
+                }
 
-                return false;
+                return shouldRefreshCharacters;
             }
 
             if (isIndoor != _wasIndoorLastTick)
@@ -69,7 +81,12 @@ namespace StreetQuestRPG
                     _lastLoggedClearedReason = string.Empty;
                     var candidateAgeSeconds = GetCandidateAgeSeconds(elapsedSeconds);
                     LogIndoorTransitionDetected(_lastExteriorAddressCandidate, candidateAgeSeconds);
-                    if (TryPromoteRecentExteriorCandidate(elapsedSeconds, out var resolvedAddress))
+                    if (TryRestorePersistedIndoorAddress(out var persistedAddress))
+                    {
+                        shouldRefreshCharacters = SetCurrentIndoorAddress(persistedAddress);
+                        LogIndoorAddressResolved(persistedAddress, "save_state");
+                    }
+                    else if (TryPromoteRecentExteriorCandidate(elapsedSeconds, out var resolvedAddress))
                     {
                         shouldRefreshCharacters = SetCurrentIndoorAddress(resolvedAddress);
                         LogIndoorAddressResolved(resolvedAddress, "last_exterior_candidate");
@@ -83,6 +100,7 @@ namespace StreetQuestRPG
                 else
                 {
                     shouldRefreshCharacters = SetCurrentIndoorAddress(string.Empty);
+                    StreetQuestShared.PersistIndoorBuildingAddressKey(string.Empty);
                     LogIndoorAddressCleared("returned_outdoor");
                     UpdateExteriorCandidateIfDue(elapsedSeconds, force: true);
                 }
@@ -107,8 +125,15 @@ namespace StreetQuestRPG
                 return false;
 
             _currentIndoorAddress = normalized;
+            StreetQuestShared.PersistIndoorBuildingAddressKey(normalized);
             StreetQuestCharacterRuntimeResolver.ClearCache();
             return true;
+        }
+
+        private static bool TryRestorePersistedIndoorAddress(out string addressKey)
+        {
+            addressKey = StreetQuestShared.GetPersistedIndoorBuildingAddressKey();
+            return !string.IsNullOrWhiteSpace(addressKey);
         }
 
         private static void UpdateExteriorCandidateIfDue(float elapsedSeconds, bool force = false)

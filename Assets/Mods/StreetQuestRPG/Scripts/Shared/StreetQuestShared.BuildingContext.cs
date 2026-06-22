@@ -92,5 +92,15 @@ namespace StreetQuestRPG
                 ? string.Empty
                 : addressKey.Trim().ToLowerInvariant();
         }
+
+        internal static bool PersistIndoorBuildingAddressKey(string addressKey)
+        {
+            return SetPersistedIndoorBuildingAddress(NormalizeAddressKey(addressKey));
+        }
+
+        internal static string GetPersistedIndoorBuildingAddressKey()
+        {
+            return NormalizeAddressKey(GetPersistedIndoorBuildingAddress());
+        }
     }
 }
