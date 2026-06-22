@@ -19,6 +19,7 @@ namespace StreetQuestRPG
         private bool _spawnEnsured;
         private bool _bootstrapEnsured;
         private StreetQuestDebugOverlay _debugOverlay;
+        private StreetQuestDebugBuildingLogger _debugBuildingLogger;
 
         public void Initialize()
         {
@@ -31,6 +32,9 @@ namespace StreetQuestRPG
             _debugOverlay = GetComponent<StreetQuestDebugOverlay>();
             if (_debugOverlay == null && StreetQuestDebugSettings.Enabled)
                 _debugOverlay = gameObject.AddComponent<StreetQuestDebugOverlay>();
+            _debugBuildingLogger = GetComponent<StreetQuestDebugBuildingLogger>();
+            if (_debugBuildingLogger == null && StreetQuestDebugSettings.Enabled)
+                _debugBuildingLogger = gameObject.AddComponent<StreetQuestDebugBuildingLogger>();
             _initialized = true;
         }
 
