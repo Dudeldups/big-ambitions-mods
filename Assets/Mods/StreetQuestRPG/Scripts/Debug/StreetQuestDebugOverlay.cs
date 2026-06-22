@@ -93,7 +93,12 @@ namespace StreetQuestRPG
             GUILayout.EndHorizontal();
 
             var addressText = StreetQuestShared.GetIndoorContextDisplayText();
+            GUILayout.BeginHorizontal();
             GUILayout.Label($"Address: {addressText}", _textStyle);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Copy", _buttonStyle, GUILayout.Width(90f)))
+                CopyAddressToClipboard(addressText);
+            GUILayout.EndHorizontal();
 
             var forwardText = FormatVector3(playerForward);
             GUILayout.BeginHorizontal();
@@ -437,6 +442,15 @@ namespace StreetQuestRPG
             var jsonText = $"{{ \"x\": {position.x:0.00}, \"y\": {position.y:0.00}, \"z\": {position.z:0.00} }}";
             GUIUtility.systemCopyBuffer = jsonText;
             StreetQuestShared.NotifyInfo($"Copied JSON coordinates: {jsonText}", "streetquest:debug_coordinates_json_copied", 2.5f);
+        }
+
+        private static void CopyAddressToClipboard(string addressText)
+        {
+            if (string.IsNullOrWhiteSpace(addressText))
+                return;
+
+            GUIUtility.systemCopyBuffer = addressText;
+            StreetQuestShared.NotifyInfo($"Copied address: {addressText}", "streetquest:debug_address_copied", 2.5f);
         }
 
         private static void CopyForwardToClipboard(string forwardText)
