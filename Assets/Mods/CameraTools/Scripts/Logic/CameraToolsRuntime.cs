@@ -1136,6 +1136,8 @@ namespace CameraTools
             private readonly float fieldOfView;
             private readonly bool orthographic;
             private readonly float orthographicSize;
+            private readonly Vector3 position;
+            private readonly Quaternion rotation;
             private readonly bool skyboxEnabled;
 
             public CameraState(Camera camera)
@@ -1145,12 +1147,16 @@ namespace CameraTools
                 orthographic = camera.orthographic;
                 orthographicSize = camera.orthographicSize;
                 fieldOfView = camera.fieldOfView;
+                position = camera.transform.position;
+                rotation = camera.transform.rotation;
                 var skybox = camera.GetComponent<Skybox>();
                 skyboxEnabled = skybox != null && skybox.enabled;
             }
 
             public void Restore(Camera camera)
             {
+                camera.transform.position = position;
+                camera.transform.rotation = rotation;
                 camera.backgroundColor = backgroundColor;
                 camera.clearFlags = clearFlags;
                 camera.orthographic = orthographic;

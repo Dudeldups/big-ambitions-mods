@@ -77,8 +77,12 @@ namespace CameraTools
                 hasInitializedMapDistanceForCurrentOpen = false;
                 desiredMapDistance = float.NaN;
                 isTrackingMapRightMousePitch = false;
+                activeMapVcamTransform = null;
+                RestoreMapCameraState();
                 if (cameraToolsDebugEnabled && wasCityMapOpen)
                     LogVehicleDebug("Map closed: clearing desiredMapDistance.");
+                wasCityMapOpen = false;
+                return;
             }
 
             wasCityMapOpen = cityMapOpen;
@@ -275,7 +279,7 @@ namespace CameraTools
             if (settings == null)
                 return;
 
-            if (activeMapRenderCamera != null && camera == activeMapRenderCamera)
+            if (IsCityMapOpen() && activeMapRenderCamera != null && camera == activeMapRenderCamera)
                 ApplyMapCameraState();
 
             if (!cameraToolsDebugEnabled ||
