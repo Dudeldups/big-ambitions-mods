@@ -35,11 +35,13 @@ namespace StreetQuestRPG
             var hourKey = StreetQuestShared.TryGetCurrentGameHourKey(out var resolvedHourKey)
                 ? resolvedHourKey
                 : int.MinValue;
+            var indoorAddressKey = StreetQuestShared.GetCurrentIndoorBuildingAddressKey();
             if (!string.IsNullOrWhiteSpace(definition.id) &&
                 RuntimeCacheByCharacterId.TryGetValue(definition.id, out var cachedEntry) &&
                 cachedEntry != null &&
                 cachedEntry.StateVersion == stateVersion &&
                 cachedEntry.HourKey == hourKey &&
+                string.Equals(cachedEntry.IndoorAddressKey, indoorAddressKey, StringComparison.Ordinal) &&
                 cachedEntry.RuntimeDefinition != null)
             {
                 return CloneDefinition(cachedEntry.RuntimeDefinition);
@@ -64,6 +66,9 @@ namespace StreetQuestRPG
             if (activeAppearance != null)
                 ApplyAppearanceOverrides(resolved, activeAppearance);
 
+            if (!StreetQuestShared.DoesBuildingContextMatch(resolved))
+                resolved.enabled = false;
+
             if (!StreetQuestShared.IsScheduleActive(resolved))
                 resolved.enabled = false;
 
@@ -73,6 +78,7 @@ namespace StreetQuestRPG
                 {
                     StateVersion = stateVersion,
                     HourKey = hourKey,
+                    IndoorAddressKey = indoorAddressKey,
                     RuntimeDefinition = CloneDefinition(resolved)
                 };
             }
@@ -103,6 +109,9 @@ namespace StreetQuestRPG
             var activeAppearance = definition.FindAppearance(activeAppearanceId);
             if (activeAppearance != null)
                 ApplyAppearanceOverrides(resolved, activeAppearance);
+
+            if (!StreetQuestShared.DoesBuildingContextMatch(resolved))
+                resolved.enabled = false;
 
             return resolved;
         }
@@ -174,6 +183,7 @@ namespace StreetQuestRPG
                 runtime.ageInDays.ToString(),
                 runtime.appearanceSeed.ToString(),
                 SerializeSchedule(runtime.schedule),
+                runtime.buildingAddress ?? string.Empty,
                 SerializeVector(runtime.position),
                 SerializeVector(runtime.forward),
                 SerializeVectorArray(runtime.walkAwayWaypoints),
@@ -275,6 +285,7 @@ namespace StreetQuestRPG
 
             resolved.defaultAppearanceId = null;
             resolved.schedule = null;
+            resolved.buildingAddress = null;
             resolved.position = null;
             resolved.forward = null;
             resolved.walkAwayWaypoints = null;
@@ -303,6 +314,8 @@ namespace StreetQuestRPG
                 probe.forward = state.forward;
             if (state.schedule != null)
                 probe.schedule = state.schedule;
+            if (!string.IsNullOrWhiteSpace(state.buildingAddress))
+                probe.buildingAddress = state.buildingAddress;
 
             return probe;
         }
@@ -341,6 +354,8 @@ namespace StreetQuestRPG
                 resolved.defaultAppearanceId = state.appearanceId;
             if (state.schedule != null)
                 resolved.schedule = state.schedule;
+            if (!string.IsNullOrWhiteSpace(state.buildingAddress))
+                resolved.buildingAddress = state.buildingAddress;
             if (state.position != null)
                 resolved.position = state.position;
             if (state.forward != null)
@@ -457,6 +472,7 @@ namespace StreetQuestRPG
                 professionKey = definition.professionKey,
                 defaultAppearanceId = definition.defaultAppearanceId,
                 schedule = definition.schedule,
+                buildingAddress = definition.buildingAddress,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,
                 appearanceSeed = definition.appearanceSeed,
@@ -531,6 +547,7 @@ namespace StreetQuestRPG
         {
             public int StateVersion;
             public int HourKey;
+            public string IndoorAddressKey;
             public StreetQuestCharacterDefinition RuntimeDefinition;
         }
     }

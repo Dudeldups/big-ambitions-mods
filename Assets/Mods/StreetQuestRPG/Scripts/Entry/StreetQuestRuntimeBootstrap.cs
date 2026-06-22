@@ -24,6 +24,7 @@ namespace StreetQuestRPG
             _modRootPath = context.ModRootPath;
             _logger = context.Logger;
             StreetQuestShared.ResetSpawnRuntimeState();
+            StreetQuestShared.ResetIndoorBuildingContext();
             StreetQuestCharacterRuntimeResolver.ClearCache();
             StreetQuestShared.ClearScheduleCaches();
             StreetQuestCharacterCatalog.Reload(_modRootPath, _logger);

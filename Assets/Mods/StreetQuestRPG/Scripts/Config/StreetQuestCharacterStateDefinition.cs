@@ -31,6 +31,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestVector3Data speechBubbleLocalOffset;
         [DataMember] public string appearanceId;
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
+        [DataMember] public string buildingAddress;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data forward;
         [DataMember] public StreetQuestVector3Data[] walkAwayWaypoints;

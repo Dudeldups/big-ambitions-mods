@@ -5,6 +5,7 @@ using System.Reflection;
 using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
 using Helpers;
+using UnityEngine.SceneManagement;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -13,14 +14,26 @@ namespace StreetQuestRPG
     {
         private const float PollIntervalSeconds = 0.75f;
         private const float NearestBuildingMaxDistance = 60f;
+        private const float NearbyColliderRadius = 8f;
 
         private static readonly string[] InterestingKeywords =
         {
+            "active",
             "building",
             "address",
+            "current",
+            "entered",
+            "entry",
+            "exit",
+            "inside",
+            "owner",
+            "occup",
+            "tenant",
             "store",
             "shop",
             "business",
+            "company",
+            "customer",
             "interior",
             "indoor",
             "room",
@@ -60,9 +73,16 @@ namespace StreetQuestRPG
             var nearestRegistration = FindNearestBuildingRegistration(playerPosition, NearestBuildingMaxDistance, out var nearestDistance);
             var nearestAddressText = FormatAddress(nearestRegistration?.Address);
             var playerContextLines = CollectInterestingMembers(playerController, "player", 0);
+            var playerComponentLines = CollectComponentContextLines(playerController.gameObject, "playerObject");
             var nearestRegistrationLines = CollectInterestingMembers(nearestRegistration, "nearestRegistration", 0);
             var nearestBuilding = nearestRegistration?.Address != null ? SafeGetBuilding(nearestRegistration.Address) : null;
             var nearestBuildingLines = CollectInterestingMembers(nearestBuilding, "nearestBuilding", 0);
+            var nearbyColliderLines = CollectNearbyColliderLines(playerPosition);
+            var nearbyTargetLines = CollectNearbyTargetContextLines(playerPosition);
+            var playerHierarchyPath = GetHierarchyPath(playerController.transform);
+            var activeScene = SceneManager.GetActiveScene();
+            var gameManagerObject = GameObject.Find("GameManager");
+            var gameManagerLines = CollectComponentContextLines(gameManagerObject, "gameManager");
 
             var signature = string.Join("|", new[]
             {
@@ -70,8 +90,14 @@ namespace StreetQuestRPG
                 nearestAddressText,
                 nearestRegistration?.GetType().FullName ?? "<null>",
                 nearestDistance.ToString("F2"),
+                activeScene.name ?? "<null>",
+                playerHierarchyPath,
                 string.Join(";", playerContextLines.Take(8)),
-                string.Join(";", nearestRegistrationLines.Take(8))
+                string.Join(";", playerComponentLines.Take(8)),
+                string.Join(";", gameManagerLines.Take(8)),
+                string.Join(";", nearestRegistrationLines.Take(8)),
+                string.Join(";", nearbyColliderLines.Take(8)),
+                string.Join(";", nearbyTargetLines.Take(8))
             });
 
             if (string.Equals(signature, _lastSignature, StringComparison.Ordinal))
@@ -80,9 +106,16 @@ namespace StreetQuestRPG
             _lastSignature = signature;
             StreetQuestShared.LogDebug("=== PlayerBuildingContext start ===");
             StreetQuestShared.LogDebug($"PlayerBuildingContext playerPosition={FormatVector3(playerPosition)} playerType={playerController.GetType().FullName}");
+            StreetQuestShared.LogDebug($"PlayerBuildingContext scene={activeScene.name} buildIndex={activeScene.buildIndex} playerPath={playerHierarchyPath}");
             StreetQuestShared.LogDebug($"PlayerBuildingContext nearestRegistrationType={(nearestRegistration == null ? "<null>" : nearestRegistration.GetType().FullName)} nearestDistance={nearestDistance:0.00} nearestAddress={nearestAddressText}");
 
             foreach (var line in playerContextLines)
+                StreetQuestShared.LogDebug($"PlayerBuildingContext {line}");
+
+            foreach (var line in playerComponentLines)
+                StreetQuestShared.LogDebug($"PlayerBuildingContext {line}");
+
+            foreach (var line in gameManagerLines)
                 StreetQuestShared.LogDebug($"PlayerBuildingContext {line}");
 
             foreach (var line in nearestRegistrationLines)
@@ -94,6 +127,12 @@ namespace StreetQuestRPG
                 foreach (var line in nearestBuildingLines)
                     StreetQuestShared.LogDebug($"PlayerBuildingContext {line}");
             }
+
+            foreach (var line in nearbyColliderLines)
+                StreetQuestShared.LogDebug($"PlayerBuildingContext {line}");
+
+            foreach (var line in nearbyTargetLines)
+                StreetQuestShared.LogDebug($"PlayerBuildingContext {line}");
 
             StreetQuestShared.LogDebug("=== PlayerBuildingContext end ===");
         }
@@ -231,6 +270,137 @@ namespace StreetQuestRPG
             return lines;
         }
 
+        private static List<string> CollectNearbyColliderLines(Vector3 playerPosition)
+        {
+            var lines = new List<string>();
+            var colliders = Physics.OverlapSphere(playerPosition, NearbyColliderRadius);
+            var uniqueTransforms = new HashSet<Transform>();
+            foreach (var collider in colliders
+                         .Where(value => value != null && value.transform != null)
+                         .OrderBy(value => (value.transform.position - playerPosition).sqrMagnitude))
+            {
+                if (!uniqueTransforms.Add(collider.transform))
+                    continue;
+
+                var path = GetHierarchyPath(collider.transform);
+                var name = collider.name ?? "<unnamed>";
+                var distance = Vector3.Distance(playerPosition, collider.transform.position);
+                var layerName = LayerMask.LayerToName(collider.gameObject.layer);
+                var componentSummary = string.Join(",",
+                    collider.GetComponents<Component>()
+                        .Where(component => component != null)
+                        .Select(component => component.GetType().Name)
+                        .Take(6));
+
+                lines.Add(
+                    $"nearbyCollider name={name} distance={distance:0.00} layer={layerName} path={path} components={componentSummary}");
+
+                if (lines.Count >= 20)
+                    break;
+            }
+
+            if (lines.Count == 0)
+                lines.Add("nearbyCollider <none>");
+
+            return lines;
+        }
+
+        private static List<string> CollectNearbyTargetContextLines(Vector3 playerPosition)
+        {
+            var lines = new List<string>();
+            var colliders = Physics.OverlapSphere(playerPosition, NearbyColliderRadius);
+            var visitedObjects = new HashSet<GameObject>();
+            var visitedLinkedObjects = new HashSet<object>();
+
+            foreach (var collider in colliders.Where(value => value != null))
+            {
+                var targetTransform = FindInterestingContextTransform(collider.transform);
+                if (targetTransform == null || !visitedObjects.Add(targetTransform.gameObject))
+                    continue;
+
+                lines.Add($"nearbyTarget path={GetHierarchyPath(targetTransform)}");
+                lines.AddRange(CollectComponentContextLines(targetTransform.gameObject, $"nearbyTarget[{targetTransform.name}]"));
+                lines.AddRange(CollectLinkedContextLines(targetTransform.gameObject, $"nearbyTarget[{targetTransform.name}]", visitedLinkedObjects));
+
+                if (lines.Count >= 40)
+                    break;
+            }
+
+            return lines;
+        }
+
+        private static Transform FindInterestingContextTransform(Transform start)
+        {
+            var current = start;
+            while (current != null)
+            {
+                var name = current.name ?? string.Empty;
+                if (IsInterestingName(name))
+                    return current;
+
+                current = current.parent;
+            }
+
+            return null;
+        }
+
+        private static List<string> CollectComponentContextLines(GameObject gameObject, string prefix)
+        {
+            var lines = new List<string>();
+            if (gameObject == null)
+                return lines;
+
+            lines.Add($"{prefix}.path={GetHierarchyPath(gameObject.transform)}");
+            foreach (var component in gameObject.GetComponents<Component>().Where(value => value != null))
+            {
+                var componentPrefix = $"{prefix}.{component.GetType().Name}";
+                lines.Add($"{componentPrefix}.type={component.GetType().FullName}");
+                lines.AddRange(CollectInterestingMembers(component, componentPrefix, 0).Skip(1));
+            }
+
+            return lines;
+        }
+
+        private static List<string> CollectLinkedContextLines(
+            GameObject gameObject,
+            string prefix,
+            HashSet<object> visitedLinkedObjects)
+        {
+            var lines = new List<string>();
+            if (gameObject == null)
+                return lines;
+
+            foreach (var component in gameObject.GetComponents<Component>().Where(value => value != null))
+            {
+                var componentType = component.GetType();
+                var members = componentType
+                    .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(member =>
+                        (member.MemberType == MemberTypes.Field || member.MemberType == MemberTypes.Property) &&
+                        IsInterestingName(member.Name))
+                    .OrderBy(member => member.Name, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var member in members)
+                {
+                    if (!TryReadMemberValue(component, member.Name, out var value) || value == null)
+                        continue;
+
+                    if (!ShouldInspectLinkedObject(value) || !visitedLinkedObjects.Add(value))
+                        continue;
+
+                    var linkedPrefix = $"{prefix}.{componentType.Name}.{member.Name}";
+                    lines.AddRange(CollectInterestingMembers(value, linkedPrefix, 0));
+
+                    if (value is Component linkedComponent)
+                        lines.AddRange(CollectComponentContextLines(linkedComponent.gameObject, $"{linkedPrefix}.gameObject"));
+                    else if (value is GameObject linkedGameObject)
+                        lines.AddRange(CollectComponentContextLines(linkedGameObject, $"{linkedPrefix}.gameObject"));
+                }
+            }
+
+            return lines;
+        }
+
         private static bool ShouldRecurseInto(object value)
         {
             if (value == null)
@@ -245,6 +415,20 @@ namespace StreetQuestRPG
                    type != typeof(Vector3Int) &&
                    type != typeof(Quaternion) &&
                    !typeof(UnityEngine.Object).IsAssignableFrom(type) &&
+                   !typeof(System.Collections.IEnumerable).IsAssignableFrom(type);
+        }
+
+        private static bool ShouldInspectLinkedObject(object value)
+        {
+            if (value == null)
+                return false;
+
+            if (value is Component || value is GameObject)
+                return true;
+
+            var type = value.GetType();
+            return !type.IsPrimitive &&
+                   type != typeof(string) &&
                    !typeof(System.Collections.IEnumerable).IsAssignableFrom(type);
         }
 
@@ -324,6 +508,22 @@ namespace StreetQuestRPG
             {
                 return $"{address.GetType().FullName}";
             }
+        }
+
+        private static string GetHierarchyPath(Transform transform)
+        {
+            if (transform == null)
+                return "<null>";
+
+            var names = new Stack<string>();
+            var current = transform;
+            while (current != null)
+            {
+                names.Push(current.name);
+                current = current.parent;
+            }
+
+            return string.Join("/", names);
         }
 
         private static string FormatVector3(Vector3 value)
