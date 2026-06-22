@@ -21,8 +21,12 @@ namespace CameraTools
         private const float VehicleYawAutoResetLowSpeedThreshold = VehicleYawAutoResetHighSpeedThreshold * 0.25f;
         private const float VehicleMinimumZoom = 6f;
         private const float VehicleZoomStepPerScrollTick = 4f;
+        private const float VehicleFineZoomStepPerScrollTick = 2f;
+        private const float VehicleFineZoomRange = 10f;
         private const float VehicleForcedZoomStep = 20f;
         private const float GameplayMinimumZoom = 1.5f;
+        private const float GameplayFineZoomRange = 4f;
+        private const float GameplayFineZoomDeltaMultiplier = 0.5f;
         private const float GameplayTrackedObjectOffsetY = 1.15f;
         private const float IndoorWallsPartlyHiddenPitchThreshold = 32.45f;
         private const float MapMinimumZoom = 120f;
@@ -218,6 +222,7 @@ namespace CameraTools
         private MonoBehaviour? configuredMapController;
         private ModContext? context;
         private float desiredVehicleDistance;
+        private float lastObservedGameplayDistance = float.NaN;
         private MonoBehaviour? gameManagerController;
         private MonoBehaviour? gameplayController;
         private bool hasInitializedMapDistanceForCurrentOpen;
@@ -318,6 +323,7 @@ namespace CameraTools
             runtime.cachedVehicleZoomComponents.Clear();
             runtime.configuredGameplayController = null;
             runtime.configuredMapController = null;
+            runtime.lastObservedGameplayDistance = float.NaN;
             runtime.desiredVehicleDistance = float.NaN;
             runtime.gameManagerController = null;
             runtime.gameplayController = null;
@@ -454,6 +460,7 @@ namespace CameraTools
                 if (liveGameplayController != null && gameplayController != liveGameplayController)
                 {
                     gameplayController = liveGameplayController;
+                    lastObservedGameplayDistance = float.NaN;
                     if (gameplayController != configuredGameplayController)
                         configuredGameplayController = null;
                 }
@@ -462,6 +469,7 @@ namespace CameraTools
             if (gameplayController == null || !gameplayController.isActiveAndEnabled)
             {
                 gameplayController = FindFirstActiveController(pedestrianCamType, includeInactive: false);
+                lastObservedGameplayDistance = float.NaN;
                 if (gameplayController != configuredGameplayController)
                     configuredGameplayController = null;
             }

@@ -105,9 +105,64 @@ namespace CameraTools
             }
 
             var bounds = GetVector2Member(gameplayController, "minMaxDistance");
+            ApplyGameplayFineZoom(bounds);
             ClampGameplayDistance(bounds);
             ApplyGameplayOffset(hasManualGameplayPitch ? manualGameplayPitch : settings.GameplayDefaultPitch);
             ApplyGameplayTrackedObjectOffset();
+        }
+
+        private void ApplyGameplayFineZoom(Vector2 bounds)
+        {
+            if (gameplayController == null)
+                return;
+
+            if (!TryGetPrimaryGameplayDistance(out var currentDistance, out var activeMemberName))
+            {
+                lastObservedGameplayDistance = float.NaN;
+                return;
+            }
+
+            if (float.IsNaN(lastObservedGameplayDistance))
+            {
+                lastObservedGameplayDistance = currentDistance;
+                return;
+            }
+
+            var rawScrollDelta = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(rawScrollDelta) <= Mathf.Epsilon)
+                rawScrollDelta = Input.GetAxis("Mouse ScrollWheel") * 120f;
+
+            if (Mathf.Abs(rawScrollDelta) <= Mathf.Epsilon || IsGameplayInputBlockedByUi())
+            {
+                lastObservedGameplayDistance = currentDistance;
+                return;
+            }
+
+            var isNearMinimumZoom =
+                currentDistance <= bounds.x + GameplayFineZoomRange ||
+                lastObservedGameplayDistance <= bounds.x + GameplayFineZoomRange;
+            if (!isNearMinimumZoom)
+            {
+                lastObservedGameplayDistance = currentDistance;
+                return;
+            }
+
+            var vanillaDelta = currentDistance - lastObservedGameplayDistance;
+            if (Mathf.Abs(vanillaDelta) <= 0.001f)
+            {
+                lastObservedGameplayDistance = currentDistance;
+                return;
+            }
+
+            var adjustedDistance = Mathf.Clamp(
+                lastObservedGameplayDistance + (vanillaDelta * GameplayFineZoomDeltaMultiplier),
+                bounds.x,
+                bounds.y);
+
+            if (Mathf.Abs(adjustedDistance - currentDistance) > 0.001f)
+                SetGameplayDistance(activeMemberName, adjustedDistance);
+
+            lastObservedGameplayDistance = adjustedDistance;
         }
 
         private void ClampGameplayDistance(Vector2 bounds)
@@ -139,6 +194,41 @@ namespace CameraTools
                     SetMemberValue(gameplayController, "_currentDistance", clampedActualDistance);
                 }
             }
+        }
+
+        private bool TryGetPrimaryGameplayDistance(out float currentDistance, out string activeMemberName)
+        {
+            currentDistance = 0f;
+            activeMemberName = GameplayDistanceMemberNames[0];
+
+            if (gameplayController == null)
+                return false;
+
+            for (var i = 0; i < GameplayDistanceMemberNames.Length; i++)
+            {
+                var memberName = GameplayDistanceMemberNames[i];
+                if (!TryGetFloatMember(gameplayController, memberName, out currentDistance))
+                    continue;
+
+                activeMemberName = memberName;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void SetGameplayDistance(string activeMemberName, float distance)
+        {
+            if (gameplayController == null)
+                return;
+
+            SetMemberValue(gameplayController, activeMemberName, distance);
+
+            if (!string.Equals(activeMemberName, "distance", StringComparison.Ordinal))
+                SetMemberValue(gameplayController, "distance", distance);
+
+            if (!string.Equals(activeMemberName, "_currentDistance", StringComparison.Ordinal))
+                SetMemberValue(gameplayController, "_currentDistance", distance);
         }
 
         private void ApplyGameplayOffset(float pitchDegrees)

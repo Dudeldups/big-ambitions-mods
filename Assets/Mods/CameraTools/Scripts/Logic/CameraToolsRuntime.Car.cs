@@ -79,8 +79,10 @@ namespace CameraTools
                 if (IsGameplayInputBlockedByUi())
                     return;
 
+                var currentDistance = GetCurrentVehicleZoomDistance(settings.VehicleMaxZoom);
+                var zoomStep = GetVehicleZoomStep(currentDistance);
                 var nextDistance = Mathf.Clamp(
-                    desiredVehicleDistance - scrollDelta * VehicleZoomStepPerScrollTick,
+                    currentDistance - scrollDelta * zoomStep,
                     VehicleMinimumZoom,
                     settings.VehicleMaxZoom);
                 ApplyVehicleDistance(nextDistance, "scroll");
@@ -423,6 +425,13 @@ namespace CameraTools
                 LogVehicleDebug($"Vehicle scroll detected: delta={scrollDelta:0.###}, insideVehicle={vehicleDebug.IsInsideVehicle}");
 
             return scrollDelta;
+        }
+
+        private float GetVehicleZoomStep(float currentDistance)
+        {
+            return currentDistance <= VehicleMinimumZoom + VehicleFineZoomRange
+                ? VehicleFineZoomStepPerScrollTick
+                : VehicleZoomStepPerScrollTick;
         }
 
         private float ResolveCurrentVehicleCameraDistance(float maxZoom)
