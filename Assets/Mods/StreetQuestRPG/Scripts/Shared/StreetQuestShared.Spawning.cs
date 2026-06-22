@@ -25,7 +25,7 @@ namespace StreetQuestRPG
         public static bool EnsureSpawnedOutdoorQuestGiver()
         {
             var stopwatch = Stopwatch.StartNew();
-            LogDebug("EnsureSpawnedOutdoorQuestGiver start");
+            LogSpawnLifecycle("EnsureSpawnedOutdoorQuestGiver start");
             RemoveLegacyQuestGiverCtaBehaviors();
             EnsureQuestGiverCtaBehaviorInstalled();
             var hadConfiguredCharacters = false;
@@ -37,7 +37,7 @@ namespace StreetQuestRPG
 
             PrewarmScheduledCharacterPool();
             stopwatch.Stop();
-            LogDebug($"EnsureSpawnedOutdoorQuestGiver end durationMs={stopwatch.ElapsedMilliseconds} configured={hadConfiguredCharacters} spawnedCount={SpawnedCharacterRoots.Count}");
+            LogSpawnLifecycle($"EnsureSpawnedOutdoorQuestGiver end durationMs={stopwatch.ElapsedMilliseconds} configured={hadConfiguredCharacters} spawnedCount={SpawnedCharacterRoots.Count}");
 
             return hadConfiguredCharacters;
         }
@@ -53,7 +53,7 @@ namespace StreetQuestRPG
                 RefreshSpawnedCharacter(character);
 
             stopwatch.Stop();
-            LogDebug($"RefreshSpawnedCharacters end durationMs={stopwatch.ElapsedMilliseconds} spawnedCount={SpawnedCharacterRoots.Count}");
+            LogSpawnLifecycle($"RefreshSpawnedCharacters end durationMs={stopwatch.ElapsedMilliseconds} spawnedCount={SpawnedCharacterRoots.Count}");
         }
 
 
@@ -69,7 +69,7 @@ namespace StreetQuestRPG
             CachedDialogUiInstance = null;
             PreferredQuestGiverSpawnPosition = null;
             QuestGiverCtaInstalled = false;
-            LogDebug("ResetSpawnRuntimeState completed");
+            LogSpawnLifecycle("ResetSpawnRuntimeState completed");
         }
 
 
@@ -140,12 +140,12 @@ namespace StreetQuestRPG
                 if (PreserveTransientSpawnedCharacter(character?.id))
                 {
                     stopwatch.Stop();
-                    LogDebug($"EnsureSpawnedCharacter preserve character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=transient_walker_active");
+                    LogSpawnLifecycle($"EnsureSpawnedCharacter preserve character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=transient_walker_active");
                     return true;
                 }
 
                 stopwatch.Stop();
-                LogDebug($"EnsureSpawnedCharacter skip character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_definition_null");
+                LogSpawnLifecycle($"EnsureSpawnedCharacter skip character={character?.id ?? "<null>"} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_definition_null");
                 DestroySpawnedCharacter(character.id);
                 return false;
             }
@@ -155,12 +155,12 @@ namespace StreetQuestRPG
                 if (PreserveTransientSpawnedCharacter(character.id))
                 {
                     stopwatch.Stop();
-                    LogDebug($"EnsureSpawnedCharacter preserve character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=transient_walker_active_disabled");
+                    LogSpawnLifecycle($"EnsureSpawnedCharacter preserve character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=transient_walker_active_disabled");
                     return true;
                 }
 
                 stopwatch.Stop();
-                LogDebug($"EnsureSpawnedCharacter skip character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_disabled");
+                LogSpawnLifecycle($"EnsureSpawnedCharacter skip character={character.id} durationMs={stopwatch.ElapsedMilliseconds} reason=runtime_disabled");
                 DestroySpawnedCharacter(character.id);
                 return false;
             }
@@ -185,7 +185,7 @@ namespace StreetQuestRPG
                 {
                     SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
                     stopwatch.Stop();
-                    LogDebug($"EnsureSpawnedCharacter reuse character={character.id} durationMs={stopwatch.ElapsedMilliseconds} activate={activateAfterSpawn}");
+                    LogSpawnLifecycle($"EnsureSpawnedCharacter reuse character={character.id} durationMs={stopwatch.ElapsedMilliseconds} activate={activateAfterSpawn}");
                     return true;
                 }
 
@@ -285,8 +285,8 @@ namespace StreetQuestRPG
                 SetSpawnedCharacterVisibility(character.id, activateAfterSpawn);
 
                 stopwatch.Stop();
-                LogDebug($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
-                LogDebug($"EnsureSpawnedCharacter spawnComplete character={character.id} durationMs={stopwatch.ElapsedMilliseconds} activate={activateAfterSpawn} interactable={runtimeDefinition.interactable}");
+                LogSpawnLifecycle($"EnsureSpawnedCharacter spawned character={character.id} position={FormatVector3(root.transform.position)}");
+                LogSpawnLifecycle($"EnsureSpawnedCharacter spawnComplete character={character.id} durationMs={stopwatch.ElapsedMilliseconds} activate={activateAfterSpawn} interactable={runtimeDefinition.interactable}");
                 return true;
             }
             catch (Exception exception)

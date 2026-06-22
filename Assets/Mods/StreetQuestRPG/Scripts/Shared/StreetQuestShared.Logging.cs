@@ -140,6 +140,15 @@ namespace StreetQuestRPG
         }
 
 
+        internal static void LogSpawnLifecycle(string message)
+        {
+            if (!StreetQuestDebugSettings.VerboseSpawnLifecycleLogging)
+                return;
+
+            LogDebug(message);
+        }
+
+
         public static void LogBootstrapState(string source)
         {
             try

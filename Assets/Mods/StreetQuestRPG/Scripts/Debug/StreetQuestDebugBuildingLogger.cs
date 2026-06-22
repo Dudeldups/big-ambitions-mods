@@ -48,7 +48,9 @@ namespace StreetQuestRPG
 
         private void Update()
         {
-            if (!StreetQuestDebugSettings.Enabled || !IsInActiveGameSession())
+            if (!StreetQuestDebugSettings.Enabled ||
+                !StreetQuestDebugSettings.VerboseBuildingContextLogging ||
+                !IsInActiveGameSession())
                 return;
 
             if (Time.unscaledTime < _nextPollAt)
@@ -343,7 +345,6 @@ namespace StreetQuestRPG
 
             return null;
         }
-
         private static List<string> CollectComponentContextLines(GameObject gameObject, string prefix)
         {
             var lines = new List<string>();

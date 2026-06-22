@@ -277,6 +277,7 @@ namespace StreetQuestRPG
             return bestRegistration;
         }
 
+
         private static bool IsBuildingRegistrationOpen(BuildingRegistration registration)
         {
             if (registration == null)
