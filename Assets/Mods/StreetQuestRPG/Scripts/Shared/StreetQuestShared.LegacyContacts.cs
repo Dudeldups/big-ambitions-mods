@@ -26,23 +26,11 @@ namespace StreetQuestRPG
             try
             {
                 RemoveLegacyQuestGiverCtaBehaviors();
-                LogDebug("CleanupLegacyContacts start");
-                SaveGameManager.Current?.Contacts?.RemoveAll(contact =>
-                    contact != null && contact.id == MackContactId);
-
-                var notificationsField = typeof(Contact).GetField(
-                    "AddedContactNotifications",
-                    BindingFlags.Static | BindingFlags.NonPublic);
-                if (notificationsField?.GetValue(null) is List<Contact> notifications)
-                {
-                    notifications.RemoveAll(contact =>
-                        contact != null && contact.id == MackContactId);
-                }
             }
             catch (Exception exception)
             {
                 LogDebug($"CleanupLegacyContacts failed: {exception}");
-                Debug.LogWarning($"StreetQuestRPG: Failed to clean legacy contacts. {exception}");
+                Debug.LogWarning($"StreetQuestRPG: Failed to clean legacy runtime state. {exception}");
             }
         }
     }

@@ -73,6 +73,7 @@ namespace StreetQuestRPG
 
             StreetQuestShared.CleanupLegacyContacts();
             RegisterDialogs();
+            StreetQuestShared.RefreshStreetQuestContactDialogOverrides();
             return StreetQuestCharacterCatalog.All.Any(value => value != null);
         }
 

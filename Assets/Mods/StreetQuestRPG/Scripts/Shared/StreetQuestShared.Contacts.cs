@@ -10,6 +10,34 @@ namespace StreetQuestRPG
 {
     internal static partial class StreetQuestShared
     {
+        internal static void RefreshStreetQuestContactDialogOverrides()
+        {
+            var saveGame = SaveGameManager.Current;
+            var contacts = saveGame?.Contacts;
+            if (contacts == null || contacts.Count == 0)
+                return;
+
+            var changed = 0;
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.interactable))
+            {
+                var contactId = ResolveContactId(character);
+                if (string.IsNullOrWhiteSpace(contactId) || string.IsNullOrWhiteSpace(character.dialogTypeKey))
+                    continue;
+
+                var contact = contacts.FirstOrDefault(existingContact =>
+                    existingContact != null &&
+                    string.Equals(existingContact.id, contactId, StringComparison.OrdinalIgnoreCase));
+                if (contact == null)
+                    continue;
+
+                if (ApplyContactDialogOverride(contact, character))
+                    changed++;
+            }
+
+            if (changed > 0)
+                LogDebug($"RefreshStreetQuestContactDialogOverrides changed={changed}");
+        }
+
         private static bool GrantContactReward(string characterId)
         {
             if (string.IsNullOrWhiteSpace(characterId))
@@ -43,16 +71,34 @@ namespace StreetQuestRPG
             if (contact == null)
                 return false;
 
-            if (!string.IsNullOrWhiteSpace(character.dialogTypeKey))
-            {
-                var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(character.dialogTypeKey);
-                contact.callDialogTypeOverride = dialogType;
-            }
+            ApplyContactDialogOverride(contact, character);
 
             var existsAfter = SaveGameManager.Current?.Contacts?.Any(existingContact =>
                 existingContact != null &&
                 string.Equals(existingContact.id, contactId, StringComparison.OrdinalIgnoreCase)) == true;
+
+            var saveGame = SaveGameManager.Current;
+            if (existsAfter && saveGame != null)
+            {
+                saveGame.hasEverUsedMods = true;
+                SaveGameManager.MarkChange();
+            }
+
+            LogDebug($"GrantContactReward character={characterId} contactId={contactId} existedBefore={existedBefore} existsAfter={existsAfter}");
             return !existedBefore && existsAfter;
+        }
+
+        private static bool ApplyContactDialogOverride(Contact contact, StreetQuestCharacterDefinition character)
+        {
+            if (contact == null || string.IsNullOrWhiteSpace(character?.dialogTypeKey))
+                return false;
+
+            var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(character.dialogTypeKey);
+            if (contact.callDialogTypeOverride == dialogType)
+                return false;
+
+            contact.callDialogTypeOverride = dialogType;
+            return true;
         }
 
         private static string ResolveContactId(StreetQuestCharacterDefinition character)

@@ -522,10 +522,7 @@ namespace StreetQuestRPG
                     BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
                 var ctaBehaviors = ctaBehaviorsField?.GetValue(null) as System.Collections.IList;
                 if (ctaBehaviors == null)
-                {
-                    LogDebug("RemoveLegacyQuestGiverCtaBehaviors skipped: CtaBehaviors list missing");
                     return;
-                }
 
                 var removedCount = 0;
                 for (var index = ctaBehaviors.Count - 1; index >= 0; index--)
@@ -548,7 +545,9 @@ namespace StreetQuestRPG
                     removedCount++;
                 }
 
-                LogDebug($"RemoveLegacyQuestGiverCtaBehaviors removed={removedCount} remaining={ctaBehaviors.Count}");
+                if (removedCount > 0)
+                    LogDebug($"RemoveLegacyQuestGiverCtaBehaviors removed={removedCount} remaining={ctaBehaviors.Count}");
+
                 QuestGiverCtaInstalled = false;
             }
             catch (Exception exception)
