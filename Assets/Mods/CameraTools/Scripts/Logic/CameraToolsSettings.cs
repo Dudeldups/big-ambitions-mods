@@ -26,6 +26,8 @@ namespace CameraTools
 
         public bool EnableJobBoardUiDebugLogging { get; set; } = false;
 
+        public bool EnableGameplayZoomDebugLogging { get; set; } = false;
+
         public bool EnableVehicleDebugLogging { get; set; } = false;
 
         public bool EnableVehicleDebugOverlay { get; set; } = false;

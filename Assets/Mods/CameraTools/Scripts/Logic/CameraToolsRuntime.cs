@@ -23,6 +23,7 @@ namespace CameraTools
         private const float VehicleZoomStepPerScrollTick = 4f;
         private const float VehicleForcedZoomStep = 20f;
         private const float GameplayMinimumZoom = 1.5f;
+        private const float GameplayTrackedObjectOffsetY = 1.15f;
         private const float IndoorWallsPartlyHiddenPitchThreshold = 32.45f;
         private const float MapMinimumZoom = 120f;
         private const float MapScrollStepMultiplier = 7f;
@@ -623,6 +624,11 @@ namespace CameraTools
             CameraToolsFileLogger.Log("jobboard-ui-debug.log", "cameratools-jobboard-ui-debug.log", message);
         }
 
+        private static void LogGameplayZoomDebug(string message)
+        {
+            CameraToolsFileLogger.Log("gameplay-zoom-debug.log", "cameratools-gameplay-zoom-debug.log", message);
+        }
+
         private static Array? GetCinemachinePipeline(Type virtualCameraType, object virtualCamera)
         {
             var getPipelineMethod = virtualCameraType.GetMethod("GetComponentPipeline", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -689,7 +695,9 @@ namespace CameraTools
 
             if (Input.GetKeyDown(KeyCode.F4))
             {
-                if (settings.EnableJobBoardUiDebugLogging)
+                if (settings.EnableGameplayZoomDebugLogging)
+                    DumpGameplayZoomDiagnostics("manual");
+                else if (settings.EnableJobBoardUiDebugLogging)
                     DumpJobBoardUiDiagnostics("manual");
                 else if (settings.EnableIndoorCameraDebugLogging)
                     DumpIndoorCameraDiagnostics("manual");

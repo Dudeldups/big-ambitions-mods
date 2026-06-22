@@ -57,6 +57,7 @@ namespace CameraTools
 
             ClampGameplayDistance(desiredBounds);
             ApplyGameplayOffset(manualGameplayPitch);
+            ApplyGameplayTrackedObjectOffset();
         }
 
         private void ApplyGameplayTweaks()
@@ -106,6 +107,7 @@ namespace CameraTools
             var bounds = GetVector2Member(gameplayController, "minMaxDistance");
             ClampGameplayDistance(bounds);
             ApplyGameplayOffset(hasManualGameplayPitch ? manualGameplayPitch : settings.GameplayDefaultPitch);
+            ApplyGameplayTrackedObjectOffset();
         }
 
         private void ClampGameplayDistance(Vector2 bounds)
@@ -150,6 +152,48 @@ namespace CameraTools
             {
                 SetMemberValue(gameplayController, "offset", offset);
                 lastAppliedGameplayOffset = offset;
+            }
+        }
+
+        private void ApplyGameplayTrackedObjectOffset()
+        {
+            var liveVirtualCamera = GetLiveVirtualCameraComponent();
+            var virtualCameraType = cinematachineVirtualCameraType;
+            if (liveVirtualCamera == null || virtualCameraType == null)
+                return;
+
+            var pipeline = GetCinemachinePipeline(virtualCameraType, liveVirtualCamera);
+            if (pipeline == null)
+                return;
+
+            foreach (var pipelineComponent in pipeline)
+            {
+                if (pipelineComponent == null)
+                    continue;
+
+                var typeName = pipelineComponent.GetType().Name;
+                if (!string.Equals(typeName, "CinemachineComposer", StringComparison.Ordinal))
+                    continue;
+
+                if (TryGetMemberValue(pipelineComponent, "m_TrackedObjectOffset", out var trackedOffsetValue) &&
+                    trackedOffsetValue is Vector3 trackedOffset)
+                {
+                    var desiredOffset = trackedOffset;
+                    desiredOffset.y = GameplayTrackedObjectOffsetY;
+                    if (desiredOffset != trackedOffset)
+                        SetMemberValue(pipelineComponent, "m_TrackedObjectOffset", desiredOffset);
+                    return;
+                }
+
+                if (TryGetMemberValue(pipelineComponent, "TrackedObjectOffset", out var publicTrackedOffsetValue) &&
+                    publicTrackedOffsetValue is Vector3 publicTrackedOffset)
+                {
+                    var desiredOffset = publicTrackedOffset;
+                    desiredOffset.y = GameplayTrackedObjectOffsetY;
+                    if (desiredOffset != publicTrackedOffset)
+                        SetMemberValue(pipelineComponent, "TrackedObjectOffset", desiredOffset);
+                    return;
+                }
             }
         }
 
