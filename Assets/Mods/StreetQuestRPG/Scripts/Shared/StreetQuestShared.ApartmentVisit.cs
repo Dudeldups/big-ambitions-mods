@@ -195,7 +195,7 @@ namespace StreetQuestRPG
             StreetQuestApartmentRegistrationSnapshot originalSnapshot,
             BuildingRegistration registration)
         {
-            if (TryCreateRegisteredLayoutApartmentPayload(option, out var registeredLayoutPayload))
+            if (TryCreateRegisteredLayoutApartmentPayload(option, originalSnapshot, registration, out var registeredLayoutPayload))
                 return registeredLayoutPayload;
 
             return new StreetQuestApartmentInteriorPayload

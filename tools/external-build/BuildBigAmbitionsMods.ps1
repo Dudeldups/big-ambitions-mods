@@ -575,6 +575,13 @@ function Install-ModOutput {
         Write-Step ("Copied Config path: " + $configTarget)
     }
 
+    $layouts = Join-Path $Mod.SourceDir "Layouts"
+    if (Test-Path -LiteralPath $layouts -PathType Container) {
+        $layoutsTarget = Join-Path $installRoot "Layouts"
+        Copy-DirectoryUpdate -Source $layouts -Destination $layoutsTarget
+        Write-Step ("Copied Layouts path: " + $layoutsTarget)
+    }
+
     $personIcon = Join-Path $Mod.SourceDir "person.png"
     if (Test-Path -LiteralPath $personIcon -PathType Leaf) {
         $personIconTarget = Join-Path $installRoot "person.png"

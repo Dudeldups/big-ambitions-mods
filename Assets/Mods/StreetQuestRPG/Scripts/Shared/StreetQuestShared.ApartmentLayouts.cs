@@ -16,6 +16,8 @@ namespace StreetQuestRPG
 
         private static bool TryCreateRegisteredLayoutApartmentPayload(
             StreetQuestShared.ApartmentEntryOption option,
+            StreetQuestApartmentRegistrationSnapshot originalSnapshot,
+            object registration,
             out StreetQuestApartmentInteriorPayload payload)
         {
             payload = null;
@@ -28,11 +30,11 @@ namespace StreetQuestRPG
             payload = new StreetQuestApartmentInteriorPayload
             {
                 Layout = resolvedLayoutName,
-                InteriorDesigns = null,
-                ItemInstances = null,
-                ItemsInBuilding = null,
-                DeliveredItems = null,
-                DirtSpots = null
+                InteriorDesigns = CreateEmptyValueLike(originalSnapshot?.GetRaw("interiorDesigns"), GetMemberType(registration, "interiorDesigns")),
+                ItemInstances = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemInstances"), GetMemberType(registration, "itemInstances")),
+                ItemsInBuilding = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemsInBuilding"), GetMemberType(registration, "itemsInBuilding")),
+                DeliveredItems = CreateEmptyValueLike(originalSnapshot?.GetRaw("deliveredItems"), GetMemberType(registration, "deliveredItems")),
+                DirtSpots = CreateEmptyValueLike(originalSnapshot?.GetRaw("dirtSpots"), GetMemberType(registration, "dirtSpots"))
             };
 
             LogDebug(
@@ -110,6 +112,8 @@ namespace StreetQuestRPG
             var candidates = new[]
             {
                 Path.Combine(modRootPath, layoutFile),
+                Path.Combine(modRootPath, "Layouts", layoutFile),
+                Path.Combine(modRootPath, "Layouts", Path.GetFileName(layoutFile) ?? string.Empty),
                 Path.Combine(modRootPath, "Config", layoutFile),
                 Path.Combine(modRootPath, "Config", Path.GetFileName(layoutFile) ?? string.Empty)
             };
