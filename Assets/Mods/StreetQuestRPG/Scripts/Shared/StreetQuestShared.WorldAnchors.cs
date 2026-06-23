@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
@@ -27,19 +28,6 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(buildingAddressKey))
                 return false;
 
-            Address address;
-            try
-            {
-                address = BuildingHelper.ParseAddressString(buildingAddressKey);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (address == null)
-                return false;
-
             if (TryResolveWorldPositionFromSceneAddressAnchorCache(buildingAddressKey, out worldPosition))
             {
                 source = "scene_address_anchor_cache";
@@ -50,6 +38,23 @@ namespace StreetQuestRPG
             {
                 source = "exterior_candidate_anchor";
                 return true;
+            }
+
+            Address address;
+            try
+            {
+                address = BuildingHelper.ParseAddressString(buildingAddressKey);
+            }
+            catch
+            {
+                LogDebug($"AddressWorldAnchorResolve address={buildingAddressKey} source=parse_failed");
+                return false;
+            }
+
+            if (address == null)
+            {
+                LogDebug($"AddressWorldAnchorResolve address={buildingAddressKey} source=parse_null");
+                return false;
             }
 
             if (TryResolveWorldPositionFromSaveRegistration(buildingAddressKey, address, out worldPosition))
@@ -119,20 +124,31 @@ namespace StreetQuestRPG
             CachedExteriorAddressAnchorsByAddress.Clear();
             _cachedExteriorAddressAnchorSignature = signature;
 
-            foreach (var collider in Resources.FindObjectsOfTypeAll<Collider>())
+            var requiredAddresses = CollectConfiguredBuildingAddresses();
+            foreach (var component in Resources.FindObjectsOfTypeAll<Component>())
             {
-                if (collider == null || collider.transform == null)
+                if (component == null || component.transform == null)
                     continue;
 
-                if (!TryResolveAddressFromExteriorTransformChainForAnchorCache(collider.transform, out var addressKey))
+                var componentTypeName = component.GetType().Name;
+                if (!string.Equals(componentTypeName, "ViewBlockingEntityPart", StringComparison.Ordinal) &&
+                    !string.Equals(component.GetType().FullName, "Entities.ViewBlockingEntityPart", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!TryResolveAddressFromViewBlockingEntityPartForAnchorCache(component, out var addressKey))
                     continue;
 
                 var normalizedKey = NormalizeAddressText(addressKey);
-                if (string.IsNullOrWhiteSpace(normalizedKey))
+                if (string.IsNullOrWhiteSpace(normalizedKey) ||
+                    (requiredAddresses.Count > 0 && !requiredAddresses.Contains(normalizedKey)))
+                {
                     continue;
+                }
 
-                var candidatePosition = ResolveExteriorAnchorPosition(collider);
-                var candidateScore = ScoreExteriorAnchorCandidate(collider.transform);
+                var candidatePosition = ResolveExteriorAnchorPosition(component.transform);
+                var candidateScore = ScoreExteriorAnchorCandidate(component.transform);
                 if (CachedExteriorAddressAnchorsByAddress.TryGetValue(normalizedKey, out var existingPosition))
                 {
                     var existingScore = ScoreCachedExteriorAnchor(existingPosition, normalizedKey);
@@ -142,6 +158,9 @@ namespace StreetQuestRPG
 
                 CachedExteriorAddressAnchorsByAddress[normalizedKey] = candidatePosition;
             }
+
+            LogDebug(
+                $"SceneAddressAnchorCacheBuilt scene={signature} required={requiredAddresses.Count} resolved={CachedExteriorAddressAnchorsByAddress.Count} keys=[{string.Join(", ", CachedExteriorAddressAnchorsByAddress.Keys.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))}]");
         }
 
         private static string BuildSceneAddressAnchorSignature()
@@ -151,56 +170,39 @@ namespace StreetQuestRPG
             return $"{scene.name}|{scene.buildIndex}|{buildingRegistrationCount}";
         }
 
-        private static bool TryResolveAddressFromExteriorTransformChainForAnchorCache(
-            Transform transform,
+        private static bool TryResolveAddressFromViewBlockingEntityPartForAnchorCache(
+            Component component,
             out string addressKey)
         {
             addressKey = string.Empty;
-            var current = transform;
-            var depth = 0;
-            while (current != null && depth < 8)
-            {
-                foreach (var component in current.GetComponents<Component>())
-                {
-                    if (component == null)
-                        continue;
+            if (component == null)
+                return false;
 
-                    var componentTypeName = component.GetType().Name;
-                    if (!string.Equals(componentTypeName, "ViewBlockingEntityPart", StringComparison.Ordinal) &&
-                        !string.Equals(component.GetType().FullName, "Entities.ViewBlockingEntityPart", StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
+            var cityBuildingController = GetMemberValueForAnchorCache(component, "cityBuildingController");
+            if (cityBuildingController == null)
+                return false;
 
-                    var cityBuildingController = GetMemberValueForAnchorCache(component, "cityBuildingController");
-                    if (cityBuildingController == null)
-                        continue;
+            var buildingRegistration = GetMemberValueForAnchorCache(cityBuildingController, "buildingRegistration");
+            if (buildingRegistration == null)
+                return false;
 
-                    var buildingRegistration = GetMemberValueForAnchorCache(cityBuildingController, "buildingRegistration");
-                    if (buildingRegistration == null)
-                        continue;
-
-                    var address = GetMemberValueForAnchorCache(buildingRegistration, "Address");
-                    if (TryNormalizeAddressForAnchorCache(address, out addressKey))
-                        return true;
-                }
-
-                current = current.parent;
-                depth++;
-            }
-
-            return false;
+            var address = GetMemberValueForAnchorCache(buildingRegistration, "Address");
+            return TryNormalizeAddressForAnchorCache(address, out addressKey);
         }
 
-        private static Vector3 ResolveExteriorAnchorPosition(Collider collider)
+        private static Vector3 ResolveExteriorAnchorPosition(Transform sourceTransform)
         {
-            if (collider == null)
+            if (sourceTransform == null)
                 return Vector3.zero;
 
-            var bounds = collider.bounds;
-            var position = bounds.center;
-            position.y = collider.transform.position.y;
-            return position;
+            var preferredAnchor = FindNamedAnchorTransform(sourceTransform, "GroundPlane") ??
+                                  FindNamedAnchorTransform(sourceTransform, "Entrance") ??
+                                  FindNamedAnchorTransform(sourceTransform, "Entry") ??
+                                  FindNamedAnchorTransform(sourceTransform, "Door");
+            if (preferredAnchor != null)
+                return preferredAnchor.position;
+
+            return sourceTransform.position;
         }
 
         private static int ScoreExteriorAnchorCandidate(Transform transform)
@@ -231,6 +233,50 @@ namespace StreetQuestRPG
         private static int ScoreCachedExteriorAnchor(Vector3 existingPosition, string addressKey)
         {
             return CachedExteriorAddressAnchorsByAddress.ContainsKey(addressKey) ? 100 : 0;
+        }
+
+        private static HashSet<string> CollectConfiguredBuildingAddresses()
+        {
+            var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var character in StreetQuestCharacterCatalog.All)
+            {
+                if (character == null)
+                    continue;
+
+                var baseAddress = NormalizeAddressText(character.buildingAddress);
+                if (!string.IsNullOrWhiteSpace(baseAddress))
+                    addresses.Add(baseAddress);
+
+                if (character.states == null)
+                    continue;
+
+                foreach (var state in character.states)
+                {
+                    var stateAddress = NormalizeAddressText(state?.buildingAddress);
+                    if (!string.IsNullOrWhiteSpace(stateAddress))
+                        addresses.Add(stateAddress);
+                }
+            }
+
+            return addresses;
+        }
+
+        private static Transform FindNamedAnchorTransform(Transform sourceTransform, string nameFragment)
+        {
+            if (sourceTransform == null || string.IsNullOrWhiteSpace(nameFragment))
+                return null;
+
+            foreach (var child in sourceTransform.GetComponentsInChildren<Transform>(includeInactive: true))
+            {
+                if (child == null || string.IsNullOrWhiteSpace(child.name))
+                    continue;
+
+                if (child.name.IndexOf(nameFragment, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return child;
+            }
+
+            return null;
         }
 
         private static bool TryResolveWorldPositionFromSaveRegistration(
