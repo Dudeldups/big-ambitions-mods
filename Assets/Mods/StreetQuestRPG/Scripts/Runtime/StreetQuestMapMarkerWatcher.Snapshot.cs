@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Buildings;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -36,7 +37,7 @@ namespace StreetQuestRPG
                 return;
 
             var entries = new List<MapSnapshotEntry>();
-            foreach (var rect in poiRoot.GetComponentsInChildren<RectTransform>(true))
+            foreach (RectTransform rect in poiRoot)
             {
                 if (rect == null || rect == poiRoot || rect == _streetQuestRoot)
                     continue;
@@ -66,7 +67,7 @@ namespace StreetQuestRPG
                 StreetQuestShared.LogSnapshot(
                     $"MapSnapshot entry root={entry.RootPath} rect={entry.RectPath} " +
                     $"anchored={FormatVector2(entry.AnchoredPosition)} size={FormatVector2(entry.SizeDelta)} " +
-                    $"targetPath={entry.TargetPath} world={entry.WorldPositionText} " +
+                    $"targetPath={entry.TargetPath} buildingAddress={entry.BuildingAddress} world={entry.WorldPositionText} " +
                     $"texts={entry.TextSummary} images={entry.ImageSummary}");
             }
 
@@ -85,6 +86,9 @@ namespace StreetQuestRPG
             var rootPath = GetHierarchyPath(poiRoot);
             var targetPath = TryResolvePoiTargetPath(poiRoot, out var resolvedTargetPath)
                 ? resolvedTargetPath
+                : "<none>";
+            var buildingAddress = TryResolvePoiBuildingAddress(poiRoot, out var resolvedBuildingAddress)
+                ? resolvedBuildingAddress
                 : "<none>";
 
             string worldPositionText;
@@ -110,6 +114,7 @@ namespace StreetQuestRPG
                 RectPath = rectPath,
                 RootPath = rootPath,
                 TargetPath = targetPath,
+                BuildingAddress = buildingAddress,
                 WorldPositionText = worldPositionText,
                 AnchoredPosition = poiRoot.anchoredPosition,
                 SizeDelta = poiRoot.sizeDelta,
@@ -202,6 +207,108 @@ namespace StreetQuestRPG
             return TryExtractWorldPosition(poiRoot, out worldPosition);
         }
 
+        private bool TryResolvePoiBuildingAddress(RectTransform poiRoot, out string addressKey)
+        {
+            addressKey = null;
+            if (poiRoot == null)
+                return false;
+
+            foreach (var component in poiRoot.GetComponents<Component>())
+            {
+                if (component == null ||
+                    !string.Equals(component.GetType().Name, "PointOfInterest", StringComparison.Ordinal))
+                    continue;
+
+                if (!TryReadMemberValue(component, "target", out var targetValue) || targetValue == null)
+                    continue;
+
+                if (!TryGetTargetTransform(targetValue, out var targetTransform) || targetTransform == null)
+                    continue;
+
+                if (TryResolveAddressFromTargetTransformChain(targetTransform, out addressKey))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetTargetTransform(object targetValue, out Transform targetTransform)
+        {
+            targetTransform = null;
+            switch (targetValue)
+            {
+                case Transform transform:
+                    targetTransform = transform;
+                    return true;
+                case Component component:
+                    targetTransform = component.transform;
+                    return true;
+                case GameObject gameObject:
+                    targetTransform = gameObject.transform;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool TryResolveAddressFromTargetTransformChain(Transform transform, out string addressKey)
+        {
+            addressKey = null;
+            for (var current = transform; current != null; current = current.parent)
+            {
+                foreach (var component in current.GetComponents<Component>())
+                {
+                    if (component == null || !IsViewBlockingEntityPartForSnapshot(component))
+                        continue;
+
+                    if (TryResolveAddressFromViewBlockingEntityPartForSnapshot(component, out addressKey))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsViewBlockingEntityPartForSnapshot(Component component)
+        {
+            var componentTypeName = component.GetType().Name;
+            return string.Equals(componentTypeName, "ViewBlockingEntityPart", StringComparison.Ordinal) ||
+                   string.Equals(component.GetType().FullName, "Entities.ViewBlockingEntityPart", StringComparison.Ordinal);
+        }
+
+        private static bool TryResolveAddressFromViewBlockingEntityPartForSnapshot(Component component, out string addressKey)
+        {
+            addressKey = null;
+            if (!TryReadMemberValue(component, "cityBuildingController", out var cityBuildingController) ||
+                cityBuildingController == null)
+                return false;
+
+            if (!TryReadMemberValue(cityBuildingController, "buildingRegistration", out var buildingRegistration) ||
+                buildingRegistration == null)
+                return false;
+
+            if (!TryReadMemberValue(buildingRegistration, "Address", out var address))
+                return false;
+
+            return TryNormalizeAddressForSnapshot(address, out addressKey);
+        }
+
+        private static bool TryNormalizeAddressForSnapshot(object addressValue, out string addressKey)
+        {
+            addressKey = null;
+            switch (addressValue)
+            {
+                case null:
+                    return false;
+                case Address address:
+                    addressKey = address.ToString();
+                    return !string.IsNullOrWhiteSpace(addressKey);
+                default:
+                    addressKey = addressValue.ToString();
+                    return !string.IsNullOrWhiteSpace(addressKey);
+            }
+        }
+
         private static string DescribeImage(Image image)
         {
             if (image == null)
@@ -217,6 +324,7 @@ namespace StreetQuestRPG
             internal string RectPath;
             internal string RootPath;
             internal string TargetPath;
+            internal string BuildingAddress;
             internal string WorldPositionText;
             internal Vector2 AnchoredPosition;
             internal Vector2 SizeDelta;
