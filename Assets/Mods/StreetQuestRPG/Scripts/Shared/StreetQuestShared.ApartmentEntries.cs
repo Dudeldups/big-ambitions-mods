@@ -42,10 +42,16 @@ namespace StreetQuestRPG
                 }
 
                 var runtime = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutGameplayGates(character, activeState);
-                if (runtime == null || !runtime.enabled)
+                if (runtime == null)
+                {
+                    LogDebug(
+                        $"ApartmentEntryCandidateSkipped character={character.id ?? "<null>"} state={activeState.id ?? "<unnamed>"} reason=runtime_null exteriorAddress={normalizedExteriorAddress}");
                     continue;
+                }
 
                 var characterName = ResolveCharacterDisplayName(character.id);
+                LogDebug(
+                    $"ApartmentEntryCandidateMatched character={character.id ?? "<null>"} state={activeState.id ?? "<unnamed>"} exteriorAddress={normalizedExteriorAddress} interiorAddress={runtime.buildingAddress ?? "<none>"}");
                 results.Add(new ApartmentEntryOption
                 {
                     CharacterId = character.id ?? string.Empty,
