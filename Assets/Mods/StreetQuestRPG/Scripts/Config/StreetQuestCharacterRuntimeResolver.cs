@@ -9,6 +9,8 @@ namespace StreetQuestRPG
     {
         private static readonly Dictionary<string, RuntimeCacheEntry> RuntimeCacheByCharacterId =
             new Dictionary<string, RuntimeCacheEntry>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> LastRuntimeResolveDebugByCharacterId =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public static void ClearCache()
         {
@@ -55,7 +57,10 @@ namespace StreetQuestRPG
 
             var activeState = ResolveActiveState(definition);
             if (activeState == null)
+            {
+                LogRuntimeResolve(definition.id, "state=<none> enabled=false reason=no_matching_state");
                 return null;
+            }
 
             var resolved = CloneDefinition(definition);
             ResetStateOwnedRuntimeFields(resolved);
@@ -66,11 +71,17 @@ namespace StreetQuestRPG
             if (activeAppearance != null)
                 ApplyAppearanceOverrides(resolved, activeAppearance);
 
-            if (!StreetQuestShared.DoesBuildingContextMatch(resolved))
+            var buildingContextMatches = StreetQuestShared.DoesBuildingContextMatch(resolved);
+            if (!buildingContextMatches)
                 resolved.enabled = false;
 
-            if (!StreetQuestShared.IsScheduleActive(resolved))
+            var scheduleMatches = StreetQuestShared.IsScheduleActive(resolved);
+            if (!scheduleMatches)
                 resolved.enabled = false;
+
+            LogRuntimeResolve(
+                definition.id,
+                $"state={activeState.id ?? "<unnamed>"} enabled={resolved.enabled} buildingAddress={resolved.buildingAddress ?? "<none>"} currentIndoorAddress={StreetQuestShared.GetCurrentIndoorBuildingAddressKey() ?? string.Empty} buildingMatch={buildingContextMatches} scheduleMatch={scheduleMatches}");
 
             if (!string.IsNullOrWhiteSpace(definition.id))
             {
@@ -99,7 +110,10 @@ namespace StreetQuestRPG
 
             var activeState = ResolveActiveState(definition);
             if (activeState == null)
+            {
+                LogRuntimeResolve(definition.id, "state=<none> enabled=false reason=no_matching_state_without_schedule_gate");
                 return null;
+            }
 
             var resolved = CloneDefinition(definition);
             ResetStateOwnedRuntimeFields(resolved);
@@ -110,8 +124,13 @@ namespace StreetQuestRPG
             if (activeAppearance != null)
                 ApplyAppearanceOverrides(resolved, activeAppearance);
 
-            if (!StreetQuestShared.DoesBuildingContextMatch(resolved))
+            var buildingContextMatches = StreetQuestShared.DoesBuildingContextMatch(resolved);
+            if (!buildingContextMatches)
                 resolved.enabled = false;
+
+            LogRuntimeResolve(
+                definition.id,
+                $"state={activeState.id ?? "<unnamed>"} enabled={resolved.enabled} buildingAddress={resolved.buildingAddress ?? "<none>"} currentIndoorAddress={StreetQuestShared.GetCurrentIndoorBuildingAddressKey() ?? string.Empty} buildingMatch={buildingContextMatches} scheduleMatch=<skipped>");
 
             return resolved;
         }
@@ -129,6 +148,21 @@ namespace StreetQuestRPG
             }
 
             return null;
+        }
+
+        private static void LogRuntimeResolve(string characterId, string details)
+        {
+            if (string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(details))
+                return;
+
+            if (LastRuntimeResolveDebugByCharacterId.TryGetValue(characterId, out var previousDetails) &&
+                string.Equals(previousDetails, details, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            LastRuntimeResolveDebugByCharacterId[characterId] = details;
+            StreetQuestShared.LogDebug($"CharacterRuntimeResolve character={characterId} {details}");
         }
 
         public static string ResolveActiveAppearanceId(

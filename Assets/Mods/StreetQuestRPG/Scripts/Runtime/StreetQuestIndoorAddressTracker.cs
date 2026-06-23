@@ -22,6 +22,7 @@ namespace StreetQuestRPG
         private static bool _wasIndoorLastTick;
         private static bool _hasTicked;
         private static bool _awaitingIndoorResumeFromSave;
+        private static bool _wasCityMapOpenLastTick;
         private static float _nextExteriorCandidateRefreshAtSeconds;
         private static string _lastLoggedExteriorCandidate = string.Empty;
         private static string _lastLoggedIndoorTransitionCandidate = string.Empty;
@@ -40,6 +41,7 @@ namespace StreetQuestRPG
             _wasIndoorLastTick = false;
             _hasTicked = false;
             _awaitingIndoorResumeFromSave = false;
+            _wasCityMapOpenLastTick = false;
             _nextExteriorCandidateRefreshAtSeconds = 0f;
             _lastLoggedExteriorCandidate = string.Empty;
             _lastLoggedIndoorTransitionCandidate = string.Empty;
@@ -49,6 +51,19 @@ namespace StreetQuestRPG
 
         internal static bool Tick(float elapsedSeconds)
         {
+            var isCityMapOpen = StreetQuestShared.IsCityMapOpenForGameplayChecks();
+            if (isCityMapOpen)
+            {
+                _wasCityMapOpenLastTick = true;
+                return false;
+            }
+
+            if (_wasCityMapOpenLastTick)
+            {
+                _wasCityMapOpenLastTick = false;
+                return false;
+            }
+
             var isIndoor = StreetQuestShared.IsIndoorGameplayContextActive();
             var shouldRefreshCharacters = false;
 

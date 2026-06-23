@@ -11,7 +11,13 @@ namespace StreetQuestRPG
     {
         internal static bool TryResolveAddressWorldAnchor(string buildingAddressKey, out Vector3 worldPosition)
         {
+            return TryResolveAddressWorldAnchor(buildingAddressKey, out worldPosition, out _);
+        }
+
+        internal static bool TryResolveAddressWorldAnchor(string buildingAddressKey, out Vector3 worldPosition, out string source)
+        {
             worldPosition = default;
+            source = string.Empty;
             if (string.IsNullOrWhiteSpace(buildingAddressKey))
                 return false;
 
@@ -32,7 +38,10 @@ namespace StreetQuestRPG
             {
                 var building = BuildingHelper.GetBuilding(address);
                 if (TryResolveWorldPositionFromCandidate(building, out worldPosition))
+                {
+                    source = "building";
                     return true;
+                }
             }
             catch
             {
@@ -42,7 +51,10 @@ namespace StreetQuestRPG
             {
                 var registration = BuildingHelper.GetBuildingRegistration(address);
                 if (TryResolveWorldPositionFromCandidate(registration, out worldPosition))
+                {
+                    source = "registration";
                     return true;
+                }
             }
             catch
             {
@@ -134,26 +146,29 @@ namespace StreetQuestRPG
                     return true;
             }
 
-            if (!TryReadMemberValueForWorldAnchor(candidate, "position", out var positionValue))
-                return false;
-
-            switch (positionValue)
+            foreach (var memberName in new[] { "position", "Position", "worldPosition", "WorldPosition" })
             {
-                case Vector3 vector3:
-                    worldPosition = vector3;
-                    return true;
-                case Transform transform:
-                    worldPosition = transform.position;
-                    return true;
-                case Component component:
-                    worldPosition = component.transform.position;
-                    return true;
-                case GameObject gameObject:
-                    worldPosition = gameObject.transform.position;
-                    return true;
-                default:
-                    return false;
+                if (!TryReadMemberValueForWorldAnchor(candidate, memberName, out var positionValue))
+                    continue;
+
+                switch (positionValue)
+                {
+                    case Vector3 vector3:
+                        worldPosition = vector3;
+                        return true;
+                    case Transform transform:
+                        worldPosition = transform.position;
+                        return true;
+                    case Component component:
+                        worldPosition = component.transform.position;
+                        return true;
+                    case GameObject gameObject:
+                        worldPosition = gameObject.transform.position;
+                        return true;
+                }
             }
+
+            return false;
         }
 
         private static bool TryReadMemberValueForWorldAnchor(object instance, string memberName, out object value)

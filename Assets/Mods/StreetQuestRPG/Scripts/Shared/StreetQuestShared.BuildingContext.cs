@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -62,6 +63,16 @@ namespace StreetQuestRPG
             return path.IndexOf("IndoorCam", StringComparison.OrdinalIgnoreCase) >= 0 &&
                    path.IndexOf("VehicleCam", StringComparison.OrdinalIgnoreCase) < 0 &&
                    path.IndexOf("IndoorVehicle", StringComparison.OrdinalIgnoreCase) < 0;
+        }
+
+        internal static bool IsCityMapOpenForGameplayChecks()
+        {
+            var cityMapType = FindType("CityMap");
+            if (cityMapType == null)
+                return false;
+
+            var isOpenProperty = cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
+            return isOpenProperty?.GetValue(null) as bool? ?? false;
         }
 
         private static Component GetLiveVirtualCameraComponent()
