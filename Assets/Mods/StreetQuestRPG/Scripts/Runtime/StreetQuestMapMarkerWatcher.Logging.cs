@@ -33,6 +33,9 @@ namespace StreetQuestRPG
         }
         private void LogMarkerState(string characterId, bool isVisible, string reason)
         {
+            if (!EnableMarkerDebugLogging)
+                return;
+
             if (LastMapWorldResolutionReasonsByCharacterId.TryGetValue(characterId, out var worldReason) &&
                 !string.IsNullOrWhiteSpace(worldReason) &&
                 reason.IndexOf("worldResolve=", StringComparison.Ordinal) < 0)

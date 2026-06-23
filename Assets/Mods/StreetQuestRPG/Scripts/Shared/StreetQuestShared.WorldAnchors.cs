@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
@@ -47,15 +46,11 @@ namespace StreetQuestRPG
             }
             catch
             {
-                LogDebug($"AddressWorldAnchorResolve address={buildingAddressKey} source=parse_failed");
                 return false;
             }
 
             if (address == null)
-            {
-                LogDebug($"AddressWorldAnchorResolve address={buildingAddressKey} source=parse_null");
                 return false;
-            }
 
             if (TryResolveWorldPositionFromSaveRegistration(buildingAddressKey, address, out worldPosition))
             {
@@ -149,18 +144,15 @@ namespace StreetQuestRPG
 
                 var candidatePosition = ResolveExteriorAnchorPosition(component.transform);
                 var candidateScore = ScoreExteriorAnchorCandidate(component.transform);
-                if (CachedExteriorAddressAnchorsByAddress.TryGetValue(normalizedKey, out var existingPosition))
+                if (CachedExteriorAddressAnchorsByAddress.ContainsKey(normalizedKey))
                 {
-                    var existingScore = ScoreCachedExteriorAnchor(existingPosition, normalizedKey);
+                    var existingScore = ScoreCachedExteriorAnchor(normalizedKey);
                     if (existingScore >= candidateScore)
                         continue;
                 }
 
                 CachedExteriorAddressAnchorsByAddress[normalizedKey] = candidatePosition;
             }
-
-            LogDebug(
-                $"SceneAddressAnchorCacheBuilt scene={signature} required={requiredAddresses.Count} resolved={CachedExteriorAddressAnchorsByAddress.Count} keys=[{string.Join(", ", CachedExteriorAddressAnchorsByAddress.Keys.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))}]");
         }
 
         private static string BuildSceneAddressAnchorSignature()
@@ -230,7 +222,7 @@ namespace StreetQuestRPG
             return 100;
         }
 
-        private static int ScoreCachedExteriorAnchor(Vector3 existingPosition, string addressKey)
+        private static int ScoreCachedExteriorAnchor(string addressKey)
         {
             return CachedExteriorAddressAnchorsByAddress.ContainsKey(addressKey) ? 100 : 0;
         }
