@@ -105,10 +105,7 @@ namespace StreetQuestRPG
 
             StreetQuestShared.LogDebug(
                 $"ApartmentEntryClicked character={option.CharacterId} state={option.StateId} exteriorAddress={option.ExteriorAddress} interiorAddress={option.InteriorAddress}");
-            StreetQuestShared.NotifyInfo(
-                StreetQuestShared.BuildApartmentEntryPlaceholderMessage(option),
-                $"streetquest:apartment_entry_click:{option.CharacterId}",
-                3.5f);
+            StreetQuestShared.TryEnterApartment(option);
         }
 
         private bool IsVisible()

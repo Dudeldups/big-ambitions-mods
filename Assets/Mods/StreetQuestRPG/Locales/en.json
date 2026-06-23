@@ -55,5 +55,6 @@
   "streetquest:map_filter_npcs": "People",
   "streetquest:bubble_fran_call_julia": "JULIA!",
   "streetquest:cta_enter_apartment": "Enter {npcname}'s apartment",
-  "streetquest:debug_apartment_entry_placeholder": "Apartment entry resolved for {npcname}. Interior hook is not wired yet."
+  "streetquest:debug_apartment_entry_placeholder": "Apartment entry resolved for {npcname}. Interior hook is not wired yet.",
+  "streetquest:apartment_entry_failed": "Couldn't enter {npcname}'s apartment yet."
 }

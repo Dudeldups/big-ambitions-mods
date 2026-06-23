@@ -43,6 +43,7 @@ namespace StreetQuestRPG
 
         internal void ResetRuntimeState()
         {
+            StreetQuestShared.RestoreActiveApartmentVisit("reset_runtime_state");
             _nextSpawnRetryAtSeconds = 0f;
             _nextBootstrapRetryAtSeconds = 0f;
             _lastScheduleHourKey = int.MinValue;
@@ -94,7 +95,13 @@ namespace StreetQuestRPG
                 _nextObjectiveTickAtSeconds = _elapsedSeconds + 0.5f;
             }
 
+            StreetQuestShared.TickApartmentVisit();
             UpdateIndoorBuildingContext();
+        }
+
+        private void OnDestroy()
+        {
+            StreetQuestShared.RestoreActiveApartmentVisit("watcher_destroy");
         }
 
         private void UpdateIndoorBuildingContext()
