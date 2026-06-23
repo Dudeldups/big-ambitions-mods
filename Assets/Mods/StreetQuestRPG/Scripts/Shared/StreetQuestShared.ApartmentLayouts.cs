@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -38,6 +39,27 @@ namespace StreetQuestRPG
             var deliveredItems = CreateEmptyValueLike(originalSnapshot?.GetRaw("deliveredItems"), GetMemberType(registration, "deliveredItems"));
             var dirtSpots = CreateEmptyValueLike(originalSnapshot?.GetRaw("dirtSpots"), GetMemberType(registration, "dirtSpots"));
 
+            if (TryHydrateApartmentLayoutPayloadFromAddressInsert(
+                    option,
+                    originalSnapshot,
+                    registration,
+                    registeredLayoutTempPath,
+                    out var insertedPayload))
+            {
+                payload = insertedPayload;
+                LogDebug(
+                    $"ApartmentLayoutPayloadPrepared character={option.CharacterId} state={option.StateId} layoutFile={option.ApartmentLayoutFile} layoutName={resolvedLayoutName} tempPath={registeredLayoutTempPath} mode=address_insert");
+                return true;
+            }
+
+            TryHydrateApartmentLayoutPayloadFromHelper(
+                option,
+                registration,
+                registeredLayoutTempPath,
+                ref interiorDesigns,
+                ref itemInstances,
+                ref itemsInBuilding);
+
             payload = new StreetQuestApartmentInteriorPayload
             {
                 Layout = resolvedLayoutName,
@@ -45,8 +67,7 @@ namespace StreetQuestRPG
                 ItemInstances = itemInstances,
                 ItemsInBuilding = itemsInBuilding,
                 DeliveredItems = deliveredItems,
-                DirtSpots = dirtSpots,
-                RegisteredLayoutTempPath = registeredLayoutTempPath
+                DirtSpots = dirtSpots
             };
 
             LogDebug(
@@ -54,12 +75,17 @@ namespace StreetQuestRPG
             return true;
         }
 
-        private static bool TryInsertApartmentLayoutSet(
-            BuildingRegistration registration,
+        private static bool TryHydrateApartmentLayoutPayloadFromAddressInsert(
+            StreetQuestShared.ApartmentEntryOption option,
+            StreetQuestApartmentRegistrationSnapshot originalSnapshot,
+            object registration,
             string tempLayoutPath,
-            string layoutName)
+            out StreetQuestApartmentInteriorPayload payload)
         {
-            if (registration == null || string.IsNullOrWhiteSpace(tempLayoutPath) || !File.Exists(tempLayoutPath))
+            payload = null;
+            if (registration is not BuildingRegistration typedRegistration ||
+                string.IsNullOrWhiteSpace(tempLayoutPath) ||
+                !File.Exists(tempLayoutPath))
                 return false;
 
             try
@@ -68,9 +94,88 @@ namespace StreetQuestRPG
                     .Select(assembly => assembly.GetType(ApartmentLayoutHelperTypeName, false))
                     .FirstOrDefault(type => type != null);
                 if (helperType == null)
-                {
-                    LogDebug($"ApartmentLayoutInsertFailed reason=helper_missing type={ApartmentLayoutHelperTypeName}");
                     return false;
+
+                var deserializeMethod = helperType.GetMethod(
+                    "Deserialize",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(string) },
+                    null);
+                var addressInsertMethod = helperType.GetMethod(
+                    "InsertLayoutSet",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typedRegistration.Address?.GetType(), deserializeMethod?.ReturnType, typeof(bool) },
+                    null);
+                if (deserializeMethod == null || addressInsertMethod == null || typedRegistration.Address == null)
+                    return false;
+
+                var layoutSet = deserializeMethod.Invoke(null, new object[] { tempLayoutPath });
+                if (layoutSet == null)
+                    return false;
+
+                addressInsertMethod.Invoke(null, new[] { typedRegistration.Address, layoutSet, false as object });
+
+                payload = new StreetQuestApartmentInteriorPayload
+                {
+                    Layout = GetMemberValue(typedRegistration, "Layout") as string,
+                    InteriorDesigns = GetMemberValue(typedRegistration, "interiorDesigns"),
+                    ItemInstances = GetMemberValue(typedRegistration, "itemInstances"),
+                    ItemsInBuilding = GetMemberValue(typedRegistration, "itemsInBuilding"),
+                    DeliveredItems = GetMemberValue(typedRegistration, "deliveredItems"),
+                    DirtSpots = GetMemberValue(typedRegistration, "dirtSpots")
+                };
+
+                LogDebug(
+                    $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} mode=address_insert layout={payload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(payload.InteriorDesigns)} itemInstances={DescribeValueShape(payload.ItemInstances)} itemsInBuilding={DescribeValueShape(payload.ItemsInBuilding)}");
+
+                foreach (var fieldName in ApartmentRegistrationFieldNames)
+                    SetMemberValue(typedRegistration, fieldName, originalSnapshot.GetRaw(fieldName));
+
+                return true;
+            }
+            catch (TargetInvocationException exception)
+            {
+                foreach (var fieldName in ApartmentRegistrationFieldNames)
+                    SetMemberValue(registration, fieldName, originalSnapshot.GetRaw(fieldName));
+
+                var inner = exception.InnerException;
+                LogDebug(
+                    $"ApartmentLayoutAddressInsertFailed reason={exception.GetType().Name}:{exception.Message} inner={inner?.GetType().Name}:{inner?.Message} character={option?.CharacterId} state={option?.StateId} path={tempLayoutPath}");
+                return false;
+            }
+            catch (Exception exception)
+            {
+                foreach (var fieldName in ApartmentRegistrationFieldNames)
+                    SetMemberValue(registration, fieldName, originalSnapshot.GetRaw(fieldName));
+
+                LogDebug(
+                    $"ApartmentLayoutAddressInsertFailed reason={exception.GetType().Name}:{exception.Message} character={option?.CharacterId} state={option?.StateId} path={tempLayoutPath}");
+                return false;
+            }
+        }
+
+        private static void TryHydrateApartmentLayoutPayloadFromHelper(
+            StreetQuestShared.ApartmentEntryOption option,
+            object registration,
+            string tempLayoutPath,
+            ref object interiorDesigns,
+            ref object itemInstances,
+            ref object itemsInBuilding)
+        {
+            if (registration == null || string.IsNullOrWhiteSpace(tempLayoutPath) || !File.Exists(tempLayoutPath))
+                return;
+
+            try
+            {
+                var helperType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(assembly => assembly.GetType(ApartmentLayoutHelperTypeName, false))
+                    .FirstOrDefault(type => type != null);
+                if (helperType == null)
+                {
+                    LogDebug($"ApartmentLayoutHydrateFailed reason=helper_missing type={ApartmentLayoutHelperTypeName}");
+                    return;
                 }
 
                 var deserializeMethod = helperType.GetMethod(
@@ -81,46 +186,150 @@ namespace StreetQuestRPG
                     null);
                 if (deserializeMethod == null)
                 {
-                    LogDebug("ApartmentLayoutInsertFailed reason=deserialize_missing");
-                    return false;
+                    LogDebug("ApartmentLayoutHydrateFailed reason=deserialize_missing");
+                    return;
                 }
 
                 var layoutSet = deserializeMethod.Invoke(null, new object[] { tempLayoutPath });
                 if (layoutSet == null)
                 {
-                    LogDebug($"ApartmentLayoutInsertFailed reason=layoutset_null path={tempLayoutPath}");
-                    return false;
+                    LogDebug($"ApartmentLayoutHydrateFailed reason=layoutset_null path={tempLayoutPath}");
+                    return;
                 }
 
-                var insertMethod = helperType.GetMethod(
-                    "InsertLayoutSet",
+                var layoutInteriorDesigns = GetMemberValue(layoutSet, "interiorDesigns");
+                if (layoutInteriorDesigns != null)
+                    interiorDesigns = layoutInteriorDesigns;
+
+                var getItemInstancesMethod = helperType.GetMethod(
+                    "GetItemInstancesFromLayoutItems",
                     BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
                     null,
-                    new[] { typeof(BuildingRegistration), layoutSet.GetType(), typeof(bool), typeof(bool) },
+                    new[] { GetMemberType(layoutSet, "Items") },
                     null);
-                if (insertMethod == null)
+                if (getItemInstancesMethod == null)
                 {
-                    LogDebug("ApartmentLayoutInsertFailed reason=insert_missing");
-                    return false;
+                    LogDebug("ApartmentLayoutHydrateFailed reason=get_item_instances_missing");
+                    return;
                 }
 
-                insertMethod.Invoke(null, new object[] { registration, layoutSet, false, false });
+                var layoutItems = GetMemberValue(layoutSet, "Items");
+                var convertedItemInstances = getItemInstancesMethod.Invoke(null, new[] { layoutItems }) as IEnumerable;
+                if (convertedItemInstances != null)
+                {
+                    itemInstances = BuildItemInstanceDictionary(
+                        convertedItemInstances,
+                        GetMemberType(registration, "itemInstances"),
+                        itemInstances,
+                        out var itemCount);
+                    itemsInBuilding = BuildItemsInBuilding(
+                        GetMemberType(registration, "itemsInBuilding"),
+                        itemInstances,
+                        itemsInBuilding);
+
+                    LogDebug(
+                        $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={itemCount} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)}");
+                    return;
+                }
+
                 LogDebug(
-                    $"ApartmentLayoutInserted layout={layoutName} tempPath={tempLayoutPath} itemInstances={DescribeValueShape(GetMemberValue(registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(registration, "itemsInBuilding"))}");
-                return true;
-            }
-            catch (TargetInvocationException exception)
-            {
-                var inner = exception.InnerException;
-                LogDebug(
-                    $"ApartmentLayoutInsertFailed reason={exception.GetType().Name}:{exception.Message} inner={inner?.GetType().Name}:{inner?.Message} layout={layoutName} path={tempLayoutPath} registrationLayout={GetMemberValue(registration, "Layout")} buildingType={GetMemberValue(registration, "BuildingType")} buildingSize={GetMemberValue(registration, "BuildingSize")} businessType={GetMemberValue(registration, "BusinessType")}");
-                return false;
+                    $"ApartmentLayoutHydrateFailed reason=converted_items_null character={option.CharacterId} state={option.StateId} path={tempLayoutPath}");
             }
             catch (Exception exception)
             {
                 LogDebug(
-                    $"ApartmentLayoutInsertFailed reason={exception.GetType().Name}:{exception.Message} layout={layoutName} path={tempLayoutPath} registrationLayout={GetMemberValue(registration, "Layout")} buildingType={GetMemberValue(registration, "BuildingType")} buildingSize={GetMemberValue(registration, "BuildingSize")} businessType={GetMemberValue(registration, "BusinessType")}");
-                return false;
+                    $"ApartmentLayoutHydrateFailed reason={exception.GetType().Name}:{exception.Message} character={option?.CharacterId} state={option?.StateId} path={tempLayoutPath}");
+            }
+        }
+
+        private static object BuildItemInstanceDictionary(
+            IEnumerable itemInstances,
+            Type targetType,
+            object fallback,
+            out int entryCount)
+        {
+            entryCount = 0;
+            if (targetType == null)
+                return fallback;
+
+            var dictionary = Activator.CreateInstance(targetType);
+            if (dictionary is not IDictionary typedDictionary)
+                return fallback;
+
+            var keyType = typeof(string);
+            if (targetType.IsGenericType)
+            {
+                var arguments = targetType.GetGenericArguments();
+                if (arguments.Length >= 1)
+                    keyType = arguments[0];
+            }
+
+            foreach (var itemInstance in itemInstances)
+            {
+                if (itemInstance == null)
+                    continue;
+
+                var rawId = GetMemberValue(itemInstance, "id")?.ToString() ??
+                            GetMemberValue(itemInstance, "Id")?.ToString();
+                if (string.IsNullOrWhiteSpace(rawId))
+                    continue;
+
+                var key = ConvertDictionaryKey(rawId, keyType);
+                if (key == null)
+                    continue;
+
+                typedDictionary[key] = itemInstance;
+                entryCount++;
+            }
+
+            return dictionary;
+        }
+
+        private static object BuildItemsInBuilding(Type targetType, object itemInstances, object fallback)
+        {
+            if (targetType == null)
+                return fallback;
+
+            var result = CreateEmptyValueLike(fallback, targetType) ?? CreateEmptyValueLike(itemInstances, targetType);
+            if (result is not IList typedList || itemInstances is not IDictionary itemDictionary)
+                return result ?? fallback;
+
+            Type elementType = null;
+            if (targetType.IsArray)
+                elementType = targetType.GetElementType();
+            else if (targetType.IsGenericType)
+                elementType = targetType.GetGenericArguments().FirstOrDefault();
+
+            if (elementType == null)
+                return result ?? fallback;
+
+            foreach (DictionaryEntry entry in itemDictionary)
+            {
+                if (elementType == typeof(string))
+                {
+                    typedList.Add(entry.Key?.ToString() ?? string.Empty);
+                    continue;
+                }
+
+                if (entry.Value != null && elementType.IsInstanceOfType(entry.Value))
+                    typedList.Add(entry.Value);
+            }
+
+            return result ?? fallback;
+        }
+
+        private static object ConvertDictionaryKey(string rawKey, Type keyType)
+        {
+            if (keyType == typeof(string))
+                return rawKey;
+
+            try
+            {
+                return Convert.ChangeType(rawKey, keyType);
+            }
+            catch
+            {
+                return null;
             }
         }
 
