@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
+using BigAmbitions.Items;
 using Buildings;
 using Helpers;
 using UnityEngine;
@@ -14,6 +16,7 @@ namespace StreetQuestRPG
     internal static partial class StreetQuestShared
     {
         private const string ApartmentLayoutHelperTypeName = "BusinessLayoutSets.BusinessLayoutSetHelper";
+        private const string BlueprintLegacyFixTypeName = "Blueprints.Compatibility.BlueprintFixesEA11.UpdateLegacyIds";
         private static readonly Dictionary<string, StreetQuestRegisteredApartmentLayout> RegisteredApartmentLayoutsBySource =
             new(StringComparer.OrdinalIgnoreCase);
 
@@ -198,6 +201,8 @@ namespace StreetQuestRPG
                     return;
                 }
 
+                TryApplyLegacyLayoutFix(layoutSet);
+
                 var layoutInteriorDesigns = GetMemberValue(layoutSet, "interiorDesigns");
                 if (layoutInteriorDesigns != null)
                     interiorDesigns = layoutInteriorDesigns;
@@ -228,6 +233,33 @@ namespace StreetQuestRPG
             {
                 LogDebug(
                     $"ApartmentLayoutHydrateFailed reason={exception.GetType().Name}:{exception.Message} character={option?.CharacterId} state={option?.StateId} path={tempLayoutPath}");
+            }
+        }
+
+        private static void TryApplyLegacyLayoutFix(object layoutSet)
+        {
+            if (layoutSet == null)
+                return;
+
+            try
+            {
+                var fixerType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(assembly => assembly.GetType(BlueprintLegacyFixTypeName, false))
+                    .FirstOrDefault(type => type != null);
+                if (fixerType == null)
+                    return;
+
+                var applyLayoutMethod = fixerType.GetMethod(
+                    "ApplyLayout",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { layoutSet.GetType() },
+                    null);
+                applyLayoutMethod?.Invoke(null, new[] { layoutSet });
+            }
+            catch (Exception exception)
+            {
+                LogDebug($"ApartmentLayoutLegacyFixSkipped reason={exception.GetType().Name}:{exception.Message}");
             }
         }
 
@@ -289,16 +321,23 @@ namespace StreetQuestRPG
                 return null;
 
             var address = GetMemberValue(registration, "Address");
-            var streetName = GetMemberValue(address, "StreetName") as string ?? string.Empty;
-            var streetNumber = ConvertToInt(GetMemberValue(address, "StreetNumber"));
+            var addressText = address?.ToString() ?? string.Empty;
+            ParseAddressParts(addressText, out var streetName, out var streetNumber);
 
             foreach (var layoutItem in enumerableLayoutItems)
             {
                 if (layoutItem == null)
                     continue;
 
-                if (Activator.CreateInstance(itemInstanceType) is not object itemInstance)
+                object itemInstance;
+                try
+                {
+                    itemInstance = FormatterServices.GetUninitializedObject(itemInstanceType);
+                }
+                catch
+                {
                     continue;
+                }
 
                 CopyMemberValue(layoutItem, itemInstance, "id", "id");
                 CopyMemberValue(layoutItem, itemInstance, "itemName", "itemName");
@@ -318,6 +357,7 @@ namespace StreetQuestRPG
                 SetMemberValue(itemInstance, "streetName", streetName);
                 SetMemberValue(itemInstance, "streetNumber", streetNumber);
                 SetMemberValue(itemInstance, "_addressCached", address);
+                SetMemberValue(itemInstance, "_itemCached", ResolveItemByName(GetMemberValue(itemInstance, "itemName") as string));
                 SetMemberValue(itemInstance, "yRotation", ExtractYawDegrees(GetMemberValue(layoutItem, "rotation")));
                 SetMemberValue(itemInstance, "priceOnPurchase", 0f);
                 SetMemberValue(itemInstance, "pricePerUnitOnPurchaseTime", 0f);
@@ -330,6 +370,41 @@ namespace StreetQuestRPG
             }
 
             return resultList;
+        }
+
+        private static object ResolveItemByName(string itemName)
+        {
+            if (string.IsNullOrWhiteSpace(itemName))
+                return null;
+
+            try
+            {
+                return ItemsGetter.GetByName(itemName) ??
+                       ItemsGetter.AllItems?.FirstOrDefault(item =>
+                           string.Equals(item?.itemName, itemName, StringComparison.Ordinal));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static void ParseAddressParts(string addressText, out string streetName, out int streetNumber)
+        {
+            streetName = string.Empty;
+            streetNumber = 0;
+            if (string.IsNullOrWhiteSpace(addressText))
+                return;
+
+            var separatorIndex = addressText.LastIndexOf(' ');
+            if (separatorIndex <= 0 || separatorIndex >= addressText.Length - 1)
+            {
+                streetName = addressText;
+                return;
+            }
+
+            streetName = addressText.Substring(0, separatorIndex).Trim();
+            int.TryParse(addressText.Substring(separatorIndex + 1).Trim(), out streetNumber);
         }
 
         private static void CopyMemberValue(object source, object destination, string sourceMemberName, string destinationMemberName)
