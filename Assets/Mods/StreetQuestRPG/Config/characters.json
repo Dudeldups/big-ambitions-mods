@@ -170,7 +170,6 @@
             "streetquest:flag_fran_dinner_finished"
           ],
           "buildingAddress": "ba:street_thirdstreet 45",
-          "entryExteriorAddress": "ba:street_thirdstreet 45",
           "appearanceId": "fran_default",
           "overrideEnabled": true,
           "enabled": true,

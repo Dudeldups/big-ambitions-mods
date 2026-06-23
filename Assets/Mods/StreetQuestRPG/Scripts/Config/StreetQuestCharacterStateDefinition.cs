@@ -32,7 +32,6 @@ namespace StreetQuestRPG
         [DataMember] public string appearanceId;
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public string buildingAddress;
-        [DataMember] public string entryExteriorAddress;
         [DataMember] public string entryButtonTextKey;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data mapPosition;

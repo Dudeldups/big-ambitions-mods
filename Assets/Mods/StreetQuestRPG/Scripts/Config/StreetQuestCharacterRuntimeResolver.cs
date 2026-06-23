@@ -244,7 +244,6 @@ namespace StreetQuestRPG
                 runtime.appearanceSeed.ToString(),
                 SerializeSchedule(runtime.schedule),
                 runtime.buildingAddress ?? string.Empty,
-                runtime.entryExteriorAddress ?? string.Empty,
                 runtime.entryButtonTextKey ?? string.Empty,
                 SerializeVector(runtime.position),
                 SerializeVector(runtime.mapPosition),
@@ -349,7 +348,6 @@ namespace StreetQuestRPG
             resolved.defaultAppearanceId = null;
             resolved.schedule = null;
             resolved.buildingAddress = null;
-            resolved.entryExteriorAddress = null;
             resolved.entryButtonTextKey = null;
             resolved.position = null;
             resolved.mapPosition = null;
@@ -424,8 +422,6 @@ namespace StreetQuestRPG
                 resolved.schedule = state.schedule;
             if (!string.IsNullOrWhiteSpace(state.buildingAddress))
                 resolved.buildingAddress = state.buildingAddress;
-            if (!string.IsNullOrWhiteSpace(state.entryExteriorAddress))
-                resolved.entryExteriorAddress = state.entryExteriorAddress;
             if (!string.IsNullOrWhiteSpace(state.entryButtonTextKey))
                 resolved.entryButtonTextKey = state.entryButtonTextKey;
             if (state.position != null)
@@ -547,7 +543,6 @@ namespace StreetQuestRPG
                 defaultAppearanceId = definition.defaultAppearanceId,
                 schedule = definition.schedule,
                 buildingAddress = definition.buildingAddress,
-                entryExteriorAddress = definition.entryExteriorAddress,
                 entryButtonTextKey = definition.entryButtonTextKey,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,

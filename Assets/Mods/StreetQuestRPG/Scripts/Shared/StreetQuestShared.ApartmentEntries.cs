@@ -30,11 +30,11 @@ namespace StreetQuestRPG
             foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
             {
                 var activeState = StreetQuestCharacterRuntimeResolver.ResolveActiveState(character);
-                if (activeState == null || string.IsNullOrWhiteSpace(activeState.entryExteriorAddress))
+                if (activeState == null || string.IsNullOrWhiteSpace(activeState.buildingAddress))
                     continue;
 
                 if (!string.Equals(
-                        NormalizeApartmentAddress(activeState.entryExteriorAddress),
+                        NormalizeApartmentAddress(activeState.buildingAddress),
                         normalizedExteriorAddress,
                         StringComparison.Ordinal))
                 {
