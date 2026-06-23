@@ -50,10 +50,9 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(modRootPath) || string.IsNullOrWhiteSpace(layoutFile))
                 return false;
 
-            var sourcePath = Path.Combine(modRootPath, layoutFile);
-            if (!File.Exists(sourcePath))
+            if (!TryResolveApartmentLayoutSourcePath(modRootPath, layoutFile, out var sourcePath))
             {
-                LogDebug($"ApartmentLayoutRegisterFailed reason=file_missing path={sourcePath}");
+                LogDebug($"ApartmentLayoutRegisterFailed reason=file_missing path={layoutFile}");
                 return false;
             }
 
@@ -100,6 +99,31 @@ namespace StreetQuestRPG
             RegisteredApartmentLayoutNamesBySource[normalizedSourceKey] = resolvedLayoutName;
             LogDebug($"ApartmentLayoutRegistered source={layoutFile} layoutName={resolvedLayoutName} tempPath={tempPath}");
             return true;
+        }
+
+        private static bool TryResolveApartmentLayoutSourcePath(string modRootPath, string layoutFile, out string sourcePath)
+        {
+            sourcePath = string.Empty;
+            if (string.IsNullOrWhiteSpace(modRootPath) || string.IsNullOrWhiteSpace(layoutFile))
+                return false;
+
+            var candidates = new[]
+            {
+                Path.Combine(modRootPath, layoutFile),
+                Path.Combine(modRootPath, "Config", layoutFile),
+                Path.Combine(modRootPath, "Config", Path.GetFileName(layoutFile) ?? string.Empty)
+            };
+
+            foreach (var candidate in candidates.Where(value => !string.IsNullOrWhiteSpace(value)))
+            {
+                if (!File.Exists(candidate))
+                    continue;
+
+                sourcePath = candidate;
+                return true;
+            }
+
+            return false;
         }
 
         private static string ResolveApartmentLayoutName(string layoutFile, string requestedLayoutName)
