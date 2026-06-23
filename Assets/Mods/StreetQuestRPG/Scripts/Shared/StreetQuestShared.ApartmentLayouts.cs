@@ -1,11 +1,10 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization.Json;
 using System.Text.RegularExpressions;
+using Buildings;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -13,7 +12,7 @@ namespace StreetQuestRPG
     internal static partial class StreetQuestShared
     {
         private const string ApartmentLayoutHelperTypeName = "BusinessLayoutSets.BusinessLayoutSetHelper";
-        private static readonly Dictionary<string, string> RegisteredApartmentLayoutNamesBySource =
+        private static readonly Dictionary<string, StreetQuestRegisteredApartmentLayout> RegisteredApartmentLayoutsBySource =
             new(StringComparer.OrdinalIgnoreCase);
 
         private static bool TryCreateRegisteredLayoutApartmentPayload(
@@ -26,7 +25,11 @@ namespace StreetQuestRPG
             if (option == null || string.IsNullOrWhiteSpace(option.ApartmentLayoutFile))
                 return false;
 
-            if (!TryRegisterApartmentLayout(option.ApartmentLayoutFile, option.ApartmentLayoutName, out var resolvedLayoutName))
+            if (!TryRegisterApartmentLayout(
+                    option.ApartmentLayoutFile,
+                    option.ApartmentLayoutName,
+                    out var resolvedLayoutName,
+                    out var registeredLayoutTempPath))
                 return false;
 
             var interiorDesigns = CreateEmptyValueLike(originalSnapshot?.GetRaw("interiorDesigns"), GetMemberType(registration, "interiorDesigns"));
@@ -35,25 +38,6 @@ namespace StreetQuestRPG
             var deliveredItems = CreateEmptyValueLike(originalSnapshot?.GetRaw("deliveredItems"), GetMemberType(registration, "deliveredItems"));
             var dirtSpots = CreateEmptyValueLike(originalSnapshot?.GetRaw("dirtSpots"), GetMemberType(registration, "dirtSpots"));
 
-            if (TryResolveApartmentLayoutSourcePath(StreetQuestRuntimeBootstrap.CurrentModRootPath, option.ApartmentLayoutFile, out var sourcePath))
-            {
-                try
-                {
-                    var layoutJson = EnsureLayoutName(File.ReadAllText(sourcePath), resolvedLayoutName);
-                    interiorDesigns = DeserializeInteriorDesigns(layoutJson, GetMemberType(registration, "interiorDesigns"), interiorDesigns);
-                    itemInstances = DeserializeItemInstances(layoutJson, GetMemberType(registration, "itemInstances"), itemInstances, out var hydratedItemEntries);
-                    itemsInBuilding = BuildItemsInBuilding(layoutJson, GetMemberType(registration, "itemsInBuilding"), itemInstances, itemsInBuilding);
-
-                    LogDebug(
-                        $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={hydratedItemEntries} interiorDesigns={DescribeValueShape(interiorDesigns)} itemsInBuilding={DescribeValueShape(itemsInBuilding)}");
-                }
-                catch (Exception exception)
-                {
-                    LogDebug(
-                        $"ApartmentLayoutHydrateFailed character={option.CharacterId} state={option.StateId} file={option.ApartmentLayoutFile} reason={exception.GetType().Name}:{exception.Message}");
-                }
-            }
-
             payload = new StreetQuestApartmentInteriorPayload
             {
                 Layout = resolvedLayoutName,
@@ -61,205 +45,93 @@ namespace StreetQuestRPG
                 ItemInstances = itemInstances,
                 ItemsInBuilding = itemsInBuilding,
                 DeliveredItems = deliveredItems,
-                DirtSpots = dirtSpots
+                DirtSpots = dirtSpots,
+                RegisteredLayoutTempPath = registeredLayoutTempPath
             };
 
             LogDebug(
-                $"ApartmentLayoutPayloadPrepared character={option.CharacterId} state={option.StateId} layoutFile={option.ApartmentLayoutFile} layoutName={resolvedLayoutName}");
+                $"ApartmentLayoutPayloadPrepared character={option.CharacterId} state={option.StateId} layoutFile={option.ApartmentLayoutFile} layoutName={resolvedLayoutName} tempPath={registeredLayoutTempPath}");
             return true;
         }
 
-        private static object DeserializeInteriorDesigns(string layoutJson, Type targetType, object fallback)
+        private static bool TryInsertApartmentLayoutSet(
+            BuildingRegistration registration,
+            string tempLayoutPath,
+            string layoutName)
         {
-            if (targetType == null || string.IsNullOrWhiteSpace(layoutJson))
-                return fallback;
-
-            if (!TryExtractJsonPropertyArray(layoutJson, "interiorDesigns", out var jsonFragment))
-                return fallback;
-
-            return DeserializeJsonFragment(jsonFragment, targetType) ?? fallback;
-        }
-
-        private static object DeserializeItemInstances(
-            string layoutJson,
-            Type targetType,
-            object fallback,
-            out int entryCount)
-        {
-            entryCount = 0;
-            if (targetType == null || string.IsNullOrWhiteSpace(layoutJson))
-                return fallback;
-
-            if (!TryExtractJsonPropertyArray(layoutJson, "Items", out var jsonFragment))
-                return fallback;
-
-            var dictionary = Activator.CreateInstance(targetType);
-            if (dictionary is not IDictionary typedDictionary)
-                return fallback;
-
-            var keyType = typeof(string);
-            var valueType = typeof(object);
-            if (targetType.IsGenericType)
-            {
-                var arguments = targetType.GetGenericArguments();
-                if (arguments.Length >= 2)
-                {
-                    keyType = arguments[0];
-                    valueType = arguments[1];
-                }
-            }
-
-            var listType = typeof(List<>).MakeGenericType(valueType);
-            var deserialized = DeserializeJsonFragment(jsonFragment, listType) as IEnumerable;
-            if (deserialized == null)
-                return fallback;
-
-            foreach (var entry in deserialized)
-            {
-                if (entry == null)
-                    continue;
-
-                var rawId = GetMemberValue(entry, "id")?.ToString();
-                if (string.IsNullOrWhiteSpace(rawId))
-                    continue;
-
-                var key = ConvertDictionaryKey(rawId, keyType);
-                if (key == null)
-                    continue;
-
-                typedDictionary[key] = entry;
-                entryCount++;
-            }
-
-            return dictionary;
-        }
-
-        private static object BuildItemsInBuilding(string layoutJson, Type targetType, object itemInstances, object fallback)
-        {
-            if (targetType == null)
-                return fallback;
-
-            var result = CreateEmptyValueLike(fallback, targetType) ?? CreateEmptyValueLike(itemInstances, targetType);
-            if (result is not IList typedList || itemInstances is not IDictionary itemDictionary)
-                return result ?? fallback;
-
-            Type elementType = null;
-            if (targetType.IsArray)
-                elementType = targetType.GetElementType();
-            else if (targetType.IsGenericType)
-                elementType = targetType.GetGenericArguments().FirstOrDefault();
-
-            if (elementType == null)
-                return result ?? fallback;
-
-            foreach (DictionaryEntry entry in itemDictionary)
-            {
-                if (elementType == typeof(string))
-                {
-                    typedList.Add(entry.Key?.ToString() ?? string.Empty);
-                    continue;
-                }
-
-                if (entry.Value != null && elementType.IsInstanceOfType(entry.Value))
-                    typedList.Add(entry.Value);
-            }
-
-            return result ?? fallback;
-        }
-
-        private static object DeserializeJsonFragment(string json, Type targetType)
-        {
-            if (string.IsNullOrWhiteSpace(json) || targetType == null)
-                return null;
-
-            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
-            var serializer = new DataContractJsonSerializer(targetType);
-            return serializer.ReadObject(stream);
-        }
-
-        private static bool TryExtractJsonPropertyArray(string json, string propertyName, out string fragment)
-        {
-            fragment = string.Empty;
-            if (string.IsNullOrWhiteSpace(json) || string.IsNullOrWhiteSpace(propertyName))
+            if (registration == null || string.IsNullOrWhiteSpace(tempLayoutPath) || !File.Exists(tempLayoutPath))
                 return false;
-
-            var propertyToken = $"\"{propertyName}\"";
-            var propertyIndex = json.IndexOf(propertyToken, StringComparison.Ordinal);
-            if (propertyIndex < 0)
-                return false;
-
-            var arrayStart = json.IndexOf('[', propertyIndex + propertyToken.Length);
-            if (arrayStart < 0)
-                return false;
-
-            var depth = 0;
-            var inString = false;
-            var escaped = false;
-            for (var index = arrayStart; index < json.Length; index++)
-            {
-                var current = json[index];
-                if (escaped)
-                {
-                    escaped = false;
-                    continue;
-                }
-
-                if (current == '\\' && inString)
-                {
-                    escaped = true;
-                    continue;
-                }
-
-                if (current == '"')
-                {
-                    inString = !inString;
-                    continue;
-                }
-
-                if (inString)
-                    continue;
-
-                if (current == '[')
-                {
-                    depth++;
-                    continue;
-                }
-
-                if (current != ']')
-                    continue;
-
-                depth--;
-                if (depth != 0)
-                    continue;
-
-                fragment = json.Substring(arrayStart, index - arrayStart + 1);
-                return true;
-            }
-
-            return false;
-        }
-
-        private static object ConvertDictionaryKey(string rawKey, Type keyType)
-        {
-            if (keyType == typeof(string))
-                return rawKey;
 
             try
             {
-                return Convert.ChangeType(rawKey, keyType);
+                var helperType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(assembly => assembly.GetType(ApartmentLayoutHelperTypeName, false))
+                    .FirstOrDefault(type => type != null);
+                if (helperType == null)
+                {
+                    LogDebug($"ApartmentLayoutInsertFailed reason=helper_missing type={ApartmentLayoutHelperTypeName}");
+                    return false;
+                }
+
+                var deserializeMethod = helperType.GetMethod(
+                    "Deserialize",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(string) },
+                    null);
+                if (deserializeMethod == null)
+                {
+                    LogDebug("ApartmentLayoutInsertFailed reason=deserialize_missing");
+                    return false;
+                }
+
+                var layoutSet = deserializeMethod.Invoke(null, new object[] { tempLayoutPath });
+                if (layoutSet == null)
+                {
+                    LogDebug($"ApartmentLayoutInsertFailed reason=layoutset_null path={tempLayoutPath}");
+                    return false;
+                }
+
+                var insertMethod = helperType.GetMethod(
+                    "InsertLayoutSet",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(BuildingRegistration), layoutSet.GetType(), typeof(bool), typeof(bool) },
+                    null);
+                if (insertMethod == null)
+                {
+                    LogDebug("ApartmentLayoutInsertFailed reason=insert_missing");
+                    return false;
+                }
+
+                insertMethod.Invoke(null, new object[] { registration, layoutSet, false, false });
+                LogDebug(
+                    $"ApartmentLayoutInserted layout={layoutName} tempPath={tempLayoutPath} itemInstances={DescribeValueShape(GetMemberValue(registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(registration, "itemsInBuilding"))}");
+                return true;
             }
-            catch
+            catch (TargetInvocationException exception)
             {
-                return null;
+                var inner = exception.InnerException;
+                LogDebug(
+                    $"ApartmentLayoutInsertFailed reason={exception.GetType().Name}:{exception.Message} inner={inner?.GetType().Name}:{inner?.Message} layout={layoutName} path={tempLayoutPath} registrationLayout={GetMemberValue(registration, "Layout")} buildingType={GetMemberValue(registration, "BuildingType")} buildingSize={GetMemberValue(registration, "BuildingSize")} businessType={GetMemberValue(registration, "BusinessType")}");
+                return false;
+            }
+            catch (Exception exception)
+            {
+                LogDebug(
+                    $"ApartmentLayoutInsertFailed reason={exception.GetType().Name}:{exception.Message} layout={layoutName} path={tempLayoutPath} registrationLayout={GetMemberValue(registration, "Layout")} buildingType={GetMemberValue(registration, "BuildingType")} buildingSize={GetMemberValue(registration, "BuildingSize")} businessType={GetMemberValue(registration, "BusinessType")}");
+                return false;
             }
         }
 
         private static bool TryRegisterApartmentLayout(
             string layoutFile,
             string requestedLayoutName,
-            out string resolvedLayoutName)
+            out string resolvedLayoutName,
+            out string tempLayoutPath)
         {
             resolvedLayoutName = string.Empty;
+            tempLayoutPath = string.Empty;
             var modRootPath = StreetQuestRuntimeBootstrap.CurrentModRootPath;
             if (string.IsNullOrWhiteSpace(modRootPath) || string.IsNullOrWhiteSpace(layoutFile))
                 return false;
@@ -271,9 +143,14 @@ namespace StreetQuestRPG
             }
 
             var normalizedSourceKey = sourcePath.Trim().ToLowerInvariant();
-            if (RegisteredApartmentLayoutNamesBySource.TryGetValue(normalizedSourceKey, out resolvedLayoutName) &&
-                !string.IsNullOrWhiteSpace(resolvedLayoutName))
+            if (RegisteredApartmentLayoutsBySource.TryGetValue(normalizedSourceKey, out var existingLayout) &&
+                existingLayout != null &&
+                !string.IsNullOrWhiteSpace(existingLayout.LayoutName) &&
+                !string.IsNullOrWhiteSpace(existingLayout.TempPath) &&
+                File.Exists(existingLayout.TempPath))
             {
+                resolvedLayoutName = existingLayout.LayoutName;
+                tempLayoutPath = existingLayout.TempPath;
                 return true;
             }
 
@@ -310,7 +187,12 @@ namespace StreetQuestRPG
             File.WriteAllText(tempPath, patchedJson);
             registerMethod.Invoke(null, new object[] { tempPath });
 
-            RegisteredApartmentLayoutNamesBySource[normalizedSourceKey] = resolvedLayoutName;
+            tempLayoutPath = tempPath;
+            RegisteredApartmentLayoutsBySource[normalizedSourceKey] = new StreetQuestRegisteredApartmentLayout
+            {
+                LayoutName = resolvedLayoutName,
+                TempPath = tempLayoutPath
+            };
             LogDebug($"ApartmentLayoutRegistered source={layoutFile} layoutName={resolvedLayoutName} tempPath={tempPath}");
             return true;
         }
@@ -364,6 +246,12 @@ namespace StreetQuestRPG
             }
 
             return json;
+        }
+
+        private sealed class StreetQuestRegisteredApartmentLayout
+        {
+            public string LayoutName;
+            public string TempPath;
         }
     }
 }

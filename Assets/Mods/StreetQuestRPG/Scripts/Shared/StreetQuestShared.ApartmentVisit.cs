@@ -221,6 +221,14 @@ namespace StreetQuestRPG
             SetMemberValue(context.Registration, "deliveredItems", context.ActivePayload.DeliveredItems);
             SetMemberValue(context.Registration, "dirtSpots", context.ActivePayload.DirtSpots);
 
+            if (!string.IsNullOrWhiteSpace(context.ActivePayload.RegisteredLayoutTempPath))
+            {
+                TryInsertApartmentLayoutSet(
+                    context.Registration,
+                    context.ActivePayload.RegisteredLayoutTempPath,
+                    context.ActivePayload.Layout ?? string.Empty);
+            }
+
             LogDebug(
                 $"ApartmentPayloadApplied key={context.VisitKey} layout={context.ActivePayload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
         }
@@ -554,6 +562,7 @@ namespace StreetQuestRPG
             public object ItemsInBuilding;
             public object DeliveredItems;
             public object DirtSpots;
+            public string RegisteredLayoutTempPath;
         }
 
         private enum StreetQuestApartmentVisitState
