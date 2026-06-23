@@ -167,8 +167,7 @@
           "id": "fran_home_invite",
           "requiredStoryFlags": ["streetquest:flag_fran_apartment_access"],
           "forbiddenStoryFlags": [
-            "streetquest:flag_fran_dinner_finished",
-            "streetquest:flag_fran_family_left"
+            "streetquest:flag_fran_dinner_finished"
           ],
           "buildingAddress": "ba:street_thirdstreet 45",
           "appearanceId": "fran_default",
