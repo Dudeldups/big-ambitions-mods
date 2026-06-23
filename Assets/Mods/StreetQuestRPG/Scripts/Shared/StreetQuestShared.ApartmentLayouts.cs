@@ -66,7 +66,7 @@ namespace StreetQuestRPG
 
             payload = new StreetQuestApartmentInteriorPayload
             {
-                Layout = resolvedLayoutName,
+                Layout = originalSnapshot?.Get<string>("Layout") ?? resolvedLayoutName,
                 InteriorDesigns = interiorDesigns,
                 ItemInstances = itemInstances,
                 ItemsInBuilding = itemsInBuilding,
@@ -323,20 +323,33 @@ namespace StreetQuestRPG
             var address = GetMemberValue(registration, "Address");
             var addressText = address?.ToString() ?? string.Empty;
             ParseAddressParts(addressText, out var streetName, out var streetNumber);
+            var hydratedCount = 0;
+            var cachedItemCount = 0;
 
             foreach (var layoutItem in enumerableLayoutItems)
             {
                 if (layoutItem == null)
                     continue;
 
+                var itemName = GetMemberValue(layoutItem, "itemName")?.ToString();
+                if (string.IsNullOrWhiteSpace(itemName))
+                    continue;
+
                 object itemInstance;
                 try
                 {
-                    itemInstance = FormatterServices.GetUninitializedObject(itemInstanceType);
+                    itemInstance = Activator.CreateInstance(itemInstanceType, itemName);
                 }
                 catch
                 {
-                    continue;
+                    try
+                    {
+                        itemInstance = FormatterServices.GetUninitializedObject(itemInstanceType);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
                 }
 
                 CopyMemberValue(layoutItem, itemInstance, "id", "id");
@@ -354,10 +367,11 @@ namespace StreetQuestRPG
                 CopyMemberValue(layoutItem, itemInstance, "playerItemPurchaserSettings", "playerItemPurchaserSettings");
                 CopyMemberValue(layoutItem, itemInstance, "dirtAffectedCells", "dirtAffectedCells");
 
+                var resolvedItem = ResolveItemByName(GetMemberValue(itemInstance, "itemName") as string);
                 SetMemberValue(itemInstance, "streetName", streetName);
                 SetMemberValue(itemInstance, "streetNumber", streetNumber);
                 SetMemberValue(itemInstance, "_addressCached", address);
-                SetMemberValue(itemInstance, "_itemCached", ResolveItemByName(GetMemberValue(itemInstance, "itemName") as string));
+                SetMemberValue(itemInstance, "_itemCached", resolvedItem);
                 SetMemberValue(itemInstance, "yRotation", ExtractYawDegrees(GetMemberValue(layoutItem, "rotation")));
                 SetMemberValue(itemInstance, "priceOnPurchase", 0f);
                 SetMemberValue(itemInstance, "pricePerUnitOnPurchaseTime", 0f);
@@ -367,7 +381,13 @@ namespace StreetQuestRPG
                 SetMemberValue(itemInstance, "isSecured", false);
 
                 resultList.Add(itemInstance);
+                hydratedCount++;
+                if (resolvedItem != null)
+                    cachedItemCount++;
             }
+
+            LogDebug(
+                $"ApartmentLayoutItemHydration itemInstances={hydratedCount} cachedItems={cachedItemCount} address={addressText}");
 
             return resultList;
         }
