@@ -230,6 +230,8 @@ namespace StreetQuestRPG
                 runtime.id ?? string.Empty,
                 runtime.defaultAppearanceId ?? string.Empty,
                 runtime.requiresApartmentVisitContext.ToString(),
+                runtime.apartmentLayoutFile ?? string.Empty,
+                runtime.apartmentLayoutName ?? string.Empty,
                 runtime.enabled.ToString(),
                 runtime.useFixedSpawnPosition.ToString(),
                 runtime.showSpeechBubble.ToString(),
@@ -351,6 +353,8 @@ namespace StreetQuestRPG
             resolved.schedule = null;
             resolved.buildingAddress = null;
             resolved.requiresApartmentVisitContext = false;
+            resolved.apartmentLayoutFile = null;
+            resolved.apartmentLayoutName = null;
             resolved.entryButtonTextKey = null;
             resolved.position = null;
             resolved.mapPosition = null;
@@ -426,6 +430,10 @@ namespace StreetQuestRPG
             if (!string.IsNullOrWhiteSpace(state.buildingAddress))
                 resolved.buildingAddress = state.buildingAddress;
             resolved.requiresApartmentVisitContext = state.requiresApartmentVisitContext;
+            if (!string.IsNullOrWhiteSpace(state.apartmentLayoutFile))
+                resolved.apartmentLayoutFile = state.apartmentLayoutFile;
+            if (!string.IsNullOrWhiteSpace(state.apartmentLayoutName))
+                resolved.apartmentLayoutName = state.apartmentLayoutName;
             if (!string.IsNullOrWhiteSpace(state.entryButtonTextKey))
                 resolved.entryButtonTextKey = state.entryButtonTextKey;
             if (state.position != null)
@@ -548,6 +556,8 @@ namespace StreetQuestRPG
                 schedule = definition.schedule,
                 buildingAddress = definition.buildingAddress,
                 requiresApartmentVisitContext = definition.requiresApartmentVisitContext,
+                apartmentLayoutFile = definition.apartmentLayoutFile,
+                apartmentLayoutName = definition.apartmentLayoutName,
                 entryButtonTextKey = definition.entryButtonTextKey,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,

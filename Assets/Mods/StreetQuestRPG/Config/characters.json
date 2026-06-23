@@ -171,6 +171,8 @@
           ],
           "buildingAddress": "ba:street_thirdstreet 45",
           "requiresApartmentVisitContext": true,
+          "apartmentLayoutFile": "Layout-Fran.json",
+          "apartmentLayoutName": "StreetQuestFranApartment",
           "appearanceId": "fran_default",
           "overrideEnabled": true,
           "enabled": true,

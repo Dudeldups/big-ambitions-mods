@@ -151,7 +151,7 @@ namespace StreetQuestRPG
             var originalSnapshot = CaptureApartmentRegistrationSnapshot(registration);
 
             ApartmentPayloadCacheByVisitKey.TryGetValue(visitKey, out var cachedPayload);
-            var payload = cachedPayload ?? CreateDefaultApartmentPayload(originalSnapshot, registration);
+            var payload = cachedPayload ?? CreateDefaultApartmentPayload(option, originalSnapshot, registration);
             if (cachedPayload == null)
             {
                 ApartmentPayloadCacheByVisitKey[visitKey] = payload;
@@ -191,9 +191,13 @@ namespace StreetQuestRPG
         }
 
         private static StreetQuestApartmentInteriorPayload CreateDefaultApartmentPayload(
+            StreetQuestShared.ApartmentEntryOption option,
             StreetQuestApartmentRegistrationSnapshot originalSnapshot,
             BuildingRegistration registration)
         {
+            if (TryCreateRegisteredLayoutApartmentPayload(option, out var registeredLayoutPayload))
+                return registeredLayoutPayload;
+
             return new StreetQuestApartmentInteriorPayload
             {
                 Layout = originalSnapshot.Get<string>("Layout"),

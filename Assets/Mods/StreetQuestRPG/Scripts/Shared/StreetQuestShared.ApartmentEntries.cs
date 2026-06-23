@@ -14,6 +14,8 @@ namespace StreetQuestRPG
             public string StateId;
             public string ExteriorAddress;
             public string InteriorAddress;
+            public string ApartmentLayoutFile;
+            public string ApartmentLayoutName;
             public string ButtonText;
         }
 
@@ -53,6 +55,8 @@ namespace StreetQuestRPG
                     StateId = activeState.id ?? string.Empty,
                     ExteriorAddress = normalizedExteriorAddress,
                     InteriorAddress = runtime.buildingAddress ?? string.Empty,
+                    ApartmentLayoutFile = runtime.apartmentLayoutFile ?? string.Empty,
+                    ApartmentLayoutName = runtime.apartmentLayoutName ?? string.Empty,
                     ButtonText = BuildApartmentEntryButtonText(runtime, characterName)
                 });
             }

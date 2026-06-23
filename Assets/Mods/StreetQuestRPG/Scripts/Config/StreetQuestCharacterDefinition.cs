@@ -33,6 +33,8 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public string buildingAddress;
         [DataMember] public bool requiresApartmentVisitContext;
+        [DataMember] public string apartmentLayoutFile;
+        [DataMember] public string apartmentLayoutName;
         [DataMember] public string entryButtonTextKey;
         [DataMember] public string gender;
         [DataMember] public int ageInDays;
@@ -139,6 +141,8 @@ namespace StreetQuestRPG
             schedule ??= fallback.schedule;
             if (string.IsNullOrWhiteSpace(buildingAddress)) buildingAddress = fallback.buildingAddress;
             requiresApartmentVisitContext = requiresApartmentVisitContext || fallback.requiresApartmentVisitContext;
+            if (string.IsNullOrWhiteSpace(apartmentLayoutFile)) apartmentLayoutFile = fallback.apartmentLayoutFile;
+            if (string.IsNullOrWhiteSpace(apartmentLayoutName)) apartmentLayoutName = fallback.apartmentLayoutName;
             if (string.IsNullOrWhiteSpace(entryButtonTextKey)) entryButtonTextKey = fallback.entryButtonTextKey;
             if (string.IsNullOrWhiteSpace(gender)) gender = fallback.gender;
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;

@@ -33,6 +33,8 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public string buildingAddress;
         [DataMember] public bool requiresApartmentVisitContext;
+        [DataMember] public string apartmentLayoutFile;
+        [DataMember] public string apartmentLayoutName;
         [DataMember] public string entryButtonTextKey;
         [DataMember] public StreetQuestVector3Data position;
         [DataMember] public StreetQuestVector3Data mapPosition;
