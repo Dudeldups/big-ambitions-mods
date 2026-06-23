@@ -9,9 +9,12 @@ namespace StreetQuestRPG
         private static Type _cachedCinemachineBrainType;
         private static Type _cachedCityMapType;
         private static PropertyInfo _cachedCityMapIsOpenProperty;
+        private static int _cachedCityMapOpenFrame = -1;
+        private static bool _cachedCityMapOpenValue;
 
         internal static void ResetIndoorBuildingContext()
         {
+            ResetCityMapOpenCache();
             StreetQuestIndoorAddressTracker.Reset();
         }
 
@@ -67,7 +70,27 @@ namespace StreetQuestRPG
                    path.IndexOf("IndoorVehicle", StringComparison.OrdinalIgnoreCase) < 0;
         }
 
-        internal static bool IsCityMapOpenForGameplayChecks()
+        internal static bool IsCityMapOpen()
+        {
+            if (_cachedCityMapOpenFrame == Time.frameCount)
+                return _cachedCityMapOpenValue;
+
+            _cachedCityMapOpenFrame = Time.frameCount;
+            _cachedCityMapOpenValue = ResolveCityMapOpenUncached();
+            return _cachedCityMapOpenValue;
+        }
+
+        internal static bool IsCityMapOpenForGameplayChecks() => IsCityMapOpen();
+
+        internal static void ResetCityMapOpenCache()
+        {
+            _cachedCityMapType = null;
+            _cachedCityMapIsOpenProperty = null;
+            _cachedCityMapOpenFrame = -1;
+            _cachedCityMapOpenValue = false;
+        }
+
+        private static bool ResolveCityMapOpenUncached()
         {
             _cachedCityMapType ??= FindType("CityMap");
             if (_cachedCityMapType == null)

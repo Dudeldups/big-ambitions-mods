@@ -315,15 +315,7 @@ namespace StreetQuestRPG
             return PositionMemberKeywords.Any(keyword =>
                 memberName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0);
         }
-        private bool IsCityMapOpen()
-        {
-            _cityMapType ??= FindType("CityMap");
-            if (_cityMapType == null)
-                return false;
-
-            _cityMapIsOpenProperty ??= _cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
-            return _cityMapIsOpenProperty?.GetValue(null) as bool? ?? false;
-        }
+        private static bool IsCityMapOpen() => StreetQuestShared.IsCityMapOpen();
         private static Type FindType(string typeName)
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())

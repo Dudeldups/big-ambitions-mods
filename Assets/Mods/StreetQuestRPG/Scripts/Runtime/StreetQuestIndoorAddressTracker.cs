@@ -54,7 +54,7 @@ namespace StreetQuestRPG
 
         internal static bool Tick(float elapsedSeconds)
         {
-            var isCityMapOpen = StreetQuestShared.IsCityMapOpenForGameplayChecks();
+            var isCityMapOpen = StreetQuestShared.IsCityMapOpen();
             if (isCityMapOpen)
             {
                 _wasCityMapOpenLastTick = true;

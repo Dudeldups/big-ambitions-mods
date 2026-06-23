@@ -66,8 +66,6 @@ namespace StreetQuestRPG
 
         private float _elapsedSeconds;
         private float _nextRefreshAtSeconds;
-        private Type _cityMapType;
-        private PropertyInfo _cityMapIsOpenProperty;
         private RectTransform _poiRoot;
         private RectTransform _streetQuestRoot;
         private Sprite _markerSprite;
@@ -125,7 +123,6 @@ namespace StreetQuestRPG
             _nextRefreshAtSeconds = 0f;
             _poiRoot = null;
             _streetQuestRoot = null;
-            _cityMapIsOpenProperty = null;
             _poiMarkerTemplate = null;
             _nativePoiTemplate = null;
             _nativePoiTargetParent = null;
