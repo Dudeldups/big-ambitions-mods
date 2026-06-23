@@ -272,14 +272,20 @@ namespace StreetQuestRPG
                 return false;
             }
 
-            try
+            registration = FindBuildingRegistrationByAddressText(addressText);
+            parsedAddress = registration?.Address;
+
+            if (parsedAddress == null)
             {
-                parsedAddress = BuildingHelper.ParseAddressString(addressText);
-            }
-            catch (Exception exception)
-            {
-                failureReason = $"parse_address_failed:{exception.GetType().Name}";
-                return false;
+                try
+                {
+                    parsedAddress = BuildingHelper.ParseAddressString(addressText);
+                }
+                catch (Exception exception)
+                {
+                    failureReason = $"parse_address_failed:{exception.GetType().Name}";
+                    return false;
+                }
             }
 
             if (parsedAddress == null)
@@ -304,15 +310,18 @@ namespace StreetQuestRPG
                 return false;
             }
 
-            try
+            if (registration == null)
             {
-                registration = InvokeStaticBuildingHelperMethod<BuildingRegistration>("GetBuildingRegistration", parsedAddress) ??
-                               building.GetRegistration();
-            }
-            catch (Exception exception)
-            {
-                failureReason = $"get_registration_failed:{exception.GetType().Name}";
-                return false;
+                try
+                {
+                    registration = InvokeStaticBuildingHelperMethod<BuildingRegistration>("GetBuildingRegistration", parsedAddress) ??
+                                   building.GetRegistration();
+                }
+                catch (Exception exception)
+                {
+                    failureReason = $"get_registration_failed:{exception.GetType().Name}";
+                    return false;
+                }
             }
 
             if (registration == null)
@@ -322,6 +331,29 @@ namespace StreetQuestRPG
             }
 
             return true;
+        }
+
+        private static BuildingRegistration FindBuildingRegistrationByAddressText(string addressText)
+        {
+            var normalizedAddress = NormalizeAddressKey(addressText);
+            if (string.IsNullOrWhiteSpace(normalizedAddress))
+                return null;
+
+            var registrations = SaveGameManager.Current?.BuildingRegistrations;
+            if (registrations == null)
+                return null;
+
+            foreach (var candidate in registrations)
+            {
+                if (candidate?.Address == null)
+                    continue;
+
+                var candidateText = NormalizeAddressKey(candidate.Address.ToString());
+                if (string.Equals(candidateText, normalizedAddress, StringComparison.Ordinal))
+                    return candidate;
+            }
+
+            return null;
         }
 
         private static bool TryStartVanillaApartmentEntry(Building building, out string route)
