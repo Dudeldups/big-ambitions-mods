@@ -18,9 +18,6 @@ namespace StreetQuestRPG
         private float _nextRefreshAtSeconds;
         private int _lastStateVersion = int.MinValue;
         private string _lastExteriorAddress = string.Empty;
-        private bool _lastVisibleState;
-        private string _lastVisibleSignature = string.Empty;
-        private bool _hasLoggedRefreshBoot;
         private Rect _panelRect;
         private List<StreetQuestShared.ApartmentEntryOption> _currentOptions = new();
         private GUIStyle _panelStyle;
@@ -71,12 +68,6 @@ namespace StreetQuestRPG
 
         private void RefreshOptionsIfNeeded()
         {
-            if (!_hasLoggedRefreshBoot)
-            {
-                _hasLoggedRefreshBoot = true;
-                StreetQuestShared.LogDebug("ApartmentEntryOverlay refresh active");
-            }
-
             if (!IsInActiveGameSession())
             {
                 SetCurrentOptions(Array.Empty<StreetQuestShared.ApartmentEntryOption>(), string.Empty);
@@ -99,26 +90,12 @@ namespace StreetQuestRPG
 
             _lastStateVersion = stateVersion;
             _lastExteriorAddress = exteriorAddress;
-            StreetQuestShared.LogDebug(
-                $"ApartmentEntryOverlay refresh exteriorAddress={exteriorAddress} stateVersion={stateVersion}");
             SetCurrentOptions(StreetQuestShared.GetAvailableApartmentEntryOptions(exteriorAddress), exteriorAddress);
         }
 
         private void SetCurrentOptions(IReadOnlyList<StreetQuestShared.ApartmentEntryOption> options, string exteriorAddress)
         {
             _currentOptions = options?.Where(value => value != null).ToList() ?? new List<StreetQuestShared.ApartmentEntryOption>();
-            var isVisible = _currentOptions.Count > 0;
-            var signature = isVisible
-                ? string.Join("|", _currentOptions.Select(value => $"{value.CharacterId}:{value.StateId}:{value.InteriorAddress}"))
-                : string.Empty;
-
-            if (_lastVisibleState != isVisible || !string.Equals(_lastVisibleSignature, signature, StringComparison.Ordinal))
-            {
-                _lastVisibleState = isVisible;
-                _lastVisibleSignature = signature;
-                StreetQuestShared.LogDebug(
-                    $"ApartmentEntryOverlay visible={isVisible} exteriorAddress={exteriorAddress} entries={(isVisible ? signature : "<none>")}");
-            }
         }
 
         private void HandleEntryClicked(StreetQuestShared.ApartmentEntryOption option)
