@@ -215,15 +215,17 @@ namespace StreetQuestRPG
             if (context?.Registration == null || context.ActivePayload == null)
                 return;
 
-            SetMemberValue(context.Registration, "Layout", context.ActivePayload.Layout);
             SetMemberValue(context.Registration, "interiorDesigns", context.ActivePayload.InteriorDesigns);
             SetMemberValue(context.Registration, "itemInstances", context.ActivePayload.ItemInstances);
             SetMemberValue(context.Registration, "itemsInBuilding", context.ActivePayload.ItemsInBuilding);
             SetMemberValue(context.Registration, "deliveredItems", context.ActivePayload.DeliveredItems);
             SetMemberValue(context.Registration, "dirtSpots", context.ActivePayload.DirtSpots);
 
+            var originalLayout = context.OriginalSnapshot?.Get<string>("Layout") ?? "<null>";
+            var payloadLayout = context.ActivePayload.Layout ?? "<null>";
+
             LogDebug(
-                $"ApartmentPayloadApplied key={context.VisitKey} layout={context.ActivePayload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
+                $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
         }
 
         private static void CaptureApartmentPayload(StreetQuestApartmentVisitContext context)

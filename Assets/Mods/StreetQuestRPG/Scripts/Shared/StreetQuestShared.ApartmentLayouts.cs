@@ -66,7 +66,7 @@ namespace StreetQuestRPG
 
             payload = new StreetQuestApartmentInteriorPayload
             {
-                Layout = originalSnapshot?.Get<string>("Layout") ?? resolvedLayoutName,
+                Layout = originalSnapshot?.Get<string>("Layout"),
                 InteriorDesigns = interiorDesigns,
                 ItemInstances = itemInstances,
                 ItemsInBuilding = itemsInBuilding,
@@ -368,10 +368,10 @@ namespace StreetQuestRPG
                 CopyMemberValue(layoutItem, itemInstance, "dirtAffectedCells", "dirtAffectedCells");
 
                 var resolvedItem = ResolveItemByName(GetMemberValue(itemInstance, "itemName") as string);
-                SetMemberValue(itemInstance, "streetName", streetName);
-                SetMemberValue(itemInstance, "streetNumber", streetNumber);
-                SetMemberValue(itemInstance, "_addressCached", address);
-                SetMemberValue(itemInstance, "_itemCached", resolvedItem);
+                SetDirectMemberValue(itemInstance, "streetName", streetName);
+                SetDirectMemberValue(itemInstance, "streetNumber", streetNumber);
+                SetDirectMemberValue(itemInstance, "_addressCached", address);
+                SetDirectMemberValue(itemInstance, "_itemCached", resolvedItem);
                 SetMemberValue(itemInstance, "yRotation", ExtractYawDegrees(GetMemberValue(layoutItem, "rotation")));
                 SetMemberValue(itemInstance, "priceOnPurchase", 0f);
                 SetMemberValue(itemInstance, "pricePerUnitOnPurchaseTime", 0f);
@@ -390,6 +390,31 @@ namespace StreetQuestRPG
                 $"ApartmentLayoutItemHydration itemInstances={hydratedCount} cachedItems={cachedItemCount} address={addressText}");
 
             return resultList;
+        }
+
+        private static bool SetDirectMemberValue(object instance, string memberName, object value)
+        {
+            if (instance == null || string.IsNullOrWhiteSpace(memberName))
+                return false;
+
+            for (var instanceType = instance.GetType(); instanceType != null; instanceType = instanceType.BaseType)
+            {
+                var property = instanceType.GetProperty(memberName, ReflectionFlags);
+                if (property != null && property.CanWrite)
+                {
+                    property.SetValue(instance, value);
+                    return true;
+                }
+
+                var field = instanceType.GetField(memberName, ReflectionFlags);
+                if (field == null)
+                    continue;
+
+                field.SetValue(instance, value);
+                return true;
+            }
+
+            return false;
         }
 
         private static object ResolveItemByName(string itemName)

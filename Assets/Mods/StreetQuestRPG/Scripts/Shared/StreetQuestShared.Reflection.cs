@@ -162,6 +162,15 @@ namespace StreetQuestRPG
 
         private static object ConvertMemberValue(object value, Type targetType)
         {
+            if (targetType == null)
+                return value;
+
+            if (value == null)
+                return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+
+            if (targetType.IsInstanceOfType(value))
+                return value;
+
             if (targetType.IsEnum)
             {
                 var intValue = Convert.ToInt32(value);
