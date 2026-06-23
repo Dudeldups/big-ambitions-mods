@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using BigAmbitions.SaveSystem.Legacy;
 using Buildings;
 using Helpers;
 using UnityEngine;
@@ -34,6 +35,12 @@ namespace StreetQuestRPG
             if (address == null)
                 return false;
 
+            if (TryResolveWorldPositionFromSaveRegistration(buildingAddressKey, address, out worldPosition))
+            {
+                source = "save_registration";
+                return true;
+            }
+
             try
             {
                 var building = BuildingHelper.GetBuilding(address);
@@ -55,9 +62,61 @@ namespace StreetQuestRPG
                     source = "registration";
                     return true;
                 }
+
+                if (registration?.Address != null &&
+                    TryResolveWorldPositionFromCandidate(registration.Address, out worldPosition))
+                {
+                    source = "registration_address";
+                    return true;
+                }
             }
             catch
             {
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveWorldPositionFromSaveRegistration(
+            string buildingAddressKey,
+            Address parsedAddress,
+            out Vector3 worldPosition)
+        {
+            worldPosition = default;
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.BuildingRegistrations == null || saveGame.BuildingRegistrations.Count == 0)
+                return false;
+
+            var normalizedKey = NormalizeAddressText(buildingAddressKey);
+            var parsedAddressText = NormalizeAddressText(parsedAddress);
+
+            foreach (var registration in saveGame.BuildingRegistrations)
+            {
+                if (registration == null || !registration.HasValidAddress || registration.Address == null)
+                    continue;
+
+                var registrationAddressText = NormalizeAddressText(registration.Address);
+                if (!string.Equals(registrationAddressText, normalizedKey, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(registrationAddressText, parsedAddressText, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (TryResolveWorldPositionFromCandidate(registration, out worldPosition) ||
+                    TryResolveWorldPositionFromCandidate(registration.Address, out worldPosition))
+                {
+                    return true;
+                }
+
+                try
+                {
+                    var building = BuildingHelper.GetBuilding(registration.Address);
+                    if (TryResolveWorldPositionFromCandidate(building, out worldPosition))
+                        return true;
+                }
+                catch
+                {
+                }
             }
 
             return false;
@@ -203,6 +262,22 @@ namespace StreetQuestRPG
             catch
             {
                 return false;
+            }
+        }
+
+        private static string NormalizeAddressText(object addressLike)
+        {
+            if (addressLike == null)
+                return string.Empty;
+
+            try
+            {
+                var text = addressLike.ToString();
+                return string.IsNullOrWhiteSpace(text) ? string.Empty : text.Trim();
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
     }

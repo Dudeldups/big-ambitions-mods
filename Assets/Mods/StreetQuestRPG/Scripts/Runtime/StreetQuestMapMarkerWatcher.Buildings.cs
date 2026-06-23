@@ -44,15 +44,17 @@ namespace StreetQuestRPG
             if (definition == null)
                 return false;
 
-            if (!string.IsNullOrWhiteSpace(definition.buildingAddress) &&
-                StreetQuestShared.TryResolveAddressWorldAnchor(definition.buildingAddress, out worldPosition, out var source))
-            {
-                LogMapWorldResolution(characterId, $"mode=buildingAddress stateAddress={definition.buildingAddress} source={source} world={FormatVector3(worldPosition)}");
-                return true;
-            }
-
             if (!string.IsNullOrWhiteSpace(definition.buildingAddress))
+            {
+                if (StreetQuestShared.TryResolveAddressWorldAnchor(definition.buildingAddress, out worldPosition, out var source))
+                {
+                    LogMapWorldResolution(characterId, $"mode=buildingAddress stateAddress={definition.buildingAddress} source={source} world={FormatVector3(worldPosition)}");
+                    return true;
+                }
+
                 LogMapWorldResolution(characterId, $"mode=buildingAddress stateAddress={definition.buildingAddress} source=<failed>");
+                return false;
+            }
 
             worldPosition = definition.PositionOr(Vector3.zero);
             var usedFallback = definition.position != null;
@@ -69,14 +71,7 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(reason))
                 return;
 
-            if (LastMapWorldResolutionReasonsByCharacterId.TryGetValue(characterId, out var previousReason) &&
-                string.Equals(previousReason, reason, StringComparison.Ordinal))
-            {
-                return;
-            }
-
             LastMapWorldResolutionReasonsByCharacterId[characterId] = reason;
-            StreetQuestShared.LogDebug($"MapMarkerWorldResolve characterId={characterId} {reason}");
         }
     }
 }

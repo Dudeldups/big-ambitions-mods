@@ -7,6 +7,8 @@ namespace StreetQuestRPG
     internal static partial class StreetQuestShared
     {
         private static Type _cachedCinemachineBrainType;
+        private static Type _cachedCityMapType;
+        private static PropertyInfo _cachedCityMapIsOpenProperty;
 
         internal static void ResetIndoorBuildingContext()
         {
@@ -67,12 +69,12 @@ namespace StreetQuestRPG
 
         internal static bool IsCityMapOpenForGameplayChecks()
         {
-            var cityMapType = FindType("CityMap");
-            if (cityMapType == null)
+            _cachedCityMapType ??= FindType("CityMap");
+            if (_cachedCityMapType == null)
                 return false;
 
-            var isOpenProperty = cityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
-            return isOpenProperty?.GetValue(null) as bool? ?? false;
+            _cachedCityMapIsOpenProperty ??= _cachedCityMapType.GetProperty("IsOpen", BindingFlags.Public | BindingFlags.Static);
+            return _cachedCityMapIsOpenProperty?.GetValue(null) as bool? ?? false;
         }
 
         private static Component GetLiveVirtualCameraComponent()

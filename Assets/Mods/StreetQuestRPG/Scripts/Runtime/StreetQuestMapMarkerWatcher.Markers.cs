@@ -94,10 +94,12 @@ namespace StreetQuestRPG
                 _markerAnchoredPositions[characterId] = targetAnchoredPosition;
                 _markerAnchoredVelocities[characterId] = Vector2.zero;
                 markerRoot.gameObject.SetActive(true);
+                var playerPoiPosition = _lastPlayerPoiRect != null ? _lastPlayerPoiRect.anchoredPosition : Vector2.zero;
+                var overlapDistance = Vector2.Distance(targetAnchoredPosition, playerPoiPosition);
                 LogMarkerState(
                     characterId,
                     true,
-                    $"Placed marker with player-projection calibration. filterVisible={_mapFilterVisible}");
+                    $"Placed marker with player-projection calibration. filterVisible={_mapFilterVisible} ui={FormatVector2(targetAnchoredPosition)} playerUi={FormatVector2(playerPoiPosition)} overlapDistance={overlapDistance:0.00}");
             }
         }
         private void ApplyPlayerMarkerVisualSize(RectTransform markerRoot)

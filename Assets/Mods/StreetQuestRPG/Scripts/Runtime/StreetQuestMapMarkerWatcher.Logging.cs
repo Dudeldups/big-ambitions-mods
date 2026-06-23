@@ -33,6 +33,13 @@ namespace StreetQuestRPG
         }
         private void LogMarkerState(string characterId, bool isVisible, string reason)
         {
+            if (LastMapWorldResolutionReasonsByCharacterId.TryGetValue(characterId, out var worldReason) &&
+                !string.IsNullOrWhiteSpace(worldReason) &&
+                reason.IndexOf("worldResolve=", StringComparison.Ordinal) < 0)
+            {
+                reason = $"{reason} worldResolve={worldReason}";
+            }
+
             _markerVisibilityStates.TryGetValue(characterId, out var previousVisibility);
             _markerStatusReasons.TryGetValue(characterId, out var previousReason);
 
@@ -41,7 +48,7 @@ namespace StreetQuestRPG
 
             _markerVisibilityStates[characterId] = isVisible;
             _markerStatusReasons[characterId] = reason;
-            DebugLog($"Map marker characterId={characterId} visible={isVisible} reason={reason}");
+            StreetQuestShared.LogDebug($"Map marker characterId={characterId} visible={isVisible} reason={reason}");
         }
         private void MaybeLogVerbose(string message)
         {
