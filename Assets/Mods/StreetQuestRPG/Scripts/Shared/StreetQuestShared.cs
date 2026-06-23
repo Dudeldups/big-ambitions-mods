@@ -51,6 +51,7 @@ namespace StreetQuestRPG
         private static Vector3? PreferredQuestGiverSpawnPosition;
         private static bool QuestGiverCtaInstalled;
         private static string DebugLogFilePath;
+        private static string SnapshotLogFilePath;
         private static object CachedQuestStateOwner;
         private static StreetQuestQuestStateRecord CachedQuestStateRecord;
 

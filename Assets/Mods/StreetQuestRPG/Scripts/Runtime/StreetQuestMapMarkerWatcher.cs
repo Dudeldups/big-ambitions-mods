@@ -170,6 +170,7 @@ namespace StreetQuestRPG
         private void Update()
         {
             _elapsedSeconds += Time.unscaledDeltaTime;
+            TryCaptureMapSnapshot();
             if (_elapsedSeconds < _nextRefreshAtSeconds)
                 return;
 

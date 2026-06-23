@@ -28,6 +28,7 @@ namespace StreetQuestRPG
                 DebugLogDirectory = ResolveDebugLogDirectory(context?.ModRootPath);
                 Directory.CreateDirectory(DebugLogDirectory);
                 DebugLogFilePath = Path.Combine(DebugLogDirectory, "streetquest-debug.log");
+                SnapshotLogFilePath = Path.Combine(DebugLogDirectory, "streetquest-snapshot.log");
 
                 lock (LogSync)
                 {
@@ -131,6 +132,29 @@ namespace StreetQuestRPG
                 {
                     File.AppendAllText(
                         DebugLogFilePath,
+                        $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}");
+                }
+            }
+            catch
+            {
+            }
+        }
+
+
+        internal static void LogSnapshot(string message, bool resetFile = false)
+        {
+            if (string.IsNullOrWhiteSpace(SnapshotLogFilePath))
+                return;
+
+            try
+            {
+                lock (LogSync)
+                {
+                    if (resetFile && File.Exists(SnapshotLogFilePath))
+                        File.Delete(SnapshotLogFilePath);
+
+                    File.AppendAllText(
+                        SnapshotLogFilePath,
                         $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}");
                 }
             }
