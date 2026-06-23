@@ -38,6 +38,7 @@ namespace StreetQuestRPG
             _apartmentEntryOverlay = GetComponent<StreetQuestApartmentEntryOverlay>();
             if (_apartmentEntryOverlay == null)
                 _apartmentEntryOverlay = gameObject.AddComponent<StreetQuestApartmentEntryOverlay>();
+            StreetQuestShared.LogDebug("ApartmentEntryOverlay attached");
             _initialized = true;
         }
 

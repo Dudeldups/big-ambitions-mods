@@ -20,6 +20,7 @@ namespace StreetQuestRPG
         private string _lastExteriorAddress = string.Empty;
         private bool _lastVisibleState;
         private string _lastVisibleSignature = string.Empty;
+        private bool _hasLoggedRefreshBoot;
         private Rect _panelRect;
         private List<StreetQuestShared.ApartmentEntryOption> _currentOptions = new();
         private GUIStyle _panelStyle;
@@ -70,6 +71,12 @@ namespace StreetQuestRPG
 
         private void RefreshOptionsIfNeeded()
         {
+            if (!_hasLoggedRefreshBoot)
+            {
+                _hasLoggedRefreshBoot = true;
+                StreetQuestShared.LogDebug("ApartmentEntryOverlay refresh active");
+            }
+
             if (!IsInActiveGameSession())
             {
                 SetCurrentOptions(Array.Empty<StreetQuestShared.ApartmentEntryOption>(), string.Empty);
@@ -92,6 +99,8 @@ namespace StreetQuestRPG
 
             _lastStateVersion = stateVersion;
             _lastExteriorAddress = exteriorAddress;
+            StreetQuestShared.LogDebug(
+                $"ApartmentEntryOverlay refresh exteriorAddress={exteriorAddress} stateVersion={stateVersion}");
             SetCurrentOptions(StreetQuestShared.GetAvailableApartmentEntryOptions(exteriorAddress), exteriorAddress);
         }
 

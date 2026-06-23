@@ -27,7 +27,7 @@ namespace StreetQuestRPG
                 return Array.Empty<ApartmentEntryOption>();
 
             var results = new List<ApartmentEntryOption>();
-            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null && value.enabled))
+            foreach (var character in StreetQuestCharacterCatalog.All.Where(value => value != null))
             {
                 var activeState = StreetQuestCharacterRuntimeResolver.ResolveActiveState(character);
                 if (activeState == null || string.IsNullOrWhiteSpace(activeState.buildingAddress))
