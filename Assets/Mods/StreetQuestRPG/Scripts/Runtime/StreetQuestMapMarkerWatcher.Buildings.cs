@@ -22,11 +22,16 @@ namespace StreetQuestRPG
             var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
             if (runtimeDefinition != null)
             {
-                if (!runtimeDefinition.enabled)
-                    return false;
-
-                if (TryResolveCharacterDefinitionMapWorldPosition(characterId, runtimeDefinition, out worldPosition))
+                if (runtimeDefinition.enabled &&
+                    TryResolveCharacterDefinitionMapWorldPosition(characterId, runtimeDefinition, out worldPosition))
                     return true;
+            }
+
+            var mapDefinition = TryBuildMapDefinition(definition);
+            if (mapDefinition != null &&
+                TryResolveCharacterDefinitionMapWorldPosition(characterId, mapDefinition, out worldPosition))
+            {
+                return true;
             }
 
             if (!definition.enabled)
@@ -64,6 +69,33 @@ namespace StreetQuestRPG
                     ? $"mode=fallbackPosition world={FormatVector3(worldPosition)}"
                     : "mode=fallbackPosition source=<missing_position>");
             return usedFallback;
+        }
+
+        private static StreetQuestCharacterDefinition TryBuildMapDefinition(StreetQuestCharacterDefinition definition)
+        {
+            if (definition == null || !StreetQuestCharacterRuntimeResolver.HasConfiguredStates(definition))
+                return null;
+
+            var activeState = StreetQuestCharacterRuntimeResolver.ResolveActiveState(definition);
+            if (activeState == null)
+                return null;
+
+            var resolved = definition.ShallowCopy();
+            resolved.FillMissingValuesFrom(definition);
+
+            if (!string.IsNullOrWhiteSpace(activeState.buildingAddress))
+                resolved.buildingAddress = activeState.buildingAddress;
+            if (activeState.position != null)
+                resolved.position = activeState.position;
+            if (activeState.schedule != null)
+                resolved.schedule = activeState.schedule;
+
+            var appearanceId = StreetQuestCharacterRuntimeResolver.ResolveActiveAppearanceId(definition, activeState);
+            var appearance = definition.FindAppearance(appearanceId);
+            if (appearance != null && !string.IsNullOrWhiteSpace(appearance.prefabName))
+                resolved.prefabName = appearance.prefabName;
+
+            return resolved;
         }
 
         private static void LogMapWorldResolution(string characterId, string reason)

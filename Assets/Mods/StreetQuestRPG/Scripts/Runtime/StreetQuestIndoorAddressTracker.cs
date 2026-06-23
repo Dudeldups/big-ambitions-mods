@@ -18,6 +18,8 @@ namespace StreetQuestRPG
 
         private static string _lastExteriorAddressCandidate = string.Empty;
         private static float _lastExteriorAddressCandidateTime = float.NegativeInfinity;
+        private static readonly System.Collections.Generic.Dictionary<string, Vector3> ExteriorAddressAnchorsByAddress =
+            new System.Collections.Generic.Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
         private static string _currentIndoorAddress = string.Empty;
         private static bool _wasIndoorLastTick;
         private static bool _hasTicked;
@@ -37,6 +39,7 @@ namespace StreetQuestRPG
         {
             _lastExteriorAddressCandidate = string.Empty;
             _lastExteriorAddressCandidateTime = float.NegativeInfinity;
+            ExteriorAddressAnchorsByAddress.Clear();
             _currentIndoorAddress = string.Empty;
             _wasIndoorLastTick = false;
             _hasTicked = false;
@@ -158,6 +161,16 @@ namespace StreetQuestRPG
             return true;
         }
 
+        internal static bool TryGetExteriorAddressAnchor(string addressKey, out Vector3 worldPosition)
+        {
+            worldPosition = default;
+            var normalized = NormalizeAddressKey(addressKey);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+
+            return ExteriorAddressAnchorsByAddress.TryGetValue(normalized, out worldPosition);
+        }
+
         private static bool TryRestorePersistedIndoorAddress(out string addressKey)
         {
             addressKey = StreetQuestShared.GetPersistedIndoorBuildingAddressKey();
@@ -170,8 +183,10 @@ namespace StreetQuestRPG
                 return;
 
             _nextExteriorCandidateRefreshAtSeconds = elapsedSeconds + ExteriorCandidateRefreshIntervalSeconds;
-            if (!TryFindExteriorAddressCandidate(out var addressKey, out var sourceDescription, out var bestDistance))
+            if (!TryFindExteriorAddressCandidate(out var addressKey, out var sourceDescription, out var bestDistance, out var anchorPosition))
                 return;
+
+            ExteriorAddressAnchorsByAddress[addressKey] = anchorPosition;
 
             if (string.Equals(_lastExteriorAddressCandidate, addressKey, StringComparison.Ordinal))
             {
@@ -203,11 +218,13 @@ namespace StreetQuestRPG
         private static bool TryFindExteriorAddressCandidate(
             out string addressKey,
             out string sourceDescription,
-            out float bestDistance)
+            out float bestDistance,
+            out Vector3 anchorPosition)
         {
             addressKey = string.Empty;
             sourceDescription = string.Empty;
             bestDistance = float.PositiveInfinity;
+            anchorPosition = default;
             var playerController = PlayerHelper.PlayerController;
             if (playerController == null)
                 return false;
@@ -220,6 +237,7 @@ namespace StreetQuestRPG
             var bestDistanceSquared = float.PositiveInfinity;
             var bestAddress = string.Empty;
             var bestSourceDescription = string.Empty;
+            var bestAnchorPosition = Vector3.zero;
             var visitedColliders = 0;
 
             foreach (var collider in colliders)
@@ -243,6 +261,7 @@ namespace StreetQuestRPG
                     bestDistanceSquared = distanceSquared;
                     bestAddress = candidateAddress;
                     bestSourceDescription = candidateSourceDescription;
+                    bestAnchorPosition = closestPoint;
                 }
 
                 if (visitedColliders >= ExteriorProbeMaxColliders)
@@ -252,6 +271,7 @@ namespace StreetQuestRPG
             addressKey = NormalizeAddressKey(bestAddress);
             sourceDescription = bestSourceDescription;
             bestDistance = float.IsPositiveInfinity(bestDistanceSquared) ? float.PositiveInfinity : Mathf.Sqrt(bestDistanceSquared);
+            anchorPosition = bestAnchorPosition;
             return !string.IsNullOrWhiteSpace(addressKey);
         }
 
