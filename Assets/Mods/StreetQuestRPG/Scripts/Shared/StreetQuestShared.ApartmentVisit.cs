@@ -26,6 +26,10 @@ namespace StreetQuestRPG
 
         private static readonly Dictionary<string, StreetQuestApartmentInteriorPayload> ApartmentPayloadCacheByVisitKey =
             new(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> LoggedVanillaApartmentSnapshotAddresses =
+            new(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> LoggedApartmentRegistrationDumpKeys =
+            new(StringComparer.OrdinalIgnoreCase);
 
         private static StreetQuestApartmentVisitContext ActiveApartmentVisit;
         private static bool HasLoggedApartmentItemInstanceShape;
@@ -74,7 +78,7 @@ namespace StreetQuestRPG
             }
 
             var visitContext = CreateApartmentVisitContext(option, building, registration);
-            ApplyApartmentPayload(visitContext);
+            TryLogApartmentRegistrationDump($"RoutedApartmentRegistrationBeforeEntry:{visitContext.VisitKey}", registration);
 
             if (!TryStartVanillaApartmentEntry(building, out var route))
             {
@@ -105,12 +109,21 @@ namespace StreetQuestRPG
         {
             var visit = ActiveApartmentVisit;
             if (visit == null)
+            {
+                TryLogVanillaApartmentSnapshot();
                 return;
+            }
 
             if (visit.State == StreetQuestApartmentVisitState.WaitingForIndoorTransition)
             {
                 if (IsIndoorGameplayContextActive())
                 {
+                    if (!visit.PayloadAppliedInside)
+                    {
+                        ApplyApartmentPayload(visit);
+                        visit.PayloadAppliedInside = true;
+                    }
+
                     visit.State = StreetQuestApartmentVisitState.ActiveInside;
                     RefreshSpawnedCharacters();
                     LogDebug(
@@ -215,17 +228,35 @@ namespace StreetQuestRPG
             if (context?.Registration == null || context.ActivePayload == null)
                 return;
 
-            SetMemberValue(context.Registration, "interiorDesigns", context.ActivePayload.InteriorDesigns);
-            SetMemberValue(context.Registration, "itemInstances", context.ActivePayload.ItemInstances);
-            SetMemberValue(context.Registration, "itemsInBuilding", context.ActivePayload.ItemsInBuilding);
-            SetMemberValue(context.Registration, "deliveredItems", context.ActivePayload.DeliveredItems);
-            SetMemberValue(context.Registration, "dirtSpots", context.ActivePayload.DirtSpots);
+            var mergedItemInstances = MergeApartmentItemInstances(
+                GetMemberValue(context.Registration, "itemInstances"),
+                context.ActivePayload.ItemInstances,
+                GetMemberType(context.Registration, "itemInstances"));
+            if (mergedItemInstances != null)
+                SetMemberValue(context.Registration, "itemInstances", mergedItemInstances);
 
             var originalLayout = context.OriginalSnapshot?.Get<string>("Layout") ?? "<null>";
             var payloadLayout = context.ActivePayload.Layout ?? "<null>";
 
             LogDebug(
-                $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
+                $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
+        }
+
+        private static object MergeApartmentItemInstances(object liveItemInstances, object payloadItemInstances, Type targetType)
+        {
+            if (payloadItemInstances is not IDictionary payloadDictionary)
+                return liveItemInstances;
+
+            var merged = CloneValueLike(liveItemInstances, targetType) ??
+                         CreateEmptyValueLike(liveItemInstances, targetType) ??
+                         CreateEmptyValueLike(payloadItemInstances, targetType);
+            if (merged is not IDictionary mergedDictionary)
+                return liveItemInstances;
+
+            foreach (DictionaryEntry entry in payloadDictionary)
+                mergedDictionary[entry.Key] = entry.Value;
+
+            return merged;
         }
 
         private static void CaptureApartmentPayload(StreetQuestApartmentVisitContext context)
@@ -274,6 +305,94 @@ namespace StreetQuestRPG
                 HasLoggedApartmentItemInstanceShape = true;
                 break;
             }
+        }
+
+        private static void TryLogVanillaApartmentSnapshot()
+        {
+            if (!IsIndoorGameplayContextActive())
+                return;
+
+            var addressKey = GetCurrentIndoorBuildingAddressKey();
+            if (string.IsNullOrWhiteSpace(addressKey) ||
+                !LoggedVanillaApartmentSnapshotAddresses.Add(addressKey))
+                return;
+
+            var registration = FindBuildingRegistrationByAddressText(addressKey);
+            if (registration == null)
+            {
+                LogDebug($"VanillaApartmentSnapshotSkipped address={addressKey} reason=registration_not_found");
+                return;
+            }
+
+            TryLogApartmentRegistrationDump($"VanillaApartmentRegistration:{addressKey}", registration);
+
+            var layout = GetMemberValue(registration, "Layout") as string;
+            var interiorDesigns = GetMemberValue(registration, "interiorDesigns");
+            var itemInstances = GetMemberValue(registration, "itemInstances");
+            var itemsInBuilding = GetMemberValue(registration, "itemsInBuilding");
+            var deliveredItems = GetMemberValue(registration, "deliveredItems");
+            var dirtSpots = GetMemberValue(registration, "dirtSpots");
+
+            LogDebug(
+                $"VanillaApartmentSnapshot address={addressKey} layout={layout ?? "<null>"} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)} deliveredItems={DescribeValueShape(deliveredItems)} dirtSpots={DescribeValueShape(dirtSpots)}");
+
+            TryLogApartmentItemInstanceShapeForLabel(
+                "VanillaApartmentItemInstanceShape",
+                itemInstances,
+                itemsInBuilding);
+        }
+
+        private static void TryLogApartmentItemInstanceShapeForLabel(string label, object itemInstances, object itemsInBuilding)
+        {
+            if (itemInstances is not IDictionary dictionary || dictionary.Count == 0)
+                return;
+
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                var keyType = entry.Key?.GetType().FullName ?? "<null>";
+                var value = entry.Value;
+                var valueType = value?.GetType();
+                if (valueType == null)
+                    continue;
+
+                var fields = valueType.GetFields(ReflectionFlags)
+                    .Select(field => $"{field.FieldType.Name} {field.Name}={SafeDescribeFieldValue(field, value)}")
+                    .ToArray();
+                var properties = valueType.GetProperties(ReflectionFlags)
+                    .Where(property => property.GetIndexParameters().Length == 0)
+                    .Take(12)
+                    .Select(property => $"{property.PropertyType.Name} {property.Name}={SafeDescribePropertyValue(property, value)}")
+                    .ToArray();
+
+                LogDebug(
+                    $"{label} dictionaryType={itemInstances.GetType().FullName} keyType={keyType} valueType={valueType.FullName} itemsInBuildingType={itemsInBuilding?.GetType().FullName ?? "<null>"} sampleKey={entry.Key} fields=[{string.Join(" | ", fields)}] properties=[{string.Join(" | ", properties)}]");
+                break;
+            }
+        }
+
+        private static void TryLogApartmentRegistrationDump(string key, object registration)
+        {
+            if (registration == null ||
+                string.IsNullOrWhiteSpace(key) ||
+                !LoggedApartmentRegistrationDumpKeys.Add(key))
+                return;
+
+            var type = registration.GetType();
+            var fieldLines = type
+                .GetFields(ReflectionFlags)
+                .OrderBy(field => field.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(field => $"{field.FieldType.Name} {field.Name}={SafeDescribeFieldValue(field, registration)}")
+                .ToArray();
+            var propertyLines = type
+                .GetProperties(ReflectionFlags)
+                .Where(property => property.GetIndexParameters().Length == 0)
+                .OrderBy(property => property.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(property => $"{property.PropertyType.Name} {property.Name}={SafeDescribePropertyValue(property, registration)}")
+                .ToArray();
+
+            LogDebug($"ApartmentRegistrationDump key={key} type={type.FullName}");
+            LogDebug($"ApartmentRegistrationDumpFields key={key} values=[{string.Join(" | ", fieldLines)}]");
+            LogDebug($"ApartmentRegistrationDumpProperties key={key} values=[{string.Join(" | ", propertyLines)}]");
         }
 
         private static string SafeDescribeFieldValue(FieldInfo field, object instance)
@@ -589,6 +708,7 @@ namespace StreetQuestRPG
             public string EntryRoute;
             public float EntryStartedAtSeconds;
             public StreetQuestApartmentVisitState State;
+            public bool PayloadAppliedInside;
         }
 
         private sealed class StreetQuestApartmentRegistrationSnapshot

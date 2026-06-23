@@ -37,11 +37,11 @@ namespace StreetQuestRPG
                     out var registeredLayoutTempPath))
                 return false;
 
-            var interiorDesigns = CreateEmptyValueLike(originalSnapshot?.GetRaw("interiorDesigns"), GetMemberType(registration, "interiorDesigns"));
+            var interiorDesigns = originalSnapshot?.GetRaw("interiorDesigns");
             var itemInstances = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemInstances"), GetMemberType(registration, "itemInstances"));
-            var itemsInBuilding = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemsInBuilding"), GetMemberType(registration, "itemsInBuilding"));
-            var deliveredItems = CreateEmptyValueLike(originalSnapshot?.GetRaw("deliveredItems"), GetMemberType(registration, "deliveredItems"));
-            var dirtSpots = CreateEmptyValueLike(originalSnapshot?.GetRaw("dirtSpots"), GetMemberType(registration, "dirtSpots"));
+            var itemsInBuilding = originalSnapshot?.GetRaw("itemsInBuilding");
+            var deliveredItems = originalSnapshot?.GetRaw("deliveredItems");
+            var dirtSpots = originalSnapshot?.GetRaw("dirtSpots");
 
             if (TryHydrateApartmentLayoutPayloadFromAddressInsert(
                     option,
@@ -58,6 +58,7 @@ namespace StreetQuestRPG
 
             TryHydrateApartmentLayoutPayloadFromHelper(
                 option,
+                originalSnapshot,
                 registration,
                 registeredLayoutTempPath,
                 ref interiorDesigns,
@@ -162,6 +163,7 @@ namespace StreetQuestRPG
 
         private static void TryHydrateApartmentLayoutPayloadFromHelper(
             StreetQuestShared.ApartmentEntryOption option,
+            StreetQuestApartmentRegistrationSnapshot originalSnapshot,
             object registration,
             string tempLayoutPath,
             ref object interiorDesigns,
@@ -203,10 +205,6 @@ namespace StreetQuestRPG
 
                 TryApplyLegacyLayoutFix(layoutSet);
 
-                var layoutInteriorDesigns = GetMemberValue(layoutSet, "interiorDesigns");
-                if (layoutInteriorDesigns != null)
-                    interiorDesigns = layoutInteriorDesigns;
-
                 var layoutItems = GetMemberValue(layoutSet, "Items");
                 var convertedItemInstances = CreateResidentialItemInstancesFromLayoutItems(registration, layoutItems);
                 if (convertedItemInstances != null)
@@ -216,13 +214,10 @@ namespace StreetQuestRPG
                         GetMemberType(registration, "itemInstances"),
                         itemInstances,
                         out var itemCount);
-                    itemsInBuilding = BuildItemsInBuilding(
-                        GetMemberType(registration, "itemsInBuilding"),
-                        itemInstances,
-                        itemsInBuilding);
+                    itemsInBuilding = originalSnapshot?.GetRaw("itemsInBuilding");
 
                     LogDebug(
-                        $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={itemCount} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)}");
+                        $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={itemCount} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)} mode=furniture_overlay");
                     return;
                 }
 
@@ -273,7 +268,7 @@ namespace StreetQuestRPG
             if (targetType == null)
                 return fallback;
 
-            var dictionary = Activator.CreateInstance(targetType);
+            var dictionary = CloneValueLike(fallback, targetType) ?? Activator.CreateInstance(targetType);
             if (dictionary is not IDictionary typedDictionary)
                 return fallback;
 
@@ -304,6 +299,30 @@ namespace StreetQuestRPG
             }
 
             return dictionary;
+        }
+
+        private static object CloneValueLike(object existingValue, Type targetType)
+        {
+            targetType ??= existingValue?.GetType();
+            if (targetType == null)
+                return null;
+
+            var clone = CreateEmptyValueLike(existingValue, targetType);
+            if (clone is IDictionary cloneDictionary && existingValue is IDictionary existingDictionary)
+            {
+                foreach (DictionaryEntry entry in existingDictionary)
+                    cloneDictionary[entry.Key] = entry.Value;
+                return clone;
+            }
+
+            if (clone is IList cloneList && existingValue is IEnumerable existingEnumerable)
+            {
+                foreach (var entry in existingEnumerable)
+                    cloneList.Add(entry);
+                return clone;
+            }
+
+            return clone;
         }
 
         private static IEnumerable CreateResidentialItemInstancesFromLayoutItems(object registration, object layoutItems)
