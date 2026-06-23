@@ -164,6 +164,23 @@
       ],
       "states": [
         {
+          "id": "fran_home_invite",
+          "requiredStoryFlags": ["streetquest:flag_fran_apartment_access"],
+          "forbiddenStoryFlags": [
+            "streetquest:flag_fran_dinner_finished",
+            "streetquest:flag_fran_family_left"
+          ],
+          "buildingAddress": "ba:street_thirdstreet 45",
+          "appearanceId": "fran_default",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideShowSpeechBubble": true,
+          "showSpeechBubble": false,
+          "schedule": {
+            "mode": "Always"
+          }
+        },
+        {
           "id": "fran_searching_no_callout",
           "requiredStoryFlags": ["streetquest:flag_julia_visible"],
           "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],

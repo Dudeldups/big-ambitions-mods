@@ -100,32 +100,6 @@ namespace StreetQuestRPG
                     $"Placed marker with player-projection calibration. filterVisible={_mapFilterVisible}");
             }
         }
-        private static bool TryGetCharacterMapWorldPosition(string characterId, out Vector3 worldPosition)
-        {
-            worldPosition = default;
-            if (string.IsNullOrWhiteSpace(characterId))
-                return false;
-
-            var definition = StreetQuestCharacterCatalog.Get(characterId);
-            if (definition == null)
-                return false;
-
-            var runtimeDefinition = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(definition);
-            if (runtimeDefinition != null)
-            {
-                if (!runtimeDefinition.enabled)
-                    return false;
-
-                worldPosition = runtimeDefinition.PositionOr(Vector3.zero);
-                return true;
-            }
-
-            if (!definition.enabled)
-                return false;
-
-            worldPosition = definition.PositionOr(Vector3.zero);
-            return true;
-        }
         private void ApplyPlayerMarkerVisualSize(RectTransform markerRoot)
         {
             if (markerRoot == null)
