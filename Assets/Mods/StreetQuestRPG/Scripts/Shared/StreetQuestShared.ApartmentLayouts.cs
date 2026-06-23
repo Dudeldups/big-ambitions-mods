@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Buildings;
+using Helpers;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -201,20 +202,8 @@ namespace StreetQuestRPG
                 if (layoutInteriorDesigns != null)
                     interiorDesigns = layoutInteriorDesigns;
 
-                var getItemInstancesMethod = helperType.GetMethod(
-                    "GetItemInstancesFromLayoutItems",
-                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new[] { GetMemberType(layoutSet, "Items") },
-                    null);
-                if (getItemInstancesMethod == null)
-                {
-                    LogDebug("ApartmentLayoutHydrateFailed reason=get_item_instances_missing");
-                    return;
-                }
-
                 var layoutItems = GetMemberValue(layoutSet, "Items");
-                var convertedItemInstances = getItemInstancesMethod.Invoke(null, new[] { layoutItems }) as IEnumerable;
+                var convertedItemInstances = CreateResidentialItemInstancesFromLayoutItems(registration, layoutItems);
                 if (convertedItemInstances != null)
                 {
                     itemInstances = BuildItemInstanceDictionary(
@@ -283,6 +272,102 @@ namespace StreetQuestRPG
             }
 
             return dictionary;
+        }
+
+        private static IEnumerable CreateResidentialItemInstancesFromLayoutItems(object registration, object layoutItems)
+        {
+            if (registration == null || layoutItems is not IEnumerable enumerableLayoutItems)
+                return null;
+
+            var itemInstancesType = GetMemberType(registration, "itemInstances");
+            var itemInstanceType = itemInstancesType?.GetGenericArguments().LastOrDefault();
+            if (itemInstanceType == null)
+                return null;
+
+            var resultListType = typeof(List<>).MakeGenericType(itemInstanceType);
+            if (Activator.CreateInstance(resultListType) is not IList resultList)
+                return null;
+
+            var address = GetMemberValue(registration, "Address");
+            var streetName = GetMemberValue(address, "StreetName") as string ?? string.Empty;
+            var streetNumber = ConvertToInt(GetMemberValue(address, "StreetNumber"));
+
+            foreach (var layoutItem in enumerableLayoutItems)
+            {
+                if (layoutItem == null)
+                    continue;
+
+                if (Activator.CreateInstance(itemInstanceType) is not object itemInstance)
+                    continue;
+
+                CopyMemberValue(layoutItem, itemInstance, "id", "id");
+                CopyMemberValue(layoutItem, itemInstance, "itemName", "itemName");
+                CopyMemberValue(layoutItem, itemInstance, "position", "position");
+                CopyMemberValue(layoutItem, itemInstance, "rotation", "rotation");
+                CopyMemberValue(layoutItem, itemInstance, "stackedItems", "stackedItems");
+                CopyMemberValue(layoutItem, itemInstance, "parentId", "parentId");
+                CopyMemberValue(layoutItem, itemInstance, "dirtSpotsThatAffects", "dirtSpotsThatAffects");
+                CopyMemberValue(layoutItem, itemInstance, "customPositions", "customPositions");
+                CopyMemberValue(layoutItem, itemInstance, "customColors", "customColors");
+                CopyMemberValue(layoutItem, itemInstance, "customValue", "customValue");
+                CopyMemberValue(layoutItem, itemInstance, "linkedItemName", "linkedItemName");
+                CopyMemberValue(layoutItem, itemInstance, "worldSpaceTextValue", "worldSpaceTextValue");
+                CopyMemberValue(layoutItem, itemInstance, "playerItemPurchaserSettings", "playerItemPurchaserSettings");
+                CopyMemberValue(layoutItem, itemInstance, "dirtAffectedCells", "dirtAffectedCells");
+
+                SetMemberValue(itemInstance, "streetName", streetName);
+                SetMemberValue(itemInstance, "streetNumber", streetNumber);
+                SetMemberValue(itemInstance, "_addressCached", address);
+                SetMemberValue(itemInstance, "yRotation", ExtractYawDegrees(GetMemberValue(layoutItem, "rotation")));
+                SetMemberValue(itemInstance, "priceOnPurchase", 0f);
+                SetMemberValue(itemInstance, "pricePerUnitOnPurchaseTime", 0f);
+                SetMemberValue(itemInstance, "stateIndex", 0);
+                SetMemberValue(itemInstance, "instanceQuantity", 0);
+                SetMemberValue(itemInstance, "paid", false);
+                SetMemberValue(itemInstance, "isSecured", false);
+
+                resultList.Add(itemInstance);
+            }
+
+            return resultList;
+        }
+
+        private static void CopyMemberValue(object source, object destination, string sourceMemberName, string destinationMemberName)
+        {
+            var value = GetMemberValue(source, sourceMemberName);
+            if (value != null)
+                SetMemberValue(destination, destinationMemberName, value);
+        }
+
+        private static int ConvertToInt(object value)
+        {
+            try
+            {
+                return value == null ? 0 : Convert.ToInt32(value);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static float ExtractYawDegrees(object serializableQuaternion)
+        {
+            if (serializableQuaternion == null)
+                return 0f;
+
+            try
+            {
+                var x = Convert.ToSingle(GetMemberValue(serializableQuaternion, "x") ?? 0f);
+                var y = Convert.ToSingle(GetMemberValue(serializableQuaternion, "y") ?? 0f);
+                var z = Convert.ToSingle(GetMemberValue(serializableQuaternion, "z") ?? 0f);
+                var w = Convert.ToSingle(GetMemberValue(serializableQuaternion, "w") ?? 1f);
+                return Quaternion.Euler(0f, Quaternion.LookRotation((new Quaternion(x, y, z, w)) * Vector3.forward).eulerAngles.y, 0f).eulerAngles.y;
+            }
+            catch
+            {
+                return 0f;
+            }
         }
 
         private static object BuildItemsInBuilding(Type targetType, object itemInstances, object fallback)

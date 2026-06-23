@@ -28,6 +28,7 @@ namespace StreetQuestRPG
             new(StringComparer.OrdinalIgnoreCase);
 
         private static StreetQuestApartmentVisitContext ActiveApartmentVisit;
+        private static bool HasLoggedApartmentItemInstanceShape;
 
         internal static bool IsApartmentVisitContextActiveFor(string characterId)
         {
@@ -238,8 +239,65 @@ namespace StreetQuestRPG
             context.ActivePayload.DirtSpots = GetMemberValue(context.Registration, "dirtSpots");
             ApartmentPayloadCacheByVisitKey[context.VisitKey] = context.ActivePayload;
 
+            TryLogApartmentItemInstanceShape(context.ActivePayload.ItemInstances, context.ActivePayload.ItemsInBuilding);
+
             LogDebug(
                 $"ApartmentPayloadCaptured key={context.VisitKey} layout={context.ActivePayload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
+        }
+
+        private static void TryLogApartmentItemInstanceShape(object itemInstances, object itemsInBuilding)
+        {
+            if (HasLoggedApartmentItemInstanceShape || itemInstances is not IDictionary dictionary || dictionary.Count == 0)
+                return;
+
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                var keyType = entry.Key?.GetType().FullName ?? "<null>";
+                var value = entry.Value;
+                var valueType = value?.GetType();
+                if (valueType == null)
+                    continue;
+
+                var fields = valueType.GetFields(ReflectionFlags)
+                    .Select(field => $"{field.FieldType.Name} {field.Name}={SafeDescribeFieldValue(field, value)}")
+                    .ToArray();
+                var properties = valueType.GetProperties(ReflectionFlags)
+                    .Where(property => property.GetIndexParameters().Length == 0)
+                    .Take(12)
+                    .Select(property => $"{property.PropertyType.Name} {property.Name}={SafeDescribePropertyValue(property, value)}")
+                    .ToArray();
+
+                LogDebug(
+                    $"ApartmentItemInstanceShape dictionaryType={itemInstances.GetType().FullName} keyType={keyType} valueType={valueType.FullName} itemsInBuildingType={itemsInBuilding?.GetType().FullName ?? "<null>"} sampleKey={entry.Key} fields=[{string.Join(" | ", fields)}] properties=[{string.Join(" | ", properties)}]");
+                HasLoggedApartmentItemInstanceShape = true;
+                break;
+            }
+        }
+
+        private static string SafeDescribeFieldValue(FieldInfo field, object instance)
+        {
+            try
+            {
+                var value = field.GetValue(instance);
+                return value?.ToString() ?? "<null>";
+            }
+            catch (Exception exception)
+            {
+                return $"<error:{exception.GetType().Name}>";
+            }
+        }
+
+        private static string SafeDescribePropertyValue(PropertyInfo property, object instance)
+        {
+            try
+            {
+                var value = property.GetValue(instance);
+                return value?.ToString() ?? "<null>";
+            }
+            catch (Exception exception)
+            {
+                return $"<error:{exception.GetType().Name}>";
+            }
         }
 
         private static void RestoreApartmentVisitContext(
