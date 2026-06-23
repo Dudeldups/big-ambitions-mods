@@ -23,6 +23,11 @@ namespace StreetQuestRPG
             return StreetQuestIndoorAddressTracker.CurrentIndoorAddress;
         }
 
+        internal static string GetCurrentExteriorBuildingAddressKey()
+        {
+            return StreetQuestIndoorAddressTracker.CurrentExteriorAddressCandidate;
+        }
+
         internal static string GetIndoorContextDisplayText()
         {
             var currentAddress = GetCurrentIndoorBuildingAddressKey();

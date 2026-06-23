@@ -32,6 +32,8 @@ namespace StreetQuestRPG
         [DataMember] public string defaultAppearanceId;
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public string buildingAddress;
+        [DataMember] public string entryExteriorAddress;
+        [DataMember] public string entryButtonTextKey;
         [DataMember] public string gender;
         [DataMember] public int ageInDays;
         [DataMember] public int appearanceSeed;
@@ -136,6 +138,8 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(defaultAppearanceId)) defaultAppearanceId = fallback.defaultAppearanceId;
             schedule ??= fallback.schedule;
             if (string.IsNullOrWhiteSpace(buildingAddress)) buildingAddress = fallback.buildingAddress;
+            if (string.IsNullOrWhiteSpace(entryExteriorAddress)) entryExteriorAddress = fallback.entryExteriorAddress;
+            if (string.IsNullOrWhiteSpace(entryButtonTextKey)) entryButtonTextKey = fallback.entryButtonTextKey;
             if (string.IsNullOrWhiteSpace(gender)) gender = fallback.gender;
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;
             if (appearanceSeed == 0) appearanceSeed = fallback.appearanceSeed;

@@ -32,6 +32,7 @@ namespace StreetQuestRPG
         private static string _lastLoggedClearedReason = string.Empty;
 
         internal static string CurrentIndoorAddress => _currentIndoorAddress ?? string.Empty;
+        internal static string CurrentExteriorAddressCandidate => _lastExteriorAddressCandidate ?? string.Empty;
 
         internal static bool IsIndoors => _wasIndoorLastTick;
 

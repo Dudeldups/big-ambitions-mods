@@ -19,6 +19,7 @@ namespace StreetQuestRPG
         private bool _bootstrapEnsured;
         private StreetQuestDebugOverlay _debugOverlay;
         private StreetQuestDebugBuildingLogger _debugBuildingLogger;
+        private StreetQuestApartmentEntryOverlay _apartmentEntryOverlay;
 
         public void Initialize()
         {
@@ -34,6 +35,9 @@ namespace StreetQuestRPG
             _debugBuildingLogger = GetComponent<StreetQuestDebugBuildingLogger>();
             if (_debugBuildingLogger == null && StreetQuestDebugSettings.Enabled)
                 _debugBuildingLogger = gameObject.AddComponent<StreetQuestDebugBuildingLogger>();
+            _apartmentEntryOverlay = GetComponent<StreetQuestApartmentEntryOverlay>();
+            if (_apartmentEntryOverlay == null)
+                _apartmentEntryOverlay = gameObject.AddComponent<StreetQuestApartmentEntryOverlay>();
             _initialized = true;
         }
 
@@ -51,7 +55,9 @@ namespace StreetQuestRPG
         {
             _elapsedSeconds += Time.unscaledDeltaTime;
             _debugOverlay?.TickToggle();
-            if (_debugOverlay != null && _debugOverlay.ShouldBlockGameplayInput())
+            _apartmentEntryOverlay?.Tick();
+            if ((_debugOverlay != null && _debugOverlay.ShouldBlockGameplayInput()) ||
+                (_apartmentEntryOverlay != null && _apartmentEntryOverlay.ShouldBlockGameplayInput()))
                 Input.ResetInputAxes();
 
             if (!_bootstrapEnsured)
