@@ -49,6 +49,13 @@ namespace StreetQuestRPG
             if (definition == null)
                 return false;
 
+            if (definition.mapPosition != null)
+            {
+                worldPosition = definition.mapPosition.ToVector3();
+                LogMapWorldResolution(characterId, $"mode=mapPosition world={FormatVector3(worldPosition)}");
+                return true;
+            }
+
             if (!string.IsNullOrWhiteSpace(definition.buildingAddress))
             {
                 if (StreetQuestShared.TryResolveAddressWorldAnchor(definition.buildingAddress, out worldPosition, out var source))
@@ -87,6 +94,8 @@ namespace StreetQuestRPG
                 resolved.buildingAddress = activeState.buildingAddress;
             if (activeState.position != null)
                 resolved.position = activeState.position;
+            if (activeState.mapPosition != null)
+                resolved.mapPosition = activeState.mapPosition;
             if (activeState.schedule != null)
                 resolved.schedule = activeState.schedule;
 

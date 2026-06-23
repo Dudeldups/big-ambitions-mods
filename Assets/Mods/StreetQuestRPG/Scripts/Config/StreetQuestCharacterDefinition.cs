@@ -40,6 +40,7 @@ namespace StreetQuestRPG
         [DataMember] public bool useFixedSpawnPosition = true;
         [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data position;
+        [DataMember] public StreetQuestVector3Data mapPosition;
         [DataMember] public StreetQuestVector3Data forward;
         [DataMember] public StreetQuestVector3Data[] walkAwayWaypoints;
         [DataMember] public float walkAwaySpeed = 1.4f;
@@ -140,6 +141,7 @@ namespace StreetQuestRPG
             if (appearanceSeed == 0) appearanceSeed = fallback.appearanceSeed;
             if (string.IsNullOrWhiteSpace(prefabName)) prefabName = fallback.prefabName;
             position ??= fallback.position;
+            mapPosition ??= fallback.mapPosition;
             forward ??= fallback.forward;
             walkAwayWaypoints ??= fallback.walkAwayWaypoints;
             if (walkAwaySpeed <= 0f) walkAwaySpeed = fallback.walkAwaySpeed;

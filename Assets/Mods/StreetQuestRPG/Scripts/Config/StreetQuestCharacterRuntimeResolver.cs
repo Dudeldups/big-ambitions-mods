@@ -219,6 +219,7 @@ namespace StreetQuestRPG
                 SerializeSchedule(runtime.schedule),
                 runtime.buildingAddress ?? string.Empty,
                 SerializeVector(runtime.position),
+                SerializeVector(runtime.mapPosition),
                 SerializeVector(runtime.forward),
                 SerializeVectorArray(runtime.walkAwayWaypoints),
                 runtime.walkAwaySpeed.ToString("F3"),
@@ -321,6 +322,7 @@ namespace StreetQuestRPG
             resolved.schedule = null;
             resolved.buildingAddress = null;
             resolved.position = null;
+            resolved.mapPosition = null;
             resolved.forward = null;
             resolved.walkAwayWaypoints = null;
             resolved.walkAwaySpeed = 1.4f;
@@ -350,6 +352,8 @@ namespace StreetQuestRPG
                 probe.schedule = state.schedule;
             if (!string.IsNullOrWhiteSpace(state.buildingAddress))
                 probe.buildingAddress = state.buildingAddress;
+            if (state.mapPosition != null)
+                probe.mapPosition = state.mapPosition;
 
             return probe;
         }
@@ -392,6 +396,8 @@ namespace StreetQuestRPG
                 resolved.buildingAddress = state.buildingAddress;
             if (state.position != null)
                 resolved.position = state.position;
+            if (state.mapPosition != null)
+                resolved.mapPosition = state.mapPosition;
             if (state.forward != null)
                 resolved.forward = state.forward;
             if (state.walkAwayWaypoints != null)
@@ -515,6 +521,7 @@ namespace StreetQuestRPG
                 useFixedSpawnPosition = definition.useFixedSpawnPosition,
                 prefabName = definition.prefabName,
                 position = definition.position,
+                mapPosition = definition.mapPosition,
                 forward = definition.forward,
                 walkAwayWaypoints = definition.walkAwayWaypoints,
                 walkAwaySpeed = definition.walkAwaySpeed,

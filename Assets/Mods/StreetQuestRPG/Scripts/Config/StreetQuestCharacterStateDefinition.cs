@@ -33,6 +33,7 @@ namespace StreetQuestRPG
         [DataMember] public StreetQuestCharacterScheduleDefinition schedule;
         [DataMember] public string buildingAddress;
         [DataMember] public StreetQuestVector3Data position;
+        [DataMember] public StreetQuestVector3Data mapPosition;
         [DataMember] public StreetQuestVector3Data forward;
         [DataMember] public StreetQuestVector3Data[] walkAwayWaypoints;
         [DataMember] public float walkAwaySpeed;
