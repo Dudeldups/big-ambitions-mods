@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization.Json;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -27,19 +29,229 @@ namespace StreetQuestRPG
             if (!TryRegisterApartmentLayout(option.ApartmentLayoutFile, option.ApartmentLayoutName, out var resolvedLayoutName))
                 return false;
 
+            var interiorDesigns = CreateEmptyValueLike(originalSnapshot?.GetRaw("interiorDesigns"), GetMemberType(registration, "interiorDesigns"));
+            var itemInstances = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemInstances"), GetMemberType(registration, "itemInstances"));
+            var itemsInBuilding = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemsInBuilding"), GetMemberType(registration, "itemsInBuilding"));
+            var deliveredItems = CreateEmptyValueLike(originalSnapshot?.GetRaw("deliveredItems"), GetMemberType(registration, "deliveredItems"));
+            var dirtSpots = CreateEmptyValueLike(originalSnapshot?.GetRaw("dirtSpots"), GetMemberType(registration, "dirtSpots"));
+
+            if (TryResolveApartmentLayoutSourcePath(StreetQuestRuntimeBootstrap.CurrentModRootPath, option.ApartmentLayoutFile, out var sourcePath))
+            {
+                try
+                {
+                    var layoutJson = EnsureLayoutName(File.ReadAllText(sourcePath), resolvedLayoutName);
+                    interiorDesigns = DeserializeInteriorDesigns(layoutJson, GetMemberType(registration, "interiorDesigns"), interiorDesigns);
+                    itemInstances = DeserializeItemInstances(layoutJson, GetMemberType(registration, "itemInstances"), itemInstances, out var hydratedItemEntries);
+                    itemsInBuilding = BuildItemsInBuilding(layoutJson, GetMemberType(registration, "itemsInBuilding"), itemInstances, itemsInBuilding);
+
+                    LogDebug(
+                        $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={hydratedItemEntries} interiorDesigns={DescribeValueShape(interiorDesigns)} itemsInBuilding={DescribeValueShape(itemsInBuilding)}");
+                }
+                catch (Exception exception)
+                {
+                    LogDebug(
+                        $"ApartmentLayoutHydrateFailed character={option.CharacterId} state={option.StateId} file={option.ApartmentLayoutFile} reason={exception.GetType().Name}:{exception.Message}");
+                }
+            }
+
             payload = new StreetQuestApartmentInteriorPayload
             {
                 Layout = resolvedLayoutName,
-                InteriorDesigns = CreateEmptyValueLike(originalSnapshot?.GetRaw("interiorDesigns"), GetMemberType(registration, "interiorDesigns")),
-                ItemInstances = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemInstances"), GetMemberType(registration, "itemInstances")),
-                ItemsInBuilding = CreateEmptyValueLike(originalSnapshot?.GetRaw("itemsInBuilding"), GetMemberType(registration, "itemsInBuilding")),
-                DeliveredItems = CreateEmptyValueLike(originalSnapshot?.GetRaw("deliveredItems"), GetMemberType(registration, "deliveredItems")),
-                DirtSpots = CreateEmptyValueLike(originalSnapshot?.GetRaw("dirtSpots"), GetMemberType(registration, "dirtSpots"))
+                InteriorDesigns = interiorDesigns,
+                ItemInstances = itemInstances,
+                ItemsInBuilding = itemsInBuilding,
+                DeliveredItems = deliveredItems,
+                DirtSpots = dirtSpots
             };
 
             LogDebug(
                 $"ApartmentLayoutPayloadPrepared character={option.CharacterId} state={option.StateId} layoutFile={option.ApartmentLayoutFile} layoutName={resolvedLayoutName}");
             return true;
+        }
+
+        private static object DeserializeInteriorDesigns(string layoutJson, Type targetType, object fallback)
+        {
+            if (targetType == null || string.IsNullOrWhiteSpace(layoutJson))
+                return fallback;
+
+            if (!TryExtractJsonPropertyArray(layoutJson, "interiorDesigns", out var jsonFragment))
+                return fallback;
+
+            return DeserializeJsonFragment(jsonFragment, targetType) ?? fallback;
+        }
+
+        private static object DeserializeItemInstances(
+            string layoutJson,
+            Type targetType,
+            object fallback,
+            out int entryCount)
+        {
+            entryCount = 0;
+            if (targetType == null || string.IsNullOrWhiteSpace(layoutJson))
+                return fallback;
+
+            if (!TryExtractJsonPropertyArray(layoutJson, "Items", out var jsonFragment))
+                return fallback;
+
+            var dictionary = Activator.CreateInstance(targetType);
+            if (dictionary is not IDictionary typedDictionary)
+                return fallback;
+
+            var keyType = typeof(string);
+            var valueType = typeof(object);
+            if (targetType.IsGenericType)
+            {
+                var arguments = targetType.GetGenericArguments();
+                if (arguments.Length >= 2)
+                {
+                    keyType = arguments[0];
+                    valueType = arguments[1];
+                }
+            }
+
+            var listType = typeof(List<>).MakeGenericType(valueType);
+            var deserialized = DeserializeJsonFragment(jsonFragment, listType) as IEnumerable;
+            if (deserialized == null)
+                return fallback;
+
+            foreach (var entry in deserialized)
+            {
+                if (entry == null)
+                    continue;
+
+                var rawId = GetMemberValue(entry, "id")?.ToString();
+                if (string.IsNullOrWhiteSpace(rawId))
+                    continue;
+
+                var key = ConvertDictionaryKey(rawId, keyType);
+                if (key == null)
+                    continue;
+
+                typedDictionary[key] = entry;
+                entryCount++;
+            }
+
+            return dictionary;
+        }
+
+        private static object BuildItemsInBuilding(string layoutJson, Type targetType, object itemInstances, object fallback)
+        {
+            if (targetType == null)
+                return fallback;
+
+            var result = CreateEmptyValueLike(fallback, targetType) ?? CreateEmptyValueLike(itemInstances, targetType);
+            if (result is not IList typedList || itemInstances is not IDictionary itemDictionary)
+                return result ?? fallback;
+
+            Type elementType = null;
+            if (targetType.IsArray)
+                elementType = targetType.GetElementType();
+            else if (targetType.IsGenericType)
+                elementType = targetType.GetGenericArguments().FirstOrDefault();
+
+            if (elementType == null)
+                return result ?? fallback;
+
+            foreach (DictionaryEntry entry in itemDictionary)
+            {
+                if (elementType == typeof(string))
+                {
+                    typedList.Add(entry.Key?.ToString() ?? string.Empty);
+                    continue;
+                }
+
+                if (entry.Value != null && elementType.IsInstanceOfType(entry.Value))
+                    typedList.Add(entry.Value);
+            }
+
+            return result ?? fallback;
+        }
+
+        private static object DeserializeJsonFragment(string json, Type targetType)
+        {
+            if (string.IsNullOrWhiteSpace(json) || targetType == null)
+                return null;
+
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+            var serializer = new DataContractJsonSerializer(targetType);
+            return serializer.ReadObject(stream);
+        }
+
+        private static bool TryExtractJsonPropertyArray(string json, string propertyName, out string fragment)
+        {
+            fragment = string.Empty;
+            if (string.IsNullOrWhiteSpace(json) || string.IsNullOrWhiteSpace(propertyName))
+                return false;
+
+            var propertyToken = $"\"{propertyName}\"";
+            var propertyIndex = json.IndexOf(propertyToken, StringComparison.Ordinal);
+            if (propertyIndex < 0)
+                return false;
+
+            var arrayStart = json.IndexOf('[', propertyIndex + propertyToken.Length);
+            if (arrayStart < 0)
+                return false;
+
+            var depth = 0;
+            var inString = false;
+            var escaped = false;
+            for (var index = arrayStart; index < json.Length; index++)
+            {
+                var current = json[index];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+
+                if (current == '\\' && inString)
+                {
+                    escaped = true;
+                    continue;
+                }
+
+                if (current == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (inString)
+                    continue;
+
+                if (current == '[')
+                {
+                    depth++;
+                    continue;
+                }
+
+                if (current != ']')
+                    continue;
+
+                depth--;
+                if (depth != 0)
+                    continue;
+
+                fragment = json.Substring(arrayStart, index - arrayStart + 1);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static object ConvertDictionaryKey(string rawKey, Type keyType)
+        {
+            if (keyType == typeof(string))
+                return rawKey;
+
+            try
+            {
+                return Convert.ChangeType(rawKey, keyType);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool TryRegisterApartmentLayout(
