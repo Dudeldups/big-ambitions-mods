@@ -80,6 +80,11 @@ namespace StreetQuestRPG
             var visitContext = CreateApartmentVisitContext(option, building, registration);
             TryLogApartmentRegistrationDump($"RoutedApartmentRegistrationBeforeEntry:{visitContext.VisitKey}", registration);
 
+            ApplyApartmentPayload(visitContext);
+            visitContext.PayloadAppliedInside = true;
+            LogDebug(
+                $"ApartmentPayloadPreApplied key={visitContext.VisitKey} character={option.CharacterId} state={option.StateId}");
+
             if (!TryStartVanillaApartmentEntry(building, out var route))
             {
                 LogDebug(
