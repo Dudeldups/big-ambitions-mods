@@ -52,7 +52,10 @@ namespace StreetQuestRPG
 
         internal static bool DoesBuildingContextMatch(StreetQuestCharacterDefinition definition)
         {
-            if (definition == null || string.IsNullOrWhiteSpace(definition.buildingAddress))
+            if (definition == null)
+                return true;
+
+            if (string.IsNullOrWhiteSpace(definition.buildingAddress))
                 return true;
 
             var requiredAddress = NormalizeAddressKey(definition.buildingAddress);
@@ -60,7 +63,13 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(currentAddress))
                 return false;
 
-            return string.Equals(requiredAddress, currentAddress, StringComparison.Ordinal);
+            if (!string.Equals(requiredAddress, currentAddress, StringComparison.Ordinal))
+                return false;
+
+            if (!definition.requiresApartmentVisitContext)
+                return true;
+
+            return IsApartmentVisitContextActiveFor(definition.id);
         }
 
         internal static bool IsIndoorGameplayContextActive()

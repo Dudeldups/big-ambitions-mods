@@ -227,6 +227,9 @@ namespace StreetQuestRPG
 
             return string.Join("|", new[]
             {
+                runtime.id ?? string.Empty,
+                runtime.defaultAppearanceId ?? string.Empty,
+                runtime.requiresApartmentVisitContext.ToString(),
                 runtime.enabled.ToString(),
                 runtime.useFixedSpawnPosition.ToString(),
                 runtime.showSpeechBubble.ToString(),
@@ -238,7 +241,6 @@ namespace StreetQuestRPG
                 runtime.speechBubbleIntervalSeconds.ToString("F3"),
                 runtime.speechBubbleMaxDistance.ToString("F3"),
                 SerializeVector(runtime.speechBubbleLocalOffset),
-                runtime.defaultAppearanceId ?? string.Empty,
                 runtime.gender ?? string.Empty,
                 runtime.ageInDays.ToString(),
                 runtime.appearanceSeed.ToString(),
@@ -348,6 +350,7 @@ namespace StreetQuestRPG
             resolved.defaultAppearanceId = null;
             resolved.schedule = null;
             resolved.buildingAddress = null;
+            resolved.requiresApartmentVisitContext = false;
             resolved.entryButtonTextKey = null;
             resolved.position = null;
             resolved.mapPosition = null;
@@ -422,6 +425,7 @@ namespace StreetQuestRPG
                 resolved.schedule = state.schedule;
             if (!string.IsNullOrWhiteSpace(state.buildingAddress))
                 resolved.buildingAddress = state.buildingAddress;
+            resolved.requiresApartmentVisitContext = state.requiresApartmentVisitContext;
             if (!string.IsNullOrWhiteSpace(state.entryButtonTextKey))
                 resolved.entryButtonTextKey = state.entryButtonTextKey;
             if (state.position != null)
@@ -543,6 +547,7 @@ namespace StreetQuestRPG
                 defaultAppearanceId = definition.defaultAppearanceId,
                 schedule = definition.schedule,
                 buildingAddress = definition.buildingAddress,
+                requiresApartmentVisitContext = definition.requiresApartmentVisitContext,
                 entryButtonTextKey = definition.entryButtonTextKey,
                 gender = definition.gender,
                 ageInDays = definition.ageInDays,

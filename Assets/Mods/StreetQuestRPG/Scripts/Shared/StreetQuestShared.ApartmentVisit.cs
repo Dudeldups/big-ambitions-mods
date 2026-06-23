@@ -29,6 +29,13 @@ namespace StreetQuestRPG
 
         private static StreetQuestApartmentVisitContext ActiveApartmentVisit;
 
+        internal static bool IsApartmentVisitContextActiveFor(string characterId)
+        {
+            return ActiveApartmentVisit != null &&
+                   ActiveApartmentVisit.State == StreetQuestApartmentVisitState.ActiveInside &&
+                   string.Equals(ActiveApartmentVisit.CharacterId, characterId ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
         internal static bool TryEnterApartment(StreetQuestShared.ApartmentEntryOption option)
         {
             if (option == null)
@@ -104,6 +111,7 @@ namespace StreetQuestRPG
                 if (IsIndoorGameplayContextActive())
                 {
                     visit.State = StreetQuestApartmentVisitState.ActiveInside;
+                    RefreshSpawnedCharacters();
                     LogDebug(
                         $"ApartmentVisitEntered character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} route={visit.EntryRoute}");
                     return;
@@ -251,6 +259,8 @@ namespace StreetQuestRPG
 
             if (clearActiveVisit && ReferenceEquals(ActiveApartmentVisit, context))
                 ActiveApartmentVisit = null;
+
+            RefreshSpawnedCharacters();
         }
 
         private static bool TryResolveApartmentVisitTarget(
