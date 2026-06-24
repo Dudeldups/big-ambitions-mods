@@ -4,9 +4,9 @@
       "id": "+enhuLFRokCsP5VCqFaQYg==",
       "rotation": {
         "w": 1.0,
-        "x": 2.68219338E-07,
+        "x": 0.0,
         "y": 1.70384544E-06,
-        "z": -4.570043E-13
+        "z": 0.0
       },
       "position": {
         "x": 998.5,
@@ -96,10 +96,8 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        12,
-        17,
         18,
-        23
+        24
       ],
       "customPositions": [],
       "customColors": [],
@@ -133,9 +131,6 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        18,
-        19,
-        24,
         25,
         30,
         31,
@@ -181,10 +176,7 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        44,
-        45,
-        50,
-        51
+        50
       ],
       "customPositions": [],
       "customColors": [],
@@ -218,7 +210,6 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        44,
         50
       ],
       "customPositions": [],
@@ -253,7 +244,8 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        11
+        15,
+        16
       ],
       "customPositions": [],
       "customColors": [
@@ -300,7 +292,8 @@
       ],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        11
+        15,
+        16
       ],
       "customPositions": [],
       "customColors": [
@@ -332,10 +325,10 @@
     {
       "id": "AhXX9mSmHEOh9sv1vXXkBw==",
       "rotation": {
-        "w": 0.7071062,
-        "x": -3.58247917E-07,
-        "y": -0.707107365,
-        "z": -3.582485E-07
+        "w": -0.7071063,
+        "x": 0.0,
+        "y": 0.7071073,
+        "z": 0.0
       },
       "position": {
         "x": 1000.424,
@@ -592,9 +585,9 @@
       "id": "DqD2pwJR0SkSKeiEYwQNA==",
       "rotation": {
         "w": 1.0,
-        "x": 2.68220731E-07,
+        "x": 0.0,
         "y": 4.96851555E-07,
-        "z": -1.33265889E-13
+        "z": 0.0
       },
       "position": {
         "x": 1001.75,
@@ -686,7 +679,6 @@
         22,
         23,
         24,
-        28,
         29,
         30,
         35
@@ -1133,9 +1125,7 @@
       "parentId": null,
       "dirtSpotsThatAffects": [
         30,
-        31,
-        36,
-        37
+        31
       ],
       "customPositions": [],
       "customColors": [],
@@ -1544,8 +1534,8 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        9,
-        15
+        15,
+        16
       ],
       "customPositions": [],
       "customColors": [],
@@ -1587,10 +1577,8 @@
       "dirtSpotsThatAffects": [
         9,
         10,
-        11,
         15,
-        16,
-        17
+        16
       ],
       "customPositions": [],
       "customColors": [
@@ -1680,9 +1668,9 @@
     {
       "id": "7w1F8MPUkCPTV5X4V00Rw==",
       "rotation": {
-        "w": -0.9238796,
+        "w": 0.923879564,
         "x": 0.0,
-        "y": -0.382683218,
+        "y": 0.382683218,
         "z": 0.0
       },
       "position": {
@@ -1717,7 +1705,7 @@
     {
       "id": "oDnuVSyd4UuE6ymFhY19Ew==",
       "rotation": {
-        "w": -0.3826834,
+        "w": -0.382683277,
         "x": 0.0,
         "y": 0.923879564,
         "z": 0.0
@@ -1822,9 +1810,9 @@
     {
       "id": "pCwbDKimqEK4YbEjjvoJxA==",
       "rotation": {
-        "w": -1.0,
+        "w": 1.0,
         "x": 0.0,
-        "y": -8.742278E-08,
+        "y": 8.742278E-08,
         "z": 0.0
       },
       "position": {
@@ -2474,7 +2462,7 @@
       "id": "0fnpBwZmKUyveHkY9JYUiw==",
       "rotation": {
         "w": 1.0,
-        "x": 4.371139E-08,
+        "x": 0.0,
         "y": 0.0,
         "z": 0.0
       },
@@ -2511,9 +2499,9 @@
       "id": "4rUVKwOffUeHI62dPqeDhw==",
       "rotation": {
         "w": -0.9238795,
-        "x": -4.03840552E-08,
+        "x": 0.0,
         "y": 0.3826835,
-        "z": -1.67276273E-08
+        "z": 0.0
       },
       "position": {
         "x": 1003.0,
@@ -2758,9 +2746,9 @@
       "id": "TrrYfqGTJkehiSbSwRPPZA==",
       "rotation": {
         "w": 0.7071059,
-        "x": 2.10733972E-07,
+        "x": 0.0,
         "y": 0.7071078,
-        "z": -2.10734541E-07
+        "z": 0.0
       },
       "position": {
         "x": 997.58,
@@ -2795,9 +2783,9 @@
       "id": "uHXNWl4Z0e9K8euhiAu6A==",
       "rotation": {
         "w": 1.0,
-        "x": 2.68216723E-07,
+        "x": 0.0,
         "y": 2.83633358E-06,
-        "z": -7.607521E-13
+        "z": 0.0
       },
       "position": {
         "x": 1002.75,
@@ -2891,9 +2879,9 @@
       "id": "uKPKSJyUKkWIxp0BkrE35g==",
       "rotation": {
         "w": 1.0,
-        "x": 2.68219338E-07,
+        "x": 0.0,
         "y": 1.70384544E-06,
-        "z": -4.570043E-13
+        "z": 0.0
       },
       "position": {
         "x": 1000.5,
@@ -3087,8 +3075,8 @@
       "stackedItems": [],
       "parentId": null,
       "dirtSpotsThatAffects": [
-        11,
-        17
+        15,
+        16
       ],
       "customPositions": [],
       "customColors": [],
@@ -3134,9 +3122,9 @@
       "id": "wtyhDzlRLkaXOTrIkYWFJg==",
       "rotation": {
         "w": 1.0,
-        "x": 2.68219338E-07,
+        "x": 0.0,
         "y": 1.70384544E-06,
-        "z": -4.570043E-13
+        "z": 0.0
       },
       "position": {
         "x": 1002.25,
@@ -3244,10 +3232,10 @@
     {
       "id": "YiI2iHN2WESSi0XgFN1OKw==",
       "rotation": {
-        "w": 0.7071062,
-        "x": -3.58247917E-07,
-        "y": -0.707107365,
-        "z": -3.582485E-07
+        "w": -0.7071063,
+        "x": 0.0,
+        "y": 0.7071073,
+        "z": 0.0
       },
       "position": {
         "x": 1000.424,
@@ -3282,9 +3270,9 @@
       "id": "z27QtfwimEijelL22qhAmg==",
       "rotation": {
         "w": 0.7071059,
-        "x": 2.10733972E-07,
+        "x": 0.0,
         "y": 0.7071078,
-        "z": -2.10734541E-07
+        "z": 0.0
       },
       "position": {
         "x": 997.58,
@@ -3426,9 +3414,9 @@
       "UUID": "/PG1NhJJD0yaNZh7t/wPaQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3437,9 +3425,9 @@
       "UUID": "+bhiapVZ10izrpzry/oZ/w==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3452,9 +3440,9 @@
       "UUID": "3i4nYJfFIUm6zZrjpxjkyw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3463,9 +3451,9 @@
       "UUID": "5IcFn0GBu0KjTIOmsOQ6yQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3474,9 +3462,9 @@
       "UUID": "6JujZystY0yKEc1flfyatA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3568,9 +3556,9 @@
       "UUID": "9E/KRPJJrkOEJQXkb3b1Lg==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3650,9 +3638,9 @@
       "UUID": "brLnouhIE065higmxFOp4Q==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3661,9 +3649,9 @@
       "UUID": "buw6wCQ8g027BhH8lEqCFA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3672,9 +3660,9 @@
       "UUID": "BvyaMbxXS0KQ/W1BN6D8zA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3683,9 +3671,9 @@
       "UUID": "cauKUYNw/0S76amw4+lvUA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3698,9 +3686,9 @@
       "UUID": "CwHdfAHmuU2Oz6WCMtPUrA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3709,9 +3697,9 @@
       "UUID": "D3hoeTAw20acuK/9LKGBvw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3724,9 +3712,9 @@
       "UUID": "Dqp9Zba+AkirR8lV8vok9Q==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3776,9 +3764,9 @@
       "UUID": "F8xOhPhWYkqN0EU/F40IRg==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3787,9 +3775,9 @@
       "UUID": "FTPDghDuC0mL8IYML2D7yg==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3798,9 +3786,9 @@
       "UUID": "fvBSGWUKN0Ccn1E0kaieuQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3837,9 +3825,9 @@
       "UUID": "H+mMd97+9E2IIlViU8gBLg==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3885,9 +3873,9 @@
       "UUID": "i+aMWzXTAEqZY9KjvwDtPQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3911,9 +3899,9 @@
       "UUID": "j8G+gi/seUK5IMjxZiYNFA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3922,9 +3910,9 @@
       "UUID": "jh7deOSLr0KwelD/uL+w0Q==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3972,9 +3960,9 @@
       "UUID": "Kgn1slpcokK8aAR3Fv6bCw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -3994,9 +3982,9 @@
       "UUID": "l5uhZCyqHkOa/Ye14+MvVw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4042,9 +4030,9 @@
       "UUID": "MCrD15g4hk6EkaFjZlQo8A==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4053,9 +4041,9 @@
       "UUID": "MIalN8Jfr0eyMBBcsNcCOw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4064,9 +4052,9 @@
       "UUID": "MjEK0uBSM0+6Lr7Svuu59g==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4086,9 +4074,9 @@
       "UUID": "N9QKYnrCFkWKBhshbKfsgw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4097,9 +4085,9 @@
       "UUID": "Nbw9tpoLEUSF8HQ+2T0orw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4108,9 +4096,9 @@
       "UUID": "NJkr4jfpCEuXnCyprecGlw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4119,9 +4107,9 @@
       "UUID": "NLKOEJbB40ycbAAnlnL9FQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4184,9 +4172,9 @@
       "UUID": "phYllnZNMkSK0JRVv/RM4w==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4228,9 +4216,9 @@
       "UUID": "S20ClEM070eN02RTGQ62dQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4250,9 +4238,9 @@
       "UUID": "SLh1PmCuL0m/CIfUVsh9qw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4261,9 +4249,9 @@
       "UUID": "t8BYzjXiwUGEjaFkBZQLDA==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4294,9 +4282,9 @@
       "UUID": "UN4+0L5J2U6xE3Ret45s8Q==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4316,9 +4304,9 @@
       "UUID": "wLaKdsacEE6xMbZgkFQofQ==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4327,9 +4315,9 @@
       "UUID": "wUcutUmkTEG/BQxIe5nCwg==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4349,9 +4337,9 @@
       "UUID": "X/io5Gb6HU6zuXuQpKmRRw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4416,9 +4404,9 @@
       "UUID": "xspigx1QG0eTlWxQ4v6I3g==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4444,9 +4432,9 @@
       "UUID": "Xvyfh+hs0EOZyPcbsTqqGw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4472,9 +4460,9 @@
       "UUID": "Y1xLv7JAHkW+4AMpAWB1Rg==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4494,9 +4482,9 @@
       "UUID": "z76e5vMVnEObQc6rW9rkgw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4505,9 +4493,9 @@
       "UUID": "Z9Qbq59oKUWW/4jZwMU6nw==",
       "materials": [
         {
-          "MaterialID": "wC6/5IBlFk6ndaBgbNm+sQ==",
+          "MaterialID": "FOyOQlJHLUe9xVzj2Q9zoQ==",
           "MaterialIndex": 0,
-          "ColorIndex": 0,
+          "ColorIndex": 2,
           "ignore": false
         }
       ]
@@ -4532,7 +4520,7 @@
   "BuildingSize": "ba:buildingsize_b",
   "BuildingVersion": 1,
   "LayoutName": "Apartment B1",
-  "buildNumber": 3538,
+  "buildNumber": 3539,
   "requiredModIds": [
     "3733221822",
     "unknown"
