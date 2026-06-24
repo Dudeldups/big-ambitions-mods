@@ -151,6 +151,13 @@ namespace StreetQuestRPG
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
                 !IsIndoorGameplayContextActive())
             {
+                if (IsRuntimeShutdownInProgress())
+                {
+                    LogDebug(
+                        $"ApartmentVisitReturnSkipped character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason=runtime_shutdown");
+                    return;
+                }
+
                 ClearPersistedApartmentVisit();
                 RestoreActiveApartmentVisit("returned_outdoor");
             }

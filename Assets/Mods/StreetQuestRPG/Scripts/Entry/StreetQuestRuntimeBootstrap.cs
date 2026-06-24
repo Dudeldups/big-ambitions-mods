@@ -21,6 +21,7 @@ namespace StreetQuestRPG
                 return;
 
             StreetQuestShared.InitializeDebugLogging(context, source);
+            StreetQuestShared.SetRuntimeShutdownInProgress(false);
             _modRootPath = context.ModRootPath;
             _logger = context.Logger;
             StreetQuestShared.ResetSpawnRuntimeState();
@@ -80,6 +81,7 @@ namespace StreetQuestRPG
 
         public static void Shutdown()
         {
+            StreetQuestShared.SetRuntimeShutdownInProgress(true);
             if (_watcherObject != null)
             {
                 UnityEngine.Object.Destroy(_watcherObject);

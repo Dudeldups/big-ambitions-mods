@@ -54,8 +54,19 @@ namespace StreetQuestRPG
         private static string SnapshotLogFilePath;
         private static object CachedQuestStateOwner;
         private static StreetQuestQuestStateRecord CachedQuestStateRecord;
+        private static bool RuntimeShutdownInProgress;
 
         public const string MackContactId = "streetquest:mack_contact";
         public const string MackNameKey = "streetquest:mack_name";
+
+        internal static void SetRuntimeShutdownInProgress(bool value)
+        {
+            RuntimeShutdownInProgress = value;
+        }
+
+        internal static bool IsRuntimeShutdownInProgress()
+        {
+            return RuntimeShutdownInProgress;
+        }
     }
 }
