@@ -869,21 +869,6 @@ namespace StreetQuestRPG
             if (building == null)
                 return false;
 
-            var cityManagerType = FindType("CityManager");
-            var cityManager = cityManagerType != null ? UnityEngine.Object.FindObjectOfType(cityManagerType) : null;
-            var loadIndoorsMethod = cityManagerType?.GetMethod(
-                "LoadIndoors",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                null,
-                new[] { typeof(Building), typeof(bool) },
-                null);
-            if (cityManager != null && loadIndoorsMethod != null)
-            {
-                loadIndoorsMethod.Invoke(cityManager, new object[] { building, true });
-                route = "CityManager.LoadIndoors";
-                return true;
-            }
-
             var buildingManagerType = FindType("BuildingManager");
             var buildingManager = buildingManagerType != null ? UnityEngine.Object.FindObjectOfType(buildingManagerType) : null;
             var enterBuildingMethod = buildingManagerType?.GetMethod(
@@ -897,6 +882,21 @@ namespace StreetQuestRPG
                 var result = enterBuildingMethod.Invoke(buildingManager, new object[] { building, false, false, -1, -1, true });
                 route = $"BuildingManager.EnterBuilding result={result}";
                 return result as bool? ?? false;
+            }
+
+            var cityManagerType = FindType("CityManager");
+            var cityManager = cityManagerType != null ? UnityEngine.Object.FindObjectOfType(cityManagerType) : null;
+            var loadIndoorsMethod = cityManagerType?.GetMethod(
+                "LoadIndoors",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null,
+                new[] { typeof(Building), typeof(bool) },
+                null);
+            if (cityManager != null && loadIndoorsMethod != null)
+            {
+                loadIndoorsMethod.Invoke(cityManager, new object[] { building, false });
+                route = "CityManager.LoadIndoors useSaveGamePlayerPosition=false";
+                return true;
             }
 
             return false;
