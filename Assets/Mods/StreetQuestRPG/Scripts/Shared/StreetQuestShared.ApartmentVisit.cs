@@ -123,6 +123,7 @@ namespace StreetQuestRPG
                     if (!visit.PayloadAppliedInside)
                     {
                         ApplyApartmentPayload(visit);
+                        TryApplyRuntimeApartmentLayout(visit);
                         visit.PayloadAppliedInside = true;
                     }
 
@@ -252,6 +253,71 @@ namespace StreetQuestRPG
 
             LogDebug(
                 $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} mode={(context.ActivePayload.IsCustomLayoutPayload ? "replace_custom_layout" : "merge_live")} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
+        }
+
+        private static void TryApplyRuntimeApartmentLayout(StreetQuestApartmentVisitContext context)
+        {
+            if (context?.ActivePayload == null ||
+                !context.ActivePayload.IsCustomLayoutPayload ||
+                string.IsNullOrWhiteSpace(context.ActivePayload.TempLayoutPath) ||
+                !System.IO.File.Exists(context.ActivePayload.TempLayoutPath))
+                return;
+
+            try
+            {
+                var helperType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(assembly => assembly.GetType(ApartmentLayoutHelperTypeName, false))
+                    .FirstOrDefault(type => type != null);
+                if (helperType == null)
+                {
+                    LogDebug("ApartmentRuntimeLayoutApplyFailed reason=helper_missing");
+                    return;
+                }
+
+                var deserializeMethod = helperType.GetMethod(
+                    "Deserialize",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(string) },
+                    null);
+                if (deserializeMethod == null)
+                {
+                    LogDebug("ApartmentRuntimeLayoutApplyFailed reason=deserialize_missing");
+                    return;
+                }
+
+                var layoutSet = deserializeMethod.Invoke(null, new object[] { context.ActivePayload.TempLayoutPath });
+                if (layoutSet == null)
+                {
+                    LogDebug($"ApartmentRuntimeLayoutApplyFailed reason=layoutset_null path={context.ActivePayload.TempLayoutPath}");
+                    return;
+                }
+
+                TryApplyLegacyLayoutFix(layoutSet);
+
+                var buildingManagerType = FindType("BuildingManager");
+                var buildingManager = buildingManagerType != null ? UnityEngine.Object.FindObjectOfType(buildingManagerType) : null;
+                var loadBusinessLayoutSetMethod = buildingManagerType?.GetMethod(
+                    "LoadBusinessLayoutSet",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { layoutSet.GetType() },
+                    null);
+                if (buildingManager == null || loadBusinessLayoutSetMethod == null)
+                {
+                    LogDebug("ApartmentRuntimeLayoutApplyFailed reason=building_manager_method_missing");
+                    return;
+                }
+
+                var result = loadBusinessLayoutSetMethod.Invoke(buildingManager, new[] { layoutSet });
+                LogDebug(
+                    $"ApartmentRuntimeLayoutApplied key={context.VisitKey} layoutName={context.ActivePayload.LayoutName ?? "<unknown>"} path={context.ActivePayload.TempLayoutPath} result={result}");
+            }
+            catch (Exception exception)
+            {
+                LogDebug(
+                    $"ApartmentRuntimeLayoutApplyFailed reason={exception.GetType().Name}:{exception.Message} key={context?.VisitKey}");
+            }
         }
 
         private static object MergeApartmentItemInstances(object liveItemInstances, object payloadItemInstances, Type targetType)
@@ -818,6 +884,8 @@ namespace StreetQuestRPG
         private sealed class StreetQuestApartmentInteriorPayload
         {
             public bool IsCustomLayoutPayload;
+            public string LayoutName;
+            public string TempLayoutPath;
             public string Layout;
             public object InteriorDesigns;
             public object ItemInstances;

@@ -68,6 +68,8 @@ namespace StreetQuestRPG
             payload = new StreetQuestApartmentInteriorPayload
             {
                 IsCustomLayoutPayload = true,
+                LayoutName = resolvedLayoutName,
+                TempLayoutPath = registeredLayoutTempPath,
                 Layout = originalSnapshot?.Get<string>("Layout"),
                 InteriorDesigns = interiorDesigns,
                 ItemInstances = itemInstances,
@@ -126,6 +128,8 @@ namespace StreetQuestRPG
                 payload = new StreetQuestApartmentInteriorPayload
                 {
                     IsCustomLayoutPayload = true,
+                    LayoutName = Path.GetFileNameWithoutExtension(tempLayoutPath) ?? string.Empty,
+                    TempLayoutPath = tempLayoutPath,
                     Layout = GetMemberValue(typedRegistration, "Layout") as string,
                     InteriorDesigns = GetMemberValue(typedRegistration, "interiorDesigns"),
                     ItemInstances = GetMemberValue(typedRegistration, "itemInstances"),
