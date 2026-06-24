@@ -219,14 +219,13 @@ namespace StreetQuestRPG
             }
 
             var visitContext = CreateApartmentVisitContext(option, building, registration);
-            ApplyApartmentPayload(visitContext);
             visitContext.EntryStartedAtSeconds = Time.unscaledTime;
             visitContext.EntryRoute = "prime_persisted_indoor";
             visitContext.State = StreetQuestApartmentVisitState.WaitingForIndoorTransition;
             ActiveApartmentVisit = visitContext;
 
             LogDebug(
-                $"ApartmentVisitPrimed address={indoorAddress} character={option.CharacterId} state={option.StateId} route={visitContext.EntryRoute}");
+                $"ApartmentVisitPrimed address={indoorAddress} character={option.CharacterId} state={option.StateId} route={visitContext.EntryRoute} payload=deferred_until_indoor_ready");
         }
 
         internal static void HandleApartmentVisitRuntimeShutdown(string reason)
@@ -245,6 +244,26 @@ namespace StreetQuestRPG
             }
 
             ClearPersistedApartmentVisit();
+            RestoreApartmentVisitContext(visit, reason, clearActiveVisit: true);
+        }
+
+        internal static void HandleApartmentVisitRuntimeReset(string reason)
+        {
+            if (ActiveApartmentVisit == null)
+                return;
+
+            var visit = ActiveApartmentVisit;
+            if (visit.ActivePayload?.IsCustomLayoutPayload == true &&
+                TryGetPersistedApartmentVisit(out var persistedCharacterId, out var persistedStateId, out var persistedExteriorAddress) &&
+                string.Equals(visit.CharacterId, persistedCharacterId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(visit.StateId, persistedStateId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizeAddressKey(visit.ExteriorAddress), persistedExteriorAddress, StringComparison.Ordinal))
+            {
+                LogDebug(
+                    $"ApartmentVisitResetPreserved character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");
+                return;
+            }
+
             RestoreApartmentVisitContext(visit, reason, clearActiveVisit: true);
         }
 
