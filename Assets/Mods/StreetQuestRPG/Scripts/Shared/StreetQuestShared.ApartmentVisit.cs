@@ -82,6 +82,11 @@ namespace StreetQuestRPG
             TryLogApartmentRegistrationDump($"RoutedApartmentRegistrationBeforeEntry:{visitContext.VisitKey}", registration);
             TryLogApartmentRefreshCandidates();
 
+            ApplyApartmentPayload(visitContext);
+            visitContext.PayloadAppliedBeforeEntry = true;
+            LogDebug(
+                $"ApartmentPayloadAppliedPreEntry key={visitContext.VisitKey} layout={visitContext.ActivePayload?.Layout ?? "<null>"}");
+
             if (!TryStartVanillaApartmentEntry(building, out var route))
             {
                 LogDebug(
@@ -122,7 +127,8 @@ namespace StreetQuestRPG
                 {
                     if (!visit.PayloadAppliedInside)
                     {
-                        ApplyApartmentPayload(visit);
+                        if (!visit.PayloadAppliedBeforeEntry)
+                            ApplyApartmentPayload(visit);
                         TryApplyRuntimeApartmentLayout(visit);
                         visit.PayloadAppliedInside = true;
                     }
@@ -889,6 +895,7 @@ namespace StreetQuestRPG
             public string EntryRoute;
             public float EntryStartedAtSeconds;
             public StreetQuestApartmentVisitState State;
+            public bool PayloadAppliedBeforeEntry;
             public bool PayloadAppliedInside;
         }
 
