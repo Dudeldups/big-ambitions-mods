@@ -220,7 +220,10 @@ namespace StreetQuestRPG
                         GetMemberType(registration, "itemInstances"),
                         itemInstances,
                         out var itemCount);
-                    itemsInBuilding = originalSnapshot?.GetRaw("itemsInBuilding");
+                    itemsInBuilding = BuildItemsInBuilding(
+                        GetMemberType(registration, "itemsInBuilding"),
+                        itemInstances,
+                        originalSnapshot?.GetRaw("itemsInBuilding"));
 
                     LogDebug(
                         $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={itemCount} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)} mode=furniture_overlay");

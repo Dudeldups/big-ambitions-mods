@@ -237,6 +237,9 @@ namespace StreetQuestRPG
             if (context?.Registration == null || context.ActivePayload == null)
                 return;
 
+            var interiorDesigns = CloneValueLike(
+                context.ActivePayload.InteriorDesigns,
+                GetMemberType(context.Registration, "interiorDesigns"));
             var itemInstances = context.ActivePayload.IsCustomLayoutPayload
                 ? CloneValueLike(
                     context.ActivePayload.ItemInstances,
@@ -245,8 +248,31 @@ namespace StreetQuestRPG
                     GetMemberValue(context.Registration, "itemInstances"),
                     context.ActivePayload.ItemInstances,
                     GetMemberType(context.Registration, "itemInstances"));
+            var itemsInBuilding = context.ActivePayload.IsCustomLayoutPayload
+                ? CloneValueLike(
+                    context.ActivePayload.ItemsInBuilding,
+                    GetMemberType(context.Registration, "itemsInBuilding"))
+                : CloneValueLike(
+                    context.ActivePayload.ItemsInBuilding,
+                    GetMemberType(context.Registration, "itemsInBuilding"));
+            var deliveredItems = CloneValueLike(
+                context.ActivePayload.DeliveredItems,
+                GetMemberType(context.Registration, "deliveredItems"));
+            var dirtSpots = CloneValueLike(
+                context.ActivePayload.DirtSpots,
+                GetMemberType(context.Registration, "dirtSpots"));
+
+            SetMemberValue(context.Registration, "Layout", context.ActivePayload.Layout);
+            if (interiorDesigns != null)
+                SetMemberValue(context.Registration, "interiorDesigns", interiorDesigns);
             if (itemInstances != null)
                 SetMemberValue(context.Registration, "itemInstances", itemInstances);
+            if (itemsInBuilding != null)
+                SetMemberValue(context.Registration, "itemsInBuilding", itemsInBuilding);
+            if (deliveredItems != null)
+                SetMemberValue(context.Registration, "deliveredItems", deliveredItems);
+            if (dirtSpots != null)
+                SetMemberValue(context.Registration, "dirtSpots", dirtSpots);
 
             var originalLayout = context.OriginalSnapshot?.Get<string>("Layout") ?? "<null>";
             var payloadLayout = context.ActivePayload.Layout ?? "<null>";
