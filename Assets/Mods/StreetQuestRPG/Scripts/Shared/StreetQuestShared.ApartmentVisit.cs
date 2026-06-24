@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using Buildings;
 using Helpers;
 using Localizor;
@@ -143,6 +144,14 @@ namespace StreetQuestRPG
                 }
 
                 return;
+            }
+
+            if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
+                !visit.ApartmentItemsProtected &&
+                visit.ActivePayload?.IsCustomLayoutPayload == true &&
+                Time.unscaledTime - visit.EntryStartedAtSeconds >= 0.45f)
+            {
+                TryProtectApartmentItems(visit);
             }
 
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
@@ -369,6 +378,100 @@ namespace StreetQuestRPG
             {
                 LogDebug(
                     $"ApartmentRuntimeLayoutApplyFailed reason={exception.GetType().Name}:{exception.Message} key={context?.VisitKey}");
+            }
+        }
+
+        private static void TryProtectApartmentItems(StreetQuestApartmentVisitContext context)
+        {
+            if (context == null || context.ApartmentItemsProtected)
+                return;
+
+            var itemControllerType = FindType("ItemController");
+            if (itemControllerType == null)
+            {
+                context.ApartmentItemsProtected = true;
+                LogDebug($"ApartmentItemProtectionSkipped key={context.VisitKey} reason=item_controller_type_missing");
+                return;
+            }
+
+            try
+            {
+                var itemControllers = UnityEngine.Object.FindObjectsOfType(itemControllerType, true);
+                if (itemControllers == null || itemControllers.Length == 0)
+                {
+                    context.ApartmentItemProtectionAttempts++;
+                    if (context.ApartmentItemProtectionAttempts >= 5)
+                    {
+                        context.ApartmentItemsProtected = true;
+                        LogDebug($"ApartmentItemProtectionSkipped key={context.VisitKey} reason=no_item_controllers_found");
+                    }
+
+                    return;
+                }
+
+                var protectedRootIds = new HashSet<int>();
+                var protectedColliders = 0;
+                var protectedBehaviours = 0;
+                var sampleNames = new StringBuilder();
+
+                foreach (var candidate in itemControllers)
+                {
+                    if (candidate is not Component component || component == null)
+                        continue;
+
+                    var root = component.transform.root != null ? component.transform.root.gameObject : component.gameObject;
+                    if (root == null || !protectedRootIds.Add(root.GetInstanceID()))
+                        continue;
+
+                    if (sampleNames.Length < 120)
+                    {
+                        if (sampleNames.Length > 0)
+                            sampleNames.Append(", ");
+                        sampleNames.Append(root.name);
+                    }
+
+                    foreach (var collider in root.GetComponentsInChildren<Collider>(true))
+                    {
+                        if (collider == null || !collider.enabled)
+                            continue;
+
+                        collider.enabled = false;
+                        protectedColliders++;
+                    }
+
+                    foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+                    {
+                        if (behaviour == null || !behaviour.enabled)
+                            continue;
+
+                        var behaviourType = behaviour.GetType();
+                        var typeName = behaviourType.Name;
+                        if (string.Equals(typeName, "Animator", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(typeName, "Animation", StringComparison.OrdinalIgnoreCase) ||
+                            behaviour is StreetQuestPhysicalQuestGiverWatcher ||
+                            behaviour is StreetQuestCharacterSpeechBubble)
+                            continue;
+
+                        if (behaviour is Behaviour unityBehaviour)
+                        {
+                            unityBehaviour.enabled = false;
+                            protectedBehaviours++;
+                        }
+                    }
+                }
+
+                context.ApartmentItemsProtected = true;
+                LogDebug(
+                    $"ApartmentItemProtectionApplied key={context.VisitKey} roots={protectedRootIds.Count} colliders={protectedColliders} behaviours={protectedBehaviours} samples=[{sampleNames}]");
+            }
+            catch (Exception exception)
+            {
+                context.ApartmentItemProtectionAttempts++;
+                if (context.ApartmentItemProtectionAttempts >= 5)
+                    context.ApartmentItemsProtected = true;
+
+                LogDebug(
+                    $"ApartmentItemProtectionFailed key={context.VisitKey} attempt={context.ApartmentItemProtectionAttempts} reason={exception.GetType().Name}:{exception.Message}");
             }
         }
 
@@ -917,6 +1020,8 @@ namespace StreetQuestRPG
             public StreetQuestApartmentVisitState State;
             public bool PayloadAppliedInside;
             public bool PreEntryItemsSuppressed;
+            public bool ApartmentItemsProtected;
+            public int ApartmentItemProtectionAttempts;
         }
 
         private sealed class StreetQuestApartmentRegistrationSnapshot
