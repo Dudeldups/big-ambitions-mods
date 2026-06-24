@@ -301,6 +301,33 @@ namespace StreetQuestRPG
         }
 
 
+        private static bool ForceRespawnApartmentVisitCharacter(string characterId, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(characterId))
+                return false;
+
+            var character = StreetQuestCharacterCatalog.All.FirstOrDefault(candidate =>
+                candidate != null &&
+                string.Equals(candidate.id, characterId, StringComparison.OrdinalIgnoreCase));
+            if (character == null)
+            {
+                LogDebug($"ForceRespawnApartmentVisitCharacter failed character={characterId} reason={reason} detail=missing_config");
+                return false;
+            }
+
+            PreferredQuestGiverSpawnPosition = null;
+            CachedItemsContainerTransform = null;
+            StreetQuestCharacterRuntimeResolver.ClearCache();
+            DestroySpawnedCharacter(characterId);
+
+            var result = RefreshSpawnedCharacter(character);
+            var spawned = SpawnedCharacterRoots.TryGetValue(characterId, out var root) && root != null;
+            LogDebug(
+                $"ForceRespawnApartmentVisitCharacter character={characterId} reason={reason} result={result} spawned={spawned} position={(spawned ? FormatVector3(root.transform.position) : "<none>")} indoorAddress={GetCurrentIndoorBuildingAddressKey() ?? string.Empty}");
+            return result;
+        }
+
+
         private static void DestroySpawnedOutdoorQuestGiver()
         {
             foreach (var characterId in SpawnedCharacterRoots.Keys.ToList())

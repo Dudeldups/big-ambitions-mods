@@ -17,6 +17,9 @@ namespace StreetQuestRPG
         private const float ApartmentReturnOutdoorConfirmationSeconds = 6f;
         private const float ApartmentReloadReentryDelaySeconds = 1.5f;
         private const float ApartmentReloadReentryIndoorSettleSeconds = 0.75f;
+        private const float ApartmentReloadNpcRespawnInitialDelaySeconds = 0.05f;
+        private const float ApartmentReloadNpcRespawnRetryDelaySeconds = 0.25f;
+        private const int ApartmentReloadNpcRespawnMaxAttempts = 1;
 
         private static readonly string[] ApartmentRegistrationFieldNames =
         {
@@ -70,6 +73,13 @@ namespace StreetQuestRPG
         {
             if (option == null)
                 return false;
+
+            if (ActiveApartmentVisit != null &&
+                TryRestoreActiveApartmentVisitForReentry(option, out var reentryRestoreReason))
+            {
+                LogDebug(
+                    $"ApartmentEntryActiveVisitClearedForReentry character={option.CharacterId} state={option.StateId} reason={reentryRestoreReason}");
+            }
 
             if (ActiveApartmentVisit != null)
             {
@@ -132,6 +142,56 @@ namespace StreetQuestRPG
             return true;
         }
 
+        private static bool TryRestoreActiveApartmentVisitForReentry(
+            ApartmentEntryOption option,
+            out string reason)
+        {
+            reason = string.Empty;
+
+            var visit = ActiveApartmentVisit;
+            if (visit == null)
+                return true;
+
+            if (option == null)
+            {
+                reason = "missing_option";
+                return false;
+            }
+
+            if (visit.State != StreetQuestApartmentVisitState.ActiveInside)
+            {
+                reason = "active_visit_not_inside";
+                return false;
+            }
+
+            if (IsIndoorGameplayContextActive())
+            {
+                reason = "still_indoor";
+                return false;
+            }
+
+            if (!string.Equals(visit.CharacterId ?? string.Empty, option.CharacterId ?? string.Empty, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(visit.StateId ?? string.Empty, option.StateId ?? string.Empty, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(
+                    NormalizeAddressKey(visit.ExteriorAddress),
+                    NormalizeAddressKey(option.ExteriorAddress),
+                    StringComparison.Ordinal))
+            {
+                reason = "different_visit";
+                return false;
+            }
+
+            // A real click on the same routed apartment door is stronger evidence than the
+            // delayed outdoor-return confirmation timer. Without this, leaving after a reload
+            // keeps the old apartment visit active for a few seconds and blocks immediate
+            // re-entry with the generic failure popup.
+            reason = "same_apartment_door_reentry";
+            ClearPersistedApartmentVisit();
+            SetCurrentIndoorBuildingAddressKey(string.Empty);
+            RestoreActiveApartmentVisit(reason);
+            return ActiveApartmentVisit == null;
+        }
+
         internal static void TickApartmentVisit(float elapsedSeconds)
         {
             var visit = ActiveApartmentVisit;
@@ -182,7 +242,9 @@ namespace StreetQuestRPG
                     }
 
                     visit.State = StreetQuestApartmentVisitState.ActiveInside;
+                    PrepareApartmentVisitCharacterSpawn(visit, "entered");
                     RefreshSpawnedCharacters();
+                    ScheduleApartmentVisitCharacterRespawnIfNeeded(visit, "entered");
                     LogDebug(
                         $"ApartmentVisitEntered character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} route={visit.EntryRoute}");
                     return;
@@ -205,6 +267,9 @@ namespace StreetQuestRPG
             {
                 TryProtectApartmentItems(visit);
             }
+
+            if (visit.State == StreetQuestApartmentVisitState.ActiveInside)
+                TickApartmentVisitCharacterRespawn(visit);
 
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
                 !IsIndoorGameplayContextActive())
@@ -264,6 +329,61 @@ namespace StreetQuestRPG
 
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside)
                 ClearApartmentOutdoorReturnCandidate(visit);
+        }
+
+        private static void PrepareApartmentVisitCharacterSpawn(StreetQuestApartmentVisitContext visit, string reason)
+        {
+            if (visit == null)
+                return;
+
+            PreferredQuestGiverSpawnPosition = null;
+            CachedItemsContainerTransform = null;
+            StreetQuestCharacterRuntimeResolver.ClearCache();
+            LogDebug(
+                $"ApartmentVisitCharacterSpawnPrepared character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");
+        }
+
+        private static void ScheduleApartmentVisitCharacterRespawnIfNeeded(StreetQuestApartmentVisitContext visit, string reason)
+        {
+            if (visit == null || string.IsNullOrWhiteSpace(visit.CharacterId))
+                return;
+
+            if (!visit.ReloadReentryStarted &&
+                (visit.EntryRoute == null || visit.EntryRoute.IndexOf("reload", StringComparison.OrdinalIgnoreCase) < 0))
+            {
+                return;
+            }
+
+            visit.CharacterRespawnScheduled = true;
+            visit.CharacterRespawnAttempts = 0;
+            visit.CharacterRespawnDueAtSeconds = Time.unscaledTime + ApartmentReloadNpcRespawnInitialDelaySeconds;
+            LogDebug(
+                $"ApartmentVisitCharacterRespawnScheduled character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason} dueSeconds={ApartmentReloadNpcRespawnInitialDelaySeconds:0.##}");
+        }
+
+        private static void TickApartmentVisitCharacterRespawn(StreetQuestApartmentVisitContext visit)
+        {
+            if (visit == null || !visit.CharacterRespawnScheduled)
+                return;
+
+            if (Time.unscaledTime < visit.CharacterRespawnDueAtSeconds)
+                return;
+
+            if (IsRuntimeShutdownInProgress())
+                return;
+
+            visit.CharacterRespawnAttempts++;
+            var result = ForceRespawnApartmentVisitCharacter(visit.CharacterId, $"apartment_reload_settle_attempt_{visit.CharacterRespawnAttempts}");
+            LogDebug(
+                $"ApartmentVisitCharacterRespawnAttempt character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} attempt={visit.CharacterRespawnAttempts} result={result}");
+
+            if (visit.CharacterRespawnAttempts >= ApartmentReloadNpcRespawnMaxAttempts)
+            {
+                visit.CharacterRespawnScheduled = false;
+                return;
+            }
+
+            visit.CharacterRespawnDueAtSeconds = Time.unscaledTime + ApartmentReloadNpcRespawnRetryDelaySeconds;
         }
 
         internal static void RestoreActiveApartmentVisit(string reason)
@@ -1172,6 +1292,9 @@ namespace StreetQuestRPG
             public bool ReloadReentryPending;
             public bool ReloadReentryStarted;
             public float ReloadReentryDueAtSeconds;
+            public bool CharacterRespawnScheduled;
+            public int CharacterRespawnAttempts;
+            public float CharacterRespawnDueAtSeconds;
             public string PendingOutdoorReturnAddress = string.Empty;
             public float PendingOutdoorReturnStartedAtSeconds = -1f;
         }

@@ -11,10 +11,7 @@
       "overlayHeaderKey": "streetquest:mack_name",
       "ctaKey": "streetquest:cta_talk",
       "showSpeechBubble": true,
-      "speechBubbleTextKeys": [
-        "streetquest:bubble_drunk_hic",
-        "streetquest:bubble_drunk_burp"
-      ],
+      "speechBubbleTextKeys": ["streetquest:bubble_drunk_hic", "streetquest:bubble_drunk_burp"],
       "speechBubbleVisibleSeconds": 2.8,
       "speechBubbleIntervalSeconds": 8.5,
       "speechBubbleLocalOffset": { "x": 0.0, "y": 2.0, "z": 0.0 },
@@ -100,7 +97,9 @@
                 "startHour": 22,
                 "endHour": 8
               },
-              "walkAwayWaypoints": [{ "x": 384.78, "y": 0.09, "z": -194.39 }],
+              "walkAwayWaypoints": [
+                { "x": 384.78, "y": 0.09, "z": -194.39 }
+              ],
               "walkAwaySpeed": 1.35,
               "despawnAfterWalkAway": true,
               "walkInWaypoints": [
@@ -166,9 +165,7 @@
         {
           "id": "fran_home_invite",
           "requiredStoryFlags": ["streetquest:flag_fran_apartment_access"],
-          "forbiddenStoryFlags": [
-            "streetquest:flag_fran_dinner_finished"
-          ],
+          "forbiddenStoryFlags": ["streetquest:flag_fran_dinner_finished"],
           "buildingAddress": "ba:street_thirdstreet 45",
           "requiresApartmentVisitContext": true,
           "apartmentLayoutFile": "Layouts/Layout-Fran.json",
@@ -180,7 +177,9 @@
           "showSpeechBubble": false,
           "schedule": {
             "mode": "Always"
-          }
+          },
+          "position": { "x": 1001.73, "y": 0.02, "z": -47.01 },
+          "forward": { "x": -1.0, "y": 0.0, "z": 0.0 }
         },
         {
           "id": "fran_searching_no_callout",
@@ -202,10 +201,7 @@
         },
         {
           "id": "fran_default",
-          "forbiddenStoryFlags": [
-            "streetquest:flag_julia_visible",
-            "streetquest:flag_julia_returned"
-          ],
+          "forbiddenStoryFlags": ["streetquest:flag_julia_visible", "streetquest:flag_julia_returned"],
           "buildingAddress": "ba:street_fourthstreet 50",
           "appearanceId": "fran_default",
           "overrideEnabled": true,
@@ -230,10 +226,7 @@
             {
               "id": "fran_exit",
               "requiredStoryFlags": ["streetquest:flag_julia_returned"],
-              "forbiddenStoryFlags": [
-                "streetquest:flag_fran_departure_started",
-                "streetquest:flag_fran_family_left"
-              ],
+              "forbiddenStoryFlags": ["streetquest:flag_fran_departure_started", "streetquest:flag_fran_family_left"],
               "buildingAddress": "ba:street_fourthstreet 50",
               "appearanceId": "fran_default",
               "overrideEnabled": true,
@@ -242,11 +235,11 @@
               "useFixedSpawnPosition": true,
               "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
               "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
-              "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
-              "walkAwaySpeed": 1.5,
-              "walkAwayStartedStoryFlags": [
-                "streetquest:flag_fran_departure_started"
+              "walkAwayWaypoints": [
+                { "x": 804.15, "y": 0.01, "z": -87.59 }
               ],
+              "walkAwaySpeed": 1.5,
+              "walkAwayStartedStoryFlags": ["streetquest:flag_fran_departure_started"],
               "despawnAfterWalkAway": true,
               "schedule": {
                 "mode": "Always"
@@ -328,7 +321,9 @@
               "useFixedSpawnPosition": true,
               "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
               "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
-              "walkAwayWaypoints": [{ "x": 810.38, "y": 0.01, "z": -102.74 }],
+              "walkAwayWaypoints": [
+                { "x": 810.38, "y": 0.01, "z": -102.74 }
+              ],
               "walkAwaySpeed": 4.5,
               "overrideIsRunning": true,
               "isRunning": true,
@@ -349,10 +344,7 @@
             {
               "id": "julia_exit",
               "requiredStoryFlags": ["streetquest:flag_julia_returned"],
-              "forbiddenStoryFlags": [
-                "streetquest:flag_julia_departure_started",
-                "streetquest:flag_fran_family_left"
-              ],
+              "forbiddenStoryFlags": ["streetquest:flag_julia_departure_started", "streetquest:flag_fran_family_left"],
               "buildingAddress": "ba:street_fourthstreet 50",
               "appearanceId": "julia_default",
               "overrideEnabled": true,
@@ -361,14 +353,12 @@
               "useFixedSpawnPosition": true,
               "position": { "x": 810.38, "y": 0.01, "z": -102.74 },
               "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
-              "walkAwayWaypoints": [{ "x": 804.15, "y": 0.01, "z": -87.59 }],
+              "walkAwayWaypoints": [
+                { "x": 804.15, "y": 0.01, "z": -87.59 }
+              ],
               "walkAwaySpeed": 1.5,
-              "walkAwayStartedStoryFlags": [
-                "streetquest:flag_julia_departure_started"
-              ],
-              "walkAwayCompletedStoryFlags": [
-                "streetquest:flag_fran_family_left"
-              ],
+              "walkAwayStartedStoryFlags": ["streetquest:flag_julia_departure_started"],
+              "walkAwayCompletedStoryFlags": ["streetquest:flag_fran_family_left"],
               "despawnAfterWalkAway": true,
               "schedule": {
                 "mode": "Always"

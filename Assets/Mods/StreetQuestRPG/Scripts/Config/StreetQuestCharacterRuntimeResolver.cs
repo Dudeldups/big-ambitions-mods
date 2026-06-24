@@ -403,6 +403,19 @@ namespace StreetQuestRPG
 
             if (state.overrideEnabled)
                 resolved.enabled = state.enabled;
+
+            // DataContractJsonSerializer does not reliably preserve field initializers for
+            // omitted bools, so a character/state can end up with useFixedSpawnPosition=false
+            // even though it defines an explicit world position. Treat any state-owned
+            // position/forward as a fixed spawn unless the state explicitly overrides the
+            // fixed-spawn flag. This keeps config clean: states with coordinates do not need
+            // both overrideUseFixedSpawnPosition=true and useFixedSpawnPosition=true.
+            if (!state.overrideUseFixedSpawnPosition &&
+                (state.position != null || state.forward != null))
+            {
+                resolved.useFixedSpawnPosition = true;
+            }
+
             if (state.overrideUseFixedSpawnPosition)
                 resolved.useFixedSpawnPosition = state.useFixedSpawnPosition;
             if (state.overrideShowSpeechBubble)
@@ -564,7 +577,12 @@ namespace StreetQuestRPG
                 appearanceSeed = definition.appearanceSeed,
                 enabled = definition.enabled,
                 interactable = definition.interactable,
-                useFixedSpawnPosition = definition.useFixedSpawnPosition,
+                // See ApplyStateOverrides: omitted bool field initializers can deserialize as
+                // false. A definition with an explicit transform should still be treated as a
+                // fixed-position NPC unless a state overrides it later.
+                useFixedSpawnPosition = definition.useFixedSpawnPosition ||
+                                        definition.position != null ||
+                                        definition.forward != null,
                 prefabName = definition.prefabName,
                 position = definition.position,
                 mapPosition = definition.mapPosition,
