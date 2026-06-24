@@ -30,6 +30,7 @@ namespace StreetQuestRPG
             new(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoggedApartmentRegistrationDumpKeys =
             new(StringComparer.OrdinalIgnoreCase);
+        private static bool HasLoggedApartmentRefreshCandidates;
 
         private static StreetQuestApartmentVisitContext ActiveApartmentVisit;
         private static bool HasLoggedApartmentItemInstanceShape;
@@ -79,11 +80,7 @@ namespace StreetQuestRPG
 
             var visitContext = CreateApartmentVisitContext(option, building, registration);
             TryLogApartmentRegistrationDump($"RoutedApartmentRegistrationBeforeEntry:{visitContext.VisitKey}", registration);
-
-            ApplyApartmentPayload(visitContext);
-            visitContext.PayloadAppliedInside = true;
-            LogDebug(
-                $"ApartmentPayloadPreApplied key={visitContext.VisitKey} character={option.CharacterId} state={option.StateId}");
+            TryLogApartmentRefreshCandidates();
 
             if (!TryStartVanillaApartmentEntry(building, out var route))
             {
@@ -168,14 +165,20 @@ namespace StreetQuestRPG
         {
             var visitKey = BuildApartmentVisitKey(option);
             var originalSnapshot = CaptureApartmentRegistrationSnapshot(registration);
+            var usesCustomLayout = option != null && !string.IsNullOrWhiteSpace(option.ApartmentLayoutFile);
 
-            ApartmentPayloadCacheByVisitKey.TryGetValue(visitKey, out var cachedPayload);
+            StreetQuestApartmentInteriorPayload cachedPayload = null;
+            if (!usesCustomLayout)
+                ApartmentPayloadCacheByVisitKey.TryGetValue(visitKey, out cachedPayload);
+
             var payload = cachedPayload ?? CreateDefaultApartmentPayload(option, originalSnapshot, registration);
             if (cachedPayload == null)
             {
-                ApartmentPayloadCacheByVisitKey[visitKey] = payload;
+                if (!usesCustomLayout)
+                    ApartmentPayloadCacheByVisitKey[visitKey] = payload;
+
                 LogDebug(
-                    $"ApartmentPayloadPrepared key={visitKey} source=blank_payload layout={payload.Layout ?? "<null>"}");
+                    $"ApartmentPayloadPrepared key={visitKey} source={(usesCustomLayout ? "custom_layout_fresh" : "blank_payload")} layout={payload.Layout ?? "<null>"}");
             }
             else
             {
@@ -233,18 +236,22 @@ namespace StreetQuestRPG
             if (context?.Registration == null || context.ActivePayload == null)
                 return;
 
-            var mergedItemInstances = MergeApartmentItemInstances(
-                GetMemberValue(context.Registration, "itemInstances"),
-                context.ActivePayload.ItemInstances,
-                GetMemberType(context.Registration, "itemInstances"));
-            if (mergedItemInstances != null)
-                SetMemberValue(context.Registration, "itemInstances", mergedItemInstances);
+            var itemInstances = context.ActivePayload.IsCustomLayoutPayload
+                ? CloneValueLike(
+                    context.ActivePayload.ItemInstances,
+                    GetMemberType(context.Registration, "itemInstances"))
+                : MergeApartmentItemInstances(
+                    GetMemberValue(context.Registration, "itemInstances"),
+                    context.ActivePayload.ItemInstances,
+                    GetMemberType(context.Registration, "itemInstances"));
+            if (itemInstances != null)
+                SetMemberValue(context.Registration, "itemInstances", itemInstances);
 
             var originalLayout = context.OriginalSnapshot?.Get<string>("Layout") ?? "<null>";
             var payloadLayout = context.ActivePayload.Layout ?? "<null>";
 
             LogDebug(
-                $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
+                $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} mode={(context.ActivePayload.IsCustomLayoutPayload ? "replace_custom_layout" : "merge_live")} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
         }
 
         private static object MergeApartmentItemInstances(object liveItemInstances, object payloadItemInstances, Type targetType)
@@ -268,6 +275,12 @@ namespace StreetQuestRPG
         {
             if (context?.Registration == null || context.ActivePayload == null)
                 return;
+
+            if (context.ActivePayload.IsCustomLayoutPayload)
+            {
+                LogDebug($"ApartmentPayloadCaptureSkipped key={context.VisitKey} reason=custom_layout_payload");
+                return;
+            }
 
             context.ActivePayload.Layout = GetMemberValue(context.Registration, "Layout") as string;
             context.ActivePayload.InteriorDesigns = GetMemberValue(context.Registration, "interiorDesigns");
@@ -398,6 +411,77 @@ namespace StreetQuestRPG
             LogDebug($"ApartmentRegistrationDump key={key} type={type.FullName}");
             LogDebug($"ApartmentRegistrationDumpFields key={key} values=[{string.Join(" | ", fieldLines)}]");
             LogDebug($"ApartmentRegistrationDumpProperties key={key} values=[{string.Join(" | ", propertyLines)}]");
+        }
+
+        private static void TryLogApartmentRefreshCandidates()
+        {
+            if (HasLoggedApartmentRefreshCandidates)
+                return;
+
+            HasLoggedApartmentRefreshCandidates = true;
+
+            try
+            {
+                var methodNameHints = new[]
+                {
+                    "LoadBusinessLayoutSet",
+                    "LoadResidentialDesignOptions",
+                    "DelayedEnterBuildingActions",
+                    "LoadIndoors",
+                    "EnterBuilding",
+                    "SerializeInteriorDesign",
+                    "SetUp",
+                    "Setup",
+                    "Refresh",
+                    "Reload"
+                };
+
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var assemblyName = assembly.GetName().Name ?? string.Empty;
+                    if (!assemblyName.StartsWith("BigAmbitions", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    Type[] types;
+                    try
+                    {
+                        types = assembly.GetTypes();
+                    }
+                    catch (ReflectionTypeLoadException exception)
+                    {
+                        types = exception.Types?.Where(type => type != null).ToArray() ?? Array.Empty<Type>();
+                    }
+
+                    foreach (var type in types)
+                    {
+                        MethodInfo[] methods;
+                        try
+                        {
+                            methods = type.GetMethods(ReflectionFlags);
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+
+                        foreach (var method in methods)
+                        {
+                            if (!methodNameHints.Any(hint => method.Name.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0))
+                                continue;
+
+                            var parameters = string.Join(
+                                ", ",
+                                method.GetParameters().Select(parameter => $"{parameter.ParameterType.Name} {parameter.Name}"));
+                            LogDebug(
+                                $"ApartmentRefreshCandidate assembly={assemblyName} type={type.FullName} method={method.ReturnType.Name} {method.Name}({parameters})");
+                        }
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                LogDebug($"ApartmentRefreshCandidateScanFailed reason={exception.GetType().Name}:{exception.Message}");
+            }
         }
 
         private static string SafeDescribeFieldValue(FieldInfo field, object instance)
@@ -733,6 +817,7 @@ namespace StreetQuestRPG
 
         private sealed class StreetQuestApartmentInteriorPayload
         {
+            public bool IsCustomLayoutPayload;
             public string Layout;
             public object InteriorDesigns;
             public object ItemInstances;

@@ -67,6 +67,7 @@ namespace StreetQuestRPG
 
             payload = new StreetQuestApartmentInteriorPayload
             {
+                IsCustomLayoutPayload = true,
                 Layout = originalSnapshot?.Get<string>("Layout"),
                 InteriorDesigns = interiorDesigns,
                 ItemInstances = itemInstances,
@@ -124,6 +125,7 @@ namespace StreetQuestRPG
 
                 payload = new StreetQuestApartmentInteriorPayload
                 {
+                    IsCustomLayoutPayload = true,
                     Layout = GetMemberValue(typedRegistration, "Layout") as string,
                     InteriorDesigns = GetMemberValue(typedRegistration, "interiorDesigns"),
                     ItemInstances = GetMemberValue(typedRegistration, "itemInstances"),
