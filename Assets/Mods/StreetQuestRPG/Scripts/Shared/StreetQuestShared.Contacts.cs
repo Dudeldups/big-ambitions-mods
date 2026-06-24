@@ -35,7 +35,11 @@ namespace StreetQuestRPG
             }
 
             if (changed > 0)
+            {
+                SaveGameManager.Current.hasEverUsedMods = true;
+                SaveGameManager.MarkChange();
                 LogDebug($"RefreshStreetQuestContactDialogOverrides changed={changed}");
+            }
         }
 
         private static bool GrantContactReward(string characterId)
@@ -71,14 +75,14 @@ namespace StreetQuestRPG
             if (contact == null)
                 return false;
 
-            ApplyContactDialogOverride(contact, character);
+            var changed = ApplyContactDialogOverride(contact, character);
 
             var existsAfter = SaveGameManager.Current?.Contacts?.Any(existingContact =>
                 existingContact != null &&
                 string.Equals(existingContact.id, contactId, StringComparison.OrdinalIgnoreCase)) == true;
 
             var saveGame = SaveGameManager.Current;
-            if (existsAfter && saveGame != null)
+            if ((existsAfter || changed) && saveGame != null)
             {
                 saveGame.hasEverUsedMods = true;
                 SaveGameManager.MarkChange();
@@ -99,6 +103,71 @@ namespace StreetQuestRPG
 
             contact.callDialogTypeOverride = dialogType;
             return true;
+        }
+
+        internal static void AppendPhoneNpcMessage(string characterId, string messageKey, bool sendNotificationInstantly = false)
+        {
+            if (string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(messageKey))
+                return;
+
+            var contact = EnsureStreetQuestContact(characterId);
+            if (contact == null)
+                return;
+
+            contact.SendMessage(new TextMessage(messageKey, null, true, true), sendNotificationInstantly);
+            SaveContactHistoryChange();
+        }
+
+        internal static void AppendPhonePlayerMessage(string characterId, string messageKey)
+        {
+            if (string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(messageKey))
+                return;
+
+            var contact = EnsureStreetQuestContact(characterId);
+            if (contact == null)
+                return;
+
+            contact.ReceivePlayerMessage(new TextMessage(messageKey, null, true));
+            SaveContactHistoryChange();
+        }
+
+        private static Contact EnsureStreetQuestContact(string characterId)
+        {
+            var character = StreetQuestCharacterCatalog.Get(characterId);
+            if (character == null)
+                return null;
+
+            var contactId = ResolveContactId(character);
+            if (string.IsNullOrWhiteSpace(contactId))
+                return null;
+
+            try
+            {
+                var contact = Contact.GetContact(
+                    contactId,
+                    ResolveContactCategory(character.contactCategory),
+                    ResolveContactDescriptionKey(character));
+                if (contact == null)
+                    return null;
+
+                ApplyContactDialogOverride(contact, character);
+                return contact;
+            }
+            catch (Exception exception)
+            {
+                LogDebug($"EnsureStreetQuestContact failed character={characterId} exception={exception.GetType().Name}:{exception.Message}");
+                return null;
+            }
+        }
+
+        private static void SaveContactHistoryChange()
+        {
+            var saveGame = SaveGameManager.Current;
+            if (saveGame == null)
+                return;
+
+            saveGame.hasEverUsedMods = true;
+            SaveGameManager.MarkChange();
         }
 
         private static string ResolveContactId(StreetQuestCharacterDefinition character)

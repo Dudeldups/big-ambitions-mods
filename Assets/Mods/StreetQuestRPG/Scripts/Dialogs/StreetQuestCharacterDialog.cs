@@ -90,7 +90,12 @@ namespace StreetQuestRPG
                 messageData = stage.TextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = ResolveIntroConfirmTextKey(stage, stageIndex).Localize(),
-                OnConfirm = nextEntryBuilder,
+                OnVisible = () => RecordPhoneNpcMessage(stage.TextKey),
+                OnConfirm = () =>
+                {
+                    RecordPhonePlayerMessage(ResolveIntroConfirmTextKey(stage, stageIndex));
+                    return nextEntryBuilder();
+                },
                 OnCancel = DialogController.current.FinishDialog
             };
         }
@@ -118,6 +123,7 @@ namespace StreetQuestRPG
                 messageData = quest.OfferTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = confirmTextKey.Localize(),
+                OnVisible = () => RecordPhoneNpcMessage(quest.OfferTextKey),
                 OnConfirm = () => OnAcceptQuest(quest),
                 OnCancel = DialogController.current.FinishDialog
             };
@@ -125,6 +131,12 @@ namespace StreetQuestRPG
 
         private DialogEntry OnAcceptQuest(StreetQuestQuestDefinition quest)
         {
+            var playerMessageKey = quest.Objectives.Any(value =>
+                value != null && value.ObjectiveType == StreetQuestQuestObjectiveType.BringItem)
+                ? "streetquest:dialog_on_my_way"
+                : "streetquest:dialog_yes";
+            RecordPhonePlayerMessage(playerMessageKey);
+
             if (!StreetQuestShared.AcceptQuest(quest))
                 return BuildActiveEntry(quest);
 
@@ -153,6 +165,7 @@ namespace StreetQuestRPG
                 messageData = objective.DialogTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = confirmTextKey.Localize(),
+                OnVisible = () => RecordPhoneNpcMessage(objective.DialogTextKey),
                 OnConfirm = () => OnCompleteTalkObjective(quest, objective),
                 OnCancel = DialogController.current.FinishDialog
             };
@@ -162,6 +175,9 @@ namespace StreetQuestRPG
             StreetQuestQuestDefinition quest,
             StreetQuestQuestObjectiveDefinition objective)
         {
+            RecordPhonePlayerMessage(string.IsNullOrWhiteSpace(objective.ConfirmTextKey)
+                ? "streetquest:dialog_yes"
+                : objective.ConfirmTextKey);
             StreetQuestShared.CompleteTalkObjectiveInteraction(quest, objective);
 
             if (!string.IsNullOrWhiteSpace(objective.AfterConfirmTextKey))
@@ -191,6 +207,7 @@ namespace StreetQuestRPG
                 messageData = quest.ReadyTextKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
                 ConfirmTextOverride = "streetquest:dialog_turn_in".Localize(),
+                OnVisible = () => RecordPhoneNpcMessage(quest.ReadyTextKey),
                 OnConfirm = () => OnCompleteQuest(quest),
                 OnCancel = DialogController.current.FinishDialog
             };
@@ -198,6 +215,7 @@ namespace StreetQuestRPG
 
         private DialogEntry OnCompleteQuest(StreetQuestQuestDefinition quest)
         {
+            RecordPhonePlayerMessage("streetquest:dialog_turn_in");
             StreetQuestShared.MarkReadyToTurnIn(quest);
             if (!StreetQuestShared.CompleteQuest(quest))
                 return BuildConversationEntry(quest.ActiveTextKey);
@@ -223,10 +241,27 @@ namespace StreetQuestRPG
                 headerKey = npcNameKey,
                 messageData = messageKey.Localize(),
                 Template = DialogEntry.TemplateType.Text,
+                OnVisible = () => RecordPhoneNpcMessage(messageKey),
                 OnCancel = DialogController.current.FinishDialog
             };
         }
 
         private DialogEntry BuildEndEntry(string messageKey) => BuildConversationEntry(messageKey);
+
+        private void RecordPhoneNpcMessage(string messageKey)
+        {
+            if (DialogController.current.dialogType != DialogType.PhoneCall)
+                return;
+
+            StreetQuestShared.AppendPhoneNpcMessage(_characterId, messageKey);
+        }
+
+        private void RecordPhonePlayerMessage(string messageKey)
+        {
+            if (DialogController.current.dialogType != DialogType.PhoneCall)
+                return;
+
+            StreetQuestShared.AppendPhonePlayerMessage(_characterId, messageKey);
+        }
     }
 }
