@@ -486,12 +486,15 @@ namespace StreetQuestRPG
                 return false;
             }
 
+            var sourceInfo = new FileInfo(sourcePath);
             var normalizedSourceKey = sourcePath.Trim().ToLowerInvariant();
             if (RegisteredApartmentLayoutsBySource.TryGetValue(normalizedSourceKey, out var existingLayout) &&
                 existingLayout != null &&
                 !string.IsNullOrWhiteSpace(existingLayout.LayoutName) &&
                 !string.IsNullOrWhiteSpace(existingLayout.TempPath) &&
-                File.Exists(existingLayout.TempPath))
+                File.Exists(existingLayout.TempPath) &&
+                existingLayout.SourceLastWriteUtcTicks == sourceInfo.LastWriteTimeUtc.Ticks &&
+                existingLayout.SourceLength == sourceInfo.Length)
             {
                 resolvedLayoutName = existingLayout.LayoutName;
                 tempLayoutPath = existingLayout.TempPath;
@@ -521,7 +524,7 @@ namespace StreetQuestRPG
 
             var layoutJson = File.ReadAllText(sourcePath);
             resolvedLayoutName = ResolveApartmentLayoutName(layoutFile, requestedLayoutName);
-            var patchedJson = EnsureLayoutName(layoutJson, resolvedLayoutName);
+            var patchedJson = PrepareApartmentLayoutRuntimeJson(layoutJson, resolvedLayoutName, out var patchSummary);
 
             var tempDirectory = Path.Combine(Application.temporaryCachePath, "BAModLayouts", "StreetQuestRPG");
             Directory.CreateDirectory(tempDirectory);
@@ -535,8 +538,12 @@ namespace StreetQuestRPG
             RegisteredApartmentLayoutsBySource[normalizedSourceKey] = new StreetQuestRegisteredApartmentLayout
             {
                 LayoutName = resolvedLayoutName,
-                TempPath = tempLayoutPath
+                TempPath = tempLayoutPath,
+                SourceLastWriteUtcTicks = sourceInfo.LastWriteTimeUtc.Ticks,
+                SourceLength = sourceInfo.Length
             };
+            if (!string.IsNullOrWhiteSpace(patchSummary))
+                LogDebug($"ApartmentLayoutRuntimeJsonPrepared source={layoutFile} layoutName={resolvedLayoutName} {patchSummary}");
             LogVerbose($"ApartmentLayoutRegistered source={layoutFile} layoutName={resolvedLayoutName} tempPath={tempPath}");
             return true;
         }
@@ -592,10 +599,147 @@ namespace StreetQuestRPG
             return json;
         }
 
+        private static string PrepareApartmentLayoutRuntimeJson(string json, string layoutName, out string patchSummary)
+        {
+            var patches = new List<string>();
+            var result = EnsureLayoutName(json, layoutName);
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                patchSummary = string.Empty;
+                return result;
+            }
+
+            result = RemoveLayoutRequiredModIds(result, patches);
+            result = NormalizeApartmentLayoutCompatibilityFields(result, patches);
+
+            patchSummary = patches.Count > 0 ? "patches=" + string.Join(",", patches) : string.Empty;
+            return result;
+        }
+
+        private static string RemoveLayoutRequiredModIds(string json, List<string> patches)
+        {
+            const string pattern = "\"requiredModIds\"\\s*:\\s*\\[[\\s\\S]*?\\]";
+            if (!Regex.IsMatch(json, pattern, RegexOptions.CultureInvariant))
+                return json;
+
+            patches?.Add("requiredModIds=[]");
+            return Regex.Replace(
+                json,
+                pattern,
+                "\"requiredModIds\": []",
+                RegexOptions.CultureInvariant);
+        }
+
+        private static string NormalizeApartmentLayoutCompatibilityFields(string json, List<string> patches)
+        {
+            var result = NormalizeJsonTopLevelScalar(
+                json,
+                "BusinessType",
+                rawValue =>
+                {
+                    var normalized = rawValue.Trim();
+                    return normalized == "0" ? normalized : "0";
+                },
+                patches,
+                "BusinessType=0");
+
+            result = NormalizeJsonTopLevelScalar(
+                result,
+                "BuildingSize",
+                rawValue =>
+                {
+                    var normalized = rawValue.Trim();
+                    if (!normalized.StartsWith("\"", StringComparison.Ordinal))
+                        return normalized;
+
+                    var unquoted = normalized.Trim('"');
+                    if (TryResolveBuildingSizeIndex(unquoted, out var sizeIndex))
+                        return sizeIndex.ToString();
+
+                    return "1";
+                },
+                patches,
+                "BuildingSize=numeric");
+
+            result = NormalizeJsonTopLevelScalar(
+                result,
+                "BuildingVersion",
+                rawValue =>
+                {
+                    var normalized = rawValue.Trim();
+                    if (!normalized.StartsWith("\"", StringComparison.Ordinal))
+                        return normalized;
+
+                    var unquoted = normalized.Trim('"');
+                    return int.TryParse(unquoted, out var version) ? version.ToString() : normalized;
+                },
+                patches,
+                "BuildingVersion=numeric");
+
+            return result;
+        }
+
+        private static string NormalizeJsonTopLevelScalar(
+            string json,
+            string fieldName,
+            Func<string, string> normalizeValue,
+            List<string> patches,
+            string patchName)
+        {
+            if (string.IsNullOrWhiteSpace(json) || string.IsNullOrWhiteSpace(fieldName) || normalizeValue == null)
+                return json;
+
+            var pattern = $"\"{Regex.Escape(fieldName)}\"\\s*:\\s*(\"[^\"]*\"|-?\\d+)";
+            return Regex.Replace(
+                json,
+                pattern,
+                match =>
+                {
+                    var originalValue = match.Groups[1].Value;
+                    var normalizedValue = normalizeValue(originalValue);
+                    if (string.Equals(originalValue, normalizedValue, StringComparison.Ordinal))
+                        return match.Value;
+
+                    if (patches != null && !patches.Contains(patchName))
+                        patches.Add(patchName);
+                    return $"\"{fieldName}\": {normalizedValue}";
+                },
+                RegexOptions.CultureInvariant);
+        }
+
+        private static bool TryResolveBuildingSizeIndex(string buildingSize, out int sizeIndex)
+        {
+            sizeIndex = 0;
+            if (string.IsNullOrWhiteSpace(buildingSize))
+                return false;
+
+            var normalized = buildingSize.Trim().ToLowerInvariant();
+            var markerIndex = normalized.LastIndexOf("buildingsize_", StringComparison.Ordinal);
+            if (markerIndex >= 0 && markerIndex + "buildingsize_".Length < normalized.Length)
+            {
+                var suffix = normalized.Substring(markerIndex + "buildingsize_".Length).Trim();
+                if (suffix.Length == 1 && suffix[0] >= 'a' && suffix[0] <= 'z')
+                {
+                    sizeIndex = suffix[0] - 'a';
+                    return true;
+                }
+            }
+
+            if (int.TryParse(normalized, out var parsed))
+            {
+                sizeIndex = parsed;
+                return true;
+            }
+
+            return false;
+        }
+
         private sealed class StreetQuestRegisteredApartmentLayout
         {
             public string LayoutName;
             public string TempPath;
+            public long SourceLastWriteUtcTicks;
+            public long SourceLength;
         }
     }
 }
