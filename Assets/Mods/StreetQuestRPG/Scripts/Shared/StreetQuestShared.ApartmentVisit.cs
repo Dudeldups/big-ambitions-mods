@@ -151,6 +151,25 @@ namespace StreetQuestRPG
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
                 !IsIndoorGameplayContextActive())
             {
+                var currentTrackedIndoorAddress = NormalizeAddressKey(GetCurrentIndoorBuildingAddressKey());
+                var visitExteriorAddress = NormalizeAddressKey(visit.ExteriorAddress);
+                if (!string.IsNullOrWhiteSpace(visitExteriorAddress) &&
+                    string.Equals(currentTrackedIndoorAddress, visitExteriorAddress, StringComparison.Ordinal))
+                {
+                    LogDebug(
+                        $"ApartmentVisitReturnDeferred character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason=indoor_address_still_active");
+                    return;
+                }
+
+                var currentExteriorAddress = NormalizeAddressKey(GetCurrentExteriorBuildingAddressKey());
+                if (string.IsNullOrWhiteSpace(currentExteriorAddress) ||
+                    !string.Equals(currentExteriorAddress, visitExteriorAddress, StringComparison.Ordinal))
+                {
+                    LogDebug(
+                        $"ApartmentVisitReturnDeferred character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason=awaiting_matching_exterior currentExterior={currentExteriorAddress}");
+                    return;
+                }
+
                 if (IsRuntimeShutdownInProgress())
                 {
                     LogDebug(
@@ -160,6 +179,7 @@ namespace StreetQuestRPG
 
                 ClearPersistedApartmentVisit();
                 RestoreActiveApartmentVisit("returned_outdoor");
+                return;
             }
         }
 
