@@ -29,6 +29,7 @@ namespace StreetQuestRPG
             new(StringComparer.OrdinalIgnoreCase);
 
         private static StreetQuestApartmentVisitContext ActiveApartmentVisit;
+        private static string LastApartmentResumeAttemptAddress = string.Empty;
 
         internal static bool IsApartmentVisitContextActiveFor(string characterId)
         {
@@ -105,7 +106,10 @@ namespace StreetQuestRPG
         {
             var visit = ActiveApartmentVisit;
             if (visit == null)
+            {
+                TryResumeApartmentVisitForLoadedIndoorState();
                 return;
+            }
 
             if (visit.State == StreetQuestApartmentVisitState.WaitingForIndoorTransition)
             {
@@ -156,6 +160,71 @@ namespace StreetQuestRPG
                 return;
 
             RestoreApartmentVisitContext(ActiveApartmentVisit, reason, clearActiveVisit: true);
+        }
+
+        internal static void HandleApartmentVisitRuntimeShutdown(string reason)
+        {
+            if (ActiveApartmentVisit == null)
+                return;
+
+            var visit = ActiveApartmentVisit;
+            if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
+                visit.ActivePayload?.IsCustomLayoutPayload == true)
+            {
+                LogDebug(
+                    $"ApartmentVisitShutdownPreserved character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");
+                ActiveApartmentVisit = null;
+                return;
+            }
+
+            RestoreApartmentVisitContext(visit, reason, clearActiveVisit: true);
+        }
+
+        private static void TryResumeApartmentVisitForLoadedIndoorState()
+        {
+            if (!IsIndoorGameplayContextActive())
+            {
+                LastApartmentResumeAttemptAddress = string.Empty;
+                return;
+            }
+
+            var indoorAddress = NormalizeAddressKey(GetCurrentIndoorBuildingAddressKey());
+            if (string.IsNullOrWhiteSpace(indoorAddress) ||
+                string.Equals(LastApartmentResumeAttemptAddress, indoorAddress, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            LastApartmentResumeAttemptAddress = indoorAddress;
+
+            var option = GetAvailableApartmentEntryOptions(indoorAddress)
+                .FirstOrDefault(candidate => candidate != null && candidate.RequiresApartmentVisitContext);
+            if (option == null)
+            {
+                LogDebug($"ApartmentVisitResumeSkipped address={indoorAddress} reason=no_matching_routed_option");
+                return;
+            }
+
+            if (!TryResolveApartmentVisitTarget(option, out var building, out var registration, out _, out var failureReason))
+            {
+                LogDebug(
+                    $"ApartmentVisitResumeFailed address={indoorAddress} character={option.CharacterId} state={option.StateId} reason={failureReason}");
+                return;
+            }
+
+            var visitContext = CreateApartmentVisitContext(option, building, registration);
+            visitContext.EntryStartedAtSeconds = Time.unscaledTime - 1f;
+            visitContext.EntryRoute = "resume_loaded_indoor";
+            visitContext.State = StreetQuestApartmentVisitState.ActiveInside;
+
+            ApplyApartmentPayload(visitContext);
+            TryApplyRuntimeApartmentLayout(visitContext);
+            visitContext.PayloadAppliedInside = true;
+            ActiveApartmentVisit = visitContext;
+
+            RefreshSpawnedCharacters();
+            LogDebug(
+                $"ApartmentVisitResumed address={indoorAddress} character={option.CharacterId} state={option.StateId} route={visitContext.EntryRoute}");
         }
 
         private static StreetQuestApartmentVisitContext CreateApartmentVisitContext(

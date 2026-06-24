@@ -101,7 +101,7 @@ namespace StreetQuestRPG
 
         private void OnDestroy()
         {
-            StreetQuestShared.RestoreActiveApartmentVisit("watcher_destroy");
+            StreetQuestShared.HandleApartmentVisitRuntimeShutdown("watcher_destroy");
         }
 
         private void UpdateIndoorBuildingContext()

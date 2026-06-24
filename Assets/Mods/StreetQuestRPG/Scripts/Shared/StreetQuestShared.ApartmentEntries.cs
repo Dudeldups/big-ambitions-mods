@@ -17,6 +17,7 @@ namespace StreetQuestRPG
             public string ApartmentLayoutFile;
             public string ApartmentLayoutName;
             public string ButtonText;
+            public bool RequiresApartmentVisitContext;
         }
 
         internal static IReadOnlyList<ApartmentEntryOption> GetAvailableApartmentEntryOptions(string exteriorAddressKey)
@@ -57,7 +58,8 @@ namespace StreetQuestRPG
                     InteriorAddress = runtime.buildingAddress ?? string.Empty,
                     ApartmentLayoutFile = runtime.apartmentLayoutFile ?? string.Empty,
                     ApartmentLayoutName = runtime.apartmentLayoutName ?? string.Empty,
-                    ButtonText = BuildApartmentEntryButtonText(runtime, characterName)
+                    ButtonText = BuildApartmentEntryButtonText(runtime, characterName),
+                    RequiresApartmentVisitContext = runtime.requiresApartmentVisitContext
                 });
             }
 
