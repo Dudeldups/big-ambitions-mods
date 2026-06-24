@@ -48,6 +48,9 @@ namespace StreetQuestRPG
                 if (runtime == null)
                     continue;
 
+                if (!IsRoutedApartmentEntryState(runtime))
+                    continue;
+
                 var characterName = ResolveCharacterDisplayName(character.id);
                 results.Add(new ApartmentEntryOption
                 {
@@ -66,6 +69,17 @@ namespace StreetQuestRPG
             return results
                 .OrderBy(value => value.CharacterName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+        }
+
+        private static bool IsRoutedApartmentEntryState(StreetQuestCharacterDefinition runtime)
+        {
+            if (runtime == null)
+                return false;
+
+            if (runtime.requiresApartmentVisitContext)
+                return true;
+
+            return !string.IsNullOrWhiteSpace(runtime.apartmentLayoutFile);
         }
 
         private static string BuildApartmentEntryButtonText(StreetQuestCharacterDefinition runtime, string characterName)
