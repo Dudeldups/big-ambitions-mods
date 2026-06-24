@@ -70,13 +70,13 @@ namespace StreetQuestRPG
         {
             if (!IsInActiveGameSession())
             {
-                SetCurrentOptions(Array.Empty<StreetQuestShared.ApartmentEntryOption>(), string.Empty);
+                SetCurrentOptions(Array.Empty<StreetQuestShared.ApartmentEntryOption>());
                 return;
             }
 
             if (StreetQuestShared.IsCityMapOpen() || StreetQuestShared.IsIndoorGameplayContextActive())
             {
-                SetCurrentOptions(Array.Empty<StreetQuestShared.ApartmentEntryOption>(), string.Empty);
+                SetCurrentOptions(Array.Empty<StreetQuestShared.ApartmentEntryOption>());
                 return;
             }
 
@@ -90,10 +90,10 @@ namespace StreetQuestRPG
 
             _lastStateVersion = stateVersion;
             _lastExteriorAddress = exteriorAddress;
-            SetCurrentOptions(StreetQuestShared.GetAvailableApartmentEntryOptions(exteriorAddress), exteriorAddress);
+            SetCurrentOptions(StreetQuestShared.GetAvailableApartmentEntryOptions(exteriorAddress));
         }
 
-        private void SetCurrentOptions(IReadOnlyList<StreetQuestShared.ApartmentEntryOption> options, string exteriorAddress)
+        private void SetCurrentOptions(IReadOnlyList<StreetQuestShared.ApartmentEntryOption> options)
         {
             _currentOptions = options?.Where(value => value != null).ToList() ?? new List<StreetQuestShared.ApartmentEntryOption>();
         }

@@ -66,17 +66,6 @@ namespace StreetQuestRPG
                 .ToArray();
         }
 
-        internal static string BuildApartmentEntryPlaceholderMessage(ApartmentEntryOption option)
-        {
-            if (option == null)
-                return string.Empty;
-
-            return "streetquest:debug_apartment_entry_placeholder".Localize(new Dictionary<string, string>
-            {
-                { "npcname", option.CharacterName ?? option.CharacterId ?? "NPC" }
-            }).ToString();
-        }
-
         private static string BuildApartmentEntryButtonText(StreetQuestCharacterDefinition runtime, string characterName)
         {
             var localizationKey = string.IsNullOrWhiteSpace(runtime?.entryButtonTextKey)

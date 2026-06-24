@@ -27,14 +27,8 @@ namespace StreetQuestRPG
 
         private static readonly Dictionary<string, StreetQuestApartmentInteriorPayload> ApartmentPayloadCacheByVisitKey =
             new(StringComparer.OrdinalIgnoreCase);
-        private static readonly HashSet<string> LoggedVanillaApartmentSnapshotAddresses =
-            new(StringComparer.OrdinalIgnoreCase);
-        private static readonly HashSet<string> LoggedApartmentRegistrationDumpKeys =
-            new(StringComparer.OrdinalIgnoreCase);
-        private static bool HasLoggedApartmentRefreshCandidates;
 
         private static StreetQuestApartmentVisitContext ActiveApartmentVisit;
-        private static bool HasLoggedApartmentItemInstanceShape;
 
         internal static bool IsApartmentVisitContextActiveFor(string characterId)
         {
@@ -80,8 +74,6 @@ namespace StreetQuestRPG
             }
 
             var visitContext = CreateApartmentVisitContext(option, building, registration);
-            TryLogApartmentRegistrationDump($"RoutedApartmentRegistrationBeforeEntry:{visitContext.VisitKey}", registration);
-            TryLogApartmentRefreshCandidates();
             TrySuppressPreEntryApartmentItems(visitContext);
 
             if (!TryStartVanillaApartmentEntry(building, out var route))
@@ -105,7 +97,7 @@ namespace StreetQuestRPG
             ActiveApartmentVisit = visitContext;
 
             LogDebug(
-                $"ApartmentEntryStarted character={option.CharacterId} state={option.StateId} address={option.ExteriorAddress} route={route} canEnter={SafeCanEnterBuilding(parsedAddress)} building={DescribeObject(building)} registration={DescribeObject(registration)}");
+                $"ApartmentEntryStarted character={option.CharacterId} state={option.StateId} address={option.ExteriorAddress} route={route} building={DescribeObject(building)} registration={DescribeObject(registration)}");
             return true;
         }
 
@@ -113,10 +105,7 @@ namespace StreetQuestRPG
         {
             var visit = ActiveApartmentVisit;
             if (visit == null)
-            {
-                TryLogVanillaApartmentSnapshot();
                 return;
-            }
 
             if (visit.State == StreetQuestApartmentVisitState.WaitingForIndoorTransition)
             {
@@ -200,7 +189,6 @@ namespace StreetQuestRPG
             return new StreetQuestApartmentVisitContext
             {
                 CharacterId = option.CharacterId ?? string.Empty,
-                CharacterName = option.CharacterName ?? option.CharacterId ?? "NPC",
                 StateId = option.StateId ?? string.Empty,
                 ExteriorAddress = option.ExteriorAddress ?? string.Empty,
                 VisitKey = visitKey,
@@ -515,224 +503,8 @@ namespace StreetQuestRPG
             context.ActivePayload.DirtSpots = GetMemberValue(context.Registration, "dirtSpots");
             ApartmentPayloadCacheByVisitKey[context.VisitKey] = context.ActivePayload;
 
-            TryLogApartmentItemInstanceShape(context.ActivePayload.ItemInstances, context.ActivePayload.ItemsInBuilding);
-
             LogDebug(
                 $"ApartmentPayloadCaptured key={context.VisitKey} layout={context.ActivePayload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
-        }
-
-        private static void TryLogApartmentItemInstanceShape(object itemInstances, object itemsInBuilding)
-        {
-            if (HasLoggedApartmentItemInstanceShape || itemInstances is not IDictionary dictionary || dictionary.Count == 0)
-                return;
-
-            foreach (DictionaryEntry entry in dictionary)
-            {
-                var keyType = entry.Key?.GetType().FullName ?? "<null>";
-                var value = entry.Value;
-                var valueType = value?.GetType();
-                if (valueType == null)
-                    continue;
-
-                var fields = valueType.GetFields(ReflectionFlags)
-                    .Select(field => $"{field.FieldType.Name} {field.Name}={SafeDescribeFieldValue(field, value)}")
-                    .ToArray();
-                var properties = valueType.GetProperties(ReflectionFlags)
-                    .Where(property => property.GetIndexParameters().Length == 0)
-                    .Take(12)
-                    .Select(property => $"{property.PropertyType.Name} {property.Name}={SafeDescribePropertyValue(property, value)}")
-                    .ToArray();
-
-                LogDebug(
-                    $"ApartmentItemInstanceShape dictionaryType={itemInstances.GetType().FullName} keyType={keyType} valueType={valueType.FullName} itemsInBuildingType={itemsInBuilding?.GetType().FullName ?? "<null>"} sampleKey={entry.Key} fields=[{string.Join(" | ", fields)}] properties=[{string.Join(" | ", properties)}]");
-                HasLoggedApartmentItemInstanceShape = true;
-                break;
-            }
-        }
-
-        private static void TryLogVanillaApartmentSnapshot()
-        {
-            if (!IsIndoorGameplayContextActive())
-                return;
-
-            var addressKey = GetCurrentIndoorBuildingAddressKey();
-            if (string.IsNullOrWhiteSpace(addressKey) ||
-                !LoggedVanillaApartmentSnapshotAddresses.Add(addressKey))
-                return;
-
-            var registration = FindBuildingRegistrationByAddressText(addressKey);
-            if (registration == null)
-            {
-                LogDebug($"VanillaApartmentSnapshotSkipped address={addressKey} reason=registration_not_found");
-                return;
-            }
-
-            TryLogApartmentRegistrationDump($"VanillaApartmentRegistration:{addressKey}", registration);
-
-            var layout = GetMemberValue(registration, "Layout") as string;
-            var interiorDesigns = GetMemberValue(registration, "interiorDesigns");
-            var itemInstances = GetMemberValue(registration, "itemInstances");
-            var itemsInBuilding = GetMemberValue(registration, "itemsInBuilding");
-            var deliveredItems = GetMemberValue(registration, "deliveredItems");
-            var dirtSpots = GetMemberValue(registration, "dirtSpots");
-
-            LogDebug(
-                $"VanillaApartmentSnapshot address={addressKey} layout={layout ?? "<null>"} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)} deliveredItems={DescribeValueShape(deliveredItems)} dirtSpots={DescribeValueShape(dirtSpots)}");
-
-            TryLogApartmentItemInstanceShapeForLabel(
-                "VanillaApartmentItemInstanceShape",
-                itemInstances,
-                itemsInBuilding);
-        }
-
-        private static void TryLogApartmentItemInstanceShapeForLabel(string label, object itemInstances, object itemsInBuilding)
-        {
-            if (itemInstances is not IDictionary dictionary || dictionary.Count == 0)
-                return;
-
-            foreach (DictionaryEntry entry in dictionary)
-            {
-                var keyType = entry.Key?.GetType().FullName ?? "<null>";
-                var value = entry.Value;
-                var valueType = value?.GetType();
-                if (valueType == null)
-                    continue;
-
-                var fields = valueType.GetFields(ReflectionFlags)
-                    .Select(field => $"{field.FieldType.Name} {field.Name}={SafeDescribeFieldValue(field, value)}")
-                    .ToArray();
-                var properties = valueType.GetProperties(ReflectionFlags)
-                    .Where(property => property.GetIndexParameters().Length == 0)
-                    .Take(12)
-                    .Select(property => $"{property.PropertyType.Name} {property.Name}={SafeDescribePropertyValue(property, value)}")
-                    .ToArray();
-
-                LogDebug(
-                    $"{label} dictionaryType={itemInstances.GetType().FullName} keyType={keyType} valueType={valueType.FullName} itemsInBuildingType={itemsInBuilding?.GetType().FullName ?? "<null>"} sampleKey={entry.Key} fields=[{string.Join(" | ", fields)}] properties=[{string.Join(" | ", properties)}]");
-                break;
-            }
-        }
-
-        private static void TryLogApartmentRegistrationDump(string key, object registration)
-        {
-            if (registration == null ||
-                string.IsNullOrWhiteSpace(key) ||
-                !LoggedApartmentRegistrationDumpKeys.Add(key))
-                return;
-
-            var type = registration.GetType();
-            var fieldLines = type
-                .GetFields(ReflectionFlags)
-                .OrderBy(field => field.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(field => $"{field.FieldType.Name} {field.Name}={SafeDescribeFieldValue(field, registration)}")
-                .ToArray();
-            var propertyLines = type
-                .GetProperties(ReflectionFlags)
-                .Where(property => property.GetIndexParameters().Length == 0)
-                .OrderBy(property => property.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(property => $"{property.PropertyType.Name} {property.Name}={SafeDescribePropertyValue(property, registration)}")
-                .ToArray();
-
-            LogDebug($"ApartmentRegistrationDump key={key} type={type.FullName}");
-            LogDebug($"ApartmentRegistrationDumpFields key={key} values=[{string.Join(" | ", fieldLines)}]");
-            LogDebug($"ApartmentRegistrationDumpProperties key={key} values=[{string.Join(" | ", propertyLines)}]");
-        }
-
-        private static void TryLogApartmentRefreshCandidates()
-        {
-            if (HasLoggedApartmentRefreshCandidates)
-                return;
-
-            HasLoggedApartmentRefreshCandidates = true;
-
-            try
-            {
-                var methodNameHints = new[]
-                {
-                    "LoadBusinessLayoutSet",
-                    "LoadResidentialDesignOptions",
-                    "DelayedEnterBuildingActions",
-                    "LoadIndoors",
-                    "EnterBuilding",
-                    "SerializeInteriorDesign",
-                    "SetUp",
-                    "Setup",
-                    "Refresh",
-                    "Reload"
-                };
-
-                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    var assemblyName = assembly.GetName().Name ?? string.Empty;
-                    if (!assemblyName.StartsWith("BigAmbitions", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    Type[] types;
-                    try
-                    {
-                        types = assembly.GetTypes();
-                    }
-                    catch (ReflectionTypeLoadException exception)
-                    {
-                        types = exception.Types?.Where(type => type != null).ToArray() ?? Array.Empty<Type>();
-                    }
-
-                    foreach (var type in types)
-                    {
-                        MethodInfo[] methods;
-                        try
-                        {
-                            methods = type.GetMethods(ReflectionFlags);
-                        }
-                        catch
-                        {
-                            continue;
-                        }
-
-                        foreach (var method in methods)
-                        {
-                            if (!methodNameHints.Any(hint => method.Name.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0))
-                                continue;
-
-                            var parameters = string.Join(
-                                ", ",
-                                method.GetParameters().Select(parameter => $"{parameter.ParameterType.Name} {parameter.Name}"));
-                            LogDebug(
-                                $"ApartmentRefreshCandidate assembly={assemblyName} type={type.FullName} method={method.ReturnType.Name} {method.Name}({parameters})");
-                        }
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                LogDebug($"ApartmentRefreshCandidateScanFailed reason={exception.GetType().Name}:{exception.Message}");
-            }
-        }
-
-        private static string SafeDescribeFieldValue(FieldInfo field, object instance)
-        {
-            try
-            {
-                var value = field.GetValue(instance);
-                return value?.ToString() ?? "<null>";
-            }
-            catch (Exception exception)
-            {
-                return $"<error:{exception.GetType().Name}>";
-            }
-        }
-
-        private static string SafeDescribePropertyValue(PropertyInfo property, object instance)
-        {
-            try
-            {
-                var value = property.GetValue(instance);
-                return value?.ToString() ?? "<null>";
-            }
-            catch (Exception exception)
-            {
-                return $"<error:{exception.GetType().Name}>";
-            }
         }
 
         private static void RestoreApartmentVisitContext(
@@ -975,18 +747,6 @@ namespace StreetQuestRPG
             return value.GetType().Name;
         }
 
-        private static bool SafeCanEnterBuilding(object parsedAddress)
-        {
-            try
-            {
-                return parsedAddress != null && InvokeStaticBuildingHelperMethod<bool>("CanEnterBuilding", parsedAddress);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private static T InvokeStaticBuildingHelperMethod<T>(string methodName, object argument)
         {
             var method = typeof(BuildingHelper).GetMethods(BindingFlags.Public | BindingFlags.Static)
@@ -1011,7 +771,6 @@ namespace StreetQuestRPG
         private sealed class StreetQuestApartmentVisitContext
         {
             public string CharacterId;
-            public string CharacterName;
             public string StateId;
             public string ExteriorAddress;
             public string VisitKey;
