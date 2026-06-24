@@ -95,7 +95,7 @@ namespace StreetQuestRPG
                 _nextObjectiveTickAtSeconds = _elapsedSeconds + 0.5f;
             }
 
-            StreetQuestShared.TickApartmentVisit();
+            StreetQuestShared.TickApartmentVisit(_elapsedSeconds);
             UpdateIndoorBuildingContext();
         }
 

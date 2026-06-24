@@ -131,6 +131,13 @@ namespace StreetQuestRPG
                 }
                 else
                 {
+                    if (StreetQuestShared.ShouldPreserveIndoorAddressForActiveApartmentVisit(_currentIndoorAddress))
+                    {
+                        _wasIndoorLastTick = true;
+                        UpdateExteriorCandidateIfDue(elapsedSeconds, force: true);
+                        return false;
+                    }
+
                     shouldRefreshCharacters = SetCurrentIndoorAddress(string.Empty);
                     StreetQuestShared.PersistIndoorBuildingAddressKey(string.Empty);
                     LogIndoorAddressCleared("returned_outdoor");
@@ -142,6 +149,41 @@ namespace StreetQuestRPG
                 UpdateExteriorCandidateIfDue(elapsedSeconds);
 
             return shouldRefreshCharacters;
+        }
+
+
+        internal static void ForceRefreshExteriorAddressCandidate(float elapsedSeconds)
+        {
+            UpdateExteriorCandidateIfDue(elapsedSeconds, force: true);
+        }
+
+        internal static bool TryForceResolveExteriorAddressCandidate(float elapsedSeconds, out string addressKey)
+        {
+            addressKey = string.Empty;
+
+            if (!TryFindExteriorAddressCandidate(out var resolvedAddress, out var sourceDescription, out var bestDistance, out var anchorPosition))
+                return false;
+
+            addressKey = NormalizeAddressKey(resolvedAddress);
+            if (string.IsNullOrWhiteSpace(addressKey))
+                return false;
+
+            ExteriorAddressAnchorsByAddress[addressKey] = anchorPosition;
+
+            if (string.Equals(_lastExteriorAddressCandidate, addressKey, StringComparison.Ordinal))
+            {
+                _lastExteriorAddressCandidateTime = elapsedSeconds;
+                return true;
+            }
+
+            _lastExteriorAddressCandidate = addressKey;
+            _lastExteriorAddressCandidateTime = elapsedSeconds;
+
+            var playerPosition = PlayerHelper.PlayerController != null
+                ? PlayerHelper.PlayerController.transform.position
+                : Vector3.zero;
+            LogExteriorAddressCandidateChanged(addressKey, sourceDescription, bestDistance, playerPosition);
+            return true;
         }
 
         internal static bool TryGetCurrentIndoorAddress(out string addressKey)

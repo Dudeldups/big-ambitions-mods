@@ -14,6 +14,9 @@ namespace StreetQuestRPG
     internal static partial class StreetQuestShared
     {
         private const float ApartmentEntryTransitionTimeoutSeconds = 8f;
+        private const float ApartmentReturnOutdoorConfirmationSeconds = 6f;
+        private const float ApartmentReloadReentryDelaySeconds = 1.5f;
+        private const float ApartmentReloadReentryIndoorSettleSeconds = 0.75f;
 
         private static readonly string[] ApartmentRegistrationFieldNames =
         {
@@ -36,6 +39,31 @@ namespace StreetQuestRPG
             return ActiveApartmentVisit != null &&
                    ActiveApartmentVisit.State == StreetQuestApartmentVisitState.ActiveInside &&
                    string.Equals(ActiveApartmentVisit.CharacterId, characterId ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool ShouldPreserveIndoorAddressForActiveApartmentVisit(string addressKey)
+        {
+            var visit = ActiveApartmentVisit;
+            if (visit == null || visit.State != StreetQuestApartmentVisitState.ActiveInside)
+                return false;
+
+            var normalizedAddress = NormalizeAddressKey(addressKey);
+            if (string.IsNullOrWhiteSpace(normalizedAddress))
+                return false;
+
+            if (!string.Equals(
+                    NormalizeAddressKey(visit.ExteriorAddress),
+                    normalizedAddress,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            // During save/load or scene handoff the game can briefly report an outdoor context
+            // while the player is still effectively saved inside the routed apartment. While the
+            // visit is active, the routed apartment address is authoritative; only the apartment
+            // visit tracker may clear it after a confirmed exterior return.
+            return true;
         }
 
         internal static bool TryEnterApartment(StreetQuestShared.ApartmentEntryOption option)
@@ -96,6 +124,7 @@ namespace StreetQuestRPG
             visitContext.EntryRoute = route;
             visitContext.State = StreetQuestApartmentVisitState.WaitingForIndoorTransition;
             ActiveApartmentVisit = visitContext;
+            LastApartmentReturnDeferredLogKey = string.Empty;
             SetPersistedApartmentVisit(visitContext.CharacterId, visitContext.StateId, visitContext.ExteriorAddress);
 
             LogDebug(
@@ -103,7 +132,7 @@ namespace StreetQuestRPG
             return true;
         }
 
-        internal static void TickApartmentVisit()
+        internal static void TickApartmentVisit(float elapsedSeconds)
         {
             var visit = ActiveApartmentVisit;
             if (visit == null)
@@ -114,12 +143,41 @@ namespace StreetQuestRPG
 
             if (visit.State == StreetQuestApartmentVisitState.WaitingForIndoorTransition)
             {
+                if (visit.ReloadReentryPending)
+                {
+                    if (!visit.ReloadReentryStarted)
+                    {
+                        if (Time.unscaledTime < visit.ReloadReentryDueAtSeconds)
+                            return;
+
+                        if (IsRuntimeShutdownInProgress())
+                            return;
+
+                        if (TryStartReloadApartmentReentry(visit))
+                            return;
+
+                        visit.ReloadReentryPending = false;
+                    }
+                    else if (Time.unscaledTime - visit.EntryStartedAtSeconds < ApartmentReloadReentryIndoorSettleSeconds)
+                    {
+                        return;
+                    }
+                }
+
                 if (IsIndoorGameplayContextActive())
                 {
                     if (!visit.PayloadAppliedInside)
                     {
-                        ApplyApartmentPayload(visit);
-                        TryApplyRuntimeApartmentLayout(visit);
+                        if (!visit.PayloadSeededBeforeIndoor)
+                            ApplyApartmentPayload(visit);
+                        else
+                            LogDebug($"ApartmentPayloadApplied key={visit.VisitKey} mode=seeded_before_indoor_reused interiorDesigns={DescribeValueShape(GetMemberValue(visit.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(visit.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(visit.Registration, "itemsInBuilding"))}");
+
+                        if (!visit.PayloadSeededBeforeIndoor)
+                            TryApplyRuntimeApartmentLayout(visit);
+                        else
+                            LogDebug($"ApartmentRuntimeLayoutSkipped key={visit.VisitKey} reason=payload_seeded_before_indoor_reload");
+
                         visit.PayloadAppliedInside = true;
                     }
 
@@ -151,36 +209,61 @@ namespace StreetQuestRPG
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
                 !IsIndoorGameplayContextActive())
             {
-                var currentTrackedIndoorAddress = NormalizeAddressKey(GetCurrentIndoorBuildingAddressKey());
-                var visitExteriorAddress = NormalizeAddressKey(visit.ExteriorAddress);
-                if (!string.IsNullOrWhiteSpace(visitExteriorAddress) &&
-                    string.Equals(currentTrackedIndoorAddress, visitExteriorAddress, StringComparison.Ordinal))
-                {
-                    LogDebug(
-                        $"ApartmentVisitReturnDeferred character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason=indoor_address_still_active");
-                    return;
-                }
-
-                var currentExteriorAddress = NormalizeAddressKey(GetCurrentExteriorBuildingAddressKey());
-                if (string.IsNullOrWhiteSpace(currentExteriorAddress) ||
-                    !string.Equals(currentExteriorAddress, visitExteriorAddress, StringComparison.Ordinal))
-                {
-                    LogDebug(
-                        $"ApartmentVisitReturnDeferred character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason=awaiting_matching_exterior currentExterior={currentExteriorAddress}");
-                    return;
-                }
-
                 if (IsRuntimeShutdownInProgress())
                 {
+                    ClearApartmentOutdoorReturnCandidate(visit);
                     LogDebug(
                         $"ApartmentVisitReturnSkipped character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason=runtime_shutdown");
                     return;
                 }
 
+                var visitExteriorAddress = NormalizeAddressKey(visit.ExteriorAddress);
+
+                // Do not use the last exterior candidate blindly here. When saving/reloading inside
+                // a routed apartment, the gameplay camera can briefly leave the IndoorCam context
+                // while the exterior candidate is still the stale door candidate from the original
+                // apartment entry. Force a fresh probe and require that fresh probe to resolve the
+                // routed apartment's exterior address. If the fresh probe fails or points somewhere
+                // else, keep the routed apartment context alive.
+                if (!StreetQuestIndoorAddressTracker.TryForceResolveExteriorAddressCandidate(
+                        elapsedSeconds,
+                        out var freshlyResolvedExteriorAddress))
+                {
+                    ClearApartmentOutdoorReturnCandidate(visit);
+                    LogApartmentVisitReturnDeferred(
+                        visit,
+                        "awaiting_fresh_exterior_probe");
+                    return;
+                }
+
+                var currentExteriorAddress = NormalizeAddressKey(freshlyResolvedExteriorAddress);
+
+                if (string.IsNullOrWhiteSpace(currentExteriorAddress) ||
+                    !string.Equals(currentExteriorAddress, visitExteriorAddress, StringComparison.Ordinal))
+                {
+                    ClearApartmentOutdoorReturnCandidate(visit);
+                    LogApartmentVisitReturnDeferred(
+                        visit,
+                        $"awaiting_matching_exterior currentExterior={currentExteriorAddress}");
+                    return;
+                }
+
+                if (!IsApartmentOutdoorReturnConfirmed(visit, currentExteriorAddress))
+                {
+                    LogApartmentVisitReturnDeferred(
+                        visit,
+                        $"confirming_return currentExterior={currentExteriorAddress} requiredSeconds={ApartmentReturnOutdoorConfirmationSeconds:0.##}");
+                    return;
+                }
+
                 ClearPersistedApartmentVisit();
+                SetCurrentIndoorBuildingAddressKey(string.Empty);
                 RestoreActiveApartmentVisit("returned_outdoor");
                 return;
             }
+
+            if (visit.State == StreetQuestApartmentVisitState.ActiveInside)
+                ClearApartmentOutdoorReturnCandidate(visit);
         }
 
         internal static void RestoreActiveApartmentVisit(string reason)
@@ -220,12 +303,24 @@ namespace StreetQuestRPG
 
             var visitContext = CreateApartmentVisitContext(option, building, registration);
             visitContext.EntryStartedAtSeconds = Time.unscaledTime;
-            visitContext.EntryRoute = "prime_persisted_indoor";
+            visitContext.EntryRoute = "prime_persisted_indoor_reentry_scheduled";
             visitContext.State = StreetQuestApartmentVisitState.WaitingForIndoorTransition;
+            visitContext.ReloadReentryPending = true;
+            visitContext.ReloadReentryDueAtSeconds = Time.unscaledTime + ApartmentReloadReentryDelaySeconds;
+
+            // Reloading directly inside a routed NPC apartment can leave vanilla in a half-built
+            // black indoor state. Instead of accepting that loaded indoor scene, schedule one
+            // normal delayed apartment re-entry after the city runtime is alive. This deliberately
+            // mimics the successful outside-door entry path: restore the original registration,
+            // suppress pre-entry item instances, let vanilla enter the real building shell again,
+            // and only then apply the routed NPC apartment payload/layout.
+            SetCurrentIndoorBuildingAddressKey(indoorAddress);
+
             ActiveApartmentVisit = visitContext;
+            LastApartmentReturnDeferredLogKey = string.Empty;
 
             LogDebug(
-                $"ApartmentVisitPrimed address={indoorAddress} character={option.CharacterId} state={option.StateId} route={visitContext.EntryRoute} payload=deferred_until_indoor_ready");
+                $"ApartmentVisitPrimed address={indoorAddress} character={option.CharacterId} state={option.StateId} route={visitContext.EntryRoute} payload=deferred_reload_reentry dueSeconds={ApartmentReloadReentryDelaySeconds:0.##}");
         }
 
         internal static void HandleApartmentVisitRuntimeShutdown(string reason)
@@ -259,8 +354,11 @@ namespace StreetQuestRPG
                 string.Equals(visit.StateId, persistedStateId, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(NormalizeAddressKey(visit.ExteriorAddress), persistedExteriorAddress, StringComparison.Ordinal))
             {
+                RestoreApartmentRegistrationSnapshotOnly(visit);
+                ActiveApartmentVisit = null;
+                LastApartmentResumeAttemptAddress = string.Empty;
                 LogDebug(
-                    $"ApartmentVisitResetPreserved character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");
+                    $"ApartmentVisitResetReprimeScheduled character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");
                 return;
             }
 
@@ -315,6 +413,7 @@ namespace StreetQuestRPG
             TryApplyRuntimeApartmentLayout(visitContext);
             visitContext.PayloadAppliedInside = true;
             ActiveApartmentVisit = visitContext;
+            LastApartmentReturnDeferredLogKey = string.Empty;
 
             RefreshSpawnedCharacters();
             LogDebug(
@@ -440,6 +539,58 @@ namespace StreetQuestRPG
 
             LogDebug(
                 $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} mode={(context.ActivePayload.IsCustomLayoutPayload ? "replace_custom_layout" : "merge_live")} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
+        }
+
+        private static bool TryStartReloadApartmentReentry(StreetQuestApartmentVisitContext context)
+        {
+            if (context == null || context.Building == null)
+            {
+                LogDebug($"ApartmentReloadReentryFailed key={context?.VisitKey ?? "<null>"} reason=building_missing");
+                return false;
+            }
+
+            RestoreApartmentRegistrationSnapshotOnly(context);
+            context.PreEntryItemsSuppressed = false;
+            TrySuppressPreEntryApartmentItems(context);
+
+            if (!TryStartVanillaApartmentEntry(context.Building, out var route))
+            {
+                LogDebug($"ApartmentReloadReentryFailed key={context.VisitKey} reason=start_vanilla_entry_failed");
+                return false;
+            }
+
+            context.ReloadReentryPending = true;
+            context.ReloadReentryStarted = true;
+            context.PayloadAppliedInside = false;
+            context.PayloadSeededBeforeIndoor = false;
+            context.ApartmentItemsProtected = false;
+            context.ApartmentItemProtectionAttempts = 0;
+            context.EntryStartedAtSeconds = Time.unscaledTime;
+            context.EntryRoute = $"reload_forced_reentry:{route}";
+            context.State = StreetQuestApartmentVisitState.WaitingForIndoorTransition;
+            ClearApartmentOutdoorReturnCandidate(context);
+            SetCurrentIndoorBuildingAddressKey(context.ExteriorAddress);
+            SetPersistedApartmentVisit(context.CharacterId, context.StateId, context.ExteriorAddress);
+
+            LogDebug(
+                $"ApartmentReloadReentryStarted character={context.CharacterId} state={context.StateId} address={context.ExteriorAddress} route={route}");
+            return true;
+        }
+
+        private static void TrySeedApartmentPayloadBeforeIndoorReload(StreetQuestApartmentVisitContext context)
+        {
+            if (context?.Registration == null ||
+                context.ActivePayload == null ||
+                context.PayloadSeededBeforeIndoor ||
+                !context.ActivePayload.IsCustomLayoutPayload)
+            {
+                return;
+            }
+
+            ApplyApartmentPayload(context);
+            context.PayloadSeededBeforeIndoor = true;
+            LogDebug(
+                $"ApartmentPayloadSeededBeforeIndoor key={context.VisitKey} route={context.EntryRoute} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
         }
 
         private static void TrySuppressPreEntryApartmentItems(StreetQuestApartmentVisitContext context)
@@ -670,6 +821,72 @@ namespace StreetQuestRPG
                 $"ApartmentPayloadCaptured key={context.VisitKey} layout={context.ActivePayload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(context.ActivePayload.InteriorDesigns)} itemInstances={DescribeValueShape(context.ActivePayload.ItemInstances)} itemsInBuilding={DescribeValueShape(context.ActivePayload.ItemsInBuilding)}");
         }
 
+        private static bool IsApartmentOutdoorReturnConfirmed(StreetQuestApartmentVisitContext visit, string currentExteriorAddress)
+        {
+            if (visit == null)
+                return false;
+
+            var normalizedExterior = NormalizeAddressKey(currentExteriorAddress);
+            if (string.IsNullOrWhiteSpace(normalizedExterior))
+                return false;
+
+            if (!string.Equals(visit.PendingOutdoorReturnAddress, normalizedExterior, StringComparison.Ordinal))
+            {
+                visit.PendingOutdoorReturnAddress = normalizedExterior;
+                visit.PendingOutdoorReturnStartedAtSeconds = Time.unscaledTime;
+                return false;
+            }
+
+            return HasApartmentOutdoorReturnCandidateExpired(visit);
+        }
+
+        private static bool HasApartmentOutdoorReturnCandidateExpired(StreetQuestApartmentVisitContext visit)
+        {
+            if (visit == null ||
+                string.IsNullOrWhiteSpace(visit.PendingOutdoorReturnAddress) ||
+                visit.PendingOutdoorReturnStartedAtSeconds < 0f)
+            {
+                return false;
+            }
+
+            return Time.unscaledTime - visit.PendingOutdoorReturnStartedAtSeconds >=
+                   ApartmentReturnOutdoorConfirmationSeconds;
+        }
+
+        private static void ClearApartmentOutdoorReturnCandidate(StreetQuestApartmentVisitContext visit)
+        {
+            if (visit == null)
+                return;
+
+            visit.PendingOutdoorReturnAddress = string.Empty;
+            visit.PendingOutdoorReturnStartedAtSeconds = -1f;
+        }
+
+        private static string LastApartmentReturnDeferredLogKey = string.Empty;
+
+        private static void LogApartmentVisitReturnDeferred(StreetQuestApartmentVisitContext visit, string reason)
+        {
+            if (visit == null)
+                return;
+
+            var logKey = $"{visit.CharacterId}|{visit.StateId}|{visit.ExteriorAddress}|{reason}";
+            if (string.Equals(LastApartmentReturnDeferredLogKey, logKey, StringComparison.Ordinal))
+                return;
+
+            LastApartmentReturnDeferredLogKey = logKey;
+            LogDebug(
+                $"ApartmentVisitReturnDeferred character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");
+        }
+
+        private static void RestoreApartmentRegistrationSnapshotOnly(StreetQuestApartmentVisitContext context)
+        {
+            if (context?.Registration == null || context.OriginalSnapshot == null)
+                return;
+
+            foreach (var fieldName in ApartmentRegistrationFieldNames)
+                SetMemberValue(context.Registration, fieldName, context.OriginalSnapshot.GetRaw(fieldName));
+        }
+
         private static void RestoreApartmentVisitContext(
             StreetQuestApartmentVisitContext context,
             string reason,
@@ -690,7 +907,10 @@ namespace StreetQuestRPG
                 $"ApartmentVisitRestored character={context.CharacterId} state={context.StateId} address={context.ExteriorAddress} reason={reason}");
 
             if (clearActiveVisit && ReferenceEquals(ActiveApartmentVisit, context))
+            {
                 ActiveApartmentVisit = null;
+                LastApartmentReturnDeferredLogKey = string.Empty;
+            }
 
             RefreshSpawnedCharacters();
         }
@@ -945,9 +1165,15 @@ namespace StreetQuestRPG
             public float EntryStartedAtSeconds;
             public StreetQuestApartmentVisitState State;
             public bool PayloadAppliedInside;
+            public bool PayloadSeededBeforeIndoor;
             public bool PreEntryItemsSuppressed;
             public bool ApartmentItemsProtected;
             public int ApartmentItemProtectionAttempts;
+            public bool ReloadReentryPending;
+            public bool ReloadReentryStarted;
+            public float ReloadReentryDueAtSeconds;
+            public string PendingOutdoorReturnAddress = string.Empty;
+            public float PendingOutdoorReturnStartedAtSeconds = -1f;
         }
 
         private sealed class StreetQuestApartmentRegistrationSnapshot
