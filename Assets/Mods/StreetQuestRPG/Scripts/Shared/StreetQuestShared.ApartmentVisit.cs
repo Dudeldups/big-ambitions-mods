@@ -409,7 +409,7 @@ namespace StreetQuestRPG
                     return;
                 }
 
-                var protectedRootIds = new HashSet<int>();
+                var protectedObjectIds = new HashSet<int>();
                 var protectedColliders = 0;
                 var protectedBehaviours = 0;
                 var sampleNames = new StringBuilder();
@@ -419,18 +419,18 @@ namespace StreetQuestRPG
                     if (candidate is not Component component || component == null)
                         continue;
 
-                    var root = component.transform.root != null ? component.transform.root.gameObject : component.gameObject;
-                    if (root == null || !protectedRootIds.Add(root.GetInstanceID()))
+                    var targetObject = component.gameObject;
+                    if (targetObject == null || !protectedObjectIds.Add(targetObject.GetInstanceID()))
                         continue;
 
                     if (sampleNames.Length < 120)
                     {
                         if (sampleNames.Length > 0)
                             sampleNames.Append(", ");
-                        sampleNames.Append(root.name);
+                        sampleNames.Append(targetObject.name);
                     }
 
-                    foreach (var collider in root.GetComponentsInChildren<Collider>(true))
+                    foreach (var collider in targetObject.GetComponents<Collider>())
                     {
                         if (collider == null || !collider.enabled)
                             continue;
@@ -439,13 +439,17 @@ namespace StreetQuestRPG
                         protectedColliders++;
                     }
 
-                    foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+                    foreach (var behaviour in targetObject.GetComponents<MonoBehaviour>())
                     {
                         if (behaviour == null || !behaviour.enabled)
                             continue;
 
                         var behaviourType = behaviour.GetType();
                         var typeName = behaviourType.Name;
+                        if (!string.Equals(typeName, "ItemController", StringComparison.Ordinal) &&
+                            !typeName.EndsWith("ItemController", StringComparison.Ordinal))
+                            continue;
+
                         if (string.Equals(typeName, "Animator", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(typeName, "Animation", StringComparison.OrdinalIgnoreCase) ||
                             behaviour is StreetQuestPhysicalQuestGiverWatcher ||
@@ -462,7 +466,7 @@ namespace StreetQuestRPG
 
                 context.ApartmentItemsProtected = true;
                 LogDebug(
-                    $"ApartmentItemProtectionApplied key={context.VisitKey} roots={protectedRootIds.Count} colliders={protectedColliders} behaviours={protectedBehaviours} samples=[{sampleNames}]");
+                    $"ApartmentItemProtectionApplied key={context.VisitKey} objects={protectedObjectIds.Count} colliders={protectedColliders} behaviours={protectedBehaviours} samples=[{sampleNames}]");
             }
             catch (Exception exception)
             {
