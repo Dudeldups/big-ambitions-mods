@@ -51,7 +51,7 @@ namespace StreetQuestRPG
 
             if (!HasConfiguredStates(definition))
             {
-                StreetQuestShared.LogDebug($"CharacterStateResolve failed character={definition.id ?? "<null>"} reason=no_states_configured");
+                StreetQuestShared.LogVerbose($"CharacterStateResolve failed character={definition.id ?? "<null>"} reason=no_states_configured");
                 return null;
             }
 
@@ -104,7 +104,7 @@ namespace StreetQuestRPG
 
             if (!HasConfiguredStates(definition))
             {
-                StreetQuestShared.LogDebug($"CharacterStateResolveWithoutSchedule failed character={definition.id ?? "<null>"} reason=no_states_configured");
+                StreetQuestShared.LogVerbose($"CharacterStateResolveWithoutSchedule failed character={definition.id ?? "<null>"} reason=no_states_configured");
                 return null;
             }
 
@@ -188,7 +188,7 @@ namespace StreetQuestRPG
             }
 
             LastRuntimeResolveDebugByCharacterId[characterId] = details;
-            StreetQuestShared.LogDebug($"CharacterRuntimeResolve character={characterId} {details}");
+            StreetQuestShared.LogVerbose($"CharacterRuntimeResolve character={characterId} {details}");
         }
 
         public static string ResolveActiveAppearanceId(

@@ -410,7 +410,7 @@ namespace StreetQuestRPG
             CachedQuestStateOwner = saveGame;
             CachedQuestStateRecord = record;
             QuestStateVersion++;
-            LogDebug($"SaveQuestStateRecord mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} activeSideCount={record.ActiveSideQuestIds.Count} readySideCount={record.ReadySideQuestIds.Count} serialized={serialized}");
+            LogVerbose($"SaveQuestStateRecord mainQuestId={record.CurrentMainQuestId} mainState={record.CurrentMainQuestState} activeSideCount={record.ActiveSideQuestIds.Count} readySideCount={record.ReadySideQuestIds.Count} serialized={serialized}");
         }
     }
 }

@@ -7,7 +7,6 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using BigAmbitions.Items;
-using Buildings;
 using Helpers;
 using UnityEngine;
 
@@ -43,19 +42,6 @@ namespace StreetQuestRPG
             var deliveredItems = originalSnapshot?.GetRaw("deliveredItems");
             var dirtSpots = originalSnapshot?.GetRaw("dirtSpots");
 
-            if (TryHydrateApartmentLayoutPayloadFromAddressInsert(
-                    option,
-                    originalSnapshot,
-                    registration,
-                    registeredLayoutTempPath,
-                    out var insertedPayload))
-            {
-                payload = insertedPayload;
-                LogDebug(
-                    $"ApartmentLayoutPayloadPrepared character={option.CharacterId} state={option.StateId} layoutFile={option.ApartmentLayoutFile} layoutName={resolvedLayoutName} tempPath={registeredLayoutTempPath} mode=address_insert");
-                return true;
-            }
-
             TryHydrateApartmentLayoutPayloadFromHelper(
                 option,
                 originalSnapshot,
@@ -81,90 +67,6 @@ namespace StreetQuestRPG
             LogDebug(
                 $"ApartmentLayoutPayloadPrepared character={option.CharacterId} state={option.StateId} layoutFile={option.ApartmentLayoutFile} layoutName={resolvedLayoutName} tempPath={registeredLayoutTempPath}");
             return true;
-        }
-
-        private static bool TryHydrateApartmentLayoutPayloadFromAddressInsert(
-            StreetQuestShared.ApartmentEntryOption option,
-            StreetQuestApartmentRegistrationSnapshot originalSnapshot,
-            object registration,
-            string tempLayoutPath,
-            out StreetQuestApartmentInteriorPayload payload)
-        {
-            payload = null;
-            if (registration is not BuildingRegistration typedRegistration ||
-                string.IsNullOrWhiteSpace(tempLayoutPath) ||
-                !File.Exists(tempLayoutPath))
-                return false;
-
-            try
-            {
-                var helperType = AppDomain.CurrentDomain.GetAssemblies()
-                    .Select(assembly => assembly.GetType(ApartmentLayoutHelperTypeName, false))
-                    .FirstOrDefault(type => type != null);
-                if (helperType == null)
-                    return false;
-
-                var deserializeMethod = helperType.GetMethod(
-                    "Deserialize",
-                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new[] { typeof(string) },
-                    null);
-                var addressInsertMethod = helperType.GetMethod(
-                    "InsertLayoutSet",
-                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new[] { typedRegistration.Address?.GetType(), deserializeMethod?.ReturnType, typeof(bool) },
-                    null);
-                if (deserializeMethod == null || addressInsertMethod == null || typedRegistration.Address == null)
-                    return false;
-
-                var layoutSet = deserializeMethod.Invoke(null, new object[] { tempLayoutPath });
-                if (layoutSet == null)
-                    return false;
-
-                addressInsertMethod.Invoke(null, new[] { typedRegistration.Address, layoutSet, false as object });
-
-                payload = new StreetQuestApartmentInteriorPayload
-                {
-                    IsCustomLayoutPayload = true,
-                    LayoutName = Path.GetFileNameWithoutExtension(tempLayoutPath) ?? string.Empty,
-                    TempLayoutPath = tempLayoutPath,
-                    Layout = GetMemberValue(typedRegistration, "Layout") as string,
-                    InteriorDesigns = GetMemberValue(typedRegistration, "interiorDesigns"),
-                    ItemInstances = GetMemberValue(typedRegistration, "itemInstances"),
-                    ItemsInBuilding = GetMemberValue(typedRegistration, "itemsInBuilding"),
-                    DeliveredItems = GetMemberValue(typedRegistration, "deliveredItems"),
-                    DirtSpots = GetMemberValue(typedRegistration, "dirtSpots")
-                };
-
-                LogDebug(
-                    $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} mode=address_insert layout={payload.Layout ?? "<null>"} interiorDesigns={DescribeValueShape(payload.InteriorDesigns)} itemInstances={DescribeValueShape(payload.ItemInstances)} itemsInBuilding={DescribeValueShape(payload.ItemsInBuilding)}");
-
-                foreach (var fieldName in ApartmentRegistrationFieldNames)
-                    SetMemberValue(typedRegistration, fieldName, originalSnapshot.GetRaw(fieldName));
-
-                return true;
-            }
-            catch (TargetInvocationException exception)
-            {
-                foreach (var fieldName in ApartmentRegistrationFieldNames)
-                    SetMemberValue(registration, fieldName, originalSnapshot.GetRaw(fieldName));
-
-                var inner = exception.InnerException;
-                LogDebug(
-                    $"ApartmentLayoutAddressInsertFailed reason={exception.GetType().Name}:{exception.Message} inner={inner?.GetType().Name}:{inner?.Message} character={option?.CharacterId} state={option?.StateId} path={tempLayoutPath}");
-                return false;
-            }
-            catch (Exception exception)
-            {
-                foreach (var fieldName in ApartmentRegistrationFieldNames)
-                    SetMemberValue(registration, fieldName, originalSnapshot.GetRaw(fieldName));
-
-                LogDebug(
-                    $"ApartmentLayoutAddressInsertFailed reason={exception.GetType().Name}:{exception.Message} character={option?.CharacterId} state={option?.StateId} path={tempLayoutPath}");
-                return false;
-            }
         }
 
         private static void TryHydrateApartmentLayoutPayloadFromHelper(
@@ -225,7 +127,7 @@ namespace StreetQuestRPG
                         itemInstances,
                         originalSnapshot?.GetRaw("itemsInBuilding"));
 
-                    LogDebug(
+                    LogVerbose(
                         $"ApartmentLayoutHydrated character={option.CharacterId} state={option.StateId} itemEntries={itemCount} interiorDesigns={DescribeValueShape(interiorDesigns)} itemInstances={DescribeValueShape(itemInstances)} itemsInBuilding={DescribeValueShape(itemsInBuilding)} mode=furniture_overlay");
                     return;
                 }
@@ -414,7 +316,7 @@ namespace StreetQuestRPG
                     cachedItemCount++;
             }
 
-            LogDebug(
+            LogVerbose(
                 $"ApartmentLayoutItemHydration itemInstances={hydratedCount} cachedItems={cachedItemCount} address={addressText}");
 
             return resultList;
@@ -635,7 +537,7 @@ namespace StreetQuestRPG
                 LayoutName = resolvedLayoutName,
                 TempPath = tempLayoutPath
             };
-            LogDebug($"ApartmentLayoutRegistered source={layoutFile} layoutName={resolvedLayoutName} tempPath={tempPath}");
+            LogVerbose($"ApartmentLayoutRegistered source={layoutFile} layoutName={resolvedLayoutName} tempPath={tempPath}");
             return true;
         }
 

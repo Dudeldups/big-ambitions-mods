@@ -164,6 +164,15 @@ namespace StreetQuestRPG
         }
 
 
+        internal static void LogVerbose(string message)
+        {
+            if (!StreetQuestDebugSettings.VerboseRuntimeLogging)
+                return;
+
+            LogDebug(message);
+        }
+
+
         internal static void LogSpawnLifecycle(string message)
         {
             if (!StreetQuestDebugSettings.VerboseSpawnLifecycleLogging)
