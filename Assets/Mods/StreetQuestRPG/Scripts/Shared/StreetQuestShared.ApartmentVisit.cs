@@ -81,6 +81,7 @@ namespace StreetQuestRPG
             var visitContext = CreateApartmentVisitContext(option, building, registration);
             TryLogApartmentRegistrationDump($"RoutedApartmentRegistrationBeforeEntry:{visitContext.VisitKey}", registration);
             TryLogApartmentRefreshCandidates();
+            TrySuppressPreEntryApartmentItems(visitContext);
 
             if (!TryStartVanillaApartmentEntry(building, out var route))
             {
@@ -279,6 +280,31 @@ namespace StreetQuestRPG
 
             LogDebug(
                 $"ApartmentPayloadApplied key={context.VisitKey} originalLayout={originalLayout} payloadLayout={payloadLayout} mode={(context.ActivePayload.IsCustomLayoutPayload ? "replace_custom_layout" : "merge_live")} interiorDesigns={DescribeValueShape(GetMemberValue(context.Registration, "interiorDesigns"))} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
+        }
+
+        private static void TrySuppressPreEntryApartmentItems(StreetQuestApartmentVisitContext context)
+        {
+            if (context?.Registration == null ||
+                context.ActivePayload == null ||
+                !context.ActivePayload.IsCustomLayoutPayload ||
+                context.PreEntryItemsSuppressed)
+                return;
+
+            var emptyItemInstances = CreateEmptyValueLike(
+                context.OriginalSnapshot?.GetRaw("itemInstances"),
+                GetMemberType(context.Registration, "itemInstances"));
+            var emptyItemsInBuilding = CreateEmptyValueLike(
+                context.OriginalSnapshot?.GetRaw("itemsInBuilding"),
+                GetMemberType(context.Registration, "itemsInBuilding"));
+
+            if (emptyItemInstances != null)
+                SetMemberValue(context.Registration, "itemInstances", emptyItemInstances);
+            if (emptyItemsInBuilding != null)
+                SetMemberValue(context.Registration, "itemsInBuilding", emptyItemsInBuilding);
+
+            context.PreEntryItemsSuppressed = true;
+            LogDebug(
+                $"ApartmentPreEntryItemsSuppressed key={context.VisitKey} itemInstances={DescribeValueShape(GetMemberValue(context.Registration, "itemInstances"))} itemsInBuilding={DescribeValueShape(GetMemberValue(context.Registration, "itemsInBuilding"))}");
         }
 
         private static void TryApplyRuntimeApartmentLayout(StreetQuestApartmentVisitContext context)
@@ -890,6 +916,7 @@ namespace StreetQuestRPG
             public float EntryStartedAtSeconds;
             public StreetQuestApartmentVisitState State;
             public bool PayloadAppliedInside;
+            public bool PreEntryItemsSuppressed;
         }
 
         private sealed class StreetQuestApartmentRegistrationSnapshot
