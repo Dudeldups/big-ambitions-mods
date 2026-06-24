@@ -174,6 +174,12 @@ namespace StreetQuestRPG
 
         private static bool TryRestorePersistedIndoorAddress(out string addressKey)
         {
+            if (StreetQuestShared.TryGetPersistedApartmentVisit(out _, out _, out var apartmentExteriorAddress))
+            {
+                addressKey = apartmentExteriorAddress;
+                return !string.IsNullOrWhiteSpace(addressKey);
+            }
+
             addressKey = StreetQuestShared.GetPersistedIndoorBuildingAddressKey();
             return !string.IsNullOrWhiteSpace(addressKey);
         }

@@ -96,6 +96,7 @@ namespace StreetQuestRPG
             visitContext.EntryRoute = route;
             visitContext.State = StreetQuestApartmentVisitState.WaitingForIndoorTransition;
             ActiveApartmentVisit = visitContext;
+            SetPersistedApartmentVisit(visitContext.CharacterId, visitContext.StateId, visitContext.ExteriorAddress);
 
             LogDebug(
                 $"ApartmentEntryStarted character={option.CharacterId} state={option.StateId} address={option.ExteriorAddress} route={route} building={DescribeObject(building)} registration={DescribeObject(registration)}");
@@ -150,6 +151,7 @@ namespace StreetQuestRPG
             if (visit.State == StreetQuestApartmentVisitState.ActiveInside &&
                 !IsIndoorGameplayContextActive())
             {
+                ClearPersistedApartmentVisit();
                 RestoreActiveApartmentVisit("returned_outdoor");
             }
         }
@@ -160,6 +162,44 @@ namespace StreetQuestRPG
                 return;
 
             RestoreApartmentVisitContext(ActiveApartmentVisit, reason, clearActiveVisit: true);
+        }
+
+        internal static void PrimeApartmentVisitFromPersistedIndoorState()
+        {
+            if (ActiveApartmentVisit != null)
+                return;
+
+            if (!TryGetPersistedApartmentVisit(out var persistedCharacterId, out var persistedStateId, out var indoorAddress))
+                return;
+
+            var option = GetAvailableApartmentEntryOptions(indoorAddress)
+                .FirstOrDefault(candidate =>
+                    candidate != null &&
+                    candidate.RequiresApartmentVisitContext &&
+                    string.Equals(candidate.CharacterId, persistedCharacterId, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(candidate.StateId, persistedStateId, StringComparison.OrdinalIgnoreCase));
+            if (option == null)
+            {
+                LogDebug($"ApartmentVisitPrimeSkipped address={indoorAddress} character={persistedCharacterId} state={persistedStateId} reason=no_matching_routed_option");
+                return;
+            }
+
+            if (!TryResolveApartmentVisitTarget(option, out var building, out var registration, out _, out var failureReason))
+            {
+                LogDebug(
+                    $"ApartmentVisitPrimeFailed address={indoorAddress} character={option.CharacterId} state={option.StateId} reason={failureReason}");
+                return;
+            }
+
+            var visitContext = CreateApartmentVisitContext(option, building, registration);
+            ApplyApartmentPayload(visitContext);
+            visitContext.EntryStartedAtSeconds = Time.unscaledTime;
+            visitContext.EntryRoute = "prime_persisted_indoor";
+            visitContext.State = StreetQuestApartmentVisitState.WaitingForIndoorTransition;
+            ActiveApartmentVisit = visitContext;
+
+            LogDebug(
+                $"ApartmentVisitPrimed address={indoorAddress} character={option.CharacterId} state={option.StateId} route={visitContext.EntryRoute}");
         }
 
         internal static void HandleApartmentVisitRuntimeShutdown(string reason)
@@ -177,6 +217,7 @@ namespace StreetQuestRPG
                 return;
             }
 
+            ClearPersistedApartmentVisit();
             RestoreApartmentVisitContext(visit, reason, clearActiveVisit: true);
         }
 
@@ -197,8 +238,15 @@ namespace StreetQuestRPG
 
             LastApartmentResumeAttemptAddress = indoorAddress;
 
+            TryGetPersistedApartmentVisit(out var persistedCharacterId, out var persistedStateId, out var persistedExteriorAddress);
             var option = GetAvailableApartmentEntryOptions(indoorAddress)
-                .FirstOrDefault(candidate => candidate != null && candidate.RequiresApartmentVisitContext);
+                .FirstOrDefault(candidate =>
+                    candidate != null &&
+                    candidate.RequiresApartmentVisitContext &&
+                    (string.IsNullOrWhiteSpace(persistedCharacterId) ||
+                     (string.Equals(candidate.CharacterId, persistedCharacterId, StringComparison.OrdinalIgnoreCase) &&
+                      string.Equals(candidate.StateId, persistedStateId, StringComparison.OrdinalIgnoreCase) &&
+                      string.Equals(candidate.ExteriorAddress, persistedExteriorAddress, StringComparison.OrdinalIgnoreCase))));
             if (option == null)
             {
                 LogDebug($"ApartmentVisitResumeSkipped address={indoorAddress} reason=no_matching_routed_option");

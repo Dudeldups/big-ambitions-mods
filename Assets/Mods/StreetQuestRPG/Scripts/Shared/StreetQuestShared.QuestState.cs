@@ -78,6 +78,54 @@ namespace StreetQuestRPG
             return true;
         }
 
+        internal static bool TryGetPersistedApartmentVisit(out string characterId, out string stateId, out string exteriorAddress)
+        {
+            var record = GetQuestStateRecord();
+            characterId = record.ActiveApartmentCharacterId ?? string.Empty;
+            stateId = record.ActiveApartmentStateId ?? string.Empty;
+            exteriorAddress = NormalizeAddressKey(record.ActiveApartmentExteriorAddress);
+            return !string.IsNullOrWhiteSpace(characterId) &&
+                   !string.IsNullOrWhiteSpace(stateId) &&
+                   !string.IsNullOrWhiteSpace(exteriorAddress);
+        }
+
+        internal static bool SetPersistedApartmentVisit(string characterId, string stateId, string exteriorAddress)
+        {
+            var record = GetQuestStateRecord();
+            var normalizedAddress = NormalizeAddressKey(exteriorAddress);
+            var nextCharacterId = characterId ?? string.Empty;
+            var nextStateId = stateId ?? string.Empty;
+            if (string.Equals(record.ActiveApartmentCharacterId, nextCharacterId, StringComparison.Ordinal) &&
+                string.Equals(record.ActiveApartmentStateId, nextStateId, StringComparison.Ordinal) &&
+                string.Equals(NormalizeAddressKey(record.ActiveApartmentExteriorAddress), normalizedAddress, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            record.ActiveApartmentCharacterId = nextCharacterId;
+            record.ActiveApartmentStateId = nextStateId;
+            record.ActiveApartmentExteriorAddress = normalizedAddress;
+            SaveQuestStateRecord(record);
+            return true;
+        }
+
+        internal static bool ClearPersistedApartmentVisit()
+        {
+            var record = GetQuestStateRecord();
+            if (string.IsNullOrWhiteSpace(record.ActiveApartmentCharacterId) &&
+                string.IsNullOrWhiteSpace(record.ActiveApartmentStateId) &&
+                string.IsNullOrWhiteSpace(record.ActiveApartmentExteriorAddress))
+            {
+                return false;
+            }
+
+            record.ActiveApartmentCharacterId = string.Empty;
+            record.ActiveApartmentStateId = string.Empty;
+            record.ActiveApartmentExteriorAddress = string.Empty;
+            SaveQuestStateRecord(record);
+            return true;
+        }
+
         public static StreetQuestQuestProgressState GetQuestProgress(string questId)
         {
             var record = GetQuestStateRecord();

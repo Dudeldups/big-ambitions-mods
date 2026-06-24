@@ -71,6 +71,7 @@ namespace StreetQuestRPG
             StreetQuestQuestCatalog.Initialize(_modRootPath, _logger);
             StreetQuestShared.LogBootstrapState("EnsureCityRuntimeReady after initialize");
 
+            StreetQuestShared.PrimeApartmentVisitFromPersistedIndoorState();
             StreetQuestShared.CleanupLegacyContacts();
             RegisterDialogs();
             StreetQuestShared.RefreshStreetQuestContactDialogOverrides();

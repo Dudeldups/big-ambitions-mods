@@ -24,6 +24,9 @@ namespace StreetQuestRPG
         [SerializeField] public List<string> favorCharacterIds = new();
         [SerializeField] public List<int> favorValues = new();
         [SerializeField] public string currentIndoorBuildingAddress = string.Empty;
+        [SerializeField] public string activeApartmentCharacterId = string.Empty;
+        [SerializeField] public string activeApartmentStateId = string.Empty;
+        [SerializeField] public string activeApartmentExteriorAddress = string.Empty;
 
         public string CurrentMainQuestId
         {
@@ -49,6 +52,24 @@ namespace StreetQuestRPG
         {
             get => currentIndoorBuildingAddress ?? string.Empty;
             set => currentIndoorBuildingAddress = value ?? string.Empty;
+        }
+
+        public string ActiveApartmentCharacterId
+        {
+            get => activeApartmentCharacterId ?? string.Empty;
+            set => activeApartmentCharacterId = value ?? string.Empty;
+        }
+
+        public string ActiveApartmentStateId
+        {
+            get => activeApartmentStateId ?? string.Empty;
+            set => activeApartmentStateId = value ?? string.Empty;
+        }
+
+        public string ActiveApartmentExteriorAddress
+        {
+            get => activeApartmentExteriorAddress ?? string.Empty;
+            set => activeApartmentExteriorAddress = value ?? string.Empty;
         }
 
         public HashSet<string> CompletedQuestIds { get; } = new(StringComparer.OrdinalIgnoreCase);
