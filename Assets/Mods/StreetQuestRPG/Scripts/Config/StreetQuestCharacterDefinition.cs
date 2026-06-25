@@ -41,6 +41,12 @@ namespace StreetQuestRPG
         [DataMember] public int appearanceSeed;
         [DataMember] public bool enabled = true;
         [DataMember] public bool interactable = true;
+        [DataMember] public string collectibleQuestItemId;
+        [DataMember] public int collectibleAmount = 1;
+        [DataMember] public string collectibleCollectedStoryFlag;
+        [DataMember] public string collectibleDialogTextKey;
+        [DataMember] public string collectibleConfirmTextKey;
+        [DataMember] public string collectibleCollectedTextKey;
         [DataMember] public bool useFixedSpawnPosition = true;
         [DataMember] public string prefabName;
         [DataMember] public StreetQuestVector3Data position;
@@ -148,6 +154,12 @@ namespace StreetQuestRPG
             if (ageInDays <= 0) ageInDays = fallback.ageInDays;
             if (appearanceSeed == 0) appearanceSeed = fallback.appearanceSeed;
             if (string.IsNullOrWhiteSpace(prefabName)) prefabName = fallback.prefabName;
+            if (string.IsNullOrWhiteSpace(collectibleQuestItemId)) collectibleQuestItemId = fallback.collectibleQuestItemId;
+            if (collectibleAmount <= 0) collectibleAmount = fallback.collectibleAmount;
+            if (string.IsNullOrWhiteSpace(collectibleCollectedStoryFlag)) collectibleCollectedStoryFlag = fallback.collectibleCollectedStoryFlag;
+            if (string.IsNullOrWhiteSpace(collectibleDialogTextKey)) collectibleDialogTextKey = fallback.collectibleDialogTextKey;
+            if (string.IsNullOrWhiteSpace(collectibleConfirmTextKey)) collectibleConfirmTextKey = fallback.collectibleConfirmTextKey;
+            if (string.IsNullOrWhiteSpace(collectibleCollectedTextKey)) collectibleCollectedTextKey = fallback.collectibleCollectedTextKey;
             position ??= fallback.position;
             mapPosition ??= fallback.mapPosition;
             forward ??= fallback.forward;

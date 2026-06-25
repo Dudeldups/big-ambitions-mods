@@ -17,6 +17,12 @@ namespace StreetQuestRPG
         [DataMember] public bool requiredScheduleActive = true;
         [DataMember] public bool overrideEnabled;
         [DataMember] public bool enabled = true;
+        [DataMember] public string collectibleQuestItemId;
+        [DataMember] public int collectibleAmount;
+        [DataMember] public string collectibleCollectedStoryFlag;
+        [DataMember] public string collectibleDialogTextKey;
+        [DataMember] public string collectibleConfirmTextKey;
+        [DataMember] public string collectibleCollectedTextKey;
         [DataMember] public bool overrideUseFixedSpawnPosition;
         [DataMember] public bool useFixedSpawnPosition = true;
         [DataMember] public bool overrideShowSpeechBubble;

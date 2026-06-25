@@ -16,7 +16,7 @@ MonoBehaviour:
   DisplayName: Street Quest RPG
   Author: OpenAI Codex
   Version: 0.1.0
-  AssetBundleName: 
+  AssetBundleName: streetquestrpg.unity3d
   ModAssembly: {fileID: 5897886265953266890, guid: 7c1f2e6c76f54147ac76b952272f02aa,
     type: 3}
   LocalesFolder: {fileID: 102900000, guid: 35f789ca0f2e4bcc92d8cc7cf6d2f8e3, type: 3}

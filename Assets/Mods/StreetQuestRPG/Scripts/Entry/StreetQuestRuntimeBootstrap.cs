@@ -10,10 +10,12 @@ namespace StreetQuestRPG
     {
         private static GameObject _watcherObject;
         private static string _modRootPath;
+        private static string _modId;
         private static IModLogger _logger;
         private static bool _dialogsRegistered;
 
         internal static string CurrentModRootPath => _modRootPath;
+        internal static string CurrentModId => _modId;
 
         public static void Configure(ModContext context, string source)
         {
@@ -23,6 +25,7 @@ namespace StreetQuestRPG
             StreetQuestShared.InitializeDebugLogging(context, source);
             StreetQuestShared.SetRuntimeShutdownInProgress(false);
             _modRootPath = context.ModRootPath;
+            _modId = context.ModId;
             _logger = context.Logger;
             StreetQuestShared.ResetSpawnRuntimeState();
             StreetQuestShared.ResetIndoorBuildingContext();

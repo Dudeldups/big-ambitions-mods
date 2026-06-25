@@ -57,7 +57,15 @@ namespace StreetQuestRPG
 
             try
             {
-                visualRoot = PrefabHelper.CreatePrefab(definition.prefabName, parent);
+                if (StreetQuestAssetBundleService.IsBundledStreetQuestAssetPath(definition.prefabName))
+                {
+                    if (!StreetQuestAssetBundleService.TrySpawnPrefab(definition.prefabName, parent, out visualRoot))
+                        return false;
+                }
+                else
+                {
+                    visualRoot = PrefabHelper.CreatePrefab(definition.prefabName, parent);
+                }
 
                 if (visualRoot == null)
                     return false;
@@ -79,6 +87,8 @@ namespace StreetQuestRPG
             }
             catch (Exception exception)
             {
+                StreetQuestShared.LogDebug(
+                    $"AttachPrefabVisual failed character={definition?.id ?? "<null>"} prefab={definition?.prefabName ?? "<null>"} reason={exception.GetType().Name}:{exception.Message}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to attach character visual '{definition.id}'. {exception}");
                 visualRoot = null;
                 return false;

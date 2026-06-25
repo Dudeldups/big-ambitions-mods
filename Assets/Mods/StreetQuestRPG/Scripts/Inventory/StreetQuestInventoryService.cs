@@ -66,9 +66,13 @@ namespace StreetQuestRPG
             if (string.IsNullOrWhiteSpace(itemId))
                 return string.Empty;
 
-            return ItemsGetter.GetByName(itemId) != null
-                ? itemId.GetLocalization().ToString()
-                : itemId;
+            if (ItemsGetter.GetByName(itemId) != null)
+                return itemId.GetLocalization().ToString();
+
+            var localized = itemId.GetLocalization().ToString();
+            return string.Equals(localized, itemId, StringComparison.Ordinal)
+                ? itemId
+                : localized;
         }
 
         private static bool TryValidateRequest(string itemId, int amount)

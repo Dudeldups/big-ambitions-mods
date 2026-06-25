@@ -10,7 +10,7 @@ namespace StreetQuestRPG
     [ModEntryOnInitializationLoad]
     public sealed class StreetQuestInit : IModBigAmbitions
     {
-        public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+        public string[] RelativeAssetBundlePaths => StreetQuestAssetBundleService.GetRegisteredBundlePaths();
 
         public Task OnLoadAsync(ModContext context)
         {

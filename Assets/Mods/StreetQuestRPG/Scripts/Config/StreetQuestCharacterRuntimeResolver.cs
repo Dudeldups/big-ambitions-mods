@@ -449,6 +449,18 @@ namespace StreetQuestRPG
                 resolved.apartmentLayoutName = state.apartmentLayoutName;
             if (!string.IsNullOrWhiteSpace(state.entryButtonTextKey))
                 resolved.entryButtonTextKey = state.entryButtonTextKey;
+            if (!string.IsNullOrWhiteSpace(state.collectibleQuestItemId))
+                resolved.collectibleQuestItemId = state.collectibleQuestItemId;
+            if (state.collectibleAmount > 0)
+                resolved.collectibleAmount = state.collectibleAmount;
+            if (!string.IsNullOrWhiteSpace(state.collectibleCollectedStoryFlag))
+                resolved.collectibleCollectedStoryFlag = state.collectibleCollectedStoryFlag;
+            if (!string.IsNullOrWhiteSpace(state.collectibleDialogTextKey))
+                resolved.collectibleDialogTextKey = state.collectibleDialogTextKey;
+            if (!string.IsNullOrWhiteSpace(state.collectibleConfirmTextKey))
+                resolved.collectibleConfirmTextKey = state.collectibleConfirmTextKey;
+            if (!string.IsNullOrWhiteSpace(state.collectibleCollectedTextKey))
+                resolved.collectibleCollectedTextKey = state.collectibleCollectedTextKey;
             if (state.position != null)
                 resolved.position = state.position;
             if (state.mapPosition != null)
@@ -577,6 +589,12 @@ namespace StreetQuestRPG
                 appearanceSeed = definition.appearanceSeed,
                 enabled = definition.enabled,
                 interactable = definition.interactable,
+                collectibleQuestItemId = definition.collectibleQuestItemId,
+                collectibleAmount = definition.collectibleAmount,
+                collectibleCollectedStoryFlag = definition.collectibleCollectedStoryFlag,
+                collectibleDialogTextKey = definition.collectibleDialogTextKey,
+                collectibleConfirmTextKey = definition.collectibleConfirmTextKey,
+                collectibleCollectedTextKey = definition.collectibleCollectedTextKey,
                 // See ApplyStateOverrides: omitted bool field initializers can deserialize as
                 // false. A definition with an explicit transform should still be treated as a
                 // fixed-position NPC unless a state overrides it later.

@@ -25,6 +25,14 @@ namespace StreetQuestRPG
 
         private DialogEntry Start()
         {
+            if (StreetQuestShared.IsCollectibleCharacter(_character))
+            {
+                if (StreetQuestShared.HasCollectedCharacter(_character))
+                    return BuildFinishedEntry();
+
+                return BuildCollectibleEntry();
+            }
+
             var currentQuest = StreetQuestShared.GetRelevantQuestForCharacter(_characterId);
             if (currentQuest == null)
                 return BuildFinishedEntry();
@@ -247,6 +255,28 @@ namespace StreetQuestRPG
         }
 
         private DialogEntry BuildEndEntry(string messageKey) => BuildConversationEntry(messageKey);
+
+        private DialogEntry BuildCollectibleEntry()
+        {
+            return new DialogEntry
+            {
+                headerKey = npcNameKey,
+                messageData = StreetQuestShared.ResolveCollectibleDialogTextKey(_character).Localize(),
+                Template = DialogEntry.TemplateType.Text,
+                ConfirmTextOverride = StreetQuestShared.ResolveCollectibleConfirmTextKey(_character).Localize(),
+                OnConfirm = OnCollectCharacter,
+                OnCancel = DialogController.current.FinishDialog
+            };
+        }
+
+        private DialogEntry OnCollectCharacter()
+        {
+            var collected = StreetQuestShared.TryCollectCharacter(_characterId);
+            if (!collected)
+                return BuildFinishedEntry();
+
+            return BuildConversationEntry(StreetQuestShared.ResolveCollectibleCollectedTextKey(_character));
+        }
 
         private void RecordPhoneNpcMessage(string messageKey)
         {
