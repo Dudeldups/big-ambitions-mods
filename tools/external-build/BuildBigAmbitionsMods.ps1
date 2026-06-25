@@ -582,6 +582,13 @@ function Install-ModOutput {
         Write-Step ("Copied Layouts path: " + $layoutsTarget)
     }
 
+    $assetBundles = Join-Path $Mod.SourceDir "AssetBundles"
+    if (Test-Path -LiteralPath $assetBundles -PathType Container) {
+        $assetBundlesTarget = Join-Path $installRoot "AssetBundles"
+        Copy-DirectoryUpdate -Source $assetBundles -Destination $assetBundlesTarget
+        Write-Step ("Copied AssetBundles path: " + $assetBundlesTarget)
+    }
+
     $personIcon = Join-Path $Mod.SourceDir "person.png"
     if (Test-Path -LiteralPath $personIcon -PathType Leaf) {
         $personIconTarget = Join-Path $installRoot "person.png"
