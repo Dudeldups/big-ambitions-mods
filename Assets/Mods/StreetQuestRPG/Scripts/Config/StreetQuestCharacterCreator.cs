@@ -122,10 +122,12 @@ namespace StreetQuestRPG
             if (renderer == null)
                 return null;
 
+            renderer.forceRenderingOff = true;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             renderer.lightProbeUsage = LightProbeUsage.Off;
             renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
 
             var material = GetOrCreateInvisibleProxyMaterial();
             if (material == null)
