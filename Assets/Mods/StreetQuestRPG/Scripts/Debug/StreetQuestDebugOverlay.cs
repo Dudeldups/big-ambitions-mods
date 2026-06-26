@@ -18,6 +18,7 @@ namespace StreetQuestRPG
         private static Vector2 _questScroll;
         private static Vector2 _favorScroll;
         private static Vector2 _peopleScroll;
+        private static Vector2 _inventoryScroll;
         private static Vector2 _waypointScroll;
         private static Vector2 _appearancePrefabScroll;
         private static Vector2 _appearanceScroll;
@@ -43,8 +44,9 @@ namespace StreetQuestRPG
             Quests = 0,
             Favor = 1,
             People = 2,
-            Waypoints = 3,
-            Appearance = 4
+            QuestItems = 3,
+            Waypoints = 4,
+            Appearance = 5
         }
 
         public void TickToggle()
@@ -136,6 +138,9 @@ namespace StreetQuestRPG
                 case DebugTab.People:
                     DrawPeopleTab();
                     break;
+                case DebugTab.QuestItems:
+                    DrawQuestItemsTab();
+                    break;
                 case DebugTab.Waypoints:
                     DrawWaypointsTab();
                     break;
@@ -162,6 +167,7 @@ namespace StreetQuestRPG
             DrawTabButton(DebugTab.Quests, "Quests");
             DrawTabButton(DebugTab.Favor, "Favor");
             DrawTabButton(DebugTab.People, "People");
+            DrawTabButton(DebugTab.QuestItems, "Quest Items");
             DrawTabButton(DebugTab.Waypoints, "Waypoints");
             DrawTabButton(DebugTab.Appearance, "Appearance");
             GUILayout.EndHorizontal();
@@ -401,6 +407,36 @@ namespace StreetQuestRPG
                 StreetQuestShared.TeleportPlayerToCharacter(characterId);
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
+        }
+
+        private static void DrawQuestItemsTab()
+        {
+            _inventoryScroll = GUILayout.BeginScrollView(_inventoryScroll, GUILayout.ExpandHeight(true));
+
+            var items = StreetQuestInventoryService.GetAllItems()
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value > 0)
+                .OrderBy(pair => StreetQuestInventoryService.GetDisplayName(pair.Key), StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            GUILayout.Label("Quest Inventory", _headerStyle);
+            if (items.Length == 0)
+            {
+                GUILayout.Label("No quest items held.", _textStyle);
+                GUILayout.EndScrollView();
+                return;
+            }
+
+            foreach (var item in items)
+            {
+                GUILayout.BeginVertical(_panelStyle);
+                GUILayout.Label(StreetQuestInventoryService.GetDisplayName(item.Key), _headerStyle);
+                GUILayout.Label($"ID: {item.Key}", _textStyle);
+                GUILayout.Label($"Amount: {item.Value}", _textStyle);
+                GUILayout.EndVertical();
+                GUILayout.Space(6f);
+            }
+
+            GUILayout.EndScrollView();
         }
 
         private static string BuildQuestHelpFallback(StreetQuestQuestDefinition quest)
