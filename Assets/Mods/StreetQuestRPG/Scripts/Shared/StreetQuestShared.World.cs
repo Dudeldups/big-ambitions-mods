@@ -25,6 +25,9 @@ namespace StreetQuestRPG
         private const float DebugTeleportNpcDistance = 2f;
         private const float DebugTeleportNavMeshProbeRadius = 4f;
         private const float DebugTeleportGroundOffset = 0.05f;
+        private const float PendingIndoorTeleportTimeoutSeconds = 8f;
+        private const float PendingIndoorTeleportSettleSeconds = 0.5f;
+        private static PendingIndoorCharacterTeleport PendingCharacterTeleport;
 
         public static Vector3 GetPlayerWorldPosition()
         {
@@ -99,11 +102,25 @@ namespace StreetQuestRPG
 
         public static bool TeleportPlayerToCharacter(string characterId)
         {
-            var character = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinition(
-                StreetQuestCharacterCatalog.Get(characterId));
+            var characterDefinition = StreetQuestCharacterCatalog.Get(characterId);
             var playerController = PlayerHelper.PlayerController;
-            if (character == null || playerController == null)
+            if (characterDefinition == null || playerController == null)
                 return false;
+
+            var activeState = StreetQuestCharacterRuntimeResolver.ResolveActiveState(characterDefinition);
+            if (activeState == null)
+                return false;
+
+            var character = StreetQuestCharacterRuntimeResolver.ResolveRuntimeDefinitionWithoutGameplayGates(characterDefinition, activeState);
+            if (character == null)
+                return false;
+
+            var normalizedTargetBuildingAddress = NormalizeAddressKey(character.buildingAddress);
+            if (!string.IsNullOrWhiteSpace(normalizedTargetBuildingAddress) &&
+                !DoesBuildingContextMatch(character))
+            {
+                return TryStartIndoorCharacterTeleport(characterId, character, activeState, playerController, normalizedTargetBuildingAddress);
+            }
 
             var characterPosition = character.PositionOr(Vector3.zero);
             var characterForward = FlattenDirection(character.ForwardOr(Vector3.forward));
@@ -122,7 +139,70 @@ namespace StreetQuestRPG
             targetPosition.y = characterPosition.y + DebugTeleportGroundOffset;
             var targetRotation = Quaternion.LookRotation(-characterForward.normalized, Vector3.up);
 
+            ClearPendingCharacterTeleport();
             return TeleportPlayerToExactPosition(playerController, targetPosition, targetRotation, applyRotation: true, $"character={characterId}");
+        }
+
+        internal static void TickPendingCharacterTeleport()
+        {
+            var pending = PendingCharacterTeleport;
+            if (pending == null)
+                return;
+
+            if (Time.unscaledTime - pending.StartedAtSeconds >= PendingIndoorTeleportTimeoutSeconds)
+            {
+                LogDebug(
+                    $"PendingIndoorCharacterTeleport expired character={pending.CharacterId} address={pending.BuildingAddress}");
+                ClearPendingCharacterTeleport();
+                return;
+            }
+
+            var currentIndoorAddress = NormalizeAddressKey(GetCurrentIndoorBuildingAddressKey());
+            if (!string.Equals(currentIndoorAddress, pending.BuildingAddress, StringComparison.Ordinal))
+                return;
+
+            if (!pending.IndoorAddressMatched)
+            {
+                pending.IndoorAddressMatched = true;
+                pending.IndoorAddressMatchedAtSeconds = Time.unscaledTime;
+                LogDebug(
+                    $"PendingIndoorCharacterTeleport matched character={pending.CharacterId} address={pending.BuildingAddress}");
+                return;
+            }
+
+            if (Time.unscaledTime - pending.IndoorAddressMatchedAtSeconds < PendingIndoorTeleportSettleSeconds)
+                return;
+
+            if (TryGetSpawnedCharacterRoot(pending.CharacterId, out var spawnedRoot) && spawnedRoot != null)
+            {
+                var characterForward = FlattenDirection(spawnedRoot.transform.forward);
+                if (characterForward.sqrMagnitude < 0.001f)
+                    characterForward = Vector3.forward;
+
+                var characterPosition = spawnedRoot.transform.position;
+                pending.TargetPosition = characterPosition + (characterForward.normalized * DebugTeleportNpcDistance);
+                pending.TargetPosition.y = characterPosition.y + DebugTeleportGroundOffset;
+                pending.TargetRotation = Quaternion.LookRotation(-characterForward.normalized, Vector3.up);
+            }
+            else
+            {
+                return;
+            }
+
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+                return;
+
+            var success = TeleportPlayerToExactPosition(
+                playerController,
+                pending.TargetPosition,
+                pending.TargetRotation,
+                applyRotation: true,
+                $"character={pending.CharacterId}:indoor_followup");
+
+            LogDebug(
+                $"PendingIndoorCharacterTeleport completed character={pending.CharacterId} address={pending.BuildingAddress} result={success}");
+            ClearPendingCharacterTeleport();
         }
 
 
@@ -245,6 +325,97 @@ namespace StreetQuestRPG
             }
 
             return requestedPosition;
+        }
+
+        private static bool TryStartIndoorCharacterTeleport(
+            string characterId,
+            StreetQuestCharacterDefinition character,
+            StreetQuestCharacterStateDefinition activeState,
+            Component playerController,
+            string normalizedTargetBuildingAddress)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedTargetBuildingAddress) || playerController == null)
+                return false;
+
+            var characterPosition = character.PositionOr(Vector3.zero);
+            var characterForward = FlattenDirection(character.ForwardOr(Vector3.forward));
+            if (characterForward.sqrMagnitude < 0.001f)
+                characterForward = Vector3.forward;
+
+            var targetPosition = characterPosition + (characterForward.normalized * DebugTeleportNpcDistance);
+            targetPosition.y = characterPosition.y + DebugTeleportGroundOffset;
+            var targetRotation = Quaternion.LookRotation(-characterForward.normalized, Vector3.up);
+
+            if (character.requiresApartmentVisitContext || !string.IsNullOrWhiteSpace(character.apartmentLayoutFile))
+            {
+                var apartmentOption = GetAvailableApartmentEntryOptions(normalizedTargetBuildingAddress)
+                    .FirstOrDefault(option =>
+                        string.Equals(option.CharacterId, characterId, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(option.StateId, activeState?.id ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                if (apartmentOption == null)
+                    return false;
+
+                if (!TryEnterApartment(apartmentOption))
+                    return false;
+
+                PendingCharacterTeleport = new PendingIndoorCharacterTeleport
+                {
+                    CharacterId = characterId,
+                    BuildingAddress = normalizedTargetBuildingAddress,
+                    TargetPosition = targetPosition,
+                    TargetRotation = targetRotation,
+                    StartedAtSeconds = Time.unscaledTime
+                };
+                LogDebug(
+                    $"PendingIndoorCharacterTeleport started character={characterId} address={normalizedTargetBuildingAddress} route=apartment_entry");
+                return true;
+            }
+
+            if (!TryResolveApartmentVisitTarget(
+                    new ApartmentEntryOption
+                    {
+                        CharacterId = characterId,
+                        StateId = activeState?.id ?? string.Empty,
+                        ExteriorAddress = normalizedTargetBuildingAddress
+                    },
+                    out var building,
+                    out _,
+                    out _,
+                    out _))
+            {
+                return false;
+            }
+
+            if (!TryStartVanillaApartmentEntry(building, out var route))
+                return false;
+
+            PendingCharacterTeleport = new PendingIndoorCharacterTeleport
+            {
+                CharacterId = characterId,
+                BuildingAddress = normalizedTargetBuildingAddress,
+                TargetPosition = targetPosition,
+                TargetRotation = targetRotation,
+                StartedAtSeconds = Time.unscaledTime
+            };
+            LogDebug(
+                $"PendingIndoorCharacterTeleport started character={characterId} address={normalizedTargetBuildingAddress} route={route}");
+            return true;
+        }
+
+        private static void ClearPendingCharacterTeleport()
+        {
+            PendingCharacterTeleport = null;
+        }
+
+        private sealed class PendingIndoorCharacterTeleport
+        {
+            public string CharacterId;
+            public string BuildingAddress;
+            public Vector3 TargetPosition;
+            public Quaternion TargetRotation;
+            public float StartedAtSeconds;
+            public bool IndoorAddressMatched;
+            public float IndoorAddressMatchedAtSeconds;
         }
     }
 }

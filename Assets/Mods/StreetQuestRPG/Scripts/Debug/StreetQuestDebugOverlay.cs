@@ -280,20 +280,30 @@ namespace StreetQuestRPG
 
         private static void DrawPeopleTab()
         {
-            var knownCharacterIds = StreetQuestShared.GetKnownCharacterIds()
+            var alternateActorIds = StreetQuestCharacterCatalog.All
+                .Where(value => value?.alternateActors != null)
+                .SelectMany(value => value.alternateActors)
+                .Where(value => value != null && !string.IsNullOrWhiteSpace(value.id))
+                .Select(value => value.id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var characterIds = StreetQuestCharacterCatalog.All
+                .Where(value => value != null && !alternateActorIds.Contains(value.id))
+                .Select(value => value.id)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
                 .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             GUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
 
             _peopleScroll = GUILayout.BeginScrollView(_peopleScroll, GUILayout.Width(180f), GUILayout.ExpandHeight(true));
-            if (knownCharacterIds.Length == 0)
+            if (characterIds.Length == 0)
             {
-                GUILayout.Label("No NPCs met yet.", _textStyle);
+                GUILayout.Label("No NPCs configured.", _textStyle);
             }
             else
             {
-                foreach (var characterId in knownCharacterIds)
+                foreach (var characterId in characterIds)
                 {
                     var label = StreetQuestShared.ResolveCharacterDisplayName(characterId);
                     var isSelected = string.Equals(_selectedCharacterId, characterId, StringComparison.OrdinalIgnoreCase);
@@ -305,16 +315,16 @@ namespace StreetQuestRPG
 
             GUILayout.Space(8f);
             GUILayout.BeginVertical(GUILayout.ExpandHeight(true));
-            if (knownCharacterIds.Length == 0)
+            if (characterIds.Length == 0)
             {
-                GUILayout.Label("Talk to someone first to add them here.", _textStyle);
+                GUILayout.Label("Add NPCs in characters.json to inspect them here.", _textStyle);
             }
             else
             {
                 if (string.IsNullOrWhiteSpace(_selectedCharacterId) ||
-                    !knownCharacterIds.Contains(_selectedCharacterId, StringComparer.OrdinalIgnoreCase))
+                    !characterIds.Contains(_selectedCharacterId, StringComparer.OrdinalIgnoreCase))
                 {
-                    _selectedCharacterId = knownCharacterIds[0];
+                    _selectedCharacterId = characterIds[0];
                 }
 
                 DrawKnownCharacterDetails(_selectedCharacterId);

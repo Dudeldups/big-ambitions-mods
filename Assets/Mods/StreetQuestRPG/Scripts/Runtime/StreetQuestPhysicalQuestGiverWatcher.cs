@@ -97,6 +97,7 @@ namespace StreetQuestRPG
 
             StreetQuestShared.TickApartmentVisit(_elapsedSeconds);
             UpdateIndoorBuildingContext();
+            StreetQuestShared.TickPendingCharacterTeleport();
         }
 
         private void OnDestroy()
