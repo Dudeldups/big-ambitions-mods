@@ -8,6 +8,8 @@ namespace StreetQuestRPG
     internal static class StreetQuestInventoryService
     {
         private const string InventoryModDataKey = "streetquest:inventory_v1";
+        private static object _cachedSaveGame;
+        private static StreetQuestInventoryRecord _cachedRecord;
 
         public static bool AddItem(string itemId, int amount = 1)
         {
@@ -84,25 +86,42 @@ namespace StreetQuestRPG
         {
             var saveGame = SaveGameManager.Current;
             if (saveGame == null)
+            {
+                _cachedSaveGame = null;
+                _cachedRecord = null;
                 return null;
+            }
+
+            if (ReferenceEquals(_cachedSaveGame, saveGame) && _cachedRecord != null)
+                return _cachedRecord;
 
             if (saveGame.modData == null)
-                return new StreetQuestInventoryRecord();
+            {
+                _cachedSaveGame = saveGame;
+                _cachedRecord = new StreetQuestInventoryRecord();
+                return _cachedRecord;
+            }
 
             if (saveGame.modData.TryGetValue(InventoryModDataKey, out var serialized) &&
                 !string.IsNullOrWhiteSpace(serialized))
             {
                 try
                 {
-                    return StreetQuestInventoryRecord.Deserialize(serialized);
+                    _cachedSaveGame = saveGame;
+                    _cachedRecord = StreetQuestInventoryRecord.Deserialize(serialized);
+                    return _cachedRecord;
                 }
                 catch
                 {
-                    return new StreetQuestInventoryRecord();
+                    _cachedSaveGame = saveGame;
+                    _cachedRecord = new StreetQuestInventoryRecord();
+                    return _cachedRecord;
                 }
             }
 
-            return new StreetQuestInventoryRecord();
+            _cachedSaveGame = saveGame;
+            _cachedRecord = new StreetQuestInventoryRecord();
+            return _cachedRecord;
         }
 
         private static void SaveInventoryRecord(StreetQuestInventoryRecord record)
@@ -113,6 +132,8 @@ namespace StreetQuestRPG
 
             saveGame.modData ??= new Dictionary<string, string>();
             saveGame.modData[InventoryModDataKey] = record.Serialize();
+            _cachedSaveGame = saveGame;
+            _cachedRecord = record;
             saveGame.hasEverUsedMods = true;
             SaveGameManager.MarkChange();
         }
