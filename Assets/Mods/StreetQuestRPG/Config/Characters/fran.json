@@ -1,0 +1,129 @@
+{
+  "id": "fran",
+  "displayName": "Fran",
+  "nameKey": "streetquest:fran_name",
+  "contactId": "streetquest:fran_contact",
+  "contactDescriptionKey": "streetquest:contact_group_friends_and_family",
+  "contactCategory": "General",
+  "dialogTypeKey": "streetquest_fran_dialog",
+  "gameObjectName": "StreetQuestRPG.IndoorQuestGiver",
+  "visualObjectName": "FranVisual",
+  "overlayHeaderKey": "streetquest:fran_name",
+  "ctaKey": "streetquest:cta_talk",
+  "showSpeechBubble": true,
+  "speechBubbleEmojiName": "Neutral",
+  "speechBubbleColor": "red",
+  "speechBubbleTextKey": "streetquest:bubble_fran_call_julia",
+  "speechBubbleVisibleSeconds": 2.6,
+  "speechBubbleIntervalSeconds": 7.8,
+  "speechBubbleLocalOffset": { "x": 0.0, "y": 1.9, "z": 0.0 },
+  "professionKey": "streetquest:profession_parent",
+  "interactable": true,
+  "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
+  "localEulerAngles": { "x": 0.0, "y": 180.0, "z": 0.0 },
+  "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
+  "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.15 },
+  "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.85 },
+  "colliderCenterWithPrefab": { "x": 0.0, "y": 1.05, "z": -0.05 },
+  "colliderSizeWithPrefab": { "x": 1.3, "y": 2.1, "z": 0.55 },
+  "colliderCenterFallback": { "x": 0.0, "y": 0.95, "z": 0.0 },
+  "colliderSizeFallback": { "x": 1.8, "y": 1.9, "z": 1.2 },
+  "interactionRendererLocalPosition": { "x": 0.0, "y": 0.9, "z": 0.0 },
+  "interactionRendererLocalScale": { "x": 0.08, "y": 0.08, "z": 0.08 },
+  "appearances": [
+    {
+      "id": "fran_default",
+      "gender": "Female",
+      "ageInDays": 12410,
+      "appearanceSeed": 12367,
+      "prefabName": "Characters/DummyHuman"
+    }
+  ],
+  "states": [
+    {
+      "id": "fran_home_invite",
+      "requiredStoryFlags": ["streetquest:flag_fran_apartment_access"],
+      "forbiddenStoryFlags": ["streetquest:flag_fran_dinner_finished"],
+      "buildingAddress": "ba:street_thirdstreet 45",
+      "requiresApartmentVisitContext": true,
+      "apartmentLayoutFile": "Layouts/Layout-Fran.json",
+      "apartmentLayoutName": "StreetQuestFranApartment",
+      "appearanceId": "fran_default",
+      "overrideEnabled": true,
+      "enabled": true,
+      "overrideShowSpeechBubble": true,
+      "showSpeechBubble": false,
+      "schedule": {
+        "mode": "Always"
+      },
+      "position": { "x": 1001.73, "y": 0.02, "z": -47.01 },
+      "forward": { "x": -1.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "fran_searching_no_callout",
+      "requiredStoryFlags": ["streetquest:flag_julia_visible"],
+      "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
+      "buildingAddress": "ba:street_fourthstreet 50",
+      "appearanceId": "fran_default",
+      "overrideEnabled": true,
+      "enabled": true,
+      "overrideUseFixedSpawnPosition": true,
+      "useFixedSpawnPosition": true,
+      "overrideShowSpeechBubble": true,
+      "showSpeechBubble": false,
+      "schedule": {
+        "mode": "Always"
+      },
+      "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
+      "forward": { "x": 0.92, "y": 0.0, "z": -0.4 }
+    },
+    {
+      "id": "fran_default",
+      "forbiddenStoryFlags": ["streetquest:flag_julia_visible", "streetquest:flag_julia_returned"],
+      "buildingAddress": "ba:street_fourthstreet 50",
+      "appearanceId": "fran_default",
+      "overrideEnabled": true,
+      "enabled": true,
+      "overrideUseFixedSpawnPosition": true,
+      "useFixedSpawnPosition": true,
+      "schedule": {
+        "mode": "Always"
+      },
+      "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
+      "forward": { "x": 0.92, "y": 0.0, "z": -0.4 }
+    }
+  ],
+  "alternateActors": [
+    {
+      "id": "fran_exit_actor",
+      "gameObjectName": "StreetQuestRPG.FranExitActor",
+      "visualObjectName": "FranExitVisual",
+      "interactable": false,
+      "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "states": [
+        {
+          "id": "fran_exit",
+          "requiredStoryFlags": ["streetquest:flag_julia_returned"],
+          "forbiddenStoryFlags": ["streetquest:flag_fran_departure_started", "streetquest:flag_fran_family_left"],
+          "buildingAddress": "ba:street_fourthstreet 50",
+          "appearanceId": "fran_default",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "position": { "x": 809.54, "y": 0.01, "z": -103.3 },
+          "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
+          "walkAwayWaypoints": [
+            { "x": 804.15, "y": 0.01, "z": -87.59 }
+          ],
+          "walkAwaySpeed": 1.5,
+          "walkAwayStartedStoryFlags": ["streetquest:flag_fran_departure_started"],
+          "despawnAfterWalkAway": true,
+          "schedule": {
+            "mode": "Always"
+          }
+        }
+      ]
+    }
+  ]
+}

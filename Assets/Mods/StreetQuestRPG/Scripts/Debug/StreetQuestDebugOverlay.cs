@@ -323,7 +323,7 @@ namespace StreetQuestRPG
             GUILayout.BeginVertical(GUILayout.ExpandHeight(true));
             if (characterIds.Length == 0)
             {
-                GUILayout.Label("Add NPCs in characters.json to inspect them here.", _textStyle);
+                GUILayout.Label("Add NPC config files under Config/Characters to inspect them here.", _textStyle);
             }
             else
             {

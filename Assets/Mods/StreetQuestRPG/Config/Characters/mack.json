@@ -1,0 +1,120 @@
+{
+  "id": "mack",
+  "displayName": "Mack",
+  "nameKey": "streetquest:mack_name",
+  "contactId": "streetquest:mack_contact",
+  "dialogTypeKey": "streetquest_mack_dialog",
+  "gameObjectName": "StreetQuestRPG.OutdoorQuestGiver",
+  "visualObjectName": "MackVisual",
+  "overlayHeaderKey": "streetquest:mack_name",
+  "ctaKey": "streetquest:cta_talk",
+  "showSpeechBubble": true,
+  "speechBubbleTextKeys": ["streetquest:bubble_drunk_hic", "streetquest:bubble_drunk_burp"],
+  "speechBubbleVisibleSeconds": 2.8,
+  "speechBubbleIntervalSeconds": 8.5,
+  "speechBubbleLocalOffset": { "x": 0.0, "y": 2.0, "z": 0.0 },
+  "professionKey": "streetquest:profession_homeless_person",
+  "interactable": true,
+  "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
+  "localEulerAngles": { "x": 0.0, "y": 90.0, "z": 0.0 },
+  "localScale": { "x": 1.0, "y": 1.0, "z": 1.0 },
+  "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.25 },
+  "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.85 },
+  "colliderCenterWithPrefab": { "x": 0.0, "y": 1.05, "z": -0.05 },
+  "colliderSizeWithPrefab": { "x": 1.3, "y": 2.1, "z": 0.55 },
+  "colliderCenterFallback": { "x": 0.0, "y": 0.95, "z": 0.0 },
+  "colliderSizeFallback": { "x": 1.8, "y": 1.9, "z": 1.2 },
+  "interactionRendererLocalPosition": { "x": 0.0, "y": 0.9, "z": 0.0 },
+  "interactionRendererLocalScale": { "x": 0.08, "y": 0.08, "z": 0.08 },
+  "appearances": [
+    {
+      "id": "mack_homeless",
+      "gender": "Male",
+      "ageInDays": 15330,
+      "appearanceSeed": 104729,
+      "prefabName": "Characters/Homeless"
+    },
+    {
+      "id": "apartment_mack",
+      "gender": "Male",
+      "ageInDays": 15330,
+      "appearanceSeed": 105001
+    }
+  ],
+  "states": [
+    {
+      "id": "mack_apartment",
+      "requiredStoryFlags": ["streetquest:flag_mack_apartment"],
+      "appearanceId": "apartment_mack",
+      "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
+      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+      "overrideEnabled": true,
+      "enabled": true,
+      "overrideUseFixedSpawnPosition": true,
+      "useFixedSpawnPosition": true,
+      "schedule": {
+        "mode": "DailyWindow",
+        "startHour": 8,
+        "endHour": 22
+      }
+    },
+    {
+      "id": "mack_homeless",
+      "appearanceId": "mack_homeless",
+      "overrideEnabled": true,
+      "enabled": true,
+      "overrideUseFixedSpawnPosition": true,
+      "useFixedSpawnPosition": true,
+      "schedule": {
+        "mode": "DailyWindow",
+        "startHour": 8,
+        "endHour": 22
+      },
+      "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
+      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 }
+    }
+  ],
+  "alternateActors": [
+    {
+      "id": "mack_after_hours_actor",
+      "gameObjectName": "StreetQuestRPG.AfterHoursActor",
+      "visualObjectName": "MackAfterHoursVisual",
+      "interactable": false,
+      "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "hiddenChildObjectNames": ["DonationBucket", "DissambledBox"],
+      "states": [
+        {
+          "id": "mack_after_hours_state",
+          "appearanceId": "mack_homeless",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "schedule": {
+            "mode": "DailyWindow",
+            "startHour": 22,
+            "endHour": 8
+          },
+          "walkAwayWaypoints": [
+            { "x": 384.78, "y": 0.09, "z": -194.39 }
+          ],
+          "walkAwaySpeed": 1.35,
+          "despawnAfterWalkAway": true,
+          "walkInWaypoints": [
+            { "x": 384.78, "y": 0.09, "z": -194.39 },
+            { "x": 385.76, "y": 0.09, "z": -198.11 },
+            { "x": 372.4, "y": 0.09, "z": -198.66 },
+            { "x": 354.03, "y": 0.09, "z": -197.99 },
+            { "x": 305.58, "y": 0.06, "z": -197.99 }
+          ],
+          "walkInSpeed": 1.35,
+          "walkInArrivalHour": 8,
+          "walkInArrivalMinute": 0,
+          "position": { "x": 301.58, "y": 0.09, "z": -188.47 },
+          "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+          "overrideWalkInArrivalTime": true
+        }
+      ]
+    }
+  ]
+}

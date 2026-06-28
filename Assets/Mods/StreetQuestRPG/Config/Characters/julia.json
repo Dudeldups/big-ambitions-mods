@@ -1,0 +1,119 @@
+{
+  "id": "julia",
+  "displayName": "Julia",
+  "nameKey": "streetquest:julia_name",
+  "contactId": "streetquest:julia_contact",
+  "dialogTypeKey": "streetquest_julia_dialog",
+  "gameObjectName": "StreetQuestRPG.IndoorQuestGiver",
+  "visualObjectName": "JuliaVisual",
+  "overlayHeaderKey": "streetquest:julia_name",
+  "ctaKey": "streetquest:cta_talk",
+  "showSpeechBubble": false,
+  "professionKey": "streetquest:profession_child",
+  "interactable": true,
+  "localPosition": { "x": 0.0, "y": 0.0, "z": 0.0 },
+  "localEulerAngles": { "x": 0.0, "y": 100.0, "z": 0.0 },
+  "localScale": { "x": 0.72, "y": 0.72, "z": 0.72 },
+  "navTargetLocalOffset": { "x": 0.0, "y": 0.0, "z": 1.0 },
+  "sellerPositionLocalOffset": { "x": 0.0, "y": 0.0, "z": -0.75 },
+  "colliderCenterWithPrefab": { "x": 0.0, "y": 1.0, "z": -0.05 },
+  "colliderSizeWithPrefab": { "x": 1.1, "y": 2.0, "z": 0.5 },
+  "colliderCenterFallback": { "x": 0.0, "y": 0.9, "z": 0.0 },
+  "colliderSizeFallback": { "x": 1.5, "y": 1.8, "z": 1.0 },
+  "interactionRendererLocalPosition": { "x": 0.0, "y": 0.82, "z": 0.0 },
+  "interactionRendererLocalScale": { "x": 0.075, "y": 0.075, "z": 0.075 },
+  "appearances": [
+    {
+      "id": "julia_default",
+      "gender": "Female",
+      "ageInDays": 3650,
+      "appearanceSeed": 32119,
+      "prefabName": "Characters/DummyHuman"
+    }
+  ],
+  "states": [
+    {
+      "id": "julia_visible",
+      "requiredStoryFlags": ["streetquest:flag_julia_visible"],
+      "forbiddenStoryFlags": ["streetquest:flag_julia_found"],
+      "buildingAddress": "ba:street_fourthstreet 50",
+      "overrideEnabled": true,
+      "enabled": true,
+      "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
+      "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+      "appearanceId": "julia_default",
+      "overrideUseFixedSpawnPosition": true,
+      "useFixedSpawnPosition": true,
+      "schedule": {
+        "mode": "Always"
+      }
+    }
+  ],
+  "alternateActors": [
+    {
+      "id": "julia_running_home_actor",
+      "gameObjectName": "StreetQuestRPG.JuliaRunningHomeActor",
+      "visualObjectName": "JuliaRunningHomeVisual",
+      "interactable": false,
+      "isRunning": true,
+      "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "states": [
+        {
+          "id": "julia_running_home",
+          "requiredStoryFlags": ["streetquest:flag_julia_found"],
+          "forbiddenStoryFlags": ["streetquest:flag_julia_returned"],
+          "buildingAddress": "ba:street_fourthstreet 50",
+          "appearanceId": "julia_default",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "position": { "x": 835.79, "y": 0.01, "z": -120.99 },
+          "forward": { "x": 0.0, "y": 0.0, "z": -1.0 },
+          "walkAwayWaypoints": [
+            { "x": 810.38, "y": 0.01, "z": -102.74 }
+          ],
+          "walkAwaySpeed": 4.5,
+          "overrideIsRunning": true,
+          "isRunning": true,
+          "despawnAfterWalkAway": false,
+          "schedule": {
+            "mode": "Always"
+          }
+        }
+      ]
+    },
+    {
+      "id": "julia_exit_actor",
+      "gameObjectName": "StreetQuestRPG.JuliaExitActor",
+      "visualObjectName": "JuliaExitVisual",
+      "interactable": false,
+      "localEulerAngles": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "states": [
+        {
+          "id": "julia_exit",
+          "requiredStoryFlags": ["streetquest:flag_julia_returned"],
+          "forbiddenStoryFlags": ["streetquest:flag_julia_departure_started", "streetquest:flag_fran_family_left"],
+          "buildingAddress": "ba:street_fourthstreet 50",
+          "appearanceId": "julia_default",
+          "overrideEnabled": true,
+          "enabled": true,
+          "overrideUseFixedSpawnPosition": true,
+          "useFixedSpawnPosition": true,
+          "position": { "x": 810.38, "y": 0.01, "z": -102.74 },
+          "forward": { "x": 0.92, "y": 0.0, "z": -0.4 },
+          "walkAwayWaypoints": [
+            { "x": 804.15, "y": 0.01, "z": -87.59 }
+          ],
+          "walkAwaySpeed": 1.5,
+          "walkAwayStartedStoryFlags": ["streetquest:flag_julia_departure_started"],
+          "walkAwayCompletedStoryFlags": ["streetquest:flag_fran_family_left"],
+          "despawnAfterWalkAway": true,
+          "schedule": {
+            "mode": "Always"
+          }
+        }
+      ]
+    }
+  ]
+}
