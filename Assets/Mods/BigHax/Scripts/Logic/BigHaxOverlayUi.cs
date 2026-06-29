@@ -77,8 +77,12 @@ namespace BigHax
             DrawSeparator();
             var previousVerticalScrollbar = GUI.skin.verticalScrollbar;
             var previousVerticalScrollbarThumb = GUI.skin.verticalScrollbarThumb;
+            var previousHorizontalScrollbar = GUI.skin.horizontalScrollbar;
+            var previousHorizontalScrollbarThumb = GUI.skin.horizontalScrollbarThumb;
             GUI.skin.verticalScrollbar = verticalScrollbarStyle!;
             GUI.skin.verticalScrollbarThumb = verticalScrollbarThumbStyle!;
+            GUI.skin.horizontalScrollbar = GUIStyle.none;
+            GUI.skin.horizontalScrollbarThumb = GUIStyle.none;
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
 
             DrawCustomerMultiplier(context, settings);
@@ -177,6 +181,8 @@ namespace BigHax
             GUILayout.EndScrollView();
             GUI.skin.verticalScrollbar = previousVerticalScrollbar;
             GUI.skin.verticalScrollbarThumb = previousVerticalScrollbarThumb;
+            GUI.skin.horizontalScrollbar = previousHorizontalScrollbar;
+            GUI.skin.horizontalScrollbarThumb = previousHorizontalScrollbarThumb;
 
             GUILayout.EndVertical();
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width, 68f));
@@ -185,6 +191,9 @@ namespace BigHax
         private void DrawCustomerMultiplier(ModContext context, BigHaxSettings settings)
         {
             DrawSectionTitle(Localize("bighax_customer_traffic_multiplier_label"));
+            const float buttonGap = 10f;
+            var availableWidth = windowRect.width - 44f - 22f - 14f;
+            var buttonWidth = Mathf.Floor((availableWidth - (buttonGap * 2f)) / 3f);
             var selectedIndex = settings.CustomerTrafficMultiplierIndex;
             for (var row = 0; row < 2; row++)
             {
@@ -195,16 +204,20 @@ namespace BigHax
                     var style = optionIndex == settings.CustomerTrafficMultiplierIndex
                         ? selectedButtonStyle!
                         : primaryButtonStyle!;
-                    if (GUILayout.Button(CustomerTrafficLabels[optionIndex], style, GUILayout.Height(36f)))
+                    if (GUILayout.Button(
+                            CustomerTrafficLabels[optionIndex],
+                            style,
+                            GUILayout.Height(36f),
+                            GUILayout.Width(buttonWidth)))
                         selectedIndex = optionIndex;
 
                     if (column < 2)
-                        GUILayout.Space(10f);
+                        GUILayout.Space(buttonGap);
                 }
 
                 GUILayout.EndHorizontal();
                 if (row == 0)
-                    GUILayout.Space(10f);
+                    GUILayout.Space(buttonGap);
             }
 
             if (selectedIndex == settings.CustomerTrafficMultiplierIndex)
@@ -398,11 +411,11 @@ namespace BigHax
 
         private GUIStyle CreateWindowStyle()
         {
-            var backgroundTexture = MakeRoundedRectTexture(48, 48, new Color(0.97f, 0.97f, 0.98f, 1f), 10);
+            var backgroundTexture = MakeRoundedRectTexture(64, 64, new Color(0.97f, 0.97f, 0.98f, 1f), 14);
             var style = new GUIStyle(GUI.skin.window)
             {
                 padding = new RectOffset(22, 22, 20, 20),
-                border = new RectOffset(10, 10, 10, 10),
+                border = new RectOffset(14, 14, 14, 14),
                 normal =
                 {
                     background = backgroundTexture,
@@ -585,7 +598,7 @@ namespace BigHax
             {
                 var fillRect = new Rect(
                     rect.x,
-                    rect.y + 5f,
+                    rect.y,
                     fillWidth + (sliderThumbStyle.fixedWidth * 0.5f),
                     sliderTrackStyle!.fixedHeight);
                 GUI.Box(fillRect, GUIContent.none, sliderFillStyle!);
