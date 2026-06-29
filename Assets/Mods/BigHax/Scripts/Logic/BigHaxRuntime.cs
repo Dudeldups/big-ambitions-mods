@@ -48,6 +48,10 @@ namespace BigHax
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
+            BigHaxFileLogger.Log(
+                "bighax-investment-debug.log",
+                "bighax-investment-debug.log",
+                $"[Runtime] Initialize. ModRootPath={context.ModRootPath}, MainLogPath={BigHaxFileLogger.LogPath}");
             BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
             runtime.ApplyIfRequested();
             return runtime;
