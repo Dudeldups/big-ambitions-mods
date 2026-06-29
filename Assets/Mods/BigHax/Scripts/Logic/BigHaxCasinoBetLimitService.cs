@@ -1,5 +1,4 @@
 #nullable enable
-using System;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
@@ -9,7 +8,6 @@ namespace BigHax
 {
     internal sealed class BigHaxCasinoBetLimitService
     {
-        private const string DebugLogFileName = "BigHax-casino-debug.log";
         private static readonly string[] InputPaths =
         {
             "Canvases/FullMenu/Canvas/AppsContainer/Contacts/Layout 30-70/Right/Conversation/Viewport/Content/PlayerMessageTemplate/InputTemplates/BlackjackBetSettings",
@@ -28,7 +26,6 @@ namespace BigHax
         public void ApplyConfiguredLimit(ModContext context, BigHaxSettings settings)
         {
             var targets = ResolveTargets(context);
-            Log($"ApplyConfiguredLimit: toggle={settings.DisableCasinoBetLimit}, resolvedTargets={targets.Count}");
             if (targets.Count == 0)
             {
                 BigHaxLogger.WarnOnce(
@@ -65,10 +62,7 @@ namespace BigHax
             {
                 var inputTransform = ResolveTransform(inputPath);
                 if (inputTransform == null)
-                {
-                    Log($"ResolveTargets: missing transform for path '{inputPath}'.");
                     continue;
-                }
 
                 var addedForPath = 0;
                 foreach (var target in TryCreateTargets(inputTransform.gameObject))
@@ -83,11 +77,8 @@ namespace BigHax
                         context,
                         "invalid-casino-bet-target-" + inputPath,
                         $"BigHax: found casino bet input path '{inputPath}' but could not patch maxNumeralAmount.");
-                    Log($"ResolveTargets: path '{inputPath}' resolved, but no nested maxNumeralAmount field was found.");
                     continue;
                 }
-
-                Log($"ResolveTargets: path '{inputPath}' yielded {addedForPath} patch target(s).");
             }
 
             return resolvedTargets;
@@ -140,9 +131,6 @@ namespace BigHax
                 this.component = component;
                 this.valueField = valueField;
                 originalValue = valueField.GetValue(component) ?? 100_000;
-                Log(
-                    $"Target created: object='{component.gameObject.name}', component='{component.GetType().FullName}', " +
-                    $"field='{valueField.Name}', original='{originalValue}'.");
             }
 
             public bool IsDestroyed => component == null;
@@ -152,12 +140,7 @@ namespace BigHax
                 if (component == null)
                     return;
 
-                var previousValue = valueField.GetValue(component);
                 valueField.SetValue(component, value);
-                var currentValue = valueField.GetValue(component);
-                Log(
-                    $"ApplyLimit: object='{component.gameObject.name}', component='{component.GetType().FullName}', " +
-                    $"previous='{previousValue}', new='{currentValue}'.");
             }
 
             public void RestoreOriginalValue()
@@ -167,11 +150,6 @@ namespace BigHax
 
                 valueField.SetValue(component, originalValue);
             }
-        }
-
-        private static void Log(string message)
-        {
-            BigHaxFileLogger.Log(DebugLogFileName, DebugLogFileName, $"[casino] {DateTime.Now:HH:mm:ss.fff} {message}");
         }
     }
 }
