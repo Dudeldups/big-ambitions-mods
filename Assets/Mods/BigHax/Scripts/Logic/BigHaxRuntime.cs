@@ -164,6 +164,7 @@ namespace BigHax
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            overlayUi.Hide();
             TryInvalidateCustomerTrafficCache();
             employeeTrainingService.InvalidateCache();
             investmentLimitService.InvalidateCache();
