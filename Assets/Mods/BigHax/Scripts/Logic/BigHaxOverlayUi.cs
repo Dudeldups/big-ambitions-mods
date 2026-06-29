@@ -86,18 +86,14 @@ namespace BigHax
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
 
             DrawCustomerMultiplier(context, settings);
-            DrawIntSlider(
+            DrawToggleOption(
                 context,
-                settings,
-                Localize("bighax_maximum_investment_label"),
-                settings.MaximumInvestmentHundredsMillions,
-                BigHaxSettings.DefaultMaximumInvestmentHundredsMillions,
-                BigHaxSettings.MaximumInvestmentHundredsMillionsLimit,
-                FormatInvestmentCap,
+                settings.DisableInvestmentLimit,
+                Localize("bighax_disable_investment_limit_label"),
                 value =>
                 {
-                    settings.MaximumInvestmentHundredsMillions = value;
-                    BigHaxOptionPersistence.SaveMaximumInvestmentHundredsMillions(context.ModId, value);
+                    settings.DisableInvestmentLimit = value;
+                    BigHaxOptionPersistence.SaveDisableInvestmentLimit(context.ModId, value);
                 });
             DrawToggleOption(
                 context,
@@ -442,7 +438,13 @@ namespace BigHax
                 fontSize = 14,
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
+                hover = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
+                active = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
+                focused = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
                 onNormal = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
+                onHover = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
+                onActive = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
+                onFocused = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
                 margin = new RectOffset(2, 2, 8, 4)
             };
             sliderTrackStyle ??= CreateSliderTrackStyle();
@@ -701,14 +703,6 @@ namespace BigHax
         private static string Localize(string key, Dictionary<string, string> arguments)
         {
             return key.Localize(arguments).ToString();
-        }
-
-        private static string FormatInvestmentCap(int hundredsMillions)
-        {
-            if (hundredsMillions % 10 == 0)
-                return $"${hundredsMillions / 10}B";
-
-            return $"${hundredsMillions / 10f:0.0}B";
         }
     }
 }

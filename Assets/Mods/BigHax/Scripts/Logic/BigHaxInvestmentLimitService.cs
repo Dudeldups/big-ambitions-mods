@@ -36,11 +36,11 @@ namespace BigHax
                 return;
             }
 
-            var configuredLimit = settings.MaximumInvestmentAmount;
+            var configuredLimit = settings.DisableInvestmentLimit
+                ? BigHaxSettings.DisabledInvestmentLimitAmount
+                : 1_000_000_000L;
             foreach (var target in targets)
-            {
                 target.ApplyLimit(configuredLimit);
-            }
         }
 
         public void RestoreOriginalLimit()

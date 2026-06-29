@@ -2,8 +2,8 @@ namespace BigHax
 {
     public sealed class BigHaxSettings
     {
-        public const int DefaultMaximumInvestmentHundredsMillions = 10;
-        public const int MaximumInvestmentHundredsMillionsLimit = 21;
+        public const bool DefaultDisableInvestmentLimit = false;
+        public const long DisabledInvestmentLimitAmount = 2_100_000_000L;
         public const bool DefaultEnableVantanderMaxLoanOverride = false;
         public const int VantanderMaximumLoanOverrideAmount = 99_999_999;
         public const int DefaultUiHotkeyIndex = 1;
@@ -22,7 +22,7 @@ namespace BigHax
 
         public bool EnableVantanderMaxLoanOverride { get; set; } = DefaultEnableVantanderMaxLoanOverride;
 
-        public int MaximumInvestmentHundredsMillions { get; set; } = DefaultMaximumInvestmentHundredsMillions;
+        public bool DisableInvestmentLimit { get; set; } = DefaultDisableInvestmentLimit;
 
         public int UiHotkeyIndex { get; set; } = DefaultUiHotkeyIndex;
 
@@ -51,7 +51,5 @@ namespace BigHax
         }
 
         public UnityEngine.KeyCode UiHotkey => BigHaxHotkeys.GetKeyCode(UiHotkeyIndex);
-
-        public long MaximumInvestmentAmount => (long)MaximumInvestmentHundredsMillions * 100_000_000L;
     }
 }

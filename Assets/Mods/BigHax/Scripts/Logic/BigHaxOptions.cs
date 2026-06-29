@@ -9,6 +9,7 @@ namespace BigHax
         public const string UiToggleHotkey = "big_hax_ui_toggle_hotkey";
         public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier_v2";
         public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
+        public const string DisableInvestmentLimit = "big_hax_disable_investment_limit";
         public const string MaximumInvestmentHundredsMillions = "big_hax_maximum_investment_hundreds_millions";
         public const string LegacyMaximumInvestmentBillions = "big_hax_maximum_investment_billions";
         public const string EnableVantanderMaxLoanOverride = "big_hax_enable_vantander_max_loan_override";
