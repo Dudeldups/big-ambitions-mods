@@ -99,6 +99,15 @@ namespace BigHax
                     settings.MaximumInvestmentHundredsMillions = value;
                     BigHaxOptionPersistence.SaveMaximumInvestmentHundredsMillions(context.ModId, value);
                 });
+            DrawToggleOption(
+                context,
+                settings.EnableVantanderMaxLoanOverride,
+                Localize("bighax_vantander_maximum_loan_override_label"),
+                value =>
+                {
+                    settings.EnableVantanderMaxLoanOverride = value;
+                    BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value);
+                });
             DrawIntSlider(
                 context,
                 settings,
@@ -243,6 +252,21 @@ namespace BigHax
 
             settings.CustomerTrafficMultiplierIndex = selectedIndex;
             BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, selectedIndex);
+            BigHaxRuntime.RequestImmediateApply();
+        }
+
+        private void DrawToggleOption(
+            ModContext context,
+            bool currentValue,
+            string label,
+            System.Action<bool> applyValue)
+        {
+            GUILayout.Space(10f);
+            var toggledValue = GUILayout.Toggle(currentValue, label, toggleStyle!);
+            if (toggledValue == currentValue)
+                return;
+
+            applyValue(toggledValue);
             BigHaxRuntime.RequestImmediateApply();
         }
 

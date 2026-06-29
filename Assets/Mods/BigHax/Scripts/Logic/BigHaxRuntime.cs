@@ -11,6 +11,7 @@ namespace BigHax
         private const float ActiveVehiclePollIntervalSeconds = 0.1f;
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
+        private const float LoanLimitPollIntervalSeconds = 0.5f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -19,6 +20,7 @@ namespace BigHax
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
+        private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
@@ -27,6 +29,7 @@ namespace BigHax
         private float nextActiveVehiclePollAt;
         private float nextCustomerTrafficPollAt;
         private float nextEmployeeTrainingPollAt;
+        private float nextLoanLimitPollAt;
         private BigHaxSettings? settings;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
@@ -45,13 +48,10 @@ namespace BigHax
             runtime.nextActiveVehiclePollAt = 0f;
             runtime.nextCustomerTrafficPollAt = 0f;
             runtime.nextEmployeeTrainingPollAt = 0f;
+            runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
-            BigHaxFileLogger.Log(
-                "bighax-investment-debug.log",
-                "bighax-investment-debug.log",
-                $"[Runtime] Initialize. ModRootPath={context.ModRootPath}, MainLogPath={BigHaxFileLogger.LogPath}");
             BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
             runtime.ApplyIfRequested();
             return runtime;
@@ -70,6 +70,7 @@ namespace BigHax
             businessCapacityService.RestoreOriginalCapacities();
             investmentLimitService.RestoreOriginalLimit();
             itemCapacityService.RestoreOriginalCapacities();
+            loanLimitService.RestoreOriginalLimit();
             vehicleCapacityService.RestoreOriginalCapacities();
             if (instance == this)
                 instance = null;
@@ -98,6 +99,7 @@ namespace BigHax
             PollActiveVehicleChanges();
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
+            PollLoanLimitChanges();
             overlayUi.ConsumeGameplayInputIfNeeded();
         }
 
@@ -111,6 +113,7 @@ namespace BigHax
             investmentLimitService.ApplyConfiguredLimit(context, settings);
             TryApplyCustomerTraffic(context, settings, forceRefresh: true);
             itemCapacityService.ApplyConfiguredCapacities(context, settings);
+            loanLimitService.ApplyConfiguredLimit(settings);
             vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true);
             applyRequested = false;
         }
@@ -142,6 +145,15 @@ namespace BigHax
             employeeTrainingService.Update(context, settings);
         }
 
+        private void PollLoanLimitChanges()
+        {
+            if (context == null || settings == null || Time.unscaledTime < nextLoanLimitPollAt)
+                return;
+
+            nextLoanLimitPollAt = Time.unscaledTime + LoanLimitPollIntervalSeconds;
+            loanLimitService.ApplyConfiguredLimit(settings);
+        }
+
         private void PollUiToggleHotkey()
         {
             if (settings == null || !Input.GetKeyDown(settings.UiHotkey))
@@ -158,6 +170,7 @@ namespace BigHax
             buildingCustomerCapacityService.InvalidateCache();
             businessCapacityService.InvalidateCache();
             itemCapacityService.InvalidateCache();
+            loanLimitService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
             applyRequested = true;
         }

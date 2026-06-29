@@ -11,6 +11,10 @@ namespace BigHax
                 BigHaxSettings.DefaultUiHotkeyIndex);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
             settings.MaximumInvestmentHundredsMillions = LoadMaximumInvestmentHundredsMillions(modId);
+            settings.EnableVantanderMaxLoanOverride = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableVantanderMaxLoanOverride,
+                BigHaxSettings.DefaultEnableVantanderMaxLoanOverride);
 
             settings.StandardFridgeCapacity = LoadInt(
                 modId,
@@ -74,6 +78,11 @@ namespace BigHax
         public static void SavePalletShelfCapacity(string modId, int value)
         {
             SaveInt(modId, BigHaxOptionIds.PalletShelfCapacity, value);
+        }
+
+        public static void SaveEnableVantanderMaxLoanOverride(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableVantanderMaxLoanOverride, value);
         }
 
         public static void SaveEmployeeTrainingSkillIncrease(string modId, int value)

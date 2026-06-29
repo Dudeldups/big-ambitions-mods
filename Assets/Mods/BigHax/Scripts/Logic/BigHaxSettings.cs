@@ -4,6 +4,8 @@ namespace BigHax
     {
         public const int DefaultMaximumInvestmentHundredsMillions = 10;
         public const int MaximumInvestmentHundredsMillionsLimit = 21;
+        public const bool DefaultEnableVantanderMaxLoanOverride = false;
+        public const int VantanderMaximumLoanOverrideAmount = 99_999_999;
         public const int DefaultUiHotkeyIndex = 1;
         public const int DefaultCustomerTrafficMultiplierIndex = 0;
         public const int DefaultFreightTruckT1DeliveryPlaces = 8;
@@ -17,6 +19,8 @@ namespace BigHax
         public bool EnableDebugLogging { get; set; } = false;
 
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
+
+        public bool EnableVantanderMaxLoanOverride { get; set; } = DefaultEnableVantanderMaxLoanOverride;
 
         public int MaximumInvestmentHundredsMillions { get; set; } = DefaultMaximumInvestmentHundredsMillions;
 

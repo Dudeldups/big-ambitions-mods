@@ -11,6 +11,7 @@ namespace BigHax
         public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
         public const string MaximumInvestmentHundredsMillions = "big_hax_maximum_investment_hundreds_millions";
         public const string LegacyMaximumInvestmentBillions = "big_hax_maximum_investment_billions";
+        public const string EnableVantanderMaxLoanOverride = "big_hax_enable_vantander_max_loan_override";
         public const string FreightTruckT1DeliveryPlaces = "big_hax_freight_truck_t1_delivery_places";
         public const string StandardFridgeCapacity = "big_hax_standard_fridge_capacity";
         public const string PalletShelfCapacity = "big_hax_pallet_shelf_capacity";
