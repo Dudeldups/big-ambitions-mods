@@ -9,12 +9,14 @@ namespace BigHax
     public sealed class BigHaxRuntime : MonoBehaviour
     {
         private const float ActiveVehiclePollIntervalSeconds = 0.1f;
+        private const float CasinoBetLimitPollIntervalSeconds = 0.5f;
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
+        private readonly BigHaxCasinoBetLimitService casinoBetLimitService = new BigHaxCasinoBetLimitService();
         private readonly BigHaxBuildingCustomerCapacityService buildingCustomerCapacityService = new BigHaxBuildingCustomerCapacityService();
         private BigHaxCustomerTrafficService? customerTrafficService;
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
@@ -25,6 +27,7 @@ namespace BigHax
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
         private bool applyRequested;
+        private float nextCasinoBetLimitPollAt;
         private ModContext? context;
         private float nextActiveVehiclePollAt;
         private float nextCustomerTrafficPollAt;
@@ -46,6 +49,7 @@ namespace BigHax
             runtime.settings = settings;
             runtime.applyRequested = true;
             runtime.nextActiveVehiclePollAt = 0f;
+            runtime.nextCasinoBetLimitPollAt = 0f;
             runtime.nextCustomerTrafficPollAt = 0f;
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
@@ -66,6 +70,7 @@ namespace BigHax
         public void Shutdown()
         {
             TryRestoreCustomerTraffic();
+            casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
             businessCapacityService.RestoreOriginalCapacities();
             investmentLimitService.RestoreOriginalLimit();
@@ -97,6 +102,7 @@ namespace BigHax
             ApplyIfRequested();
             PollUiToggleHotkey();
             PollActiveVehicleChanges();
+            PollCasinoBetLimitChanges();
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             PollLoanLimitChanges();
@@ -108,6 +114,7 @@ namespace BigHax
             if (!applyRequested || context == null || settings == null)
                 return;
 
+            casinoBetLimitService.ApplyConfiguredLimit(context, settings);
             buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings);
             businessCapacityService.ApplyConfiguredCapacities(context, settings);
             investmentLimitService.ApplyConfiguredLimit(context, settings);
@@ -134,6 +141,15 @@ namespace BigHax
 
             nextCustomerTrafficPollAt = Time.unscaledTime + CustomerTrafficPollIntervalSeconds;
             TryApplyCustomerTraffic(context, settings, forceRefresh: false);
+        }
+
+        private void PollCasinoBetLimitChanges()
+        {
+            if (context == null || settings == null || Time.unscaledTime < nextCasinoBetLimitPollAt)
+                return;
+
+            nextCasinoBetLimitPollAt = Time.unscaledTime + CasinoBetLimitPollIntervalSeconds;
+            casinoBetLimitService.ApplyConfiguredLimit(context, settings);
         }
 
         private void PollEmployeeTrainingChanges()
@@ -166,6 +182,7 @@ namespace BigHax
         {
             overlayUi.Hide();
             TryInvalidateCustomerTrafficCache();
+            casinoBetLimitService.InvalidateCache();
             employeeTrainingService.InvalidateCache();
             investmentLimitService.InvalidateCache();
             buildingCustomerCapacityService.InvalidateCache();

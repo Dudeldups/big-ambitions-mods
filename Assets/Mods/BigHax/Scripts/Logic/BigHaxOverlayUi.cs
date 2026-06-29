@@ -88,6 +88,15 @@ namespace BigHax
             DrawCustomerMultiplier(context, settings);
             DrawToggleOption(
                 context,
+                settings.DisableCasinoBetLimit,
+                Localize("bighax_disable_casino_bet_limit_label"),
+                value =>
+                {
+                    settings.DisableCasinoBetLimit = value;
+                    BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context.ModId, value);
+                });
+            DrawToggleOption(
+                context,
                 settings.DisableInvestmentLimit,
                 Localize("bighax_disable_investment_limit_label"),
                 value =>

@@ -2,7 +2,9 @@ namespace BigHax
 {
     public sealed class BigHaxSettings
     {
+        public const bool DefaultDisableCasinoBetLimit = false;
         public const bool DefaultDisableInvestmentLimit = false;
+        public const int DisabledCasinoBetLimitAmount = 100_000_000;
         public const long DisabledInvestmentLimitAmount = 2_100_000_000L;
         public const bool DefaultEnableVantanderMaxLoanOverride = false;
         public const int VantanderMaximumLoanOverrideAmount = 99_999_999;
@@ -19,6 +21,8 @@ namespace BigHax
         public bool EnableDebugLogging { get; set; } = false;
 
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
+
+        public bool DisableCasinoBetLimit { get; set; } = DefaultDisableCasinoBetLimit;
 
         public bool EnableVantanderMaxLoanOverride { get; set; } = DefaultEnableVantanderMaxLoanOverride;
 
