@@ -1,10 +1,12 @@
 {
   "bighax_ui_hotkey_label": "Big Hax UI Hotkey",
-  "bighax_hotkey_f5": "F5",
-  "bighax_hotkey_f6": "F6",
-  "bighax_hotkey_f7": "F7",
-  "bighax_hotkey_f8": "F8",
-  "bighax_hotkey_home": "Home",
-  "bighax_hotkey_insert": "Insert",
-  "bighax_hotkey_delete": "Delete"
+  "bighax_ui_hotkey_current_label": "Hotkey",
+  "bighax_ui_close_button": "Close",
+  "bighax_customer_traffic_multiplier_label": "Player Business Customer Multiplier",
+  "bighax_employee_training_skill_increase_label": "Employee Training Skill Gain",
+  "bighax_standard_fridge_capacity_label": "{itemName} capacity",
+  "bighax_pallet_shelf_capacity_label": "{itemName} capacity",
+  "bighax_freight_truck_delivery_places_label": "{vehicleName} delivery places",
+  "bighax_active_vehicle_enabled_label": "Enable Active Vehicle Capacity Override",
+  "bighax_active_vehicle_label": "Active Vehicle Capacity"
 }

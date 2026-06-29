@@ -1,5 +1,7 @@
 #nullable enable
 using BAModAPI;
+using Localizor;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace BigHax
@@ -47,14 +49,14 @@ namespace BigHax
         private void DrawWindow(ModContext context, BigHaxSettings settings)
         {
             GUILayout.BeginVertical();
-            GUILayout.Label($"Hotkey: {BigHaxHotkeys.GetKeyCode(settings.UiHotkeyIndex)}");
+            GUILayout.Label($"{Localize("bighax_ui_hotkey_current_label")}: {BigHaxHotkeys.GetKeyCode(settings.UiHotkeyIndex)}");
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
 
             DrawCustomerMultiplier(context, settings);
             DrawIntSlider(
                 context,
                 settings,
-                "Employee Training Skill Gain",
+                "bighax_employee_training_skill_increase_label",
                 settings.EmployeeTrainingSkillIncrease,
                 BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
                 100,
@@ -66,7 +68,12 @@ namespace BigHax
             DrawIntSlider(
                 context,
                 settings,
-                "Standard Fridge Capacity",
+                Localize(
+                    "bighax_standard_fridge_capacity_label",
+                    new Dictionary<string, string>
+                    {
+                        { "itemName", Localize("ba:itemname_standardfridge") }
+                    }),
                 settings.StandardFridgeCapacity,
                 BigHaxSettings.DefaultStandardFridgeCapacity,
                 BigHaxTargetIds.SliderMaximum,
@@ -78,7 +85,12 @@ namespace BigHax
             DrawIntSlider(
                 context,
                 settings,
-                "Pallet Shelf Capacity",
+                Localize(
+                    "bighax_pallet_shelf_capacity_label",
+                    new Dictionary<string, string>
+                    {
+                        { "itemName", Localize("ba:itemname_palletshelf") }
+                    }),
                 settings.PalletShelfCapacity,
                 BigHaxSettings.DefaultPalletShelfCapacity,
                 BigHaxTargetIds.SliderMaximum,
@@ -90,7 +102,12 @@ namespace BigHax
             DrawIntSlider(
                 context,
                 settings,
-                "Freight Truck T1 Delivery Places",
+                Localize(
+                    "bighax_freight_truck_delivery_places_label",
+                    new Dictionary<string, string>
+                    {
+                        { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
+                    }),
                 settings.FreightTruckT1DeliveryPlaces,
                 BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
                 BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
@@ -102,7 +119,7 @@ namespace BigHax
 
             var activeVehicleEnabled = GUILayout.Toggle(
                 settings.EnableActiveVehicleCapacityOverride,
-                "Enable Active Vehicle Capacity Override");
+                Localize("bighax_active_vehicle_enabled_label"));
             if (activeVehicleEnabled != settings.EnableActiveVehicleCapacityOverride)
             {
                 settings.EnableActiveVehicleCapacityOverride = activeVehicleEnabled;
@@ -115,7 +132,7 @@ namespace BigHax
                 DrawIntSlider(
                     context,
                     settings,
-                    "Active Vehicle Capacity",
+                    "bighax_active_vehicle_label",
                     settings.ActiveVehicleCapacity,
                     BigHaxSettings.DefaultActiveVehicleCapacity,
                     BigHaxTargetIds.SliderMaximum,
@@ -129,7 +146,7 @@ namespace BigHax
             GUILayout.EndScrollView();
 
             GUILayout.Space(10f);
-            if (GUILayout.Button("Close", GUILayout.Height(30f)))
+            if (GUILayout.Button(Localize("bighax_ui_close_button"), GUILayout.Height(30f)))
                 Hide();
 
             GUILayout.EndVertical();
@@ -138,7 +155,7 @@ namespace BigHax
 
         private void DrawCustomerMultiplier(ModContext context, BigHaxSettings settings)
         {
-            GUILayout.Label("Player Business Customer Multiplier");
+            GUILayout.Label(Localize("bighax_customer_traffic_multiplier_label"));
             var selectedIndex = GUILayout.SelectionGrid(settings.CustomerTrafficMultiplierIndex, CustomerTrafficLabels, 3);
             if (selectedIndex == settings.CustomerTrafficMultiplierIndex)
                 return;
@@ -208,6 +225,16 @@ namespace BigHax
             var mousePosition = Input.mousePosition;
             var guiMousePosition = new Vector2(mousePosition.x, Screen.height - mousePosition.y);
             return windowRect.Contains(guiMousePosition);
+        }
+
+        private static string Localize(string key)
+        {
+            return key.Localize().ToString();
+        }
+
+        private static string Localize(string key, Dictionary<string, string> arguments)
+        {
+            return key.Localize(arguments).ToString();
         }
     }
 }
