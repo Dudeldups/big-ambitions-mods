@@ -1,7 +1,5 @@
 #nullable enable
-using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Buildings;
 using Dialogs;
 using Helpers;
@@ -12,16 +10,12 @@ namespace BigHax
 {
     internal sealed class BigHaxLoanLimitService
     {
-        private const string DebugLogFileName = "bighax-loan-debug.log";
-        private const string DebugFallbackFileName = "bighax-loan-debug.log";
         private const int VantanderDefaultMaximumLoanAmount = 800000;
 
         private readonly List<PatchedSettingsState> patchedStates = new List<PatchedSettingsState>();
-        private string? lastObservedSignature;
 
         public void InvalidateCache()
         {
-            lastObservedSignature = null;
         }
 
         public void ApplyConfiguredLimit(BigHaxSettings settings)
@@ -33,36 +27,19 @@ namespace BigHax
             var isVantander = state.OriginalValue == VantanderDefaultMaximumLoanAmount ||
                               Mathf.Approximately(currentValue, VantanderDefaultMaximumLoanAmount);
 
-            var signature = building.Address + "|" + currentValue + "|" + isVantander;
-            if (!string.Equals(signature, lastObservedSignature, StringComparison.Ordinal))
-            {
-                LogDebug(
-                    $"Observed bank loan settings: building={building.StreetName} {building.StreetNumber}, currentMaxTotalLoanAmount={currentValue}, originalMaxTotalLoanAmount={state.OriginalValue}, isVantander={isVantander}.");
-                lastObservedSignature = signature;
-            }
-
             if (!isVantander)
                 return;
 
             if (settings.EnableVantanderMaxLoanOverride)
             {
                 if (!Mathf.Approximately(currentValue, BigHaxSettings.VantanderMaximumLoanOverrideAmount))
-                {
                     bankSettings.maxTotalLoanAmount = BigHaxSettings.VantanderMaximumLoanOverrideAmount;
-                    LogDebug(
-                        $"Applied Vantander max loan override: building={building.StreetName} {building.StreetNumber}, {currentValue} -> {bankSettings.maxTotalLoanAmount}.");
-                }
 
                 return;
             }
 
             if (!Mathf.Approximately(bankSettings.maxTotalLoanAmount, state.OriginalValue))
-            {
-                var previousValue = bankSettings.maxTotalLoanAmount;
                 state.Restore();
-                LogDebug(
-                    $"Restored Vantander max loan override: building={building.StreetName} {building.StreetNumber}, {previousValue} -> {bankSettings.maxTotalLoanAmount}.");
-            }
         }
 
         public void RestoreOriginalLimit()
@@ -94,25 +71,22 @@ namespace BigHax
             if (dialogController == null || dialogController.contact == null)
                 return false;
 
-            Building? resolvedBuilding;
             try
             {
-                resolvedBuilding = BuildingHelper.GetBuilding(dialogController.contact.Address);
+                building = BuildingHelper.GetBuilding(dialogController.contact.Address);
             }
-            catch (Exception exception)
+            catch
             {
-                LogDebug($"Failed to resolve bank building from current dialog contact: {exception.GetType().Name}.");
                 return false;
             }
 
-            if (resolvedBuilding == null || resolvedBuilding.SpecialService == null)
+            if (building == null || building.SpecialService == null)
                 return false;
 
-            if (resolvedBuilding.SpecialService.settings is not BankSettings resolvedSettings)
+            if (building.SpecialService.settings is not BankSettings resolvedSettings)
                 return false;
 
             bankSettings = resolvedSettings;
-            building = resolvedBuilding;
             currentValue = resolvedSettings.maxTotalLoanAmount;
             return true;
         }
@@ -132,11 +106,6 @@ namespace BigHax
             {
                 Settings.maxTotalLoanAmount = OriginalValue;
             }
-        }
-
-        private static void LogDebug(string message)
-        {
-            BigHaxFileLogger.Log(DebugLogFileName, DebugFallbackFileName, "[Loan] " + message);
         }
     }
 }
