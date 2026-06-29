@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 
 namespace BigHax
 {
+    [DefaultExecutionOrder(-10000)]
     public sealed class BigHaxRuntime : MonoBehaviour
     {
         private const float ActiveVehiclePollIntervalSeconds = 0.1f;
@@ -17,6 +18,7 @@ namespace BigHax
         private BigHaxCustomerTrafficService? customerTrafficService;
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
+        private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
         private bool applyRequested;
@@ -86,9 +88,11 @@ namespace BigHax
 
             BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             ApplyIfRequested();
+            PollUiToggleHotkey();
             PollActiveVehicleChanges();
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
+            overlayUi.ConsumeGameplayInputIfNeeded();
         }
 
         private void ApplyIfRequested()
@@ -131,6 +135,14 @@ namespace BigHax
             employeeTrainingService.Update(context, settings);
         }
 
+        private void PollUiToggleHotkey()
+        {
+            if (settings == null || !Input.GetKeyDown(settings.UiHotkey))
+                return;
+
+            overlayUi.Toggle();
+        }
+
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             TryInvalidateCustomerTrafficCache();
@@ -140,6 +152,14 @@ namespace BigHax
             itemCapacityService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
             applyRequested = true;
+        }
+
+        private void OnGUI()
+        {
+            if (context == null || settings == null)
+                return;
+
+            overlayUi.OnGui(context, settings);
         }
 
         private static BigHaxCustomerTrafficService? CreateCustomerTrafficService(ModContext context)

@@ -5,6 +5,10 @@ namespace BigHax
     {
         public static void LoadIntoSettings(string modId, BigHaxSettings settings)
         {
+            settings.UiHotkeyIndex = LoadInt(
+                modId,
+                BigHaxOptionIds.UiToggleHotkey,
+                BigHaxSettings.DefaultUiHotkeyIndex);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
 
             settings.StandardFridgeCapacity = LoadInt(
@@ -42,6 +46,48 @@ namespace BigHax
             {
                 settings.CustomerTrafficMultiplierIndex = BigHaxSettings.DefaultCustomerTrafficMultiplierIndex;
             }
+
+            settings.UiHotkeyIndex = BigHaxHotkeys.ClampIndex(settings.UiHotkeyIndex);
+        }
+
+        public static void SaveCustomerTrafficMultiplierIndex(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.CustomerTrafficMultiplier, value);
+        }
+
+        public static void SaveStandardFridgeCapacity(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.StandardFridgeCapacity, value);
+        }
+
+        public static void SavePalletShelfCapacity(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.PalletShelfCapacity, value);
+        }
+
+        public static void SaveEmployeeTrainingSkillIncrease(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.EmployeeTrainingSkillIncrease, value);
+        }
+
+        public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.FreightTruckT1DeliveryPlaces, value);
+        }
+
+        public static void SaveActiveVehicleCapacityEnabled(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.ActiveVehicleCapacityEnabled, value);
+        }
+
+        public static void SaveActiveVehicleCapacity(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.ActiveVehicleCapacity, value);
+        }
+
+        public static void SaveUiHotkeyIndex(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.UiToggleHotkey, value);
         }
 
         private static int LoadInt(string modId, string optionId, int defaultValue)
@@ -83,6 +129,20 @@ namespace BigHax
                 return defaultValue;
 
             return UnityEngine.PlayerPrefs.GetInt(key) != 0;
+        }
+
+        private static void SaveInt(string modId, string optionId, int value)
+        {
+            var key = BuildKey(modId, optionId);
+            UnityEngine.PlayerPrefs.SetInt(key, value);
+            UnityEngine.PlayerPrefs.Save();
+        }
+
+        private static void SaveBool(string modId, string optionId, bool value)
+        {
+            var key = BuildKey(modId, optionId);
+            UnityEngine.PlayerPrefs.SetInt(key, value ? 1 : 0);
+            UnityEngine.PlayerPrefs.Save();
         }
 
         private static string BuildKey(string modId, string optionId)

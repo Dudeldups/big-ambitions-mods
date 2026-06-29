@@ -6,6 +6,7 @@ namespace BigHax
 {
     internal static class BigHaxOptionIds
     {
+        public const string UiToggleHotkey = "big_hax_ui_toggle_hotkey";
         public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier_v2";
         public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
         public const string FreightTruckT1DeliveryPlaces = "big_hax_freight_truck_t1_delivery_places";
@@ -18,16 +19,6 @@ namespace BigHax
 
     public sealed class BigHaxOptions
     {
-        private static readonly string[] CustomerTrafficMultiplierChoices =
-        {
-            "bighax_customer_traffic_multiplier_1_0",
-            "bighax_customer_traffic_multiplier_1_5",
-            "bighax_customer_traffic_multiplier_2_0",
-            "bighax_customer_traffic_multiplier_3_0",
-            "bighax_customer_traffic_multiplier_5_0",
-            "bighax_customer_traffic_multiplier_10_0"
-        };
-
         private ModContext? context;
         private string? registeredModId;
 
@@ -43,86 +34,16 @@ namespace BigHax
 
             var options =
                 new ModOptions()
-                    .AddHeader("bighax_options_header")
                     .AddDropdown(
-                        BigHaxOptionIds.CustomerTrafficMultiplier,
-                        "bighax_customer_traffic_multiplier_label",
-                        CustomerTrafficMultiplierChoices,
-                        settings.CustomerTrafficMultiplierIndex,
+                        BigHaxOptionIds.UiToggleHotkey,
+                        "bighax_ui_hotkey_label",
+                        BigHaxHotkeys.ChoiceKeys,
+                        settings.UiHotkeyIndex,
                         index =>
                         {
-                            settings.CustomerTrafficMultiplierIndex = index;
-                            BigHaxRuntime.RequestImmediateApply();
-                        })
-                    .AddSlider(
-                        BigHaxOptionIds.EmployeeTrainingSkillIncrease,
-                        "bighax_employee_training_skill_increase_label",
-                        BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
-                        100,
-                        settings.EmployeeTrainingSkillIncrease,
-                        value =>
-                        {
-                            settings.EmployeeTrainingSkillIncrease = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_capacity_value")
-                    .AddSlider(
-                        BigHaxOptionIds.StandardFridgeCapacity,
-                        "bighax_standard_fridge_label",
-                        BigHaxSettings.DefaultStandardFridgeCapacity,
-                        BigHaxTargetIds.SliderMaximum,
-                        settings.StandardFridgeCapacity,
-                        value =>
-                        {
-                            settings.StandardFridgeCapacity = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_capacity_value")
-                    .AddSlider(
-                        BigHaxOptionIds.PalletShelfCapacity,
-                        "bighax_pallet_shelf_label",
-                        BigHaxSettings.DefaultPalletShelfCapacity,
-                        BigHaxTargetIds.SliderMaximum,
-                        settings.PalletShelfCapacity,
-                        value =>
-                        {
-                            settings.PalletShelfCapacity = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_capacity_value")
-                    .AddSlider(
-                        BigHaxOptionIds.FreightTruckT1DeliveryPlaces,
-                        "bighax_freight_truck_label",
-                        BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
-                        BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
-                        settings.FreightTruckT1DeliveryPlaces,
-                        value =>
-                        {
-                            settings.FreightTruckT1DeliveryPlaces = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_capacity_value")
-                    .AddToggle(
-                        BigHaxOptionIds.ActiveVehicleCapacityEnabled,
-                        "bighax_active_vehicle_enabled_label",
-                        settings.EnableActiveVehicleCapacityOverride,
-                        value =>
-                        {
-                            settings.EnableActiveVehicleCapacityOverride = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        })
-                    .AddSlider(
-                        BigHaxOptionIds.ActiveVehicleCapacity,
-                        "bighax_active_vehicle_label",
-                        BigHaxSettings.DefaultActiveVehicleCapacity,
-                        BigHaxTargetIds.SliderMaximum,
-                        settings.ActiveVehicleCapacity,
-                        value =>
-                        {
-                            settings.ActiveVehicleCapacity = value;
-                            BigHaxRuntime.RequestImmediateApply();
-                        },
-                        "bighax_capacity_value");
+                            settings.UiHotkeyIndex = BigHaxHotkeys.ClampIndex(index);
+                            BigHaxOptionPersistence.SaveUiHotkeyIndex(modContext.ModId, settings.UiHotkeyIndex);
+                        });
 
             OptionsService.Register(modContext.ModId, options);
             registeredModId = modContext.ModId;

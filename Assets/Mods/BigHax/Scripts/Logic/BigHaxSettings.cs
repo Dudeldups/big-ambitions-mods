@@ -2,6 +2,7 @@ namespace BigHax
 {
     public sealed class BigHaxSettings
     {
+        public const int DefaultUiHotkeyIndex = 1;
         public const int DefaultCustomerTrafficMultiplierIndex = 0;
         public const int DefaultFreightTruckT1DeliveryPlaces = 8;
         public const int DefaultStandardFridgeCapacity = 50;
@@ -14,6 +15,8 @@ namespace BigHax
         public bool EnableDebugLogging { get; set; } = false;
 
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
+
+        public int UiHotkeyIndex { get; set; } = DefaultUiHotkeyIndex;
 
         public int CustomerTrafficMultiplierIndex { get; set; } = DefaultCustomerTrafficMultiplierIndex;
 
@@ -38,5 +41,7 @@ namespace BigHax
                 return CustomerTrafficMultiplierValues[index];
             }
         }
+
+        public UnityEngine.KeyCode UiHotkey => BigHaxHotkeys.GetKeyCode(UiHotkeyIndex);
     }
 }
