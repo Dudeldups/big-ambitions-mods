@@ -90,14 +90,14 @@ namespace BigHax
                 context,
                 settings,
                 Localize("bighax_maximum_investment_label"),
-                settings.MaximumInvestmentBillions,
-                BigHaxSettings.DefaultMaximumInvestmentBillions,
-                1000,
+                settings.MaximumInvestmentHundredsMillions,
+                BigHaxSettings.DefaultMaximumInvestmentHundredsMillions,
+                BigHaxSettings.MaximumInvestmentHundredsMillionsLimit,
                 FormatInvestmentCap,
                 value =>
                 {
-                    settings.MaximumInvestmentBillions = value;
-                    BigHaxOptionPersistence.SaveMaximumInvestmentBillions(context.ModId, value);
+                    settings.MaximumInvestmentHundredsMillions = value;
+                    BigHaxOptionPersistence.SaveMaximumInvestmentHundredsMillions(context.ModId, value);
                 });
             DrawIntSlider(
                 context,
@@ -679,12 +679,12 @@ namespace BigHax
             return key.Localize(arguments).ToString();
         }
 
-        private static string FormatInvestmentCap(int billions)
+        private static string FormatInvestmentCap(int hundredsMillions)
         {
-            if (billions >= 1000)
-                return "$1T";
+            if (hundredsMillions % 10 == 0)
+                return $"${hundredsMillions / 10}B";
 
-            return $"${billions}B";
+            return $"${hundredsMillions / 10f:0.0}B";
         }
     }
 }

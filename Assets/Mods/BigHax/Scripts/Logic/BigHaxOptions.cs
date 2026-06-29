@@ -9,7 +9,8 @@ namespace BigHax
         public const string UiToggleHotkey = "big_hax_ui_toggle_hotkey";
         public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier_v2";
         public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
-        public const string MaximumInvestmentBillions = "big_hax_maximum_investment_billions";
+        public const string MaximumInvestmentHundredsMillions = "big_hax_maximum_investment_hundreds_millions";
+        public const string LegacyMaximumInvestmentBillions = "big_hax_maximum_investment_billions";
         public const string FreightTruckT1DeliveryPlaces = "big_hax_freight_truck_t1_delivery_places";
         public const string StandardFridgeCapacity = "big_hax_standard_fridge_capacity";
         public const string PalletShelfCapacity = "big_hax_pallet_shelf_capacity";

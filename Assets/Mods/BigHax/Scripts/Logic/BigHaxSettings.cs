@@ -2,7 +2,8 @@ namespace BigHax
 {
     public sealed class BigHaxSettings
     {
-        public const int DefaultMaximumInvestmentBillions = 1;
+        public const int DefaultMaximumInvestmentHundredsMillions = 10;
+        public const int MaximumInvestmentHundredsMillionsLimit = 21;
         public const int DefaultUiHotkeyIndex = 1;
         public const int DefaultCustomerTrafficMultiplierIndex = 0;
         public const int DefaultFreightTruckT1DeliveryPlaces = 8;
@@ -17,7 +18,7 @@ namespace BigHax
 
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
 
-        public int MaximumInvestmentBillions { get; set; } = DefaultMaximumInvestmentBillions;
+        public int MaximumInvestmentHundredsMillions { get; set; } = DefaultMaximumInvestmentHundredsMillions;
 
         public int UiHotkeyIndex { get; set; } = DefaultUiHotkeyIndex;
 
@@ -47,6 +48,6 @@ namespace BigHax
 
         public UnityEngine.KeyCode UiHotkey => BigHaxHotkeys.GetKeyCode(UiHotkeyIndex);
 
-        public long MaximumInvestmentAmount => (long)MaximumInvestmentBillions * 1_000_000_000L;
+        public long MaximumInvestmentAmount => (long)MaximumInvestmentHundredsMillions * 100_000_000L;
     }
 }

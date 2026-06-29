@@ -10,10 +10,7 @@ namespace BigHax
                 BigHaxOptionIds.UiToggleHotkey,
                 BigHaxSettings.DefaultUiHotkeyIndex);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
-            settings.MaximumInvestmentBillions = LoadInt(
-                modId,
-                BigHaxOptionIds.MaximumInvestmentBillions,
-                BigHaxSettings.DefaultMaximumInvestmentBillions);
+            settings.MaximumInvestmentHundredsMillions = LoadMaximumInvestmentHundredsMillions(modId);
 
             settings.StandardFridgeCapacity = LoadInt(
                 modId,
@@ -51,8 +48,10 @@ namespace BigHax
                 settings.CustomerTrafficMultiplierIndex = BigHaxSettings.DefaultCustomerTrafficMultiplierIndex;
             }
 
-            if (settings.MaximumInvestmentBillions < 1)
-                settings.MaximumInvestmentBillions = BigHaxSettings.DefaultMaximumInvestmentBillions;
+            settings.MaximumInvestmentHundredsMillions = UnityEngine.Mathf.Clamp(
+                settings.MaximumInvestmentHundredsMillions,
+                1,
+                BigHaxSettings.MaximumInvestmentHundredsMillionsLimit);
 
             settings.UiHotkeyIndex = BigHaxHotkeys.ClampIndex(settings.UiHotkeyIndex);
         }
@@ -67,9 +66,9 @@ namespace BigHax
             SaveInt(modId, BigHaxOptionIds.StandardFridgeCapacity, value);
         }
 
-        public static void SaveMaximumInvestmentBillions(string modId, int value)
+        public static void SaveMaximumInvestmentHundredsMillions(string modId, int value)
         {
-            SaveInt(modId, BigHaxOptionIds.MaximumInvestmentBillions, value);
+            SaveInt(modId, BigHaxOptionIds.MaximumInvestmentHundredsMillions, value);
         }
 
         public static void SavePalletShelfCapacity(string modId, int value)
@@ -120,6 +119,26 @@ namespace BigHax
 
             var legacyValue = UnityEngine.PlayerPrefs.GetInt(legacyKey);
             return MapLegacyCustomerTrafficMultiplierToIndex(legacyValue);
+        }
+
+        private static int LoadMaximumInvestmentHundredsMillions(string modId)
+        {
+            var currentKey = BuildKey(modId, BigHaxOptionIds.MaximumInvestmentHundredsMillions);
+            if (UnityEngine.PlayerPrefs.HasKey(currentKey))
+                return UnityEngine.PlayerPrefs.GetInt(currentKey);
+
+            var legacyKey = BuildKey(modId, BigHaxOptionIds.LegacyMaximumInvestmentBillions);
+            if (!UnityEngine.PlayerPrefs.HasKey(legacyKey))
+                return BigHaxSettings.DefaultMaximumInvestmentHundredsMillions;
+
+            var legacyBillions = UnityEngine.PlayerPrefs.GetInt(legacyKey);
+            if (legacyBillions < 1)
+                return BigHaxSettings.DefaultMaximumInvestmentHundredsMillions;
+
+            return UnityEngine.Mathf.Clamp(
+                legacyBillions * 10,
+                1,
+                BigHaxSettings.MaximumInvestmentHundredsMillionsLimit);
         }
 
         private static int MapLegacyCustomerTrafficMultiplierToIndex(int legacyValue)
