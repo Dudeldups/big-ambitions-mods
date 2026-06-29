@@ -34,6 +34,7 @@ namespace BigHax
 
             var options =
                 new ModOptions()
+                    .AddHeader("bighax_options_header")
                     .AddDropdown(
                         BigHaxOptionIds.UiToggleHotkey,
                         "bighax_ui_hotkey_label",
