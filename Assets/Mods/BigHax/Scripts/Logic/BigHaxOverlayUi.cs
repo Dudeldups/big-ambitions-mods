@@ -27,9 +27,11 @@ namespace BigHax
         private GUIStyle? sectionTitleStyle;
         private GUIStyle? closeButtonStyle;
         private GUIStyle? primaryButtonStyle;
+        private GUIStyle? selectedButtonStyle;
         private GUIStyle? toggleStyle;
         private GUIStyle? sliderValueStyle;
         private GUIStyle? sliderTrackStyle;
+        private GUIStyle? sliderFillStyle;
         private GUIStyle? sliderThumbStyle;
         private GUIStyle? verticalScrollbarStyle;
         private GUIStyle? verticalScrollbarThumbStyle;
@@ -183,11 +185,28 @@ namespace BigHax
         private void DrawCustomerMultiplier(ModContext context, BigHaxSettings settings)
         {
             DrawSectionTitle(Localize("bighax_customer_traffic_multiplier_label"));
-            var selectedIndex = GUILayout.SelectionGrid(
-                settings.CustomerTrafficMultiplierIndex,
-                CustomerTrafficLabels,
-                3,
-                primaryButtonStyle!);
+            var selectedIndex = settings.CustomerTrafficMultiplierIndex;
+            for (var row = 0; row < 2; row++)
+            {
+                GUILayout.BeginHorizontal();
+                for (var column = 0; column < 3; column++)
+                {
+                    var optionIndex = (row * 3) + column;
+                    var style = optionIndex == settings.CustomerTrafficMultiplierIndex
+                        ? selectedButtonStyle!
+                        : primaryButtonStyle!;
+                    if (GUILayout.Button(CustomerTrafficLabels[optionIndex], style, GUILayout.Height(36f)))
+                        selectedIndex = optionIndex;
+
+                    if (column < 2)
+                        GUILayout.Space(10f);
+                }
+
+                GUILayout.EndHorizontal();
+                if (row == 0)
+                    GUILayout.Space(10f);
+            }
+
             if (selectedIndex == settings.CustomerTrafficMultiplierIndex)
                 return;
 
@@ -208,12 +227,8 @@ namespace BigHax
             DrawSectionTitle(label);
             GUILayout.BeginHorizontal();
             GUILayout.Label(currentValue.ToString(), sliderValueStyle!, GUILayout.Width(76f));
-            var sliderValue = Mathf.RoundToInt(GUILayout.HorizontalSlider(
-                currentValue,
-                minValue,
-                maxValue,
-                sliderTrackStyle!,
-                sliderThumbStyle!));
+            var sliderRect = GUILayoutUtility.GetRect(16f, 24f, GUILayout.ExpandWidth(true));
+            var sliderValue = Mathf.RoundToInt(DrawStyledSlider(sliderRect, currentValue, minValue, maxValue));
             GUILayout.EndHorizontal();
             if (sliderValue == currentValue)
                 return;
@@ -362,6 +377,10 @@ namespace BigHax
                 new Color(0.22f, 0.56f, 0.93f, 1f),
                 new Color(0.17f, 0.47f, 0.84f, 1f),
                 14);
+            selectedButtonStyle ??= CreateButtonStyle(
+                new Color(0.18f, 0.44f, 0.75f, 1f),
+                new Color(0.15f, 0.39f, 0.68f, 1f),
+                14);
             toggleStyle ??= new GUIStyle(GUI.skin.toggle)
             {
                 fontSize = 14,
@@ -371,6 +390,7 @@ namespace BigHax
                 margin = new RectOffset(2, 2, 8, 4)
             };
             sliderTrackStyle ??= CreateSliderTrackStyle();
+            sliderFillStyle ??= CreateSliderFillStyle();
             sliderThumbStyle ??= CreateSliderThumbStyle();
             verticalScrollbarStyle ??= CreateVerticalScrollbarStyle();
             verticalScrollbarThumbStyle ??= CreateVerticalScrollbarThumbStyle();
@@ -378,11 +398,11 @@ namespace BigHax
 
         private GUIStyle CreateWindowStyle()
         {
-            var backgroundTexture = MakeSolidTexture(new Color(0.97f, 0.97f, 0.98f, 1f));
+            var backgroundTexture = MakeRoundedRectTexture(48, 48, new Color(0.97f, 0.97f, 0.98f, 1f), 10);
             var style = new GUIStyle(GUI.skin.window)
             {
                 padding = new RectOffset(22, 22, 20, 20),
-                border = new RectOffset(1, 1, 1, 1),
+                border = new RectOffset(10, 10, 10, 10),
                 normal =
                 {
                     background = backgroundTexture,
@@ -429,8 +449,8 @@ namespace BigHax
 
         private GUIStyle CreateButtonStyle(Color normalColor, Color activeColor, int fontSize)
         {
-            var normalBackground = MakeSolidTexture(normalColor);
-            var activeBackground = MakeSolidTexture(activeColor);
+            var normalBackground = MakeRoundedRectTexture(48, 48, normalColor, 8);
+            var activeBackground = MakeRoundedRectTexture(48, 48, activeColor, 8);
 
             return new GUIStyle(GUI.skin.button)
             {
@@ -438,7 +458,7 @@ namespace BigHax
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleCenter,
                 fixedHeight = 40f,
-                margin = new RectOffset(0, 0, 4, 8),
+                margin = new RectOffset(0, 0, 0, 0),
                 border = new RectOffset(8, 8, 8, 8),
                 normal =
                 {
@@ -485,12 +505,12 @@ namespace BigHax
 
         private GUIStyle CreateSliderTrackStyle()
         {
-            var background = MakeSolidTexture(new Color(0.83f, 0.88f, 0.94f, 1f));
+            var background = MakeRoundedRectTexture(64, 16, new Color(0.34f, 0.38f, 0.41f, 1f), 8);
             return new GUIStyle(GUI.skin.horizontalSlider)
             {
-                fixedHeight = 10f,
-                margin = new RectOffset(0, 0, 8, 8),
-                border = new RectOffset(4, 4, 4, 4),
+                fixedHeight = 14f,
+                margin = new RectOffset(0, 0, 6, 8),
+                border = new RectOffset(8, 8, 8, 8),
                 normal = { background = background },
                 hover = { background = background },
                 active = { background = background },
@@ -498,16 +518,26 @@ namespace BigHax
             };
         }
 
+        private GUIStyle CreateSliderFillStyle()
+        {
+            var background = MakeRoundedRectTexture(64, 16, new Color(0.59f, 0.84f, 0.31f, 1f), 8);
+            return new GUIStyle
+            {
+                normal = { background = background },
+                border = new RectOffset(8, 8, 8, 8)
+            };
+        }
+
         private GUIStyle CreateSliderThumbStyle()
         {
-            var normalBackground = MakeSolidTexture(new Color(0.21f, 0.50f, 0.90f, 1f));
-            var activeBackground = MakeSolidTexture(new Color(0.16f, 0.43f, 0.80f, 1f));
+            var normalBackground = MakeRoundedRectTexture(28, 28, new Color(0.75f, 0.78f, 0.81f, 1f), 14);
+            var activeBackground = MakeRoundedRectTexture(28, 28, new Color(0.66f, 0.69f, 0.73f, 1f), 14);
             return new GUIStyle(GUI.skin.horizontalSliderThumb)
             {
-                fixedWidth = 18f,
-                fixedHeight = 18f,
-                margin = new RectOffset(0, 0, -4, -4),
-                border = new RectOffset(6, 6, 6, 6),
+                fixedWidth = 28f,
+                fixedHeight = 28f,
+                margin = new RectOffset(0, 0, -7, -7),
+                border = new RectOffset(14, 14, 14, 14),
                 normal = { background = normalBackground },
                 hover = { background = normalBackground },
                 active = { background = activeBackground },
@@ -517,12 +547,12 @@ namespace BigHax
 
         private GUIStyle CreateVerticalScrollbarStyle()
         {
-            var background = MakeSolidTexture(new Color(0.90f, 0.93f, 0.96f, 1f));
+            var background = MakeRoundedRectTexture(10, 64, new Color(0.80f, 0.82f, 0.84f, 1f), 5);
             return new GUIStyle(GUI.skin.verticalScrollbar)
             {
-                fixedWidth = 14f,
+                fixedWidth = 10f,
                 margin = new RectOffset(10, 0, 0, 0),
-                border = new RectOffset(4, 4, 4, 4),
+                border = new RectOffset(5, 5, 5, 5),
                 normal = { background = background },
                 hover = { background = background },
                 active = { background = background },
@@ -532,17 +562,37 @@ namespace BigHax
 
         private GUIStyle CreateVerticalScrollbarThumbStyle()
         {
-            var normalBackground = MakeSolidTexture(new Color(0.21f, 0.50f, 0.90f, 1f));
-            var activeBackground = MakeSolidTexture(new Color(0.16f, 0.43f, 0.80f, 1f));
+            var normalBackground = MakeRoundedRectTexture(10, 32, new Color(0.92f, 0.93f, 0.94f, 1f), 5);
+            var activeBackground = MakeRoundedRectTexture(10, 32, new Color(0.87f, 0.88f, 0.90f, 1f), 5);
             return new GUIStyle(GUI.skin.verticalScrollbarThumb)
             {
-                fixedWidth = 14f,
-                border = new RectOffset(4, 4, 4, 4),
+                fixedWidth = 10f,
+                border = new RectOffset(5, 5, 5, 5),
                 normal = { background = normalBackground },
                 hover = { background = normalBackground },
                 active = { background = activeBackground },
                 focused = { background = normalBackground }
             };
+        }
+
+        private float DrawStyledSlider(Rect rect, int currentValue, int minValue, int maxValue)
+        {
+            var sliderValue = GUI.HorizontalSlider(rect, currentValue, minValue, maxValue, sliderTrackStyle!, sliderThumbStyle!);
+            var clampedTrackWidth = Mathf.Max(0f, rect.width - sliderThumbStyle!.fixedWidth);
+            var normalizedValue = Mathf.InverseLerp(minValue, maxValue, sliderValue);
+            var fillWidth = clampedTrackWidth * normalizedValue;
+            if (fillWidth > 0f)
+            {
+                var fillRect = new Rect(
+                    rect.x,
+                    rect.y + 5f,
+                    fillWidth + (sliderThumbStyle.fixedWidth * 0.5f),
+                    sliderTrackStyle!.fixedHeight);
+                GUI.Box(fillRect, GUIContent.none, sliderFillStyle!);
+            }
+
+            sliderValue = GUI.HorizontalSlider(rect, sliderValue, minValue, maxValue, GUIStyle.none, sliderThumbStyle!);
+            return sliderValue;
         }
 
         private Texture2D MakeSolidTexture(Color color)
@@ -551,6 +601,40 @@ namespace BigHax
             texture.SetPixel(0, 0, color);
             texture.Apply();
             return texture;
+        }
+
+        private Texture2D MakeRoundedRectTexture(int width, int height, Color color, int radius)
+        {
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            var transparent = new Color(0f, 0f, 0f, 0f);
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    var drawPixel = true;
+
+                    if (x < radius && y < radius)
+                        drawPixel = IsInsideCorner(x, y, radius - 1, radius - 1, radius);
+                    else if (x >= width - radius && y < radius)
+                        drawPixel = IsInsideCorner(x, y, width - radius, radius - 1, radius);
+                    else if (x < radius && y >= height - radius)
+                        drawPixel = IsInsideCorner(x, y, radius - 1, height - radius, radius);
+                    else if (x >= width - radius && y >= height - radius)
+                        drawPixel = IsInsideCorner(x, y, width - radius, height - radius, radius);
+
+                    texture.SetPixel(x, y, drawPixel ? color : transparent);
+                }
+            }
+
+            texture.Apply();
+            return texture;
+        }
+
+        private bool IsInsideCorner(int x, int y, int centerX, int centerY, int radius)
+        {
+            var deltaX = x - centerX;
+            var deltaY = y - centerY;
+            return (deltaX * deltaX) + (deltaY * deltaY) <= radius * radius;
         }
 
         private static string Localize(string key)
