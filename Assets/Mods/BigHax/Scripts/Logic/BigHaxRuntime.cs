@@ -17,6 +17,7 @@ namespace BigHax
         private readonly BigHaxBuildingCustomerCapacityService buildingCustomerCapacityService = new BigHaxBuildingCustomerCapacityService();
         private BigHaxCustomerTrafficService? customerTrafficService;
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
+        private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
@@ -63,6 +64,7 @@ namespace BigHax
             TryRestoreCustomerTraffic();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
             businessCapacityService.RestoreOriginalCapacities();
+            investmentLimitService.RestoreOriginalLimit();
             itemCapacityService.RestoreOriginalCapacities();
             vehicleCapacityService.RestoreOriginalCapacities();
             if (instance == this)
@@ -102,6 +104,7 @@ namespace BigHax
 
             buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings);
             businessCapacityService.ApplyConfiguredCapacities(context, settings);
+            investmentLimitService.ApplyConfiguredLimit(context, settings);
             TryApplyCustomerTraffic(context, settings, forceRefresh: true);
             itemCapacityService.ApplyConfiguredCapacities(context, settings);
             vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true);
@@ -147,6 +150,7 @@ namespace BigHax
         {
             TryInvalidateCustomerTrafficCache();
             employeeTrainingService.InvalidateCache();
+            investmentLimitService.InvalidateCache();
             buildingCustomerCapacityService.InvalidateCache();
             businessCapacityService.InvalidateCache();
             itemCapacityService.InvalidateCache();

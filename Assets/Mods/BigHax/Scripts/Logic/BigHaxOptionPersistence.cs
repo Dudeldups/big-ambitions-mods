@@ -10,6 +10,10 @@ namespace BigHax
                 BigHaxOptionIds.UiToggleHotkey,
                 BigHaxSettings.DefaultUiHotkeyIndex);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
+            settings.MaximumInvestmentBillions = LoadInt(
+                modId,
+                BigHaxOptionIds.MaximumInvestmentBillions,
+                BigHaxSettings.DefaultMaximumInvestmentBillions);
 
             settings.StandardFridgeCapacity = LoadInt(
                 modId,
@@ -47,6 +51,9 @@ namespace BigHax
                 settings.CustomerTrafficMultiplierIndex = BigHaxSettings.DefaultCustomerTrafficMultiplierIndex;
             }
 
+            if (settings.MaximumInvestmentBillions < 1)
+                settings.MaximumInvestmentBillions = BigHaxSettings.DefaultMaximumInvestmentBillions;
+
             settings.UiHotkeyIndex = BigHaxHotkeys.ClampIndex(settings.UiHotkeyIndex);
         }
 
@@ -58,6 +65,11 @@ namespace BigHax
         public static void SaveStandardFridgeCapacity(string modId, int value)
         {
             SaveInt(modId, BigHaxOptionIds.StandardFridgeCapacity, value);
+        }
+
+        public static void SaveMaximumInvestmentBillions(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.MaximumInvestmentBillions, value);
         }
 
         public static void SavePalletShelfCapacity(string modId, int value)

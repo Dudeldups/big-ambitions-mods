@@ -89,10 +89,24 @@ namespace BigHax
             DrawIntSlider(
                 context,
                 settings,
+                Localize("bighax_maximum_investment_label"),
+                settings.MaximumInvestmentBillions,
+                BigHaxSettings.DefaultMaximumInvestmentBillions,
+                1000,
+                FormatInvestmentCap,
+                value =>
+                {
+                    settings.MaximumInvestmentBillions = value;
+                    BigHaxOptionPersistence.SaveMaximumInvestmentBillions(context.ModId, value);
+                });
+            DrawIntSlider(
+                context,
+                settings,
                 Localize("bighax_employee_training_skill_increase_label"),
                 settings.EmployeeTrainingSkillIncrease,
                 BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
                 100,
+                value => value.ToString(),
                 value =>
                 {
                     settings.EmployeeTrainingSkillIncrease = value;
@@ -110,6 +124,7 @@ namespace BigHax
                 settings.StandardFridgeCapacity,
                 BigHaxSettings.DefaultStandardFridgeCapacity,
                 BigHaxTargetIds.SliderMaximum,
+                value => value.ToString(),
                 value =>
                 {
                     settings.StandardFridgeCapacity = value;
@@ -127,6 +142,7 @@ namespace BigHax
                 settings.PalletShelfCapacity,
                 BigHaxSettings.DefaultPalletShelfCapacity,
                 BigHaxTargetIds.SliderMaximum,
+                value => value.ToString(),
                 value =>
                 {
                     settings.PalletShelfCapacity = value;
@@ -144,6 +160,7 @@ namespace BigHax
                 settings.FreightTruckT1DeliveryPlaces,
                 BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
                 BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
+                value => value.ToString(),
                 value =>
                 {
                     settings.FreightTruckT1DeliveryPlaces = value;
@@ -171,6 +188,7 @@ namespace BigHax
                     settings.ActiveVehicleCapacity,
                     BigHaxSettings.DefaultActiveVehicleCapacity,
                     BigHaxTargetIds.SliderMaximum,
+                    value => value.ToString(),
                     value =>
                     {
                         settings.ActiveVehicleCapacity = value;
@@ -235,11 +253,12 @@ namespace BigHax
             int currentValue,
             int minValue,
             int maxValue,
+            System.Func<int, string> formatValue,
             System.Action<int> applyValue)
         {
             DrawSectionTitle(label);
             GUILayout.BeginHorizontal();
-            GUILayout.Label(currentValue.ToString(), sliderValueStyle!, GUILayout.Width(76f));
+            GUILayout.Label(formatValue(currentValue), sliderValueStyle!, GUILayout.Width(110f));
             var sliderRect = GUILayoutUtility.GetRect(16f, 24f, GUILayout.ExpandWidth(true));
             var sliderValue = Mathf.RoundToInt(DrawStyledSlider(sliderRect, currentValue, minValue, maxValue));
             GUILayout.EndHorizontal();
@@ -658,6 +677,14 @@ namespace BigHax
         private static string Localize(string key, Dictionary<string, string> arguments)
         {
             return key.Localize(arguments).ToString();
+        }
+
+        private static string FormatInvestmentCap(int billions)
+        {
+            if (billions >= 1000)
+                return "$1T";
+
+            return $"${billions}B";
         }
     }
 }
