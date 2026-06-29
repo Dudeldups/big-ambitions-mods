@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Big Hax UI-sneltoets",
+  "bighax_ui_hotkey_current_label": "Sneltoets",
+  "bighax_ui_close_button": "Sluiten",
+  "bighax_customer_traffic_multiplier_label": "Klantvermenigvuldiger voor spelersbedrijf",
+  "bighax_disable_casino_bet_limit_label": "Casinoinzetlimiet verhogen",
+  "bighax_disable_investment_limit_label": "Investeringslimiet uitschakelen",
+  "bighax_vantander_maximum_loan_override_label": "Maximale lening van Vantander Bank verhogen naar 100.000.000 $",
+  "bighax_employee_training_skill_increase_label": "Vaardigheidswinst door werknemerstraining",
+  "bighax_standard_fridge_capacity_label": "Capaciteit van {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Capaciteit van {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Bezorglocaties van {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Capaciteitsoverschrijving voor actief voertuig inschakelen",
+  "bighax_active_vehicle_label": "Capaciteit actief voertuig"
+}

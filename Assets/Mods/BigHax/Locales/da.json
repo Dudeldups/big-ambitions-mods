@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Big Hax UI-genvejstast",
+  "bighax_ui_hotkey_current_label": "Genvejstast",
+  "bighax_ui_close_button": "Luk",
+  "bighax_customer_traffic_multiplier_label": "Kundemultiplikator for spillerens virksomhed",
+  "bighax_disable_casino_bet_limit_label": "Hæv kasinoets indsatsgrænse",
+  "bighax_disable_investment_limit_label": "Deaktiver investeringsgrænse",
+  "bighax_vantander_maximum_loan_override_label": "Hæv Vantander Banks maksimale lån til 100.000.000 $",
+  "bighax_employee_training_skill_increase_label": "Færdighedsgevinst fra medarbejdertræning",
+  "bighax_standard_fridge_capacity_label": "Kapacitet for {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Kapacitet for {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Leveringspladser for {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Aktivér tilsidesættelse af aktivt køretøjs kapacitet",
+  "bighax_active_vehicle_label": "Aktivt køretøjs kapacitet"
+}

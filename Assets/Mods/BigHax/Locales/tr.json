@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Big Hax arayüz kısayol tuşu",
+  "bighax_ui_hotkey_current_label": "Kısayol tuşu",
+  "bighax_ui_close_button": "Kapat",
+  "bighax_customer_traffic_multiplier_label": "Oyuncu işletmesi müşteri çarpanı",
+  "bighax_disable_casino_bet_limit_label": "Kumarhane bahis limitini artır",
+  "bighax_disable_investment_limit_label": "Yatırım limitini devre dışı bırak",
+  "bighax_vantander_maximum_loan_override_label": "Vantander Bank maksimum kredisini 100.000.000 $ seviyesine yükselt",
+  "bighax_employee_training_skill_increase_label": "Çalışan eğitimi beceri kazanımı",
+  "bighax_standard_fridge_capacity_label": "{itemName} kapasitesi",
+  "bighax_pallet_shelf_capacity_label": "{itemName} kapasitesi",
+  "bighax_freight_truck_delivery_places_label": "{vehicleName} teslimat yerleri",
+  "bighax_active_vehicle_enabled_label": "Aktif araç kapasitesi geçersiz kılmayı etkinleştir",
+  "bighax_active_vehicle_label": "Aktif araç kapasitesi"
+}

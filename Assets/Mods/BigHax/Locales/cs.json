@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Klávesová zkratka UI Big Hax",
+  "bighax_ui_hotkey_current_label": "Klávesová zkratka",
+  "bighax_ui_close_button": "Zavřít",
+  "bighax_customer_traffic_multiplier_label": "Násobitel zákazníků podniku hráče",
+  "bighax_disable_casino_bet_limit_label": "Zvýšit limit sázek v kasinu",
+  "bighax_disable_investment_limit_label": "Zakázat investiční limit",
+  "bighax_vantander_maximum_loan_override_label": "Zvýšit maximální půjčku Vantander Bank na 100 000 000 $",
+  "bighax_employee_training_skill_increase_label": "Přírůstek dovednosti z tréninku zaměstnanců",
+  "bighax_standard_fridge_capacity_label": "Kapacita {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Kapacita {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Místa doručení pro {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Povolit přepsání kapacity aktivního vozidla",
+  "bighax_active_vehicle_label": "Kapacita aktivního vozidla"
+}

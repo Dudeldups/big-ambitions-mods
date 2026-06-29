@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Big Hax -käyttöliittymän pikanäppäin",
+  "bighax_ui_hotkey_current_label": "Pikanäppäin",
+  "bighax_ui_close_button": "Sulje",
+  "bighax_customer_traffic_multiplier_label": "Pelaajan yrityksen asiakaskerroin",
+  "bighax_disable_casino_bet_limit_label": "Nosta kasinon panosrajaa",
+  "bighax_disable_investment_limit_label": "Poista sijoitusraja käytöstä",
+  "bighax_vantander_maximum_loan_override_label": "Nosta Vantander Bankin enimmäislaina 100 000 000 $:iin",
+  "bighax_employee_training_skill_increase_label": "Työntekijäkoulutuksen taitolisäys",
+  "bighax_standard_fridge_capacity_label": "Kohteen {itemName} kapasiteetti",
+  "bighax_pallet_shelf_capacity_label": "Kohteen {itemName} kapasiteetti",
+  "bighax_freight_truck_delivery_places_label": "Ajoneuvon {vehicleName} toimituspaikat",
+  "bighax_active_vehicle_enabled_label": "Ota aktiivisen ajoneuvon kapasiteetin ohitus käyttöön",
+  "bighax_active_vehicle_label": "Aktiivisen ajoneuvon kapasiteetti"
+}

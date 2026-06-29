@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Tastă rapidă UI Big Hax",
+  "bighax_ui_hotkey_current_label": "Tastă rapidă",
+  "bighax_ui_close_button": "Închide",
+  "bighax_customer_traffic_multiplier_label": "Multiplicator de clienți pentru afacerea jucătorului",
+  "bighax_disable_casino_bet_limit_label": "Mărește limita de pariere la cazino",
+  "bighax_disable_investment_limit_label": "Dezactivează limita de investiții",
+  "bighax_vantander_maximum_loan_override_label": "Mărește împrumutul maxim Vantander Bank la 100.000.000 $",
+  "bighax_employee_training_skill_increase_label": "Câștig de abilitate din instruirea angajaților",
+  "bighax_standard_fridge_capacity_label": "Capacitate {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Capacitate {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Locuri de livrare pentru {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Activează suprascrierea capacității vehiculului activ",
+  "bighax_active_vehicle_label": "Capacitatea vehiculului activ"
+}

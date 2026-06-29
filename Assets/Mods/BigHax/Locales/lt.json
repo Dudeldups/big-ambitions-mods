@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Big Hax sąsajos spartusis klavišas",
+  "bighax_ui_hotkey_current_label": "Spartusis klavišas",
+  "bighax_ui_close_button": "Uždaryti",
+  "bighax_customer_traffic_multiplier_label": "Žaidėjo verslo klientų daugiklis",
+  "bighax_disable_casino_bet_limit_label": "Padidinti kazino statymų limitą",
+  "bighax_disable_investment_limit_label": "Išjungti investicijų limitą",
+  "bighax_vantander_maximum_loan_override_label": "Padidinti Vantander Bank maksimalų paskolos limitą iki 100 000 000 $",
+  "bighax_employee_training_skill_increase_label": "Darbuotojų mokymo įgūdžių prieaugis",
+  "bighax_standard_fridge_capacity_label": "{itemName} talpa",
+  "bighax_pallet_shelf_capacity_label": "{itemName} talpa",
+  "bighax_freight_truck_delivery_places_label": "{vehicleName} pristatymo vietos",
+  "bighax_active_vehicle_enabled_label": "Įjungti aktyvios transporto priemonės talpos perrašymą",
+  "bighax_active_vehicle_label": "Aktyvios transporto priemonės talpa"
+}

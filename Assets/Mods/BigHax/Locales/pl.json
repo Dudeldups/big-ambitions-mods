@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Klawisz skrótu interfejsu Big Hax",
+  "bighax_ui_hotkey_current_label": "Klawisz skrótu",
+  "bighax_ui_close_button": "Zamknij",
+  "bighax_customer_traffic_multiplier_label": "Mnożnik klientów firmy gracza",
+  "bighax_disable_casino_bet_limit_label": "Zwiększ limit zakładów w kasynie",
+  "bighax_disable_investment_limit_label": "Wyłącz limit inwestycji",
+  "bighax_vantander_maximum_loan_override_label": "Zwiększ maksymalną pożyczkę Vantander Bank do 100 000 000 $",
+  "bighax_employee_training_skill_increase_label": "Przyrost umiejętności z treningu pracowników",
+  "bighax_standard_fridge_capacity_label": "Pojemność {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Pojemność {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Miejsca dostaw dla {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Włącz nadpisanie pojemności aktywnego pojazdu",
+  "bighax_active_vehicle_label": "Pojemność aktywnego pojazdu"
+}

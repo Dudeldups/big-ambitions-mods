@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Πλήκτρο συντόμευσης UI Big Hax",
+  "bighax_ui_hotkey_current_label": "Πλήκτρο συντόμευσης",
+  "bighax_ui_close_button": "Κλείσιμο",
+  "bighax_customer_traffic_multiplier_label": "Πολλαπλασιαστής πελατών επιχείρησης παίκτη",
+  "bighax_disable_casino_bet_limit_label": "Αύξηση ορίου πονταρίσματος καζίνο",
+  "bighax_disable_investment_limit_label": "Απενεργοποίηση ορίου επένδυσης",
+  "bighax_vantander_maximum_loan_override_label": "Αύξηση μέγιστου δανείου Vantander Bank σε 100.000.000 $",
+  "bighax_employee_training_skill_increase_label": "Κέρδος δεξιότητας από εκπαίδευση υπαλλήλων",
+  "bighax_standard_fridge_capacity_label": "Χωρητικότητα {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Χωρητικότητα {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Σημεία παράδοσης {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Ενεργοποίηση παράκαμψης χωρητικότητας ενεργού οχήματος",
+  "bighax_active_vehicle_label": "Χωρητικότητα ενεργού οχήματος"
+}

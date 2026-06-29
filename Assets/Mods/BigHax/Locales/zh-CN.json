@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Big Hax UI 热键",
+  "bighax_ui_hotkey_current_label": "热键",
+  "bighax_ui_close_button": "关闭",
+  "bighax_customer_traffic_multiplier_label": "玩家企业顾客倍率",
+  "bighax_disable_casino_bet_limit_label": "提高赌场下注上限",
+  "bighax_disable_investment_limit_label": "禁用投资上限",
+  "bighax_vantander_maximum_loan_override_label": "将 Vantander Bank 最高贷款提高到 100,000,000 $",
+  "bighax_employee_training_skill_increase_label": "员工培训技能提升",
+  "bighax_standard_fridge_capacity_label": "{itemName} 容量",
+  "bighax_pallet_shelf_capacity_label": "{itemName} 容量",
+  "bighax_freight_truck_delivery_places_label": "{vehicleName} 送货地点",
+  "bighax_active_vehicle_enabled_label": "启用当前车辆容量覆盖",
+  "bighax_active_vehicle_label": "当前车辆容量"
+}

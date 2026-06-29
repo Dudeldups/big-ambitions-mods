@@ -1,0 +1,16 @@
+{
+  "bighax_options_header": "Big Hax",
+  "bighax_ui_hotkey_label": "Горячая клавиша интерфейса Big Hax",
+  "bighax_ui_hotkey_current_label": "Горячая клавиша",
+  "bighax_ui_close_button": "Закрыть",
+  "bighax_customer_traffic_multiplier_label": "Множитель клиентов бизнеса игрока",
+  "bighax_disable_casino_bet_limit_label": "Увеличить лимит ставок в казино",
+  "bighax_disable_investment_limit_label": "Отключить лимит инвестиций",
+  "bighax_vantander_maximum_loan_override_label": "Увеличить максимальный кредит Vantander Bank до 100 000 000 $",
+  "bighax_employee_training_skill_increase_label": "Прирост навыка от обучения сотрудников",
+  "bighax_standard_fridge_capacity_label": "Вместимость {itemName}",
+  "bighax_pallet_shelf_capacity_label": "Вместимость {itemName}",
+  "bighax_freight_truck_delivery_places_label": "Места доставки для {vehicleName}",
+  "bighax_active_vehicle_enabled_label": "Включить переопределение вместимости активного транспорта",
+  "bighax_active_vehicle_label": "Вместимость активного транспорта"
+}
