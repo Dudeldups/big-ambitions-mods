@@ -19,13 +19,13 @@ namespace BigHax
 
                 try
                 {
-                    var directory = Path.Combine(Application.persistentDataPath, "BigHax");
+                    var directory = Path.Combine(Environment.CurrentDirectory, "Logs", "Mods");
                     Directory.CreateDirectory(directory);
-                    logPath = Path.Combine(directory, "storage-tools.log");
+                    logPath = Path.Combine(directory, "BigHax.log");
                 }
                 catch
                 {
-                    logPath = Path.Combine(Path.GetTempPath(), "storage-tools.log");
+                    logPath = Path.Combine(Path.GetTempPath(), "BigHax.log");
                 }
 
                 return logPath;

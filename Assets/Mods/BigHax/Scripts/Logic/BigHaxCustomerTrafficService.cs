@@ -42,6 +42,7 @@ namespace BigHax
         private readonly Dictionary<string, int> originalCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> lastAppliedEntryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> lastAppliedCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, bool> lastKnownShouldCreateEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         private bool hasAppliedCustomTraffic;
         private float? originalBaseCustomerPromotionMultiplier;
@@ -51,6 +52,7 @@ namespace BigHax
         {
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
+            lastKnownShouldCreateEntries.Clear();
         }
 
         public void ApplyConfiguredTraffic(ModContext context, BigHaxSettings settings, bool forceRefresh)
@@ -72,7 +74,7 @@ namespace BigHax
                 return;
             }
 
-            if (forceRefresh || !Mathf.Approximately(multiplier, lastAppliedMultiplier) || !IsCurrentStateApplied(multiplier))
+            if (forceRefresh || !Mathf.Approximately(multiplier, lastAppliedMultiplier) || !IsCurrentStateApplied(context, multiplier))
                 RebuildAndApplyTraffic(context, multiplier);
         }
 
@@ -90,6 +92,11 @@ namespace BigHax
 
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
+            lastKnownShouldCreateEntries.Clear();
+
+            var appliedBusinessCount = 0;
+            var waitingForEntriesCount = 0;
+            var clonedBusinessCount = 0;
 
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
@@ -103,10 +110,14 @@ namespace BigHax
                     : baseCapacity;
                 registration.customerCapacity = desiredCapacity;
                 lastAppliedCustomerCapacities[key] = desiredCapacity;
+                appliedBusinessCount++;
 
-                if (!ShouldEntriesBeCreated(registration))
+                var shouldCreateEntries = ShouldEntriesBeCreated(registration);
+                lastKnownShouldCreateEntries[key] = shouldCreateEntries;
+                if (!shouldCreateEntries)
                 {
                     lastAppliedEntryCounts[key] = 0;
+                    waitingForEntriesCount++;
                     continue;
                 }
 
@@ -114,16 +125,22 @@ namespace BigHax
                 if (entries == null || entries.Count == 0)
                 {
                     lastAppliedEntryCounts[key] = 0;
+                    waitingForEntriesCount++;
                     continue;
                 }
 
+                var originalEntryCount = entries.Count;
                 MultiplyEntries(entries, multiplier);
                 lastAppliedEntryCounts[key] = entries.Count;
+                if (entries.Count > originalEntryCount)
+                    clonedBusinessCount++;
             }
 
             hasAppliedCustomTraffic = true;
             lastAppliedMultiplier = multiplier;
-            BigHaxLogger.Info(context, $"BigHax: applied customer traffic multiplier x{multiplier} to player businesses.");
+            BigHaxLogger.Info(
+                context,
+                $"BigHax: applied customer traffic multiplier x{multiplier} to player businesses. businesses={appliedBusinessCount}, waitingForEntries={waitingForEntriesCount}, clonedEntryBusinesses={clonedBusinessCount}.");
         }
 
         private void RestoreVanillaTraffic(ModContext? context)
@@ -140,10 +157,11 @@ namespace BigHax
 
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
+            lastKnownShouldCreateEntries.Clear();
             BigHaxLogger.Info(context, "BigHax: restored vanilla customer traffic for player businesses.");
         }
 
-        private bool IsCurrentStateApplied(float multiplier)
+        private bool IsCurrentStateApplied(ModContext? context, float multiplier)
         {
             if (!hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
                 return false;
@@ -156,13 +174,19 @@ namespace BigHax
                 var key = GetRegistrationKey(registration);
                 if (!lastAppliedCustomerCapacities.TryGetValue(key, out var expectedCapacity) ||
                     registration.customerCapacity != expectedCapacity)
-                {
                     return false;
-                }
+
+                var shouldCreateEntries = ShouldEntriesBeCreated(registration);
+                if (!lastKnownShouldCreateEntries.TryGetValue(key, out var lastShouldCreateEntries) ||
+                    shouldCreateEntries != lastShouldCreateEntries)
+                    return false;
 
                 var entries = GetBusinessCustomerEntries(registration);
                 var currentCount = entries?.Count ?? 0;
-                if (!lastAppliedEntryCounts.TryGetValue(key, out var expectedCount) || currentCount != expectedCount)
+                if (shouldCreateEntries && currentCount == 0)
+                    return false;
+
+                if (!lastAppliedEntryCounts.ContainsKey(key))
                     return false;
             }
 
