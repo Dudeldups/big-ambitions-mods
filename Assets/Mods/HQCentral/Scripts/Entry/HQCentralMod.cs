@@ -31,8 +31,10 @@ namespace HQCentral.Entry
             {
                 activeRuntime = HQCentralRuntime.Initialize(context);
                 activeModId = context.ModId;
-                context.Logger.Info($"HQCentral: runtime initialized. UI log: {HQCentralFileLogger.UiLogPath}");
-                HQCentralFileLogger.Info("HQCentral runtime initialized.");
+                context.Logger.Info(
+                    $"HQCentral: runtime initialized. F10 opens the read-only overview; F4 writes a visible UI snapshot. " +
+                    $"Data log: {HQCentralFileLogger.DataLogPath}");
+                HQCentralFileLogger.Info("HQCentral runtime initialized. Hotkeys: F10 overview, F4 visible UI snapshot.");
             }
             catch (Exception exception)
             {
