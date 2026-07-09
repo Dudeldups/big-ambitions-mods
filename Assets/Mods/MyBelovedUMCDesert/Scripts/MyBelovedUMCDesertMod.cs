@@ -1,11 +1,11 @@
 #nullable enable
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
+using System.IO;
 using System.Threading.Tasks;
 using BAModAPI;
-using BigAmbitions.Items;
+using Blueprints;
+using BusinessLayoutSets;
 using BigAmbitions.SaveSystem.Legacy;
 using Helpers;
 using Services;
@@ -31,12 +31,18 @@ namespace MyBelovedUMCDesert
         internal const float RestoredEnginePower = 150f;
         internal const float RestoredBrakeForce = 6000f;
 
+        internal static readonly bool EnableShowroomDebugLogging = false;
+
         private static GameObject? registrarObject;
 
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
         public Task OnLoadAsync(ModContext context)
         {
+            MyBelovedUMCDesertFileLogger.Initialize(
+                context.ModId,
+                context.Logger,
+                EnableShowroomDebugLogging);
             EnsureRegistrar(context);
             context.Logger.Info($"My Beloved UMC Desert: adding '{VehicleTypeName}' to '{GeneralUSTrucksContactId}'.");
             return Task.CompletedTask;
@@ -52,6 +58,7 @@ namespace MyBelovedUMCDesert
 
             ContractItemsForSaleService.RemoveContact(ContactId);
             GeneralUSTrucksStockService.RestorePreviousPhoneStock();
+            MyBelovedUMCDesertFileLogger.Shutdown();
             return Task.CompletedTask;
         }
 
@@ -68,14 +75,20 @@ namespace MyBelovedUMCDesert
                 registrar = registrarObject.AddComponent<MyBelovedUMCDesertContactRegistrar>();
 
             registrar.Initialize(context);
+
         }
 
         internal static void RegisterDealerPhoneStock(ModContext? context)
         {
             UMCDesertStatsService.ApplyRestoredStats(context);
             GeneralUSTrucksStockService.ApplyPhoneStock();
-            GeneralUSTrucksShowroomService.Apply(context);
+
             RemoveLegacyContact(context);
+        }
+
+        internal static void ApplyShowroomReplacement()
+        {
+            GeneralUSTrucksShowroomReplacementService.ApplyLayoutPatch();
         }
 
         private static void RemoveLegacyContact(ModContext? context)
@@ -192,376 +205,263 @@ namespace MyBelovedUMCDesert
         }
     }
 
-    internal static class GeneralUSTrucksShowroomService
+    internal static class MyBelovedUMCDesertFileLogger
     {
-        private const BindingFlags ReflectionFlags =
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
-        private const string TruckDealerLayoutName = "IndustryCityCarDealershipTrucks";
-        private const string ReplacedShowcaseItemName = "ba:itemname_mersaididashshowcase";
+        private const string PreferredLogDirectory =
+            @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Logs\Mods";
 
-        private static bool hasLoggedRegistrationPatch;
-        private static bool hasLoggedLivePatch;
-        private static Type? itemControllerType;
+        private static readonly object Gate = new object();
 
-        internal static void Apply(ModContext? context)
+        private static string? filePath;
+        private static IModLogger? gameLogger;
+        private static bool enabled;
+        private static bool initialized;
+
+        internal static bool Enabled => enabled && initialized;
+        internal static string? FilePath => filePath;
+
+        internal static void Initialize(string modId, IModLogger? logger, bool enableFileLogging)
         {
-            var patchedRegistrationCount = PatchRegistrations(context);
-            var patchedLiveCount = PatchLiveItemControllers(context);
+            enabled = enableFileLogging;
+            gameLogger = logger;
 
-            if (patchedRegistrationCount > 0 && !hasLoggedRegistrationPatch)
+            if (!enabled)
             {
-                hasLoggedRegistrationPatch = true;
-                context?.Logger.Info(
-                    $"My Beloved UMC Desert: replaced {patchedRegistrationCount} dealership layout showcase item(s) with '{MyBelovedUMCDesertMod.ShowcaseItemName}'.");
-            }
-
-            if (patchedLiveCount > 0 && !hasLoggedLivePatch)
-            {
-                hasLoggedLivePatch = true;
-                context?.Logger.Info(
-                    $"My Beloved UMC Desert: patched {patchedLiveCount} live showroom controller(s) to '{MyBelovedUMCDesertMod.VehicleTypeName}'.");
-            }
-        }
-
-        private static int PatchRegistrations(ModContext? context)
-        {
-            var patchedCount = 0;
-            var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
-
-            try
-            {
-                patchedCount += PatchRegistrationGraph(SaveGameManager.Current, visited, 0, 0);
-            }
-            catch (Exception exception)
-            {
-                context?.Logger.Warn($"My Beloved UMC Desert: save registration showroom patch failed: {exception.Message}");
-            }
-
-            try
-            {
-                patchedCount += PatchRegistrationGraph(BuildingManager.Instance, visited, 0, 0);
-            }
-            catch (Exception exception)
-            {
-                context?.Logger.Warn($"My Beloved UMC Desert: building registration showroom patch failed: {exception.Message}");
-            }
-
-            return patchedCount;
-        }
-
-        private static int PatchRegistrationGraph(object? value, HashSet<object> visited, int depth, int scanned)
-        {
-            if (value == null || depth > 7 || scanned > 2500)
-                return 0;
-
-            var valueType = value.GetType();
-            if (IsTerminalType(valueType) || !visited.Add(value))
-                return 0;
-
-            var patchedCount = PatchRegistrationIfTruckDealer(value);
-
-            if (value is IDictionary dictionary)
-            {
-                foreach (DictionaryEntry entry in dictionary)
-                {
-                    patchedCount += PatchRegistrationGraph(entry.Key, visited, depth + 1, scanned + 1);
-                    patchedCount += PatchRegistrationGraph(entry.Value, visited, depth + 1, scanned + 1);
-                }
-
-                return patchedCount;
-            }
-
-            if (value is IEnumerable enumerable && value is not string)
-            {
-                foreach (var entry in enumerable)
-                    patchedCount += PatchRegistrationGraph(entry, visited, depth + 1, scanned + 1);
-
-                return patchedCount;
-            }
-
-            foreach (var field in GetAllFields(valueType))
-            {
-                if (field.FieldType.IsPointer || field.FieldType.IsPrimitive)
-                    continue;
-
-                object? fieldValue;
-                try
-                {
-                    fieldValue = field.GetValue(value);
-                }
-                catch
-                {
-                    continue;
-                }
-
-                patchedCount += PatchRegistrationGraph(fieldValue, visited, depth + 1, scanned + 1);
-            }
-
-            return patchedCount;
-        }
-
-        private static int PatchRegistrationIfTruckDealer(object candidate)
-        {
-            var layout = GetMemberValue(candidate, "Layout") as string ??
-                         GetMemberValue(candidate, "layout") as string;
-            if (!string.Equals(layout, TruckDealerLayoutName, StringComparison.Ordinal))
-                return 0;
-
-            return PatchItemInstanceDictionary(GetMemberValue(candidate, "itemInstances"));
-        }
-
-        private static int PatchItemInstanceDictionary(object? itemInstances)
-        {
-            if (itemInstances is not IDictionary dictionary)
-                return 0;
-
-            var patchedCount = 0;
-            foreach (DictionaryEntry entry in dictionary)
-            {
-                if (TryPatchItemInstance(entry.Value))
-                    patchedCount++;
-            }
-
-            return patchedCount;
-        }
-
-        private static int PatchLiveItemControllers(ModContext? context)
-        {
-            var type = itemControllerType ??= FindType("ItemController");
-            if (type == null)
-                return 0;
-
-            UnityEngine.Object[] itemControllers;
-            try
-            {
-                itemControllers = UnityEngine.Object.FindObjectsOfType(type, true);
-            }
-            catch (Exception exception)
-            {
-                context?.Logger.Warn($"My Beloved UMC Desert: could not scan live item controllers: {exception.Message}");
-                return 0;
-            }
-
-            var patchedCount = 0;
-            foreach (var controller in itemControllers)
-            {
-                if (controller == null)
-                    continue;
-
-                var itemInstance = GetMemberValue(controller, "itemInstance") ??
-                                   GetMemberValue(controller, "_itemInstance") ??
-                                   GetMemberValue(controller, "ItemInstance");
-                if (!TryPatchItemInstance(itemInstance))
-                    continue;
-
-                PatchItemController(controller);
-                if (controller is Component component)
-                    PatchAttachedShowcaseControllers(component.gameObject);
-
-                patchedCount++;
-            }
-
-            return patchedCount;
-        }
-
-        private static bool TryPatchItemInstance(object? itemInstance)
-        {
-            if (itemInstance == null)
-                return false;
-
-            var itemName = GetMemberValue(itemInstance, "itemName") as string;
-            if (!string.Equals(itemName, ReplacedShowcaseItemName, StringComparison.Ordinal))
-                return false;
-
-            var desertItem = ResolveItemByName(MyBelovedUMCDesertMod.ShowcaseItemName);
-            SetMemberValue(itemInstance, "itemName", MyBelovedUMCDesertMod.ShowcaseItemName);
-            SetMemberValue(itemInstance, "_itemCached", desertItem);
-            SetPlayerItemPurchaserItemName(GetMemberValue(itemInstance, "playerItemPurchaserSettings"));
-            return true;
-        }
-
-        private static void PatchItemController(object controller)
-        {
-            var desertItem = ResolveItemByName(MyBelovedUMCDesertMod.ShowcaseItemName);
-            foreach (var memberName in new[] { "item", "_item", "itemCached", "_itemCached", "Item", "ItemCached" })
-                SetMemberValue(controller, memberName, desertItem);
-
-            SetPlayerItemPurchaserItemName(GetMemberValue(controller, "playerItemPurchaserSettings"));
-        }
-
-        private static void PatchAttachedShowcaseControllers(GameObject gameObject)
-        {
-            if (gameObject == null)
+                initialized = false;
+                filePath = null;
                 return;
-
-            var desertVehicleType = VehicleTypeHelper.GetVehicleType(MyBelovedUMCDesertMod.VehicleTypeName);
-            foreach (var behaviour in gameObject.GetComponentsInChildren<MonoBehaviour>(true))
-            {
-                if (behaviour == null)
-                    continue;
-
-                var typeName = behaviour.GetType().Name;
-                if (typeName.IndexOf("ShowcaseVehicle", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    typeName.IndexOf("VehicleShowcase", StringComparison.OrdinalIgnoreCase) < 0)
-                    continue;
-
-                foreach (var memberName in new[] { "_vehicleType", "vehicleType", "VehicleType" })
-                    SetMemberValue(behaviour, memberName, desertVehicleType);
-
-                foreach (var memberName in new[] { "vehicleTypeName", "_vehicleTypeName", "VehicleTypeName" })
-                    SetMemberValue(behaviour, memberName, MyBelovedUMCDesertMod.VehicleTypeName);
             }
-        }
-
-        private static void SetPlayerItemPurchaserItemName(object? settings)
-        {
-            if (settings == null)
-                return;
-
-            SetMemberValue(settings, "itemName", MyBelovedUMCDesertMod.ShowcaseItemName);
-        }
-
-        private static object? ResolveItemByName(string itemName)
-        {
-            if (string.IsNullOrWhiteSpace(itemName))
-                return null;
 
             try
             {
-                return ItemsGetter.GetByName(itemName);
+                var directory = ResolveLogDirectory();
+                Directory.CreateDirectory(directory);
+
+                filePath = Path.Combine(directory, "MyBelovedUMCDesert-showroom-debug.log");
+                File.WriteAllText(
+                    filePath,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] My Beloved UMC Desert showroom debug started. modId={modId}, logDirectory={directory}{Environment.NewLine}");
+
+                initialized = true;
+                gameLogger?.Info($"My Beloved UMC Desert debug log: {filePath}");
+            }
+            catch (Exception exception)
+            {
+                initialized = false;
+                filePath = null;
+                gameLogger?.Warn($"My Beloved UMC Desert file logger failed: {exception.GetType().Name}: {exception.Message}");
+            }
+        }
+
+        private static string ResolveLogDirectory()
+        {
+            try
+            {
+                Directory.CreateDirectory(PreferredLogDirectory);
+                return PreferredLogDirectory;
             }
             catch
             {
-                return null;
+                var fallback = Path.Combine(Path.GetTempPath(), "MyBelovedUMCDesert", "Logs");
+                Directory.CreateDirectory(fallback);
+                return fallback;
             }
         }
 
-        private static Type? FindType(string typeName)
+        internal static void Shutdown()
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            Info("Debug log closed.");
+            initialized = false;
+            enabled = false;
+            filePath = null;
+            gameLogger = null;
+        }
+
+        internal static void Info(string message)
+        {
+            Write("INFO", message);
+        }
+
+        internal static void Warn(string message)
+        {
+            Write("WARN", message);
+        }
+
+        private static void Write(string level, string message)
+        {
+            if (!Enabled || string.IsNullOrEmpty(filePath))
+                return;
+
+            try
             {
-                Type? type = null;
-                try
+                lock (Gate)
                 {
-                    type = assembly.GetType(typeName, false) ??
-                           assembly.GetType("Controllers." + typeName, false);
+                    File.AppendAllText(
+                        filePath,
+                        $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}] {message}{Environment.NewLine}");
                 }
-                catch
-                {
-                }
-
-                if (type != null)
-                    return type;
             }
-
-            return null;
-        }
-
-        private static IEnumerable<FieldInfo> GetAllFields(Type type)
-        {
-            for (var current = type; current != null; current = current.BaseType)
+            catch
             {
-                foreach (var field in current.GetFields(ReflectionFlags))
-                    yield return field;
+                // Avoid recursive logging if the file system is unavailable.
             }
         }
+    }
 
-        private static object? GetMemberValue(object? instance, string memberName)
+    internal static class GeneralUSTrucksShowroomReplacementService
+    {
+        private const string TargetBusinessTypeName = "ba:businesstype_cardealership";
+        private const string TargetBuildingSize = "ba:buildingsize_m";
+        private const int TargetBuildingVersion = 1;
+        private const string TargetLayoutName = "IndustryCityCarDealershipTrucks";
+        private const string TargetOriginalItemName = "ba:itemname_deliverytruckshowcase";
+        private const float PositionTolerance = 0.35f;
+
+        private static readonly Vector3 TargetPosition = new Vector3(1035f, 0f, -152f);
+
+        private static bool hasPatchedLayout;
+        private static bool hasLoggedPatch;
+        private static int patchAttemptCount;
+
+        internal static void ApplyLayoutPatch()
         {
-            if (instance == null || string.IsNullOrWhiteSpace(memberName))
-                return null;
+            patchAttemptCount++;
+            MyBelovedUMCDesertFileLogger.Info(
+                $"ApplyLayoutPatch attempt={patchAttemptCount}, hasPatchedLayout={hasPatchedLayout}, targetPosition={FormatVector(TargetPosition)}, targetOriginalItem={TargetOriginalItemName}, replacementItem={MyBelovedUMCDesertMod.ShowcaseItemName}.");
 
-            for (var type = instance.GetType(); type != null; type = type.BaseType)
+            if (hasPatchedLayout)
             {
-                var property = type.GetProperty(memberName, ReflectionFlags);
-                if (property != null && property.GetIndexParameters().Length == 0)
-                {
-                    try
-                    {
-                        return property.GetValue(instance);
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                var field = type.GetField(memberName, ReflectionFlags);
-                if (field == null)
-                    continue;
-
-                try
-                {
-                    return field.GetValue(instance);
-                }
-                catch
-                {
-                    return null;
-                }
+                MyBelovedUMCDesertFileLogger.Info("ApplyLayoutPatch skipped because layout was already patched.");
+                return;
             }
 
-            return null;
+            if (TryPatchKnownTruckDealerLayout())
+                return;
+
+            var registration = FindGeneralUSTrucksRegistration();
+            if (registration == null ||
+                registration.BuildingCached == null ||
+                string.IsNullOrEmpty(registration.businessTypeName) ||
+                string.IsNullOrEmpty(registration.Layout))
+            {
+                MyBelovedUMCDesertFileLogger.Warn("General US Trucks registration was not ready; layout patch not applied on this attempt.");
+                return;
+            }
+
+            MyBelovedUMCDesertFileLogger.Info(
+                $"Registration fallback found businessName={registration.BusinessName}, businessType={registration.businessTypeName}, layout={registration.Layout}, buildingSize={registration.BuildingCached.BuildingSize}, buildingVersion={registration.BuildingCached.BuildingVersion}.");
+
+            var layoutSet = BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
+                registration.businessTypeName,
+                new BuildingSizeInfo(registration.BuildingCached),
+                registration.Layout.ToLowerInvariant(),
+                false);
+            if (layoutSet?.Items == null)
+            {
+                MyBelovedUMCDesertFileLogger.Warn("Registration fallback layout set was null or had no item list.");
+                return;
+            }
+
+            TryPatchLayoutSet(layoutSet, "registration");
         }
 
-        private static bool SetMemberValue(object? instance, string memberName, object? value)
+        private static bool TryPatchKnownTruckDealerLayout()
         {
-            if (instance == null || string.IsNullOrWhiteSpace(memberName))
+            var layoutSet = BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
+                TargetBusinessTypeName,
+                new BuildingSizeInfo(TargetBuildingSize, TargetBuildingVersion),
+                TargetLayoutName.ToLowerInvariant(),
+                false);
+            if (layoutSet?.Items == null)
+            {
+                MyBelovedUMCDesertFileLogger.Warn(
+                    $"Known truck dealer layout was not available businessType={TargetBusinessTypeName}, buildingSize={TargetBuildingSize}, buildingVersion={TargetBuildingVersion}, layout={TargetLayoutName}.");
+                return false;
+            }
+
+            return TryPatchLayoutSet(layoutSet, "known-layout");
+        }
+
+        private static bool TryPatchLayoutSet(BusinessLayoutSet layoutSet, string source)
+        {
+            if (layoutSet?.Items == null)
                 return false;
 
-            for (var type = instance.GetType(); type != null; type = type.BaseType)
+            var itemCount = 0;
+            foreach (var item in layoutSet.Items)
             {
-                var property = type.GetProperty(memberName, ReflectionFlags);
-                if (property != null && property.CanWrite && property.GetIndexParameters().Length == 0)
-                {
-                    try
-                    {
-                        property.SetValue(instance, value);
-                        return true;
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                var field = type.GetField(memberName, ReflectionFlags);
-                if (field == null || field.IsInitOnly)
+                itemCount++;
+                if (item == null || !IsAtTargetPosition(item.position))
                     continue;
 
-                try
+                MyBelovedUMCDesertFileLogger.Info(
+                    $"Exact target position candidate source={source}, layout={layoutSet.LayoutName}, businessType={layoutSet.BusinessType}, id={item.id}, item={item.itemName}, purchaserItem={item.playerItemPurchaserSettings?.itemName}, position={FormatVector(item.position)}.");
+
+                if (!string.Equals(item.itemName, TargetOriginalItemName, StringComparison.Ordinal) &&
+                    !string.Equals(item.itemName, MyBelovedUMCDesertMod.ShowcaseItemName, StringComparison.Ordinal))
                 {
-                    field.SetValue(instance, value);
-                    return true;
+                    MyBelovedUMCDesertFileLogger.Info(
+                        $"Not patching exact-position item because itemName '{item.itemName}' is not '{TargetOriginalItemName}'.");
+                    continue;
                 }
-                catch
+
+                MyBelovedUMCDesertFileLogger.Info(
+                    $"Patching exact showroom layout item source={source}, layout={layoutSet.LayoutName}, businessType={layoutSet.BusinessType}, id={item.id}, from={item.itemName}, to={MyBelovedUMCDesertMod.ShowcaseItemName}.");
+
+                item.itemName = MyBelovedUMCDesertMod.ShowcaseItemName;
+                if (item.playerItemPurchaserSettings != null)
+                    item.playerItemPurchaserSettings.itemName = MyBelovedUMCDesertMod.ShowcaseItemName;
+
+                hasPatchedLayout = true;
+                if (!hasLoggedPatch)
                 {
-                    return false;
+                    hasLoggedPatch = true;
+                    MyBelovedUMCDesertFileLogger.Info(
+                        $"Patched exact showroom layout item source={source}, layout={layoutSet.LayoutName}, businessType={layoutSet.BusinessType}, id={item.id}, position={FormatVector(item.position)}, item={MyBelovedUMCDesertMod.ShowcaseItemName}.");
                 }
+
+                return true;
             }
 
+            MyBelovedUMCDesertFileLogger.Info(
+                $"Scanned layout without target match source={source}, layout={layoutSet.LayoutName}, businessType={layoutSet.BusinessType}, itemCount={itemCount}.");
             return false;
         }
 
-        private static bool IsTerminalType(Type type)
+        private static BuildingRegistration? FindGeneralUSTrucksRegistration()
         {
-            return type.IsPrimitive ||
-                   type.IsEnum ||
-                   type == typeof(string) ||
-                   type == typeof(decimal) ||
-                   typeof(UnityEngine.Object).IsAssignableFrom(type) && type != typeof(BuildingManager);
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.BuildingRegistrations == null)
+                return null;
+
+            foreach (var registration in saveGame.BuildingRegistrations)
+            {
+                if (registration == null)
+                    continue;
+
+                if (string.Equals(
+                        registration.BusinessName,
+                        MyBelovedUMCDesertMod.GeneralUSTrucksContactId,
+                        StringComparison.Ordinal))
+                {
+                    MyBelovedUMCDesertFileLogger.Info(
+                        $"Found General US Trucks registration address={registration.Address}, layout={registration.Layout}, businessType={registration.businessTypeName}.");
+                    return registration;
+                }
+            }
+
+            MyBelovedUMCDesertFileLogger.Warn("General US Trucks registration was not found in SaveGameManager.Current.BuildingRegistrations.");
+            return null;
         }
 
-        private sealed class ReferenceEqualityComparer : IEqualityComparer<object>
+        private static bool IsAtTargetPosition(Vector3 position)
         {
-            internal static readonly ReferenceEqualityComparer Instance = new ReferenceEqualityComparer();
+            return Vector3.SqrMagnitude(position - TargetPosition) <= PositionTolerance * PositionTolerance;
+        }
 
-            public new bool Equals(object? x, object? y)
-            {
-                return ReferenceEquals(x, y);
-            }
-
-            public int GetHashCode(object obj)
-            {
-                return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
-            }
+        private static string FormatVector(Vector3 value)
+        {
+            return $"({value.x:0.###}, {value.y:0.###}, {value.z:0.###})";
         }
     }
 
@@ -608,24 +508,73 @@ namespace MyBelovedUMCDesert
 
     internal sealed class MyBelovedUMCDesertContactRegistrar : MonoBehaviour
     {
-        private const float RetryIntervalSeconds = 2f;
-
         private ModContext? context;
-        private float nextAttemptAt;
+        private bool initialized;
 
         public void Initialize(ModContext context)
         {
             this.context = context;
-            nextAttemptAt = 0f;
-        }
-
-        private void Update()
-        {
-            if (Time.unscaledTime < nextAttemptAt)
+            if (initialized)
                 return;
 
-            nextAttemptAt = Time.unscaledTime + RetryIntervalSeconds;
+            initialized = true;
             MyBelovedUMCDesertMod.RegisterDealerPhoneStock(context);
+            RegisterGlobalEvents();
+            GlobalEvents.RegisterOnGameLoadedCallback(OnGameLoaded);
+        }
+
+        private void OnDestroy()
+        {
+            UnregisterGlobalEvents();
+        }
+
+        private void RegisterGlobalEvents()
+        {
+            GlobalEvents.onEnterBuilding = (Action<Address>)Delegate.Remove(
+                GlobalEvents.onEnterBuilding,
+                new Action<Address>(OnEnterBuilding));
+            GlobalEvents.onEnterBuilding = (Action<Address>)Delegate.Combine(
+                GlobalEvents.onEnterBuilding,
+                new Action<Address>(OnEnterBuilding));
+        }
+
+        private void UnregisterGlobalEvents()
+        {
+            GlobalEvents.onEnterBuilding = (Action<Address>)Delegate.Remove(
+                GlobalEvents.onEnterBuilding,
+                new Action<Address>(OnEnterBuilding));
+        }
+
+        private void OnGameLoaded()
+        {
+            MyBelovedUMCDesertFileLogger.Info("OnGameLoaded: refreshing dealer stock and attempting showroom layout patch.");
+            MyBelovedUMCDesertMod.RegisterDealerPhoneStock(context);
+            MyBelovedUMCDesertMod.ApplyShowroomReplacement();
+        }
+
+        private void OnEnterBuilding(Address address)
+        {
+            if (!IsGeneralUSTrucks(address))
+            {
+                MyBelovedUMCDesertFileLogger.Info($"OnEnterBuilding ignored address={address}.");
+                return;
+            }
+
+            MyBelovedUMCDesertFileLogger.Info($"OnEnterBuilding General US Trucks address={address}: refreshing dealer stock and attempting showroom layout patch.");
+            MyBelovedUMCDesertMod.RegisterDealerPhoneStock(context);
+            MyBelovedUMCDesertMod.ApplyShowroomReplacement();
+        }
+
+        private static bool IsGeneralUSTrucks(Address address)
+        {
+            if (address == null)
+                return false;
+
+            var registration = BuildingHelper.GetBuildingRegistration(address);
+            return string.Equals(
+                registration?.BusinessName,
+                MyBelovedUMCDesertMod.GeneralUSTrucksContactId,
+                StringComparison.Ordinal);
         }
     }
 }
