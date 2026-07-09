@@ -8,8 +8,10 @@ using Buildings;
 using Dialogs;
 using Entities;
 using Helpers;
+using JimmysUnityUtilities;
 using Localizor;
 using Services;
+using UI;
 using UI.Notification;
 using UI.Smartphone.Apps.Contacts;
 using UnityEngine;
@@ -19,15 +21,19 @@ using Vehicles.VehicleTypes;
 
 namespace MyBelovedUMCDesert
 {
-    [ModEntryOnCityLoad]
+    [ModEntryOnInitializationLoad]
     public sealed class MyBelovedUMCDesertMod : IModBigAmbitions
     {
         internal const string ContactId = "mybelovedumcdesert:dealer_name";
         internal const string ContactDescription = "mybelovedumcdesert:description";
         internal const string DialogTypeKey = "mybelovedumcdesert_calldialogtype";
         internal const string VehicleTypeName = "ba:vehicletype_umcdesert";
+        internal const int RestoredMaxSpeed = 80;
+        internal const float RestoredEnginePower = 150f;
+        internal const float RestoredBrakeForce = 6000f;
 
         private static readonly string[] VehiclesForSale = { VehicleTypeName };
+        private static GameObject? registrarObject;
 
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
@@ -36,24 +42,166 @@ namespace MyBelovedUMCDesert
             var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(DialogTypeKey);
             CallDialogFactory.RegisterDialog(dialogType, () => new MyBelovedUMCDesertDialog());
 
-            ContractItemsForSaleService.SetVehiclesForContact(ContactId, VehiclesForSale);
-            var contact = Contact.GetContact(
-                ContactId,
-                ContactCategoryName.FurnitureAndEquipment,
-                ContactDescription);
-            contact.callDialogTypeOverride = dialogType;
-
-            if (contact.messagesQueue == null || contact.messagesQueue.Count == 0)
-                contact.SendMessage(new TextMessage("mybelovedumcdesert:welcome"));
-
+            EnsureRegistrar(context, dialogType);
             context.Logger.Info($"My Beloved UMC Desert: registered seller for '{VehicleTypeName}'.");
             return Task.CompletedTask;
         }
 
         public Task OnUnloadAsync()
         {
+            if (registrarObject != null)
+            {
+                UnityEngine.Object.Destroy(registrarObject);
+                registrarObject = null;
+            }
+
             ContractItemsForSaleService.RemoveContact(ContactId);
             return Task.CompletedTask;
+        }
+
+        private static void EnsureRegistrar(ModContext context, CallDialogType dialogType)
+        {
+            if (registrarObject == null)
+            {
+                registrarObject = new GameObject("MyBelovedUMCDesert.ContactRegistrar");
+                UnityEngine.Object.DontDestroyOnLoad(registrarObject);
+            }
+
+            var registrar = registrarObject.GetComponent<MyBelovedUMCDesertContactRegistrar>();
+            if (registrar == null)
+                registrar = registrarObject.AddComponent<MyBelovedUMCDesertContactRegistrar>();
+
+            registrar.Initialize(context, dialogType);
+        }
+
+        internal static void RegisterContactAndStock(CallDialogType dialogType, ModContext? context)
+        {
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.Contacts == null)
+                return;
+
+            UMCDesertStatsService.ApplyRestoredStats(context);
+            ContractItemsForSaleService.SetVehiclesForContact(ContactId, VehiclesForSale);
+
+            var existedBefore = false;
+            foreach (var existingContact in saveGame.Contacts)
+            {
+                if (existingContact != null &&
+                    string.Equals(existingContact.id, ContactId, StringComparison.OrdinalIgnoreCase))
+                {
+                    existedBefore = true;
+                    break;
+                }
+            }
+
+            var contact = Contact.GetContact(
+                ContactId,
+                ContactCategoryName.FurnitureAndEquipment,
+                ContactDescription);
+            if (contact == null)
+                return;
+
+            var changed = !existedBefore || contact.callDialogTypeOverride != dialogType;
+            contact.callDialogTypeOverride = dialogType;
+
+            if (contact.messagesQueue == null || contact.messagesQueue.Count == 0)
+            {
+                contact.SendMessage(new TextMessage("mybelovedumcdesert:welcome"));
+                changed = true;
+            }
+
+            if (changed)
+            {
+                saveGame.hasEverUsedMods = true;
+                SaveGameManager.MarkChange();
+                RefreshContactsUi(contact);
+                context?.Logger.Info($"My Beloved UMC Desert: contact ready. existedBefore={existedBefore}");
+            }
+        }
+
+        private static void RefreshContactsUi(Contact contact)
+        {
+            try
+            {
+                var contactsApp = InstanceBehavior<UIs>.Instance?.fullMenu?.contactsApp;
+                if (contactsApp == null)
+                    return;
+
+                if (contactsApp.selectedContact == contact)
+                    contactsApp.RefreshHeader();
+
+                ContactsApp.onContactAdded?.Invoke();
+            }
+            catch (Exception)
+            {
+                // UI may not be initialized yet; the registrar will try again after the save is ready.
+            }
+        }
+    }
+
+    internal static class UMCDesertStatsService
+    {
+        private static bool hasLoggedStats;
+
+        internal static void ApplyRestoredStats(ModContext? context)
+        {
+            var vehicleType = VehicleTypeHelper.GetVehicleType(MyBelovedUMCDesertMod.VehicleTypeName);
+            if (vehicleType == null)
+                return;
+
+            var changed = false;
+            if (vehicleType.maxSpeed < MyBelovedUMCDesertMod.RestoredMaxSpeed)
+            {
+                vehicleType.maxSpeed = MyBelovedUMCDesertMod.RestoredMaxSpeed;
+                changed = true;
+            }
+
+            if (vehicleType.enginePower < MyBelovedUMCDesertMod.RestoredEnginePower)
+            {
+                vehicleType.enginePower = MyBelovedUMCDesertMod.RestoredEnginePower;
+                changed = true;
+            }
+
+            if (vehicleType.brakeForce < MyBelovedUMCDesertMod.RestoredBrakeForce)
+            {
+                vehicleType.brakeForce = MyBelovedUMCDesertMod.RestoredBrakeForce;
+                changed = true;
+            }
+
+            if ((changed || !hasLoggedStats) && context != null)
+            {
+                hasLoggedStats = true;
+                context.Logger.Info(
+                    "My Beloved UMC Desert: restored vehicle stats " +
+                    $"maxSpeed={vehicleType.maxSpeed}, " +
+                    $"enginePower={vehicleType.enginePower}, " +
+                    $"brakeForce={vehicleType.brakeForce}.");
+            }
+        }
+    }
+
+    internal sealed class MyBelovedUMCDesertContactRegistrar : MonoBehaviour
+    {
+        private const float RetryIntervalSeconds = 2f;
+
+        private CallDialogType dialogType;
+        private ModContext? context;
+        private float nextAttemptAt;
+
+        public void Initialize(ModContext context, CallDialogType dialogType)
+        {
+            this.context = context;
+            this.dialogType = dialogType;
+            nextAttemptAt = 0f;
+        }
+
+        private void Update()
+        {
+            if (Time.unscaledTime < nextAttemptAt)
+                return;
+
+            nextAttemptAt = Time.unscaledTime + RetryIntervalSeconds;
+            MyBelovedUMCDesertMod.RegisterContactAndStock(dialogType, context);
         }
     }
 
@@ -161,6 +309,7 @@ namespace MyBelovedUMCDesert
             if (!string.Equals(vehicleForSale.VehicleName, MyBelovedUMCDesertMod.VehicleTypeName, StringComparison.Ordinal))
                 return false;
 
+            UMCDesertStatsService.ApplyRestoredStats(null);
             var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleForSale.VehicleName);
             if (vehicleType == null)
             {
