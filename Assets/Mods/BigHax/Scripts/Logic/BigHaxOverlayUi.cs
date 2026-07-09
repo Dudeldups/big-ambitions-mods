@@ -42,7 +42,10 @@ namespace BigHax
         {
             isVisible = !isVisible;
             if (isVisible)
+            {
+                ResetStyleCache();
                 CenterWindow();
+            }
         }
 
         public void Hide()
@@ -67,7 +70,22 @@ namespace BigHax
             EnsureStyles();
             EnsureWindowIsCenteredIfNeeded();
             CaptureOverlayHotControl();
-            windowRect = GUI.Window(WindowId, windowRect, _ => DrawWindow(context, settings), GUIContent.none, windowStyle!);
+            var previousColor = GUI.color;
+            var previousBackgroundColor = GUI.backgroundColor;
+            var previousContentColor = GUI.contentColor;
+            try
+            {
+                GUI.color = Color.white;
+                GUI.backgroundColor = Color.white;
+                GUI.contentColor = Color.white;
+                windowRect = GUI.Window(WindowId, windowRect, _ => DrawWindow(context, settings), GUIContent.none, windowStyle!);
+            }
+            finally
+            {
+                GUI.color = previousColor;
+                GUI.backgroundColor = previousBackgroundColor;
+                GUI.contentColor = previousContentColor;
+            }
         }
 
         private void DrawWindow(ModContext context, BigHaxSettings settings)
@@ -79,151 +97,157 @@ namespace BigHax
             var previousVerticalScrollbarThumb = GUI.skin.verticalScrollbarThumb;
             var previousHorizontalScrollbar = GUI.skin.horizontalScrollbar;
             var previousHorizontalScrollbarThumb = GUI.skin.horizontalScrollbarThumb;
-            GUI.skin.verticalScrollbar = verticalScrollbarStyle!;
-            GUI.skin.verticalScrollbarThumb = verticalScrollbarThumbStyle!;
-            GUI.skin.horizontalScrollbar = GUIStyle.none;
-            GUI.skin.horizontalScrollbarThumb = GUIStyle.none;
-            scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
-
-            DrawCustomerMultiplier(context, settings);
-            DrawToggleOption(
-                context,
-                settings.DisableCasinoBetLimit,
-                Localize("bighax_disable_casino_bet_limit_label"),
-                value =>
-                {
-                    settings.DisableCasinoBetLimit = value;
-                    BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context.ModId, value);
-                });
-            DrawToggleOption(
-                context,
-                settings.DisableIllegalParkingPenalties,
-                Localize("bighax_disable_illegal_parking_penalties_label"),
-                value =>
-                {
-                    settings.DisableIllegalParkingPenalties = value;
-                    BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context.ModId, value);
-                });
-            DrawToggleOption(
-                context,
-                settings.DisableInvestmentLimit,
-                Localize("bighax_disable_investment_limit_label"),
-                value =>
-                {
-                    settings.DisableInvestmentLimit = value;
-                    BigHaxOptionPersistence.SaveDisableInvestmentLimit(context.ModId, value);
-                });
-            DrawToggleOption(
-                context,
-                settings.EnableVantanderMaxLoanOverride,
-                Localize("bighax_vantander_maximum_loan_override_label"),
-                value =>
-                {
-                    settings.EnableVantanderMaxLoanOverride = value;
-                    BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value);
-                });
-            DrawIntSlider(
-                context,
-                settings,
-                Localize("bighax_employee_training_skill_increase_label"),
-                settings.EmployeeTrainingSkillIncrease,
-                BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
-                100,
-                value => value.ToString(),
-                value =>
-                {
-                    settings.EmployeeTrainingSkillIncrease = value;
-                    BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value);
-                });
-            DrawIntSlider(
-                context,
-                settings,
-                Localize(
-                    "bighax_standard_fridge_capacity_label",
-                    new Dictionary<string, string>
-                    {
-                        { "itemName", Localize("ba:itemname_standardfridge") }
-                    }),
-                settings.StandardFridgeCapacity,
-                BigHaxSettings.DefaultStandardFridgeCapacity,
-                BigHaxTargetIds.SliderMaximum,
-                value => value.ToString(),
-                value =>
-                {
-                    settings.StandardFridgeCapacity = value;
-                    BigHaxOptionPersistence.SaveStandardFridgeCapacity(context.ModId, value);
-                });
-            DrawIntSlider(
-                context,
-                settings,
-                Localize(
-                    "bighax_pallet_shelf_capacity_label",
-                    new Dictionary<string, string>
-                    {
-                        { "itemName", Localize("ba:itemname_palletshelf") }
-                    }),
-                settings.PalletShelfCapacity,
-                BigHaxSettings.DefaultPalletShelfCapacity,
-                BigHaxTargetIds.SliderMaximum,
-                value => value.ToString(),
-                value =>
-                {
-                    settings.PalletShelfCapacity = value;
-                    BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value);
-                });
-            DrawIntSlider(
-                context,
-                settings,
-                Localize(
-                    "bighax_freight_truck_delivery_places_label",
-                    new Dictionary<string, string>
-                    {
-                        { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
-                    }),
-                settings.FreightTruckT1DeliveryPlaces,
-                BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
-                BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
-                value => value.ToString(),
-                value =>
-                {
-                    settings.FreightTruckT1DeliveryPlaces = value;
-                    BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value);
-                });
-
-            DrawSeparator();
-            var activeVehicleEnabled = GUILayout.Toggle(
-                settings.EnableActiveVehicleCapacityOverride,
-                Localize("bighax_active_vehicle_enabled_label"),
-                toggleStyle!);
-            if (activeVehicleEnabled != settings.EnableActiveVehicleCapacityOverride)
+            try
             {
-                settings.EnableActiveVehicleCapacityOverride = activeVehicleEnabled;
-                BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
-                BigHaxRuntime.RequestImmediateApply();
-            }
+                GUI.skin.verticalScrollbar = verticalScrollbarStyle!;
+                GUI.skin.verticalScrollbarThumb = verticalScrollbarThumbStyle!;
+                GUI.skin.horizontalScrollbar = GUIStyle.none;
+                GUI.skin.horizontalScrollbarThumb = GUIStyle.none;
+                scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
 
-            if (settings.EnableActiveVehicleCapacityOverride)
-            {
+                DrawCustomerMultiplier(context, settings);
+                DrawToggleOption(
+                    context,
+                    settings.DisableCasinoBetLimit,
+                    Localize("bighax_disable_casino_bet_limit_label"),
+                    value =>
+                    {
+                        settings.DisableCasinoBetLimit = value;
+                        BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.DisableIllegalParkingPenalties,
+                    Localize("bighax_disable_illegal_parking_penalties_label"),
+                    value =>
+                    {
+                        settings.DisableIllegalParkingPenalties = value;
+                        BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.DisableInvestmentLimit,
+                    Localize("bighax_disable_investment_limit_label"),
+                    value =>
+                    {
+                        settings.DisableInvestmentLimit = value;
+                        BigHaxOptionPersistence.SaveDisableInvestmentLimit(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.EnableVantanderMaxLoanOverride,
+                    Localize("bighax_vantander_maximum_loan_override_label"),
+                    value =>
+                    {
+                        settings.EnableVantanderMaxLoanOverride = value;
+                        BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value);
+                    });
                 DrawIntSlider(
                     context,
                     settings,
-                    Localize("bighax_active_vehicle_label"),
-                    settings.ActiveVehicleCapacity,
-                    BigHaxSettings.DefaultActiveVehicleCapacity,
+                    Localize("bighax_employee_training_skill_increase_label"),
+                    settings.EmployeeTrainingSkillIncrease,
+                    BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
+                    100,
+                    value => value.ToString(),
+                    value =>
+                    {
+                        settings.EmployeeTrainingSkillIncrease = value;
+                        BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value);
+                    });
+                DrawIntSlider(
+                    context,
+                    settings,
+                    Localize(
+                        "bighax_standard_fridge_capacity_label",
+                        new Dictionary<string, string>
+                        {
+                            { "itemName", Localize("ba:itemname_standardfridge") }
+                        }),
+                    settings.StandardFridgeCapacity,
+                    BigHaxSettings.DefaultStandardFridgeCapacity,
                     BigHaxTargetIds.SliderMaximum,
                     value => value.ToString(),
                     value =>
                     {
-                        settings.ActiveVehicleCapacity = value;
-                        BigHaxOptionPersistence.SaveActiveVehicleCapacity(context.ModId, value);
+                        settings.StandardFridgeCapacity = value;
+                        BigHaxOptionPersistence.SaveStandardFridgeCapacity(context.ModId, value);
                     });
-            }
+                DrawIntSlider(
+                    context,
+                    settings,
+                    Localize(
+                        "bighax_pallet_shelf_capacity_label",
+                        new Dictionary<string, string>
+                        {
+                            { "itemName", Localize("ba:itemname_palletshelf") }
+                        }),
+                    settings.PalletShelfCapacity,
+                    BigHaxSettings.DefaultPalletShelfCapacity,
+                    BigHaxTargetIds.SliderMaximum,
+                    value => value.ToString(),
+                    value =>
+                    {
+                        settings.PalletShelfCapacity = value;
+                        BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value);
+                    });
+                DrawIntSlider(
+                    context,
+                    settings,
+                    Localize(
+                        "bighax_freight_truck_delivery_places_label",
+                        new Dictionary<string, string>
+                        {
+                            { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
+                        }),
+                    settings.FreightTruckT1DeliveryPlaces,
+                    BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
+                    BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
+                    value => value.ToString(),
+                    value =>
+                    {
+                        settings.FreightTruckT1DeliveryPlaces = value;
+                        BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value);
+                    });
 
-            GUILayout.EndScrollView();
-            GUI.skin.verticalScrollbar = previousVerticalScrollbar;
-            GUI.skin.verticalScrollbarThumb = previousVerticalScrollbarThumb;
-            GUI.skin.horizontalScrollbar = previousHorizontalScrollbar;
-            GUI.skin.horizontalScrollbarThumb = previousHorizontalScrollbarThumb;
+                DrawSeparator();
+                var activeVehicleEnabled = GUILayout.Toggle(
+                    settings.EnableActiveVehicleCapacityOverride,
+                    Localize("bighax_active_vehicle_enabled_label"),
+                    toggleStyle!);
+                if (activeVehicleEnabled != settings.EnableActiveVehicleCapacityOverride)
+                {
+                    settings.EnableActiveVehicleCapacityOverride = activeVehicleEnabled;
+                    BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
+                    BigHaxRuntime.RequestImmediateApply();
+                }
+
+                if (settings.EnableActiveVehicleCapacityOverride)
+                {
+                    DrawIntSlider(
+                        context,
+                        settings,
+                        Localize("bighax_active_vehicle_label"),
+                        settings.ActiveVehicleCapacity,
+                        BigHaxSettings.DefaultActiveVehicleCapacity,
+                        BigHaxTargetIds.SliderMaximum,
+                        value => value.ToString(),
+                        value =>
+                        {
+                            settings.ActiveVehicleCapacity = value;
+                            BigHaxOptionPersistence.SaveActiveVehicleCapacity(context.ModId, value);
+                        });
+                }
+
+                GUILayout.EndScrollView();
+            }
+            finally
+            {
+                GUI.skin.verticalScrollbar = previousVerticalScrollbar;
+                GUI.skin.verticalScrollbarThumb = previousVerticalScrollbarThumb;
+                GUI.skin.horizontalScrollbar = previousHorizontalScrollbar;
+                GUI.skin.horizontalScrollbarThumb = previousHorizontalScrollbarThumb;
+            }
 
             GUILayout.EndVertical();
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width, 68f));
@@ -398,6 +422,24 @@ namespace BigHax
         {
             if (needsCentering)
                 CenterWindow();
+        }
+
+        private void ResetStyleCache()
+        {
+            windowStyle = null;
+            titleStyle = null;
+            subtitleStyle = null;
+            sectionTitleStyle = null;
+            closeButtonStyle = null;
+            primaryButtonStyle = null;
+            selectedButtonStyle = null;
+            toggleStyle = null;
+            sliderValueStyle = null;
+            sliderTrackStyle = null;
+            sliderFillStyle = null;
+            sliderThumbStyle = null;
+            verticalScrollbarStyle = null;
+            verticalScrollbarThumbStyle = null;
         }
 
         private void EnsureStyles()
