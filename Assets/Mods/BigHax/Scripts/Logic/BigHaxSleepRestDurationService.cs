@@ -123,9 +123,7 @@ namespace BigHax
             if (descriptorCache.TryGetValue(behaviourType, out var cachedDescriptor))
                 return cachedDescriptor;
 
-            var descriptor =
-                TryCreateDescriptor(behaviourType, "sleepEnvironment", "maxSleepHours") ??
-                TryCreateDescriptor(behaviourType, "restEnvironment", "maxRestHours");
+            var descriptor = TryCreateDescriptor(behaviourType, "restEnvironment", "maxRestHours");
 
             descriptorCache[behaviourType] = descriptor;
             return descriptor;

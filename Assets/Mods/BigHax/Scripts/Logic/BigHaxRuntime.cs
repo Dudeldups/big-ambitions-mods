@@ -156,7 +156,7 @@ namespace BigHax
                 SafeApply("customer traffic", () => TryApplyCustomerTraffic(context, settings, forceRefresh: true));
                 SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
-                SafeApply("sleep/rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
+                SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
             }
             finally
