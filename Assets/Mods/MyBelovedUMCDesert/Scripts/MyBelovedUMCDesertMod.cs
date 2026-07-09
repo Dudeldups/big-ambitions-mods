@@ -25,9 +25,7 @@ namespace MyBelovedUMCDesert
     [ModEntryOnInitializationLoad]
     public sealed class MyBelovedUMCDesertMod : IModBigAmbitions
     {
-        internal const string ContactId = "mybelovedumcdesert:dealer_name";
-        internal const string ContactDescription = "mybelovedumcdesert:description";
-        internal const string DialogTypeKey = "mybelovedumcdesert_calldialogtype";
+        internal const string LegacyContactId = "mybelovedumcdesert:dealer_name";
         internal const string VehicleTypeName = "ba:vehicletype_umcdesert";
         internal const string ShowcaseItemName = "ba:itemname_umcdesertshowcase";
         internal const string GeneralUSTrucksContactId = "General US Trucks";
@@ -61,7 +59,7 @@ namespace MyBelovedUMCDesert
                 registrarObject = null;
             }
 
-            ContractItemsForSaleService.RemoveContact(ContactId);
+            ContractItemsForSaleService.RemoveContact(LegacyContactId);
             GeneralUSTrucksStockService.RemoveModdedPhoneOverride("unload");
             MyBelovedUMCDesertFileLogger.Shutdown();
             return Task.CompletedTask;
@@ -112,7 +110,7 @@ namespace MyBelovedUMCDesert
             {
                 var contact = saveGame.Contacts[i];
                 if (contact == null ||
-                    !string.Equals(contact.id, ContactId, StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(contact.id, LegacyContactId, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -124,7 +122,7 @@ namespace MyBelovedUMCDesert
             if (removedCount == 0)
                 return;
 
-            ContractItemsForSaleService.RemoveContact(ContactId);
+            ContractItemsForSaleService.RemoveContact(LegacyContactId);
             saveGame.hasEverUsedMods = true;
             SaveGameManager.MarkChange();
             RefreshContactsUi();
