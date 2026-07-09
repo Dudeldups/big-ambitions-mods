@@ -16,6 +16,7 @@ namespace BigHax
         private readonly Dictionary<string, VehicleSnapshot> lastVehicleSnapshots = new Dictionary<string, VehicleSnapshot>(StringComparer.Ordinal);
         private bool capturedOriginalFee;
         private int originalParkingTicketFee;
+        private bool warnedReadOnlyFeeField;
         private bool warnedMissingFeeField;
 
         public void InvalidateCache()
@@ -30,7 +31,7 @@ namespace BigHax
                 return;
             }
 
-            ApplyZeroParkingTicketFee();
+            TryApplyZeroParkingTicketFee();
             CleanPlayerVehicles();
         }
 
@@ -58,7 +59,7 @@ namespace BigHax
             lastVehicleSnapshots.Clear();
         }
 
-        private void ApplyZeroParkingTicketFee()
+        private void TryApplyZeroParkingTicketFee()
         {
             if (ParkingTicketFeeField == null)
             {
@@ -78,12 +79,34 @@ namespace BigHax
                 Log($"Captured original ParkingTicketFee={originalParkingTicketFee}.");
             }
 
+            if (ParkingTicketFeeField.IsLiteral || ParkingTicketFeeField.IsInitOnly)
+            {
+                if (!warnedReadOnlyFeeField)
+                {
+                    warnedReadOnlyFeeField = true;
+                    Log("ParkingTicketFee is read-only/constant in this build; skipping fee override and relying on vehicle cleanup.");
+                }
+
+                return;
+            }
+
             var currentFee = ReadParkingTicketFee();
             if (currentFee == 0)
                 return;
 
             Log($"Setting ParkingTicketFee from {currentFee} to 0.");
-            WriteParkingTicketFee(0);
+            try
+            {
+                WriteParkingTicketFee(0);
+            }
+            catch (Exception exception)
+            {
+                if (!warnedReadOnlyFeeField)
+                {
+                    warnedReadOnlyFeeField = true;
+                    Log($"ParkingTicketFee override failed; relying on vehicle cleanup instead. {exception.GetType().Name}: {exception.Message}");
+                }
+            }
         }
 
         private void RestoreOriginalParkingTicketFee()

@@ -120,16 +120,22 @@ namespace BigHax
             if (!applyRequested || context == null || settings == null)
                 return;
 
-            casinoBetLimitService.ApplyConfiguredLimit(context, settings);
-            buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings);
-            businessCapacityService.ApplyConfiguredCapacities(context, settings);
-            illegalParkingService.ApplyConfiguredBehavior(context, settings);
-            investmentLimitService.ApplyConfiguredLimit(context, settings);
-            TryApplyCustomerTraffic(context, settings, forceRefresh: true);
-            itemCapacityService.ApplyConfiguredCapacities(context, settings);
-            loanLimitService.ApplyConfiguredLimit(settings);
-            vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true);
-            applyRequested = false;
+            try
+            {
+                SafeApply("casino bet limit", () => casinoBetLimitService.ApplyConfiguredLimit(context, settings));
+                SafeApply("building customer capacities", () => buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings));
+                SafeApply("business capacities", () => businessCapacityService.ApplyConfiguredCapacities(context, settings));
+                SafeApply("illegal parking", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+                SafeApply("investment limit", () => investmentLimitService.ApplyConfiguredLimit(context, settings));
+                SafeApply("customer traffic", () => TryApplyCustomerTraffic(context, settings, forceRefresh: true));
+                SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
+                SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
+                SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
+            }
+            finally
+            {
+                applyRequested = false;
+            }
         }
 
         private void PollActiveVehicleChanges()
@@ -214,7 +220,7 @@ namespace BigHax
             if (context == null || settings == null)
                 return;
 
-            illegalParkingService.HandleNewHour(context, settings);
+            SafeApply("illegal parking onNewHour", () => illegalParkingService.HandleNewHour(context, settings));
         }
 
         private void HandleNewDay()
@@ -222,7 +228,20 @@ namespace BigHax
             if (context == null || settings == null)
                 return;
 
-            illegalParkingService.HandleNewDay(context, settings);
+            SafeApply("illegal parking onNewDay", () => illegalParkingService.HandleNewDay(context, settings));
+        }
+
+        private void SafeApply(string scope, System.Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (System.Exception exception)
+            {
+                context?.Logger.Error(exception);
+                BigHaxFileLogger.Log("BigHax-runtime-errors.log", "BigHax-runtime-errors.log", $"[{scope}] {exception}");
+            }
         }
 
         private static BigHaxCustomerTrafficService? CreateCustomerTrafficService(ModContext context)
