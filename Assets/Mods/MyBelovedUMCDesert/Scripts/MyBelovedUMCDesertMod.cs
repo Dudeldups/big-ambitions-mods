@@ -315,6 +315,8 @@ namespace MyBelovedUMCDesert
         private const string TargetBuildingSize = "ba:buildingsize_m";
         private const int TargetBuildingVersion = 1;
         private const string TargetLayoutName = "IndustryCityCarDealershipTrucks";
+        private const string TargetLayoutKey =
+            "ba:businesstype_cardealership|ba:buildingsize_m|1|industrycitycardealershiptrucks";
         private const string TargetOriginalItemName = "ba:itemname_deliverytruckshowcase";
         private const float PositionTolerance = 0.35f;
 
@@ -368,11 +370,14 @@ namespace MyBelovedUMCDesert
 
         private static bool TryPatchKnownTruckDealerLayout()
         {
-            var layoutSet = BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
-                TargetBusinessTypeName,
-                new BuildingSizeInfo(TargetBuildingSize, TargetBuildingVersion),
-                TargetLayoutName.ToLowerInvariant(),
-                false);
+            var layoutSets = BusinessLayoutSetHelper.GetAllBusinessLayoutSets();
+            if (layoutSets == null || !layoutSets.TryGetValue(TargetLayoutKey, out var layoutSet))
+                layoutSet = BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
+                    TargetBusinessTypeName,
+                    new BuildingSizeInfo(TargetBuildingSize, TargetBuildingVersion),
+                    TargetLayoutName.ToLowerInvariant(),
+                    false);
+
             if (layoutSet?.Items == null)
             {
                 MyBelovedUMCDesertFileLogger.Warn(
