@@ -1,5 +1,10 @@
 #nullable enable
 using BAModAPI;
+using System.Collections;
+using System;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -28,6 +33,11 @@ namespace BigHax
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
         private bool applyRequested;
+        private bool parkingVehicleEventsSubscribed;
+        private FieldInfo? onEnterVehicleField;
+        private FieldInfo? onExitVehicleField;
+        private Delegate? onEnterVehicleHandler;
+        private Delegate? onExitVehicleHandler;
         private float nextCasinoBetLimitPollAt;
         private ModContext? context;
         private float nextActiveVehiclePollAt;
@@ -90,6 +100,8 @@ namespace BigHax
             SceneManager.sceneLoaded += HandleSceneLoaded;
             GlobalEvents.onNewHour += HandleNewHour;
             GlobalEvents.onNewDay += HandleNewDay;
+            GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
+            SubscribeParkingVehicleEvents();
         }
 
         private void OnDisable()
@@ -97,6 +109,8 @@ namespace BigHax
             SceneManager.sceneLoaded -= HandleSceneLoaded;
             GlobalEvents.onNewHour -= HandleNewHour;
             GlobalEvents.onNewDay -= HandleNewDay;
+            GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+            UnsubscribeParkingVehicleEvents();
         }
 
         private void Update()
@@ -229,6 +243,131 @@ namespace BigHax
                 return;
 
             SafeApply("illegal parking onNewDay", () => illegalParkingService.HandleNewDay(context, settings));
+        }
+
+        private void HandleVehicleVariablesChanged()
+        {
+            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+                return;
+
+            SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+        }
+
+        private void HandleVehicleEntered()
+        {
+            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+                return;
+
+            BigHaxFileLogger.Log("BigHax-parking-debug.log", "BigHax-parking-debug.log", "[parking] onEnterVehicle fired.");
+            SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
+        }
+
+        private void HandleVehicleExited()
+        {
+            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+                return;
+
+            BigHaxFileLogger.Log("BigHax-parking-debug.log", "BigHax-parking-debug.log", "[parking] onExitVehicle fired.");
+            StartCoroutine(HandleVehicleExitedDeferred());
+        }
+
+        private IEnumerator HandleVehicleExitedDeferred()
+        {
+            yield return null;
+
+            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+                yield break;
+
+            SafeApply("illegal parking onExitVehicle", () => illegalParkingService.HandleVehicleExited(context, settings));
+        }
+
+        private void SubscribeParkingVehicleEvents()
+        {
+            if (parkingVehicleEventsSubscribed)
+                return;
+
+            try
+            {
+                var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+                var globalEventsType = typeof(GlobalEvents);
+                onEnterVehicleField = globalEventsType.GetField("onEnterVehicle", flags);
+                onExitVehicleField = globalEventsType.GetField("onExitVehicle", flags);
+                onEnterVehicleHandler = SubscribeGlobalEvent(onEnterVehicleField, nameof(HandleVehicleEntered));
+                onExitVehicleHandler = SubscribeGlobalEvent(onExitVehicleField, nameof(HandleVehicleExited));
+                parkingVehicleEventsSubscribed = onEnterVehicleHandler != null || onExitVehicleHandler != null;
+                BigHaxFileLogger.Log(
+                    "BigHax-parking-debug.log",
+                    "BigHax-parking-debug.log",
+                    $"[parking] Vehicle event subscription result: enter={(onEnterVehicleHandler != null)}, exit={(onExitVehicleHandler != null)}.");
+            }
+            catch (Exception exception)
+            {
+                BigHaxFileLogger.Log("BigHax-runtime-errors.log", "BigHax-runtime-errors.log", $"[parking subscription] {exception}");
+            }
+        }
+
+        private void UnsubscribeParkingVehicleEvents()
+        {
+            TryUnsubscribeGlobalEvent(onEnterVehicleField, onEnterVehicleHandler);
+            TryUnsubscribeGlobalEvent(onExitVehicleField, onExitVehicleHandler);
+            onEnterVehicleHandler = null;
+            onExitVehicleHandler = null;
+            onEnterVehicleField = null;
+            onExitVehicleField = null;
+            parkingVehicleEventsSubscribed = false;
+        }
+
+        private Delegate? SubscribeGlobalEvent(FieldInfo? eventField, string handlerMethodName)
+        {
+            if (eventField == null)
+                return null;
+
+            var eventType = eventField.FieldType;
+            if (eventType == null)
+                return null;
+
+            var handler = CreateCompatibleDelegate(eventType, handlerMethodName);
+            if (handler == null)
+                return null;
+
+            var currentValue = eventField.GetValue(null) as Delegate;
+            eventField.SetValue(null, Delegate.Combine(currentValue, handler));
+            return handler;
+        }
+
+        private Delegate? CreateCompatibleDelegate(Type eventType, string handlerMethodName)
+        {
+            var invokeMethod = eventType.GetMethod("Invoke");
+            var targetMethod = GetType().GetMethod(handlerMethodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (invokeMethod == null || targetMethod == null)
+                return null;
+
+            var parameters = invokeMethod.GetParameters()
+                .Select(parameter => Expression.Parameter(parameter.ParameterType, parameter.Name))
+                .ToArray();
+            var call = Expression.Call(Expression.Constant(this), targetMethod);
+            Expression body = call;
+            if (invokeMethod.ReturnType != typeof(void))
+            {
+                body = Expression.Block(call, Expression.Default(invokeMethod.ReturnType));
+            }
+
+            return Expression.Lambda(eventType, body, parameters).Compile();
+        }
+
+        private static void TryUnsubscribeGlobalEvent(FieldInfo? eventField, Delegate? handler)
+        {
+            if (eventField == null || handler == null)
+                return;
+
+            try
+            {
+                var currentValue = eventField.GetValue(null) as Delegate;
+                eventField.SetValue(null, Delegate.Remove(currentValue, handler));
+            }
+            catch
+            {
+            }
         }
 
         private void SafeApply(string scope, System.Action action)

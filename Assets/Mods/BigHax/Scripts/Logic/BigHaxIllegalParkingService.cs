@@ -1,8 +1,8 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using BAModAPI;
+using Entities;
 using Helpers;
 using UnityEngine;
 
@@ -11,13 +11,17 @@ namespace BigHax
     internal sealed class BigHaxIllegalParkingService
     {
         private const string DebugLogFileName = "BigHax-parking-debug.log";
-        private static readonly FieldInfo? ParkingTicketFeeField =
-            typeof(ParkingSimulator).GetField("ParkingTicketFee", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly HashSet<string> ParkingTicketMessageKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "phone_government_parking_ticket",
+            "ba:messagetype_phone_government_parking_ticket"
+        };
+        private static readonly HashSet<string> ParkingTicketTransactionTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ba:transaction_parkingticket",
+            "transaction_parkingticket"
+        };
         private readonly Dictionary<string, VehicleSnapshot> lastVehicleSnapshots = new Dictionary<string, VehicleSnapshot>(StringComparer.Ordinal);
-        private bool capturedOriginalFee;
-        private int originalParkingTicketFee;
-        private bool warnedReadOnlyFeeField;
-        private bool warnedMissingFeeField;
 
         public void InvalidateCache()
         {
@@ -26,13 +30,13 @@ namespace BigHax
         public void ApplyConfiguredBehavior(ModContext? context, BigHaxSettings settings)
         {
             if (!settings.DisableIllegalParkingPenalties)
-            {
-                RestoreOriginalParkingTicketFee();
                 return;
-            }
 
-            TryApplyZeroParkingTicketFee();
+            Log("ApplyConfiguredBehavior invoked.");
             CleanPlayerVehicles();
+            CleanSaveGameVehicles();
+            RefundParkingTicketTransactions();
+            RemoveParkingTicketMessages();
         }
 
         public void HandleNewHour(ModContext? context, BigHaxSettings settings)
@@ -53,73 +57,27 @@ namespace BigHax
             ApplyConfiguredBehavior(context, settings);
         }
 
+        public void HandleVehicleExited(ModContext? context, BigHaxSettings settings)
+        {
+            if (!settings.DisableIllegalParkingPenalties)
+                return;
+
+            Log("Handling onExitVehicle refresh.");
+            ApplyConfiguredBehavior(context, settings);
+        }
+
+        public void HandleVehicleEntered(ModContext? context, BigHaxSettings settings)
+        {
+            if (!settings.DisableIllegalParkingPenalties)
+                return;
+
+            Log("Handling onEnterVehicle refresh.");
+            ApplyConfiguredBehavior(context, settings);
+        }
+
         public void RestoreOriginalState()
         {
-            RestoreOriginalParkingTicketFee();
             lastVehicleSnapshots.Clear();
-        }
-
-        private void TryApplyZeroParkingTicketFee()
-        {
-            if (ParkingTicketFeeField == null)
-            {
-                if (!warnedMissingFeeField)
-                {
-                    warnedMissingFeeField = true;
-                    Log("ParkingTicketFee field could not be resolved via reflection.");
-                }
-
-                return;
-            }
-
-            if (!capturedOriginalFee)
-            {
-                originalParkingTicketFee = ReadParkingTicketFee();
-                capturedOriginalFee = true;
-                Log($"Captured original ParkingTicketFee={originalParkingTicketFee}.");
-            }
-
-            if (ParkingTicketFeeField.IsLiteral || ParkingTicketFeeField.IsInitOnly)
-            {
-                if (!warnedReadOnlyFeeField)
-                {
-                    warnedReadOnlyFeeField = true;
-                    Log("ParkingTicketFee is read-only/constant in this build; skipping fee override and relying on vehicle cleanup.");
-                }
-
-                return;
-            }
-
-            var currentFee = ReadParkingTicketFee();
-            if (currentFee == 0)
-                return;
-
-            Log($"Setting ParkingTicketFee from {currentFee} to 0.");
-            try
-            {
-                WriteParkingTicketFee(0);
-            }
-            catch (Exception exception)
-            {
-                if (!warnedReadOnlyFeeField)
-                {
-                    warnedReadOnlyFeeField = true;
-                    Log($"ParkingTicketFee override failed; relying on vehicle cleanup instead. {exception.GetType().Name}: {exception.Message}");
-                }
-            }
-        }
-
-        private void RestoreOriginalParkingTicketFee()
-        {
-            if (!capturedOriginalFee || ParkingTicketFeeField == null)
-                return;
-
-            var currentFee = ReadParkingTicketFee();
-            if (currentFee == originalParkingTicketFee)
-                return;
-
-            Log($"Restoring ParkingTicketFee from {currentFee} to {originalParkingTicketFee}.");
-            WriteParkingTicketFee(originalParkingTicketFee);
         }
 
         private void CleanPlayerVehicles()
@@ -174,6 +132,117 @@ namespace BigHax
             }
         }
 
+        private void CleanSaveGameVehicles()
+        {
+            var saveGame = SaveGameManager.Current;
+            var vehicles = saveGame?.VehicleInstances;
+            if (vehicles == null)
+                return;
+
+            foreach (var vehicleInstance in vehicles)
+            {
+                if (vehicleInstance == null || string.IsNullOrWhiteSpace(vehicleInstance.id))
+                    continue;
+
+                var ticketCount = vehicleInstance.parkingTickets?.Count ?? 0;
+                var unpaidAmount = vehicleInstance.unpaidParkingAmount;
+                var parkingState = vehicleInstance.parkingState;
+                var changed = false;
+
+                if (ticketCount > 0 && vehicleInstance.parkingTickets != null)
+                {
+                    vehicleInstance.parkingTickets.Clear();
+                    changed = true;
+                }
+
+                if (Math.Abs(unpaidAmount) > 0.001f)
+                {
+                    vehicleInstance.unpaidParkingAmount = 0f;
+                    changed = true;
+                }
+
+                if (parkingState == ParkingState.Illegal)
+                {
+                    vehicleInstance.parkingState = ParkingState.Legal;
+                    changed = true;
+                }
+
+                if (!changed)
+                    continue;
+
+                Log(
+                    $"Saved vehicle '{vehicleInstance.id}' ({vehicleInstance.vehicleTypeName}) cleanup: " +
+                    $"state {parkingState} -> {vehicleInstance.parkingState}, " +
+                    $"tickets {ticketCount} -> {vehicleInstance.parkingTickets?.Count ?? 0}, " +
+                    $"unpaid {unpaidAmount} -> {vehicleInstance.unpaidParkingAmount}.");
+            }
+        }
+
+        private void RefundParkingTicketTransactions()
+        {
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.Transactions == null || saveGame.Transactions.Count == 0)
+                return;
+
+            var originalCount = saveGame.Transactions.Count;
+            var refundedAmount = 0f;
+            var keptTransactions = new Queue<Transaction>(originalCount);
+            while (saveGame.Transactions.Count > 0)
+            {
+                var transaction = saveGame.Transactions.Dequeue();
+                if (transaction != null &&
+                    !string.IsNullOrWhiteSpace(transaction.transactionType) &&
+                    ParkingTicketTransactionTypes.Contains(transaction.transactionType))
+                {
+                    refundedAmount += Mathf.Abs(transaction.amount);
+                    continue;
+                }
+
+                if (transaction != null)
+                    keptTransactions.Enqueue(transaction);
+            }
+
+            saveGame.Transactions = keptTransactions;
+            if (refundedAmount <= 0.001f)
+                return;
+
+            saveGame.Money += refundedAmount;
+            Log($"Refunded parking-ticket transactions amount={refundedAmount:0.##}, removed={originalCount - keptTransactions.Count}.");
+        }
+
+        private void RemoveParkingTicketMessages()
+        {
+            var contacts = SaveGameManager.Current?.Contacts;
+            if (contacts == null)
+                return;
+
+            foreach (var contact in contacts)
+            {
+                if (contact?.messagesQueue == null || contact.messagesQueue.Count == 0)
+                    continue;
+
+                var originalCount = contact.messagesQueue.Count;
+                var keptMessages = new Queue<TextMessage>(originalCount);
+                while (contact.messagesQueue.Count > 0)
+                {
+                    var message = contact.messagesQueue.Dequeue();
+                    if (message != null &&
+                        !string.IsNullOrWhiteSpace(message.messageKey) &&
+                        ParkingTicketMessageKeys.Contains(message.messageKey))
+                    {
+                        continue;
+                    }
+
+                    if (message != null)
+                        keptMessages.Enqueue(message);
+                }
+
+                contact.messagesQueue = keptMessages;
+                if (originalCount != keptMessages.Count)
+                    Log($"Removed {originalCount - keptMessages.Count} parking-ticket message(s) from contact '{contact.id}'.");
+            }
+        }
+
         private bool NeedsLog(string vehicleId, VehicleSnapshot snapshot)
         {
             if (!lastVehicleSnapshots.TryGetValue(vehicleId, out var previousSnapshot) ||
@@ -189,37 +258,6 @@ namespace BigHax
         private static void Log(string message)
         {
             BigHaxFileLogger.Log(DebugLogFileName, DebugLogFileName, $"[parking] {message}");
-        }
-
-        private static int ReadParkingTicketFee()
-        {
-            if (ParkingTicketFeeField?.GetValue(null) is int intValue)
-                return intValue;
-
-            if (ParkingTicketFeeField?.GetValue(null) is float floatValue)
-                return Mathf.RoundToInt(floatValue);
-
-            return 0;
-        }
-
-        private static void WriteParkingTicketFee(int value)
-        {
-            if (ParkingTicketFeeField == null)
-                return;
-
-            if (ParkingTicketFeeField.FieldType == typeof(int))
-            {
-                ParkingTicketFeeField.SetValue(null, value);
-                return;
-            }
-
-            if (ParkingTicketFeeField.FieldType == typeof(float))
-            {
-                ParkingTicketFeeField.SetValue(null, (float)value);
-                return;
-            }
-
-            ParkingTicketFeeField.SetValue(null, Convert.ChangeType(value, ParkingTicketFeeField.FieldType));
         }
 
         private readonly struct VehicleSnapshot : IEquatable<VehicleSnapshot>
