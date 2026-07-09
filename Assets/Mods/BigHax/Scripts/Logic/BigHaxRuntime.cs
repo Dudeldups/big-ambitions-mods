@@ -30,6 +30,7 @@ namespace BigHax
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
+        private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
         private bool applyRequested;
@@ -95,6 +96,7 @@ namespace BigHax
             investmentLimitService.RestoreOriginalLimit();
             itemCapacityService.RestoreOriginalCapacities();
             loanLimitService.RestoreOriginalLimit();
+            sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
             vehicleCapacityService.RestoreOriginalCapacities();
             if (instance == this)
                 instance = null;
@@ -151,6 +153,7 @@ namespace BigHax
                 SafeApply("customer traffic", () => TryApplyCustomerTraffic(context, settings, forceRefresh: true));
                 SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
+                SafeApply("sleep/rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
             }
             finally
@@ -226,6 +229,7 @@ namespace BigHax
             illegalParkingService.InvalidateCache();
             itemCapacityService.InvalidateCache();
             loanLimitService.InvalidateCache();
+            sleepRestDurationService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
             applyRequested = true;
         }
