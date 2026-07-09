@@ -97,6 +97,15 @@ namespace BigHax
                 });
             DrawToggleOption(
                 context,
+                settings.DisableIllegalParkingPenalties,
+                Localize("bighax_disable_illegal_parking_penalties_label"),
+                value =>
+                {
+                    settings.DisableIllegalParkingPenalties = value;
+                    BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context.ModId, value);
+                });
+            DrawToggleOption(
+                context,
                 settings.DisableInvestmentLimit,
                 Localize("bighax_disable_investment_limit_label"),
                 value =>

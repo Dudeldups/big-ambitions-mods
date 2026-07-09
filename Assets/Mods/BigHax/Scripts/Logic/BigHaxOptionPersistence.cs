@@ -13,6 +13,10 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.DisableCasinoBetLimit,
                 BigHaxSettings.DefaultDisableCasinoBetLimit);
+            settings.DisableIllegalParkingPenalties = LoadBool(
+                modId,
+                BigHaxOptionIds.DisableIllegalParkingPenalties,
+                BigHaxSettings.DefaultDisableIllegalParkingPenalties);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
             settings.DisableInvestmentLimit = LoadDisableInvestmentLimit(modId);
             settings.EnableVantanderMaxLoanOverride = LoadBool(
@@ -67,6 +71,11 @@ namespace BigHax
         public static void SaveDisableCasinoBetLimit(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.DisableCasinoBetLimit, value);
+        }
+
+        public static void SaveDisableIllegalParkingPenalties(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.DisableIllegalParkingPenalties, value);
         }
 
         public static void SaveStandardFridgeCapacity(string modId, int value)

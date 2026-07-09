@@ -20,6 +20,7 @@ namespace BigHax
         private readonly BigHaxBuildingCustomerCapacityService buildingCustomerCapacityService = new BigHaxBuildingCustomerCapacityService();
         private BigHaxCustomerTrafficService? customerTrafficService;
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
+        private readonly BigHaxIllegalParkingService illegalParkingService = new BigHaxIllegalParkingService();
         private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
@@ -73,6 +74,7 @@ namespace BigHax
             casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
             businessCapacityService.RestoreOriginalCapacities();
+            illegalParkingService.RestoreOriginalState();
             investmentLimitService.RestoreOriginalLimit();
             itemCapacityService.RestoreOriginalCapacities();
             loanLimitService.RestoreOriginalLimit();
@@ -86,11 +88,15 @@ namespace BigHax
         private void OnEnable()
         {
             SceneManager.sceneLoaded += HandleSceneLoaded;
+            GlobalEvents.onNewHour += HandleNewHour;
+            GlobalEvents.onNewDay += HandleNewDay;
         }
 
         private void OnDisable()
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
+            GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onNewDay -= HandleNewDay;
         }
 
         private void Update()
@@ -117,6 +123,7 @@ namespace BigHax
             casinoBetLimitService.ApplyConfiguredLimit(context, settings);
             buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings);
             businessCapacityService.ApplyConfiguredCapacities(context, settings);
+            illegalParkingService.ApplyConfiguredBehavior(context, settings);
             investmentLimitService.ApplyConfiguredLimit(context, settings);
             TryApplyCustomerTraffic(context, settings, forceRefresh: true);
             itemCapacityService.ApplyConfiguredCapacities(context, settings);
@@ -187,6 +194,7 @@ namespace BigHax
             investmentLimitService.InvalidateCache();
             buildingCustomerCapacityService.InvalidateCache();
             businessCapacityService.InvalidateCache();
+            illegalParkingService.InvalidateCache();
             itemCapacityService.InvalidateCache();
             loanLimitService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
@@ -199,6 +207,22 @@ namespace BigHax
                 return;
 
             overlayUi.OnGui(context, settings);
+        }
+
+        private void HandleNewHour()
+        {
+            if (context == null || settings == null)
+                return;
+
+            illegalParkingService.HandleNewHour(context, settings);
+        }
+
+        private void HandleNewDay()
+        {
+            if (context == null || settings == null)
+                return;
+
+            illegalParkingService.HandleNewDay(context, settings);
         }
 
         private static BigHaxCustomerTrafficService? CreateCustomerTrafficService(ModContext context)
