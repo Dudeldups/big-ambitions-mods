@@ -28,6 +28,7 @@ namespace MyBelovedUMCDesert
         internal const string ShowcaseItemName = "ba:itemname_umcdesertshowcase";
         internal const string GeneralUSTrucksContactId = "General US Trucks";
         internal const int RestoredMaxSpeed = 80;
+        internal const float RestoredPrice = 40500f;
         internal const float RestoredEnginePower = 150f;
         internal const float RestoredBrakeForce = 6000f;
 
@@ -494,6 +495,12 @@ namespace MyBelovedUMCDesert
                 changed = true;
             }
 
+            if (Math.Abs(vehicleType.price - MyBelovedUMCDesertMod.RestoredPrice) > 0.01f)
+            {
+                vehicleType.price = MyBelovedUMCDesertMod.RestoredPrice;
+                changed = true;
+            }
+
             if ((changed || !hasLoggedStats) && context != null)
             {
                 hasLoggedStats = true;
@@ -501,7 +508,8 @@ namespace MyBelovedUMCDesert
                     "My Beloved UMC Desert: restored vehicle stats " +
                     $"maxSpeed={vehicleType.maxSpeed}, " +
                     $"enginePower={vehicleType.enginePower}, " +
-                    $"brakeForce={vehicleType.brakeForce}.");
+                    $"brakeForce={vehicleType.brakeForce}, " +
+                    $"price={vehicleType.price}.");
             }
         }
     }
