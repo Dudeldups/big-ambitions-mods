@@ -267,7 +267,6 @@ namespace BigHax
             if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
                 return;
 
-            BigHaxFileLogger.Log("BigHax-parking-debug.log", "BigHax-parking-debug.log", "[parking] onEnterVehicle fired.");
             SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
         }
 
@@ -276,7 +275,6 @@ namespace BigHax
             if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
                 return;
 
-            BigHaxFileLogger.Log("BigHax-parking-debug.log", "BigHax-parking-debug.log", "[parking] onExitVehicle fired.");
             if (parkingExitCleanupCoroutine != null)
                 StopCoroutine(parkingExitCleanupCoroutine);
 
@@ -312,10 +310,6 @@ namespace BigHax
                 onEnterVehicleHandler = SubscribeGlobalEvent(onEnterVehicleField, nameof(HandleVehicleEntered));
                 onExitVehicleHandler = SubscribeGlobalEvent(onExitVehicleField, nameof(HandleVehicleExited));
                 parkingVehicleEventsSubscribed = onEnterVehicleHandler != null || onExitVehicleHandler != null;
-                BigHaxFileLogger.Log(
-                    "BigHax-parking-debug.log",
-                    "BigHax-parking-debug.log",
-                    $"[parking] Vehicle event subscription result: enter={(onEnterVehicleHandler != null)}, exit={(onExitVehicleHandler != null)}.");
             }
             catch (Exception exception)
             {

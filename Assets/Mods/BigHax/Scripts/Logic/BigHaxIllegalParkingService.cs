@@ -10,7 +10,6 @@ namespace BigHax
 {
     internal sealed class BigHaxIllegalParkingService
     {
-        private const string DebugLogFileName = "BigHax-parking-debug.log";
         private static readonly HashSet<string> ParkingTicketMessageKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "phone_government_parking_ticket",
@@ -21,7 +20,7 @@ namespace BigHax
             "ba:transaction_parkingticket",
             "transaction_parkingticket"
         };
-        private readonly Dictionary<string, VehicleSnapshot> lastVehicleSnapshots = new Dictionary<string, VehicleSnapshot>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ParkingState> originalParkingStates = new Dictionary<string, ParkingState>(StringComparer.Ordinal);
 
         public void InvalidateCache()
         {
@@ -30,9 +29,11 @@ namespace BigHax
         public void ApplyConfiguredBehavior(ModContext? context, BigHaxSettings settings)
         {
             if (!settings.DisableIllegalParkingPenalties)
+            {
+                RestoreTrackedParkingStates();
                 return;
+            }
 
-            Log("ApplyConfiguredBehavior invoked.");
             CleanPlayerVehicles();
             CleanSaveGameVehicles();
             RefundParkingTicketTransactions();
@@ -44,7 +45,6 @@ namespace BigHax
             if (!settings.DisableIllegalParkingPenalties)
                 return;
 
-            Log("Handling onNewHour refresh.");
             ApplyConfiguredBehavior(context, settings);
         }
 
@@ -53,7 +53,6 @@ namespace BigHax
             if (!settings.DisableIllegalParkingPenalties)
                 return;
 
-            Log("Handling onNewDay refresh.");
             ApplyConfiguredBehavior(context, settings);
         }
 
@@ -62,7 +61,6 @@ namespace BigHax
             if (!settings.DisableIllegalParkingPenalties)
                 return;
 
-            Log("Handling onExitVehicle refresh.");
             ApplyConfiguredBehavior(context, settings);
         }
 
@@ -71,13 +69,13 @@ namespace BigHax
             if (!settings.DisableIllegalParkingPenalties)
                 return;
 
-            Log("Handling onEnterVehicle refresh.");
             ApplyConfiguredBehavior(context, settings);
         }
 
         public void RestoreOriginalState()
         {
-            lastVehicleSnapshots.Clear();
+            RestoreTrackedParkingStates();
+            originalParkingStates.Clear();
         }
 
         private void CleanPlayerVehicles()
@@ -95,40 +93,21 @@ namespace BigHax
                 var ticketCount = vehicleInstance.parkingTickets?.Count ?? 0;
                 var unpaidAmount = vehicleInstance.unpaidParkingAmount;
                 var parkingState = vehicleInstance.parkingState;
-                var changed = false;
-
                 if (ticketCount > 0 && vehicleInstance.parkingTickets != null)
                 {
                     vehicleInstance.parkingTickets.Clear();
-                    changed = true;
                 }
 
                 if (Math.Abs(unpaidAmount) > 0.001f)
                 {
                     vehicleInstance.unpaidParkingAmount = 0f;
-                    changed = true;
                 }
 
                 if (parkingState == ParkingState.Illegal)
                 {
+                    TrackOriginalParkingState(vehicleInstance.id, parkingState);
                     vehicleInstance.parkingState = ParkingState.Legal;
-                    changed = true;
                 }
-
-                var currentSnapshot = new VehicleSnapshot(
-                    vehicleInstance.vehicleTypeName ?? string.Empty,
-                    parkingState,
-                    ticketCount,
-                    unpaidAmount);
-
-                if (!changed || !NeedsLog(vehicleInstance.id, currentSnapshot))
-                    continue;
-
-                Log(
-                    $"Vehicle '{vehicleInstance.id}' ({vehicleInstance.vehicleTypeName}) cleanup: " +
-                    $"state {parkingState} -> {vehicleInstance.parkingState}, " +
-                    $"tickets {ticketCount} -> {vehicleInstance.parkingTickets?.Count ?? 0}, " +
-                    $"unpaid {unpaidAmount} -> {vehicleInstance.unpaidParkingAmount}.");
             }
         }
 
@@ -147,34 +126,21 @@ namespace BigHax
                 var ticketCount = vehicleInstance.parkingTickets?.Count ?? 0;
                 var unpaidAmount = vehicleInstance.unpaidParkingAmount;
                 var parkingState = vehicleInstance.parkingState;
-                var changed = false;
-
                 if (ticketCount > 0 && vehicleInstance.parkingTickets != null)
                 {
                     vehicleInstance.parkingTickets.Clear();
-                    changed = true;
                 }
 
                 if (Math.Abs(unpaidAmount) > 0.001f)
                 {
                     vehicleInstance.unpaidParkingAmount = 0f;
-                    changed = true;
                 }
 
                 if (parkingState == ParkingState.Illegal)
                 {
+                    TrackOriginalParkingState(vehicleInstance.id, parkingState);
                     vehicleInstance.parkingState = ParkingState.Legal;
-                    changed = true;
                 }
-
-                if (!changed)
-                    continue;
-
-                Log(
-                    $"Saved vehicle '{vehicleInstance.id}' ({vehicleInstance.vehicleTypeName}) cleanup: " +
-                    $"state {parkingState} -> {vehicleInstance.parkingState}, " +
-                    $"tickets {ticketCount} -> {vehicleInstance.parkingTickets?.Count ?? 0}, " +
-                    $"unpaid {unpaidAmount} -> {vehicleInstance.unpaidParkingAmount}.");
             }
         }
 
@@ -207,7 +173,6 @@ namespace BigHax
                 return;
 
             saveGame.Money += refundedAmount;
-            Log($"Refunded parking-ticket transactions amount={refundedAmount:0.##}, removed={originalCount - keptTransactions.Count}.");
         }
 
         private void RemoveParkingTicketMessages()
@@ -238,67 +203,62 @@ namespace BigHax
                 }
 
                 contact.messagesQueue = keptMessages;
-                if (originalCount != keptMessages.Count)
-                    Log($"Removed {originalCount - keptMessages.Count} parking-ticket message(s) from contact '{contact.id}'.");
             }
         }
 
-        private bool NeedsLog(string vehicleId, VehicleSnapshot snapshot)
+        private void TrackOriginalParkingState(string vehicleId, ParkingState parkingState)
         {
-            if (!lastVehicleSnapshots.TryGetValue(vehicleId, out var previousSnapshot) ||
-                !previousSnapshot.Equals(snapshot))
-            {
-                lastVehicleSnapshots[vehicleId] = snapshot;
-                return true;
-            }
+            if (string.IsNullOrWhiteSpace(vehicleId) || originalParkingStates.ContainsKey(vehicleId))
+                return;
 
-            return false;
+            originalParkingStates[vehicleId] = parkingState;
         }
 
-        private static void Log(string message)
+        private void RestoreTrackedParkingStates()
         {
-            BigHaxFileLogger.Log(DebugLogFileName, DebugLogFileName, $"[parking] {message}");
+            if (originalParkingStates.Count == 0)
+                return;
+
+            RestoreTrackedParkingStates(VehicleHelper.AllPlayerVehicles);
+            RestoreTrackedParkingStates(SaveGameManager.Current?.VehicleInstances);
+            originalParkingStates.Clear();
         }
 
-        private readonly struct VehicleSnapshot : IEquatable<VehicleSnapshot>
+        private void RestoreTrackedParkingStates(IEnumerable<VehicleController>? vehicleControllers)
         {
-            public VehicleSnapshot(string vehicleTypeName, ParkingState state, int ticketCount, float unpaidAmount)
-            {
-                VehicleTypeName = vehicleTypeName;
-                State = state;
-                TicketCount = ticketCount;
-                UnpaidAmount = unpaidAmount;
-            }
+            if (vehicleControllers == null)
+                return;
 
-            public string VehicleTypeName { get; }
-            public ParkingState State { get; }
-            public int TicketCount { get; }
-            public float UnpaidAmount { get; }
-
-            public bool Equals(VehicleSnapshot other)
+            foreach (var vehicleController in vehicleControllers)
             {
-                return string.Equals(VehicleTypeName, other.VehicleTypeName, StringComparison.Ordinal) &&
-                       State == other.State &&
-                       TicketCount == other.TicketCount &&
-                       Math.Abs(UnpaidAmount - other.UnpaidAmount) < 0.001f;
-            }
+                var vehicleInstance = vehicleController?.vehicleInstance;
+                if (vehicleInstance == null || string.IsNullOrWhiteSpace(vehicleInstance.id))
+                    continue;
 
-            public override bool Equals(object? obj)
-            {
-                return obj is VehicleSnapshot other && Equals(other);
+                RestoreTrackedParkingState(vehicleInstance);
             }
+        }
 
-            public override int GetHashCode()
+        private void RestoreTrackedParkingStates(IEnumerable<VehicleInstance>? vehicleInstances)
+        {
+            if (vehicleInstances == null)
+                return;
+
+            foreach (var vehicleInstance in vehicleInstances)
             {
-                unchecked
-                {
-                    var hashCode = VehicleTypeName != null ? StringComparer.Ordinal.GetHashCode(VehicleTypeName) : 0;
-                    hashCode = (hashCode * 397) ^ (int)State;
-                    hashCode = (hashCode * 397) ^ TicketCount;
-                    hashCode = (hashCode * 397) ^ Mathf.RoundToInt(UnpaidAmount * 1000f);
-                    return hashCode;
-                }
+                if (vehicleInstance == null || string.IsNullOrWhiteSpace(vehicleInstance.id))
+                    continue;
+
+                RestoreTrackedParkingState(vehicleInstance);
             }
+        }
+
+        private void RestoreTrackedParkingState(VehicleInstance vehicleInstance)
+        {
+            if (!originalParkingStates.TryGetValue(vehicleInstance.id, out var originalParkingState))
+                return;
+
+            vehicleInstance.parkingState = originalParkingState;
         }
     }
 }
