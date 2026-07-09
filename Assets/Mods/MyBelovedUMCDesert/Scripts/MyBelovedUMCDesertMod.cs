@@ -178,7 +178,7 @@ namespace MyBelovedUMCDesert
                 return;
             }
 
-            if (hadExplicitServiceStock && SameVehicleList(existingStock, mergedStock))
+            if (hadExplicitServiceStock && existingStock != null && SameVehicleList(existingStock, mergedStock))
             {
                 MyBelovedUMCDesertFileLogger.Info(
                     $"Phone stock already complete source={source}, count={mergedStock.Count}.");
@@ -1312,7 +1312,7 @@ namespace MyBelovedUMCDesert
             return $"total={total}/active={active}/enabled={enabled}/visible={visible}";
         }
 
-        private static object? GetMemberValue(object owner, string memberName)
+        private static object? GetMemberValue(object? owner, string memberName)
         {
             if (owner == null)
                 return null;
@@ -1338,7 +1338,7 @@ namespace MyBelovedUMCDesert
             return null;
         }
 
-        private static string? GetStringMember(object owner, string memberName)
+        private static string? GetStringMember(object? owner, string memberName)
         {
             return GetMemberValue(owner, memberName) as string;
         }
