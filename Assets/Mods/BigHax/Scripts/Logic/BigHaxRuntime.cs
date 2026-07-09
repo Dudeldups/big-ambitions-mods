@@ -34,6 +34,7 @@ namespace BigHax
 
         private bool applyRequested;
         private bool parkingVehicleEventsSubscribed;
+        private Coroutine? parkingExitCleanupCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
         private Delegate? onEnterVehicleHandler;
@@ -80,6 +81,12 @@ namespace BigHax
 
         public void Shutdown()
         {
+            if (parkingExitCleanupCoroutine != null)
+            {
+                StopCoroutine(parkingExitCleanupCoroutine);
+                parkingExitCleanupCoroutine = null;
+            }
+
             TryRestoreCustomerTraffic();
             casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
@@ -208,6 +215,8 @@ namespace BigHax
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             overlayUi.Hide();
+            UnsubscribeParkingVehicleEvents();
+            SubscribeParkingVehicleEvents();
             TryInvalidateCustomerTrafficCache();
             casinoBetLimitService.InvalidateCache();
             employeeTrainingService.InvalidateCache();
@@ -268,17 +277,25 @@ namespace BigHax
                 return;
 
             BigHaxFileLogger.Log("BigHax-parking-debug.log", "BigHax-parking-debug.log", "[parking] onExitVehicle fired.");
-            StartCoroutine(HandleVehicleExitedDeferred());
+            if (parkingExitCleanupCoroutine != null)
+                StopCoroutine(parkingExitCleanupCoroutine);
+
+            parkingExitCleanupCoroutine = StartCoroutine(HandleVehicleExitedDeferred());
         }
 
         private IEnumerator HandleVehicleExitedDeferred()
         {
-            yield return null;
+            for (var frame = 0; frame < 90; frame++)
+            {
+                yield return null;
 
-            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
-                yield break;
+                if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+                    yield break;
 
-            SafeApply("illegal parking onExitVehicle", () => illegalParkingService.HandleVehicleExited(context, settings));
+                SafeApply("illegal parking onExitVehicle", () => illegalParkingService.HandleVehicleExited(context, settings));
+            }
+
+            parkingExitCleanupCoroutine = null;
         }
 
         private void SubscribeParkingVehicleEvents()
