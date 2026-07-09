@@ -34,9 +34,19 @@ namespace BigHax
             }
         }
 
-        public void ConsumeGameplayInputIfNeeded()
+        public void HandleSceneLoaded()
         {
             if (!isVisible)
+                return;
+
+            needsCentering = true;
+            hotControlId = 0;
+            ResetStyleCache();
+        }
+
+        public void ConsumeGameplayInputIfNeeded()
+        {
+            if (!ShouldDisplay())
                 return;
 
             if (IsMouseOverWindow() || GUIUtility.hotControl == hotControlId)
@@ -45,7 +55,7 @@ namespace BigHax
 
         public void OnGui(ModContext context)
         {
-            if (!isVisible)
+            if (!ShouldDisplay())
                 return;
 
             EnsureStyles();
@@ -87,6 +97,11 @@ namespace BigHax
 
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
+        }
+
+        private bool ShouldDisplay()
+        {
+            return isVisible && SaveGameManager.Current != null;
         }
 
         private void CaptureHotControl()

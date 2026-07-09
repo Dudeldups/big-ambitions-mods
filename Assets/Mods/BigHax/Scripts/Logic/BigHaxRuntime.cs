@@ -221,6 +221,7 @@ namespace BigHax
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             overlayUi.Hide();
+            updateNoticeUi.HandleSceneLoaded();
             UnsubscribeParkingVehicleEvents();
             SubscribeParkingVehicleEvents();
             TryInvalidateCustomerTrafficCache();
