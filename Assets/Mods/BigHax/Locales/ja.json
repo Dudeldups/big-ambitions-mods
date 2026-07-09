@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "閉じる",
   "bighax_customer_traffic_multiplier_label": "プレイヤー企業の顧客倍率",
   "bighax_disable_casino_bet_limit_label": "カジノの賭け金上限を引き上げる",
+  "bighax_disable_illegal_parking_penalties_label": "違法駐車の罰金を無効化",
   "bighax_disable_investment_limit_label": "投資上限を無効化",
   "bighax_vantander_maximum_loan_override_label": "Vantander Bankの最大融資額を100,000,000 $に引き上げる",
   "bighax_employee_training_skill_increase_label": "従業員研修のスキル上昇量",

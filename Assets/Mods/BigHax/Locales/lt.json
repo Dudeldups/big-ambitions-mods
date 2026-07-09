@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "Uždaryti",
   "bighax_customer_traffic_multiplier_label": "Žaidėjo verslo klientų daugiklis",
   "bighax_disable_casino_bet_limit_label": "Padidinti kazino statymų limitą",
+  "bighax_disable_illegal_parking_penalties_label": "Išjungti baudas už neteisėtą parkavimą",
   "bighax_disable_investment_limit_label": "Išjungti investicijų limitą",
   "bighax_vantander_maximum_loan_override_label": "Padidinti Vantander Bank maksimalų paskolos limitą iki 100 000 000 $",
   "bighax_employee_training_skill_increase_label": "Darbuotojų mokymo įgūdžių prieaugis",

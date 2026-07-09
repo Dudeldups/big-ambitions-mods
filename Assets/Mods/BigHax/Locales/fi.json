@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "Sulje",
   "bighax_customer_traffic_multiplier_label": "Pelaajan yrityksen asiakaskerroin",
   "bighax_disable_casino_bet_limit_label": "Nosta kasinon panosrajaa",
+  "bighax_disable_illegal_parking_penalties_label": "Poista laittoman pysäköinnin sakot käytöstä",
   "bighax_disable_investment_limit_label": "Poista sijoitusraja käytöstä",
   "bighax_vantander_maximum_loan_override_label": "Nosta Vantander Bankin enimmäislaina 100 000 000 $:iin",
   "bighax_employee_training_skill_increase_label": "Työntekijäkoulutuksen taitolisäys",

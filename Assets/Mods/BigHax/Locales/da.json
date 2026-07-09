@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "Luk",
   "bighax_customer_traffic_multiplier_label": "Kundemultiplikator for spillerens virksomhed",
   "bighax_disable_casino_bet_limit_label": "Hæv kasinoets indsatsgrænse",
+  "bighax_disable_illegal_parking_penalties_label": "Deaktiver bøder for ulovlig parkering",
   "bighax_disable_investment_limit_label": "Deaktiver investeringsgrænse",
   "bighax_vantander_maximum_loan_override_label": "Hæv Vantander Banks maksimale lån til 100.000.000 $",
   "bighax_employee_training_skill_increase_label": "Færdighedsgevinst fra medarbejdertræning",

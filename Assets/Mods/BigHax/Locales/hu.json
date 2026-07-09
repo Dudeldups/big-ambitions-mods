@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "Bezárás",
   "bighax_customer_traffic_multiplier_label": "Játékos vállalkozásának ügyfélszorzója",
   "bighax_disable_casino_bet_limit_label": "Kaszinó tétlimitjének növelése",
+  "bighax_disable_illegal_parking_penalties_label": "Illegális parkolási bírságok kikapcsolása",
   "bighax_disable_investment_limit_label": "Befektetési limit kikapcsolása",
   "bighax_vantander_maximum_loan_override_label": "A Vantander Bank maximális hitelének növelése 100 000 000 $-ra",
   "bighax_employee_training_skill_increase_label": "Alkalmazotti képzés készségnövekedése",

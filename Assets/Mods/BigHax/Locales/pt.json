@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "Fechar",
   "bighax_customer_traffic_multiplier_label": "Multiplicador de clientes do negócio do jogador",
   "bighax_disable_casino_bet_limit_label": "Aumentar limite de apostas do casino",
+  "bighax_disable_illegal_parking_penalties_label": "Desativar multas de estacionamento ilegal",
   "bighax_disable_investment_limit_label": "Desativar limite de investimento",
   "bighax_vantander_maximum_loan_override_label": "Aumentar empréstimo máximo do Vantander Bank para 100.000.000 $",
   "bighax_employee_training_skill_increase_label": "Ganho de habilidade por treinamento de funcionários",

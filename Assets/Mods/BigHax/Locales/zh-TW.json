@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "關閉",
   "bighax_customer_traffic_multiplier_label": "玩家企業顧客倍率",
   "bighax_disable_casino_bet_limit_label": "提高賭場下注上限",
+  "bighax_disable_illegal_parking_penalties_label": "停用違停罰款",
   "bighax_disable_investment_limit_label": "停用投資上限",
   "bighax_vantander_maximum_loan_override_label": "將 Vantander Bank 最高貸款提高至 100,000,000 $",
   "bighax_employee_training_skill_increase_label": "員工培訓技能提升",

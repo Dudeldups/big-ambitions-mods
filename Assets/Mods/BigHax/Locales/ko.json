@@ -5,6 +5,7 @@
   "bighax_ui_close_button": "닫기",
   "bighax_customer_traffic_multiplier_label": "플레이어 사업 고객 배율",
   "bighax_disable_casino_bet_limit_label": "카지노 베팅 한도 올리기",
+  "bighax_disable_illegal_parking_penalties_label": "불법 주차 벌금 비활성화",
   "bighax_disable_investment_limit_label": "투자 한도 비활성화",
   "bighax_vantander_maximum_loan_override_label": "Vantander Bank 최대 대출액을 100,000,000 $로 올리기",
   "bighax_employee_training_skill_increase_label": "직원 교육 스킬 증가량",
