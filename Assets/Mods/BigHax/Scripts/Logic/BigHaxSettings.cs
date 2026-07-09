@@ -5,7 +5,6 @@ namespace BigHax
         public const bool DefaultDisableCasinoBetLimit = false;
         public const bool DefaultDisableIllegalParkingPenalties = false;
         public const bool DefaultDisableInvestmentLimit = false;
-        public const bool DefaultExtendSleepAndRestTo24Hours = false;
         public const int DisabledCasinoBetLimitAmount = 100_000_000;
         public const long DisabledInvestmentLimitAmount = 2_100_000_000L;
         public const bool DefaultEnableVantanderMaxLoanOverride = false;
@@ -31,8 +30,6 @@ namespace BigHax
         public bool EnableVantanderMaxLoanOverride { get; set; } = DefaultEnableVantanderMaxLoanOverride;
 
         public bool DisableInvestmentLimit { get; set; } = DefaultDisableInvestmentLimit;
-
-        public bool ExtendSleepAndRestTo24Hours { get; set; } = DefaultExtendSleepAndRestTo24Hours;
 
         public int UiHotkeyIndex { get; set; } = DefaultUiHotkeyIndex;
 

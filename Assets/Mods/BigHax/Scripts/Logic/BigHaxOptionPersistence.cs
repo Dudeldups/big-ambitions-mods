@@ -17,10 +17,6 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.DisableIllegalParkingPenalties,
                 BigHaxSettings.DefaultDisableIllegalParkingPenalties);
-            settings.ExtendSleepAndRestTo24Hours = LoadBool(
-                modId,
-                BigHaxOptionIds.ExtendSleepAndRestTo24Hours,
-                BigHaxSettings.DefaultExtendSleepAndRestTo24Hours);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
             settings.DisableInvestmentLimit = LoadDisableInvestmentLimit(modId);
             settings.EnableVantanderMaxLoanOverride = LoadBool(
@@ -80,11 +76,6 @@ namespace BigHax
         public static void SaveDisableIllegalParkingPenalties(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.DisableIllegalParkingPenalties, value);
-        }
-
-        public static void SaveExtendSleepAndRestTo24Hours(string modId, bool value)
-        {
-            SaveBool(modId, BigHaxOptionIds.ExtendSleepAndRestTo24Hours, value);
         }
 
         public static void SaveStandardFridgeCapacity(string modId, int value)

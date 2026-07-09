@@ -126,15 +126,6 @@ namespace BigHax
                 });
             DrawToggleOption(
                 context,
-                settings.ExtendSleepAndRestTo24Hours,
-                Localize("bighax_extend_sleep_and_rest_to_24_hours_label"),
-                value =>
-                {
-                    settings.ExtendSleepAndRestTo24Hours = value;
-                    BigHaxOptionPersistence.SaveExtendSleepAndRestTo24Hours(context.ModId, value);
-                });
-            DrawToggleOption(
-                context,
                 settings.DisableInvestmentLimit,
                     Localize("bighax_disable_investment_limit_label"),
                     value =>
