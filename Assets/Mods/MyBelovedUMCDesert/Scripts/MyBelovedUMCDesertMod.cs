@@ -1,18 +1,13 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using BAModAPI;
 using BigAmbitions.SaveSystem.Legacy;
-using Buildings;
-using Dialogs;
-using Entities;
 using Helpers;
-using JimmysUnityUtilities;
-using Localizor;
 using Services;
 using UI;
-using UI.Notification;
 using UI.Smartphone.Apps.Contacts;
 using UnityEngine;
 using Vehicles.VehicleTypes;
@@ -28,22 +23,23 @@ namespace MyBelovedUMCDesert
         internal const string ContactDescription = "mybelovedumcdesert:description";
         internal const string DialogTypeKey = "mybelovedumcdesert_calldialogtype";
         internal const string VehicleTypeName = "ba:vehicletype_umcdesert";
+        internal const string GeneralUSTrucksContactId = "General US Trucks";
         internal const int RestoredMaxSpeed = 80;
         internal const float RestoredEnginePower = 150f;
         internal const float RestoredBrakeForce = 6000f;
+        internal const bool DebugLoggingEnabled = true;
 
-        private static readonly string[] VehiclesForSale = { VehicleTypeName };
         private static GameObject? registrarObject;
 
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
         public Task OnLoadAsync(ModContext context)
         {
-            var dialogType = (CallDialogType)ModEnumHash.GetSafeHash(DialogTypeKey);
-            CallDialogFactory.RegisterDialog(dialogType, () => new MyBelovedUMCDesertDialog());
+            MyBelovedUMCDesertLogger.SetDebugLoggingEnabled(DebugLoggingEnabled);
+            MyBelovedUMCDesertLogger.Info(context, $"My Beloved UMC Desert: file log path = {MyBelovedUMCDesertFileLogger.LogPath}");
 
-            EnsureRegistrar(context, dialogType);
-            context.Logger.Info($"My Beloved UMC Desert: registered seller for '{VehicleTypeName}'.");
+            EnsureRegistrar(context);
+            context.Logger.Info($"My Beloved UMC Desert: adding '{VehicleTypeName}' to '{GeneralUSTrucksContactId}'.");
             return Task.CompletedTask;
         }
 
@@ -56,10 +52,11 @@ namespace MyBelovedUMCDesert
             }
 
             ContractItemsForSaleService.RemoveContact(ContactId);
+            GeneralUSTrucksStockService.RestorePreviousPhoneStock();
             return Task.CompletedTask;
         }
 
-        private static void EnsureRegistrar(ModContext context, CallDialogType dialogType)
+        private static void EnsureRegistrar(ModContext context)
         {
             if (registrarObject == null)
             {
@@ -71,71 +68,154 @@ namespace MyBelovedUMCDesert
             if (registrar == null)
                 registrar = registrarObject.AddComponent<MyBelovedUMCDesertContactRegistrar>();
 
-            registrar.Initialize(context, dialogType);
+            registrar.Initialize(context);
         }
 
-        internal static void RegisterContactAndStock(CallDialogType dialogType, ModContext? context)
+        internal static void RegisterDealerPhoneStock(ModContext? context)
+        {
+            UMCDesertStatsService.ApplyRestoredStats(context);
+            GeneralUSTrucksStockService.ApplyPhoneStock(context);
+            RemoveLegacyContact(context);
+        }
+
+        private static void RemoveLegacyContact(ModContext? context)
         {
             var saveGame = SaveGameManager.Current;
             if (saveGame?.Contacts == null)
                 return;
 
-            UMCDesertStatsService.ApplyRestoredStats(context);
-            ContractItemsForSaleService.SetVehiclesForContact(ContactId, VehiclesForSale);
-
-            var existedBefore = false;
-            foreach (var existingContact in saveGame.Contacts)
+            var removedCount = 0;
+            for (var i = saveGame.Contacts.Count - 1; i >= 0; i--)
             {
-                if (existingContact != null &&
-                    string.Equals(existingContact.id, ContactId, StringComparison.OrdinalIgnoreCase))
+                var contact = saveGame.Contacts[i];
+                if (contact == null ||
+                    !string.Equals(contact.id, ContactId, StringComparison.OrdinalIgnoreCase))
                 {
-                    existedBefore = true;
-                    break;
+                    continue;
                 }
+
+                saveGame.Contacts.RemoveAt(i);
+                removedCount++;
             }
 
-            var contact = Contact.GetContact(
-                ContactId,
-                ContactCategoryName.FurnitureAndEquipment,
-                ContactDescription);
-            if (contact == null)
+            if (removedCount == 0)
                 return;
 
-            var changed = !existedBefore || contact.callDialogTypeOverride != dialogType;
-            contact.callDialogTypeOverride = dialogType;
-
-            if (contact.messagesQueue == null || contact.messagesQueue.Count == 0)
-            {
-                contact.SendMessage(new TextMessage("mybelovedumcdesert:welcome"));
-                changed = true;
-            }
-
-            if (changed)
-            {
-                saveGame.hasEverUsedMods = true;
-                SaveGameManager.MarkChange();
-                RefreshContactsUi(contact);
-                context?.Logger.Info($"My Beloved UMC Desert: contact ready. existedBefore={existedBefore}");
-            }
+            ContractItemsForSaleService.RemoveContact(ContactId);
+            saveGame.hasEverUsedMods = true;
+            SaveGameManager.MarkChange();
+            RefreshContactsUi();
+            MyBelovedUMCDesertLogger.Info(context, $"My Beloved UMC Desert: removed legacy standalone contact count={removedCount}.");
         }
 
-        private static void RefreshContactsUi(Contact contact)
+        private static void RefreshContactsUi()
         {
             try
             {
-                var contactsApp = InstanceBehavior<UIs>.Instance?.fullMenu?.contactsApp;
-                if (contactsApp == null)
-                    return;
-
-                if (contactsApp.selectedContact == contact)
-                    contactsApp.RefreshHeader();
-
+                InstanceBehavior<UIs>.Instance?.fullMenu?.contactsApp?.RefreshHeader();
                 ContactsApp.onContactAdded?.Invoke();
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // UI may not be initialized yet; the registrar will try again after the save is ready.
+                MyBelovedUMCDesertLogger.Warn(null, $"My Beloved UMC Desert: contacts UI refresh failed: {exception.Message}");
             }
+        }
+    }
+
+    internal static class GeneralUSTrucksStockService
+    {
+        private static readonly string[] VanillaGeneralUSTrucksVehicles =
+        {
+            "ba:vehicletype_freighttruckt1",
+            "ba:vehicletype_deliverytruck",
+            "ba:vehicletype_mersaididash",
+            "ba:vehicletype_umcnunavut",
+            "ba:vehicletype_vordv150"
+        };
+
+        private static List<string>? previousPhoneStock;
+        private static bool previousPhoneStockCaptured;
+        private static string? lastAppliedStockKey;
+
+        internal static void ApplyPhoneStock(ModContext? context)
+        {
+            CapturePreviousPhoneStock(context);
+
+            var stock = CreateMergedPhoneStock();
+            var stockKey = string.Join("|", stock);
+            ContractItemsForSaleService.SetVehiclesForContact(MyBelovedUMCDesertMod.GeneralUSTrucksContactId, stock);
+
+            if (!string.Equals(lastAppliedStockKey, stockKey, StringComparison.Ordinal))
+            {
+                lastAppliedStockKey = stockKey;
+                MyBelovedUMCDesertLogger.Info(
+                    context,
+                    $"My Beloved UMC Desert: registered phone stock for '{MyBelovedUMCDesertMod.GeneralUSTrucksContactId}': {string.Join(", ", stock)}");
+            }
+        }
+
+        internal static void RestorePreviousPhoneStock()
+        {
+            if (!previousPhoneStockCaptured)
+                return;
+
+            if (previousPhoneStock == null)
+                ContractItemsForSaleService.RemoveContact(MyBelovedUMCDesertMod.GeneralUSTrucksContactId);
+            else
+                ContractItemsForSaleService.SetVehiclesForContact(MyBelovedUMCDesertMod.GeneralUSTrucksContactId, previousPhoneStock);
+        }
+
+        private static void CapturePreviousPhoneStock(ModContext? context)
+        {
+            if (previousPhoneStockCaptured)
+                return;
+
+            previousPhoneStockCaptured = true;
+            if (ContractItemsForSaleService.TryGetVehiclesForContact(MyBelovedUMCDesertMod.GeneralUSTrucksContactId, out List<string> existingStock))
+            {
+                previousPhoneStock = existingStock;
+                MyBelovedUMCDesertLogger.Info(
+                    context,
+                    $"My Beloved UMC Desert: captured existing modded phone stock for '{MyBelovedUMCDesertMod.GeneralUSTrucksContactId}': {string.Join(", ", existingStock)}");
+            }
+            else
+            {
+                previousPhoneStock = null;
+                MyBelovedUMCDesertLogger.Info(
+                    context,
+                    $"My Beloved UMC Desert: no existing modded phone stock for '{MyBelovedUMCDesertMod.GeneralUSTrucksContactId}'.");
+            }
+        }
+
+        private static List<string> CreateMergedPhoneStock()
+        {
+            var stock = new List<string>();
+            AddUnique(stock, VanillaGeneralUSTrucksVehicles);
+            if (previousPhoneStock != null)
+                AddUnique(stock, previousPhoneStock);
+
+            AddUnique(stock, MyBelovedUMCDesertMod.VehicleTypeName);
+            return stock;
+        }
+
+        private static void AddUnique(List<string> target, IEnumerable<string> vehicleNames)
+        {
+            foreach (var vehicleName in vehicleNames)
+                AddUnique(target, vehicleName);
+        }
+
+        private static void AddUnique(List<string> target, string vehicleName)
+        {
+            if (string.IsNullOrWhiteSpace(vehicleName))
+                return;
+
+            foreach (var existing in target)
+            {
+                if (string.Equals(existing, vehicleName, StringComparison.Ordinal))
+                    return;
+            }
+
+            target.Add(vehicleName);
         }
     }
 
@@ -184,14 +264,12 @@ namespace MyBelovedUMCDesert
     {
         private const float RetryIntervalSeconds = 2f;
 
-        private CallDialogType dialogType;
         private ModContext? context;
         private float nextAttemptAt;
 
-        public void Initialize(ModContext context, CallDialogType dialogType)
+        public void Initialize(ModContext context)
         {
             this.context = context;
-            this.dialogType = dialogType;
             nextAttemptAt = 0f;
         }
 
@@ -201,186 +279,93 @@ namespace MyBelovedUMCDesert
                 return;
 
             nextAttemptAt = Time.unscaledTime + RetryIntervalSeconds;
-            MyBelovedUMCDesertMod.RegisterContactAndStock(dialogType, context);
+            MyBelovedUMCDesertMod.RegisterDealerPhoneStock(context);
         }
     }
 
-    internal sealed class MyBelovedUMCDesertDialog : Dialog
+    internal static class MyBelovedUMCDesertLogger
     {
-        private VehicleContractSettings? vehicleContractSettings;
+        private static readonly HashSet<string> WarnedKeys = new HashSet<string>();
+        private static bool debugLoggingEnabled;
 
-        public MyBelovedUMCDesertDialog()
+        internal static void SetDebugLoggingEnabled(bool enabled)
         {
-            npcNameKey = MyBelovedUMCDesertMod.ContactId;
-            DialogController.current.ShowEntry(Start());
+            debugLoggingEnabled = enabled;
         }
 
-        private DialogEntry Start()
+        internal static void Info(ModContext? context, string message)
         {
-            if (VehicleTypeHelper.GetVehicleType(MyBelovedUMCDesertMod.VehicleTypeName) == null)
-                return Message("mybelovedumcdesert:dialog_missing_vehicle", DialogController.current.FinishDialog);
+            if (!debugLoggingEnabled)
+                return;
 
-            DialogController.current.contact.SendMessage(
-                new TextMessage("mybelovedumcdesert:dialog_start", null, true, true));
+            context?.Logger.Info(message);
+            MyBelovedUMCDesertFileLogger.Log(message);
+        }
 
-            return new DialogEntry
+        internal static void Warn(ModContext? context, string message)
+        {
+            if (!debugLoggingEnabled)
+                return;
+
+            context?.Logger.Warn(message);
+            MyBelovedUMCDesertFileLogger.Log("WARN: " + message);
+        }
+
+        internal static void WarnOnce(ModContext? context, string key, string message)
+        {
+            if (!WarnedKeys.Add(key))
+                return;
+
+            Warn(context, message);
+        }
+    }
+
+    internal static class MyBelovedUMCDesertFileLogger
+    {
+        private static readonly object Sync = new object();
+        private static readonly string PreferredWorkspaceLogDirectory =
+            @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Logs\Mods";
+        private static string? logPath;
+
+        internal static string LogPath
+        {
+            get
             {
-                messageData = "mybelovedumcdesert:dialog_start".Localize(),
-                Template = DialogEntry.TemplateType.Text,
-                headerKey = npcNameKey,
-                OnVisible = () =>
+                lock (Sync)
                 {
-                    VehicleContractSettings.disableDeliveryOnNextInit = true;
-                    VehicleContractSettingsDialog().ShowEntry();
+                    if (!string.IsNullOrEmpty(logPath))
+                        return logPath;
+
+                    try
+                    {
+                        Directory.CreateDirectory(PreferredWorkspaceLogDirectory);
+                        logPath = Path.Combine(PreferredWorkspaceLogDirectory, "MyBelovedUMCDesert.log");
+                    }
+                    catch
+                    {
+                        logPath = Path.Combine(Path.GetTempPath(), "MyBelovedUMCDesert.log");
+                    }
+
+                    return logPath;
                 }
-            };
-        }
-
-        private static DialogEntry VehicleContractSettingsDialog()
-        {
-            return new DialogEntry
-            {
-                headerKey = "dialog_vehicle_store_contract_header",
-                Template = DialogEntry.TemplateType.Input,
-                InputTemplate = DialogEntry.InputTemplateName.VehicleContractSettings,
-                OnConfirm = OnVehicleSettingsSet,
-                OnCancel = DialogController.current.CancelDialog,
-                onCancelMessage = new TextMessage(LegacyRef.MessageType.ContactsMessagePlayerCancelCall)
-            };
-        }
-
-        private static DialogEntry? OnVehicleSettingsSet()
-        {
-            var dialog = DialogController.current.dialog as MyBelovedUMCDesertDialog;
-            return dialog?.PurchaseSelectedVehicle();
-        }
-
-        private DialogEntry? PurchaseSelectedVehicle()
-        {
-            vehicleContractSettings = DialogController.current.GetInputTransform<VehicleContractSettings>(null);
-            if (vehicleContractSettings == null || vehicleContractSettings.selectedVehicleForSale == null)
-            {
-                Notifications.ShowError("common_notification_select_vehicle");
-                return null;
             }
-
-            if (!UMCDesertPurchaseService.TryPurchase(
-                    vehicleContractSettings.selectedVehicleForSale,
-                    out var failureMessageKey))
-            {
-                if (!string.IsNullOrEmpty(failureMessageKey))
-                    return Message(failureMessageKey, DialogController.current.FinishDialog);
-
-                return null;
-            }
-
-            var messageData = new Dictionary<string, string>
-            {
-                { "vehicleTypeName", MyBelovedUMCDesertMod.VehicleTypeName.GetLocalization() }
-            };
-            DialogController.current.contact.ReceivePlayerMessage(
-                new TextMessage("mybelovedumcdesert:dialog_purchased_player", null, true));
-            DialogController.current.contact.SendMessage(
-                new TextMessage(LegacyRef.MessageType.DialogVehicleStoreVehiclePurchasedManager, messageData, true));
-
-            return Message("mybelovedumcdesert:dialog_purchased_manager", DialogController.current.FinishDialog);
         }
 
-        private static DialogEntry Message(string key, Action? onVisible = null)
+        internal static void Log(string message)
         {
-            return new DialogEntry
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            try
             {
-                messageData = key.Localize(),
-                Template = DialogEntry.TemplateType.Text,
-                headerKey = MyBelovedUMCDesertMod.ContactId,
-                OnVisible = onVisible
-            };
-        }
-    }
-
-    internal static class UMCDesertPurchaseService
-    {
-        private const string ParkingGarageRootPath = "BuildingBlocks/BuildingBlock(5,1)/Parking01Exterior";
-
-        public static bool TryPurchase(ContractVehicleForSale vehicleForSale, out string? failureMessageKey)
-        {
-            failureMessageKey = null;
-
-            if (!string.Equals(vehicleForSale.VehicleName, MyBelovedUMCDesertMod.VehicleTypeName, StringComparison.Ordinal))
-                return false;
-
-            UMCDesertStatsService.ApplyRestoredStats(null);
-            var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleForSale.VehicleName);
-            if (vehicleType == null)
-            {
-                failureMessageKey = "mybelovedumcdesert:dialog_missing_vehicle";
-                return false;
+                lock (Sync)
+                {
+                    File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
+                }
             }
-
-            if (!TryGetSpawnPoint(out var spawnPosition, out var spawnRotation))
+            catch
             {
-                failureMessageKey = "mybelovedumcdesert:dialog_no_spawn";
-                return false;
             }
-
-            var transactionData = new Dictionary<string, string> { { "vehicleName", vehicleForSale.VehicleName } };
-            if (vehicleType.taxDeductible)
-                transactionData["taxDeductibleName"] = vehicleForSale.VehicleName;
-
-            var transactionInfo = new TransactionInfo(
-                LegacyRef.Transaction.VehicleBought,
-                transactionData,
-                vehicleType.taxDeductible);
-
-            if (!GameManager.ChangeMoneySafe(
-                    -vehicleForSale.GetPurchasePrice(),
-                    transactionInfo,
-                    showNotification: true))
-                return false;
-
-            var vehicleInstance = new VehicleInstance(vehicleForSale.VehicleName)
-            {
-                id = CreateVehicleId(),
-                vehicleColorName = vehicleForSale.GetInitialColor(),
-                fuel = vehicleType.maxFuel * UnityEngine.Random.Range(0.97f, 0.98f)
-            };
-
-            VehicleHelper.CreateAndSpawnVehicle(vehicleInstance, spawnPosition, spawnRotation);
-            return true;
-        }
-
-        private static bool TryGetSpawnPoint(out Vector3 spawnPosition, out Quaternion spawnRotation)
-        {
-            spawnPosition = default;
-            spawnRotation = default;
-
-            if (VehicleParkingHelper.TryGetRandomParkingGarageSpot(
-                    ParkingGarageRootPath,
-                    out spawnPosition,
-                    out spawnRotation))
-                return true;
-
-            var cityBuildingController = BuildingManager.Instance?.cityBuildingController;
-            var customPositions = cityBuildingController?.customPositions;
-            if (customPositions is { Count: > 0 })
-            {
-                spawnPosition = customPositions[0].position;
-                spawnRotation = customPositions[0].rotation;
-                return true;
-            }
-
-            var playerController = GameManager.Instance?.playerController;
-            if (playerController == null)
-                return false;
-
-            spawnPosition = playerController.transform.position + playerController.transform.forward * 4f;
-            spawnRotation = playerController.transform.rotation;
-            return true;
-        }
-
-        private static string CreateVehicleId()
-        {
-            return Convert.ToBase64String(Guid.NewGuid().ToByteArray());
         }
     }
 }
