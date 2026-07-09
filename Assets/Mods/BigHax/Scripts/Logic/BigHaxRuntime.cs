@@ -31,6 +31,7 @@ namespace BigHax
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
+        private readonly BigHaxUpdateNoticeUi updateNoticeUi = new BigHaxUpdateNoticeUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
         private bool applyRequested;
@@ -67,6 +68,7 @@ namespace BigHax
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
+            runtime.updateNoticeUi.Initialize(context.ModId);
             BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
             BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
@@ -135,6 +137,7 @@ namespace BigHax
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             PollLoanLimitChanges();
+            updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
         }
 
@@ -240,6 +243,7 @@ namespace BigHax
                 return;
 
             overlayUi.OnGui(context, settings);
+            updateNoticeUi.OnGui(context);
         }
 
         private void HandleNewHour()

@@ -123,6 +123,16 @@ namespace BigHax
             SaveInt(modId, BigHaxOptionIds.UiToggleHotkey, value);
         }
 
+        public static int LoadUpdateNoticeSeenVersion(string modId)
+        {
+            return LoadInt(modId, BigHaxOptionIds.UpdateNoticeSeenVersion, 0);
+        }
+
+        public static void SaveUpdateNoticeSeenVersion(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.UpdateNoticeSeenVersion, value);
+        }
+
         private static int LoadInt(string modId, string optionId, int defaultValue)
         {
             var key = BuildKey(modId, optionId);

@@ -8,6 +8,7 @@ namespace BigHax
     {
         public const string DisableCasinoBetLimit = "big_hax_disable_casino_bet_limit";
         public const string DisableIllegalParkingPenalties = "big_hax_disable_illegal_parking_penalties";
+        public const string UpdateNoticeSeenVersion = "big_hax_update_notice_seen_version";
         public const string UiToggleHotkey = "big_hax_ui_toggle_hotkey";
         public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier_v2";
         public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
