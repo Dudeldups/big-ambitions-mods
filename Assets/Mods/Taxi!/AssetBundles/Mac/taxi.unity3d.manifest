@@ -1,0 +1,191 @@
+ManifestFileVersion: 0
+CRC: 1358218968
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 2c1b83ceca89666f12b571ad24e61050
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: dfced970c89cd0428755e1e5bdb1d668
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 2c1b83ceca89666f12b571ad24e61050
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 54
+  Script: {instanceID: 0}
+- Class: 64
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 82
+  Script: {instanceID: 0}
+- Class: 108
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -690148201, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -2015554182, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1252731450, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -446942681, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 990282183, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1699210082, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1092318927, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1076906312, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1030029083, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1715073321, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -464276067, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -791748507, guid: 48132c8dbc97f956e52e75e839ab46f9, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 135
+  Script: {instanceID: 0}
+- Class: 198
+  Script: {instanceID: 0}
+- Class: 199
+  Script: {instanceID: 0}
+- Class: 208
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: BigAmbitions
+  ClassName: PlayerActivity.SleepEnvironment
+- AssemblyName: BigAmbitions
+  ClassName: VehicleInstance
+- AssemblyName: DayNightCycle
+  ClassName: BigAmbitions.DayNightCycle.Timestamp
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Brakes
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.EffectManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustFlash
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustSmoke
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightSource
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightsMananger
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SkidmarkManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SurfaceParticleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.VehicleLight
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.GroundDetection
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Input.VehicleInputHandler
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.FlipOver.FlipOverModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.Fuel.FuelModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.ModuleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.SpeedLimiter.SpeedLimiterModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.ClutchComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.DifferentialComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent/ForcedInduction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Powertrain
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.TransmissionComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroup
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroupSelector
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.WheelComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.AirBrakeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.BlinkerComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.CrashComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineFanComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineRunningComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineStartStopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ExhaustPopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.GearChangeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.HornComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ReverseBeepComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.SuspensionBumpComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TransmissionWhineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboFlutterComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboWhistleComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelSkidComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelTireNoiseComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Steering
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Damper
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Friction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Spring
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Wheel
+- AssemblyName: HGExtensions
+  ClassName: SerializableQuaternion
+- AssemblyName: HGExtensions
+  ClassName: SerializableVector3
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Boolean]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Single]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
+Assets:
+- Assets/Mods/Taxi!/Taxi.asset
+- Assets/Mods/Taxi!/taxi.prefab
+Dependencies: []

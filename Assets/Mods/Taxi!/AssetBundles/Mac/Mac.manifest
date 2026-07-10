@@ -1,0 +1,7 @@
+ManifestFileVersion: 0
+CRC: 3510366498
+AssetBundleManifest:
+  AssetBundleInfos:
+    Info_0:
+      Name: taxi.unity3d
+      Dependencies: {}
