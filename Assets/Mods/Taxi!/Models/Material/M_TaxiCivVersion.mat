@@ -8,7 +8,8 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: M_TaxiCivVersion
-  m_Shader: {fileID: 4800000, guid: 72cb2024f1e045c458824e4ec4f8c868, type: 3}
+  m_Shader: {fileID: -6465566751694194690, guid: 0a7a6a98e14c0884ba688eda7d934d1e,
+    type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
