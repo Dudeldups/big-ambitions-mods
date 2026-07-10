@@ -1,24 +1,32 @@
 ManifestFileVersion: 0
-CRC: 1358218968
+CRC: 68407993
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 2c1b83ceca89666f12b571ad24e61050
+    Hash: 155e8b16d26223f7f7c811e38769ab0d
   TypeTreeHash:
     serializedVersion: 2
-    Hash: dfced970c89cd0428755e1e5bdb1d668
+    Hash: cc3be1de1d9403645acc0313ed470957
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 2c1b83ceca89666f12b571ad24e61050
+    Hash: 155e8b16d26223f7f7c811e38769ab0d
 HashAppended: 0
 ClassTypes:
 - Class: 1
   Script: {instanceID: 0}
 - Class: 4
   Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
 - Class: 23
   Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
 - Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
   Script: {instanceID: 0}
 - Class: 54
   Script: {instanceID: 0}
@@ -186,6 +194,26 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
 Assets:
-- Assets/Mods/Taxi!/Taxi.asset
 - Assets/Mods/Taxi!/taxi.prefab
+- Assets/Mods/Taxi!/Models/Texture2D/ParticleCloudWhite.png
+- Assets/Mods/Taxi!/Models/Texture2D/SM_TaxiCivVersion_DirtBaseMap.png
+- Assets/Mods/Taxi!/Models/Mesh/ColMesh_Taxi.asset
+- Assets/Mods/Taxi!/Models/Material/SmokeMaterialMobile.mat
+- Assets/Mods/Taxi!/Models/Material/DefaultHDMaterial.mat
+- Assets/Mods/Taxi!/Taxi.asset
+- Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersionBackWheel_Left.asset
+- Assets/Mods/Taxi!/Models/Mesh/default.asset
+- Assets/Mods/Taxi!/Models/Texture2D/SM_TaxiCivVersion_DirtMask.png
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_Emissive_Mask.png
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_D.png
+- Assets/Mods/Taxi!/Models/Shader/HDRP_Lit.shader
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_EmissiveBlinkers_Mask.png
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_E.png
+- Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersionBackWheel_Right.asset
+- Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersionFrontWheel_Right.asset
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_N.png
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_Mask Map.png
+- Assets/Mods/Taxi!/Models/Material/M_TaxiCivVersion.mat
+- Assets/Mods/Taxi!/Models/Shader/Shader Graphs_SH_Vehicle.shader
+- Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersion.asset
 Dependencies: []
