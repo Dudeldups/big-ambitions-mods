@@ -659,11 +659,15 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
                 var businessTypeName = GetStringFieldValue(scriptableObject, "businessTypeName");
                 return !string.Equals(businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal);
             })
+            .Where(scriptableObject =>
+            {
+                var layoutName = GetStringFieldValue(scriptableObject, "buildingLayout");
+                return layoutName != null && RivalTemplateLayouts.Contains(layoutName);
+            })
             .OrderBy(scriptableObject =>
             {
                 var layoutName = GetStringFieldValue(scriptableObject, "buildingLayout");
-                var preferredIndex = Array.IndexOf(RivalTemplateLayouts, layoutName);
-                return preferredIndex < 0 ? int.MaxValue : preferredIndex;
+                return Array.IndexOf(RivalTemplateLayouts, layoutName);
             })
             .ThenBy(scriptableObject => scriptableObject.name)
             .GroupBy(scriptableObject => GetStringFieldValue(scriptableObject, "buildingLayout"))
@@ -751,7 +755,15 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
         var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
-        if (helperType.GetField("BusinessDefaultsCached", bindingFlags)?.GetValue(null) is IList cachedDefaults)
+        var cachedDefaultsField = helperType.GetField("BusinessDefaultsCached", bindingFlags);
+        var cachedDefaultsValue = cachedDefaultsField?.GetValue(null);
+        if (cachedDefaultsValue?.GetType().IsArray == true)
+        {
+            cachedDefaultsField!.SetValue(
+                null,
+                RemoveInjectedValues(cachedDefaultsValue.GetType(), cachedDefaultsValue as IEnumerable));
+        }
+        else if (cachedDefaultsValue is IList cachedDefaults)
         {
             foreach (var injectedDefault in injectedAiBusinessDefaults)
                 cachedDefaults.Remove(injectedDefault);
@@ -759,7 +771,18 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
         if (helperType.GetField("BusinessDefaultsByType", bindingFlags)?.GetValue(null) is IDictionary defaultsByType)
         {
-            if (defaultsByType[GunStoreBusinessTypeName] is IList defaultsForType)
+            var defaultsForTypeValue = defaultsByType[GunStoreBusinessTypeName];
+            if (defaultsForTypeValue?.GetType().IsArray == true)
+            {
+                var restoredDefaults = RemoveInjectedValues(
+                    defaultsForTypeValue.GetType(),
+                    defaultsForTypeValue as IEnumerable);
+                if (restoredDefaults is Array restoredArray && restoredArray.Length > 0)
+                    defaultsByType[GunStoreBusinessTypeName] = restoredArray;
+                else
+                    defaultsByType.Remove(GunStoreBusinessTypeName);
+            }
+            else if (defaultsForTypeValue is IList defaultsForType)
             {
                 foreach (var injectedDefault in injectedAiBusinessDefaults)
                     defaultsForType.Remove(injectedDefault);
@@ -779,7 +802,25 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         injectedAiBusinessDefaults.Clear();
     }
 
-    private static object? CreateCollection(Type collectionType, IReadOnlyList<ScriptableObject> values)
+    private object? RemoveInjectedValues(Type collectionType, IEnumerable? existingValues)
+    {
+        var remainingValues = new List<object>();
+        if (existingValues != null)
+        {
+            foreach (var value in existingValues)
+            {
+                if (value != null &&
+                    !injectedAiBusinessDefaults.Any(injectedDefault => ReferenceEquals(injectedDefault, value)))
+                {
+                    remainingValues.Add(value);
+                }
+            }
+        }
+
+        return CreateCollection(collectionType, remainingValues);
+    }
+
+    private static object? CreateCollection<T>(Type collectionType, IReadOnlyList<T> values)
     {
         if (collectionType.IsArray)
         {
