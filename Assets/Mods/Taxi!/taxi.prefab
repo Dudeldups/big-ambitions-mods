@@ -1303,7 +1303,7 @@ MonoBehaviour:
     steeringWheelTurnRatio: 5
     angle: 0
     externallyAddedAngle: 0
-  stateSettings: {fileID: 11400000, guid: 8eed758f805d7f343baea418b5d3a526, type: 2}
+  stateSettings: {fileID: 11400000, guid: 3404c49a4170ad94e87f0e8545b86758, type: 2}
   lateralSlipThreshold: 0.2
   longitudinalSlipThreshold: 0.7
   enginePosition: {x: 0, y: 0.4, z: 1.5}
@@ -1735,7 +1735,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1703437598541787}
-  m_Mesh: {fileID: 4300000, guid: 0e36d943babe8cf4099671e99529ac84, type: 2}
+  m_Mesh: {fileID: 4300000, guid: ecf1209b78662d84ead12b0924fe13d9, type: 2}
 --- !u!23 &23518489005915545
 MeshRenderer:
   m_ObjectHideFlags: 0

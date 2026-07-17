@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 68407993
+CRC: 2701741962
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 155e8b16d26223f7f7c811e38769ab0d
+    Hash: 7ea9d7bfe09db4b2041da71e456e8e47
   TypeTreeHash:
     serializedVersion: 2
-    Hash: cc3be1de1d9403645acc0313ed470957
+    Hash: b2bf76db8879d0cdd12905384efe763f
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 155e8b16d26223f7f7c811e38769ab0d
+    Hash: 7ea9d7bfe09db4b2041da71e456e8e47
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -47,7 +47,11 @@ ClassTypes:
 - Class: 114
   Script: {fileID: -690148201, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
+  Script: {fileID: -221227779, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
   Script: {fileID: -2015554182, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 45295712, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
   Script: {fileID: 1252731450, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
@@ -170,6 +174,8 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: ExternalPlugins
   ClassName: NWH.VehiclePhysics2.Sound.SoundManager
 - AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.StateDefinition
+- AssemblyName: ExternalPlugins
   ClassName: NWH.VehiclePhysics2.Steering
 - AssemblyName: ExternalPlugins
   ClassName: NWH.WheelController3D.Damper
@@ -211,8 +217,9 @@ Assets:
 - Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_E.png
 - Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersionBackWheel_Right.asset
 - Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersionFrontWheel_Right.asset
-- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_N.png
+- Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersionFrontWheel_Left.asset
 - Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_Mask Map.png
+- Assets/Mods/Taxi!/Models/Texture2D/T_Taxi Civ Version_N.png
 - Assets/Mods/Taxi!/Models/Material/M_TaxiCivVersion.mat
 - Assets/Mods/Taxi!/Models/Shader/Shader Graphs_SH_Vehicle.shader
 - Assets/Mods/Taxi!/Models/Mesh/SM_TaxiCivVersion.asset

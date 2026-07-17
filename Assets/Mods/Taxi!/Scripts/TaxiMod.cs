@@ -402,23 +402,7 @@ namespace TaxiBang
                 }
             }
 
-            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
-            {
-                foreach (var material in renderer.materials)
-                {
-                    if (material == null || material.name.IndexOf("Taxi", StringComparison.OrdinalIgnoreCase) < 0)
-                        continue;
-
-                    if (material.HasProperty("_BaseColor"))
-                        material.SetColor("_BaseColor", Color.white);
-
-                    if (material.HasProperty("Color_3d0f0cdbe6b74be28a1a5be5bab71dea"))
-                        material.SetColor("Color_3d0f0cdbe6b74be28a1a5be5bab71dea", Color.white);
-
-                    if (material.HasProperty("_IgnoreMask"))
-                        material.SetFloat("_IgnoreMask", 0f);
-                }
-            }
+            // Keep the taxi's authored livery material intact; only remove helper shadow meshes.
         }
 
         private void LogRendererDiagnostics(GameObject root)
