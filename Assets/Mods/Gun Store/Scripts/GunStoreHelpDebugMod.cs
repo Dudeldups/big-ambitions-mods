@@ -44,6 +44,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 {
     private ModContext? context;
     private bool shuttingDown;
+    private bool helpNavigationPatched;
+    private float nextHelpNavigationPatchAttempt;
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
@@ -57,6 +59,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         existing.context = context;
         existing.shuttingDown = false;
+        existing.helpNavigationPatched = false;
+        existing.nextHelpNavigationPatchAttempt = 0f;
         return existing;
     }
 
@@ -71,6 +75,30 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void Update()
     {
+        if (!helpNavigationPatched && Time.unscaledTime >= nextHelpNavigationPatchAttempt)
+        {
+            nextHelpNavigationPatchAttempt = Time.unscaledTime + 0.5f;
+            try
+            {
+                var result = GunStoreHelpNavigationPatch.TryApply(this);
+                if (result == GunStoreHelpNavigationPatchResult.Applied)
+                {
+                    helpNavigationPatched = true;
+                    context?.Logger.Info(
+                        "Added Gun Store to the native Help System Business Types navigation.");
+                }
+                else if (result == GunStoreHelpNavigationPatchResult.AlreadyPresent)
+                {
+                    helpNavigationPatched = true;
+                }
+            }
+            catch (Exception exception)
+            {
+                GunStoreHelpDebugLogger.Error("Failed to patch the native Help navigation.", exception);
+                context?.Logger.Error(exception);
+            }
+        }
+
         if (!Input.GetKeyDown(KeyCode.F9))
             return;
 
@@ -86,6 +114,142 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             GunStoreHelpDebugLogger.Error("F9 Help UI snapshot failed.", exception);
             context?.Logger.Error(exception);
         }
+    }
+}
+
+internal enum GunStoreHelpNavigationPatchResult
+{
+    HelpSystemNotReady,
+    Applied,
+    AlreadyPresent
+}
+
+internal static class GunStoreHelpNavigationPatch
+{
+    private const BindingFlags InstanceFlags =
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    private const string BusinessTypesCategoryKey = "common_business_types";
+    private const string GunStoreSlug = "businesstypes-gunstore";
+    private const string GunStorePageLocalizorKeyPrefix = "businesstypes-gunstore";
+
+    public static GunStoreHelpNavigationPatchResult TryApply(MonoBehaviour coroutineHost)
+    {
+        foreach (var helpSystem in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+        {
+            if (helpSystem == null || !helpSystem.gameObject.scene.IsValid())
+                continue;
+
+            var helpSystemType = helpSystem.GetType();
+            if (!string.Equals(helpSystemType.FullName, "UnityEngine.UI.Extensions.HelpSystem.HelpSystem",
+                    StringComparison.Ordinal) &&
+                !string.Equals(helpSystemType.Name, "HelpSystem", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var categoriesField = GetField(helpSystemType, "_categories");
+            if (categoriesField?.GetValue(helpSystem) is not IEnumerable categories)
+                continue;
+
+            foreach (var category in categories)
+            {
+                if (category == null)
+                    continue;
+
+                var categoryType = category.GetType();
+                var categoryKey = GetField(categoryType, "CategoryLocalizorKey")?.GetValue(category) as string;
+                if (!string.Equals(categoryKey, BusinessTypesCategoryKey, StringComparison.Ordinal))
+                    continue;
+
+                var pagesField = GetField(categoryType, "Pages");
+                if (pagesField?.GetValue(category) is not IList pages)
+                    return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+
+                foreach (var page in pages)
+                {
+                    if (page == null)
+                        continue;
+
+                    var slug = GetField(page.GetType(), "Slug")?.GetValue(page) as string;
+                    if (string.Equals(slug, GunStoreSlug, StringComparison.Ordinal))
+                        return GunStoreHelpNavigationPatchResult.AlreadyPresent;
+                }
+
+                var pageType = GetListElementType(pages.GetType()) ??
+                               pages.Cast<object?>().FirstOrDefault(page => page != null)?.GetType();
+                if (pageType == null)
+                    return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+
+                var newPage = Activator.CreateInstance(pageType);
+                if (newPage == null)
+                    return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+
+                GetField(pageType, "Slug")?.SetValue(newPage, GunStoreSlug);
+                GetField(pageType, "PageLocalizorKeyPrefix")?.SetValue(
+                    newPage,
+                    GunStorePageLocalizorKeyPrefix);
+                pages.Add(newPage);
+
+                RefreshGeneratedNavigation(helpSystem, helpSystemType, coroutineHost);
+                return GunStoreHelpNavigationPatchResult.Applied;
+            }
+        }
+
+        return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+    }
+
+    private static void RefreshGeneratedNavigation(
+        MonoBehaviour helpSystem,
+        Type helpSystemType,
+        MonoBehaviour coroutineHost)
+    {
+        var generatedField = GetField(helpSystemType, "_generatedHelpCategories");
+        if (generatedField?.GetValue(helpSystem) is not IList generated || generated.Count == 0)
+            return;
+
+        var loadCategories = helpSystemType.GetMethods(InstanceFlags)
+            .FirstOrDefault(method =>
+                string.Equals(method.Name, "LoadCategories", StringComparison.Ordinal) &&
+                method.GetParameters().Length == 0);
+        if (loadCategories == null)
+            return;
+
+        foreach (var generatedEntry in generated.Cast<object?>().ToArray())
+        {
+            if (generatedEntry is Component component)
+                UnityEngine.Object.Destroy(component.gameObject);
+            else if (generatedEntry is UnityEngine.Object unityObject)
+                UnityEngine.Object.Destroy(unityObject);
+        }
+
+        generated.Clear();
+
+        var returnValue = loadCategories.Invoke(helpSystem, null);
+        if (returnValue is IEnumerator enumerator)
+            coroutineHost.StartCoroutine(enumerator);
+    }
+
+    private static Type? GetListElementType(Type listType)
+    {
+        if (listType.IsGenericType)
+            return listType.GetGenericArguments().FirstOrDefault();
+
+        return listType.GetInterfaces()
+            .FirstOrDefault(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IList<>))
+            ?.GetGenericArguments()
+            .FirstOrDefault();
+    }
+
+    private static FieldInfo? GetField(Type type, string name)
+    {
+        for (var current = type; current != null; current = current.BaseType)
+        {
+            var field = current.GetField(name, InstanceFlags | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field;
+        }
+
+        return null;
     }
 }
 
