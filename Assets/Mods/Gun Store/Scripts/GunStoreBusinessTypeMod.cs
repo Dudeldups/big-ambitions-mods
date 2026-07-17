@@ -168,9 +168,15 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private readonly List<ScriptableObject> injectedAiBusinessDefaults = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
+    private GunStoreHelpDebugRuntime? helpDebugRuntime;
 
     public async Task OnLoadAsync(ModContext context)
     {
+        GunStoreHelpDebugLogger.StartSession();
+        helpDebugRuntime = GunStoreHelpDebugRuntime.Initialize(context);
+        context.Logger.Info(
+            $"Gun Store Help UI logger active. Open Help and press F9. Log: {GunStoreHelpDebugLogger.LogPath}");
+
         for (var i = 0; i < 6; i++)
         {
             RegisterBundledLayout(context);
@@ -190,6 +196,8 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public Task OnUnloadAsync()
     {
+        helpDebugRuntime?.Shutdown();
+        helpDebugRuntime = null;
         RestoreConsumerGoodsWorkstation();
         RestoreCompetitionDefaults();
         RestoreShowcaseShelves();
@@ -505,92 +513,19 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     private void PatchImportPartnerships()
     {
-        foreach (var importPartnership in FindImportPartnerships())
+        var importPartnerships = SaveGameManager.Current?.importPartnerships;
+        if (importPartnerships == null)
+            return;
+
+        foreach (var importPartnership in importPartnerships)
         {
+            if (importPartnership == null)
+                continue;
+
             if (!IsBlueStoneImportPartnership(importPartnership))
                 continue;
 
             RemoveImportProduct(importPartnership, RpgItemName);
-        }
-    }
-
-    private static IEnumerable<object> FindImportPartnerships()
-    {
-        var importPartnershipType = FindLoadedType("Entities.ImportPartnership");
-        if (importPartnershipType == null)
-            yield break;
-
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type[] assemblyTypes;
-            try
-            {
-                assemblyTypes = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                assemblyTypes = ex.Types.Where(type => type != null).ToArray()!;
-            }
-
-            foreach (var type in assemblyTypes)
-            {
-                if (type == null)
-                    continue;
-
-                const BindingFlags bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-                foreach (var field in type.GetFields(bindingFlags))
-                {
-                    object? fieldValue;
-                    try
-                    {
-                        fieldValue = field.GetValue(null);
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-
-                    foreach (var partnership in ReadImportPartnerships(field.FieldType, fieldValue, importPartnershipType))
-                        yield return partnership;
-                }
-
-                foreach (var property in type.GetProperties(bindingFlags).Where(property => property.GetIndexParameters().Length == 0))
-                {
-                    object? propertyValue;
-                    try
-                    {
-                        propertyValue = property.GetValue(null);
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-
-                    foreach (var partnership in ReadImportPartnerships(property.PropertyType, propertyValue, importPartnershipType))
-                        yield return partnership;
-                }
-            }
-        }
-    }
-
-    private static IEnumerable<object> ReadImportPartnerships(Type memberType, object? memberValue, Type importPartnershipType)
-    {
-        if (memberValue == null)
-            yield break;
-
-        if (importPartnershipType.IsInstanceOfType(memberValue))
-        {
-            yield return memberValue;
-            yield break;
-        }
-
-        if (!typeof(IEnumerable).IsAssignableFrom(memberType) || memberValue is string || memberValue is not IEnumerable enumerable)
-            yield break;
-
-        foreach (var entry in enumerable)
-        {
-            if (entry != null && importPartnershipType.IsInstanceOfType(entry))
-                yield return entry;
         }
     }
 
@@ -889,13 +824,6 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     {
         return owner.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) !=
                null;
-    }
-
-    private static Type? FindLoadedType(string fullName)
-    {
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .Select(assembly => assembly.GetType(fullName, false))
-            .FirstOrDefault(type => type != null);
     }
 
     private static object? GetMemberValue(object owner, string memberName)

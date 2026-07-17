@@ -7,45 +7,18 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
 using BAModAPI;
+using Localizor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
-
-[assembly: RegisterModClass(typeof(GunStoreHelpDebugMod))]
-
-[ModEntryOnCityLoad]
-public sealed class GunStoreHelpDebugMod : IModBigAmbitions
-{
-    private GunStoreHelpDebugRuntime? runtime;
-
-    public string[] RelativeAssetBundlePaths => Array.Empty<string>();
-
-    public Task OnLoadAsync(ModContext context)
-    {
-        GunStoreHelpDebugLogger.StartSession();
-        runtime = GunStoreHelpDebugRuntime.Initialize(context);
-        context.Logger.Info(
-            $"Gun Store Help UI logger active. Open Help and press F9. Log: {GunStoreHelpDebugLogger.LogPath}");
-        return Task.CompletedTask;
-    }
-
-    public Task OnUnloadAsync()
-    {
-        runtime?.Shutdown();
-        runtime = null;
-        return Task.CompletedTask;
-    }
-}
 
 [DefaultExecutionOrder(10000)]
 internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 {
     private ModContext? context;
     private bool shuttingDown;
-    private bool helpNavigationPatched;
-    private float nextHelpNavigationPatchAttempt;
+    private Coroutine? pendingNavigationPatch;
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
@@ -59,8 +32,11 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         existing.context = context;
         existing.shuttingDown = false;
-        existing.helpNavigationPatched = false;
-        existing.nextHelpNavigationPatchAttempt = 0f;
+        LocalizorManager.OnLanguageChanged -= existing.HandleLanguageChanged;
+        LocalizorManager.OnLanguageChanged += existing.HandleLanguageChanged;
+        SceneManager.sceneLoaded -= existing.HandleSceneLoaded;
+        SceneManager.sceneLoaded += existing.HandleSceneLoaded;
+        existing.ScheduleNavigationPatch();
         return existing;
     }
 
@@ -70,35 +46,15 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return;
 
         shuttingDown = true;
+        LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        if (pendingNavigationPatch != null)
+            StopCoroutine(pendingNavigationPatch);
         Destroy(gameObject);
     }
 
     private void Update()
     {
-        if (!helpNavigationPatched && Time.unscaledTime >= nextHelpNavigationPatchAttempt)
-        {
-            nextHelpNavigationPatchAttempt = Time.unscaledTime + 0.5f;
-            try
-            {
-                var result = GunStoreHelpNavigationPatch.TryApply(this);
-                if (result == GunStoreHelpNavigationPatchResult.Applied)
-                {
-                    helpNavigationPatched = true;
-                    context?.Logger.Info(
-                        "Added Gun Store to the native Help System Business Types navigation.");
-                }
-                else if (result == GunStoreHelpNavigationPatchResult.AlreadyPresent)
-                {
-                    helpNavigationPatched = true;
-                }
-            }
-            catch (Exception exception)
-            {
-                GunStoreHelpDebugLogger.Error("Failed to patch the native Help navigation.", exception);
-                context?.Logger.Error(exception);
-            }
-        }
-
         if (!Input.GetKeyDown(KeyCode.F9))
             return;
 
@@ -112,6 +68,46 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         catch (Exception exception)
         {
             GunStoreHelpDebugLogger.Error("F9 Help UI snapshot failed.", exception);
+            context?.Logger.Error(exception);
+        }
+    }
+
+    private void HandleLanguageChanged()
+    {
+        ScheduleNavigationPatch();
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        ScheduleNavigationPatch();
+    }
+
+    private void ScheduleNavigationPatch()
+    {
+        if (pendingNavigationPatch != null)
+            StopCoroutine(pendingNavigationPatch);
+
+        pendingNavigationPatch = StartCoroutine(PatchNavigationAfterUiRefresh());
+    }
+
+    private IEnumerator PatchNavigationAfterUiRefresh()
+    {
+        // Let the native Help and localization callbacks finish rebuilding their UI first.
+        yield return null;
+        pendingNavigationPatch = null;
+
+        try
+        {
+            var result = GunStoreHelpNavigationPatch.TryApply(this);
+            if (result == GunStoreHelpNavigationPatchResult.Applied)
+            {
+                context?.Logger.Info(
+                    "Added Gun Store to the native Help System Business Types navigation.");
+            }
+        }
+        catch (Exception exception)
+        {
+            GunStoreHelpDebugLogger.Error("Failed to patch the native Help navigation.", exception);
             context?.Logger.Error(exception);
         }
     }
@@ -134,6 +130,9 @@ internal static class GunStoreHelpNavigationPatch
 
     public static GunStoreHelpNavigationPatchResult TryApply(MonoBehaviour coroutineHost)
     {
+        var foundBusinessTypesCategory = false;
+        var applied = false;
+
         foreach (var helpSystem in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
         {
             if (helpSystem == null || !helpSystem.gameObject.scene.IsValid())
@@ -163,8 +162,10 @@ internal static class GunStoreHelpNavigationPatch
 
                 var pagesField = GetField(categoryType, "Pages");
                 if (pagesField?.GetValue(category) is not IList pages)
-                    return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+                    continue;
 
+                foundBusinessTypesCategory = true;
+                object? existingPage = null;
                 foreach (var page in pages)
                 {
                     if (page == null)
@@ -172,30 +173,55 @@ internal static class GunStoreHelpNavigationPatch
 
                     var slug = GetField(page.GetType(), "Slug")?.GetValue(page) as string;
                     if (string.Equals(slug, GunStoreSlug, StringComparison.Ordinal))
-                        return GunStoreHelpNavigationPatchResult.AlreadyPresent;
+                    {
+                        existingPage = page;
+                        break;
+                    }
+                }
+
+                if (existingPage != null)
+                {
+                    var prefixField = GetField(existingPage.GetType(), "PageLocalizorKeyPrefix");
+                    var currentPrefix = prefixField?.GetValue(existingPage) as string;
+                    if (!string.Equals(currentPrefix, GunStorePageLocalizorKeyPrefix, StringComparison.Ordinal))
+                    {
+                        prefixField?.SetValue(existingPage, GunStorePageLocalizorKeyPrefix);
+                        RefreshGeneratedNavigation(helpSystem, helpSystemType, coroutineHost);
+                        applied = true;
+                    }
+
+                    continue;
                 }
 
                 var pageType = GetListElementType(pages.GetType()) ??
                                pages.Cast<object?>().FirstOrDefault(page => page != null)?.GetType();
                 if (pageType == null)
-                    return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+                    continue;
 
                 var newPage = Activator.CreateInstance(pageType);
                 if (newPage == null)
-                    return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+                    continue;
 
-                GetField(pageType, "Slug")?.SetValue(newPage, GunStoreSlug);
-                GetField(pageType, "PageLocalizorKeyPrefix")?.SetValue(
-                    newPage,
-                    GunStorePageLocalizorKeyPrefix);
+                var slugField = GetField(pageType, "Slug");
+                var pagePrefixField = GetField(pageType, "PageLocalizorKeyPrefix");
+                if (slugField == null || pagePrefixField == null)
+                    continue;
+
+                slugField.SetValue(newPage, GunStoreSlug);
+                pagePrefixField.SetValue(newPage, GunStorePageLocalizorKeyPrefix);
                 pages.Add(newPage);
 
                 RefreshGeneratedNavigation(helpSystem, helpSystemType, coroutineHost);
-                return GunStoreHelpNavigationPatchResult.Applied;
+                applied = true;
             }
         }
 
-        return GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+        if (applied)
+            return GunStoreHelpNavigationPatchResult.Applied;
+
+        return foundBusinessTypesCategory
+            ? GunStoreHelpNavigationPatchResult.AlreadyPresent
+            : GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
     }
 
     private static void RefreshGeneratedNavigation(
