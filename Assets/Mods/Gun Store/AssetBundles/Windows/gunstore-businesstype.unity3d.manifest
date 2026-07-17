@@ -1,0 +1,108 @@
+ManifestFileVersion: 0
+CRC: 1344080165
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: d2a06b2fc25a1adf39381236002845c5
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 935c3b8a5dcbb9ca5e9c5279dfddcfb7
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: d2a06b2fc25a1adf39381236002845c5
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1411348409, guid: db7404fdd66bed727abbb3141ba453dd, type: 3}
+- Class: 114
+  Script: {fileID: -33017213, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -189057480, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -194827119, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 1955463686, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 604638584, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 634219542, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 213
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: BigAmbitions.Items
+  ClassName: AttachmentPointType
+- AssemblyName: BigAmbitions.Items
+  ClassName: BigAmbitions.Items.CustomColorChannel
+- AssemblyName: BigAmbitions.Items
+  ClassName: BigAmbitions.Items.Item/ItemProducerSettings
+- AssemblyName: BigAmbitions.Items
+  ClassName: BigAmbitions.Items.PlayerItemPurchaserSettings
+- AssemblyName: BigAmbitions
+  ClassName: BusinessProduct
+- AssemblyName: BigAmbitions
+  ClassName: CustomerType
+- AssemblyName: BigAmbitions
+  ClassName: DayFactorMultiplier
+- AssemblyName: BigAmbitions
+  ClassName: DiplomaName
+- AssemblyName: BigAmbitions
+  ClassName: Entities.CustomerDemandSet
+- AssemblyName: BigAmbitions
+  ClassName: HourlyFactorMultiplier
+- AssemblyName: BigAmbitions
+  ClassName: RadioStation
+- AssemblyName: DayNightCycle
+  ClassName: BigAmbitions.DayNightCycle.DayOfWeekOrdered
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent
+Assets:
+- Assets/Mods/Gun Store/Prefabs/Ak47.prefab
+- Assets/Mods/Gun Store/Layouts/GunStoreRivalsC1.json
+- Assets/Mods/Gun Store/AmmoLarge.asset
+- Assets/Mods/Gun Store/Models/Assault Rifle.glb
+- Assets/Mods/Gun Store/Models/Pistol(1).glb
+- Assets/Mods/Gun Store/Prefabs/AmmoSmall.prefab
+- Assets/Mods/Gun Store/BerettaM9.asset
+- Assets/Mods/Gun Store/Prefabs/BerettaM9.prefab
+- Assets/Mods/Gun Store/Prefabs/AmmoLarge.prefab
+- Assets/Mods/Gun Store/Models/RPG Launcher.glb
+- Assets/Mods/Gun Store/GunStore.asset
+- Assets/Mods/Gun Store/Layouts/GunStoreRivalsC2.json
+- Assets/Mods/Gun Store/Models/Ammo_Pack_Rifle.glb
+- Assets/Mods/Gun Store/WinCheaterSxp.asset
+- Assets/Mods/Gun Store/GunPartsExpensive.asset
+- Assets/Mods/Gun Store/Layouts/GunStoreRivalsM1.json
+- Assets/Mods/Gun Store/Rpg.asset
+- Assets/Mods/Gun Store/BusinessIcon-GunStore.png
+- Assets/Mods/Gun Store/Prefabs/WinCheaterSXP.prefab
+- Assets/Mods/Gun Store/Layouts/GunStoreRivalsA1.json
+- Assets/Mods/Gun Store/Models/Ammo_Pack_Pistol.glb
+- Assets/Mods/Gun Store/Prefabs/Rpg.prefab
+- Assets/Mods/Gun Store/Ak47.asset
+- Assets/Mods/Gun Store/Models/shotgun.glb
+- Assets/Mods/Gun Store/GunPartsCheap.asset
+- Assets/Mods/Gun Store/AmmoSmall.asset
+- Assets/Mods/Gun Store/Layouts/GunStoreRivalsD2.json
+Dependencies: []
