@@ -2,15 +2,19 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
+#if GUN_STORE_HELP_UI_DEBUG
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
+#endif
 using BAModAPI;
 using Localizor;
 using UnityEngine;
+#if GUN_STORE_HELP_UI_DEBUG
 using UnityEngine.EventSystems;
+#endif
 using UnityEngine.SceneManagement;
 
 [DefaultExecutionOrder(10000)]
@@ -53,25 +57,6 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         Destroy(gameObject);
     }
 
-    private void Update()
-    {
-        if (!Input.GetKeyDown(KeyCode.F9))
-            return;
-
-        try
-        {
-            var result = GunStoreHelpDebugSnapshotWriter.WriteSnapshot();
-            context?.Logger.Info(
-                $"Gun Store Help UI snapshot written: helpComponents={result.HelpComponentCount}, " +
-                $"roots={result.RootCount}, elements={result.ElementCount}, log={result.LogPath}");
-        }
-        catch (Exception exception)
-        {
-            GunStoreHelpDebugLogger.Error("F9 Help UI snapshot failed.", exception);
-            context?.Logger.Error(exception);
-        }
-    }
-
     private void HandleLanguageChanged()
     {
         ScheduleNavigationPatch();
@@ -107,7 +92,6 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
         catch (Exception exception)
         {
-            GunStoreHelpDebugLogger.Error("Failed to patch the native Help navigation.", exception);
             context?.Logger.Error(exception);
         }
     }
@@ -301,6 +285,7 @@ internal static class GunStoreHelpNavigationPatch
     }
 }
 
+#if GUN_STORE_HELP_UI_DEBUG
 internal static class GunStoreHelpDebugLogger
 {
     private const string PreferredLogDirectory =
@@ -837,3 +822,4 @@ internal static class GunStoreHelpDebugSnapshotWriter
         }
     }
 }
+#endif

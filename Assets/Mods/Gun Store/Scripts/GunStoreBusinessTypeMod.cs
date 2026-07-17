@@ -172,10 +172,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public async Task OnLoadAsync(ModContext context)
     {
-        GunStoreHelpDebugLogger.StartSession();
         helpDebugRuntime = GunStoreHelpDebugRuntime.Initialize(context);
-        context.Logger.Info(
-            $"Gun Store Help UI logger active. Open Help and press F9. Log: {GunStoreHelpDebugLogger.LogPath}");
 
         for (var i = 0; i < 6; i++)
         {
