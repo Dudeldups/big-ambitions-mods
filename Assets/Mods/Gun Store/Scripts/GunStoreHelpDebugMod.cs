@@ -102,7 +102,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             if (result == GunStoreHelpNavigationPatchResult.Applied)
             {
                 context?.Logger.Info(
-                    "Added Gun Store to the native Help System Business Types navigation.");
+                    "Updated Gun Store links in the native Help System navigation.");
             }
         }
         catch (Exception exception)
@@ -124,13 +124,32 @@ internal static class GunStoreHelpNavigationPatch
 {
     private const BindingFlags InstanceFlags =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-    private const string BusinessTypesCategoryKey = "common_business_types";
-    private const string GunStoreSlug = "businesstypes-gunstore";
-    private const string GunStorePageLocalizorKeyPrefix = "businesstypes-gunstore";
+    private static readonly IReadOnlyDictionary<string, string[]> NavigationPagesByCategory =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["common_business_types"] = new[]
+            {
+                "businesstypes-gunstore"
+            },
+            ["common_sellable_products"] = new[]
+            {
+                "products-gunstore-businesstype:itemname_ak47",
+                "products-gunstore-businesstype:itemname_ammosmall",
+                "products-gunstore-businesstype:itemname_wincheatersxp",
+                "products-gunstore-businesstype:itemname_berettam9",
+                "products-gunstore-businesstype:itemname_ammolarge",
+                "products-gunstore-businesstype:itemname_rpg"
+            },
+            ["common_factory_ingredients"] = new[]
+            {
+                "products-gunstore-businesstype:itemname_gunpartscheap",
+                "products-gunstore-businesstype:itemname_gunpartsexpensive"
+            }
+        };
 
     public static GunStoreHelpNavigationPatchResult TryApply(MonoBehaviour coroutineHost)
     {
-        var foundBusinessTypesCategory = false;
+        var foundTargetCategory = false;
         var applied = false;
 
         foreach (var helpSystem in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
@@ -150,6 +169,7 @@ internal static class GunStoreHelpNavigationPatch
             if (categoriesField?.GetValue(helpSystem) is not IEnumerable categories)
                 continue;
 
+            var helpSystemChanged = false;
             foreach (var category in categories)
             {
                 if (category == null)
@@ -157,49 +177,20 @@ internal static class GunStoreHelpNavigationPatch
 
                 var categoryType = category.GetType();
                 var categoryKey = GetField(categoryType, "CategoryLocalizorKey")?.GetValue(category) as string;
-                if (!string.Equals(categoryKey, BusinessTypesCategoryKey, StringComparison.Ordinal))
+                if (categoryKey == null ||
+                    !NavigationPagesByCategory.TryGetValue(categoryKey, out var desiredSlugs))
+                {
                     continue;
+                }
 
                 var pagesField = GetField(categoryType, "Pages");
                 if (pagesField?.GetValue(category) is not IList pages)
                     continue;
 
-                foundBusinessTypesCategory = true;
-                object? existingPage = null;
-                foreach (var page in pages)
-                {
-                    if (page == null)
-                        continue;
-
-                    var slug = GetField(page.GetType(), "Slug")?.GetValue(page) as string;
-                    if (string.Equals(slug, GunStoreSlug, StringComparison.Ordinal))
-                    {
-                        existingPage = page;
-                        break;
-                    }
-                }
-
-                if (existingPage != null)
-                {
-                    var prefixField = GetField(existingPage.GetType(), "PageLocalizorKeyPrefix");
-                    var currentPrefix = prefixField?.GetValue(existingPage) as string;
-                    if (!string.Equals(currentPrefix, GunStorePageLocalizorKeyPrefix, StringComparison.Ordinal))
-                    {
-                        prefixField?.SetValue(existingPage, GunStorePageLocalizorKeyPrefix);
-                        RefreshGeneratedNavigation(helpSystem, helpSystemType, coroutineHost);
-                        applied = true;
-                    }
-
-                    continue;
-                }
-
+                foundTargetCategory = true;
                 var pageType = GetListElementType(pages.GetType()) ??
                                pages.Cast<object?>().FirstOrDefault(page => page != null)?.GetType();
                 if (pageType == null)
-                    continue;
-
-                var newPage = Activator.CreateInstance(pageType);
-                if (newPage == null)
                     continue;
 
                 var slugField = GetField(pageType, "Slug");
@@ -207,10 +198,41 @@ internal static class GunStoreHelpNavigationPatch
                 if (slugField == null || pagePrefixField == null)
                     continue;
 
-                slugField.SetValue(newPage, GunStoreSlug);
-                pagePrefixField.SetValue(newPage, GunStorePageLocalizorKeyPrefix);
-                pages.Add(newPage);
+                foreach (var desiredSlug in desiredSlugs)
+                {
+                    var existingPage = pages.Cast<object?>()
+                        .FirstOrDefault(page =>
+                            page != null &&
+                            string.Equals(
+                                GetField(page.GetType(), "Slug")?.GetValue(page) as string,
+                                desiredSlug,
+                                StringComparison.Ordinal));
+                    if (existingPage != null)
+                    {
+                        var prefixField = GetField(existingPage.GetType(), "PageLocalizorKeyPrefix");
+                        var currentPrefix = prefixField?.GetValue(existingPage) as string;
+                        if (!string.Equals(currentPrefix, desiredSlug, StringComparison.Ordinal))
+                        {
+                            prefixField?.SetValue(existingPage, desiredSlug);
+                            helpSystemChanged = true;
+                        }
 
+                        continue;
+                    }
+
+                    var newPage = Activator.CreateInstance(pageType);
+                    if (newPage == null)
+                        continue;
+
+                    slugField.SetValue(newPage, desiredSlug);
+                    pagePrefixField.SetValue(newPage, desiredSlug);
+                    pages.Add(newPage);
+                    helpSystemChanged = true;
+                }
+            }
+
+            if (helpSystemChanged)
+            {
                 RefreshGeneratedNavigation(helpSystem, helpSystemType, coroutineHost);
                 applied = true;
             }
@@ -219,7 +241,7 @@ internal static class GunStoreHelpNavigationPatch
         if (applied)
             return GunStoreHelpNavigationPatchResult.Applied;
 
-        return foundBusinessTypesCategory
+        return foundTargetCategory
             ? GunStoreHelpNavigationPatchResult.AlreadyPresent
             : GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
     }
