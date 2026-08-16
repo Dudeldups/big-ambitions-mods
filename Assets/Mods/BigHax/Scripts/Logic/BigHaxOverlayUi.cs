@@ -150,6 +150,15 @@ namespace BigHax
                         settings.EnableRecruitmentCandidateMaximumSkill = value;
                         BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context.ModId, value);
                     });
+                DrawToggleOption(
+                    context,
+                    settings.RemoveEmployeeDemands,
+                    Localize("bighax_remove_employee_demands_label"),
+                    value =>
+                    {
+                        settings.RemoveEmployeeDemands = value;
+                        BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value);
+                    });
                 DrawSeparator();
                 var activeVehicleEnabled = GUILayout.Toggle(
                     settings.EnableActiveVehicleCapacityOverride,

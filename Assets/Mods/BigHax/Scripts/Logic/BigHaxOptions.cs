@@ -23,6 +23,7 @@ namespace BigHax
         public const string ActiveVehicleCapacity = "big_hax_active_vehicle_capacity";
         public const string EmployeeTrainingSkillIncrease = "big_hax_employee_training_skill_increase";
         public const string EnableRecruitmentCandidateMaximumSkill = "big_hax_enable_recruitment_candidate_maximum_skill";
+        public const string RemoveEmployeeDemands = "big_hax_remove_employee_demands";
         public const string LegacyRecruitmentCandidateMaximumSkill = "big_hax_recruitment_candidate_maximum_skill";
     }
 

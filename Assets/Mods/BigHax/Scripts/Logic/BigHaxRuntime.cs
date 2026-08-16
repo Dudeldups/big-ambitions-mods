@@ -24,6 +24,7 @@ namespace BigHax
         private readonly BigHaxCasinoBetLimitService casinoBetLimitService = new BigHaxCasinoBetLimitService();
         private readonly BigHaxBuildingCustomerCapacityService buildingCustomerCapacityService = new BigHaxBuildingCustomerCapacityService();
         private BigHaxCustomerTrafficService? customerTrafficService;
+        private readonly BigHaxEmployeeDemandService employeeDemandService = new BigHaxEmployeeDemandService();
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxIllegalParkingService illegalParkingService = new BigHaxIllegalParkingService();
         private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
@@ -100,6 +101,7 @@ namespace BigHax
             itemCapacityService.RestoreOriginalCapacities();
             loanLimitService.RestoreOriginalLimit();
             recruitmentCandidateService.Unsubscribe();
+            employeeDemandService.Unsubscribe();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
             vehicleCapacityService.RestoreOriginalCapacities();
             if (instance == this)
@@ -159,6 +161,7 @@ namespace BigHax
                 SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
+                SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
             }
@@ -229,6 +232,7 @@ namespace BigHax
             SubscribeParkingVehicleEvents();
             TryInvalidateCustomerTrafficCache();
             casinoBetLimitService.InvalidateCache();
+            employeeDemandService.InvalidateCache();
             employeeTrainingService.InvalidateCache();
             investmentLimitService.InvalidateCache();
             buildingCustomerCapacityService.InvalidateCache();

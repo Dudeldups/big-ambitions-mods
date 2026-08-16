@@ -17,6 +17,7 @@ namespace BigHax
         public const int DefaultActiveVehicleCapacity = 20;
         public const int DefaultEmployeeTrainingSkillIncrease = 10;
         public const bool DefaultEnableRecruitmentCandidateMaximumSkill = false;
+        public const bool DefaultRemoveEmployeeDemands = false;
         public const int RecruitmentCandidateMaximumSkillOverride = 100;
 
         public static readonly float[] CustomerTrafficMultiplierValues = { 1f, 1.5f, 2f, 3f, 5f, 10f };
@@ -48,6 +49,8 @@ namespace BigHax
         public int EmployeeTrainingSkillIncrease { get; set; } = DefaultEmployeeTrainingSkillIncrease;
 
         public bool EnableRecruitmentCandidateMaximumSkill { get; set; } = DefaultEnableRecruitmentCandidateMaximumSkill;
+
+        public bool RemoveEmployeeDemands { get; set; } = DefaultRemoveEmployeeDemands;
 
         public float CustomerTrafficMultiplier
         {

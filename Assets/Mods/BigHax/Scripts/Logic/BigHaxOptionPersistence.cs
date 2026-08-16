@@ -40,6 +40,10 @@ namespace BigHax
                 BigHaxSettings.DefaultEmployeeTrainingSkillIncrease);
 
             settings.EnableRecruitmentCandidateMaximumSkill = LoadEnableRecruitmentCandidateMaximumSkill(modId);
+            settings.RemoveEmployeeDemands = LoadBool(
+                modId,
+                BigHaxOptionIds.RemoveEmployeeDemands,
+                BigHaxSettings.DefaultRemoveEmployeeDemands);
 
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
@@ -108,6 +112,11 @@ namespace BigHax
         public static void SaveEnableRecruitmentCandidateMaximumSkill(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.EnableRecruitmentCandidateMaximumSkill, value);
+        }
+
+        public static void SaveRemoveEmployeeDemands(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.RemoveEmployeeDemands, value);
         }
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
