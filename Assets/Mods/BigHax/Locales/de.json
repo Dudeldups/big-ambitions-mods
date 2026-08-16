@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Investitionslimit deaktivieren",
   "bighax_vantander_maximum_loan_override_label": "Maximalkredit Vantander Bank auf 100.000.000 $ anheben",
   "bighax_employee_training_skill_increase_label": "Skillgewinn durch Mitarbeiterschulung",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "Bewerber bis zu 100 % Fertigkeit erlauben",
   "bighax_standard_fridge_capacity_label": "Kapazität {itemName}",
   "bighax_pallet_shelf_capacity_label": "Kapazität {itemName}",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} Lieferorte",

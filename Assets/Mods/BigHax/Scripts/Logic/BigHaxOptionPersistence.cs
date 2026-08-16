@@ -39,6 +39,8 @@ namespace BigHax
                 BigHaxOptionIds.EmployeeTrainingSkillIncrease,
                 BigHaxSettings.DefaultEmployeeTrainingSkillIncrease);
 
+            settings.EnableRecruitmentCandidateMaximumSkill = LoadEnableRecruitmentCandidateMaximumSkill(modId);
+
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
                 BigHaxOptionIds.FreightTruckT1DeliveryPlaces,
@@ -101,6 +103,11 @@ namespace BigHax
         public static void SaveEmployeeTrainingSkillIncrease(string modId, int value)
         {
             SaveInt(modId, BigHaxOptionIds.EmployeeTrainingSkillIncrease, value);
+        }
+
+        public static void SaveEnableRecruitmentCandidateMaximumSkill(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableRecruitmentCandidateMaximumSkill, value);
         }
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
@@ -169,6 +176,17 @@ namespace BigHax
 
             var legacyBillions = UnityEngine.PlayerPrefs.GetInt(legacyKey);
             return legacyBillions > 1;
+        }
+
+        private static bool LoadEnableRecruitmentCandidateMaximumSkill(string modId)
+        {
+            var currentKey = BuildKey(modId, BigHaxOptionIds.EnableRecruitmentCandidateMaximumSkill);
+            if (UnityEngine.PlayerPrefs.HasKey(currentKey))
+                return UnityEngine.PlayerPrefs.GetInt(currentKey) != 0;
+
+            var legacyKey = BuildKey(modId, BigHaxOptionIds.LegacyRecruitmentCandidateMaximumSkill);
+            return UnityEngine.PlayerPrefs.HasKey(legacyKey) &&
+                   UnityEngine.PlayerPrefs.GetInt(legacyKey) >= BigHaxSettings.RecruitmentCandidateMaximumSkillOverride;
         }
 
         private static int MapLegacyCustomerTrafficMultiplierToIndex(int legacyValue)

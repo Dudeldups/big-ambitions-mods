@@ -105,7 +105,6 @@ namespace BigHax
                 GUI.skin.horizontalScrollbarThumb = GUIStyle.none;
                 scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
 
-                DrawCustomerMultiplier(context, settings);
                 DrawToggleOption(
                     context,
                     settings.DisableCasinoBetLimit,
@@ -142,6 +141,28 @@ namespace BigHax
                         settings.EnableVantanderMaxLoanOverride = value;
                         BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value);
                     });
+                DrawToggleOption(
+                    context,
+                    settings.EnableRecruitmentCandidateMaximumSkill,
+                    Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
+                    value =>
+                    {
+                        settings.EnableRecruitmentCandidateMaximumSkill = value;
+                        BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context.ModId, value);
+                    });
+                DrawSeparator();
+                var activeVehicleEnabled = GUILayout.Toggle(
+                    settings.EnableActiveVehicleCapacityOverride,
+                    Localize("bighax_active_vehicle_enabled_label"),
+                    toggleStyle!);
+                if (activeVehicleEnabled != settings.EnableActiveVehicleCapacityOverride)
+                {
+                    settings.EnableActiveVehicleCapacityOverride = activeVehicleEnabled;
+                    BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
+                    BigHaxRuntime.RequestImmediateApply();
+                }
+
+                DrawCustomerMultiplier(context, settings);
                 DrawIntSlider(
                     context,
                     settings,
@@ -209,18 +230,6 @@ namespace BigHax
                         settings.FreightTruckT1DeliveryPlaces = value;
                         BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value);
                     });
-
-                DrawSeparator();
-                var activeVehicleEnabled = GUILayout.Toggle(
-                    settings.EnableActiveVehicleCapacityOverride,
-                    Localize("bighax_active_vehicle_enabled_label"),
-                    toggleStyle!);
-                if (activeVehicleEnabled != settings.EnableActiveVehicleCapacityOverride)
-                {
-                    settings.EnableActiveVehicleCapacityOverride = activeVehicleEnabled;
-                    BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
-                    BigHaxRuntime.RequestImmediateApply();
-                }
 
                 if (settings.EnableActiveVehicleCapacityOverride)
                 {
