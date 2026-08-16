@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Befektetési limit kikapcsolása",
   "bighax_vantander_maximum_loan_override_label": "A Vantander Bank maximális hitelének növelése 100 000 000 $-ra",
   "bighax_employee_training_skill_increase_label": "Alkalmazotti képzés készségnövekedése",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "Toborzási jelöltek engedélyezése legfeljebb 100%-os képzettséggel",
   "bighax_standard_fridge_capacity_label": "{itemName} kapacitása",
   "bighax_pallet_shelf_capacity_label": "{itemName} kapacitása",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} szállítási helyei",

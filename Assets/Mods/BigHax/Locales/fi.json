@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Poista sijoitusraja käytöstä",
   "bighax_vantander_maximum_loan_override_label": "Nosta Vantander Bankin enimmäislaina 100 000 000 $:iin",
   "bighax_employee_training_skill_increase_label": "Työntekijäkoulutuksen taitolisäys",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "Salli rekrytointiehdokkaiden taitotaso 100 % asti",
   "bighax_standard_fridge_capacity_label": "Kohteen {itemName} kapasiteetti",
   "bighax_pallet_shelf_capacity_label": "Kohteen {itemName} kapasiteetti",
   "bighax_freight_truck_delivery_places_label": "Ajoneuvon {vehicleName} toimituspaikat",

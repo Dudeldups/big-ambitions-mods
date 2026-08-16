@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "停用投資上限",
   "bighax_vantander_maximum_loan_override_label": "將 Vantander Bank 最高貸款提高至 100,000,000 $",
   "bighax_employee_training_skill_increase_label": "員工培訓技能提升",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "允許招募候選人的技能最高達到 100%",
   "bighax_standard_fridge_capacity_label": "{itemName} 容量",
   "bighax_pallet_shelf_capacity_label": "{itemName} 容量",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} 送貨地點",

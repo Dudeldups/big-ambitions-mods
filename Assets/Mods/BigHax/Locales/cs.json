@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Zakázat investiční limit",
   "bighax_vantander_maximum_loan_override_label": "Zvýšit maximální půjčku Vantander Bank na 100 000 000 $",
   "bighax_employee_training_skill_increase_label": "Přírůstek dovednosti z tréninku zaměstnanců",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "Povolit uchazeče z náboru až do 100 % dovednosti",
   "bighax_standard_fridge_capacity_label": "Kapacita {itemName}",
   "bighax_pallet_shelf_capacity_label": "Kapacita {itemName}",
   "bighax_freight_truck_delivery_places_label": "Místa doručení pro {vehicleName}",

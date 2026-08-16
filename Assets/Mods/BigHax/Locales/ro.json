@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Dezactivează limita de investiții",
   "bighax_vantander_maximum_loan_override_label": "Mărește împrumutul maxim Vantander Bank la 100.000.000 $",
   "bighax_employee_training_skill_increase_label": "Câștig de abilitate din instruirea angajaților",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "Permite candidați de recrutare cu până la 100% abilitate",
   "bighax_standard_fridge_capacity_label": "Capacitate {itemName}",
   "bighax_pallet_shelf_capacity_label": "Capacitate {itemName}",
   "bighax_freight_truck_delivery_places_label": "Locuri de livrare pentru {vehicleName}",

@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Yatırım limitini devre dışı bırak",
   "bighax_vantander_maximum_loan_override_label": "Vantander Bank maksimum kredisini 100.000.000 $ seviyesine yükselt",
   "bighax_employee_training_skill_increase_label": "Çalışan eğitimi beceri kazanımı",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "İşe alım adaylarının becerilerinin %100'e kadar olmasına izin ver",
   "bighax_standard_fridge_capacity_label": "{itemName} kapasitesi",
   "bighax_pallet_shelf_capacity_label": "{itemName} kapasitesi",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} teslimat yerleri",

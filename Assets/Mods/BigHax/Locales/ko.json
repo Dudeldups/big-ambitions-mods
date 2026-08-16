@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "투자 한도 비활성화",
   "bighax_vantander_maximum_loan_override_label": "Vantander Bank 최대 대출액을 100,000,000 $로 올리기",
   "bighax_employee_training_skill_increase_label": "직원 교육 스킬 증가량",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "채용 후보자의 기술을 최대 100%까지 허용",
   "bighax_standard_fridge_capacity_label": "{itemName} 용량",
   "bighax_pallet_shelf_capacity_label": "{itemName} 용량",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} 배송 지점",

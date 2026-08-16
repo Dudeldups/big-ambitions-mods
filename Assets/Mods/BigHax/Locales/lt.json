@@ -12,6 +12,7 @@
   "bighax_disable_investment_limit_label": "Išjungti investicijų limitą",
   "bighax_vantander_maximum_loan_override_label": "Padidinti Vantander Bank maksimalų paskolos limitą iki 100 000 000 $",
   "bighax_employee_training_skill_increase_label": "Darbuotojų mokymo įgūdžių prieaugis",
+  "bighax_enable_recruitment_candidate_maximum_skill_label": "Leisti įdarbinimo kandidatus, turinčius iki 100 % įgūdžių",
   "bighax_standard_fridge_capacity_label": "{itemName} talpa",
   "bighax_pallet_shelf_capacity_label": "{itemName} talpa",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} pristatymo vietos",
