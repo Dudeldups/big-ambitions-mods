@@ -236,7 +236,7 @@ namespace BigHax
             if (employee == null)
                 return 0;
 
-            var contact = employee.GetContact(ContactCategoryName.Employees, false);
+            var contact = employee.GetContact();
             if (contact?.messagesQueue == null || contact.messagesQueue.Count == 0)
                 return 0;
 

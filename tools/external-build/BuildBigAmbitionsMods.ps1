@@ -280,10 +280,6 @@ function Assert-DependencyPaths {
         throw "UnityEngine managed DLL folder not found: $unityEngine"
     }
 
-    $netStandardShims = Join-Path $UnityEditorPath "Editor\Data\NetStandard\compat\2.1.0\shims"
-    if (-not (Test-Path -LiteralPath $netStandardShims -PathType Container)) {
-        throw "Unity netstandard shim folder not found: $netStandardShims"
-    }
 }
 
 function Get-ReferenceFiles {
@@ -302,11 +298,6 @@ function Get-ReferenceFiles {
     $unityEngine = Join-Path $UnityEditorPath "Editor\Data\Managed\UnityEngine"
     Get-ChildItem -LiteralPath $unityEngine -File -Filter "UnityEngine*.dll" |
         Sort-Object Name |
-        ForEach-Object { $paths.Add($_.FullName) }
-
-    $netStandardShims = Join-Path $UnityEditorPath "Editor\Data\NetStandard\compat\2.1.0\shims"
-    Get-ChildItem -LiteralPath $netStandardShims -Recurse -File -Filter "*.dll" |
-        Sort-Object FullName |
         ForEach-Object { $paths.Add($_.FullName) }
 
     $scriptAssemblies = Join-Path $RepoRoot "Library\ScriptAssemblies"
@@ -385,7 +376,9 @@ function New-GeneratedProject {
     $null = $project.AppendChild($propertyGroup)
 
     $properties = [ordered]@{
-        TargetFramework = "netstandard2.1"
+        # Big Ambitions 1.0 runs on Unity's classic .NET Framework profile.
+        # netstandard2.1 assemblies cannot be discovered because the player does not ship netstandard.dll.
+        TargetFramework = "net472"
         AssemblyName = $Mod.AssemblyName
         RootNamespace = ($Mod.AssemblyName -replace "[^A-Za-z0-9_.]", "_")
         LangVersion = "latest"
@@ -397,7 +390,7 @@ function New-GeneratedProject {
         EnableDefaultCompileItems = "false"
         EnableDefaultItems = "false"
         NoWarn = "0169;USG0001;CS1701;CS1702"
-        DefineConstants = "BA_GAME_DLLS_IMPORTED;UNITY_2022_3;UNITY_2022_3_OR_NEWER;UNITY_2022;UNITY_STANDALONE;UNITY_STANDALONE_WIN;UNITY_64;NET_STANDARD;NET_STANDARD_2_1;NETSTANDARD;NETSTANDARD2_1"
+        DefineConstants = "BA_GAME_DLLS_IMPORTED;UNITY_2022_3;UNITY_2022_3_OR_NEWER;UNITY_2022;UNITY_STANDALONE;UNITY_STANDALONE_WIN;UNITY_64;NET_4_6;NET_4_8;NET_FRAMEWORK"
         OutputPath = (Join-Path $runOutputRoot '$(Configuration)\')
         BaseIntermediateOutputPath = ($runIntermediateRoot.TrimEnd('\') + '\')
         IntermediateOutputPath = (Join-Path $runIntermediateRoot '$(Configuration)\')

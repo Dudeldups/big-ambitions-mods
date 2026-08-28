@@ -66,10 +66,10 @@ namespace BigHax
             {
                 if (string.Equals(fileName, "BigHax.log", StringComparison.OrdinalIgnoreCase) &&
                     !string.IsNullOrEmpty(defaultLogPath))
-                    return defaultLogPath;
+                    return defaultLogPath!;
 
                 if (NamedLogPaths.TryGetValue(fileName, out var cachedPath))
-                    return cachedPath;
+                    return cachedPath!;
 
                 string resolvedPath;
                 try
