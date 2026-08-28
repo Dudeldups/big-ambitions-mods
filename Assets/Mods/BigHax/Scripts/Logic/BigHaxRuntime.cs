@@ -38,6 +38,8 @@ namespace BigHax
 
         private bool applyRequested;
         private bool parkingVehicleEventsSubscribed;
+        private Coroutine? employeeDemandCleanupCoroutine;
+        private Coroutine? employeeDemandMessageCleanupCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
@@ -70,11 +72,13 @@ namespace BigHax
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
+            runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
             runtime.updateNoticeUi.Initialize(context.ModId);
             BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
             BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
             runtime.ApplyIfRequested();
+            GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.ScheduleEmployeeDemandMessageCleanup);
             return runtime;
         }
 
@@ -86,6 +90,18 @@ namespace BigHax
 
         public void Shutdown()
         {
+            if (employeeDemandCleanupCoroutine != null)
+            {
+                StopCoroutine(employeeDemandCleanupCoroutine);
+                employeeDemandCleanupCoroutine = null;
+            }
+
+            if (employeeDemandMessageCleanupCoroutine != null)
+            {
+                StopCoroutine(employeeDemandMessageCleanupCoroutine);
+                employeeDemandMessageCleanupCoroutine = null;
+            }
+
             if (parkingExitCleanupCoroutine != null)
             {
                 StopCoroutine(parkingExitCleanupCoroutine);
@@ -268,6 +284,30 @@ namespace BigHax
                 return;
 
             SafeApply("illegal parking onNewDay", () => illegalParkingService.HandleNewDay(context, settings));
+        }
+
+        private void ScheduleEmployeeDemandCleanup()
+        {
+            if (employeeDemandCleanupCoroutine == null)
+                employeeDemandCleanupCoroutine = StartCoroutine(ClearEmployeeDemandsAfterDailyUpdate());
+        }
+
+        private void ScheduleEmployeeDemandMessageCleanup()
+        {
+            if (employeeDemandMessageCleanupCoroutine == null)
+                employeeDemandMessageCleanupCoroutine = StartCoroutine(RemoveSavedEmployeeDemandMessagesAfterLoad());
+        }
+
+        private IEnumerator ClearEmployeeDemandsAfterDailyUpdate()
+        {
+            yield return employeeDemandService.ClearNewDemandsAfterDailyUpdate();
+            employeeDemandCleanupCoroutine = null;
+        }
+
+        private IEnumerator RemoveSavedEmployeeDemandMessagesAfterLoad()
+        {
+            yield return employeeDemandService.RemoveSavedDemandMessagesAfterLoad();
+            employeeDemandMessageCleanupCoroutine = null;
         }
 
         private void HandleVehicleVariablesChanged()
