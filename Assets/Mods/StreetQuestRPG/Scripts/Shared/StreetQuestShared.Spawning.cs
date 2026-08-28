@@ -562,8 +562,8 @@ namespace StreetQuestRPG
                         continue;
 
                     var typeName = behavior.GetType().FullName ?? string.Empty;
-                    if (!typeName.Contains("StreetQuestGiverCtaBehavior", StringComparison.Ordinal) &&
-                        !typeName.Contains("StreetQuestRPG", StringComparison.Ordinal))
+                    if (typeName.IndexOf("StreetQuestGiverCtaBehavior", StringComparison.Ordinal) < 0 &&
+                        typeName.IndexOf("StreetQuestRPG", StringComparison.Ordinal) < 0)
                     {
                         continue;
                     }

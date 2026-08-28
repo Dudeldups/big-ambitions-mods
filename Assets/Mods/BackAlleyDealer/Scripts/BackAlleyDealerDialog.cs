@@ -213,8 +213,10 @@ namespace BackAlleyDealer
 
             var businessName = BuildingHelper
                 .GetBuildingRegistration(deliveryContractSettings.selectedAddress).BusinessName;
-            var deliveryItemsToText = itemsToDeliver.Aggregate("",
-                (current, item) => current + $"{item.amount}x {item.itemName.GetLocalization()}<br>")[..^4];
+            var deliveryItemsToTextWithTrailingBreak = itemsToDeliver.Aggregate("",
+                (current, item) => current + $"{item.amount}x {item.itemName.GetLocalization()}<br>");
+            var deliveryItemsToText = deliveryItemsToTextWithTrailingBreak.Substring(
+                0, deliveryItemsToTextWithTrailingBreak.Length - 4);
             var messageData = new Dictionary<string, string>
             {
                 { "amount", deliveryContractSettings.TotalItemsToDeliverAmount.ToString() },
