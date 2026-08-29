@@ -267,7 +267,6 @@ namespace BigHax
                 return;
 
             overlayUi.OnGui(context, settings);
-            updateNoticeUi.OnGui(context);
         }
 
         private void HandleNewHour()

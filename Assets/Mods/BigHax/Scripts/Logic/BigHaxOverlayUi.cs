@@ -8,6 +8,7 @@ namespace BigHax
 {
     internal sealed class BigHaxOverlayUi
     {
+        private readonly BigHaxNativeOptionsUi nativeUi;
         private const int WindowId = 348721;
         private static readonly string[] CustomerTrafficLabels = { "1x", "1.5x", "2x", "3x", "5x", "10x" };
         private const float WindowWidth = 720f;
@@ -36,56 +37,33 @@ namespace BigHax
         private GUIStyle? verticalScrollbarStyle;
         private GUIStyle? verticalScrollbarThumbStyle;
 
+        public BigHaxOverlayUi()
+        {
+            nativeUi = new BigHaxNativeOptionsUi(Hide);
+        }
+
         public bool IsVisible => isVisible;
 
         public void Toggle()
         {
             isVisible = !isVisible;
-            if (isVisible)
-            {
-                ResetStyleCache();
-                CenterWindow();
-            }
+            nativeUi.SetVisible(isVisible);
         }
 
         public void Hide()
         {
             isVisible = false;
+            nativeUi.SetVisible(false);
         }
 
         public void ConsumeGameplayInputIfNeeded()
         {
-            if (!isVisible)
-                return;
-
-            if (IsMouseOverWindow() || GUIUtility.hotControl == hotControlId)
-                Input.ResetInputAxes();
+            nativeUi.ConsumeGameplayInputIfNeeded(isVisible);
         }
 
         public void OnGui(ModContext context, BigHaxSettings settings)
         {
-            if (!isVisible)
-                return;
-
-            EnsureStyles();
-            EnsureWindowIsCenteredIfNeeded();
-            CaptureOverlayHotControl();
-            var previousColor = GUI.color;
-            var previousBackgroundColor = GUI.backgroundColor;
-            var previousContentColor = GUI.contentColor;
-            try
-            {
-                GUI.color = Color.white;
-                GUI.backgroundColor = Color.white;
-                GUI.contentColor = Color.white;
-                windowRect = GUI.Window(WindowId, windowRect, _ => DrawWindow(context, settings), GUIContent.none, windowStyle!);
-            }
-            finally
-            {
-                GUI.color = previousColor;
-                GUI.backgroundColor = previousBackgroundColor;
-                GUI.contentColor = previousContentColor;
-            }
+            nativeUi.EnsureCreated(context, settings, isVisible);
         }
 
         private void DrawWindow(ModContext context, BigHaxSettings settings)
