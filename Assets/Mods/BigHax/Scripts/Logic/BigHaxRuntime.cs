@@ -120,6 +120,7 @@ namespace BigHax
             employeeDemandService.Unsubscribe();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
             vehicleCapacityService.RestoreOriginalCapacities();
+            updateNoticeUi.Shutdown();
             overlayUi.Shutdown();
             if (instance == this)
                 instance = null;
@@ -268,6 +269,7 @@ namespace BigHax
                 return;
 
             overlayUi.OnGui(context, settings);
+            updateNoticeUi.OnGui(context);
         }
 
         private void HandleNewHour()

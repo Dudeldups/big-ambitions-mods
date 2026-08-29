@@ -17,7 +17,7 @@ namespace BigHax
     /// </summary>
     internal sealed class BigHaxBaUnifiedOptionsUi
     {
-        private const string MinimumLibraryVersion = "1.1.0";
+        private const string MinimumLibraryVersion = "1.0.1";
         private const string RootName = "BigHax_BAUnifiedUI_Options";
         private const float PanelWidth = 920f;
         private const float PanelHeight = 760f;
