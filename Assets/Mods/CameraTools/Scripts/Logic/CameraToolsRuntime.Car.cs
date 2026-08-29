@@ -1636,51 +1636,5 @@ namespace CameraTools
             return typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer";
         }
 
-        private void OnGUI()
-        {
-            if (!cameraToolsDebugEnabled || !showVehicleDebugOverlay)
-                return;
-
-            debugOverlayStyle ??= CreateDebugOverlayStyle();
-
-            var lines = new[]
-            {
-                "CameraTools Vehicle Debug",
-                "F8 overlay, F9/F10 zoom, F11 dump, F12 camera poke",
-                $"Scroll delta: {vehicleDebug.ScrollDelta:0.###}",
-                $"Vehicle mode: {vehicleDebug.IsVehicleMode}",
-                $"Inside vehicle: {vehicleDebug.IsInsideVehicle}",
-                $"Active car found: {vehicleDebug.ActiveCarFound}",
-                $"Car controller: {vehicleDebug.CarControllerTypeName}",
-                $"Vehicle controller found: {vehicleDebug.VehicleControllerFound}",
-                $"Vehicle controller: {vehicleDebug.VehicleControllerTypeName}",
-                $"Distance member: {vehicleDebug.DistanceMemberName}",
-                $"Current distance: {vehicleDebug.CurrentDistance:0.##}",
-                $"Actual distance: {vehicleDebug.ActualDistance:0.##}",
-                $"Original offset: {vehicleDebug.OriginalFollowOffset}",
-                $"Current offset: {vehicleDebug.CurrentFollowOffset}",
-                $"Last applied distance: {vehicleDebug.LastAppliedDistance:0.##}",
-                $"Value overwritten: {vehicleDebug.WasOverwritten}",
-                $"Camera object found: {vehicleDebug.CameraObjectFound}",
-                $"Cinemachine camera found: {vehicleDebug.CinemachineFound}",
-                $"Map current distance: {mapDebugCurrentDistance:0.##}",
-                $"Map desired distance: {mapDebugDesiredDistance:0.##}",
-                $"Map vanilla delta: {mapDebugVanillaDelta:0.##}",
-                $"Map raw scroll: {mapDebugRawScrollDelta:0.##}"
-            };
-
-            var content = string.Join("\n", lines);
-            GUI.Box(new Rect(12f, 12f, 420f, 280f), content, debugOverlayStyle);
-        }
-
-        private static GUIStyle CreateDebugOverlayStyle()
-        {
-            var style = new GUIStyle(GUI.skin.box);
-            style.alignment = TextAnchor.UpperLeft;
-            style.fontSize = 14;
-            style.normal.textColor = Color.white;
-            return style;
-        }
-
     }
 }
