@@ -288,7 +288,6 @@ namespace CameraTools
         private static Type? cityMapCamType;
         private static Type? cinemachineBrainType;
         private static Type? cinematachineVirtualCameraType;
-        private static GUIStyle? debugOverlayStyle;
         private static Type? dialogUiType;
         private static Type? fullMenuType;
         private static Type? gameManagerType;
@@ -647,14 +646,23 @@ namespace CameraTools
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
+                // Exact lookup avoids enumerating most assemblies and works even when an
+                // unrelated assembly cannot expose all of its types on the game's runtime.
+                var exactType = assembly.GetType(typeName, false);
+                if (exactType != null)
+                    return exactType;
+
                 Type[]? types;
                 try
                 {
                     types = assembly.GetTypes();
                 }
-                catch (ReflectionTypeLoadException exception)
+                catch
                 {
-                    types = exception.Types;
+                    // Big Ambitions 1.0's runtime does not expose
+                    // ReflectionTypeLoadException.Types. Skipping a partially loadable
+                    // assembly is safe because the remaining game assemblies are searched.
+                    continue;
                 }
 
                 if (types == null)
@@ -776,7 +784,6 @@ namespace CameraTools
                 LogIndoorCameraDebug("Camera.main: none");
             }
 
-            LogIndoorCameraDebug($"RenderSettings.skybox={(RenderSettings.skybox == null ? "null" : RenderSettings.skybox.name)}");
             foreach (var camera in Camera.allCameras)
             {
                 if (camera == null || !camera.enabled)
@@ -860,8 +867,9 @@ namespace CameraTools
 
         private static string FormatSkyboxEnabled(Camera camera)
         {
-            var skybox = camera.GetComponent<Skybox>();
-            return skybox == null ? "missing" : skybox.enabled.ToString();
+            // Unity 6 no longer exposes the legacy Skybox component through
+            // UnityEngine.CoreModule. Keep this diagnostic compatibility-safe.
+            return "unavailable";
         }
 
         private static bool TryGetCameraDistanceToFollowTarget(Component? liveVirtualCamera, Camera mainCamera, out float distance)
@@ -1154,7 +1162,6 @@ namespace CameraTools
             private readonly float orthographicSize;
             private readonly Vector3 position;
             private readonly Quaternion rotation;
-            private readonly bool skyboxEnabled;
 
             public CameraState(Camera camera)
             {
@@ -1165,8 +1172,6 @@ namespace CameraTools
                 fieldOfView = camera.fieldOfView;
                 position = camera.transform.position;
                 rotation = camera.transform.rotation;
-                var skybox = camera.GetComponent<Skybox>();
-                skyboxEnabled = skybox != null && skybox.enabled;
             }
 
             public void Restore(Camera camera)
@@ -1178,9 +1183,6 @@ namespace CameraTools
                 camera.orthographic = orthographic;
                 camera.orthographicSize = orthographicSize;
                 camera.fieldOfView = fieldOfView;
-                var skybox = camera.GetComponent<Skybox>();
-                if (skybox != null)
-                    skybox.enabled = skyboxEnabled;
             }
         }
 
