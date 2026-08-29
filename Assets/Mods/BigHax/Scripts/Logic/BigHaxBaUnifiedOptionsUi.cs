@@ -274,9 +274,6 @@ namespace BigHax
 
         private void AddFooter(RectTransform panel)
         {
-            var status = api.CreateBodyText(panel, $"LIB BA UNIFIED UI {api.LibraryVersion}", muted: true, "LibraryStatus");
-            SetRect(status.Rect, Vector2.zero, new Vector2(0.55f, 0f), new Vector2(32f, 13f), new Vector2(-4f, 51f));
-
             var button = api.CreateVanillaButton(panel, Localize("bighax_ui_close_button"), 160f, 36f, new UnityAction(close), "Blue", 15f);
             var rect = button.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
@@ -293,14 +290,6 @@ namespace BigHax
             content = null;
         }
 
-        private static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
-        {
-            rect.anchorMin = anchorMin;
-            rect.anchorMax = anchorMax;
-            rect.offsetMin = offsetMin;
-            rect.offsetMax = offsetMax;
-        }
-
         private static void Stretch(RectTransform rect)
         {
             rect.anchorMin = Vector2.zero;
@@ -311,30 +300,9 @@ namespace BigHax
         private static string Localize(string key) => key.Localize().ToString();
         private static string Localize(string key, Dictionary<string, string> arguments) => key.Localize(arguments).ToString();
 
-        private sealed class BaUiText
-        {
-            private readonly object component;
-            private readonly PropertyInfo textProperty;
-
-            public BaUiText(Component component, PropertyInfo textProperty)
-            {
-                this.component = component;
-                this.textProperty = textProperty;
-                Rect = component.GetComponent<RectTransform>();
-            }
-
-            public RectTransform Rect { get; }
-
-            public string Text
-            {
-                set => textProperty.SetValue(component, value);
-            }
-        }
-
         private sealed class BaUiReflection
         {
             private const BindingFlags PublicStatic = BindingFlags.Public | BindingFlags.Static;
-            private readonly Type textType;
             private readonly Type buttonStyleType;
             private readonly MethodInfo ensureEventSystem;
             private readonly MethodInfo setupOverlayCanvas;
@@ -345,7 +313,6 @@ namespace BigHax
             private readonly MethodInfo createVanillaButton;
             private readonly MethodInfo createNativeToggle;
             private readonly MethodInfo createNativeSlider;
-            private readonly MethodInfo applyBodyStyle;
             private readonly MethodInfo applyUiLayer;
             private readonly MethodInfo? attachDraggableWindow;
 
@@ -369,8 +336,6 @@ namespace BigHax
                 createVanillaButton = RequireMethod(chrome, "CreateVanillaButton", 10);
                 createNativeToggle = RequireMethod(vanillaSettings, "CreateToggle", 5);
                 createNativeSlider = RequireMethod(vanillaSettings, "CreateSlider", 8);
-                applyBodyStyle = RequireMethod(chrome, "ApplyBodyStyle", 3);
-                textType = applyBodyStyle.GetParameters()[0].ParameterType;
                 applyUiLayer = RequireMethod(chrome, "ApplyUiLayer", 1);
                 attachDraggableWindow = chrome.GetMethods(PublicStatic)
                     .FirstOrDefault(method => method.Name == "AttachDraggableWindow" && method.GetParameters().Length == 3);
@@ -478,20 +443,6 @@ namespace BigHax
                 string name) =>
                 Invoke(createNativeSlider, null,
                     new object?[] { parent, label, min, max, value, format, onValueChanged, name });
-
-            public BaUiText CreateBodyText(Transform parent, string text, bool muted, string name)
-            {
-                var gameObject = new GameObject(name, typeof(RectTransform));
-                gameObject.transform.SetParent(parent, false);
-                var component = gameObject.AddComponent(textType);
-                Invoke(applyBodyStyle, null, new object?[] { component, 1.05f, muted });
-                if (component is Graphic graphic)
-                    graphic.raycastTarget = false;
-                var property = textType.GetProperty("text", BindingFlags.Public | BindingFlags.Instance)
-                    ?? throw new MissingMemberException(textType.FullName, "text");
-                property.SetValue(component, text);
-                return new BaUiText(component, property);
-            }
 
             public void ApplyUiLayer(GameObject root) => Invoke(applyUiLayer, null, new object?[] { root });
 

@@ -10,7 +10,7 @@ namespace BigHax
     internal sealed class BigHaxNativeOptionsUi
     {
         private const float RowHeight = 50f;
-        private const float ContentHeight = 900f;
+        private const float ContentHeight = 1020f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -99,6 +99,7 @@ namespace BigHax
             scroll.content = contentRect; scroll.verticalScrollbar = scrollbar; scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
             BigHaxUiDebugLogger.Log($"Scroll configured viewport={scroll.viewport.rect}; content={contentRect.rect}.");
             Label(Localize("bighax_options_header"), 26, TextAnchor.MiddleCenter, new Color(.10f, .14f, .19f), 44);
+            FallbackNotice(Localize("bighax_ui_fallback_notice"));
             Toggle(Localize("bighax_disable_casino_bet_limit_label"), () => settings!.DisableCasinoBetLimit, v => { settings!.DisableCasinoBetLimit = v; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context!.ModId, v); });
             Toggle(Localize("bighax_disable_illegal_parking_penalties_label"), () => settings!.DisableIllegalParkingPenalties, v => { settings!.DisableIllegalParkingPenalties = v; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context!.ModId, v); });
             Toggle(Localize("bighax_disable_investment_limit_label"), () => settings!.DisableInvestmentLimit, v => { settings!.DisableInvestmentLimit = v; BigHaxOptionPersistence.SaveDisableInvestmentLimit(context!.ModId, v); });
@@ -201,6 +202,15 @@ namespace BigHax
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = rect.offsetMax = Vector2.zero;
+        }
+        private void FallbackNotice(string value)
+        {
+            var item = Create("FallbackNotice", content!, new Color(.98f, .83f, .42f));
+            item.AddComponent<LayoutElement>().preferredHeight = 72f;
+            var text = Text(item.transform, value, 15, TextAnchor.MiddleLeft, new Color(.22f, .16f, .06f), new Vector2(18f, 8f), new Vector2(-18f, -8f));
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.raycastTarget = false;
         }
         private static Text Text(Transform parent, string value, int size, TextAnchor align, Color color, Vector2 left, Vector2 right) { var item = new GameObject("Text", typeof(RectTransform), typeof(Text)); item.transform.SetParent(parent, false); var r = item.GetComponent<RectTransform>(); r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one; r.offsetMin = left; r.offsetMax = right; var t = item.GetComponent<Text>(); t.font = Resources.GetBuiltinResource<Font>("Arial.ttf"); t.text = value; t.fontSize = size; t.alignment = align; t.color = color; return t; }
         private static GameObject Create(string name, Transform parent, Color color) { var o = new GameObject(name, typeof(RectTransform), typeof(Image)); o.transform.SetParent(parent, false); o.GetComponent<Image>().color = color; return o; }
