@@ -39,6 +39,7 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
 
     private BusinessType? modBusinessType;
     private readonly List<Item> modItems = new();
+    private GunStoreHelpDebugRuntime? helpDebugRuntime;
 
     public Task OnLoadAsync(ModContext context)
     {
@@ -64,11 +65,16 @@ public class GunStoreBusinessTypeMod : IModBigAmbitions
         if (modBusinessType != null)
             ModdingAPI.RegisterModBusinessType(modBusinessType);
 
+        helpDebugRuntime = GunStoreHelpDebugRuntime.Initialize(context);
+
         return Task.CompletedTask;
     }
 
     public Task OnUnloadAsync()
     {
+        helpDebugRuntime?.Shutdown();
+        helpDebugRuntime = null;
+
         if (modBusinessType != null)
             ModdingAPI.UnregisterModBusinessType(modBusinessType);
 
@@ -168,12 +174,8 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private readonly List<ScriptableObject> injectedAiBusinessDefaults = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
-    private GunStoreHelpDebugRuntime? helpDebugRuntime;
-
     public async Task OnLoadAsync(ModContext context)
     {
-        helpDebugRuntime = GunStoreHelpDebugRuntime.Initialize(context);
-
         for (var i = 0; i < 6; i++)
         {
             RegisterBundledLayout(context);
@@ -189,12 +191,11 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             if (i < 5)
                 await Task.Yield();
         }
+
     }
 
     public Task OnUnloadAsync()
     {
-        helpDebugRuntime?.Shutdown();
-        helpDebugRuntime = null;
         RestoreConsumerGoodsWorkstation();
         RestoreCompetitionDefaults();
         RestoreShowcaseShelves();

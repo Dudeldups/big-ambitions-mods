@@ -12,6 +12,7 @@ using System.Text;
 using BAModAPI;
 using Localizor;
 using UnityEngine;
+using UnityEngine.Events;
 #if GUN_STORE_HELP_UI_DEBUG
 using UnityEngine.EventSystems;
 #endif
@@ -23,10 +24,13 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
+    private bool pendingForcedNavigationRefresh;
+    private bool gameLoadedLateCallbackRegistered;
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
         var existing = FindObjectOfType<GunStoreHelpDebugRuntime>();
+        var created = existing == null;
         if (existing == null)
         {
             var runtimeObject = new GameObject(nameof(GunStoreHelpDebugRuntime));
@@ -36,13 +40,65 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         existing.context = context;
         existing.shuttingDown = false;
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.StartSession();
+        GunStoreHelpDebugLogger.Trace(
+            $"Runtime Initialize: created={created}, activeScene={SceneManager.GetActiveScene().name}, " +
+            $"frame={Time.frameCount}.");
+#endif
         LocalizorManager.OnLanguageChanged -= existing.HandleLanguageChanged;
         LocalizorManager.OnLanguageChanged += existing.HandleLanguageChanged;
         SceneManager.sceneLoaded -= existing.HandleSceneLoaded;
         SceneManager.sceneLoaded += existing.HandleSceneLoaded;
-        existing.ScheduleNavigationPatch();
+        if (!existing.gameLoadedLateCallbackRegistered)
+        {
+            GlobalEvents.RegisterOnGameLoadedLateCallback(existing.HandleGameLoadedLate);
+            existing.gameLoadedLateCallbackRegistered = true;
+#if GUN_STORE_HELP_UI_DEBUG
+            GunStoreHelpDebugLogger.Trace("Registered GlobalEvents OnGameLoadedLate callback.");
+#endif
+        }
+        existing.ScheduleNavigationPatch(reason: "initialize");
         return existing;
     }
+
+    internal void ScheduleNavigationPatch(bool forceRefresh = false, string reason = "unspecified")
+    {
+        pendingForcedNavigationRefresh |= forceRefresh;
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"ScheduleNavigationPatch: reason={reason}, force={forceRefresh}, " +
+            $"frame={Time.frameCount}, pendingCoroutine={pendingNavigationPatch != null}.");
+#endif
+
+        if (pendingNavigationPatch != null)
+            StopCoroutine(pendingNavigationPatch);
+
+        pendingNavigationPatch = StartCoroutine(PatchNavigationAfterUiRefresh());
+    }
+
+#if GUN_STORE_HELP_UI_DEBUG
+    private void Update()
+    {
+        if (!Input.GetKeyDown(KeyCode.F9))
+            return;
+
+        try
+        {
+            var result = GunStoreHelpDebugSnapshotWriter.WriteSnapshot();
+            context?.Logger.Info(
+                $"Captured Gun Store Help UI debug snapshot at '{result.LogPath}' " +
+                $"({result.HelpComponentCount} help components, {result.RootCount} roots, " +
+                $"{result.ElementCount} UI elements)."
+            );
+        }
+        catch (Exception exception)
+        {
+            GunStoreHelpDebugLogger.Error("Failed to capture the Help UI snapshot.", exception);
+            context?.Logger.Error(exception);
+        }
+    }
+#endif
 
     public void Shutdown()
     {
@@ -59,20 +115,17 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void HandleLanguageChanged()
     {
-        ScheduleNavigationPatch();
+        ScheduleNavigationPatch(reason: "language-changed");
     }
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        ScheduleNavigationPatch();
+        ScheduleNavigationPatch(reason: $"scene-loaded:{scene.name}:{mode}");
     }
 
-    private void ScheduleNavigationPatch()
+    private void HandleGameLoadedLate()
     {
-        if (pendingNavigationPatch != null)
-            StopCoroutine(pendingNavigationPatch);
-
-        pendingNavigationPatch = StartCoroutine(PatchNavigationAfterUiRefresh());
+        ScheduleNavigationPatch(forceRefresh: true, reason: "game-loaded-late");
     }
 
     private IEnumerator PatchNavigationAfterUiRefresh()
@@ -80,15 +133,19 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // Let the native Help and localization callbacks finish rebuilding their UI first.
         yield return null;
         pendingNavigationPatch = null;
+        var forceRefresh = pendingForcedNavigationRefresh;
+        pendingForcedNavigationRefresh = false;
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"Patch coroutine executing: force={forceRefresh}, frame={Time.frameCount}.");
+#endif
 
         try
         {
-            var result = GunStoreHelpNavigationPatch.TryApply(this);
-            if (result == GunStoreHelpNavigationPatchResult.Applied)
-            {
-                context?.Logger.Info(
-                    "Updated Gun Store links in the native Help System navigation.");
-            }
+            var result = GunStoreHelpNavigationPatch.TryApply(this, forceRefresh);
+#if GUN_STORE_HELP_UI_DEBUG
+            GunStoreHelpDebugLogger.Trace($"Patch coroutine result: {result}.");
+#endif
         }
         catch (Exception exception)
         {
@@ -104,39 +161,99 @@ internal enum GunStoreHelpNavigationPatchResult
     AlreadyPresent
 }
 
+internal sealed class GunStoreHelpInitializationObserver : MonoBehaviour
+{
+    private GunStoreHelpDebugRuntime? runtime;
+    private UnityEvent<string>? currentSlugChanged;
+    private bool firstPageOpenHandled;
+
+    public void Initialize(
+        GunStoreHelpDebugRuntime runtime,
+        UnityEvent<string>? currentSlugChanged)
+    {
+        this.runtime = runtime;
+
+        if (ReferenceEquals(this.currentSlugChanged, currentSlugChanged))
+            return;
+
+        this.currentSlugChanged?.RemoveListener(HandleCurrentSlugChanged);
+        this.currentSlugChanged = currentSlugChanged;
+        this.currentSlugChanged?.AddListener(HandleCurrentSlugChanged);
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"HelpSystem observer initialized: eventAvailable={currentSlugChanged != null}, " +
+            $"frame={Time.frameCount}.");
+#endif
+    }
+
+    private void HandleCurrentSlugChanged(string slug)
+    {
+        if (firstPageOpenHandled)
+            return;
+
+        firstPageOpenHandled = true;
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"HelpSystem first page opened: slug={slug}, frame={Time.frameCount}; " +
+            "scheduling post-initialization navigation patch.");
+#endif
+        runtime?.ScheduleNavigationPatch(
+            forceRefresh: true,
+            reason: $"help-first-page-opened:{slug}");
+    }
+
+    private void OnDestroy()
+    {
+        currentSlugChanged?.RemoveListener(HandleCurrentSlugChanged);
+        currentSlugChanged = null;
+        runtime = null;
+    }
+}
+
 internal static class GunStoreHelpNavigationPatch
 {
     private const BindingFlags InstanceFlags =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-    private static readonly IReadOnlyDictionary<string, string[]> NavigationPagesByCategory =
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
+    private static readonly IReadOnlyDictionary<string, NavigationPage[]> NavigationPagesByCategory =
+        new Dictionary<string, NavigationPage[]>(StringComparer.Ordinal)
         {
             ["common_business_types"] = new[]
             {
-                "businesstypes-gunstore"
+                new NavigationPage(
+                    "businesstypes-gunstore",
+                    "businesstypes-gunstore")
             },
             ["common_sellable_products"] = new[]
             {
-                "products-gunstore-businesstype:itemname_ak47",
-                "products-gunstore-businesstype:itemname_ammosmall",
-                "products-gunstore-businesstype:itemname_wincheatersxp",
-                "products-gunstore-businesstype:itemname_berettam9",
-                "products-gunstore-businesstype:itemname_ammolarge",
-                "products-gunstore-businesstype:itemname_rpg"
+                ProductPage("itemname_ak47"),
+                ProductPage("itemname_ammosmall"),
+                ProductPage("itemname_wincheatersxp"),
+                ProductPage("itemname_berettam9"),
+                ProductPage("itemname_ammolarge"),
+                ProductPage("itemname_rpg")
             },
             ["common_factory_ingredients"] = new[]
             {
-                "products-gunstore-businesstype:itemname_gunpartscheap",
-                "products-gunstore-businesstype:itemname_gunpartsexpensive"
+                ProductPage("itemname_gunpartscheap"),
+                ProductPage("itemname_gunpartsexpensive")
             }
         };
 
-    public static GunStoreHelpNavigationPatchResult TryApply(MonoBehaviour coroutineHost)
+    public static GunStoreHelpNavigationPatchResult TryApply(
+        MonoBehaviour coroutineHost,
+        bool forceRefresh = false)
     {
         var foundTargetCategory = false;
         var applied = false;
+        var helpSystemCount = 0;
+        var behaviours = Resources.FindObjectsOfTypeAll<MonoBehaviour>();
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"TryApply begin: force={forceRefresh}, behaviours={behaviours.Length}, " +
+            $"scene={SceneManager.GetActiveScene().name}, frame={Time.frameCount}.");
+#endif
 
-        foreach (var helpSystem in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+        foreach (var helpSystem in behaviours)
         {
             if (helpSystem == null || !helpSystem.gameObject.scene.IsValid())
                 continue;
@@ -149,9 +266,42 @@ internal static class GunStoreHelpNavigationPatch
                 continue;
             }
 
+            helpSystemCount++;
+#if GUN_STORE_HELP_UI_DEBUG
+            GunStoreHelpDebugLogger.Trace(
+                $"HelpSystem found: type={helpSystemType.AssemblyQualifiedName}, " +
+                $"scene={helpSystem.gameObject.scene.name}, activeSelf={helpSystem.gameObject.activeSelf}, " +
+                $"activeHierarchy={helpSystem.gameObject.activeInHierarchy}, enabled={helpSystem.enabled}.");
+#endif
+
+            if (coroutineHost is GunStoreHelpDebugRuntime runtime)
+            {
+                var currentSlugChanged = GetField(helpSystemType, "currentSlugChanged")
+                    ?.GetValue(helpSystem) as UnityEvent<string>;
+                var observer = helpSystem.GetComponent<GunStoreHelpInitializationObserver>() ??
+                               helpSystem.gameObject.AddComponent<GunStoreHelpInitializationObserver>();
+                observer.Initialize(runtime, currentSlugChanged);
+            }
+
             var categoriesField = GetField(helpSystemType, "_categories");
             if (categoriesField?.GetValue(helpSystem) is not IEnumerable categories)
+            {
+#if GUN_STORE_HELP_UI_DEBUG
+                GunStoreHelpDebugLogger.Trace(
+                    $"HelpSystem categories unavailable: fieldFound={categoriesField != null}, " +
+                    $"valueType={categoriesField?.GetValue(helpSystem)?.GetType().FullName ?? "<null>"}.");
+#endif
                 continue;
+            }
+
+#if GUN_STORE_HELP_UI_DEBUG
+            var categoryObjects = categories.Cast<object?>().Where(category => category != null).ToArray();
+            GunStoreHelpDebugLogger.Trace(
+                $"HelpSystem categories ready: count={categoryObjects.Length}, keys=[" +
+                string.Join(", ", categoryObjects.Select(category =>
+                    GetField(category!.GetType(), "CategoryLocalizorKey")?.GetValue(category) as string ?? "<null>")) +
+                "].");
+#endif
 
             var helpSystemChanged = false;
             foreach (var category in categories)
@@ -172,6 +322,11 @@ internal static class GunStoreHelpNavigationPatch
                     continue;
 
                 foundTargetCategory = true;
+#if GUN_STORE_HELP_UI_DEBUG
+                GunStoreHelpDebugLogger.Trace(
+                    $"Target category found: key={categoryKey}, currentPages={pages.Count}, " +
+                    $"desiredPages={desiredSlugs.Length}.");
+#endif
                 var pageType = GetListElementType(pages.GetType()) ??
                                pages.Cast<object?>().FirstOrDefault(page => page != null)?.GetType();
                 if (pageType == null)
@@ -182,23 +337,28 @@ internal static class GunStoreHelpNavigationPatch
                 if (slugField == null || pagePrefixField == null)
                     continue;
 
-                foreach (var desiredSlug in desiredSlugs)
+                foreach (var desiredPage in desiredSlugs)
                 {
                     var existingPage = pages.Cast<object?>()
                         .FirstOrDefault(page =>
                             page != null &&
                             string.Equals(
                                 GetField(page.GetType(), "Slug")?.GetValue(page) as string,
-                                desiredSlug,
+                                desiredPage.Slug,
                                 StringComparison.Ordinal));
                     if (existingPage != null)
                     {
                         var prefixField = GetField(existingPage.GetType(), "PageLocalizorKeyPrefix");
                         var currentPrefix = prefixField?.GetValue(existingPage) as string;
-                        if (!string.Equals(currentPrefix, desiredSlug, StringComparison.Ordinal))
+                        if (!string.Equals(currentPrefix, desiredPage.LocalizorKey, StringComparison.Ordinal))
                         {
-                            prefixField?.SetValue(existingPage, desiredSlug);
+                            prefixField?.SetValue(existingPage, desiredPage.LocalizorKey);
                             helpSystemChanged = true;
+#if GUN_STORE_HELP_UI_DEBUG
+                            GunStoreHelpDebugLogger.Trace(
+                                $"Updated page prefix: slug={desiredPage.Slug}, " +
+                                $"old={currentPrefix ?? "<null>"}, new={desiredPage.LocalizorKey}.");
+#endif
                         }
 
                         continue;
@@ -208,43 +368,99 @@ internal static class GunStoreHelpNavigationPatch
                     if (newPage == null)
                         continue;
 
-                    slugField.SetValue(newPage, desiredSlug);
-                    pagePrefixField.SetValue(newPage, desiredSlug);
+                    slugField.SetValue(newPage, desiredPage.Slug);
+                    pagePrefixField.SetValue(newPage, desiredPage.LocalizorKey);
                     pages.Add(newPage);
                     helpSystemChanged = true;
+#if GUN_STORE_HELP_UI_DEBUG
+                    GunStoreHelpDebugLogger.Trace(
+                        $"Added page definition: category={categoryKey}, slug={desiredPage.Slug}, " +
+                        $"prefix={desiredPage.LocalizorKey}, newPageCount={pages.Count}.");
+#endif
                 }
             }
 
-            if (helpSystemChanged)
+            if (helpSystemChanged || (forceRefresh && foundTargetCategory))
             {
-                RefreshGeneratedNavigation(helpSystem, helpSystemType, coroutineHost);
-                applied = true;
+#if GUN_STORE_HELP_UI_DEBUG
+                GunStoreHelpDebugLogger.Trace(
+                    $"Navigation refresh requested: changed={helpSystemChanged}, force={forceRefresh}, " +
+                    $"foundTargetCategory={foundTargetCategory}.");
+#endif
+                var navigationRefreshed = RefreshGeneratedNavigation(
+                    helpSystem,
+                    helpSystemType,
+                    coroutineHost);
+                applied |= helpSystemChanged || navigationRefreshed;
             }
         }
 
         if (applied)
+        {
+#if GUN_STORE_HELP_UI_DEBUG
+            GunStoreHelpDebugLogger.Trace(
+                $"TryApply end: Applied; helpSystems={helpSystemCount}, " +
+                $"foundTargetCategory={foundTargetCategory}.");
+#endif
             return GunStoreHelpNavigationPatchResult.Applied;
+        }
 
-        return foundTargetCategory
+        var result = foundTargetCategory
             ? GunStoreHelpNavigationPatchResult.AlreadyPresent
             : GunStoreHelpNavigationPatchResult.HelpSystemNotReady;
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"TryApply end: {result}; helpSystems={helpSystemCount}, " +
+            $"foundTargetCategory={foundTargetCategory}.");
+#endif
+        return result;
     }
 
-    private static void RefreshGeneratedNavigation(
+    private static bool RefreshGeneratedNavigation(
         MonoBehaviour helpSystem,
         Type helpSystemType,
         MonoBehaviour coroutineHost)
     {
         var generatedField = GetField(helpSystemType, "_generatedHelpCategories");
         if (generatedField?.GetValue(helpSystem) is not IList generated || generated.Count == 0)
-            return;
+        {
+#if GUN_STORE_HELP_UI_DEBUG
+            GunStoreHelpDebugLogger.Trace(
+                $"Generated navigation not ready: fieldFound={generatedField != null}, " +
+                $"count={(generatedField?.GetValue(helpSystem) as IList)?.Count ?? -1}.");
+#endif
+            return false;
+        }
 
         var loadCategories = helpSystemType.GetMethods(InstanceFlags)
             .FirstOrDefault(method =>
                 string.Equals(method.Name, "LoadCategories", StringComparison.Ordinal) &&
                 method.GetParameters().Length == 0);
         if (loadCategories == null)
-            return;
+        {
+#if GUN_STORE_HELP_UI_DEBUG
+            GunStoreHelpDebugLogger.Trace("LoadCategories() method was not found.");
+#endif
+            return false;
+        }
+
+        var openCategoryIndexes = generated.Cast<object?>()
+            .Select((category, index) => new
+            {
+                Index = index,
+                IsOpen = category != null &&
+                         GetField(category.GetType(), "_isOpen")?.GetValue(category) is true
+            })
+            .Where(category => category.IsOpen)
+            .Select(category => category.Index)
+            .ToArray();
+
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"Rebuilding generated navigation: oldCategoryCount={generated.Count}, " +
+            $"openCategoryIndexes=[{string.Join(",", openCategoryIndexes)}], " +
+            $"method={loadCategories.DeclaringType?.FullName}.{loadCategories.Name}.");
+#endif
 
         foreach (var generatedEntry in generated.Cast<object?>().ToArray())
         {
@@ -256,9 +472,56 @@ internal static class GunStoreHelpNavigationPatch
 
         generated.Clear();
 
+        // Object.Destroy is deferred until the end of the frame. Let the old native
+        // category objects disappear before LoadCategories creates their replacements.
+        coroutineHost.StartCoroutine(ReloadGeneratedNavigationNextFrame(
+            helpSystem,
+            loadCategories,
+            openCategoryIndexes));
+
+        return true;
+    }
+
+    private static IEnumerator ReloadGeneratedNavigationNextFrame(
+        MonoBehaviour helpSystem,
+        MethodInfo loadCategories,
+        IReadOnlyCollection<int> openCategoryIndexes)
+    {
+        yield return null;
+
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"Invoking native LoadCategories after deferred destruction; frame={Time.frameCount}.");
+#endif
+
         var returnValue = loadCategories.Invoke(helpSystem, null);
         if (returnValue is IEnumerator enumerator)
-            coroutineHost.StartCoroutine(enumerator);
+            yield return enumerator;
+
+        var generatedField = GetField(helpSystem.GetType(), "_generatedHelpCategories");
+        if (generatedField?.GetValue(helpSystem) is not IList regeneratedCategories)
+            yield break;
+
+        foreach (var index in openCategoryIndexes)
+        {
+            if (index < 0 || index >= regeneratedCategories.Count)
+                continue;
+
+            var category = regeneratedCategories[index];
+            var setOpenState = category?.GetType().GetMethod(
+                "SetOpenState",
+                InstanceFlags,
+                null,
+                new[] { typeof(bool) },
+                null);
+            setOpenState?.Invoke(category, new object[] { true });
+        }
+
+#if GUN_STORE_HELP_UI_DEBUG
+        GunStoreHelpDebugLogger.Trace(
+            $"Native navigation rebuilt: categoryCount={regeneratedCategories.Count}, " +
+            $"restoredOpenCategoryCount={openCategoryIndexes.Count}.");
+#endif
     }
 
     private static Type? GetListElementType(Type listType)
@@ -282,6 +545,26 @@ internal static class GunStoreHelpNavigationPatch
         }
 
         return null;
+    }
+
+    private static NavigationPage ProductPage(string itemLocalizorKey)
+    {
+        var slug = $"products-gunstore-businesstype:{itemLocalizorKey}";
+        return new NavigationPage(
+            slug,
+            slug);
+    }
+
+    private readonly struct NavigationPage
+    {
+        public NavigationPage(string slug, string localizorKey)
+        {
+            Slug = slug;
+            LocalizorKey = localizorKey;
+        }
+
+        public string Slug { get; }
+        public string LocalizorKey { get; }
     }
 }
 
@@ -308,6 +591,11 @@ internal static class GunStoreHelpDebugLogger
             throw new ArgumentNullException(nameof(snapshot));
 
         Append(snapshot.ToString());
+    }
+
+    public static void Trace(string message)
+    {
+        Append($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] TRACE {message}");
     }
 
     public static void Error(string message, Exception exception)
@@ -433,6 +721,13 @@ internal static class GunStoreHelpDebugSnapshotWriter
 
         foreach (var component in helpComponents)
             AddUiRoot(roots, component.transform);
+
+        if (roots.Count > 0)
+        {
+            return roots.Values
+                .OrderBy(GetHierarchyPath, StringComparer.Ordinal)
+                .ToList();
+        }
 
         foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
         {
@@ -561,6 +856,13 @@ internal static class GunStoreHelpDebugSnapshotWriter
         {
             builder.AppendLine(
                 $"{label}: unityObject type={type.FullName} name={unityObject.name} id={unityObject.GetInstanceID()}");
+            if (depth < MaximumObjectDepth &&
+                unityObject is Component &&
+                type.Name.IndexOf("HelpCategory", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                AppendObjectMembers(builder, value, depth + 1, visited);
+            }
+
             return;
         }
 
