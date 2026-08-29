@@ -30,7 +30,8 @@ namespace MyBelovedUMCDesert
         internal const string ShowcaseItemName = "ba:itemname_umcdesertshowcase";
         internal const string GeneralUSTrucksContactId = "General US Trucks";
         internal const int RestoredMaxSpeed = 80;
-        internal const float RestoredPrice = 40500f;
+        internal const float RestoredPrice = 33500f;
+        internal const int RestoredCargoCapacity = 18;
         internal const float RestoredEnginePower = 150f;
         internal const float RestoredBrakeForce = 6000f;
 
@@ -1504,6 +1505,12 @@ namespace MyBelovedUMCDesert
                 changed = true;
             }
 
+            if (vehicleType.maxCargoCapacity != MyBelovedUMCDesertMod.RestoredCargoCapacity)
+            {
+                vehicleType.maxCargoCapacity = MyBelovedUMCDesertMod.RestoredCargoCapacity;
+                changed = true;
+            }
+
             if ((changed || !hasLoggedStats) && context != null)
             {
                 hasLoggedStats = true;
@@ -1512,7 +1519,8 @@ namespace MyBelovedUMCDesert
                     $"maxSpeed={vehicleType.maxSpeed}, " +
                     $"enginePower={vehicleType.enginePower}, " +
                     $"brakeForce={vehicleType.brakeForce}, " +
-                    $"price={vehicleType.price}.");
+                    $"price={vehicleType.price}, " +
+                    $"maxCargoCapacity={vehicleType.maxCargoCapacity}.");
             }
         }
     }
