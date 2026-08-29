@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
@@ -18,13 +17,11 @@ namespace BigHax
     /// </summary>
     internal sealed class BigHaxBaUnifiedOptionsUi
     {
-        private const string MinimumLibraryVersion = "1.0.0";
+        private const string MinimumLibraryVersion = "1.1.0";
         private const string RootName = "BigHax_BAUnifiedUI_Options";
-        private const float PanelWidth = 740f;
-        private const float PanelHeight = 720f;
-        private const float HeaderScale = PanelWidth / 370f;
-        private const float RowHeight = 48f;
-        private const float RowGap = 6f;
+        private const float PanelWidth = 920f;
+        private const float PanelHeight = 760f;
+        private const float HeaderScale = 1f;
 
         private readonly BaUiReflection api;
         private readonly Action close;
@@ -126,7 +123,7 @@ namespace BigHax
             if (context == null || settings == null)
                 throw new InvalidOperationException("Big Hax UI context is not initialized.");
 
-            BigHaxUiDebugLogger.Log($"Building BAUnifiedUI {api.LibraryVersion} screen from {api.AssemblyName}.");
+            BigHaxUiDebugLogger.Log($"Building BAUnifiedUI {api.LibraryVersion} screen with native Options prefabs from {api.AssemblyName}.");
             api.EnsureEventSystem();
 
             root = new GameObject(RootName, typeof(RectTransform));
@@ -147,7 +144,7 @@ namespace BigHax
             viewport.offsetMin = new Vector2(28f, 64f);
             viewport.offsetMax = new Vector2(-44f, -56f);
             var viewportImage = viewportObject.GetComponent<Image>();
-            viewportImage.color = api.ListInsetColor;
+            viewportImage.color = Color.clear;
             viewportImage.raycastTarget = true;
 
             var contentObject = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
@@ -159,8 +156,8 @@ namespace BigHax
             content.anchoredPosition = Vector2.zero;
             content.sizeDelta = Vector2.zero;
             var layout = contentObject.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(10, 10, 10, 10);
-            layout.spacing = RowGap;
+            layout.padding = new RectOffset(8, 8, 12, 12);
+            layout.spacing = 0f;
             layout.childControlWidth = true;
             layout.childForceExpandWidth = true;
             layout.childControlHeight = true;
@@ -233,175 +230,20 @@ namespace BigHax
 
         private void AddToggle(string label, Func<bool> read, Action<bool> write)
         {
-            var row = CreateRow("ToggleRow");
-            var labelText = api.CreateBodyText(row.transform, label, muted: false, "Label");
-            SetRect(labelText.Rect, new Vector2(0f, 0f), new Vector2(0.82f, 1f), new Vector2(16f, 3f), new Vector2(-8f, -3f));
-
-            var toggleObject = new GameObject("Toggle", typeof(RectTransform), typeof(Toggle));
-            toggleObject.transform.SetParent(row.transform, false);
-            var toggleRect = toggleObject.GetComponent<RectTransform>();
-            toggleRect.anchorMin = toggleRect.anchorMax = new Vector2(1f, 0.5f);
-            toggleRect.pivot = new Vector2(1f, 0.5f);
-            toggleRect.anchoredPosition = new Vector2(-18f, 0f);
-            toggleRect.sizeDelta = new Vector2(64f, 30f);
-
-            var trackObject = new GameObject("Track", typeof(RectTransform), typeof(Image));
-            trackObject.transform.SetParent(toggleRect, false);
-            var trackRect = trackObject.GetComponent<RectTransform>();
-            Stretch(trackRect);
-            var track = trackObject.GetComponent<Image>();
-            track.raycastTarget = true;
-
-            var knobObject = new GameObject("Knob", typeof(RectTransform), typeof(Image));
-            knobObject.transform.SetParent(trackRect, false);
-            var knobRect = knobObject.GetComponent<RectTransform>();
-            knobRect.anchorMin = knobRect.anchorMax = new Vector2(0.5f, 0.5f);
-            knobRect.sizeDelta = new Vector2(24f, 24f);
-            var knob = knobObject.GetComponent<Image>();
-            knob.color = Color.white;
-            knob.raycastTarget = false;
-
-            void UpdateAppearance(bool value)
+            api.CreateNativeToggle(content!, label, read(), new UnityAction<bool>(value =>
             {
-                track.color = value ? api.AccentGreenColor : new Color(api.MutedTextColor.r, api.MutedTextColor.g, api.MutedTextColor.b, 0.42f);
-                knobRect.anchoredPosition = new Vector2(value ? 16f : -16f, 0f);
-            }
-
-            var toggle = toggleObject.GetComponent<Toggle>();
-            toggle.targetGraphic = track;
-            toggle.graphic = null;
-            toggle.isOn = read();
-            UpdateAppearance(toggle.isOn);
-            toggle.onValueChanged.AddListener(value =>
-            {
-                UpdateAppearance(value);
                 write(value);
                 BigHaxRuntime.RequestImmediateApply();
-            });
+            }), "BigHaxToggle");
         }
 
         private void AddSlider(string label, Func<int> read, int min, int max, Action<int> write, Func<int, string> format)
         {
-            var row = CreateRow("SliderRow");
-            var labelText = api.CreateBodyText(row.transform, label, muted: false, "Label");
-            SetRect(labelText.Rect, Vector2.zero, new Vector2(0.56f, 1f), new Vector2(16f, 3f), new Vector2(-6f, -3f));
-            var valueText = api.CreateBodyText(row.transform, format(read()), muted: false, "Value");
-            var valueRect = valueText.Rect;
-            SetRect(valueRect, new Vector2(0.56f, 0f), new Vector2(0.67f, 1f), new Vector2(2f, 3f), new Vector2(-4f, -3f));
-
-            var sliderObject = new GameObject("Slider", typeof(RectTransform), typeof(Image), typeof(Slider), typeof(EventTrigger));
-            sliderObject.transform.SetParent(row.transform, false);
-            var sliderRect = sliderObject.GetComponent<RectTransform>();
-            SetRect(sliderRect, new Vector2(0.68f, 0.5f), new Vector2(0.97f, 0.5f), Vector2.zero, Vector2.zero);
-            sliderRect.sizeDelta = new Vector2(0f, 28f);
-            var inputSurface = sliderObject.GetComponent<Image>();
-            inputSurface.color = Color.clear;
-            inputSurface.raycastTarget = true;
-
-            var trackObject = new GameObject("Track", typeof(RectTransform), typeof(Image));
-            trackObject.transform.SetParent(sliderRect, false);
-            var trackRect = trackObject.GetComponent<RectTransform>();
-            trackRect.anchorMin = new Vector2(0f, 0.42f);
-            trackRect.anchorMax = new Vector2(1f, 0.58f);
-            trackRect.offsetMin = trackRect.offsetMax = Vector2.zero;
-            var track = trackObject.GetComponent<Image>();
-            track.color = api.ListInsetColor;
-            track.raycastTarget = false;
-
-            var fillObject = new GameObject("Fill", typeof(RectTransform), typeof(Image));
-            fillObject.transform.SetParent(trackRect, false);
-            var fillRect = fillObject.GetComponent<RectTransform>();
-            Stretch(fillRect);
-            var fill = fillObject.GetComponent<Image>();
-            fill.color = api.AccentGreenColor;
-            fill.raycastTarget = false;
-
-            // Slider rewrites both axes of its assigned handleRect. Give it a tiny
-            // invisible drag target and keep the visible square as its child: this
-            // preserves Unity's native pointer/drag path without stretching the art.
-            var dragHandleObject = new GameObject("Drag Handle", typeof(RectTransform));
-            dragHandleObject.transform.SetParent(sliderRect, false);
-            var dragHandleRect = dragHandleObject.GetComponent<RectTransform>();
-            dragHandleRect.anchorMin = dragHandleRect.anchorMax = new Vector2(0.5f, 0.5f);
-            dragHandleRect.sizeDelta = new Vector2(2f, 2f);
-            var handleObject = new GameObject("Handle", typeof(RectTransform), typeof(Image));
-            handleObject.transform.SetParent(dragHandleRect, false);
-            var handleRect = handleObject.GetComponent<RectTransform>();
-            handleRect.anchorMin = handleRect.anchorMax = new Vector2(0.5f, 0.5f);
-            handleRect.pivot = new Vector2(0.5f, 0.5f);
-            handleRect.sizeDelta = new Vector2(24f, 24f);
-            var handle = handleObject.GetComponent<Image>();
-            handle.color = api.ButtonGreenColor;
-
-            var slider = sliderObject.GetComponent<Slider>();
-            slider.minValue = min;
-            slider.maxValue = max;
-            slider.wholeNumbers = true;
-            // Unity's automatic fillRect math reserves handle width and produces a
-            // vertical block at minimum values. Keep the real handle behavior, but
-            // drive the thin track fill explicitly for a stable vanilla appearance.
-            slider.fillRect = null;
-            slider.handleRect = dragHandleRect;
-            slider.targetGraphic = handle;
-            slider.direction = Slider.Direction.LeftToRight;
-            slider.value = read();
-            void UpdateAppearance(float raw)
+            api.CreateNativeSlider(content!, label, min, max, read(), format, new UnityAction<int>(value =>
             {
-                fillRect.anchorMin = Vector2.zero;
-                fillRect.anchorMax = new Vector2(Mathf.InverseLerp(min, max, raw), 1f);
-                fillRect.offsetMin = fillRect.offsetMax = Vector2.zero;
-            }
-            UpdateAppearance(slider.value);
-            slider.onValueChanged.AddListener(raw =>
-            {
-                var value = Mathf.RoundToInt(raw);
-                UpdateAppearance(raw);
-                valueText.Text = format(value);
                 write(value);
                 BigHaxRuntime.RequestImmediateApply();
-            });
-
-            void ApplyPointer(BaseEventData rawEventData)
-            {
-                var eventData = rawEventData as PointerEventData;
-                if (eventData == null || !slider.interactable)
-                    return;
-                if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                        sliderRect, eventData.position, eventData.pressEventCamera, out var localPoint))
-                    return;
-
-                var normalized = Mathf.InverseLerp(sliderRect.rect.xMin, sliderRect.rect.xMax, localPoint.x);
-                slider.value = Mathf.Lerp(slider.minValue, slider.maxValue, normalized);
-            }
-
-            var trigger = sliderObject.GetComponent<EventTrigger>();
-            trigger.triggers = new List<EventTrigger.Entry>();
-            foreach (var eventType in new[]
-            {
-                EventTriggerType.PointerDown,
-                EventTriggerType.BeginDrag,
-                EventTriggerType.Drag,
-                EventTriggerType.EndDrag
-            })
-            {
-                var entry = new EventTrigger.Entry { eventID = eventType };
-                entry.callback.AddListener(ApplyPointer);
-                trigger.triggers.Add(entry);
-            }
-        }
-
-        private GameObject CreateRow(string name)
-        {
-            var row = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            row.transform.SetParent(content!, false);
-            var image = row.GetComponent<Image>();
-            image.color = new Color(1f, 1f, 1f, 0.035f);
-            image.raycastTarget = false;
-            var element = row.GetComponent<LayoutElement>();
-            element.minHeight = RowHeight;
-            element.preferredHeight = RowHeight;
-            element.flexibleHeight = 0f;
-            return row;
+            }), "BigHaxSlider");
         }
 
         private Scrollbar CreateScrollbar(RectTransform panel)
@@ -501,11 +343,19 @@ namespace BigHax
             private readonly MethodInfo createHeaderTitle;
             private readonly MethodInfo createHeaderCloseButton;
             private readonly MethodInfo createVanillaButton;
+            private readonly MethodInfo createNativeToggle;
+            private readonly MethodInfo createNativeSlider;
             private readonly MethodInfo applyBodyStyle;
             private readonly MethodInfo applyUiLayer;
             private readonly MethodInfo? attachDraggableWindow;
 
-            private BaUiReflection(Assembly assembly, string libraryVersion, Type bootstrap, Type chrome, Type widgets)
+            private BaUiReflection(
+                Assembly assembly,
+                string libraryVersion,
+                Type bootstrap,
+                Type chrome,
+                Type widgets,
+                Type vanillaSettings)
             {
                 AssemblyName = assembly.GetName().Name ?? "LIB_BaUnifiedUI";
                 LibraryVersion = libraryVersion;
@@ -517,26 +367,22 @@ namespace BigHax
                 createHeaderTitle = RequireMethod(widgets, "CreateHeaderTitleLeft", 5);
                 createHeaderCloseButton = RequireMethod(chrome, "CreateHeaderCloseButton", 2);
                 createVanillaButton = RequireMethod(chrome, "CreateVanillaButton", 10);
+                createNativeToggle = RequireMethod(vanillaSettings, "CreateToggle", 5);
+                createNativeSlider = RequireMethod(vanillaSettings, "CreateSlider", 8);
                 applyBodyStyle = RequireMethod(chrome, "ApplyBodyStyle", 3);
                 textType = applyBodyStyle.GetParameters()[0].ParameterType;
                 applyUiLayer = RequireMethod(chrome, "ApplyUiLayer", 1);
                 attachDraggableWindow = chrome.GetMethods(PublicStatic)
                     .FirstOrDefault(method => method.Name == "AttachDraggableWindow" && method.GetParameters().Length == 3);
 
-                BodyTextColor = ReadColor(chrome, "BodyTextColor", Color.white);
                 MutedTextColor = ReadColor(chrome, "MutedTextColor", new Color(0.72f, 0.76f, 0.8f, 1f));
-                AccentGreenColor = ReadColor(chrome, "AccentGreenColor", new Color(0.35f, 0.95f, 0.45f, 1f));
                 ListInsetColor = ReadColor(chrome, "ListInsetColor", new Color(0f, 0f, 0f, 0.22f));
-                ButtonGreenColor = ReadColor(chrome, "ButtonGreenFallback", new Color(0.28f, 0.72f, 0.38f, 1f));
             }
 
             public string AssemblyName { get; }
             public string LibraryVersion { get; }
-            public Color BodyTextColor { get; }
             public Color MutedTextColor { get; }
-            public Color AccentGreenColor { get; }
             public Color ListInsetColor { get; }
-            public Color ButtonGreenColor { get; }
 
             public static bool TryResolve(string minimumVersion, out BaUiReflection? api, out string reason)
             {
@@ -569,7 +415,8 @@ namespace BigHax
                         libraryVersion,
                         RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Core.BaUiBootstrap"),
                         RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Chrome.BaUiWidePanelChrome"),
-                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Controls.BaUiWidgets"));
+                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Controls.BaUiWidgets"),
+                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Controls.BaUiVanillaSettings"));
                     reason = string.Empty;
                     return true;
                 }
@@ -611,6 +458,26 @@ namespace BigHax
                     new object?[] { parent, label, width, height, 1f, onClick, styleValue, fontSize, true, null }) as Button
                     ?? throw new InvalidOperationException("BAUnifiedUI did not create a button.");
             }
+
+            public void CreateNativeToggle(
+                Transform parent,
+                string label,
+                bool value,
+                UnityAction<bool> onValueChanged,
+                string name) =>
+                Invoke(createNativeToggle, null, new object?[] { parent, label, value, onValueChanged, name });
+
+            public void CreateNativeSlider(
+                Transform parent,
+                string label,
+                int min,
+                int max,
+                int value,
+                Func<int, string> format,
+                UnityAction<int> onValueChanged,
+                string name) =>
+                Invoke(createNativeSlider, null,
+                    new object?[] { parent, label, min, max, value, format, onValueChanged, name });
 
             public BaUiText CreateBodyText(Transform parent, string text, bool muted, string name)
             {
