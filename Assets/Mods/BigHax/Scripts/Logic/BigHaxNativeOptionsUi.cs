@@ -11,6 +11,7 @@ namespace BigHax
     {
         private const float RowHeight = 50f;
         private const float ContentHeight = 900f;
+        private GameObject? root;
         private GameObject? panel;
         private Transform? content;
         private ModContext? context;
@@ -28,7 +29,17 @@ namespace BigHax
             {
                 context = modContext;
                 settings = currentSettings;
-                if (panel == null) Build();
+                if (panel == null)
+                {
+                    Build();
+                    panel!.SetActive(visible);
+                    if (visible)
+                    {
+                        Canvas.ForceUpdateCanvases();
+                        LayoutRebuilder.ForceRebuildLayoutImmediate(content!.GetComponent<RectTransform>());
+                    }
+                    return;
+                }
                 SetVisible(visible);
             }
             catch (System.Exception exception)
@@ -43,9 +54,7 @@ namespace BigHax
             {
                 // The game can change language while this panel is hidden. Rebuild
                 // on each opening so every label comes from the active locale.
-                Object.Destroy(panel.transform.parent.gameObject);
-                panel = null;
-                content = null;
+                DestroyVisuals();
                 Build();
             }
 
@@ -60,14 +69,21 @@ namespace BigHax
         }
         public void ConsumeGameplayInputIfNeeded(bool visible) { if (visible) Input.ResetInputAxes(); }
 
+        public void Destroy()
+        {
+            DestroyVisuals();
+            context = null;
+            settings = null;
+        }
+
         private void Build()
         {
             BigHaxUiDebugLogger.Log("Build started.");
-            var canvasObject = new GameObject("BigHaxOptionsCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            Object.DontDestroyOnLoad(canvasObject);
-            var canvas = canvasObject.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = short.MaxValue - 8;
-            var scaler = canvasObject.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920, 1080);
-            panel = Create("BigHaxOptions", canvasObject.transform, Color.white);
+            root = new GameObject("BigHaxOptionsCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            Object.DontDestroyOnLoad(root);
+            var canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = short.MaxValue - 8;
+            var scaler = root.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920, 1080);
+            panel = Create("BigHaxOptions", root.transform, Color.white);
             var panelRect = panel.GetComponent<RectTransform>(); panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f); panelRect.pivot = new Vector2(.5f, .5f); panelRect.sizeDelta = new Vector2(820, 660);
             panel.AddComponent<RectMask2D>();
             var scroll = panel.AddComponent<ScrollRect>(); scroll.horizontal = false; scroll.viewport = panelRect;
@@ -102,6 +118,15 @@ namespace BigHax
             contentRect.anchoredPosition = Vector2.zero;
             BigHaxUiDebugLogger.Log($"Build completed children={content.childCount}; panel={panelRect.rect}; content={contentRect.rect}; contentPosition={contentRect.anchoredPosition}.");
             panel.SetActive(false);
+        }
+
+        private void DestroyVisuals()
+        {
+            if (root != null)
+                Object.Destroy(root);
+            root = null;
+            panel = null;
+            content = null;
         }
 
         private void Toggle(string name, System.Func<bool> read, System.Action<bool> write)

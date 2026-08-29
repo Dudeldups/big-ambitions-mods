@@ -120,6 +120,7 @@ namespace BigHax
             employeeDemandService.Unsubscribe();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
             vehicleCapacityService.RestoreOriginalCapacities();
+            overlayUi.Shutdown();
             if (instance == this)
                 instance = null;
 
