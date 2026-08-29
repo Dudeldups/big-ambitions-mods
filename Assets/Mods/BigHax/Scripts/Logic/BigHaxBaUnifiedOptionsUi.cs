@@ -281,7 +281,7 @@ namespace BigHax
             var rect = button.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
             rect.pivot = new Vector2(1f, 0f);
-            rect.anchoredPosition = new Vector2(-30f, 14f);
+            rect.anchoredPosition = new Vector2(-48f, 14f);
             rect.sizeDelta = new Vector2(160f, 36f);
         }
 
