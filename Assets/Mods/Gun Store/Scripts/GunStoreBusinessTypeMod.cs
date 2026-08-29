@@ -174,6 +174,59 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     private readonly List<ScriptableObject> injectedAiBusinessDefaults = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
+
+    internal static void RepairEmptyProductCachesAfterGameLoaded(ModContext? context)
+    {
+        var registrations = SaveGameManager.Current?.BuildingRegistrations;
+        if (registrations == null)
+            return;
+
+        var changed = false;
+        foreach (var registration in registrations)
+        {
+            if (registration == null || !registration.RentedByPlayer ||
+                !string.Equals(registration.businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal) ||
+                registration.cachedAvailableProducts?.Count > 0 ||
+                !HasLoadedGunStoreStock(registration))
+            {
+                continue;
+            }
+
+            registration.cachedAvailableProducts ??= new List<string>();
+
+            try
+            {
+                BusinessHelper.UpdateCachedAvailableProducts(registration);
+                changed |= registration.cachedAvailableProducts.Count > 0;
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+            }
+        }
+
+        if (changed)
+            SaveGameManager.MarkChange();
+    }
+
+    private static bool HasLoadedGunStoreStock(BuildingRegistration registration)
+    {
+        if (registration.itemInstances == null)
+            return false;
+
+        foreach (var itemInstance in registration.itemInstances.Values)
+        {
+            if (itemInstance?.ItemCached == null)
+                continue;
+
+            var stock = ItemHelper.GetStockInstance(itemInstance);
+            if (stock != null && GunStoreShelfItemNames.Contains(stock.itemName))
+                return true;
+        }
+
+        return false;
+    }
+
     public async Task OnLoadAsync(ModContext context)
     {
         for (var i = 0; i < 6; i++)
@@ -480,6 +533,8 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         if (helperType == null)
             return;
 
+        EnsureCompetitionDefaultsCacheInitialized(helperType);
+
         EnsureInjectedAiBusinessDefaults();
         if (injectedAiBusinessDefaults.Count == 0)
             return;
@@ -487,6 +542,22 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
         PatchBusinessDefaultsCached(helperType.GetField("BusinessDefaultsCached", bindingFlags));
         PatchBusinessDefaultsByType(helperType.GetField("BusinessDefaultsByType", bindingFlags));
+    }
+
+    private static void EnsureCompetitionDefaultsCacheInitialized(Type helperType)
+    {
+        const BindingFlags bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        if (helperType.GetField("BusinessDefaultsCached", bindingFlags)?.GetValue(null) != null)
+            return;
+
+        try
+        {
+            helperType.GetMethod("FillBusinessDefaultsCacheIfNeeded", bindingFlags)?.Invoke(null, null);
+        }
+        catch
+        {
+            // The city-load retries below will patch the cache once the native data is ready.
+        }
     }
 
     private void EnsureInjectedAiBusinessDefaults()
@@ -520,10 +591,11 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             if (importPartnership == null)
                 continue;
 
-            if (!IsBlueStoneImportPartnership(importPartnership))
-                continue;
+            if (IsBlueStoneImportPartnership(importPartnership))
+                RemoveImportProduct(importPartnership, RpgItemName);
 
-            RemoveImportProduct(importPartnership, RpgItemName);
+            if (IsMaritimeImportPartnership(importPartnership))
+                importPartnership.AddMissingImportProducts();
         }
     }
 
@@ -531,6 +603,12 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     {
         var addressValue = GetMemberValue(importPartnership, "importAddress") ?? GetMemberValue(importPartnership, "ImportAddress");
         return addressValue is Address address && address.Equals(BlueStoneImporterAddress);
+    }
+
+    private static bool IsMaritimeImportPartnership(object importPartnership)
+    {
+        var addressValue = GetMemberValue(importPartnership, "importAddress") ?? GetMemberValue(importPartnership, "ImportAddress");
+        return addressValue is Address address && address.Equals(MaritimeImporterAddress);
     }
 
     private static void RemoveImportProduct(object importPartnership, string itemName)

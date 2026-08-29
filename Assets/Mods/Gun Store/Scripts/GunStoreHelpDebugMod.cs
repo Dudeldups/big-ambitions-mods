@@ -125,6 +125,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void HandleGameLoadedLate()
     {
+        GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
         ScheduleNavigationPatch(forceRefresh: true, reason: "game-loaded-late");
     }
 

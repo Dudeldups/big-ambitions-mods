@@ -232,8 +232,10 @@ namespace BAModTemplate.Editor
             }
 
             var assignedCount = EnsureModAssetsAssignedToBundle(mod, bundleName);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
             if (assignedCount > 0)
-                job.Log.Add($"[info] Assigned {assignedCount} mod asset(s) to bundle '{bundleName}'.");
+                job.Log.Add($"[info] Updated {assignedCount} AssetBundle assignment(s) for '{bundleName}'.");
 
             var assetPaths = AssetDatabase.GetAssetPathsFromAssetBundle(bundleName);
             if (assetPaths == null || assetPaths.Length == 0)
@@ -289,6 +291,16 @@ namespace BAModTemplate.Editor
                     FailJob(job, $"AssetBundle output not found: {producedPath}");
                     return;
                 }
+
+                // A UnityFS header without an asset payload is currently 80 bytes. Loading
+                // such a file can crash Unity natively instead of returning a managed error.
+                // Never copy or install an obviously empty bundle.
+                if (new FileInfo(producedPath).Length < 256)
+                {
+                    FailJob(job, $"AssetBundle output is empty or invalid ({new FileInfo(producedPath).Length} bytes): {producedPath}");
+                    return;
+                }
+
                 producedFiles[platformFolder] = producedPath;
             }
 
@@ -306,12 +318,29 @@ namespace BAModTemplate.Editor
         {
             var (baseName, variant) = SplitBundleName(fullBundleName);
             var changedCount = 0;
+            var bundleableAssets = new HashSet<string>(FindBundleableModAssets(mod), StringComparer.OrdinalIgnoreCase);
 
-            foreach (var assetPath in FindBundleableModAssets(mod))
+            foreach (var assetPath in FindAllModFileAssets(mod))
             {
                 var importer = AssetImporter.GetAtPath(assetPath);
                 if (importer == null)
                     continue;
+
+                if (!bundleableAssets.Contains(assetPath))
+                {
+                    // Clear stale assignments left by older builder versions. In particular,
+                    // generated files under AssetBundles/ must never become inputs to the next
+                    // build of that same bundle.
+                    if (string.Equals(importer.assetBundleName, baseName, StringComparison.Ordinal)
+                        && string.Equals(importer.assetBundleVariant, variant, StringComparison.Ordinal))
+                    {
+                        importer.SetAssetBundleNameAndVariant(string.Empty, string.Empty);
+                        importer.SaveAndReimport();
+                        changedCount++;
+                    }
+
+                    continue;
+                }
 
                 if (string.Equals(importer.assetBundleName, baseName, StringComparison.Ordinal)
                     && string.Equals(importer.assetBundleVariant, variant, StringComparison.Ordinal))
@@ -323,6 +352,18 @@ namespace BAModTemplate.Editor
             }
 
             return changedCount;
+        }
+
+        private static IEnumerable<string> FindAllModFileAssets(DiscoveredMod mod)
+        {
+            foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { mod.ModFolderAssetPath }))
+            {
+                var assetPath = NormaliseAssetPath(AssetDatabase.GUIDToAssetPath(guid));
+                if (string.IsNullOrEmpty(assetPath) || AssetDatabase.IsValidFolder(assetPath))
+                    continue;
+
+                yield return assetPath;
+            }
         }
 
         private static IEnumerable<string> FindBundleableModAssets(DiscoveredMod mod)
@@ -350,13 +391,20 @@ namespace BAModTemplate.Editor
                     || string.Equals(assetPath, enumsPath, StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                if (assetPath.StartsWith(mod.ModFolderAssetPath + "/AssetBundles/", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 if (excludedPrefixes.Any(prefix => assetPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
                     continue;
 
                 var extension = Path.GetExtension(assetPath);
                 if (extension.Equals(".cs", StringComparison.OrdinalIgnoreCase)
                     || extension.Equals(".asmdef", StringComparison.OrdinalIgnoreCase)
-                    || extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+                    || extension.Equals(".dll", StringComparison.OrdinalIgnoreCase)
+                    || extension.Equals(".meta", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (string.Equals(Path.GetFileName(assetPath), "thumbnail.png", StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 yield return assetPath;
@@ -429,6 +477,7 @@ namespace BAModTemplate.Editor
             CopyDependencies(mod, outputDir);
             CopyLocales(mod, outputDir);
             CopyEnums(mod, outputDir);
+            CopyThumbnail(mod, outputDir);
 
             job.CompletedUtc = DateTime.UtcNow;
 
@@ -503,6 +552,15 @@ namespace BAModTemplate.Editor
             if (!File.Exists(enumsAbsolute)) return;
 
             File.Copy(enumsAbsolute, Path.Combine(outputDir, "enums.txt"), overwrite: true);
+        }
+
+        private static void CopyThumbnail(DiscoveredMod mod, string outputDir)
+        {
+            var projectRoot = Path.GetDirectoryName(Application.dataPath) ?? string.Empty;
+            var thumbnailAbsolute = Path.Combine(projectRoot, mod.ModFolderAssetPath, "thumbnail.png");
+            if (!File.Exists(thumbnailAbsolute)) return;
+
+            File.Copy(thumbnailAbsolute, Path.Combine(outputDir, "thumbnail.png"), overwrite: true);
         }
 
         // ---------------- state transitions ----------------
