@@ -117,7 +117,11 @@ namespace BigHax
                 return true;
             }
 
-            if (waitForNativeOptions && BigHaxBaUnifiedOptionsUi.IsWaitingForNativeOptions(reason))
+            // Big Hax can initialize before Workshop mods. Do not permanently
+            // choose the fallback until the optional library has had a chance to load.
+            if (waitForNativeOptions &&
+                (BigHaxBaUnifiedOptionsUi.IsWaitingForNativeOptions(reason) ||
+                 BigHaxBaUnifiedOptionsUi.IsWaitingForLibrary(reason)))
                 return false;
 
             uiSelectionResolved = true;

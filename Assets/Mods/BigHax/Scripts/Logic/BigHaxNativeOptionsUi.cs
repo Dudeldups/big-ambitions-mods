@@ -9,8 +9,9 @@ namespace BigHax
 {
     internal sealed class BigHaxNativeOptionsUi
     {
+        private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 1020f;
+        private const float ContentHeight = 1050f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -206,11 +207,17 @@ namespace BigHax
         private void FallbackNotice(string value)
         {
             var item = Create("FallbackNotice", content!, new Color(.98f, .83f, .42f));
-            item.AddComponent<LayoutElement>().preferredHeight = 72f;
-            var text = Text(item.transform, value, 15, TextAnchor.MiddleLeft, new Color(.22f, .16f, .06f), new Vector2(18f, 8f), new Vector2(-18f, -8f));
+            item.AddComponent<LayoutElement>().preferredHeight = 96f;
+            var button = item.AddComponent<Button>();
+            button.targetGraphic = item.GetComponent<Image>();
+            button.onClick.AddListener(() => Application.OpenURL(BaUnifiedUiWorkshopUrl));
+            var text = Text(item.transform, value, 15, TextAnchor.MiddleLeft, new Color(.22f, .16f, .06f), new Vector2(18f, 28f), new Vector2(-18f, -8f));
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Truncate;
             text.raycastTarget = false;
+            var link = Text(item.transform, "Steam Workshop", 16, TextAnchor.MiddleLeft, new Color(.05f, .32f, .75f), new Vector2(18f, 6f), new Vector2(-18f, -66f));
+            link.fontStyle = FontStyle.Bold;
+            link.raycastTarget = false;
         }
         private static Text Text(Transform parent, string value, int size, TextAnchor align, Color color, Vector2 left, Vector2 right) { var item = new GameObject("Text", typeof(RectTransform), typeof(Text)); item.transform.SetParent(parent, false); var r = item.GetComponent<RectTransform>(); r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one; r.offsetMin = left; r.offsetMax = right; var t = item.GetComponent<Text>(); t.font = Resources.GetBuiltinResource<Font>("Arial.ttf"); t.text = value; t.fontSize = size; t.alignment = align; t.color = color; return t; }
         private static GameObject Create(string name, Transform parent, Color color) { var o = new GameObject(name, typeof(RectTransform), typeof(Image)); o.transform.SetParent(parent, false); o.GetComponent<Image>().color = color; return o; }

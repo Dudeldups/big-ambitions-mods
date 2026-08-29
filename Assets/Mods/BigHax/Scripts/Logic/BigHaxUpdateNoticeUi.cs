@@ -7,7 +7,7 @@ namespace BigHax
 {
     internal sealed class BigHaxUpdateNoticeUi
     {
-        private const int CurrentNoticeVersion = 4;
+        private const int CurrentNoticeVersion = 5;
         private const int WindowId = 348722;
         private const float WindowWidth = 540f;
         private const float WindowHeight = 260f;
@@ -18,6 +18,7 @@ namespace BigHax
         private bool isVisible;
         private bool needsCentering = true;
         private bool uiSelectionResolved;
+        private float libraryWaitStartedAt = -1f;
         private int hotControlId;
 
         private Texture2D? solidTexture;
@@ -69,8 +70,8 @@ namespace BigHax
             if (!ShouldDisplay())
                 return;
 
-            if (!uiSelectionResolved)
-                ResolveUi(context);
+            if (!uiSelectionResolved && !ResolveUi(context))
+                return;
 
             if (baUnifiedUi != null)
             {
@@ -129,9 +130,8 @@ namespace BigHax
             isVisible = false;
         }
 
-        private void ResolveUi(ModContext context)
+        private bool ResolveUi(ModContext context)
         {
-            uiSelectionResolved = true;
             if (BigHaxBaUnifiedUpdateNoticeUi.TryCreate(
                     Localize("bighax_update_notice_title"),
                     Localize("bighax_update_notification"),
@@ -144,13 +144,27 @@ namespace BigHax
                 context.Logger.Info(message);
                 BigHaxFileLogger.Log(message);
                 BigHaxUiDebugLogger.Log(message);
-                return;
+                uiSelectionResolved = true;
+                return true;
+            }
+
+            // Workshop mods may load after Big Hax. Wait briefly so a present UI
+            // library is selected instead of locking this notice into the fallback.
+            if (reason.IndexOf("LIB_BaUnifiedUI is not loaded", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                if (libraryWaitStartedAt < 0f)
+                    libraryWaitStartedAt = Time.realtimeSinceStartup;
+
+                if (Time.realtimeSinceStartup - libraryWaitStartedAt < 3f)
+                    return false;
             }
 
             var fallbackMessage = "BigHax: using built-in update notice fallback (" + reason + ").";
             context.Logger.Info(fallbackMessage);
             BigHaxFileLogger.Log(fallbackMessage);
             BigHaxUiDebugLogger.Log(fallbackMessage);
+            uiSelectionResolved = true;
+            return true;
         }
 
         private void Acknowledge(ModContext context)

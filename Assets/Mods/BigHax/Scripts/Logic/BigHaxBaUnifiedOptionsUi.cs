@@ -46,6 +46,9 @@ namespace BigHax
         public static bool IsWaitingForNativeOptions(string reason) =>
             reason.IndexOf("native option prefabs are not loaded yet", StringComparison.OrdinalIgnoreCase) >= 0;
 
+        public static bool IsWaitingForLibrary(string reason) =>
+            reason.IndexOf("LIB_BaUnifiedUI is not loaded", StringComparison.OrdinalIgnoreCase) >= 0;
+
         public static bool TryCreate(
             ModContext context,
             BigHaxSettings settings,
