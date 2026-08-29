@@ -9,6 +9,8 @@ namespace BigHax
     internal sealed class BigHaxOverlayUi
     {
         private readonly BigHaxNativeOptionsUi nativeUi;
+        private BigHaxBaUnifiedOptionsUi? baUnifiedUi;
+        private bool uiSelectionResolved;
         private const int WindowId = 348721;
         private static readonly string[] CustomerTrafficLabels = { "1x", "1.5x", "2x", "3x", "5x", "10x" };
         private const float WindowWidth = 720f;
@@ -47,23 +49,92 @@ namespace BigHax
         public void Toggle()
         {
             isVisible = !isVisible;
-            nativeUi.SetVisible(isVisible);
+            SetSelectedUiVisible(isVisible);
         }
 
         public void Hide()
         {
             isVisible = false;
-            nativeUi.SetVisible(false);
+            SetSelectedUiVisible(false);
         }
 
         public void ConsumeGameplayInputIfNeeded()
         {
-            nativeUi.ConsumeGameplayInputIfNeeded(isVisible);
+            if (baUnifiedUi != null)
+                baUnifiedUi.ConsumeGameplayInputIfNeeded(isVisible);
+            else
+                nativeUi.ConsumeGameplayInputIfNeeded(isVisible);
+        }
+
+        public bool Prewarm(ModContext context, BigHaxSettings settings)
+        {
+            if (!uiSelectionResolved && !ResolveUi(context, settings, waitForNativeOptions: true))
+                return false;
+
+            if (baUnifiedUi != null)
+                baUnifiedUi.EnsureCreated(context, settings, visible: false);
+            else
+                nativeUi.EnsureCreated(context, settings, visible: false);
+
+            return true;
         }
 
         public void OnGui(ModContext context, BigHaxSettings settings)
         {
+            // Prewarm normally resolves the implementation after all mods load. Keep
+            // this lazy path for unusual lifecycles where that callback did not run.
+            if (!uiSelectionResolved && isVisible)
+                ResolveUi(context, settings, waitForNativeOptions: false);
+
+            if (!uiSelectionResolved)
+                return;
+
+            if (baUnifiedUi != null)
+                baUnifiedUi.EnsureCreated(context, settings, isVisible);
+            else
+                nativeUi.EnsureCreated(context, settings, isVisible);
+        }
+
+        public void Shutdown()
+        {
+            baUnifiedUi?.Destroy();
+            baUnifiedUi = null;
+            nativeUi.Destroy();
+            uiSelectionResolved = false;
+            isVisible = false;
+        }
+
+        private bool ResolveUi(ModContext context, BigHaxSettings settings, bool waitForNativeOptions)
+        {
+            if (BigHaxBaUnifiedOptionsUi.TryCreate(context, settings, isVisible, Hide, out baUnifiedUi, out var reason))
+            {
+                uiSelectionResolved = true;
+                nativeUi.Destroy();
+                var message = $"BigHax: using LIB_BaUnifiedUI {baUnifiedUi!.LibraryVersion} from {baUnifiedUi.AssemblyName}.";
+                context.Logger.Info(message);
+                BigHaxFileLogger.Log(message);
+                BigHaxUiDebugLogger.Log(message);
+                return true;
+            }
+
+            if (waitForNativeOptions && BigHaxBaUnifiedOptionsUi.IsWaitingForNativeOptions(reason))
+                return false;
+
+            uiSelectionResolved = true;
+            var fallbackMessage = "BigHax: using built-in options UI fallback (" + reason + ").";
+            context.Logger.Info(fallbackMessage);
+            BigHaxFileLogger.Log(fallbackMessage);
+            BigHaxUiDebugLogger.Log(fallbackMessage);
             nativeUi.EnsureCreated(context, settings, isVisible);
+            return true;
+        }
+
+        private void SetSelectedUiVisible(bool visible)
+        {
+            if (baUnifiedUi != null)
+                baUnifiedUi.SetVisible(visible);
+            else
+                nativeUi.SetVisible(visible);
         }
 
         private void DrawWindow(ModContext context, BigHaxSettings settings)

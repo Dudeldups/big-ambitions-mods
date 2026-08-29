@@ -10,7 +10,8 @@ namespace BigHax
     internal sealed class BigHaxNativeOptionsUi
     {
         private const float RowHeight = 50f;
-        private const float ContentHeight = 900f;
+        private const float ContentHeight = 1020f;
+        private GameObject? root;
         private GameObject? panel;
         private Transform? content;
         private ModContext? context;
@@ -28,7 +29,17 @@ namespace BigHax
             {
                 context = modContext;
                 settings = currentSettings;
-                if (panel == null) Build();
+                if (panel == null)
+                {
+                    Build();
+                    panel!.SetActive(visible);
+                    if (visible)
+                    {
+                        Canvas.ForceUpdateCanvases();
+                        LayoutRebuilder.ForceRebuildLayoutImmediate(content!.GetComponent<RectTransform>());
+                    }
+                    return;
+                }
                 SetVisible(visible);
             }
             catch (System.Exception exception)
@@ -43,9 +54,7 @@ namespace BigHax
             {
                 // The game can change language while this panel is hidden. Rebuild
                 // on each opening so every label comes from the active locale.
-                Object.Destroy(panel.transform.parent.gameObject);
-                panel = null;
-                content = null;
+                DestroyVisuals();
                 Build();
             }
 
@@ -60,14 +69,21 @@ namespace BigHax
         }
         public void ConsumeGameplayInputIfNeeded(bool visible) { if (visible) Input.ResetInputAxes(); }
 
+        public void Destroy()
+        {
+            DestroyVisuals();
+            context = null;
+            settings = null;
+        }
+
         private void Build()
         {
             BigHaxUiDebugLogger.Log("Build started.");
-            var canvasObject = new GameObject("BigHaxOptionsCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            Object.DontDestroyOnLoad(canvasObject);
-            var canvas = canvasObject.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = short.MaxValue - 8;
-            var scaler = canvasObject.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920, 1080);
-            panel = Create("BigHaxOptions", canvasObject.transform, Color.white);
+            root = new GameObject("BigHaxOptionsCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            Object.DontDestroyOnLoad(root);
+            var canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = short.MaxValue - 8;
+            var scaler = root.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920, 1080);
+            panel = Create("BigHaxOptions", root.transform, Color.white);
             var panelRect = panel.GetComponent<RectTransform>(); panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f); panelRect.pivot = new Vector2(.5f, .5f); panelRect.sizeDelta = new Vector2(820, 660);
             panel.AddComponent<RectMask2D>();
             var scroll = panel.AddComponent<ScrollRect>(); scroll.horizontal = false; scroll.viewport = panelRect;
@@ -83,6 +99,7 @@ namespace BigHax
             scroll.content = contentRect; scroll.verticalScrollbar = scrollbar; scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
             BigHaxUiDebugLogger.Log($"Scroll configured viewport={scroll.viewport.rect}; content={contentRect.rect}.");
             Label(Localize("bighax_options_header"), 26, TextAnchor.MiddleCenter, new Color(.10f, .14f, .19f), 44);
+            FallbackNotice(Localize("bighax_ui_fallback_notice"));
             Toggle(Localize("bighax_disable_casino_bet_limit_label"), () => settings!.DisableCasinoBetLimit, v => { settings!.DisableCasinoBetLimit = v; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context!.ModId, v); });
             Toggle(Localize("bighax_disable_illegal_parking_penalties_label"), () => settings!.DisableIllegalParkingPenalties, v => { settings!.DisableIllegalParkingPenalties = v; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context!.ModId, v); });
             Toggle(Localize("bighax_disable_investment_limit_label"), () => settings!.DisableInvestmentLimit, v => { settings!.DisableInvestmentLimit = v; BigHaxOptionPersistence.SaveDisableInvestmentLimit(context!.ModId, v); });
@@ -102,6 +119,15 @@ namespace BigHax
             contentRect.anchoredPosition = Vector2.zero;
             BigHaxUiDebugLogger.Log($"Build completed children={content.childCount}; panel={panelRect.rect}; content={contentRect.rect}; contentPosition={contentRect.anchoredPosition}.");
             panel.SetActive(false);
+        }
+
+        private void DestroyVisuals()
+        {
+            if (root != null)
+                Object.Destroy(root);
+            root = null;
+            panel = null;
+            content = null;
         }
 
         private void Toggle(string name, System.Func<bool> read, System.Action<bool> write)
@@ -176,6 +202,15 @@ namespace BigHax
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = rect.offsetMax = Vector2.zero;
+        }
+        private void FallbackNotice(string value)
+        {
+            var item = Create("FallbackNotice", content!, new Color(.98f, .83f, .42f));
+            item.AddComponent<LayoutElement>().preferredHeight = 72f;
+            var text = Text(item.transform, value, 15, TextAnchor.MiddleLeft, new Color(.22f, .16f, .06f), new Vector2(18f, 8f), new Vector2(-18f, -8f));
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.raycastTarget = false;
         }
         private static Text Text(Transform parent, string value, int size, TextAnchor align, Color color, Vector2 left, Vector2 right) { var item = new GameObject("Text", typeof(RectTransform), typeof(Text)); item.transform.SetParent(parent, false); var r = item.GetComponent<RectTransform>(); r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one; r.offsetMin = left; r.offsetMax = right; var t = item.GetComponent<Text>(); t.font = Resources.GetBuiltinResource<Font>("Arial.ttf"); t.text = value; t.fontSize = size; t.alignment = align; t.color = color; return t; }
         private static GameObject Create(string name, Transform parent, Color color) { var o = new GameObject(name, typeof(RectTransform), typeof(Image)); o.transform.SetParent(parent, false); o.GetComponent<Image>().color = color; return o; }

@@ -7,15 +7,17 @@ namespace BigHax
 {
     internal sealed class BigHaxUpdateNoticeUi
     {
-        private const int CurrentNoticeVersion = 3;
+        private const int CurrentNoticeVersion = 4;
         private const int WindowId = 348722;
         private const float WindowWidth = 540f;
         private const float WindowHeight = 260f;
         private const float WindowMargin = 24f;
 
         private Rect windowRect = new Rect(0f, 0f, WindowWidth, WindowHeight);
+        private BigHaxBaUnifiedUpdateNoticeUi? baUnifiedUi;
         private bool isVisible;
         private bool needsCentering = true;
+        private bool uiSelectionResolved;
         private int hotControlId;
 
         private Texture2D? solidTexture;
@@ -26,6 +28,9 @@ namespace BigHax
 
         public void Initialize(string modId)
         {
+            baUnifiedUi?.Destroy();
+            baUnifiedUi = null;
+            uiSelectionResolved = false;
             isVisible = BigHaxOptionPersistence.LoadUpdateNoticeSeenVersion(modId) < CurrentNoticeVersion;
             if (isVisible)
             {
@@ -49,6 +54,12 @@ namespace BigHax
             if (!ShouldDisplay())
                 return;
 
+            if (baUnifiedUi != null)
+            {
+                baUnifiedUi.ConsumeGameplayInputIfNeeded();
+                return;
+            }
+
             if (IsMouseOverWindow() || GUIUtility.hotControl == hotControlId)
                 Input.ResetInputAxes();
         }
@@ -57,6 +68,15 @@ namespace BigHax
         {
             if (!ShouldDisplay())
                 return;
+
+            if (!uiSelectionResolved)
+                ResolveUi(context);
+
+            if (baUnifiedUi != null)
+            {
+                baUnifiedUi.EnsureVisible();
+                return;
+            }
 
             EnsureStyles();
             EnsureWindowIsCenteredIfNeeded();
@@ -90,10 +110,7 @@ namespace BigHax
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button(Localize("bighax_update_notice_got_it"), buttonStyle!, GUILayout.Width(150f), GUILayout.Height(42f)))
-            {
-                BigHaxOptionPersistence.SaveUpdateNoticeSeenVersion(context.ModId, CurrentNoticeVersion);
-                isVisible = false;
-            }
+                Acknowledge(context);
 
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
@@ -102,6 +119,46 @@ namespace BigHax
         private bool ShouldDisplay()
         {
             return isVisible && SaveGameManager.Current != null;
+        }
+
+        public void Shutdown()
+        {
+            baUnifiedUi?.Destroy();
+            baUnifiedUi = null;
+            uiSelectionResolved = false;
+            isVisible = false;
+        }
+
+        private void ResolveUi(ModContext context)
+        {
+            uiSelectionResolved = true;
+            if (BigHaxBaUnifiedUpdateNoticeUi.TryCreate(
+                    Localize("bighax_update_notice_title"),
+                    Localize("bighax_update_notification"),
+                    Localize("bighax_update_notice_got_it"),
+                    () => Acknowledge(context),
+                    out baUnifiedUi,
+                    out var reason))
+            {
+                var message = $"BigHax: using LIB_BaUnifiedUI {baUnifiedUi!.LibraryVersion} from {baUnifiedUi.AssemblyName} for the update notice.";
+                context.Logger.Info(message);
+                BigHaxFileLogger.Log(message);
+                BigHaxUiDebugLogger.Log(message);
+                return;
+            }
+
+            var fallbackMessage = "BigHax: using built-in update notice fallback (" + reason + ").";
+            context.Logger.Info(fallbackMessage);
+            BigHaxFileLogger.Log(fallbackMessage);
+            BigHaxUiDebugLogger.Log(fallbackMessage);
+        }
+
+        private void Acknowledge(ModContext context)
+        {
+            BigHaxOptionPersistence.SaveUpdateNoticeSeenVersion(context.ModId, CurrentNoticeVersion);
+            isVisible = false;
+            baUnifiedUi?.Destroy();
+            baUnifiedUi = null;
         }
 
         private void CaptureHotControl()

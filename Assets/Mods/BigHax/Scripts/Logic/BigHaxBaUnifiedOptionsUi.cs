@@ -1,0 +1,605 @@
+#nullable enable
+using BAModAPI;
+using Localizor;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.UI;
+
+namespace BigHax
+{
+    /// <summary>
+    /// Optional BAUnifiedUI-backed screen. All library calls are reflection-only so
+    /// Big Hax remains loadable when the separate Workshop dependency is absent.
+    /// </summary>
+    internal sealed class BigHaxBaUnifiedOptionsUi
+    {
+        private const string MinimumLibraryVersion = "1.0.1";
+        private const string RootName = "BigHax_BAUnifiedUI_Options";
+        private const float PanelWidth = 920f;
+        private const float PanelHeight = 760f;
+        private const float HeaderScale = 1f;
+
+        private readonly BaUiReflection api;
+        private readonly Action close;
+        private GameObject? root;
+        private RectTransform? content;
+        private ModContext? context;
+        private BigHaxSettings? settings;
+        private bool layoutPrimed;
+        private bool rebuildForLanguageChange;
+        private string localizationSignature = string.Empty;
+
+        private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close)
+        {
+            this.api = api;
+            this.close = close;
+            LocalizorManager.OnLanguageChanged += HandleLanguageChanged;
+        }
+
+        public string LibraryVersion => api.LibraryVersion;
+        public string AssemblyName => api.AssemblyName;
+
+        public static bool IsWaitingForNativeOptions(string reason) =>
+            reason.IndexOf("native option prefabs are not loaded yet", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        public static bool TryCreate(
+            ModContext context,
+            BigHaxSettings settings,
+            bool visible,
+            Action close,
+            out BigHaxBaUnifiedOptionsUi? ui,
+            out string reason)
+        {
+            ui = null;
+            if (!BaUiReflection.TryResolve(MinimumLibraryVersion, out var api, out reason))
+                return false;
+
+            if (!api!.AreNativeOptionsReady())
+            {
+                reason = "Big Ambitions' native option prefabs are not loaded yet.";
+                return false;
+            }
+
+            var candidate = new BigHaxBaUnifiedOptionsUi(api, close);
+            try
+            {
+                candidate.EnsureCreated(context, settings, visible);
+                ui = candidate;
+                reason = string.Empty;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                candidate.Destroy();
+                reason = "BAUnifiedUI initialization failed: " + exception.GetBaseException().Message;
+                return false;
+            }
+        }
+
+        public void EnsureCreated(ModContext modContext, BigHaxSettings currentSettings, bool visible)
+        {
+            context = modContext;
+            settings = currentSettings;
+            if (root == null)
+                Build();
+
+            PrimeLayoutIfNeeded();
+            SetVisible(visible);
+        }
+
+        public void SetVisible(bool visible)
+        {
+            if (visible && rebuildForLanguageChange)
+            {
+                DestroyVisuals();
+                Build();
+                PrimeLayoutIfNeeded();
+            }
+
+            if (root == null || root.activeSelf == visible)
+                return;
+
+            root.SetActive(visible);
+        }
+
+        public void ConsumeGameplayInputIfNeeded(bool visible)
+        {
+            if (visible)
+                Input.ResetInputAxes();
+        }
+
+        public void Destroy()
+        {
+            LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
+            DestroyVisuals();
+            context = null;
+            settings = null;
+        }
+
+        private void Build()
+        {
+            if (context == null || settings == null)
+                throw new InvalidOperationException("Big Hax UI context is not initialized.");
+
+            BigHaxUiDebugLogger.Log($"Building BAUnifiedUI {api.LibraryVersion} screen with native Options prefabs from {api.AssemblyName}.");
+            api.EnsureEventSystem();
+
+            root = new GameObject(RootName, typeof(RectTransform));
+            UnityEngine.Object.DontDestroyOnLoad(root);
+            api.SetupOverlayCanvas(root, short.MaxValue - 8, interactive: true);
+            api.CreateModalDimmer(root.transform, 0.62f, new UnityAction(close));
+
+            var panel = api.BuildPanel(root.transform, PanelWidth, PanelHeight, "BigHaxOptions", out var header);
+            api.CreateHeaderTitle(header, Localize("bighax_options_header"), HeaderScale, rightIconCount: 1);
+            api.CreateHeaderCloseButton(header, new UnityAction(close));
+            api.TryAttachDraggableWindow(panel, header, "BigHax.Options.BAUnifiedUI");
+
+            var viewportObject = new GameObject("OptionsViewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            viewportObject.transform.SetParent(panel, false);
+            var viewport = viewportObject.GetComponent<RectTransform>();
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = new Vector2(28f, 64f);
+            viewport.offsetMax = new Vector2(-44f, -56f);
+            var viewportImage = viewportObject.GetComponent<Image>();
+            viewportImage.color = Color.clear;
+            viewportImage.raycastTarget = true;
+
+            var contentObject = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            contentObject.transform.SetParent(viewport, false);
+            content = contentObject.GetComponent<RectTransform>();
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+            var layout = contentObject.GetComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(8, 8, 12, 12);
+            layout.spacing = 0f;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandHeight = false;
+            var fitter = contentObject.GetComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var scrollbar = CreateScrollbar(panel);
+            var scroll = viewportObject.GetComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 34f;
+            scroll.viewport = viewport;
+            scroll.content = content;
+            scroll.verticalScrollbar = scrollbar;
+            scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+
+            AddToggle(Localize("bighax_disable_casino_bet_limit_label"),
+                () => settings.DisableCasinoBetLimit,
+                value => { settings.DisableCasinoBetLimit = value; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_illegal_parking_penalties_label"),
+                () => settings.DisableIllegalParkingPenalties,
+                value => { settings.DisableIllegalParkingPenalties = value; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_investment_limit_label"),
+                () => settings.DisableInvestmentLimit,
+                value => { settings.DisableInvestmentLimit = value; BigHaxOptionPersistence.SaveDisableInvestmentLimit(context.ModId, value); });
+            AddToggle(Localize("bighax_vantander_maximum_loan_override_label"),
+                () => settings.EnableVantanderMaxLoanOverride,
+                value => { settings.EnableVantanderMaxLoanOverride = value; BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value); });
+            AddToggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
+                () => settings.EnableRecruitmentCandidateMaximumSkill,
+                value => { settings.EnableRecruitmentCandidateMaximumSkill = value; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context.ModId, value); });
+            AddToggle(Localize("bighax_remove_employee_demands_label"),
+                () => settings.RemoveEmployeeDemands,
+                value => { settings.RemoveEmployeeDemands = value; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value); });
+            AddToggle(Localize("bighax_active_vehicle_enabled_label"),
+                () => settings.EnableActiveVehicleCapacityOverride,
+                value => { settings.EnableActiveVehicleCapacityOverride = value; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, value); });
+
+            AddSlider(Localize("bighax_customer_traffic_multiplier_label"),
+                () => settings.CustomerTrafficMultiplierIndex, 0, 5,
+                value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); },
+                value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
+            AddSlider(Localize("bighax_employee_training_skill_increase_label"),
+                () => settings.EmployeeTrainingSkillIncrease, 10, 100,
+                value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
+            AddSlider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }),
+                () => settings.StandardFridgeCapacity, 50, 1000,
+                value => { settings.StandardFridgeCapacity = value; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context.ModId, value); }, value => value.ToString());
+            AddSlider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }),
+                () => settings.PalletShelfCapacity, 60, 1000,
+                value => { settings.PalletShelfCapacity = value; BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value); }, value => value.ToString());
+            AddSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }),
+                () => settings.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
+                value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
+            AddSlider(Localize("bighax_active_vehicle_label"),
+                () => settings.ActiveVehicleCapacity, 20, 1000,
+                value => { settings.ActiveVehicleCapacity = value; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context.ModId, value); }, value => value.ToString());
+
+            AddFooter(panel);
+            api.ApplyUiLayer(root);
+            root.SetActive(false);
+            layoutPrimed = false;
+            rebuildForLanguageChange = false;
+            localizationSignature = ComputeLocalizationSignature();
+            BigHaxUiDebugLogger.Log($"BAUnifiedUI screen built with {content.childCount} option rows.");
+        }
+
+        private void PrimeLayoutIfNeeded()
+        {
+            if (layoutPrimed || root == null || content == null)
+                return;
+
+            var wasActive = root.activeSelf;
+            if (!wasActive)
+                root.SetActive(true);
+
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+            content.anchoredPosition = Vector2.zero;
+            layoutPrimed = true;
+
+            if (!wasActive)
+                root.SetActive(false);
+        }
+
+        private void HandleLanguageChanged()
+        {
+            if (root == null || context == null || settings == null)
+                return;
+
+            // Big Ambitions raises a language event during startup even when the
+            // localized strings used by this screen have not changed. Rebuilding on
+            // the next F5 made that first open pay the full native-prefab cost again.
+            if (string.Equals(localizationSignature, ComputeLocalizationSignature(), StringComparison.Ordinal))
+                return;
+
+            var wasVisible = root.activeSelf;
+            try
+            {
+                DestroyVisuals();
+                Build();
+                PrimeLayoutIfNeeded();
+                if (wasVisible && root != null)
+                    root.SetActive(true);
+            }
+            catch (Exception exception)
+            {
+                rebuildForLanguageChange = true;
+                BigHaxUiDebugLogger.Log("Unable to refresh the cached BAUnifiedUI screen after a language change: " +
+                    exception.GetBaseException().Message);
+            }
+        }
+
+        private static string ComputeLocalizationSignature()
+        {
+            return string.Join("\u001f", new[]
+            {
+                Localize("bighax_options_header"),
+                Localize("bighax_disable_casino_bet_limit_label"),
+                Localize("bighax_disable_illegal_parking_penalties_label"),
+                Localize("bighax_disable_investment_limit_label"),
+                Localize("bighax_vantander_maximum_loan_override_label"),
+                Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
+                Localize("bighax_remove_employee_demands_label"),
+                Localize("bighax_active_vehicle_enabled_label"),
+                Localize("bighax_customer_traffic_multiplier_label"),
+                Localize("bighax_employee_training_skill_increase_label"),
+                Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string>
+                {
+                    { "itemName", Localize("ba:itemname_standardfridge") }
+                }),
+                Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string>
+                {
+                    { "itemName", Localize("ba:itemname_palletshelf") }
+                }),
+                Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string>
+                {
+                    { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
+                }),
+                Localize("bighax_active_vehicle_label"),
+                Localize("bighax_ui_close_button")
+            });
+        }
+
+        private void AddToggle(string label, Func<bool> read, Action<bool> write)
+        {
+            api.CreateNativeToggle(content!, label, read(), new UnityAction<bool>(value =>
+            {
+                write(value);
+                BigHaxRuntime.RequestImmediateApply();
+            }), "BigHaxToggle");
+        }
+
+        private void AddSlider(string label, Func<int> read, int min, int max, Action<int> write, Func<int, string> format)
+        {
+            api.CreateNativeSlider(content!, label, min, max, read(), format, new UnityAction<int>(value =>
+            {
+                write(value);
+                BigHaxRuntime.RequestImmediateApply();
+            }), "BigHaxSlider");
+        }
+
+        private Scrollbar CreateScrollbar(RectTransform panel)
+        {
+            var scrollbarObject = new GameObject("Scrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+            scrollbarObject.transform.SetParent(panel, false);
+            var rect = scrollbarObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(1f, 0f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = new Vector2(-28f, 4f);
+            rect.sizeDelta = new Vector2(10f, -132f);
+            var track = scrollbarObject.GetComponent<Image>();
+            track.color = api.ListInsetColor;
+
+            var handleObject = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+            handleObject.transform.SetParent(rect, false);
+            var handleRect = handleObject.GetComponent<RectTransform>();
+            Stretch(handleRect);
+            var handle = handleObject.GetComponent<Image>();
+            handle.color = api.MutedTextColor;
+            var scrollbar = scrollbarObject.GetComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollbar.targetGraphic = handle;
+            scrollbar.handleRect = handleRect;
+            return scrollbar;
+        }
+
+        private void AddFooter(RectTransform panel)
+        {
+            var button = api.CreateVanillaButton(panel, Localize("bighax_ui_close_button"), 160f, 36f, new UnityAction(close), "Blue", 15f);
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(1f, 0f);
+            rect.anchoredPosition = new Vector2(-30f, 14f);
+            rect.sizeDelta = new Vector2(160f, 36f);
+        }
+
+        private void DestroyVisuals()
+        {
+            if (root != null)
+                UnityEngine.Object.Destroy(root);
+            root = null;
+            content = null;
+            layoutPrimed = false;
+            localizationSignature = string.Empty;
+        }
+
+        private static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+        }
+
+        private static string Localize(string key) => key.Localize().ToString();
+        private static string Localize(string key, Dictionary<string, string> arguments) => key.Localize(arguments).ToString();
+
+        private sealed class BaUiReflection
+        {
+            private const BindingFlags PublicStatic = BindingFlags.Public | BindingFlags.Static;
+            private readonly Type buttonStyleType;
+            private readonly MethodInfo ensureEventSystem;
+            private readonly MethodInfo setupOverlayCanvas;
+            private readonly MethodInfo createModalDimmer;
+            private readonly MethodInfo buildPanel;
+            private readonly MethodInfo createHeaderTitle;
+            private readonly MethodInfo createHeaderCloseButton;
+            private readonly MethodInfo createVanillaButton;
+            private readonly MethodInfo createNativeToggle;
+            private readonly MethodInfo createNativeSlider;
+            private readonly MethodInfo applyUiLayer;
+            private readonly MethodInfo? attachDraggableWindow;
+
+            private BaUiReflection(
+                Assembly assembly,
+                string libraryVersion,
+                Type bootstrap,
+                Type chrome,
+                Type widgets,
+                Type vanillaSettings)
+            {
+                AssemblyName = assembly.GetName().Name ?? "LIB_BaUnifiedUI";
+                LibraryVersion = libraryVersion;
+                buttonStyleType = RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Chrome.BaVanillaButtonStyle");
+                ensureEventSystem = RequireMethod(bootstrap, "EnsureEventSystem", 1);
+                setupOverlayCanvas = RequireMethod(chrome, "SetupOverlayCanvas", 3);
+                createModalDimmer = RequireMethod(widgets, "CreateModalDimmer", 3);
+                buildPanel = RequireMethod(chrome, "BuildPanel", 5);
+                createHeaderTitle = RequireMethod(widgets, "CreateHeaderTitleLeft", 5);
+                createHeaderCloseButton = RequireMethod(chrome, "CreateHeaderCloseButton", 2);
+                createVanillaButton = RequireMethod(chrome, "CreateVanillaButton", 10);
+                createNativeToggle = RequireMethod(vanillaSettings, "CreateToggle", 5);
+                createNativeSlider = RequireMethod(vanillaSettings, "CreateSlider", 8);
+                applyUiLayer = RequireMethod(chrome, "ApplyUiLayer", 1);
+                attachDraggableWindow = chrome.GetMethods(PublicStatic)
+                    .FirstOrDefault(method => method.Name == "AttachDraggableWindow" && method.GetParameters().Length == 3);
+
+                MutedTextColor = ReadColor(chrome, "MutedTextColor", new Color(0.72f, 0.76f, 0.8f, 1f));
+                ListInsetColor = ReadColor(chrome, "ListInsetColor", new Color(0f, 0f, 0f, 0.22f));
+            }
+
+            public string AssemblyName { get; }
+            public string LibraryVersion { get; }
+            public Color MutedTextColor { get; }
+            public Color ListInsetColor { get; }
+
+            public bool AreNativeOptionsReady()
+            {
+                const BindingFlags instancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
+                const string controllerTypeName = "BigAmbitions.ModsInternal.ModOptionsViewController";
+                var controllerType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(candidate => candidate.GetType(controllerTypeName, throwOnError: false))
+                    .FirstOrDefault(candidate => candidate != null);
+                if (controllerType == null)
+                    return false;
+
+                var togglePrefabField = controllerType.GetField("modOptionsTogglePrefab", instancePrivate);
+                var sliderPrefabField = controllerType.GetField("modOptionsSliderPrefab", instancePrivate);
+                if (togglePrefabField == null || sliderPrefabField == null)
+                    return false;
+
+                foreach (var controller in Resources.FindObjectsOfTypeAll(controllerType))
+                {
+                    if (controller != null &&
+                        togglePrefabField.GetValue(controller) is GameObject togglePrefab && togglePrefab != null &&
+                        sliderPrefabField.GetValue(controller) is GameObject sliderPrefab && sliderPrefab != null)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            public static bool TryResolve(string minimumVersion, out BaUiReflection? api, out string reason)
+            {
+                api = null;
+                var versionTypeName = "Capisoft.Lib.BaUnifiedUI.Core.BaUiVersion";
+                var assembly = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(candidate => candidate.GetType(versionTypeName, throwOnError: false) != null);
+                if (assembly == null)
+                {
+                    reason = "LIB_BaUnifiedUI is not loaded";
+                    return false;
+                }
+
+                try
+                {
+                    var versionType = RequireType(assembly, versionTypeName);
+                    var field = versionType.GetField("Version", PublicStatic)
+                        ?? throw new MissingFieldException(versionType.FullName, "Version");
+                    var libraryVersion = (field.GetRawConstantValue() ?? field.GetValue(null))?.ToString() ?? string.Empty;
+                    if (!TryParseVersion(libraryVersion, out var parsed) ||
+                        !TryParseVersion(minimumVersion, out var minimum) ||
+                        parsed < minimum)
+                    {
+                        reason = $"LIB_BaUnifiedUI {libraryVersion} is below required {minimumVersion}";
+                        return false;
+                    }
+
+                    api = new BaUiReflection(
+                        assembly,
+                        libraryVersion,
+                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Core.BaUiBootstrap"),
+                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Chrome.BaUiWidePanelChrome"),
+                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Controls.BaUiWidgets"),
+                        RequireType(assembly, "Capisoft.Lib.BaUnifiedUI.Controls.BaUiVanillaSettings"));
+                    reason = string.Empty;
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    reason = "LIB_BaUnifiedUI API is incompatible: " + exception.GetBaseException().Message;
+                    return false;
+                }
+            }
+
+            public void EnsureEventSystem() => Invoke(ensureEventSystem, null, new object?[] { "BigHax_BAUnifiedUI_EventSystem" });
+
+            public void SetupOverlayCanvas(GameObject root, int sortingOrder, bool interactive) =>
+                Invoke(setupOverlayCanvas, null, new object?[] { root, sortingOrder, interactive });
+
+            public void CreateModalDimmer(Transform parent, float alpha, UnityAction onClick) =>
+                Invoke(createModalDimmer, null, new object?[] { parent, alpha, onClick });
+
+            public RectTransform BuildPanel(Transform parent, float width, float height, string name, out RectTransform header)
+            {
+                var arguments = new object?[] { parent, width, height, name, null };
+                var result = Invoke(buildPanel, null, arguments) as RectTransform
+                    ?? throw new InvalidOperationException("BAUnifiedUI did not create a panel.");
+                header = arguments[4] as RectTransform
+                    ?? throw new InvalidOperationException("BAUnifiedUI did not create a panel header.");
+                return result;
+            }
+
+            public void CreateHeaderTitle(Transform header, string text, float scale, int rightIconCount) =>
+                Invoke(createHeaderTitle, null, new object?[] { header, text, scale, rightIconCount, true });
+
+            public void CreateHeaderCloseButton(Transform header, UnityAction onClick) =>
+                Invoke(createHeaderCloseButton, null, new object?[] { header, onClick });
+
+            public Button CreateVanillaButton(Transform parent, string label, float width, float height, UnityAction onClick, string style, float fontSize)
+            {
+                var styleValue = Enum.Parse(buttonStyleType, style, ignoreCase: true);
+                return Invoke(createVanillaButton, null,
+                    new object?[] { parent, label, width, height, 1f, onClick, styleValue, fontSize, true, null }) as Button
+                    ?? throw new InvalidOperationException("BAUnifiedUI did not create a button.");
+            }
+
+            public void CreateNativeToggle(
+                Transform parent,
+                string label,
+                bool value,
+                UnityAction<bool> onValueChanged,
+                string name) =>
+                Invoke(createNativeToggle, null, new object?[] { parent, label, value, onValueChanged, name });
+
+            public void CreateNativeSlider(
+                Transform parent,
+                string label,
+                int min,
+                int max,
+                int value,
+                Func<int, string> format,
+                UnityAction<int> onValueChanged,
+                string name) =>
+                Invoke(createNativeSlider, null,
+                    new object?[] { parent, label, min, max, value, format, onValueChanged, name });
+
+            public void ApplyUiLayer(GameObject root) => Invoke(applyUiLayer, null, new object?[] { root });
+
+            public void TryAttachDraggableWindow(RectTransform panel, RectTransform header, string persistentId)
+            {
+                if (attachDraggableWindow == null)
+                    return;
+                try
+                {
+                    Invoke(attachDraggableWindow, null, new object?[] { panel, header, persistentId });
+                }
+                catch (Exception exception)
+                {
+                    BigHaxUiDebugLogger.Log("BAUnifiedUI draggable-window attachment skipped: " + exception.GetBaseException().Message);
+                }
+            }
+
+            private static Type RequireType(Assembly assembly, string fullName) =>
+                assembly.GetType(fullName, throwOnError: false)
+                ?? throw new TypeLoadException("Missing BAUnifiedUI type " + fullName);
+
+            private static MethodInfo RequireMethod(Type type, string name, int parameterCount) =>
+                type.GetMethods(PublicStatic).FirstOrDefault(method => method.Name == name && method.GetParameters().Length == parameterCount)
+                ?? throw new MissingMethodException(type.FullName, name);
+
+            private static Color ReadColor(Type type, string name, Color fallback)
+            {
+                var field = type.GetField(name, PublicStatic);
+                return field?.GetValue(null) is Color value ? value : fallback;
+            }
+
+            private static object? Invoke(MethodInfo method, object? target, object?[] arguments)
+            {
+                try
+                {
+                    return method.Invoke(target, arguments);
+                }
+                catch (TargetInvocationException exception) when (exception.InnerException != null)
+                {
+                    throw exception.InnerException;
+                }
+            }
+
+            private static bool TryParseVersion(string value, out Version version)
+            {
+                var normalized = (value ?? string.Empty).Split('-', '+')[0];
+                return Version.TryParse(normalized, out version);
+            }
+        }
+    }
+}
