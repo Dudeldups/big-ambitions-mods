@@ -29,15 +29,22 @@ namespace BigHax
         private RectTransform? content;
         private ModContext? context;
         private BigHaxSettings? settings;
+        private bool layoutPrimed;
+        private bool rebuildForLanguageChange;
+        private string localizationSignature = string.Empty;
 
         private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close)
         {
             this.api = api;
             this.close = close;
+            LocalizorManager.OnLanguageChanged += HandleLanguageChanged;
         }
 
         public string LibraryVersion => api.LibraryVersion;
         public string AssemblyName => api.AssemblyName;
+
+        public static bool IsWaitingForNativeOptions(string reason) =>
+            reason.IndexOf("native option prefabs are not loaded yet", StringComparison.OrdinalIgnoreCase) >= 0;
 
         public static bool TryCreate(
             ModContext context,
@@ -51,7 +58,13 @@ namespace BigHax
             if (!BaUiReflection.TryResolve(MinimumLibraryVersion, out var api, out reason))
                 return false;
 
-            var candidate = new BigHaxBaUnifiedOptionsUi(api!, close);
+            if (!api!.AreNativeOptionsReady())
+            {
+                reason = "Big Ambitions' native option prefabs are not loaded yet.";
+                return false;
+            }
+
+            var candidate = new BigHaxBaUnifiedOptionsUi(api, close);
             try
             {
                 candidate.EnsureCreated(context, settings, visible);
@@ -72,37 +85,25 @@ namespace BigHax
             context = modContext;
             settings = currentSettings;
             if (root == null)
-            {
                 Build();
-                root!.SetActive(visible);
-                if (visible && content != null)
-                {
-                    Canvas.ForceUpdateCanvases();
-                    LayoutRebuilder.ForceRebuildLayoutImmediate(content);
-                }
-                return;
-            }
+
+            PrimeLayoutIfNeeded();
             SetVisible(visible);
         }
 
         public void SetVisible(bool visible)
         {
-            if (visible && root != null && !root.activeSelf)
+            if (visible && rebuildForLanguageChange)
             {
-                // Rebuild on open so Localizor always uses the active game language.
                 DestroyVisuals();
                 Build();
+                PrimeLayoutIfNeeded();
             }
 
             if (root == null || root.activeSelf == visible)
                 return;
 
             root.SetActive(visible);
-            if (visible && content != null)
-            {
-                Canvas.ForceUpdateCanvases();
-                LayoutRebuilder.ForceRebuildLayoutImmediate(content);
-            }
         }
 
         public void ConsumeGameplayInputIfNeeded(bool visible)
@@ -113,6 +114,7 @@ namespace BigHax
 
         public void Destroy()
         {
+            LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
             DestroyVisuals();
             context = null;
             settings = null;
@@ -221,11 +223,88 @@ namespace BigHax
 
             AddFooter(panel);
             api.ApplyUiLayer(root);
+            root.SetActive(false);
+            layoutPrimed = false;
+            rebuildForLanguageChange = false;
+            localizationSignature = ComputeLocalizationSignature();
+            BigHaxUiDebugLogger.Log($"BAUnifiedUI screen built with {content.childCount} option rows.");
+        }
+
+        private void PrimeLayoutIfNeeded()
+        {
+            if (layoutPrimed || root == null || content == null)
+                return;
+
+            var wasActive = root.activeSelf;
+            if (!wasActive)
+                root.SetActive(true);
+
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(content);
             content.anchoredPosition = Vector2.zero;
-            root.SetActive(false);
-            BigHaxUiDebugLogger.Log($"BAUnifiedUI screen built with {content.childCount} option rows.");
+            layoutPrimed = true;
+
+            if (!wasActive)
+                root.SetActive(false);
+        }
+
+        private void HandleLanguageChanged()
+        {
+            if (root == null || context == null || settings == null)
+                return;
+
+            // Big Ambitions raises a language event during startup even when the
+            // localized strings used by this screen have not changed. Rebuilding on
+            // the next F5 made that first open pay the full native-prefab cost again.
+            if (string.Equals(localizationSignature, ComputeLocalizationSignature(), StringComparison.Ordinal))
+                return;
+
+            var wasVisible = root.activeSelf;
+            try
+            {
+                DestroyVisuals();
+                Build();
+                PrimeLayoutIfNeeded();
+                if (wasVisible && root != null)
+                    root.SetActive(true);
+            }
+            catch (Exception exception)
+            {
+                rebuildForLanguageChange = true;
+                BigHaxUiDebugLogger.Log("Unable to refresh the cached BAUnifiedUI screen after a language change: " +
+                    exception.GetBaseException().Message);
+            }
+        }
+
+        private static string ComputeLocalizationSignature()
+        {
+            return string.Join("\u001f", new[]
+            {
+                Localize("bighax_options_header"),
+                Localize("bighax_disable_casino_bet_limit_label"),
+                Localize("bighax_disable_illegal_parking_penalties_label"),
+                Localize("bighax_disable_investment_limit_label"),
+                Localize("bighax_vantander_maximum_loan_override_label"),
+                Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
+                Localize("bighax_remove_employee_demands_label"),
+                Localize("bighax_active_vehicle_enabled_label"),
+                Localize("bighax_customer_traffic_multiplier_label"),
+                Localize("bighax_employee_training_skill_increase_label"),
+                Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string>
+                {
+                    { "itemName", Localize("ba:itemname_standardfridge") }
+                }),
+                Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string>
+                {
+                    { "itemName", Localize("ba:itemname_palletshelf") }
+                }),
+                Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string>
+                {
+                    { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
+                }),
+                Localize("bighax_active_vehicle_label"),
+                Localize("bighax_ui_close_button")
+            });
         }
 
         private void AddToggle(string label, Func<bool> read, Action<bool> write)
@@ -288,6 +367,8 @@ namespace BigHax
                 UnityEngine.Object.Destroy(root);
             root = null;
             content = null;
+            layoutPrimed = false;
+            localizationSignature = string.Empty;
         }
 
         private static void Stretch(RectTransform rect)
@@ -348,6 +429,34 @@ namespace BigHax
             public string LibraryVersion { get; }
             public Color MutedTextColor { get; }
             public Color ListInsetColor { get; }
+
+            public bool AreNativeOptionsReady()
+            {
+                const BindingFlags instancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
+                const string controllerTypeName = "BigAmbitions.ModsInternal.ModOptionsViewController";
+                var controllerType = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(candidate => candidate.GetType(controllerTypeName, throwOnError: false))
+                    .FirstOrDefault(candidate => candidate != null);
+                if (controllerType == null)
+                    return false;
+
+                var togglePrefabField = controllerType.GetField("modOptionsTogglePrefab", instancePrivate);
+                var sliderPrefabField = controllerType.GetField("modOptionsSliderPrefab", instancePrivate);
+                if (togglePrefabField == null || sliderPrefabField == null)
+                    return false;
+
+                foreach (var controller in Resources.FindObjectsOfTypeAll(controllerType))
+                {
+                    if (controller != null &&
+                        togglePrefabField.GetValue(controller) is GameObject togglePrefab && togglePrefab != null &&
+                        sliderPrefabField.GetValue(controller) is GameObject sliderPrefab && sliderPrefab != null)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
 
             public static bool TryResolve(string minimumVersion, out BaUiReflection? api, out string reason)
             {

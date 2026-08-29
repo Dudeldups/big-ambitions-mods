@@ -66,12 +66,25 @@ namespace BigHax
                 nativeUi.ConsumeGameplayInputIfNeeded(isVisible);
         }
 
+        public bool Prewarm(ModContext context, BigHaxSettings settings)
+        {
+            if (!uiSelectionResolved && !ResolveUi(context, settings, waitForNativeOptions: true))
+                return false;
+
+            if (baUnifiedUi != null)
+                baUnifiedUi.EnsureCreated(context, settings, visible: false);
+            else
+                nativeUi.EnsureCreated(context, settings, visible: false);
+
+            return true;
+        }
+
         public void OnGui(ModContext context, BigHaxSettings settings)
         {
-            // Resolve only when the player opens the screen. All mods have loaded by
-            // then, and hidden UI does not allocate an unnecessary canvas.
+            // Prewarm normally resolves the implementation after all mods load. Keep
+            // this lazy path for unusual lifecycles where that callback did not run.
             if (!uiSelectionResolved && isVisible)
-                ResolveUi(context, settings);
+                ResolveUi(context, settings, waitForNativeOptions: false);
 
             if (!uiSelectionResolved)
                 return;
@@ -91,24 +104,29 @@ namespace BigHax
             isVisible = false;
         }
 
-        private void ResolveUi(ModContext context, BigHaxSettings settings)
+        private bool ResolveUi(ModContext context, BigHaxSettings settings, bool waitForNativeOptions)
         {
-            uiSelectionResolved = true;
             if (BigHaxBaUnifiedOptionsUi.TryCreate(context, settings, isVisible, Hide, out baUnifiedUi, out var reason))
             {
+                uiSelectionResolved = true;
                 nativeUi.Destroy();
                 var message = $"BigHax: using LIB_BaUnifiedUI {baUnifiedUi!.LibraryVersion} from {baUnifiedUi.AssemblyName}.";
                 context.Logger.Info(message);
                 BigHaxFileLogger.Log(message);
                 BigHaxUiDebugLogger.Log(message);
-                return;
+                return true;
             }
 
+            if (waitForNativeOptions && BigHaxBaUnifiedOptionsUi.IsWaitingForNativeOptions(reason))
+                return false;
+
+            uiSelectionResolved = true;
             var fallbackMessage = "BigHax: using built-in options UI fallback (" + reason + ").";
             context.Logger.Info(fallbackMessage);
             BigHaxFileLogger.Log(fallbackMessage);
             BigHaxUiDebugLogger.Log(fallbackMessage);
             nativeUi.EnsureCreated(context, settings, isVisible);
+            return true;
         }
 
         private void SetSelectedUiVisible(bool visible)

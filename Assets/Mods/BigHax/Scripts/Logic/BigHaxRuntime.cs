@@ -40,6 +40,7 @@ namespace BigHax
         private bool parkingVehicleEventsSubscribed;
         private Coroutine? employeeDemandCleanupCoroutine;
         private Coroutine? employeeDemandMessageCleanupCoroutine;
+        private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
@@ -78,7 +79,7 @@ namespace BigHax
             instance = runtime;
             BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
             runtime.ApplyIfRequested();
-            GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.ScheduleEmployeeDemandMessageCleanup);
+            GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
             return runtime;
         }
 
@@ -100,6 +101,12 @@ namespace BigHax
             {
                 StopCoroutine(employeeDemandMessageCleanupCoroutine);
                 employeeDemandMessageCleanupCoroutine = null;
+            }
+
+            if (optionsUiPrewarmCoroutine != null)
+            {
+                StopCoroutine(optionsUiPrewarmCoroutine);
+                optionsUiPrewarmCoroutine = null;
             }
 
             if (parkingExitCleanupCoroutine != null)
@@ -298,6 +305,31 @@ namespace BigHax
         {
             if (employeeDemandMessageCleanupCoroutine == null)
                 employeeDemandMessageCleanupCoroutine = StartCoroutine(RemoveSavedEmployeeDemandMessagesAfterLoad());
+        }
+
+        private void HandleGameLoadedLate()
+        {
+            ScheduleEmployeeDemandMessageCleanup();
+            if (optionsUiPrewarmCoroutine == null)
+                optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
+        }
+
+        private IEnumerator PrewarmOptionsUiWhenGameIsReady()
+        {
+            // The callback can run before City mods and the native Options
+            // controller finish initialization. Poll only for prefab readiness;
+            // Prewarm does not build anything until both vanilla rows exist.
+            while (context != null && settings != null)
+            {
+                var completed = false;
+                SafeApply("options UI prewarm", () => completed = overlayUi.Prewarm(context, settings));
+                if (completed)
+                    break;
+
+                yield return new WaitForSecondsRealtime(0.1f);
+            }
+
+            optionsUiPrewarmCoroutine = null;
         }
 
         private IEnumerator ClearEmployeeDemandsAfterDailyUpdate()
