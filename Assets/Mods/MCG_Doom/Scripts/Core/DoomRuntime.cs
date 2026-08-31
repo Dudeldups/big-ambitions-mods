@@ -46,11 +46,11 @@ namespace MCG_Doom.Core
             _video.Render(_doom, Fixed.One);
         }
 
-        public void Tick(double deltaSeconds)
+        public bool Tick(double deltaSeconds)
         {
             if (_completed)
             {
-                return;
+                return true;
             }
 
             _input.PumpEvents(_doom);
@@ -64,11 +64,12 @@ namespace MCG_Doom.Core
                 if (result == UpdateResult.Completed)
                 {
                     _completed = true;
-                    return;
+                    return true;
                 }
             }
 
             _video.Render(_doom, Fixed.One);
+            return false;
         }
 
         public void Dispose()

@@ -10,6 +10,7 @@ namespace MCG_Doom
     {
         private DoomRuntime _runtime;
         private DoomScreen _screen;
+        private bool _exitRequested;
 
         public override Camera Camera => _screen?.Camera;
 
@@ -32,7 +33,17 @@ namespace MCG_Doom
         protected override void OnTick(ComputerGameFrame frame)
         {
             _screen?.Tick(frame.DeltaSeconds);
-            _runtime?.Tick(frame.DeltaSeconds);
+
+            if (_runtime == null || _exitRequested)
+            {
+                return;
+            }
+
+            if (_runtime.Tick(frame.DeltaSeconds))
+            {
+                _exitRequested = true;
+                Context?.RequestExit();
+            }
         }
 
         public override void SetScreenResolution(int width, int height)
@@ -55,6 +66,7 @@ namespace MCG_Doom
         {
             _runtime?.Dispose();
             _runtime = null;
+            _exitRequested = false;
 
             _screen?.Dispose();
             _screen = null;
