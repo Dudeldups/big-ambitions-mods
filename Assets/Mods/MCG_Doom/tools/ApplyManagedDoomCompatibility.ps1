@@ -136,3 +136,10 @@ if ($changedFiles -gt 0) {
 else {
     Write-Host "[MCG_Doom] Managed Doom .NET 4.7.2 compatibility already applied."
 }
+
+$meltyRoot = Join-Path $ModRoot "Scripts\ThirdParty\MeltySynth"
+$meltyPatch = Join-Path $PSScriptRoot "ApplyMeltySynthCompatibility.ps1"
+if ((Get-ChildItem -LiteralPath $meltyRoot -Filter "*.cs" -File -Recurse -ErrorAction SilentlyContinue) -and
+    (Test-Path -LiteralPath $meltyPatch -PathType Leaf)) {
+    & $meltyPatch
+}

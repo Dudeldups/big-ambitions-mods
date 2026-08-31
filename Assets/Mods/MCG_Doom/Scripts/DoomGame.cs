@@ -19,7 +19,8 @@ namespace MCG_Doom
             {
                 _screen = DoomScreen.Create(transform);
                 var wadPath = DoomPaths.FindBundledSharewareWad();
-                _runtime = new DoomRuntime(wadPath, _screen.FrameBuffer);
+                var soundFontPath = DoomPaths.FindBundledSoundFont();
+                _runtime = new DoomRuntime(wadPath, soundFontPath, _screen.FrameBuffer, transform);
             }
             catch (Exception exception)
             {

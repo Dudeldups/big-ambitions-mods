@@ -15,7 +15,7 @@ MonoBehaviour:
   ModId: MCG_Doom
   DisplayName: "[MCG] DOOM"
   Author: Dudeldups
-  Version: 0.1.0
+  Version: 0.3.0
   AssetBundleName:
   ModAssembly: {fileID: 5897886265953266890, guid: b9f38b67a5204dde9fef6372550534c3, type: 3}
   LocalesFolder: {fileID: 102900000, guid: 368770425ef84bdca9b3d89a74cbbb13, type: 3}

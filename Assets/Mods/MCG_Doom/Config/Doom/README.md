@@ -1,9 +1,11 @@
-# DOOM game data
+# DOOM runtime data
 
-`PrepareThirdParty.ps1` places the unmodified shareware IWAD here as:
+`tools/PrepareThirdParty.ps1` prepares the runtime files in this folder:
 
-`doom1.wad`
+- `doom1.wad` — the unmodified DOOM 1.9 shareware IWAD
+- `Audio/TimGM6mb.sf2` — General MIDI SoundFont used to synthesize the WAD's original MUS score
+- `Legal/` — redistributed notices/licenses
 
-The mod intentionally uses `Config/Doom/` because the Big Ambitions external mod build already copies the complete `Config` directory into `ModsLocal`.
+The mod intentionally keeps these files under `Config/Doom/` because the Big Ambitions external mod build copies the complete `Config` directory into `ModsLocal`.
 
-The release package is intended to include this file, so players do not need to provide a WAD themselves.
+Release packages are intended to contain these prepared files, so players do not need to provide a WAD, SoundFont, or other audio data themselves.

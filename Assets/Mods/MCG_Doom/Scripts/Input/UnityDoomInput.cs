@@ -23,8 +23,9 @@ namespace MCG_Doom.Input
                 PostTransition(doom, binding.UnityKey, binding.DoomKey);
             }
 
-            // MCG owns Tab/Escape, so expose DOOM's equivalents on M and P.
-            PostTransition(doom, KeyCode.M, DoomKey.Tab);
+            // MCG owns Tab/Escape, and Big Ambitions owns M for the city map.
+            // Expose DOOM's automap/menu on E and P instead.
+            PostTransition(doom, KeyCode.E, DoomKey.Tab);
             PostTransition(doom, KeyCode.P, DoomKey.Escape);
         }
 

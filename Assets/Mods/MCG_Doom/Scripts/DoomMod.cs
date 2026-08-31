@@ -14,7 +14,7 @@ namespace MCG_Doom
                     "dudeldups:doom",
                     "DOOM",
                     "The classic DOOM shareware episode, running on your Big Ambitions computer.",
-                    version: "0.1.0",
+                    version: "0.2.0",
                     descriptionKey: "mcg_doom_description",
                     ruleset: "doom-shareware-v1")
                 .WithNativeRetroEffects(false);

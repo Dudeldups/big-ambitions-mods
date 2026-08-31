@@ -101,7 +101,7 @@ namespace MCG_Doom.Rendering
             text.color = Color.white;
             text.characterSize = 0.105f;
             text.fontSize = 52;
-            text.text = "P = DOOM MENU     M = AUTOMAP\nBACKSPACE = GAME SELECT     TAB = LEAVE PC";
+            text.text = "P = DOOM MENU     E = AUTOMAP\nBACKSPACE = GAME SELECT     TAB = LEAVE PC";
         }
     }
 }

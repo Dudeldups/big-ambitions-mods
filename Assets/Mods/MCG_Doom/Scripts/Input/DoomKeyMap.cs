@@ -6,6 +6,7 @@ namespace MCG_Doom.Input
     internal static class DoomKeyMap
     {
         // Tab, Escape and Backspace are deliberately omitted because MCG owns them.
+        // E is reserved for DOOM automap; M is left unused because Big Ambitions owns it.
         public static readonly DoomKeyBinding[] Bindings =
         {
             new DoomKeyBinding(KeyCode.Space, DoomKey.Space),
@@ -34,7 +35,6 @@ namespace MCG_Doom.Input
             new DoomKeyBinding(KeyCode.B, DoomKey.B),
             new DoomKeyBinding(KeyCode.C, DoomKey.C),
             new DoomKeyBinding(KeyCode.D, DoomKey.D),
-            new DoomKeyBinding(KeyCode.E, DoomKey.E),
             new DoomKeyBinding(KeyCode.F, DoomKey.F),
             new DoomKeyBinding(KeyCode.G, DoomKey.G),
             new DoomKeyBinding(KeyCode.H, DoomKey.H),

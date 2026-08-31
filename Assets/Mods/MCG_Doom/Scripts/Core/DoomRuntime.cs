@@ -1,7 +1,9 @@
 using System;
 using ManagedDoom;
+using MCG_Doom.Audio;
 using MCG_Doom.Input;
 using MCG_Doom.Rendering;
+using UnityEngine;
 
 namespace MCG_Doom.Core
 {
@@ -13,16 +15,18 @@ namespace MCG_Doom.Core
         private readonly Doom _doom;
         private readonly UnityDoomInput _input;
         private readonly UnityDoomVideo _video;
+        private readonly UnityDoomSound _sound;
+        private readonly UnityDoomMusic _music;
         private double _accumulator;
         private bool _completed;
 
-        public DoomRuntime(string wadPath, DoomFrameBuffer frameBuffer)
+        public DoomRuntime(string wadPath, string soundFontPath, DoomFrameBuffer frameBuffer, Transform audioParent)
         {
+            // Unity adapters provide both DOOM sound effects and music, so keep
+            // the engine audio paths enabled.
             var args = new CommandLineArgs(new[]
             {
-                "-iwad", wadPath,
-                "-nosound",
-                "-nomusic"
+                "-iwad", wadPath
             });
 
             var config = new Config
@@ -35,7 +39,9 @@ namespace MCG_Doom.Core
             var content = new GameContent(args);
             _input = new UnityDoomInput(config);
             _video = new UnityDoomVideo(config, content, frameBuffer);
-            _doom = new Doom(args, config, content, _video, null, null, _input);
+            _sound = new UnityDoomSound(config, content, audioParent);
+            _music = new UnityDoomMusic(config, content, soundFontPath, audioParent);
+            _doom = new Doom(args, config, content, _video, _sound, _music, _input);
 
             _video.Render(_doom, Fixed.One);
         }
@@ -62,15 +68,14 @@ namespace MCG_Doom.Core
                 }
             }
 
-            // Rendering does not advance game state. Fixed.One is a safe first
-            // implementation; interpolation can be added after the in-game
-            // integration has been verified.
             _video.Render(_doom, Fixed.One);
         }
 
         public void Dispose()
         {
             _input.Reset();
+            _sound.Dispose();
+            _music.Dispose();
             _video.Dispose();
         }
     }
