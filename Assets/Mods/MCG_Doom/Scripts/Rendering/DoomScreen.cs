@@ -9,14 +9,16 @@ namespace MCG_Doom.Rendering
         private readonly GameObject _root;
         private readonly Material _material;
         private readonly TextMesh _errorText;
+        private readonly DoomControlsHint _controlsHint;
 
-        private DoomScreen(GameObject root, Camera camera, DoomFrameBuffer frameBuffer, Material material, TextMesh errorText)
+        private DoomScreen(GameObject root, Camera camera, DoomFrameBuffer frameBuffer, Material material, TextMesh errorText, DoomControlsHint controlsHint)
         {
             _root = root;
             Camera = camera;
             FrameBuffer = frameBuffer;
             _material = material;
             _errorText = errorText;
+            _controlsHint = controlsHint;
         }
 
         public Camera Camera { get; }
@@ -32,8 +34,14 @@ namespace MCG_Doom.Rendering
             var camera = CreateCamera(root.transform);
             var material = CreateDisplay(root.transform, frameBuffer.Texture);
             var errorText = CreateErrorText(root.transform);
+            var controlsHint = DoomControlsHint.Create(root.transform, Layer);
 
-            return new DoomScreen(root, camera, frameBuffer, material, errorText);
+            return new DoomScreen(root, camera, frameBuffer, material, errorText, controlsHint);
+        }
+
+        public void Tick(float deltaSeconds)
+        {
+            _controlsHint?.Tick(deltaSeconds);
         }
 
         public void ShowError(string message)
@@ -53,6 +61,7 @@ namespace MCG_Doom.Rendering
             }
 
             FrameBuffer?.Dispose();
+            _controlsHint?.Dispose();
 
             if (_material != null)
             {

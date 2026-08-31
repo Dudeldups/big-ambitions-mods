@@ -15,6 +15,7 @@ The first implementation targets a deliberately small, testable slice:
 - fixed 35 Hz DOOM game ticks
 - keyboard and mouse controls
 - native DOOM menu/automap remapped away from MCG-reserved keys
+- short startup controls hint for the remapped DOOM / MCG keys
 - sound and music disabled for the first runtime test
 
 ## Folder layout
@@ -95,6 +96,10 @@ MCG reserves `Tab`, `Backspace`, and `Escape`, so DOOM cannot use those keys dir
 | Big Ambitions pause | `Escape` (host) |
 
 The normal DOOM arrow-key movement is also retained where it does not conflict with the modern WASD mapping.
+
+When a DOOM session starts, a small controls hint is shown at the bottom of the game image for about 7.5 seconds. It calls out `P = DOOM MENU`, `M = AUTOMAP`, `Backspace = game selection`, and `Tab = leave PC`, then hides automatically.
+
+A copy-ready Steam Workshop BBCode section is included in `WORKSHOP_CONTROLS.bbcode.txt`.
 
 ## Build
 

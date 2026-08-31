@@ -30,6 +30,7 @@ namespace MCG_Doom
 
         protected override void OnTick(ComputerGameFrame frame)
         {
+            _screen?.Tick(frame.DeltaSeconds);
             _runtime?.Tick(frame.DeltaSeconds);
         }
 
