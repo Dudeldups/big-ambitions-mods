@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ManagedDoomRef = "master",
+    [string]$ManagedDoomRef = "9365696eb44326a3aab72c4bab217f7db8a87c96",
     [string]$MeltySynthRef = "17825ce95e27295ca0c084dd51dcd73d9da93531",
     [switch]$Force
 )
@@ -17,11 +17,17 @@ $RuntimeLegalDestination = Join-Path $ModRoot "Config\Doom\Legal"
 $WadDestination = Join-Path $ModRoot "Config\Doom\doom1.wad"
 $SoundFontDestination = Join-Path $ModRoot "Config\Doom\Audio\TimGM6mb.sf2"
 $RecordPath = Join-Path $ModRoot "THIRD_PARTY_PREPARED.txt"
+$ManagedLicenseDestination = Join-Path $LicenseDestination "LICENSE_ManagedDoom.txt"
+$MeltyLicenseDestination = Join-Path $LicenseDestination "LICENSE_MeltySynth.txt"
+$DoomCopyrightDestination = Join-Path $RuntimeLegalDestination "DOOM_SHAREWARE_DEBIAN_COPYRIGHT.txt"
+$SoundFontCopyrightDestination = Join-Path $RuntimeLegalDestination "TimGM6mb_DEBIAN_COPYRIGHT.txt"
 
 $DoomArchiveUrl = "https://deb.debian.org/debian/pool/non-free/d/doom-wad-shareware/doom-wad-shareware_1.9.fixed.orig.tar.gz"
 $DoomArchiveMd5 = "B1D0B2E814366FE926EA2773CA404137"
+$DoomCopyrightUrl = "https://sources.debian.org/data/non-free/d/doom-wad-shareware/1.9.fixed-5/debian/copyright"
 $SoundFontArchiveUrl = "https://ftp.debian.org/debian/pool/main/t/timgm6mb-soundfont/timgm6mb-soundfont_1.3.orig.tar.gz"
 $SoundFontArchiveSha256 = "AF8F3A00E416DFB262BCAA904A1C84DF04A51B72BBC1313AED012BC754BDF99B"
+$SoundFontCopyrightUrl = "https://metadata.ftp-master.debian.org/changelogs/main/t/timgm6mb-soundfont/timgm6mb-soundfont_1.3-5_copyright"
 
 function Ensure-Directory([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -143,9 +149,9 @@ $needWad = $Force -or -not (Test-Path -LiteralPath $WadDestination -PathType Lea
 $needMelty = $Force -or -not (Has-CSharpPayload $MeltyDestination)
 $needSoundFont = $Force -or -not (Test-Path -LiteralPath $SoundFontDestination -PathType Leaf)
 
-$resolvedManagedCommit = "existing"
+$resolvedManagedCommit = $ManagedDoomRef
 $managedZipSha256 = "existing"
-$resolvedMeltyCommit = "existing"
+$resolvedMeltyCommit = $MeltySynthRef
 $meltyZipSha256 = "existing"
 $archiveHash = "existing"
 $soundFontArchiveHash = "existing"
@@ -190,7 +196,7 @@ if ($needManaged) {
 
     $managedLicenseSource = Join-Path $managedRepositoryRoot.FullName "licenses\LICENSE_ManagedDoom.txt"
     if (Test-Path -LiteralPath $managedLicenseSource) {
-        Copy-Item -LiteralPath $managedLicenseSource -Destination (Join-Path $LicenseDestination "LICENSE_ManagedDoom.txt") -Force
+        Copy-Item -LiteralPath $managedLicenseSource -Destination $ManagedLicenseDestination -Force
         Copy-Item -LiteralPath $managedLicenseSource -Destination (Join-Path $RuntimeLegalDestination "LICENSE_ManagedDoom.txt") -Force
     }
 
@@ -221,7 +227,7 @@ if ($needMelty) {
 
     $meltyLicenseTemp = Join-Path $TempRoot "LICENSE_MeltySynth.txt"
     if (Copy-ZipRootFile $meltyZip "LICENSE.txt" $meltyLicenseTemp) {
-        Copy-Item -LiteralPath $meltyLicenseTemp -Destination (Join-Path $LicenseDestination "LICENSE_MeltySynth.txt") -Force
+        Copy-Item -LiteralPath $meltyLicenseTemp -Destination $MeltyLicenseDestination -Force
         Copy-Item -LiteralPath $meltyLicenseTemp -Destination (Join-Path $RuntimeLegalDestination "LICENSE_MeltySynth.txt") -Force
     }
 
@@ -283,9 +289,31 @@ else {
     Write-Host "TimGM6mb.sf2 already present; keeping existing file."
 }
 
+# Keep release/legal metadata complete even when the actual third-party payload
+# was already prepared in an earlier run. These are deliberately small
+# downloads and are copied into Config so the external build ships them.
+if ($Force -or -not (Test-Path -LiteralPath $ManagedLicenseDestination -PathType Leaf)) {
+    $managedLicenseUrl = "https://raw.githubusercontent.com/sinshu/managed-doom/$ManagedDoomRef/licenses/LICENSE_ManagedDoom.txt"
+    Download-File $managedLicenseUrl $ManagedLicenseDestination
+}
+if ($Force -or -not (Test-Path -LiteralPath $MeltyLicenseDestination -PathType Leaf)) {
+    $meltyLicenseUrl = "https://raw.githubusercontent.com/sinshu/meltysynth/$MeltySynthRef/LICENSE.txt"
+    Download-File $meltyLicenseUrl $MeltyLicenseDestination
+}
+if ($Force -or -not (Test-Path -LiteralPath $DoomCopyrightDestination -PathType Leaf)) {
+    Download-File $DoomCopyrightUrl $DoomCopyrightDestination
+}
+if ($Force -or -not (Test-Path -LiteralPath $SoundFontCopyrightDestination -PathType Leaf)) {
+    Download-File $SoundFontCopyrightUrl $SoundFontCopyrightDestination
+}
+
+Copy-Item -LiteralPath $ManagedLicenseDestination -Destination (Join-Path $RuntimeLegalDestination "LICENSE_ManagedDoom.txt") -Force
+Copy-Item -LiteralPath $MeltyLicenseDestination -Destination (Join-Path $RuntimeLegalDestination "LICENSE_MeltySynth.txt") -Force
+Copy-Item -LiteralPath (Join-Path $ModRoot "LICENSE") -Destination (Join-Path $RuntimeLegalDestination "GPL-2.0.txt") -Force
 Copy-Item -LiteralPath (Join-Path $ModRoot "LICENSE") -Destination (Join-Path $RuntimeLegalDestination "MCG_Doom_GPL-2.0.txt") -Force
 Copy-Item -LiteralPath (Join-Path $ModRoot "DOOM_SHAREWARE_NOTICE.md") -Destination $RuntimeLegalDestination -Force
 Copy-Item -LiteralPath (Join-Path $ModRoot "THIRD_PARTY_NOTICES.md") -Destination $RuntimeLegalDestination -Force
+Copy-Item -LiteralPath (Join-Path $ModRoot "ThirdParty\MODIFICATIONS.md") -Destination (Join-Path $RuntimeLegalDestination "THIRD_PARTY_MODIFICATIONS.md") -Force
 
 $managedCompatibility = Join-Path $PSScriptRoot "ApplyManagedDoomCompatibility.ps1"
 $meltyCompatibility = Join-Path $PSScriptRoot "ApplyMeltySynthCompatibility.ps1"
