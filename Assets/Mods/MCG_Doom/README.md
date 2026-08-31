@@ -1,5 +1,7 @@
 # MCG_Doom
 
+**Release version: 1.0.0**
+
 DOOM as a game for the **More Computer Games** framework in Big Ambitions.
 
 The mod follows the existing MCG game structure: a small `ComputerGameMod<TGame>` entry point registers the title, while `DoomGame` owns the Unity camera and delegates the actual game to small runtime adapters. The original Managed Doom desktop frontend is not used.
@@ -18,6 +20,7 @@ The current playable implementation includes:
 - short startup controls hint for the remapped keys
 - original DOOM MUS music synthesized at runtime through MeltySynth + `TimGM6mb.sf2`
 - original DOOM sound effects decoded directly from the WAD and played through Unity `AudioSource` channels
+- native DOOM `Quit Game` exits cleanly back to More Computer Games
 
 The music is not shipped as converted MP3/OGG files. The original MUS lumps stay inside `doom1.wad`; `UnityDoomMusic` decodes their events and streams synthesized stereo PCM through a Unity `AudioClip`. Sound effects are read from the original `DS*` DMX-format lumps in the same WAD, converted from unsigned 8-bit samples to Unity PCM once at startup, and played through an eight-channel `UnityDoomSound` backend plus a dedicated UI channel.
 
@@ -176,7 +179,7 @@ Do **not** bundle the MCG library into this mod. It is a dependency of the game 
 
 ## Licensing
 
-The adapter/mod source in this folder is intended to be distributed under GPLv2-or-later together with the Managed Doom source used by it. See `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+The adapter/mod source in this folder is distributed under GPLv2-or-later together with the Managed Doom source used by it. For a public binary release, publish the complete corresponding source for this exact `1.0.0` build from the same release location (for example a tagged public repository) and link it from the Workshop page. See `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 
 - Managed Doom: GPLv2-or-later
 - MeltySynth: MIT
@@ -186,7 +189,7 @@ The adapter/mod source in this folder is intended to be distributed under GPLv2-
 
 See the files under `Config/Doom/Legal/` in a prepared/installable tree for the redistributed notices/licenses.
 
-## Audio test checklist
+## Release smoke-test checklist
 
 After rebuilding:
 
@@ -200,3 +203,5 @@ After rebuilding:
 8. Returning to the MCG launcher or leaving the computer stops all music and SFX.
 9. Reopening DOOM starts a fresh audio session without duplicate channels.
 10. `P` still opens the DOOM menu and `E` toggles the automap.
+11. `P` → `Quit Game` exits back to the MCG launcher instead of leaving a frozen DOOM screen.
+12. Save a game, load it again, and verify the save survives a fresh DOOM session.
