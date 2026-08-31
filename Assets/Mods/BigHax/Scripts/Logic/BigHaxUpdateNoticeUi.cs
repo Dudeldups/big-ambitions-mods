@@ -7,7 +7,7 @@ namespace BigHax
 {
     internal sealed class BigHaxUpdateNoticeUi
     {
-        private const int CurrentNoticeVersion = 5;
+        private const int CurrentNoticeVersion = 6;
         private const int WindowId = 348722;
         private const float WindowWidth = 540f;
         private const float WindowHeight = 260f;

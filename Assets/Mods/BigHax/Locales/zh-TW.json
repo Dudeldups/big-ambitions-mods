@@ -6,7 +6,7 @@
   "bighax_ui_close_button": "關閉",
   "bighax_ui_fallback_notice": "請在 Steam 工作坊訂閱 LIB BA Unified UI，以獲得更好的體驗。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "Big Hax 已更新以支援 Big Ambitions 1.0。\n\n- 相容於 Big Ambitions 1.0\n- 採用原生風格的全新模組選項介面\n\n特別感謝 Capitaine 對介面工作的協助。",
+  "bighax_update_notification": "啟用\"移除所有員工要求\"時的員工滿意度問題已修正。\n受影響的員工現在會隨時間恢復滿意度。",
   "bighax_update_notice_got_it": "知道了",
   "bighax_customer_traffic_multiplier_label": "玩家企業顧客倍率",
   "bighax_disable_casino_bet_limit_label": "提高賭場下注上限",

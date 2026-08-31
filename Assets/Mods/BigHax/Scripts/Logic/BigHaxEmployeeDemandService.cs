@@ -6,6 +6,7 @@ using BAModAPI;
 using Entities;
 using Helpers;
 using UI.Smartphone.Apps.Contacts;
+using UnityEngine;
 
 namespace BigHax
 {
@@ -14,10 +15,6 @@ namespace BigHax
         private const string EmployeeHiredEvent = "ba:gameevent_employeehired";
         private const string NewDayEvent = "ba:gameevent_newday";
         private const string NewDemandMessageKey = "ba:messagetype_employee_contact_message_new_demand";
-        private const string DebugLogFile = "BigHax-employee-demands.log";
-
-        private static readonly FieldInfo? DemandsGeneratedTodayField =
-            typeof(EmployeeHelper).GetField("DemandsGeneratedToday", BindingFlags.Static | BindingFlags.NonPublic);
         private static readonly FieldInfo? ContactsToSendNotificationField =
             typeof(ContactsHelper).GetField("ContactsToSendNotification", BindingFlags.Static | BindingFlags.NonPublic);
 
@@ -27,7 +24,6 @@ namespace BigHax
         private bool clearedCurrentSaveEmployees;
         private bool dailyCleanupScheduled;
         private bool saveCleanupAfterLoad;
-        private bool missingDemandCounterLogged;
         private Action? scheduleDailyCleanup;
 
         public void SetDailyCleanupScheduler(Action scheduler)
@@ -64,7 +60,6 @@ namespace BigHax
                 return false;
 
             dailyCleanupScheduled = true;
-            Log("scheduled post-daily demand cleanup.");
             return true;
         }
 
@@ -77,11 +72,6 @@ namespace BigHax
             if (!isEnabled)
                 yield break;
 
-            var generatedDemandCount = GetDemandsGeneratedToday();
-            Log($"post-daily demand cleanup evaluated; vanilla generated {generatedDemandCount} demand(s).");
-            if (generatedDemandCount <= 0)
-                yield break;
-
             try
             {
                 var employees = SaveGameManager.Current?.EmployeeInstances;
@@ -90,21 +80,24 @@ namespace BigHax
 
                 var clearedEmployeeCount = 0;
                 var removedMessageCount = 0;
+                var satisfactionRaisedEmployeeCount = 0;
                 foreach (var employee in employees)
                 {
-                    if (ClearDemands(employee) > 0)
+                    var removedDemands = ClearDemands(employee);
+                    if (removedDemands > 0)
                     {
                         clearedEmployeeCount++;
                         removedMessageCount += RemoveDemandMessages(employee);
                     }
+
+                    if (RaiseSatisfactionForDemandFreeEmployee(employee))
+                        satisfactionRaisedEmployeeCount++;
                 }
 
-                MarkSaveChangedIfNeeded(clearedEmployeeCount > 0 || removedMessageCount > 0);
-                Log($"vanilla generated {generatedDemandCount} demand(s); cleared demands from {clearedEmployeeCount} employee(s) and removed {removedMessageCount} demand message(s).");
+                MarkSaveChangedIfNeeded(clearedEmployeeCount > 0 || removedMessageCount > 0 || satisfactionRaisedEmployeeCount > 0);
             }
             catch (Exception exception)
             {
-                Log($"failed to clear skill-based demands: {exception}");
                 context?.Logger.Error(exception);
             }
         }
@@ -129,11 +122,9 @@ namespace BigHax
 
                 MarkSaveChangedIfNeeded(removedMessageCount > 0);
                 SaveDemandCleanupAfterLoadIfNeeded();
-                Log($"post-load cleanup removed {removedMessageCount} saved demand message(s) from {employees.Count} employee(s).");
             }
             catch (Exception exception)
             {
-                Log($"failed to remove saved demand messages: {exception}");
                 context?.Logger.Error(exception);
             }
         }
@@ -178,11 +169,9 @@ namespace BigHax
                 clearedCurrentSaveEmployees = true;
                 MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0);
                 saveCleanupAfterLoad |= removedDemandCount > 0 || removedMessageCount > 0;
-                Log($"cleared {removedDemandCount} demand(s) and removed {removedMessageCount} demand message(s) from {employees.Count} existing employee(s).");
             }
             catch (Exception exception)
             {
-                Log($"failed to clear existing employee demands: {exception}");
                 context?.Logger.Error(exception);
             }
         }
@@ -212,11 +201,9 @@ namespace BigHax
                 var employee = employees[employees.Count - 1];
                 var removedDemandCount = ClearDemands(employee);
                 MarkSaveChangedIfNeeded(removedDemandCount > 0);
-                Log($"cleared {removedDemandCount} demand(s) from newly hired employee '{employee.characterData?.name ?? employee.id}'.");
             }
             catch (Exception exception)
             {
-                Log($"failed to clear newly hired employee demands: {exception}");
                 context?.Logger.Error(exception);
             }
         }
@@ -229,6 +216,17 @@ namespace BigHax
             var removedDemandCount = employee.demands.Count;
             employee.demands.Clear();
             return removedDemandCount;
+        }
+
+        private static bool RaiseSatisfactionForDemandFreeEmployee(EmployeeInstance? employee)
+        {
+            if (employee?.demands == null || employee.demands.Count != 0 || employee.satisfaction >= 100f)
+                return false;
+
+            // Big Ambitions normally changes satisfaction by at most 0.6 per daily update.
+            // With an empty demand list, the game's own calculation instead produces a zero delta.
+            employee.satisfaction = Mathf.Min(100f, employee.satisfaction + 0.6f);
+            return true;
         }
 
         private static int RemoveDemandMessages(EmployeeInstance? employee)
@@ -290,27 +288,7 @@ namespace BigHax
                 return;
 
             saveCleanupAfterLoad = false;
-            var saved = SaveGameManager.Save(SaveGameManager.SaveType.Default, null, null);
-            Log($"one-time post-load save requested for demand cleanup; accepted={saved}.");
-        }
-
-        private int GetDemandsGeneratedToday()
-        {
-            if (DemandsGeneratedTodayField?.GetValue(null) is int demandCount)
-                return demandCount;
-
-            if (!missingDemandCounterLogged)
-            {
-                missingDemandCounterLogged = true;
-                Log("could not read EmployeeHelper.DemandsGeneratedToday; daily cleanup skipped.");
-            }
-
-            return 0;
-        }
-
-        private static void Log(string message)
-        {
-            BigHaxFileLogger.Log(DebugLogFile, DebugLogFile, $"[employee demands] {message}");
+            SaveGameManager.Save(SaveGameManager.SaveType.Default, null, null);
         }
     }
 }

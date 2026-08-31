@@ -6,7 +6,7 @@
   "bighax_ui_close_button": "Закрыть",
   "bighax_ui_fallback_notice": "Подпишитесь на LIB BA Unified UI в Мастерской Steam, чтобы получить более приятный опыт.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "Big Hax обновлён для Big Ambitions 1.0.\n\n- Совместимость с Big Ambitions 1.0\n- Обновлённый интерфейс настроек мода в нативном стиле\n\nОтдельная благодарность Capitaine за помощь с интерфейсом.",
+  "bighax_update_notification": "Исправлено удовлетворение сотрудников при включённой опции \"Удалить все требования сотрудников\".\nЗатронутые сотрудники теперь постепенно восстанавливают удовлетворение.",
   "bighax_update_notice_got_it": "Понятно",
   "bighax_customer_traffic_multiplier_label": "Множитель клиентов бизнеса игрока",
   "bighax_disable_casino_bet_limit_label": "Увеличить лимит ставок в казино",
