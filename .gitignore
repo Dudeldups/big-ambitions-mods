@@ -49,3 +49,6 @@ Assets/_BaDependencies/GameDlls/**/*.dll.meta
 *.unity.meta
 *.md
 !README.md
+
+# External mod repositories
+Assets/Mods/LIB_BaComputerGames/
