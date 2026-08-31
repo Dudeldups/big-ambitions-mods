@@ -35,4 +35,7 @@ This mod contains the original, unmodified DOOM 1.9 shareware IWAD. It contains 
 
 Managed Doom is used under GPLv2-or-later, MeltySynth under the MIT License, and TimGM6mb under GPL-2. Full third-party notices and redistributed license information are included with the mod.
 
-The complete corresponding source for this exact release should be linked here when the public source repository/tag is created.
+[h2]Source code[/h2]
+
+The complete corresponding source for version 1.0.0, including the modified Managed Doom and MeltySynth sources, is available here:
+[url=https://github.com/Dudeldups/big-ambitions-mods/tree/mcg-doom-v1.0.0/Assets/Mods/MCG_Doom]MCG_Doom 1.0.0 source code[/url]
