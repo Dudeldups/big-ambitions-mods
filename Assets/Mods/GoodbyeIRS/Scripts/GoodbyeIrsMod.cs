@@ -517,7 +517,7 @@ namespace GoodbyeIRS
                 return player != null ? player.transform.position + Vector3.up * 1.8f : Vector3.zero;
             }
 
-            public LabelInfo GetFirstLineLabel() => new("goodbye-irs:activation_overlay_title");
+            public LabelInfo GetFirstLineLabel() => null!;
 
             public LabelInfo GetSecondLineLeftLabel() => new("goodbye-irs:activation_overlay_description");
 
