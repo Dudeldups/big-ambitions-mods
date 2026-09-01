@@ -13,6 +13,13 @@
       "assemblyName": "GunStore-BusinessType",
       "modsLocalFolder": "Gun Store",
       "enabled": true
+    },
+    {
+      "modName": "GoodbyeIRS",
+      "sourceDir": "Assets/Mods/GoodbyeIRS",
+      "assemblyName": "GoodbyeIRS",
+      "modsLocalFolder": "GoodbyeIRS",
+      "enabled": true
     }
   ]
 }
