@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$McgDll,
     [switch]$NoInstall
@@ -12,7 +12,9 @@ $RepoRoot = [IO.Path]::GetFullPath((Join-Path $ModRoot "..\..\.."))
 $ExternalBuild = Join-Path $RepoRoot "tools\external-build\BuildBigAmbitionsMods.ps1"
 $GameDlls = Join-Path $RepoRoot "Assets\_BaDependencies\GameDlls"
 $CompileReference = Join-Path $GameDlls "LIB_BaComputerGames.dll"
-$CompatibilityPatch = Join-Path $PSScriptRoot "ApplyManagedDoomCompatibility.ps1"
+
+$BigAmbitionsSteamAppId = "1331550"
+$McgWorkshopItemId = "3793604724"
 
 function Get-DefaultModsLocalRoot {
     $local = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
@@ -20,43 +22,151 @@ function Get-DefaultModsLocalRoot {
     return Join-Path $localLow "Hovgaard Games\Big Ambitions\ModsLocal"
 }
 
-function Resolve-McgDll([string]$ExplicitPath) {
-    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
-        return (Resolve-Path -LiteralPath $ExplicitPath).Path
+function Add-UniquePath([System.Collections.Generic.List[string]]$List, [string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
     }
 
-    $candidates = @(
-        (Join-Path $RepoRoot "Library\ScriptAssemblies\LIB_BaComputerGames.dll"),
-        (Join-Path (Get-DefaultModsLocalRoot) "LIB_BA_MoreComputerGames\LIB_BaComputerGames.dll")
-    )
+    try {
+        $fullPath = [IO.Path]::GetFullPath($Path)
+    }
+    catch {
+        return
+    }
 
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return (Resolve-Path -LiteralPath $candidate).Path
+    foreach ($existing in $List) {
+        if ([string]::Equals($existing, $fullPath, [StringComparison]::OrdinalIgnoreCase)) {
+            return
         }
     }
 
+    $List.Add($fullPath)
+}
+
+function Get-SteamLibraryRoots {
+    $roots = New-Object 'System.Collections.Generic.List[string]'
+
+    $steamInstallCandidates = @()
+
+    try {
+        $steam = Get-ItemProperty -LiteralPath "HKCU:\Software\Valve\Steam" -ErrorAction Stop
+        if ($steam.SteamPath) {
+            $steamInstallCandidates += $steam.SteamPath
+        }
+    }
+    catch {
+    }
+
+    try {
+        $steam = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -ErrorAction Stop
+        if ($steam.InstallPath) {
+            $steamInstallCandidates += $steam.InstallPath
+        }
+    }
+    catch {
+    }
+
+    if (${env:ProgramFiles(x86)}) {
+        $steamInstallCandidates += (Join-Path ${env:ProgramFiles(x86)} "Steam")
+    }
+
+    foreach ($steamRoot in $steamInstallCandidates) {
+        if ([string]::IsNullOrWhiteSpace($steamRoot)) {
+            continue
+        }
+
+        $steamRoot = $steamRoot -replace '/', '\'
+        if (-not (Test-Path -LiteralPath $steamRoot -PathType Container)) {
+            continue
+        }
+
+        Add-UniquePath $roots $steamRoot
+
+        $libraryFolders = Join-Path $steamRoot "steamapps\libraryfolders.vdf"
+        if (-not (Test-Path -LiteralPath $libraryFolders -PathType Leaf)) {
+            continue
+        }
+
+        foreach ($line in Get-Content -LiteralPath $libraryFolders -ErrorAction SilentlyContinue) {
+            if ($line -match '^\s*"path"\s+"(.+)"\s*$') {
+                $libraryPath = $Matches[1] -replace '\\\\', '\'
+                Add-UniquePath $roots $libraryPath
+            }
+        }
+    }
+
+    return $roots.ToArray()
+}
+
+function Get-McgAssemblyInfo([string]$Path) {
+    $assembly = [Reflection.AssemblyName]::GetAssemblyName($Path)
+    if ($assembly.Name -ne "LIB_BaComputerGames") {
+        throw "Expected assembly LIB_BaComputerGames, got '$($assembly.Name)' from $Path"
+    }
+
+    return $assembly
+}
+
+function Resolve-McgDll([string]$ExplicitPath) {
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        $resolved = (Resolve-Path -LiteralPath $ExplicitPath).Path
+        return [PSCustomObject]@{
+            Path = $resolved
+            Source = "explicit -McgDll"
+        }
+    }
+
+    # Prefer the actual Steam Workshop dependency used by normal players.
+    foreach ($steamLibrary in Get-SteamLibraryRoots) {
+        $candidate = Join-Path $steamLibrary "steamapps\workshop\content\$BigAmbitionsSteamAppId\$McgWorkshopItemId\LIB_BaComputerGames.dll"
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return [PSCustomObject]@{
+                Path = (Resolve-Path -LiteralPath $candidate).Path
+                Source = "Steam Workshop item $McgWorkshopItemId"
+            }
+        }
+    }
+
+    # Fall back to a locally installed development copy.
     $modsLocal = Get-DefaultModsLocalRoot
+    $modsLocalCandidate = Join-Path $modsLocal "LIB_BA_MoreComputerGames\LIB_BaComputerGames.dll"
+    if (Test-Path -LiteralPath $modsLocalCandidate -PathType Leaf) {
+        return [PSCustomObject]@{
+            Path = (Resolve-Path -LiteralPath $modsLocalCandidate).Path
+            Source = "ModsLocal"
+        }
+    }
+
     if (Test-Path -LiteralPath $modsLocal -PathType Container) {
         $found = Get-ChildItem -LiteralPath $modsLocal -Recurse -File -Filter "LIB_BaComputerGames.dll" -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if ($null -ne $found) {
-            return $found.FullName
+            return [PSCustomObject]@{
+                Path = $found.FullName
+                Source = "ModsLocal (recursive fallback)"
+            }
+        }
+    }
+
+    # Last development fallback for a currently open/imported Unity SDK project.
+    $scriptAssembly = Join-Path $RepoRoot "Library\ScriptAssemblies\LIB_BaComputerGames.dll"
+    if (Test-Path -LiteralPath $scriptAssembly -PathType Leaf) {
+        return [PSCustomObject]@{
+            Path = (Resolve-Path -LiteralPath $scriptAssembly).Path
+            Source = "Unity Library/ScriptAssemblies fallback"
         }
     }
 
     throw @"
 LIB_BaComputerGames.dll was not found.
-Install LIB BA More Computer Games first, or pass its DLL explicitly:
+Checked the Steam Workshop item $McgWorkshopItemId first, then ModsLocal and the Unity SDK cache.
+You can also pass the DLL explicitly:
   .\tools\BuildAndInstall.ps1 -McgDll "C:\path\to\LIB_BaComputerGames.dll"
 "@
 }
 
 if (-not (Test-Path -LiteralPath $ExternalBuild -PathType Leaf)) {
     throw "External build script not found: $ExternalBuild"
-}
-if (-not (Test-Path -LiteralPath $CompatibilityPatch -PathType Leaf)) {
-    throw "Managed Doom compatibility patch script not found: $CompatibilityPatch"
 }
 if (-not (Test-Path -LiteralPath $GameDlls -PathType Container)) {
     throw "Game DLL reference directory not found: $GameDlls"
@@ -67,14 +177,13 @@ if (-not (Test-Path -LiteralPath $wad -PathType Leaf)) {
     throw "doom1.wad is missing. Run .\tools\PrepareThirdParty.ps1 first."
 }
 
-Write-Host "[MCG_Doom] Applying Managed Doom .NET 4.7.2 compatibility..."
-& $CompatibilityPatch
+$mcg = Resolve-McgDll $McgDll
+$resolvedMcg = $mcg.Path
+$mcgAssembly = Get-McgAssemblyInfo $resolvedMcg
 
-$resolvedMcg = Resolve-McgDll $McgDll
-$mcgAssemblyName = [Reflection.AssemblyName]::GetAssemblyName($resolvedMcg).Name
-if ($mcgAssemblyName -ne "LIB_BaComputerGames") {
-    throw "Expected assembly LIB_BaComputerGames, got '$mcgAssemblyName' from $resolvedMcg"
-}
+Write-Host "[MCG_Doom] MCG reference source: $($mcg.Source)"
+Write-Host "[MCG_Doom] MCG reference version: $($mcgAssembly.Version)"
+Write-Host "[MCG_Doom] MCG reference path: $resolvedMcg"
 
 $copiedReference = $false
 $backupReference = $null
@@ -97,19 +206,20 @@ try {
     Write-Host "[MCG_Doom] Compile-only MCG reference: $resolvedMcg"
     Write-Host "[MCG_Doom] Building through the normal SDK external builder..."
 
-    # Launch the SDK builder through a fresh powershell.exe process. Passing
-    # the arguments to an EXE avoids nested-script parameter binding entirely.
-    Write-Host "[MCG_Doom] SDK builder command: powershell.exe -File `"$ExternalBuild`" -ModName MCG_Doom$(if (-not $NoInstall) { ' -Install' })"
-
-    if ($NoInstall) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ExternalBuild -ModName "MCG_Doom"
+    $externalArgs = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $ExternalBuild,
+        "-ModName", "MCG_Doom"
+    )
+    if (-not $NoInstall) {
+        $externalArgs += "-Install"
     }
-    else {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ExternalBuild -ModName "MCG_Doom" -Install
-    }
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "MCG_Doom external build failed with exit code $LASTEXITCODE."
+    & powershell.exe @externalArgs
+    $externalExitCode = $LASTEXITCODE
+    if ($externalExitCode -ne 0) {
+        throw "MCG_Doom external build failed with exit code $externalExitCode."
     }
 }
 finally {

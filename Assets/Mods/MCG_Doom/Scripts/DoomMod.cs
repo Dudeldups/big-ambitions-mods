@@ -1,22 +1,30 @@
+using System;
+using System.Threading.Tasks;
 using BAModAPI;
-using Capisoft.Lib.BaComputerGames;
 
 [assembly: RegisterModClass(typeof(MCG_Doom.DoomMod))]
 
 namespace MCG_Doom
 {
     [ModEntryOnCityLoad]
-    public sealed class DoomMod : ComputerGameMod<DoomGame>
+    public sealed class DoomMod : IModBigAmbitions
     {
-        protected override ComputerGameDefinition Definition =>
-            ComputerGameDefinition
-                .Create<DoomGame>(
-                    "dudeldups:doom",
-                    "DOOM",
-                    "The classic DOOM shareware episode, running on your Big Ambitions computer.",
-                    version: "1.0.0",
-                    descriptionKey: "mcg_doom_description",
-                    ruleset: "doom-shareware-v1")
-                .WithNativeRetroEffects(false);
+        private IDisposable _registration;
+
+        public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+
+        public Task OnLoadAsync(ModContext context)
+        {
+            _registration?.Dispose();
+            _registration = DoomRegistration.Register(context);
+            return Task.CompletedTask;
+        }
+
+        public Task OnUnloadAsync()
+        {
+            _registration?.Dispose();
+            _registration = null;
+            return Task.CompletedTask;
+        }
     }
 }

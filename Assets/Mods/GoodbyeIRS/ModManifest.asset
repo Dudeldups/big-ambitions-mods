@@ -18,7 +18,7 @@ MonoBehaviour:
   Version: 0.1.0
   AssetBundleName: 
   ModAssembly: {fileID: 5897886265953266890, guid: 07284d60bc0d40568a257f7e836a5733, type: 3}
-  LocalesFolder: {fileID: 0}
+  LocalesFolder: {fileID: 102900000, guid: c482fc6b0804424097632c9b204346a3, type: 3}
   DependenciesFolder: {fileID: 0}
   EnumsFile: {fileID: 0}
   TargetPlatforms: 3
