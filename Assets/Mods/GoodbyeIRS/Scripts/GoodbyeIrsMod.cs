@@ -57,7 +57,18 @@ namespace GoodbyeIRS
             new(1092.21f, 0.01f, -93.86f),
             new(1095.63f, 0.01f, -94.14f),
             new(1098.94f, 0.01f, -95.62f),
-            new(1105.92f, 0.01f, -93.96f)
+            new(1105.92f, 0.01f, -93.96f),
+            new(1093.50f, 0.01f, -95.80f),
+            new(1096.90f, 0.01f, -93.65f),
+            new(1101.35f, 0.01f, -94.05f),
+            new(1103.55f, 0.01f, -95.45f)
+        };
+        private static readonly FireStyle[] FireStyles =
+        {
+            new(0.65f, 0.65f, 0.70f, 0.60f), // small and sparse
+            new(1.00f, 1.00f, 1.00f, 1.00f), // standard
+            new(1.38f, 1.60f, 1.55f, 1.45f), // tall and dense
+            new(0.90f, 2.20f, 0.50f, 2.00f)  // low and wide
         };
         private static Material? fallbackParticleMaterial;
         private static bool fallbackParticleMaterialSearchComplete;
@@ -90,6 +101,7 @@ namespace GoodbyeIRS
             {
                 runtime.CleanUpTaxLiabilities();
                 runtime.SubscribeToNewDay();
+                runtime.CloseIrsBuilding();
                 runtime.CreateFireScenery();
                 runtime.StartCoroutine(runtime.RemoveIrsStaffAfterOneFrame());
                 context.Logger.Info("Goodbye IRS is already active for this save.");
@@ -175,39 +187,30 @@ namespace GoodbyeIRS
             fireSceneryRoot = new GameObject("[Goodbye IRS] Fire Scenery");
             fireSceneryRoot.transform.SetParent(transform, false);
 
-            foreach (var position in FirePositions)
-                CreateFireSpot(position);
+            for (var index = 0; index < FirePositions.Length; index++)
+                CreateFireSpot(FirePositions[index], FireStyles[index % FireStyles.Length]);
 
-            context?.Logger.Info($"Placed {FirePositions.Length} cosmetic IRS fire effects.");
+            context?.Logger.Info($"Placed {FirePositions.Length} varied cosmetic IRS fire effects.");
         }
 
-        private void CreateFireSpot(Vector3 position)
+        private void CreateFireSpot(Vector3 position, FireStyle style)
         {
             var fireSpot = new GameObject("IRS Fire");
             fireSpot.transform.SetParent(fireSceneryRoot!.transform, false);
             fireSpot.transform.position = position;
-            fireSpot.transform.localScale = Vector3.one * GetFireSizeMultiplier(position);
 
             // The game ships VFX_Fire. It lives in the Visual Effect Graph
             // runtime, which is optional in the mod SDK, so access it through
             // reflection instead of adding a hard assembly dependency.
             if (!TryAttachNativeFireEffect(fireSpot))
-                CreateFallbackFlameParticles(fireSpot);
+                CreateFallbackFlameParticles(fireSpot, style);
 
             var light = fireSpot.AddComponent<Light>();
             light.type = LightType.Point;
             light.color = new Color(1f, 0.28f, 0.04f);
-            light.intensity = 2.5f;
-            light.range = 4f;
+            light.intensity = 2.5f * style.scale;
+            light.range = 2.8f + 1.2f * style.scale;
             light.shadows = LightShadows.None;
-        }
-
-        private static float GetFireSizeMultiplier(Vector3 position)
-        {
-            // Fixed per-position variation avoids changing the game's global
-            // random-number state while making the four flames less uniform.
-            var seed = unchecked((int)(position.x * 100f) * 397) ^ (int)(position.z * 100f);
-            return 0.82f + new System.Random(seed).Next(0, 39) / 100f;
         }
 
         private IEnumerator RemoveIrsStaffAfterOneFrame()
@@ -232,6 +235,20 @@ namespace GoodbyeIRS
 
             if (removedCount > 0)
                 context?.Logger.Info($"Removed {removedCount} IRS employee(s) after activation.");
+        }
+
+        private void CloseIrsBuilding()
+        {
+            var registration = BuildingHelper.GetBuildingRegistration(TaxHelper.GetIRSAddress());
+            if (registration == null || registration.temporarilyClosed)
+                return;
+
+            // Special-service buildings do not use a player-editable schedule.
+            // This is the game's own persistent closed state, which prevents
+            // the player from entering and keeps its stations inactive.
+            registration.temporarilyClosed = true;
+            GameEvent.Invoke(string.Empty);
+            context?.Logger.Info("Closed the IRS building permanently for this save.");
         }
 
         private bool TryAttachNativeFireEffect(GameObject fireSpot)
@@ -281,7 +298,7 @@ namespace GoodbyeIRS
             }
         }
 
-        private void CreateFallbackFlameParticles(GameObject fireSpot)
+        private void CreateFallbackFlameParticles(GameObject fireSpot, FireStyle style)
         {
             // A built-in particle system is deliberately used as the fallback:
             // it has no asset-bundle dependency and simulates internally rather
@@ -293,8 +310,8 @@ namespace GoodbyeIRS
                 return;
             }
 
-            CreateFlameLayer(fireSpot, "Outer flame", new Color(1f, 0.12f, 0f), 1.25f, 18f, 0.9f, particleMaterial);
-            CreateFlameLayer(fireSpot, "Inner flame", new Color(1f, 0.72f, 0.02f), 0.72f, 24f, 0.72f, particleMaterial);
+            CreateFlameLayer(fireSpot, "Outer flame", new Color(1f, 0.12f, 0f), 1.25f, 18f, 0.9f, particleMaterial, style);
+            CreateFlameLayer(fireSpot, "Inner flame", new Color(1f, 0.72f, 0.02f), 0.72f, 24f, 0.72f, particleMaterial, style);
         }
 
         private static Material? GetCompatibleParticleMaterial()
@@ -323,7 +340,8 @@ namespace GoodbyeIRS
             float size,
             float emissionRate,
             float lifetime,
-            Material particleMaterial)
+            Material particleMaterial,
+            FireStyle style)
         {
             var layer = new GameObject(layerName);
             layer.transform.SetParent(fireSpot.transform, false);
@@ -335,23 +353,23 @@ namespace GoodbyeIRS
             main.playOnAwake = true;
             main.maxParticles = 48;
             main.startLifetime = new ParticleSystem.MinMaxCurve(lifetime * 0.7f, lifetime * 1.2f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.25f, 0.75f);
-            main.startSize = new ParticleSystem.MinMaxCurve(size * 0.55f, size);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.25f * style.rise, 0.75f * style.rise);
+            main.startSize = new ParticleSystem.MinMaxCurve(size * style.scale * 0.55f, size * style.scale);
             main.startColor = color;
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
 
             var emission = particles.emission;
-            emission.rateOverTime = emissionRate;
+            emission.rateOverTime = emissionRate * style.emission;
 
             var shape = particles.shape;
             shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.radius = 0.28f;
+            shape.radius = 0.28f * style.spread;
             shape.angle = 12f;
 
             var velocity = particles.velocityOverLifetime;
             velocity.enabled = true;
             velocity.space = ParticleSystemSimulationSpace.Local;
-            velocity.y = new ParticleSystem.MinMaxCurve(0.45f, 1.2f);
+            velocity.y = new ParticleSystem.MinMaxCurve(0.45f * style.rise, 1.2f * style.rise);
 
             var sizeOverLifetime = particles.sizeOverLifetime;
             sizeOverLifetime.enabled = true;
@@ -409,6 +427,7 @@ namespace GoodbyeIRS
             save.modData[ActivatedModDataKey] = "1";
             CleanUpTaxLiabilities();
             SubscribeToNewDay();
+            CloseIrsBuilding();
             CreateFireScenery();
             RemoveIrsStaff();
             GameEvent.Invoke(string.Empty);
@@ -465,6 +484,22 @@ namespace GoodbyeIRS
             return save?.modData != null &&
                    save.modData.TryGetValue(ActivatedModDataKey, out var value) &&
                    value == "1";
+        }
+
+        private struct FireStyle
+        {
+            public readonly float scale;
+            public readonly float emission;
+            public readonly float rise;
+            public readonly float spread;
+
+            public FireStyle(float scale, float emission, float rise, float spread)
+            {
+                this.scale = scale;
+                this.emission = emission;
+                this.rise = rise;
+                this.spread = spread;
+            }
         }
 
         private sealed class IrsActivationOverlay : IOverlay
