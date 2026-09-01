@@ -2,7 +2,9 @@
 
 Run the classic DOOM shareware episode directly on your computer in Big Ambitions.
 
-This mod uses the More Computer Games framework and includes the original DOOM shareware episode, software-rendered through Managed Doom with music and sound effects played through Unity. No external WAD or audio files are required from the player.
+[h2]Required mod[/h2]
+
+[url=https://steamcommunity.com/workshop/filedetails/?id=3793604724][b]LIB BA More Computer Games[/b][/url] is required and must be installed separately.
 
 [h2]Included[/h2]
 
@@ -19,15 +21,10 @@ Because Big Ambitions / More Computer Games reserves some of DOOM's original key
 [b]P[/b] - Open the DOOM menu
 [b]E[/b] - Toggle the automap
 
-[b]Esc[/b] - Big Ambitions pause menu
 [b]Backspace[/b] - Return to the computer game selection
 [b]Tab[/b] - Leave the computer
 
 Standard DOOM controls such as movement, firing, using doors/switches and weapon selection work normally. A short reminder is also shown when DOOM starts.
-
-[h2]Required mod[/h2]
-
-[b]LIB BA More Computer Games[/b] is required and must be installed separately.
 
 [h2]About the included DOOM data[/h2]
 
