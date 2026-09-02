@@ -18,6 +18,7 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
+        private const float ExtendedBedSleepPollIntervalSeconds = 0.1f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -52,6 +53,7 @@ namespace BigHax
         private float nextCustomerTrafficPollAt;
         private float nextEmployeeTrainingPollAt;
         private float nextLoanLimitPollAt;
+        private float nextExtendedBedSleepPollAt;
         private BigHaxSettings? settings;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
@@ -70,6 +72,7 @@ namespace BigHax
             runtime.nextActiveVehiclePollAt = 0f;
             runtime.nextCasinoBetLimitPollAt = 0f;
             runtime.nextCustomerTrafficPollAt = 0f;
+            runtime.nextExtendedBedSleepPollAt = 0f;
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
@@ -166,6 +169,7 @@ namespace BigHax
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             PollLoanLimitChanges();
+            PollExtendedBedSleepBehavior();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
         }
@@ -239,6 +243,15 @@ namespace BigHax
 
             nextLoanLimitPollAt = Time.unscaledTime + LoanLimitPollIntervalSeconds;
             loanLimitService.ApplyConfiguredLimit(settings);
+        }
+
+        private void PollExtendedBedSleepBehavior()
+        {
+            if (settings == null || Time.unscaledTime < nextExtendedBedSleepPollAt)
+                return;
+
+            nextExtendedBedSleepPollAt = Time.unscaledTime + ExtendedBedSleepPollIntervalSeconds;
+            sleepRestDurationService.UpdateExtendedBedSleepBehavior(settings);
         }
 
         private void PollUiToggleHotkey()
