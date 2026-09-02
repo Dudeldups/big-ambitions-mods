@@ -7,7 +7,7 @@
   "bighax_ui_close_button": "閉じる",
   "bighax_ui_fallback_notice": "より快適に利用するには、SteamワークショップでLIB BA Unified UIをサブスクライブしてください。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Added an option to extend bed sleep up to 7 days.\n- Extended bed sleeps now fast-forward faster.\n- Fixed 24-hour bench resting.",
+  "bighax_update_notification": "- ベッドでの睡眠時間を最大7日間に延長するオプションを追加しました。\n- ベッドでの長時間睡眠がより速く早送りされるようになりました。\n- ベンチでの24時間休憩を修正しました。",
   "bighax_update_notice_got_it": "了解",
   "bighax_customer_traffic_multiplier_label": "プレイヤー企業の顧客倍率",
   "bighax_disable_casino_bet_limit_label": "カジノの賭け金上限を引き上げる",
