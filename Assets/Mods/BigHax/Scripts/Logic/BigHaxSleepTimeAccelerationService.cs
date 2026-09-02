@@ -1,7 +1,8 @@
 #nullable enable
 using System.Reflection;
-using PlayerActivity;
+using Helpers;
 using Timemachine;
+using UI;
 using UnityEngine;
 
 namespace BigHax
@@ -13,12 +14,18 @@ namespace BigHax
     internal sealed class BigHaxSleepTimeAccelerationService
     {
         private const float SpeedMultiplier = 6f;
+        private const float ExtendedBedSleepThresholdMinutes = 24f * 60f;
+        private const BindingFlags TimeMachineFieldFlags =
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly FieldInfo? TimeSpeedCurveField = typeof(TimeMachine).GetField(
             "timeSpeedCurve",
-            BindingFlags.Instance | BindingFlags.NonPublic);
+            TimeMachineFieldFlags);
         private static readonly FieldInfo? UseConstantSpeedField = typeof(TimeMachine).GetField(
             "_useConstantSpeed",
-            BindingFlags.Instance | BindingFlags.NonPublic);
+            TimeMachineFieldFlags);
+        private static readonly FieldInfo? TimeDistanceField = typeof(TimeMachine).GetField(
+            "_timeDistance",
+            TimeMachineFieldFlags);
 
         private TimeMachine? acceleratedTimeMachine;
         private AnimationCurve? originalCurve;
@@ -26,11 +33,15 @@ namespace BigHax
 
         public void HandleTimeMachineStarted(BigHaxSettings? settings)
         {
-            if (settings?.EnableExtendedBedSleep != true || !IsBedSleepActive())
+            if (settings?.EnableExtendedBedSleep != true)
                 return;
 
-            var timeMachine = Object.FindObjectOfType<TimeMachine>();
-            if (timeMachine == null || TimeSpeedCurveField == null || UseConstantSpeedField == null)
+            var timeMachine = InstanceBehavior<UIs>.Instance?.timeMachine;
+            if (timeMachine == null || TimeSpeedCurveField == null || UseConstantSpeedField == null || TimeDistanceField == null)
+                return;
+
+            var timeDistanceMinutes = (float)TimeDistanceField.GetValue(timeMachine);
+            if (timeDistanceMinutes <= ExtendedBedSleepThresholdMinutes)
                 return;
 
             var currentCurve = TimeSpeedCurveField.GetValue(timeMachine) as AnimationCurve;
@@ -62,12 +73,6 @@ namespace BigHax
             acceleratedTimeMachine = null;
             originalCurve = null;
             originalUseConstantSpeed = null;
-        }
-
-        private static bool IsBedSleepActive()
-        {
-            var activityUi = Object.FindObjectOfType<PlayerActivityUI>();
-            return activityUi?.GetCurrentActivity is SleepActivity;
         }
 
         private static AnimationCurve CreateAcceleratedCurve(AnimationCurve source)

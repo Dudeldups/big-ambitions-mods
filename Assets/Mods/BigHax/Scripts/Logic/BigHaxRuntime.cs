@@ -44,7 +44,6 @@ namespace BigHax
         private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private Coroutine? sleepDurationApplyCoroutine;
-        private Coroutine? sleepTimeAccelerationCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
         private Delegate? onEnterVehicleHandler;
@@ -124,12 +123,6 @@ namespace BigHax
                 sleepDurationApplyCoroutine = null;
             }
 
-            if (sleepTimeAccelerationCoroutine != null)
-            {
-                StopCoroutine(sleepTimeAccelerationCoroutine);
-                sleepTimeAccelerationCoroutine = null;
-            }
-
             TryRestoreCustomerTraffic();
             casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
@@ -207,7 +200,7 @@ namespace BigHax
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
-                SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
+                SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
             }
             finally
@@ -329,6 +322,12 @@ namespace BigHax
 
         private void HandleGameLoadedLate()
         {
+            // GlobalEvents is reset while a save is loading, after this runtime
+            // has been created. Reattach these handlers once the load completes.
+            GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
+            GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
+            GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
+            GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
             ScheduleEmployeeDemandMessageCleanup();
             if (sleepDurationApplyCoroutine == null)
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
@@ -343,11 +342,11 @@ namespace BigHax
             // runtime polling: it covers both initial scene and LOD setup.
             yield return new WaitForEndOfFrame();
             if (context != null && settings != null)
-                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
+                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
 
             yield return new WaitForSecondsRealtime(1f);
             if (context != null && settings != null)
-                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
+                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
 
             sleepDurationApplyCoroutine = null;
         }
@@ -392,29 +391,12 @@ namespace BigHax
 
         private void HandleTimeMachineStarted()
         {
-            if (sleepTimeAccelerationCoroutine == null)
-                sleepTimeAccelerationCoroutine = StartCoroutine(ApplySleepTimeAccelerationAfterStart());
+            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
         }
 
         private void HandleTimeMachineEnded()
         {
-            if (sleepTimeAccelerationCoroutine != null)
-            {
-                StopCoroutine(sleepTimeAccelerationCoroutine);
-                sleepTimeAccelerationCoroutine = null;
-            }
-
             sleepTimeAccelerationService.HandleTimeMachineEnded();
-        }
-
-        private IEnumerator ApplySleepTimeAccelerationAfterStart()
-        {
-            // The game raises onTimeMachineStarted before PlayerActivityUI has
-            // committed the SleepActivity state. Wait one frame, then inspect
-            // only the active activity and time machine.
-            yield return null;
-            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
-            sleepTimeAccelerationCoroutine = null;
         }
 
         private void HandleVehicleEntered()

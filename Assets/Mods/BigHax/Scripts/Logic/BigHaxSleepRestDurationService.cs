@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using BAModAPI;
 using UnityEngine;
 
 namespace BigHax
@@ -23,14 +22,13 @@ namespace BigHax
         {
         }
 
-        public void ApplyConfiguredDurations(ModContext? context, BigHaxSettings settings)
+        public void ApplyConfiguredDurations(BigHaxSettings settings)
         {
             PatchLoadedBehaviours("restEnvironment", ExtendedBenchRestMinutes, null);
             if (settings.EnableExtendedBedSleep)
             {
-                var patchedBedControllerCount = PatchLoadedBehaviours("sleepEnvironment", ExtendedBedSleepMinutes, "BedController");
-                var patchedBedConfigCount = PatchLoadedBedSleepConfigurations();
-                context?.Logger.Info($"BigHax: extended bed sleep to 7 days. controllers={patchedBedControllerCount}, configurations={patchedBedConfigCount}.");
+                PatchLoadedBehaviours("sleepEnvironment", ExtendedBedSleepMinutes, "BedController");
+                PatchLoadedBedSleepConfigurations();
             }
             else
             {
