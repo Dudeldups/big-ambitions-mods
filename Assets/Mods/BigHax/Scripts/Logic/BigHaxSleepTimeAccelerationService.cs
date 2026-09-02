@@ -16,9 +16,13 @@ namespace BigHax
         private static readonly FieldInfo? TimeSpeedCurveField = typeof(TimeMachine).GetField(
             "timeSpeedCurve",
             BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo? UseConstantSpeedField = typeof(TimeMachine).GetField(
+            "_useConstantSpeed",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
         private TimeMachine? acceleratedTimeMachine;
         private AnimationCurve? originalCurve;
+        private bool? originalUseConstantSpeed;
 
         public void HandleTimeMachineStarted(BigHaxSettings? settings)
         {
@@ -26,7 +30,7 @@ namespace BigHax
                 return;
 
             var timeMachine = Object.FindObjectOfType<TimeMachine>();
-            if (timeMachine == null || TimeSpeedCurveField == null)
+            if (timeMachine == null || TimeSpeedCurveField == null || UseConstantSpeedField == null)
                 return;
 
             var currentCurve = TimeSpeedCurveField.GetValue(timeMachine) as AnimationCurve;
@@ -34,7 +38,11 @@ namespace BigHax
                 return;
 
             originalCurve = currentCurve;
+            originalUseConstantSpeed = (bool)UseConstantSpeedField.GetValue(timeMachine);
             TimeSpeedCurveField.SetValue(timeMachine, CreateAcceleratedCurve(currentCurve));
+            // Sleep starts the time machine in constant-speed mode, which
+            // otherwise bypasses timeSpeedCurve entirely.
+            UseConstantSpeedField.SetValue(timeMachine, false);
             acceleratedTimeMachine = timeMachine;
         }
 
@@ -48,8 +56,12 @@ namespace BigHax
             if (acceleratedTimeMachine != null && originalCurve != null && TimeSpeedCurveField != null)
                 TimeSpeedCurveField.SetValue(acceleratedTimeMachine, originalCurve);
 
+            if (acceleratedTimeMachine != null && originalUseConstantSpeed.HasValue && UseConstantSpeedField != null)
+                UseConstantSpeedField.SetValue(acceleratedTimeMachine, originalUseConstantSpeed.Value);
+
             acceleratedTimeMachine = null;
             originalCurve = null;
+            originalUseConstantSpeed = null;
         }
 
         private static bool IsBedSleepActive()
