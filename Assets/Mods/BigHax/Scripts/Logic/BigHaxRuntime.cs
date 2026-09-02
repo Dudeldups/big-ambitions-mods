@@ -18,7 +18,6 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
-        private const float ExtendedBedSleepPollIntervalSeconds = 0.1f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -34,6 +33,7 @@ namespace BigHax
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
+        private readonly BigHaxSleepTimeAccelerationService sleepTimeAccelerationService = new BigHaxSleepTimeAccelerationService();
         private readonly BigHaxUpdateNoticeUi updateNoticeUi = new BigHaxUpdateNoticeUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
 
@@ -43,6 +43,7 @@ namespace BigHax
         private Coroutine? employeeDemandMessageCleanupCoroutine;
         private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
+        private Coroutine? sleepDurationApplyCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
         private Delegate? onEnterVehicleHandler;
@@ -53,7 +54,6 @@ namespace BigHax
         private float nextCustomerTrafficPollAt;
         private float nextEmployeeTrainingPollAt;
         private float nextLoanLimitPollAt;
-        private float nextExtendedBedSleepPollAt;
         private BigHaxSettings? settings;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
@@ -72,7 +72,6 @@ namespace BigHax
             runtime.nextActiveVehiclePollAt = 0f;
             runtime.nextCasinoBetLimitPollAt = 0f;
             runtime.nextCustomerTrafficPollAt = 0f;
-            runtime.nextExtendedBedSleepPollAt = 0f;
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
@@ -118,6 +117,12 @@ namespace BigHax
                 parkingExitCleanupCoroutine = null;
             }
 
+            if (sleepDurationApplyCoroutine != null)
+            {
+                StopCoroutine(sleepDurationApplyCoroutine);
+                sleepDurationApplyCoroutine = null;
+            }
+
             TryRestoreCustomerTraffic();
             casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
@@ -129,6 +134,7 @@ namespace BigHax
             recruitmentCandidateService.Unsubscribe();
             employeeDemandService.Unsubscribe();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
+            sleepTimeAccelerationService.RestoreOriginalCurve();
             vehicleCapacityService.RestoreOriginalCapacities();
             updateNoticeUi.Shutdown();
             overlayUi.Shutdown();
@@ -144,6 +150,8 @@ namespace BigHax
             GlobalEvents.onNewHour += HandleNewHour;
             GlobalEvents.onNewDay += HandleNewDay;
             GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
+            GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
+            GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
             SubscribeParkingVehicleEvents();
         }
 
@@ -153,6 +161,8 @@ namespace BigHax
             GlobalEvents.onNewHour -= HandleNewHour;
             GlobalEvents.onNewDay -= HandleNewDay;
             GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+            GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
+            GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
             UnsubscribeParkingVehicleEvents();
         }
 
@@ -169,7 +179,6 @@ namespace BigHax
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             PollLoanLimitChanges();
-            PollExtendedBedSleepBehavior();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
         }
@@ -245,15 +254,6 @@ namespace BigHax
             loanLimitService.ApplyConfiguredLimit(settings);
         }
 
-        private void PollExtendedBedSleepBehavior()
-        {
-            if (settings == null || Time.unscaledTime < nextExtendedBedSleepPollAt)
-                return;
-
-            nextExtendedBedSleepPollAt = Time.unscaledTime + ExtendedBedSleepPollIntervalSeconds;
-            sleepRestDurationService.UpdateExtendedBedSleepBehavior(settings);
-        }
-
         private void PollUiToggleHotkey()
         {
             if (settings == null || !Input.GetKeyDown(settings.UiHotkey))
@@ -323,8 +323,21 @@ namespace BigHax
         private void HandleGameLoadedLate()
         {
             ScheduleEmployeeDemandMessageCleanup();
+            if (sleepDurationApplyCoroutine == null)
+                sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             if (optionsUiPrewarmCoroutine == null)
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
+        }
+
+        private IEnumerator ApplySleepDurationsAfterGameLoad()
+        {
+            // Bed activity configurations are instantiated during game loading,
+            // after the initial mod apply. Apply once after that initialization.
+            yield return new WaitForEndOfFrame();
+            if (context != null && settings != null)
+                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
+
+            sleepDurationApplyCoroutine = null;
         }
 
         private IEnumerator PrewarmOptionsUiWhenGameIsReady()
@@ -363,6 +376,16 @@ namespace BigHax
                 return;
 
             SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+        }
+
+        private void HandleTimeMachineStarted()
+        {
+            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
+        }
+
+        private void HandleTimeMachineEnded()
+        {
+            sleepTimeAccelerationService.HandleTimeMachineEnded();
         }
 
         private void HandleVehicleEntered()
