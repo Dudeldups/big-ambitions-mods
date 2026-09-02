@@ -11,12 +11,14 @@ namespace BigHax
     {
         private const int ExtendedBenchRestMinutes = 24 * 60;
         private const int ExtendedBedSleepMinutes = 7 * 24 * 60;
+        private const float ExtendedBedSleepTimeMachineSpeedMultiplier = 6f;
         private static readonly BindingFlags InstanceFieldFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         private readonly Dictionary<int, OriginalRestDurations> originalEnvironmentDurationsByKey =
             new Dictionary<int, OriginalRestDurations>();
         private readonly Dictionary<int, int> originalBedConfigMaxMinutesByKey = new Dictionary<int, int>();
+        private readonly Dictionary<int, AnimationCurve> originalTimeMachineCurvesByKey = new Dictionary<int, AnimationCurve>();
         private readonly Dictionary<string, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<string, EnvironmentPatchDescriptor?>();
 
         public void InvalidateCache()
@@ -45,6 +47,26 @@ namespace BigHax
             originalEnvironmentDurationsByKey.Clear();
             RestoreOriginalBedSleepConfigurations();
             originalBedConfigMaxMinutesByKey.Clear();
+            RestoreTimeMachineSpeed();
+        }
+
+        public void UpdateExtendedBedSleepBehavior(BigHaxSettings settings)
+        {
+            if (!settings.EnableExtendedBedSleep || !TryGetActiveSleepActivity(out var activity, out var activityUi))
+            {
+                RestoreTimeMachineSpeed();
+                return;
+            }
+
+            var minutesToSleepField = activity.GetType().GetField("_minutesToSleep", InstanceFieldFlags);
+            if (minutesToSleepField?.GetValue(activity) is not int minutesToSleep || minutesToSleep <= ExtendedBenchRestMinutes)
+            {
+                RestoreTimeMachineSpeed();
+                return;
+            }
+
+            NormalizeWakeUpTimestamp(activity, activityUi);
+            AccelerateTimeMachineIfRunning();
         }
 
         private int PatchLoadedBehaviours(string environmentFieldName, int extendedMinutes, string? requiredBehaviourTypeName)
@@ -206,6 +228,95 @@ namespace BigHax
                 if (maxDurationMinutesField?.FieldType == typeof(int))
                     maxDurationMinutesField.SetValue(balanceConfig, originalMaxMinutes);
             }
+        }
+
+        private static bool TryGetActiveSleepActivity(out object activity, out Component activityUi)
+        {
+            activity = null!;
+            activityUi = null!;
+            foreach (var component in Resources.FindObjectsOfTypeAll<Component>())
+            {
+                if (component == null || component.GetType().FullName != "PlayerActivity.PlayerActivityUI")
+                    continue;
+
+                var currentActivity = component.GetType().GetProperty("GetCurrentActivity", InstanceFieldFlags)?.GetValue(component);
+                if (currentActivity?.GetType().FullName != "PlayerActivity.SleepActivity")
+                    continue;
+
+                activity = currentActivity;
+                activityUi = component;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void NormalizeWakeUpTimestamp(object activity, Component activityUi)
+        {
+            var finishTimeField = activity.GetType().GetField("_finishTime", InstanceFieldFlags);
+            var finishTime = finishTimeField?.GetValue(activity);
+            if (finishTime == null)
+                return;
+
+            var timestampType = finishTime.GetType();
+            var dayField = timestampType.GetField("Day", InstanceFieldFlags);
+            var hourField = timestampType.GetField("Hour", InstanceFieldFlags);
+            if (dayField?.GetValue(finishTime) is not int day || hourField?.GetValue(finishTime) is not int hour || hour < 24)
+                return;
+
+            dayField.SetValue(finishTime, day + hour / 24);
+            hourField.SetValue(finishTime, hour % 24);
+            finishTimeField!.SetValue(activity, finishTime);
+            activityUi.GetType().GetMethod("UpdateActivityDisplay", InstanceFieldFlags)?.Invoke(activityUi, null);
+        }
+
+        private void AccelerateTimeMachineIfRunning()
+        {
+            foreach (var component in Resources.FindObjectsOfTypeAll<Component>())
+            {
+                if (component == null || component.GetType().FullName != "Timemachine.TimeMachine")
+                    continue;
+
+                var timeMachineType = component.GetType();
+                if (timeMachineType.GetProperty("isRunning", InstanceFieldFlags)?.GetValue(component) is not bool isRunning || !isRunning)
+                    continue;
+
+                var curveField = timeMachineType.GetField("timeSpeedCurve", InstanceFieldFlags);
+                if (curveField?.GetValue(component) is not AnimationCurve currentCurve)
+                    continue;
+
+                var key = component.GetInstanceID();
+                if (originalTimeMachineCurvesByKey.ContainsKey(key))
+                    continue;
+
+                var acceleratedKeys = currentCurve.keys;
+                for (var index = 0; index < acceleratedKeys.Length; index++)
+                    acceleratedKeys[index].value *= ExtendedBedSleepTimeMachineSpeedMultiplier;
+
+                var acceleratedCurve = new AnimationCurve(acceleratedKeys)
+                {
+                    preWrapMode = currentCurve.preWrapMode,
+                    postWrapMode = currentCurve.postWrapMode
+                };
+                originalTimeMachineCurvesByKey[key] = currentCurve;
+                curveField.SetValue(component, acceleratedCurve);
+            }
+        }
+
+        private void RestoreTimeMachineSpeed()
+        {
+            if (originalTimeMachineCurvesByKey.Count == 0)
+                return;
+
+            foreach (var component in Resources.FindObjectsOfTypeAll<Component>())
+            {
+                if (component == null || !originalTimeMachineCurvesByKey.TryGetValue(component.GetInstanceID(), out var originalCurve))
+                    continue;
+
+                component.GetType().GetField("timeSpeedCurve", InstanceFieldFlags)?.SetValue(component, originalCurve);
+            }
+
+            originalTimeMachineCurvesByKey.Clear();
         }
 
         private EnvironmentPatchDescriptor? GetDescriptor(Type behaviourType, string environmentFieldName)
