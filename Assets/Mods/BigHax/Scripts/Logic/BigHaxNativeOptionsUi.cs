@@ -113,6 +113,7 @@ namespace BigHax
             Slider(Localize("bighax_employee_training_skill_increase_label"), () => settings!.EmployeeTrainingSkillIncrease, 10, 100, v => { settings!.EmployeeTrainingSkillIncrease = v; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }), () => settings!.StandardFridgeCapacity, 50, 1000, v => { settings!.StandardFridgeCapacity = v; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }), () => settings!.PalletShelfCapacity, 60, 1000, v => { settings!.PalletShelfCapacity = v; BigHaxOptionPersistence.SavePalletShelfCapacity(context!.ModId, v); }, v => v.ToString());
+            Slider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }), () => settings!.StorageShelfCapacity, 16, 1000, v => { settings!.StorageShelfCapacity = v; BigHaxOptionPersistence.SaveStorageShelfCapacity(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings!.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces, v => { settings!.FreightTruckT1DeliveryPlaces = v; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_active_vehicle_label"), () => settings!.ActiveVehicleCapacity, 20, 1000, v => { settings!.ActiveVehicleCapacity = v; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context!.ModId, v); }, v => v.ToString());
             CloseButton();
@@ -147,7 +148,7 @@ namespace BigHax
                 knobRect.anchoredPosition = new Vector2(value ? 15 : -15, 0);
             };
             toggle.targetGraphic = background; toggle.graphic = knob; toggle.isOn = read(); updateAppearance(toggle.isOn);
-            toggle.onValueChanged.AddListener(v => { updateAppearance(v); write(v); BigHaxRuntime.RequestImmediateApply(); });
+            toggle.onValueChanged.AddListener(v => { updateAppearance(v); write(v); });
         }
 
         private void Slider(string name, System.Func<int> read, int min, int max, System.Action<int> write, System.Func<int, string> format)
@@ -173,7 +174,7 @@ namespace BigHax
                 handleRect.anchoredPosition = new Vector2((normalized - .5f) * sr.rect.width, 0);
             };
             slider.handleRect = dragHandleRect; slider.targetGraphic = handle; slider.value = read(); updateAppearance(slider.value);
-            slider.onValueChanged.AddListener(v => { var i = Mathf.RoundToInt(v); updateAppearance(v); value.text = format(i); write(i); BigHaxRuntime.RequestImmediateApply(); });
+            slider.onValueChanged.AddListener(v => { var i = Mathf.RoundToInt(v); updateAppearance(v); value.text = format(i); write(i); });
         }
 
         private GameObject Row() { var row = Create("Row", content!, Color.clear); row.AddComponent<LayoutElement>().preferredHeight = RowHeight; return row; }

@@ -7,7 +7,7 @@
   "bighax_ui_close_button": "Schließen",
   "bighax_ui_fallback_notice": "Abonniere LIB BA Unified UI im Steam Workshop, um ein besseres Spielerlebnis zu erhalten.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Option hinzugefügt, um die Schlafzeit im Bett auf bis zu 7 Tage zu verlängern.\n- Längere Schlafzeiten im Bett laufen nun schneller ab.\n- 24-stündiges Ausruhen auf Bänken behoben.",
+  "bighax_update_notification": "- Option hinzugefügt, um die Schlafzeit im Bett auf bis zu 7 Tage zu verlängern.\n- Längere Schlafzeiten im Bett laufen nun schneller ab.\n- 24-stündiges Ausruhen auf Bänken behoben.\n- Option zum Anpassen der Kapazität von Lagerregalen hinzugefügt.",
   "bighax_update_notice_got_it": "Alles klar",
   "bighax_customer_traffic_multiplier_label": "Kundenmultiplikator für Spielerunternehmen",
   "bighax_disable_casino_bet_limit_label": "Casino Einsatzlimit erhöhen",
@@ -18,6 +18,7 @@
   "bighax_enable_recruitment_candidate_maximum_skill_label": "Bewerber bis zu 100 % Fertigkeit erlauben",
   "bighax_standard_fridge_capacity_label": "Kapazität {itemName}",
   "bighax_pallet_shelf_capacity_label": "Kapazität {itemName}",
+  "bighax_storage_shelf_capacity_label": "Kapazität {itemName}",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} Lieferorte",
   "bighax_active_vehicle_enabled_label": "Kapazität für aktives Fahrzeug überschreiben",
   "bighax_active_vehicle_label": "Kapazität aktives Fahrzeug"

@@ -23,8 +23,10 @@ namespace BigHax
         {
             ApplyItemCapacity(context, BigHaxTargetIds.StandardFridgeItemName, settings.StandardFridgeCapacity);
             ApplyItemCapacity(context, BigHaxTargetIds.PalletShelfItemName, settings.PalletShelfCapacity);
+            ApplyItemCapacity(context, BigHaxTargetIds.StorageShelfItemName, settings.StorageShelfCapacity);
             RefreshCurrentCargoHolder(BigHaxTargetIds.StandardFridgeItemName);
             RefreshCurrentCargoHolder(BigHaxTargetIds.PalletShelfItemName);
+            RefreshCurrentCargoHolder(BigHaxTargetIds.StorageShelfItemName);
         }
 
         public void RestoreOriginalCapacities()

@@ -7,7 +7,7 @@
   "bighax_ui_close_button": "Sulje",
   "bighax_ui_fallback_notice": "Tilaa LIB BA Unified UI Steam Workshopissa saadaksesi paremman käyttökokemuksen.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Lisätty vaihtoehto pidentää sängyssä nukkumista enintään 7 päivään.\n- Pitkät unet sängyssä kelautuvat nyt nopeammin eteenpäin.\n- Korjattu 24 tunnin lepo penkeillä.",
+  "bighax_update_notification": "- Lisätty vaihtoehto pidentää sängyssä nukkumista enintään 7 päivään.\n- Pitkät unet sängyssä kelautuvat nyt nopeammin eteenpäin.\n- Korjattu 24 tunnin lepo penkeillä.\n- Lisätty vaihtoehto varastohyllyjen kapasiteetin säätämiseen.",
   "bighax_update_notice_got_it": "Selvä",
   "bighax_customer_traffic_multiplier_label": "Pelaajan yrityksen asiakaskerroin",
   "bighax_disable_casino_bet_limit_label": "Nosta kasinon panosrajaa",
@@ -18,6 +18,7 @@
   "bighax_enable_recruitment_candidate_maximum_skill_label": "Salli rekrytointiehdokkaiden taitotaso 100 % asti",
   "bighax_standard_fridge_capacity_label": "Kohteen {itemName} kapasiteetti",
   "bighax_pallet_shelf_capacity_label": "Kohteen {itemName} kapasiteetti",
+  "bighax_storage_shelf_capacity_label": "Kohteen {itemName} kapasiteetti",
   "bighax_freight_truck_delivery_places_label": "Ajoneuvon {vehicleName} toimituspaikat",
   "bighax_active_vehicle_enabled_label": "Ota aktiivisen ajoneuvon kapasiteetin ohitus käyttöön",
   "bighax_active_vehicle_label": "Aktiivisen ajoneuvon kapasiteetti"

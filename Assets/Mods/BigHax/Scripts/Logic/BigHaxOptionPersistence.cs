@@ -33,6 +33,10 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.PalletShelfCapacity,
                 BigHaxSettings.DefaultPalletShelfCapacity);
+            settings.StorageShelfCapacity = LoadInt(
+                modId,
+                BigHaxOptionIds.StorageShelfCapacity,
+                BigHaxSettings.DefaultStorageShelfCapacity);
 
             settings.EmployeeTrainingSkillIncrease = LoadInt(
                 modId,
@@ -101,6 +105,11 @@ namespace BigHax
         public static void SavePalletShelfCapacity(string modId, int value)
         {
             SaveInt(modId, BigHaxOptionIds.PalletShelfCapacity, value);
+        }
+
+        public static void SaveStorageShelfCapacity(string modId, int value)
+        {
+            SaveInt(modId, BigHaxOptionIds.StorageShelfCapacity, value);
         }
 
         public static void SaveEnableVantanderMaxLoanOverride(string modId, bool value)

@@ -7,7 +7,7 @@
   "bighax_ui_close_button": "關閉",
   "bighax_ui_fallback_notice": "請在 Steam 工作坊訂閱 LIB BA Unified UI，以獲得更好的體驗。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- 新增了將床上睡眠延長至最多 7 天的選項。\n- 長時間床上睡眠現在會更快地快進。\n- 修正了在長椅上休息 24 小時的問題。",
+  "bighax_update_notification": "- 新增了將床上睡眠延長至最多 7 天的選項。\n- 長時間床上睡眠現在會更快地快進。\n- 修正了在長椅上休息 24 小時的問題。\n- 新增了調整儲物架容量的選項。",
   "bighax_update_notice_got_it": "知道了",
   "bighax_customer_traffic_multiplier_label": "玩家企業顧客倍率",
   "bighax_disable_casino_bet_limit_label": "提高賭場下注上限",
@@ -18,6 +18,7 @@
   "bighax_enable_recruitment_candidate_maximum_skill_label": "允許招募候選人的技能最高達到 100%",
   "bighax_standard_fridge_capacity_label": "{itemName} 容量",
   "bighax_pallet_shelf_capacity_label": "{itemName} 容量",
+  "bighax_storage_shelf_capacity_label": "{itemName} 容量",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} 送貨地點",
   "bighax_active_vehicle_enabled_label": "啟用目前車輛容量覆寫",
   "bighax_active_vehicle_label": "目前車輛容量"

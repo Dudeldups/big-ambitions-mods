@@ -14,6 +14,7 @@ namespace BigHax
         public const int DefaultFreightTruckT1DeliveryPlaces = 8;
         public const int DefaultStandardFridgeCapacity = 50;
         public const int DefaultPalletShelfCapacity = 60;
+        public const int DefaultStorageShelfCapacity = 16;
         public const int DefaultActiveVehicleCapacity = 20;
         public const int DefaultEmployeeTrainingSkillIncrease = 10;
         public const bool DefaultEnableRecruitmentCandidateMaximumSkill = false;
@@ -44,6 +45,8 @@ namespace BigHax
         public int StandardFridgeCapacity { get; set; } = DefaultStandardFridgeCapacity;
 
         public int PalletShelfCapacity { get; set; } = DefaultPalletShelfCapacity;
+
+        public int StorageShelfCapacity { get; set; } = DefaultStorageShelfCapacity;
 
         public int ActiveVehicleCapacity { get; set; } = DefaultActiveVehicleCapacity;
 

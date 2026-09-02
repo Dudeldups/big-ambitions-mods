@@ -19,6 +19,7 @@ namespace BigHax
         public const string FreightTruckT1DeliveryPlaces = "big_hax_freight_truck_t1_delivery_places";
         public const string StandardFridgeCapacity = "big_hax_standard_fridge_capacity";
         public const string PalletShelfCapacity = "big_hax_pallet_shelf_capacity";
+        public const string StorageShelfCapacity = "big_hax_storage_shelf_capacity";
         public const string ActiveVehicleCapacityEnabled = "big_hax_active_vehicle_capacity_enabled";
         public const string ActiveVehicleCapacity = "big_hax_active_vehicle_capacity";
         public const string EmployeeTrainingSkillIncrease = "big_hax_employee_training_skill_increase";

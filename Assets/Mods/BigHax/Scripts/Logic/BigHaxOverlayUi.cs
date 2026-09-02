@@ -48,14 +48,20 @@ namespace BigHax
 
         public void Toggle()
         {
+            var closing = isVisible;
             isVisible = !isVisible;
             SetSelectedUiVisible(isVisible);
+            if (closing)
+                BigHaxRuntime.RequestImmediateApply();
         }
 
         public void Hide()
         {
+            var wasVisible = isVisible;
             isVisible = false;
             SetSelectedUiVisible(false);
+            if (wasVisible)
+                BigHaxRuntime.RequestImmediateApply();
         }
 
         public void ConsumeGameplayInputIfNeeded()
@@ -221,7 +227,6 @@ namespace BigHax
                 {
                     settings.EnableActiveVehicleCapacityOverride = activeVehicleEnabled;
                     BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
-                    BigHaxRuntime.RequestImmediateApply();
                 }
 
                 DrawCustomerMultiplier(context, settings);
@@ -273,6 +278,24 @@ namespace BigHax
                     {
                         settings.PalletShelfCapacity = value;
                         BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value);
+                    });
+                DrawIntSlider(
+                    context,
+                    settings,
+                    Localize(
+                        "bighax_storage_shelf_capacity_label",
+                        new Dictionary<string, string>
+                        {
+                            { "itemName", Localize("ba:itemname_storageshelf") }
+                        }),
+                    settings.StorageShelfCapacity,
+                    BigHaxSettings.DefaultStorageShelfCapacity,
+                    BigHaxTargetIds.SliderMaximum,
+                    value => value.ToString(),
+                    value =>
+                    {
+                        settings.StorageShelfCapacity = value;
+                        BigHaxOptionPersistence.SaveStorageShelfCapacity(context.ModId, value);
                     });
                 DrawIntSlider(
                     context,
@@ -361,7 +384,6 @@ namespace BigHax
 
             settings.CustomerTrafficMultiplierIndex = selectedIndex;
             BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, selectedIndex);
-            BigHaxRuntime.RequestImmediateApply();
         }
 
         private void DrawToggleOption(
@@ -376,7 +398,6 @@ namespace BigHax
                 return;
 
             applyValue(toggledValue);
-            BigHaxRuntime.RequestImmediateApply();
         }
 
         private void DrawIntSlider(
@@ -399,7 +420,6 @@ namespace BigHax
                 return;
 
             applyValue(sliderValue);
-            BigHaxRuntime.RequestImmediateApply();
         }
 
         private void CaptureOverlayHotControl()

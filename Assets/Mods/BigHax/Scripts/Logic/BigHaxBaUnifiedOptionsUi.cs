@@ -220,6 +220,9 @@ namespace BigHax
             AddSlider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }),
                 () => settings.PalletShelfCapacity, 60, 1000,
                 value => { settings.PalletShelfCapacity = value; BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value); }, value => value.ToString());
+            AddSlider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }),
+                () => settings.StorageShelfCapacity, 16, 1000,
+                value => { settings.StorageShelfCapacity = value; BigHaxOptionPersistence.SaveStorageShelfCapacity(context.ModId, value); }, value => value.ToString());
             AddSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }),
                 () => settings.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
                 value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
@@ -305,6 +308,10 @@ namespace BigHax
                 {
                     { "itemName", Localize("ba:itemname_palletshelf") }
                 }),
+                Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string>
+                {
+                    { "itemName", Localize("ba:itemname_storageshelf") }
+                }),
                 Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string>
                 {
                     { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
@@ -319,7 +326,6 @@ namespace BigHax
             api.CreateNativeToggle(content!, label, read(), new UnityAction<bool>(value =>
             {
                 write(value);
-                BigHaxRuntime.RequestImmediateApply();
             }), "BigHaxToggle");
         }
 
@@ -328,7 +334,6 @@ namespace BigHax
             api.CreateNativeSlider(content!, label, min, max, read(), format, new UnityAction<int>(value =>
             {
                 write(value);
-                BigHaxRuntime.RequestImmediateApply();
             }), "BigHaxSlider");
         }
 
