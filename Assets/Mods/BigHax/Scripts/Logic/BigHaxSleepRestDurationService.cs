@@ -16,6 +16,7 @@ namespace BigHax
 
         private readonly Dictionary<int, OriginalRestDurations> originalEnvironmentDurationsByKey =
             new Dictionary<int, OriginalRestDurations>();
+        private readonly Dictionary<int, int> originalBedConfigMaxMinutesByKey = new Dictionary<int, int>();
         private readonly Dictionary<string, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<string, EnvironmentPatchDescriptor?>();
 
         public void InvalidateCache()
@@ -26,15 +27,24 @@ namespace BigHax
         {
             PatchLoadedBehaviours("restEnvironment", ExtendedBenchRestMinutes, null);
             if (settings.EnableExtendedBedSleep)
-                PatchLoadedBehaviours("sleepEnvironment", ExtendedBedSleepMinutes, "BedController");
+            {
+                var patchedBedControllerCount = PatchLoadedBehaviours("sleepEnvironment", ExtendedBedSleepMinutes, "BedController");
+                var patchedBedConfigCount = PatchLoadedBedSleepConfigurations();
+                context?.Logger.Info($"BigHax: extended bed sleep to 7 days. controllers={patchedBedControllerCount}, configurations={patchedBedConfigCount}.");
+            }
             else
+            {
                 RestoreOriginalDurations("sleepEnvironment");
+                RestoreOriginalBedSleepConfigurations();
+            }
         }
 
         public void RestoreOriginalDurationsOnShutdown()
         {
             RestoreOriginalDurations();
             originalEnvironmentDurationsByKey.Clear();
+            RestoreOriginalBedSleepConfigurations();
+            originalBedConfigMaxMinutesByKey.Clear();
         }
 
         private int PatchLoadedBehaviours(string environmentFieldName, int extendedMinutes, string? requiredBehaviourTypeName)
@@ -145,6 +155,57 @@ namespace BigHax
             descriptor.MaxDurationMinutesField.SetValue(balanceConfig, originalDurations.MaxMinutes);
             descriptor.EnvironmentField.SetValue(component, environmentValue);
             return true;
+        }
+
+        private int PatchLoadedBedSleepConfigurations()
+        {
+            var patchedCount = 0;
+            foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+            {
+                if (candidate == null || candidate.GetType().FullName != "PlayerActivity.SleepEnvironmentConfig")
+                    continue;
+
+                var configType = candidate.GetType();
+                var sleepEnvironmentTypeField = configType.GetField("sleepEnvironmentType", InstanceFieldFlags);
+                var balanceConfigField = configType.GetField("balanceConfig", InstanceFieldFlags);
+                var balanceConfig = balanceConfigField?.GetValue(candidate);
+                var maxDurationMinutesField = balanceConfig?.GetType().GetField("maxDurationMinutes", InstanceFieldFlags);
+                if (sleepEnvironmentTypeField?.GetValue(candidate)?.ToString() != "Bed" ||
+                    maxDurationMinutesField == null || maxDurationMinutesField.FieldType != typeof(int))
+                {
+                    continue;
+                }
+
+                var currentMaxMinutes = (int)maxDurationMinutesField.GetValue(balanceConfig);
+                if (currentMaxMinutes >= ExtendedBedSleepMinutes)
+                    continue;
+
+                var key = candidate.GetInstanceID();
+                if (!originalBedConfigMaxMinutesByKey.ContainsKey(key))
+                    originalBedConfigMaxMinutesByKey[key] = currentMaxMinutes;
+
+                maxDurationMinutesField.SetValue(balanceConfig, ExtendedBedSleepMinutes);
+                patchedCount++;
+            }
+
+            return patchedCount;
+        }
+
+        private void RestoreOriginalBedSleepConfigurations()
+        {
+            if (originalBedConfigMaxMinutesByKey.Count == 0)
+                return;
+
+            foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+            {
+                if (candidate == null || !originalBedConfigMaxMinutesByKey.TryGetValue(candidate.GetInstanceID(), out var originalMaxMinutes))
+                    continue;
+
+                var balanceConfig = candidate.GetType().GetField("balanceConfig", InstanceFieldFlags)?.GetValue(candidate);
+                var maxDurationMinutesField = balanceConfig?.GetType().GetField("maxDurationMinutes", InstanceFieldFlags);
+                if (maxDurationMinutesField?.FieldType == typeof(int))
+                    maxDurationMinutesField.SetValue(balanceConfig, originalMaxMinutes);
+            }
         }
 
         private EnvironmentPatchDescriptor? GetDescriptor(Type behaviourType, string environmentFieldName)
