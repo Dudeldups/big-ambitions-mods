@@ -7,7 +7,7 @@
   "bighax_ui_close_button": "닫기",
   "bighax_ui_fallback_notice": "더 나은 경험을 위해 Steam 창작마당에서 LIB BA Unified UI를 구독하세요.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "\"모든 직원 요구 사항 제거\"를 활성화했을 때 직원 만족도가 수정되었습니다.\n영향을 받는 직원의 만족도가 이제 시간이 지남에 따라 다시 올라갑니다.",
+  "bighax_update_notification": "- Added an option to extend bed sleep up to 7 days.\n- Extended bed sleeps now fast-forward faster.\n- Fixed 24-hour bench resting.",
   "bighax_update_notice_got_it": "알겠습니다",
   "bighax_customer_traffic_multiplier_label": "플레이어 사업 고객 배율",
   "bighax_disable_casino_bet_limit_label": "카지노 베팅 한도 올리기",
