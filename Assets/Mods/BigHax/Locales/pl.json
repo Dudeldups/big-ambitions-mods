@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Usuń wszystkie wymagania pracowników",
+  "bighax_enable_extended_bed_sleep_label": "Wydłuż maksymalny czas snu w łóżku do 7 dni",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Klawisz skrótu interfejsu Big Hax",
   "bighax_ui_hotkey_current_label": "Klawisz skrótu",

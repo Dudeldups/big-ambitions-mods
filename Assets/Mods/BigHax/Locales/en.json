@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Remove all employee demands",
+  "bighax_enable_extended_bed_sleep_label": "Extend maximum bed sleep time to 7 days",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax UI Hotkey",
   "bighax_ui_hotkey_current_label": "Hotkey",

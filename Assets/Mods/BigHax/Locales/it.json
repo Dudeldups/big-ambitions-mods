@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Rimuovi tutte le richieste dei dipendenti",
+  "bighax_enable_extended_bed_sleep_label": "Estendi il tempo massimo di sonno nel letto a 7 giorni",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Tasto rapido interfaccia Big Hax",
   "bighax_ui_hotkey_current_label": "Tasto rapido",

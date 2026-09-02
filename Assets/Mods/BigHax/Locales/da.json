@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Fjern alle medarbejderkrav",
+  "bighax_enable_extended_bed_sleep_label": "Forlæng maksimal sovetid i seng til 7 dage",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax UI-genvejstast",
   "bighax_ui_hotkey_current_label": "Genvejstast",

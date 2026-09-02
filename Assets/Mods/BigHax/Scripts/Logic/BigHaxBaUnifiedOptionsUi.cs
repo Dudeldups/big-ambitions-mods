@@ -200,6 +200,9 @@ namespace BigHax
             AddToggle(Localize("bighax_remove_employee_demands_label"),
                 () => settings.RemoveEmployeeDemands,
                 value => { settings.RemoveEmployeeDemands = value; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value); });
+            AddToggle(Localize("bighax_enable_extended_bed_sleep_label"),
+                () => settings.EnableExtendedBedSleep,
+                value => { settings.EnableExtendedBedSleep = value; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context.ModId, value); });
             AddToggle(Localize("bighax_active_vehicle_enabled_label"),
                 () => settings.EnableActiveVehicleCapacityOverride,
                 value => { settings.EnableActiveVehicleCapacityOverride = value; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, value); });
@@ -290,6 +293,7 @@ namespace BigHax
                 Localize("bighax_vantander_maximum_loan_override_label"),
                 Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
                 Localize("bighax_remove_employee_demands_label"),
+                Localize("bighax_enable_extended_bed_sleep_label"),
                 Localize("bighax_active_vehicle_enabled_label"),
                 Localize("bighax_customer_traffic_multiplier_label"),
                 Localize("bighax_employee_training_skill_increase_label"),

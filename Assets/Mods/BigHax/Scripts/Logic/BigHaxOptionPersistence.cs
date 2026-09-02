@@ -44,6 +44,10 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.RemoveEmployeeDemands,
                 BigHaxSettings.DefaultRemoveEmployeeDemands);
+            settings.EnableExtendedBedSleep = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableExtendedBedSleep,
+                BigHaxSettings.DefaultEnableExtendedBedSleep);
 
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
@@ -117,6 +121,11 @@ namespace BigHax
         public static void SaveRemoveEmployeeDemands(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.RemoveEmployeeDemands, value);
+        }
+
+        public static void SaveEnableExtendedBedSleep(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableExtendedBedSleep, value);
         }
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)

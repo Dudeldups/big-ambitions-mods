@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Elimină toate cerințele angajaților",
+  "bighax_enable_extended_bed_sleep_label": "Extinde timpul maxim de somn în pat la 7 zile",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Tastă rapidă UI Big Hax",
   "bighax_ui_hotkey_current_label": "Tastă rapidă",

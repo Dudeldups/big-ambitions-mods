@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Odstranit všechny požadavky zaměstnanců",
+  "bighax_enable_extended_bed_sleep_label": "Prodloužit maximální dobu spánku v posteli na 7 dní",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Klávesová zkratka UI Big Hax",
   "bighax_ui_hotkey_current_label": "Klávesová zkratka",

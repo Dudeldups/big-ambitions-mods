@@ -9,13 +9,14 @@ namespace BigHax
 {
     internal sealed class BigHaxSleepRestDurationService
     {
-        private const int ExtendedMinutes = 24 * 60;
+        private const int ExtendedBenchRestMinutes = 24 * 60;
+        private const int ExtendedBedSleepMinutes = 7 * 24 * 60;
         private static readonly BindingFlags InstanceFieldFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         private readonly Dictionary<int, OriginalRestDurations> originalEnvironmentDurationsByKey =
             new Dictionary<int, OriginalRestDurations>();
-        private readonly Dictionary<Type, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<Type, EnvironmentPatchDescriptor?>();
+        private readonly Dictionary<string, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<string, EnvironmentPatchDescriptor?>();
 
         public void InvalidateCache()
         {
@@ -23,7 +24,11 @@ namespace BigHax
 
         public void ApplyConfiguredDurations(ModContext? context, BigHaxSettings settings)
         {
-            PatchLoadedBehaviours();
+            PatchLoadedBehaviours("restEnvironment", ExtendedBenchRestMinutes, null);
+            if (settings.EnableExtendedBedSleep)
+                PatchLoadedBehaviours("sleepEnvironment", ExtendedBedSleepMinutes, "BedController");
+            else
+                RestoreOriginalDurations("sleepEnvironment");
         }
 
         public void RestoreOriginalDurationsOnShutdown()
@@ -32,7 +37,7 @@ namespace BigHax
             originalEnvironmentDurationsByKey.Clear();
         }
 
-        private int PatchLoadedBehaviours()
+        private int PatchLoadedBehaviours(string environmentFieldName, int extendedMinutes, string? requiredBehaviourTypeName)
         {
             var patchedCount = 0;
             var components = Resources.FindObjectsOfTypeAll<Component>();
@@ -45,21 +50,31 @@ namespace BigHax
                 if (gameObject == null || !gameObject.scene.IsValid())
                     continue;
 
-                var descriptor = GetDescriptor(component.GetType());
+                if (requiredBehaviourTypeName != null && component.GetType().Name != requiredBehaviourTypeName)
+                    continue;
+
+                var descriptor = GetDescriptor(component.GetType(), environmentFieldName);
                 if (descriptor == null)
                     continue;
 
-                if (TryPatchEnvironment(component, descriptor.Value))
+                if (TryPatchEnvironment(component, descriptor.Value, extendedMinutes))
                     patchedCount++;
             }
 
             return patchedCount;
         }
 
-        private int RestoreOriginalDurations()
+        private int RestoreOriginalDurations(string? environmentFieldName = null)
         {
             if (originalEnvironmentDurationsByKey.Count == 0)
                 return 0;
+
+            if (environmentFieldName == null)
+            {
+                var totalRestoredCount = RestoreOriginalDurations("restEnvironment") + RestoreOriginalDurations("sleepEnvironment");
+                originalEnvironmentDurationsByKey.Clear();
+                return totalRestoredCount;
+            }
 
             var restoredCount = 0;
             var components = Resources.FindObjectsOfTypeAll<Component>();
@@ -72,7 +87,10 @@ namespace BigHax
                 if (gameObject == null || !gameObject.scene.IsValid())
                     continue;
 
-                var descriptor = GetDescriptor(component.GetType());
+                if (environmentFieldName == "sleepEnvironment" && component.GetType().Name != "BedController")
+                    continue;
+
+                var descriptor = GetDescriptor(component.GetType(), environmentFieldName);
                 if (descriptor == null)
                     continue;
 
@@ -80,11 +98,10 @@ namespace BigHax
                     restoredCount++;
             }
 
-            originalEnvironmentDurationsByKey.Clear();
             return restoredCount;
         }
 
-        private bool TryPatchEnvironment(Component component, EnvironmentPatchDescriptor descriptor)
+        private bool TryPatchEnvironment(Component component, EnvironmentPatchDescriptor descriptor, int extendedMinutes)
         {
             var environmentValue = descriptor.EnvironmentField.GetValue(component);
             if (environmentValue == null)
@@ -96,15 +113,15 @@ namespace BigHax
 
             var currentDefaultMinutes = (int)descriptor.GetDefaultMinutesMethod.Invoke(environmentValue, null);
             var currentMaxMinutes = (int)descriptor.MaxDurationMinutesField.GetValue(balanceConfig);
-            if (currentDefaultMinutes >= ExtendedMinutes && currentMaxMinutes >= ExtendedMinutes)
+            if (currentDefaultMinutes >= extendedMinutes && currentMaxMinutes >= extendedMinutes)
                 return false;
 
             var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
             if (!originalEnvironmentDurationsByKey.ContainsKey(key))
                 originalEnvironmentDurationsByKey[key] = new OriginalRestDurations(currentDefaultMinutes, currentMaxMinutes);
 
-            descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { ExtendedMinutes });
-            descriptor.MaxDurationMinutesField.SetValue(balanceConfig, ExtendedMinutes);
+            descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { extendedMinutes });
+            descriptor.MaxDurationMinutesField.SetValue(balanceConfig, extendedMinutes);
             descriptor.EnvironmentField.SetValue(component, environmentValue);
 
             return true;
@@ -130,14 +147,15 @@ namespace BigHax
             return true;
         }
 
-        private EnvironmentPatchDescriptor? GetDescriptor(Type behaviourType)
+        private EnvironmentPatchDescriptor? GetDescriptor(Type behaviourType, string environmentFieldName)
         {
-            if (descriptorCache.TryGetValue(behaviourType, out var cachedDescriptor))
+            var cacheKey = behaviourType.FullName + "|" + environmentFieldName;
+            if (descriptorCache.TryGetValue(cacheKey, out var cachedDescriptor))
                 return cachedDescriptor;
 
-            var descriptor = TryCreateDescriptor(behaviourType, "restEnvironment");
+            var descriptor = TryCreateDescriptor(behaviourType, environmentFieldName);
 
-            descriptorCache[behaviourType] = descriptor;
+            descriptorCache[cacheKey] = descriptor;
             return descriptor;
         }
 
