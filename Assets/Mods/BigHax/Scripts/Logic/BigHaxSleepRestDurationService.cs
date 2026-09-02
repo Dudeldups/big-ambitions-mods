@@ -23,8 +23,7 @@ namespace BigHax
 
         public void ApplyConfiguredDurations(ModContext? context, BigHaxSettings settings)
         {
-            var patchedCount = PatchLoadedBehaviours();
-            context?.Logger.Info($"BigHax: extended rest duration to 24 hours on {patchedCount} loaded bench environment(s).");
+            PatchLoadedBehaviours();
         }
 
         public void RestoreOriginalDurationsOnShutdown()
