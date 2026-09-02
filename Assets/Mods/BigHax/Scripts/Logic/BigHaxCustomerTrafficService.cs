@@ -47,17 +47,22 @@ namespace BigHax
         private bool hasAppliedCustomTraffic;
         private float? originalBaseCustomerPromotionMultiplier;
         private float lastAppliedMultiplier = 1f;
+        private bool pendingBusinessDiscovery;
 
         public void InvalidateCache()
         {
-            lastAppliedEntryCounts.Clear();
-            lastAppliedCustomerCapacities.Clear();
-            lastKnownShouldCreateEntries.Clear();
+            // Scene transitions happen several times while a 1.0 save loads.
+            // Clearing these snapshots made every transition look like every
+            // business had an expected capacity of zero, which re-cloned all
+            // schedules. Keep the applied state and only inspect for new player
+            // businesses on the next normal health check.
+            pendingBusinessDiscovery = true;
         }
 
         public void ApplyConfiguredTraffic(ModContext context, BigHaxSettings settings, bool forceRefresh)
         {
             var multiplier = Mathf.Max(1f, settings.CustomerTrafficMultiplier);
+
             if (multiplier <= 1f)
             {
                 if (hasAppliedCustomTraffic)
@@ -74,8 +79,19 @@ namespace BigHax
                 return;
             }
 
-            if (forceRefresh || !Mathf.Approximately(multiplier, lastAppliedMultiplier) || !IsCurrentStateApplied(context, multiplier))
+            // During the mod's load callback, Big Ambitions 1.0 may have loaded
+            // the save data but not initialized TimeHelper yet. Calling the game's
+            // customer refresh at that stage throws and used to permanently disable
+            // this service before the player could use the option.
+            if (SaveGameManager.Current?.gameVariables == null)
+                return;
+
+            var currentStateApplied = IsCurrentStateApplied(context, multiplier);
+            if (!Mathf.Approximately(multiplier, lastAppliedMultiplier) || !currentStateApplied)
+            {
                 RebuildAndApplyTraffic(context, multiplier);
+                return;
+            }
         }
 
         public void RestoreOriginalState(ModContext? context)
@@ -89,8 +105,10 @@ namespace BigHax
 
         private void RebuildAndApplyTraffic(ModContext? context, float multiplier)
         {
+            if (!TryUpdateAllCustomerEntries())
+                return;
+
             ApplyPromotionBoost(multiplier);
-            UpdateAllCustomerEntries();
 
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
@@ -140,6 +158,7 @@ namespace BigHax
 
             hasAppliedCustomTraffic = true;
             lastAppliedMultiplier = multiplier;
+            pendingBusinessDiscovery = false;
             BigHaxLogger.Info(
                 context,
                 $"BigHax: applied customer traffic multiplier x{multiplier} to player businesses. businesses={appliedBusinessCount}, waitingForEntries={waitingForEntriesCount}, clonedEntryBusinesses={clonedBusinessCount}.");
@@ -149,7 +168,7 @@ namespace BigHax
         {
             RestorePromotionBoost();
             if (refreshEntries)
-                UpdateAllCustomerEntries();
+                TryUpdateAllCustomerEntries();
 
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
@@ -161,6 +180,7 @@ namespace BigHax
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
             lastKnownShouldCreateEntries.Clear();
+            pendingBusinessDiscovery = false;
             BigHaxLogger.Info(context, "BigHax: restored vanilla customer traffic for player businesses.");
         }
 
@@ -171,6 +191,18 @@ namespace BigHax
 
             if (!IsPromotionBoostApplied(multiplier))
                 return false;
+
+            if (pendingBusinessDiscovery)
+            {
+                foreach (var registration in GetPlayerBusinessRegistrations())
+                {
+                    var key = GetRegistrationKey(registration);
+                    if (!lastAppliedCustomerCapacities.ContainsKey(key))
+                        return false;
+                }
+
+                pendingBusinessDiscovery = false;
+            }
 
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
@@ -187,7 +219,13 @@ namespace BigHax
                 var entries = GetBusinessCustomerEntries(registration);
                 var currentCount = entries?.Count ?? 0;
                 if (shouldCreateEntries && currentCount == 0)
-                    return false;
+                {
+                    // Customer entries are transient and may be empty between the
+                    // game's own scheduler passes. Rebuilding every business for
+                    // one temporary empty list duplicates all of the other 1.0
+                    // schedules and eventually prevents customers from spawning.
+                    continue;
+                }
 
                 if (!lastAppliedEntryCounts.ContainsKey(key))
                     return false;
@@ -402,9 +440,17 @@ namespace BigHax
             }
         }
 
-        private static void UpdateAllCustomerEntries()
+        private static bool TryUpdateAllCustomerEntries()
         {
-            UpdateAllCustomerEntriesMethod?.Invoke(null, null);
+            try
+            {
+                UpdateAllCustomerEntriesMethod?.Invoke(null, null);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string GetRegistrationKey(BuildingRegistration registration)
