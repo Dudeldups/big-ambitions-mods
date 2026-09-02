@@ -128,7 +128,6 @@ namespace BigHax
             if (context == null || settings == null)
                 throw new InvalidOperationException("Big Hax UI context is not initialized.");
 
-            BigHaxUiDebugLogger.Log($"Building BAUnifiedUI {api.LibraryVersion} screen with native Options prefabs from {api.AssemblyName}.");
             api.EnsureEventSystem();
 
             root = new GameObject(RootName, typeof(RectTransform));
@@ -236,7 +235,6 @@ namespace BigHax
             layoutPrimed = false;
             rebuildForLanguageChange = false;
             localizationSignature = ComputeLocalizationSignature();
-            BigHaxUiDebugLogger.Log($"BAUnifiedUI screen built with {content.childCount} option rows.");
         }
 
         private void PrimeLayoutIfNeeded()
@@ -280,8 +278,7 @@ namespace BigHax
             catch (Exception exception)
             {
                 rebuildForLanguageChange = true;
-                BigHaxUiDebugLogger.Log("Unable to refresh the cached BAUnifiedUI screen after a language change: " +
-                    exception.GetBaseException().Message);
+                context.Logger.Error(exception);
             }
         }
 
@@ -575,9 +572,8 @@ namespace BigHax
                 {
                     Invoke(attachDraggableWindow, null, new object?[] { panel, header, persistentId });
                 }
-                catch (Exception exception)
+                catch
                 {
-                    BigHaxUiDebugLogger.Log("BAUnifiedUI draggable-window attachment skipped: " + exception.GetBaseException().Message);
                 }
             }
 

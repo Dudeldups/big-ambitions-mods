@@ -45,7 +45,6 @@ namespace BigHax
             }
             catch (System.Exception exception)
             {
-                BigHaxUiDebugLogger.Log("EnsureCreated failed: " + exception);
                 modContext.Logger.Error(exception);
             }
         }
@@ -79,7 +78,6 @@ namespace BigHax
 
         private void Build()
         {
-            BigHaxUiDebugLogger.Log("Build started.");
             root = new GameObject("BigHaxOptionsCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             Object.DontDestroyOnLoad(root);
             var canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = short.MaxValue - 8;
@@ -98,7 +96,6 @@ namespace BigHax
             var contentRect = contentObject.GetComponent<RectTransform>(); contentRect.anchorMin = new Vector2(0, 1); contentRect.anchorMax = new Vector2(1, 1); contentRect.pivot = new Vector2(.5f, 1); contentRect.offsetMin = new Vector2(22, -ContentHeight); contentRect.offsetMax = new Vector2(-22, 0);
             var layout = contentObject.AddComponent<VerticalLayoutGroup>(); layout.padding = new RectOffset(12, 12, 18, 18); layout.spacing = 7; layout.childControlWidth = true; layout.childForceExpandWidth = true; layout.childForceExpandHeight = false;
             scroll.content = contentRect; scroll.verticalScrollbar = scrollbar; scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
-            BigHaxUiDebugLogger.Log($"Scroll configured viewport={scroll.viewport.rect}; content={contentRect.rect}.");
             Label(Localize("bighax_options_header"), 26, TextAnchor.MiddleCenter, new Color(.10f, .14f, .19f), 44);
             FallbackNotice(Localize("bighax_ui_fallback_notice"));
             Toggle(Localize("bighax_disable_casino_bet_limit_label"), () => settings!.DisableCasinoBetLimit, v => { settings!.DisableCasinoBetLimit = v; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context!.ModId, v); });
@@ -120,7 +117,6 @@ namespace BigHax
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
             contentRect.anchoredPosition = Vector2.zero;
-            BigHaxUiDebugLogger.Log($"Build completed children={content.childCount}; panel={panelRect.rect}; content={contentRect.rect}; contentPosition={contentRect.anchoredPosition}.");
             panel.SetActive(false);
         }
 

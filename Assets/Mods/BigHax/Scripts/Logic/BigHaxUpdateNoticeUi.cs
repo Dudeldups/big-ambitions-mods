@@ -140,10 +140,6 @@ namespace BigHax
                     out baUnifiedUi,
                     out var reason))
             {
-                var message = $"BigHax: using LIB_BaUnifiedUI {baUnifiedUi!.LibraryVersion} from {baUnifiedUi.AssemblyName} for the update notice.";
-                context.Logger.Info(message);
-                BigHaxFileLogger.Log(message);
-                BigHaxUiDebugLogger.Log(message);
                 uiSelectionResolved = true;
                 return true;
             }
@@ -159,10 +155,6 @@ namespace BigHax
                     return false;
             }
 
-            var fallbackMessage = "BigHax: using built-in update notice fallback (" + reason + ").";
-            context.Logger.Info(fallbackMessage);
-            BigHaxFileLogger.Log(fallbackMessage);
-            BigHaxUiDebugLogger.Log(fallbackMessage);
             uiSelectionResolved = true;
             return true;
         }

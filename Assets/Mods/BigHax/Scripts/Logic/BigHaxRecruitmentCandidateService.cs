@@ -58,7 +58,6 @@ namespace BigHax
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
-                BigHaxFileLogger.Log("BigHax-runtime-errors.log", "BigHax-runtime-errors.log", $"[recruitment candidates] {exception}");
             }
         }
 

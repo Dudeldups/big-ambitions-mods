@@ -24,8 +24,6 @@ namespace BigHax
 
         public static readonly float[] CustomerTrafficMultiplierValues = { 1f, 1.5f, 2f, 3f, 5f, 10f };
 
-        public bool EnableDebugLogging { get; set; } = false;
-
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
 
         public bool DisableCasinoBetLimit { get; set; } = DefaultDisableCasinoBetLimit;

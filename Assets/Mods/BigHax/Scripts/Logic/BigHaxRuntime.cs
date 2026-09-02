@@ -78,9 +78,7 @@ namespace BigHax
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
             runtime.updateNoticeUi.Initialize(context.ModId);
-            BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             instance = runtime;
-            BigHaxLogger.Info(context, $"BigHax: file log path = {BigHaxFileLogger.LogPath}");
             runtime.ApplyIfRequested();
             GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
             return runtime;
@@ -173,7 +171,6 @@ namespace BigHax
             if (settings == null)
                 return;
 
-            BigHaxLogger.SetDebugLoggingEnabled(settings.EnableDebugLogging);
             ApplyIfRequested();
             PollUiToggleHotkey();
             PollActiveVehicleChanges();
@@ -459,7 +456,7 @@ namespace BigHax
             }
             catch (Exception exception)
             {
-                BigHaxFileLogger.Log("BigHax-runtime-errors.log", "BigHax-runtime-errors.log", $"[parking subscription] {exception}");
+                context?.Logger.Error(exception);
             }
         }
 
@@ -536,7 +533,6 @@ namespace BigHax
             catch (System.Exception exception)
             {
                 context?.Logger.Error(exception);
-                BigHaxFileLogger.Log("BigHax-runtime-errors.log", "BigHax-runtime-errors.log", $"[{scope}] {exception}");
             }
         }
 

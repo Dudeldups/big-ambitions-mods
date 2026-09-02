@@ -116,10 +116,6 @@ namespace BigHax
             {
                 uiSelectionResolved = true;
                 nativeUi.Destroy();
-                var message = $"BigHax: using LIB_BaUnifiedUI {baUnifiedUi!.LibraryVersion} from {baUnifiedUi.AssemblyName}.";
-                context.Logger.Info(message);
-                BigHaxFileLogger.Log(message);
-                BigHaxUiDebugLogger.Log(message);
                 return true;
             }
 
@@ -131,10 +127,6 @@ namespace BigHax
                 return false;
 
             uiSelectionResolved = true;
-            var fallbackMessage = "BigHax: using built-in options UI fallback (" + reason + ").";
-            context.Logger.Info(fallbackMessage);
-            BigHaxFileLogger.Log(fallbackMessage);
-            BigHaxUiDebugLogger.Log(fallbackMessage);
             nativeUi.EnsureCreated(context, settings, isVisible);
             return true;
         }
