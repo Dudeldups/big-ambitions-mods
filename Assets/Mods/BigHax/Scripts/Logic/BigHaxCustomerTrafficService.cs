@@ -80,7 +80,9 @@ namespace BigHax
 
         public void RestoreOriginalState(ModContext? context)
         {
-            RestoreVanillaTraffic(context);
+            // The game disposes customer-entry dictionaries before unloading mods. Rebuilding
+            // entries at this point calls into already-cleared game state and throws in 1.0.
+            RestoreVanillaTraffic(context, refreshEntries: false);
             hasAppliedCustomTraffic = false;
             lastAppliedMultiplier = 1f;
         }
@@ -143,10 +145,11 @@ namespace BigHax
                 $"BigHax: applied customer traffic multiplier x{multiplier} to player businesses. businesses={appliedBusinessCount}, waitingForEntries={waitingForEntriesCount}, clonedEntryBusinesses={clonedBusinessCount}.");
         }
 
-        private void RestoreVanillaTraffic(ModContext? context)
+        private void RestoreVanillaTraffic(ModContext? context, bool refreshEntries = true)
         {
             RestorePromotionBoost();
-            UpdateAllCustomerEntries();
+            if (refreshEntries)
+                UpdateAllCustomerEntries();
 
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
