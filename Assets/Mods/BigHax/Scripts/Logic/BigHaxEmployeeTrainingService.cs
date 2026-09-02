@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using BAModAPI;
+using BigAmbitions.Characters.Skills;
 using Entities;
 using Helpers;
 using UnityEngine;
@@ -114,16 +115,17 @@ namespace BigHax
             int configuredGain,
             float trackedStartValue)
         {
-            if (!TryGetSkillValue(employee, skillName, out var currentSkillValue))
+            if (!TryGetSkill(employee, skillName, out var skill))
                 return;
 
+            var currentSkillValue = skill.value;
             var targetValue = Mathf.Min(100f, trackedStartValue + configuredGain);
             var extraGain = targetValue - currentSkillValue;
             if (extraGain <= 0f)
                 return;
 
             employee.IncreaseSkill(skillName, extraGain);
-            employee.IncreaseWageFromTraining(extraGain);
+            employee.IncreaseWageFromTraining(skill, currentSkillValue);
             BigHaxLogger.Info(
                 context,
                 $"BigHax: boosted completed training for {employee.characterData.name} in {skillName} by +{extraGain:0.##} skill.");
@@ -137,16 +139,26 @@ namespace BigHax
         private static bool TryGetSkillValue(EmployeeInstance employee, string skillName, out float value)
         {
             value = 0f;
+            if (!TryGetSkill(employee, skillName, out var skill))
+                return false;
+
+            value = skill.value;
+            return true;
+        }
+
+        private static bool TryGetSkill(EmployeeInstance employee, string skillName, out Skill skill)
+        {
+            skill = null!;
             var skills = employee.characterData?.skills;
             if (skills == null)
                 return false;
 
             for (var index = 0; index < skills.Count; index++)
             {
-                var skill = skills[index];
-                if (skill != null && string.Equals(skill.name, skillName, StringComparison.Ordinal))
+                var candidate = skills[index];
+                if (candidate != null && string.Equals(candidate.name, skillName, StringComparison.Ordinal))
                 {
-                    value = skill.value;
+                    skill = candidate;
                     return true;
                 }
             }
