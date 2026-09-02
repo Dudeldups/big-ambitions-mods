@@ -44,6 +44,7 @@ namespace BigHax
         private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private Coroutine? sleepDurationApplyCoroutine;
+        private Coroutine? sleepTimeAccelerationCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
         private Delegate? onEnterVehicleHandler;
@@ -121,6 +122,12 @@ namespace BigHax
             {
                 StopCoroutine(sleepDurationApplyCoroutine);
                 sleepDurationApplyCoroutine = null;
+            }
+
+            if (sleepTimeAccelerationCoroutine != null)
+            {
+                StopCoroutine(sleepTimeAccelerationCoroutine);
+                sleepTimeAccelerationCoroutine = null;
             }
 
             TryRestoreCustomerTraffic();
@@ -331,11 +338,16 @@ namespace BigHax
 
         private IEnumerator ApplySleepDurationsAfterGameLoad()
         {
-            // Bed activity configurations are instantiated during game loading,
-            // after the initial mod apply. Apply once after that initialization.
+            // Bed activity configurations are instantiated asynchronously after
+            // the game-loaded callback. This is a bounded startup sequence, not
+            // runtime polling: it covers both initial scene and LOD setup.
             yield return new WaitForEndOfFrame();
             if (context != null && settings != null)
                 SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
+
+            yield return new WaitForSecondsRealtime(1f);
+            if (context != null && settings != null)
+                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
 
             sleepDurationApplyCoroutine = null;
         }
@@ -380,12 +392,29 @@ namespace BigHax
 
         private void HandleTimeMachineStarted()
         {
-            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
+            if (sleepTimeAccelerationCoroutine == null)
+                sleepTimeAccelerationCoroutine = StartCoroutine(ApplySleepTimeAccelerationAfterStart());
         }
 
         private void HandleTimeMachineEnded()
         {
+            if (sleepTimeAccelerationCoroutine != null)
+            {
+                StopCoroutine(sleepTimeAccelerationCoroutine);
+                sleepTimeAccelerationCoroutine = null;
+            }
+
             sleepTimeAccelerationService.HandleTimeMachineEnded();
+        }
+
+        private IEnumerator ApplySleepTimeAccelerationAfterStart()
+        {
+            // The game raises onTimeMachineStarted before PlayerActivityUI has
+            // committed the SleepActivity state. Wait one frame, then inspect
+            // only the active activity and time machine.
+            yield return null;
+            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
+            sleepTimeAccelerationCoroutine = null;
         }
 
         private void HandleVehicleEntered()
