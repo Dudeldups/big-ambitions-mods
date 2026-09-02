@@ -9,11 +9,12 @@ namespace BigHax
 {
     internal sealed class BigHaxSleepRestDurationService
     {
-        private const int ExtendedHours = 24;
+        private const int ExtendedMinutes = 24 * 60;
         private static readonly BindingFlags InstanceFieldFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private readonly Dictionary<int, int> originalEnvironmentMaxHoursByKey = new Dictionary<int, int>();
+        private readonly Dictionary<int, OriginalRestDurations> originalEnvironmentDurationsByKey =
+            new Dictionary<int, OriginalRestDurations>();
         private readonly Dictionary<Type, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<Type, EnvironmentPatchDescriptor?>();
 
         public void InvalidateCache()
@@ -22,13 +23,14 @@ namespace BigHax
 
         public void ApplyConfiguredDurations(ModContext? context, BigHaxSettings settings)
         {
-            PatchLoadedBehaviours();
+            var patchedCount = PatchLoadedBehaviours();
+            context?.Logger.Info($"BigHax: extended rest duration to 24 hours on {patchedCount} loaded bench environment(s).");
         }
 
         public void RestoreOriginalDurationsOnShutdown()
         {
             RestoreOriginalDurations();
-            originalEnvironmentMaxHoursByKey.Clear();
+            originalEnvironmentDurationsByKey.Clear();
         }
 
         private int PatchLoadedBehaviours()
@@ -57,7 +59,7 @@ namespace BigHax
 
         private int RestoreOriginalDurations()
         {
-            if (originalEnvironmentMaxHoursByKey.Count == 0)
+            if (originalEnvironmentDurationsByKey.Count == 0)
                 return 0;
 
             var restoredCount = 0;
@@ -79,7 +81,7 @@ namespace BigHax
                     restoredCount++;
             }
 
-            originalEnvironmentMaxHoursByKey.Clear();
+            originalEnvironmentDurationsByKey.Clear();
             return restoredCount;
         }
 
@@ -89,15 +91,21 @@ namespace BigHax
             if (environmentValue == null)
                 return false;
 
-            var currentMaxHours = (int)descriptor.MaxHoursField.GetValue(environmentValue);
-            if (currentMaxHours >= ExtendedHours)
+            var balanceConfig = descriptor.BalanceConfigProperty.GetValue(environmentValue);
+            if (balanceConfig == null)
+                return false;
+
+            var currentDefaultMinutes = (int)descriptor.GetDefaultMinutesMethod.Invoke(environmentValue, null);
+            var currentMaxMinutes = (int)descriptor.MaxDurationMinutesField.GetValue(balanceConfig);
+            if (currentDefaultMinutes >= ExtendedMinutes && currentMaxMinutes >= ExtendedMinutes)
                 return false;
 
             var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
-            if (!originalEnvironmentMaxHoursByKey.ContainsKey(key))
-                originalEnvironmentMaxHoursByKey[key] = currentMaxHours;
+            if (!originalEnvironmentDurationsByKey.ContainsKey(key))
+                originalEnvironmentDurationsByKey[key] = new OriginalRestDurations(currentDefaultMinutes, currentMaxMinutes);
 
-            descriptor.MaxHoursField.SetValue(environmentValue, ExtendedHours);
+            descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { ExtendedMinutes });
+            descriptor.MaxDurationMinutesField.SetValue(balanceConfig, ExtendedMinutes);
             descriptor.EnvironmentField.SetValue(component, environmentValue);
 
             return true;
@@ -106,14 +114,19 @@ namespace BigHax
         private bool TryRestoreEnvironment(Component component, EnvironmentPatchDescriptor descriptor)
         {
             var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
-            if (!originalEnvironmentMaxHoursByKey.TryGetValue(key, out var originalMaxHours))
+            if (!originalEnvironmentDurationsByKey.TryGetValue(key, out var originalDurations))
                 return false;
 
             var environmentValue = descriptor.EnvironmentField.GetValue(component);
             if (environmentValue == null)
                 return false;
 
-            descriptor.MaxHoursField.SetValue(environmentValue, originalMaxHours);
+            var balanceConfig = descriptor.BalanceConfigProperty.GetValue(environmentValue);
+            if (balanceConfig == null)
+                return false;
+
+            descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { originalDurations.DefaultMinutes });
+            descriptor.MaxDurationMinutesField.SetValue(balanceConfig, originalDurations.MaxMinutes);
             descriptor.EnvironmentField.SetValue(component, environmentValue);
             return true;
         }
@@ -123,7 +136,7 @@ namespace BigHax
             if (descriptorCache.TryGetValue(behaviourType, out var cachedDescriptor))
                 return cachedDescriptor;
 
-            var descriptor = TryCreateDescriptor(behaviourType, "restEnvironment", "maxRestHours");
+            var descriptor = TryCreateDescriptor(behaviourType, "restEnvironment");
 
             descriptorCache[behaviourType] = descriptor;
             return descriptor;
@@ -131,18 +144,27 @@ namespace BigHax
 
         private static EnvironmentPatchDescriptor? TryCreateDescriptor(
             Type behaviourType,
-            string environmentFieldName,
-            string maxHoursFieldName)
+            string environmentFieldName)
         {
             var environmentField = behaviourType.GetField(environmentFieldName, InstanceFieldFlags);
             if (environmentField == null)
                 return null;
 
-            var maxHoursField = environmentField.FieldType.GetField(maxHoursFieldName, InstanceFieldFlags);
-            if (maxHoursField == null || maxHoursField.FieldType != typeof(int))
+            var getDefaultMinutesMethod = environmentField.FieldType.GetMethod("GetDefaultMinutes", InstanceFieldFlags);
+            var setDefaultMinutesMethod = environmentField.FieldType.GetMethod("SetDefaultMinutes", InstanceFieldFlags, null, new[] { typeof(int) }, null);
+            var balanceConfigProperty = environmentField.FieldType.GetProperty("BalanceConfig", InstanceFieldFlags);
+            var maxDurationMinutesField = balanceConfigProperty?.PropertyType.GetField("maxDurationMinutes", InstanceFieldFlags);
+            if (getDefaultMinutesMethod == null || getDefaultMinutesMethod.ReturnType != typeof(int) ||
+                setDefaultMinutesMethod == null || balanceConfigProperty == null ||
+                maxDurationMinutesField == null || maxDurationMinutesField.FieldType != typeof(int))
                 return null;
 
-            return new EnvironmentPatchDescriptor(environmentField, maxHoursField);
+            return new EnvironmentPatchDescriptor(
+                environmentField,
+                getDefaultMinutesMethod,
+                setDefaultMinutesMethod,
+                balanceConfigProperty,
+                maxDurationMinutesField);
         }
 
         private static int BuildEnvironmentKey(Component component, string fieldName)
@@ -155,14 +177,37 @@ namespace BigHax
 
         private readonly struct EnvironmentPatchDescriptor
         {
-            public EnvironmentPatchDescriptor(FieldInfo environmentField, FieldInfo maxHoursField)
+            public EnvironmentPatchDescriptor(
+                FieldInfo environmentField,
+                MethodInfo getDefaultMinutesMethod,
+                MethodInfo setDefaultMinutesMethod,
+                PropertyInfo balanceConfigProperty,
+                FieldInfo maxDurationMinutesField)
             {
                 EnvironmentField = environmentField;
-                MaxHoursField = maxHoursField;
+                GetDefaultMinutesMethod = getDefaultMinutesMethod;
+                SetDefaultMinutesMethod = setDefaultMinutesMethod;
+                BalanceConfigProperty = balanceConfigProperty;
+                MaxDurationMinutesField = maxDurationMinutesField;
             }
 
             public FieldInfo EnvironmentField { get; }
-            public FieldInfo MaxHoursField { get; }
+            public MethodInfo GetDefaultMinutesMethod { get; }
+            public MethodInfo SetDefaultMinutesMethod { get; }
+            public PropertyInfo BalanceConfigProperty { get; }
+            public FieldInfo MaxDurationMinutesField { get; }
+        }
+
+        private readonly struct OriginalRestDurations
+        {
+            public OriginalRestDurations(int defaultMinutes, int maxMinutes)
+            {
+                DefaultMinutes = defaultMinutes;
+                MaxMinutes = maxMinutes;
+            }
+
+            public int DefaultMinutes { get; }
+            public int MaxMinutes { get; }
         }
     }
 }
