@@ -33,6 +33,7 @@ namespace BigHax
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
+        private readonly BigHaxExtendedBedSleepLabelService extendedBedSleepLabelService = new BigHaxExtendedBedSleepLabelService();
         private readonly BigHaxSleepTimeAccelerationService sleepTimeAccelerationService = new BigHaxSleepTimeAccelerationService();
         private readonly BigHaxUpdateNoticeUi updateNoticeUi = new BigHaxUpdateNoticeUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
@@ -134,6 +135,7 @@ namespace BigHax
             recruitmentCandidateService.Unsubscribe();
             employeeDemandService.Unsubscribe();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
+            extendedBedSleepLabelService.Detach();
             sleepTimeAccelerationService.RestoreOriginalCurve();
             vehicleCapacityService.RestoreOriginalCapacities();
             updateNoticeUi.Shutdown();
@@ -322,6 +324,7 @@ namespace BigHax
 
         private void HandleGameLoadedLate()
         {
+            extendedBedSleepLabelService.Attach(settings!);
             // GlobalEvents is reset while a save is loading, after this runtime
             // has been created. Reattach these handlers once the load completes.
             GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
@@ -338,15 +341,21 @@ namespace BigHax
         private IEnumerator ApplySleepDurationsAfterGameLoad()
         {
             // Bed activity configurations are instantiated asynchronously after
-            // the game-loaded callback. This is a bounded startup sequence, not
-            // runtime polling: it covers both initial scene and LOD setup.
+            // the game-loaded callback. Keep this to two lightweight, bounded
+            // startup passes; scanning all loaded objects repeatedly is costly.
             yield return new WaitForEndOfFrame();
             if (context != null && settings != null)
+            {
                 SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                extendedBedSleepLabelService.Attach(settings);
+            }
 
             yield return new WaitForSecondsRealtime(1f);
             if (context != null && settings != null)
+            {
                 SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                extendedBedSleepLabelService.Attach(settings);
+            }
 
             sleepDurationApplyCoroutine = null;
         }
