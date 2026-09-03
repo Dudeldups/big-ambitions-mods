@@ -43,8 +43,10 @@ namespace BigHax
         private readonly Dictionary<string, int> lastAppliedEntryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> lastAppliedCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> lastKnownShouldCreateEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> lastObservedRegistrationStates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         private bool hasAppliedCustomTraffic;
+        private bool hasObservedRegistrationCensus;
         private float? originalBaseCustomerPromotionMultiplier;
         private float lastAppliedMultiplier = 1f;
         private bool pendingBusinessDiscovery;
@@ -87,6 +89,7 @@ namespace BigHax
                 return;
 
             var currentStateApplied = IsCurrentStateApplied(context, multiplier);
+            WriteRegistrationCensus(multiplier, currentStateApplied);
             if (!Mathf.Approximately(multiplier, lastAppliedMultiplier) || !currentStateApplied)
             {
                 BigHaxCustomerTrafficDebugLog.Write(
@@ -436,6 +439,69 @@ namespace BigHax
             }
 
             return registrations;
+        }
+
+        private void WriteRegistrationCensus(float multiplier, bool currentStateApplied)
+        {
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.BuildingRegistrations == null)
+            {
+                BigHaxCustomerTrafficDebugLog.Write("registration census unavailable: SaveGameManager has no BuildingRegistrations collection.");
+                return;
+            }
+
+            var currentStates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var registrationCount = 0;
+            var rentedByPlayerCount = 0;
+            var typedBusinessCount = 0;
+            var qualifyingBusinessCount = 0;
+
+            foreach (var registration in saveGame.BuildingRegistrations)
+            {
+                if (registration == null)
+                    continue;
+
+                registrationCount++;
+                var isRentedByPlayer = registration.RentedByPlayer;
+                var hasBusinessType = !string.IsNullOrWhiteSpace(registration.businessTypeName);
+                if (isRentedByPlayer)
+                    rentedByPlayerCount++;
+                if (hasBusinessType)
+                    typedBusinessCount++;
+                if (isRentedByPlayer && hasBusinessType)
+                    qualifyingBusinessCount++;
+
+                var key = GetRegistrationKey(registration);
+                var state = $"rentedByPlayer={isRentedByPlayer}, businessType='{registration.businessTypeName ?? ""}'";
+                currentStates[key] = state;
+
+                if (hasObservedRegistrationCensus &&
+                    (!lastObservedRegistrationStates.TryGetValue(key, out var previousState) ||
+                     !string.Equals(previousState, state, StringComparison.Ordinal)))
+                {
+                    BigHaxCustomerTrafficDebugLog.Write($"registration changed: {key}, {state}.");
+                }
+            }
+
+            if (hasObservedRegistrationCensus)
+            {
+                foreach (var previousKey in lastObservedRegistrationStates.Keys)
+                {
+                    if (!currentStates.ContainsKey(previousKey))
+                        BigHaxCustomerTrafficDebugLog.Write($"registration removed: {previousKey}.");
+                }
+            }
+
+            lastObservedRegistrationStates.Clear();
+            foreach (var pair in currentStates)
+                lastObservedRegistrationStates[pair.Key] = pair.Value;
+
+            hasObservedRegistrationCensus = true;
+            BigHaxCustomerTrafficDebugLog.Write(
+                $"registration census: total={registrationCount}, rentedByPlayer={rentedByPlayerCount}, " +
+                $"withBusinessType={typedBusinessCount}, qualifying={qualifyingBusinessCount}, " +
+                $"cachedBusinesses={lastAppliedCustomerCapacities.Count}, multiplier=x{multiplier}, " +
+                $"stateApplied={currentStateApplied}.");
         }
 
         private static bool ShouldEntriesBeCreated(ModContext? context, BuildingRegistration registration)
