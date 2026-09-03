@@ -89,6 +89,11 @@ namespace BigHax
             var currentStateApplied = IsCurrentStateApplied(context, multiplier);
             if (!Mathf.Approximately(multiplier, lastAppliedMultiplier) || !currentStateApplied)
             {
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"apply requested: multiplier=x{multiplier}, previous=x{lastAppliedMultiplier}, " +
+                    $"forceRefresh={forceRefresh}, hasApplied={hasAppliedCustomTraffic}, " +
+                    $"stateApplied={currentStateApplied}, cachedBusinesses={lastAppliedCustomerCapacities.Count}, " +
+                    $"pendingDiscovery={pendingBusinessDiscovery}.");
                 RebuildAndApplyTraffic(context, multiplier);
                 return;
             }
@@ -105,7 +110,16 @@ namespace BigHax
 
         private void RebuildAndApplyTraffic(ModContext? context, float multiplier)
         {
-            if (!TryUpdateAllCustomerEntries())
+            var preRefreshRegistrations = GetPlayerBusinessRegistrations();
+            var preRefreshEntryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var registration in preRefreshRegistrations)
+                preRefreshEntryCounts[GetRegistrationKey(registration)] = GetBusinessCustomerEntryCount(context, registration, "before refresh");
+
+            BigHaxCustomerTrafficDebugLog.Write(
+                $"scheduler refresh starting: multiplier=x{multiplier}, businessesBeforeRefresh={preRefreshRegistrations.Count}, " +
+                $"cachedBusinesses={lastAppliedCustomerCapacities.Count}.");
+
+            if (!TryUpdateAllCustomerEntries(context))
                 return;
 
             ApplyPromotionBoost(multiplier);
@@ -121,7 +135,8 @@ namespace BigHax
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
                 var key = GetRegistrationKey(registration);
-                if (!originalCustomerCapacities.ContainsKey(key))
+                var isNewBusiness = !originalCustomerCapacities.ContainsKey(key);
+                if (isNewBusiness)
                     originalCustomerCapacities[key] = registration.customerCapacity;
 
                 var baseCapacity = originalCustomerCapacities[key];
@@ -132,20 +147,28 @@ namespace BigHax
                 lastAppliedCustomerCapacities[key] = desiredCapacity;
                 appliedBusinessCount++;
 
-                var shouldCreateEntries = ShouldEntriesBeCreated(registration);
+                var shouldCreateEntries = ShouldEntriesBeCreated(context, registration);
                 lastKnownShouldCreateEntries[key] = shouldCreateEntries;
                 if (!shouldCreateEntries)
                 {
                     lastAppliedEntryCounts[key] = 0;
                     waitingForEntriesCount++;
+                    BigHaxCustomerTrafficDebugLog.Write(
+                        $"business {key}: state={(isNewBusiness ? "NEW" : "cached")}, baseCapacity={baseCapacity}, " +
+                        $"appliedCapacity={desiredCapacity}, entriesBeforeRefresh={GetPreRefreshEntryCount(preRefreshEntryCounts, key)}, " +
+                        "shouldCreateEntries=false; multiplier was not applied to an unavailable schedule.");
                     continue;
                 }
 
-                var entries = GetBusinessCustomerEntries(registration);
+                var entries = GetBusinessCustomerEntries(context, registration, "after refresh");
                 if (entries == null || entries.Count == 0)
                 {
                     lastAppliedEntryCounts[key] = 0;
                     waitingForEntriesCount++;
+                    BigHaxCustomerTrafficDebugLog.Write(
+                        $"business {key}: state={(isNewBusiness ? "NEW" : "cached")}, baseCapacity={baseCapacity}, " +
+                        $"appliedCapacity={desiredCapacity}, entriesBeforeRefresh={GetPreRefreshEntryCount(preRefreshEntryCounts, key)}, " +
+                        "entriesAfterRefresh=0; awaiting the game scheduler before entries can be multiplied.");
                     continue;
                 }
 
@@ -154,6 +177,11 @@ namespace BigHax
                 lastAppliedEntryCounts[key] = entries.Count;
                 if (entries.Count > originalEntryCount)
                     clonedBusinessCount++;
+
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"business {key}: state={(isNewBusiness ? "NEW" : "cached")}, baseCapacity={baseCapacity}, " +
+                    $"appliedCapacity={desiredCapacity}, entriesBeforeRefresh={GetPreRefreshEntryCount(preRefreshEntryCounts, key)}, " +
+                    $"entriesAfterRefresh={originalEntryCount}, entriesAfterMultiplier={entries.Count}.");
             }
 
             hasAppliedCustomTraffic = true;
@@ -168,7 +196,7 @@ namespace BigHax
         {
             RestorePromotionBoost();
             if (refreshEntries)
-                TryUpdateAllCustomerEntries();
+                TryUpdateAllCustomerEntries(context);
 
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
@@ -211,12 +239,12 @@ namespace BigHax
                     registration.customerCapacity != expectedCapacity)
                     return false;
 
-                var shouldCreateEntries = ShouldEntriesBeCreated(registration);
+                var shouldCreateEntries = ShouldEntriesBeCreated(context, registration);
                 if (!lastKnownShouldCreateEntries.TryGetValue(key, out var lastShouldCreateEntries) ||
                     shouldCreateEntries != lastShouldCreateEntries)
                     return false;
 
-                var entries = GetBusinessCustomerEntries(registration);
+                var entries = GetBusinessCustomerEntries(context, registration, "state check");
                 var currentCount = entries?.Count ?? 0;
                 if (shouldCreateEntries && currentCount == 0)
                 {
@@ -410,7 +438,7 @@ namespace BigHax
             return registrations;
         }
 
-        private static bool ShouldEntriesBeCreated(BuildingRegistration registration)
+        private static bool ShouldEntriesBeCreated(ModContext? context, BuildingRegistration registration)
         {
             if (ShouldEntriesBeCreatedMethod == null)
                 return true;
@@ -419,13 +447,15 @@ namespace BigHax
             {
                 return (bool)(ShouldEntriesBeCreatedMethod.Invoke(null, new object[] { registration }) ?? false);
             }
-            catch
+            catch (Exception exception)
             {
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"business {GetRegistrationKey(registration)}: ShouldEntriesBeCreated threw {exception.GetType().Name}: {exception.Message}. Defaulting to true.");
                 return true;
             }
         }
 
-        private static IList? GetBusinessCustomerEntries(BuildingRegistration registration)
+        private static IList? GetBusinessCustomerEntries(ModContext? context, BuildingRegistration registration, string phase)
         {
             if (GetEntriesByAddressMethod == null)
                 return null;
@@ -434,21 +464,36 @@ namespace BigHax
             {
                 return GetEntriesByAddressMethod.Invoke(null, new object[] { registration.Address }) as IList;
             }
-            catch
+            catch (Exception exception)
             {
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"business {GetRegistrationKey(registration)}: GetEntriesByAddress during {phase} threw {exception.GetType().Name}: {exception.Message}.");
                 return null;
             }
         }
 
-        private static bool TryUpdateAllCustomerEntries()
+        private static int GetBusinessCustomerEntryCount(ModContext? context, BuildingRegistration registration, string phase)
+        {
+            return GetBusinessCustomerEntries(context, registration, phase)?.Count ?? 0;
+        }
+
+        private static int GetPreRefreshEntryCount(Dictionary<string, int> counts, string key)
+        {
+            return counts.TryGetValue(key, out var count) ? count : 0;
+        }
+
+        private static bool TryUpdateAllCustomerEntries(ModContext? context)
         {
             try
             {
                 UpdateAllCustomerEntriesMethod?.Invoke(null, null);
+                BigHaxCustomerTrafficDebugLog.Write("scheduler refresh completed successfully.");
                 return true;
             }
-            catch
+            catch (Exception exception)
             {
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"scheduler refresh failed: {exception.GetType().Name}: {exception.Message}{Environment.NewLine}{exception.StackTrace}");
                 return false;
             }
         }
