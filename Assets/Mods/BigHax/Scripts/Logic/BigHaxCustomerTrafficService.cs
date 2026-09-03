@@ -11,6 +11,7 @@ namespace BigHax
     internal sealed class BigHaxCustomerTrafficService
     {
         private const float AdditionalPromotionBoostPerMultiplierStep = 0.25f;
+        private const float PendingScheduleRefreshIntervalSeconds = 10f;
 
         private static readonly MethodInfo MemberwiseCloneMethod =
             typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -43,12 +44,15 @@ namespace BigHax
         private readonly Dictionary<string, int> lastAppliedEntryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> lastAppliedCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> lastKnownShouldCreateEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> lastKnownBusinessTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> lastObservedRegistrationStates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> pendingScheduleBusinessKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private bool hasAppliedCustomTraffic;
         private bool hasObservedRegistrationCensus;
         private float? originalBaseCustomerPromotionMultiplier;
         private float lastAppliedMultiplier = 1f;
+        private float nextPendingScheduleRefreshAt;
         private bool pendingBusinessDiscovery;
 
         public void InvalidateCache()
@@ -88,18 +92,21 @@ namespace BigHax
             if (SaveGameManager.Current?.gameVariables == null)
                 return;
 
-            var currentStateApplied = IsCurrentStateApplied(context, multiplier);
-            WriteRegistrationCensus(multiplier, currentStateApplied);
-            if (!Mathf.Approximately(multiplier, lastAppliedMultiplier) || !currentStateApplied)
+            if (!hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
             {
                 BigHaxCustomerTrafficDebugLog.Write(
                     $"apply requested: multiplier=x{multiplier}, previous=x{lastAppliedMultiplier}, " +
                     $"forceRefresh={forceRefresh}, hasApplied={hasAppliedCustomTraffic}, " +
-                    $"stateApplied={currentStateApplied}, cachedBusinesses={lastAppliedCustomerCapacities.Count}, " +
+                    $"cachedBusinesses={lastAppliedCustomerCapacities.Count}, " +
                     $"pendingDiscovery={pendingBusinessDiscovery}.");
                 RebuildAndApplyTraffic(context, multiplier);
                 return;
             }
+
+            ApplyPromotionBoost(multiplier);
+            DiscoverActivatedBusinesses(context, multiplier);
+            WriteRegistrationCensus(multiplier, true);
+            TryApplyPendingBusinessSchedules(context, multiplier);
         }
 
         public void RestoreOriginalState(ModContext? context)
@@ -130,6 +137,9 @@ namespace BigHax
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
             lastKnownShouldCreateEntries.Clear();
+            lastKnownBusinessTypes.Clear();
+            pendingScheduleBusinessKeys.Clear();
+            nextPendingScheduleRefreshAt = 0f;
 
             var appliedBusinessCount = 0;
             var waitingForEntriesCount = 0;
@@ -138,6 +148,7 @@ namespace BigHax
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
                 var key = GetRegistrationKey(registration);
+                lastKnownBusinessTypes[key] = GetBusinessType(registration);
                 var isNewBusiness = !originalCustomerCapacities.ContainsKey(key);
                 if (isNewBusiness)
                     originalCustomerCapacities[key] = registration.customerCapacity;
@@ -168,6 +179,7 @@ namespace BigHax
                 {
                     lastAppliedEntryCounts[key] = 0;
                     waitingForEntriesCount++;
+                    pendingScheduleBusinessKeys.Add(key);
                     BigHaxCustomerTrafficDebugLog.Write(
                         $"business {key}: state={(isNewBusiness ? "NEW" : "cached")}, baseCapacity={baseCapacity}, " +
                         $"appliedCapacity={desiredCapacity}, entriesBeforeRefresh={GetPreRefreshEntryCount(preRefreshEntryCounts, key)}, " +
@@ -178,6 +190,7 @@ namespace BigHax
                 var originalEntryCount = entries.Count;
                 MultiplyEntries(entries, multiplier);
                 lastAppliedEntryCounts[key] = entries.Count;
+                pendingScheduleBusinessKeys.Remove(key);
                 if (entries.Count > originalEntryCount)
                     clonedBusinessCount++;
 
@@ -211,58 +224,108 @@ namespace BigHax
             lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
             lastKnownShouldCreateEntries.Clear();
+            lastKnownBusinessTypes.Clear();
+            pendingScheduleBusinessKeys.Clear();
             pendingBusinessDiscovery = false;
             BigHaxLogger.Info(context, "BigHax: restored vanilla customer traffic for player businesses.");
         }
 
-        private bool IsCurrentStateApplied(ModContext? context, float multiplier)
+        private void DiscoverActivatedBusinesses(ModContext? context, float multiplier)
         {
-            if (!hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
-                return false;
-
-            if (!IsPromotionBoostApplied(multiplier))
-                return false;
-
-            if (pendingBusinessDiscovery)
-            {
-                foreach (var registration in GetPlayerBusinessRegistrations())
-                {
-                    var key = GetRegistrationKey(registration);
-                    if (!lastAppliedCustomerCapacities.ContainsKey(key))
-                        return false;
-                }
-
-                pendingBusinessDiscovery = false;
-            }
-
             foreach (var registration in GetPlayerBusinessRegistrations())
             {
                 var key = GetRegistrationKey(registration);
-                if (!lastAppliedCustomerCapacities.TryGetValue(key, out var expectedCapacity) ||
-                    registration.customerCapacity != expectedCapacity)
-                    return false;
+                var businessType = GetBusinessType(registration);
+                var isNewRegistration = !lastKnownBusinessTypes.TryGetValue(key, out var previousBusinessType);
+                if (!isNewRegistration && string.Equals(previousBusinessType, businessType, StringComparison.Ordinal))
+                    continue;
 
-                var shouldCreateEntries = ShouldEntriesBeCreated(context, registration);
-                if (!lastKnownShouldCreateEntries.TryGetValue(key, out var lastShouldCreateEntries) ||
-                    shouldCreateEntries != lastShouldCreateEntries)
-                    return false;
+                lastKnownBusinessTypes[key] = businessType;
+                ApplyCustomerCapacity(registration, key, multiplier);
+                pendingScheduleBusinessKeys.Add(key);
+                nextPendingScheduleRefreshAt = 0f;
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"business activation detected: {key}, previousBusinessType='{previousBusinessType ?? ""}', " +
+                    $"currentBusinessType='{businessType}', pendingSchedules={pendingScheduleBusinessKeys.Count}.");
+            }
 
-                var entries = GetBusinessCustomerEntries(context, registration, "state check");
-                var currentCount = entries?.Count ?? 0;
-                if (shouldCreateEntries && currentCount == 0)
+            pendingBusinessDiscovery = false;
+        }
+
+        private void TryApplyPendingBusinessSchedules(ModContext? context, float multiplier)
+        {
+            if (pendingScheduleBusinessKeys.Count == 0)
+                return;
+
+            if (Time.unscaledTime < nextPendingScheduleRefreshAt)
+                return;
+
+            nextPendingScheduleRefreshAt = Time.unscaledTime + PendingScheduleRefreshIntervalSeconds;
+
+            BigHaxCustomerTrafficDebugLog.Write(
+                $"pending business schedule refresh starting: pendingBusinesses={pendingScheduleBusinessKeys.Count}.");
+            if (!TryUpdateAllCustomerEntries(context))
+                return;
+
+            var registrationsByKey = new Dictionary<string, BuildingRegistration>(StringComparer.OrdinalIgnoreCase);
+            foreach (var registration in GetPlayerBusinessRegistrations())
+                registrationsByKey[GetRegistrationKey(registration)] = registration;
+
+            var resolvedKeys = new List<string>();
+            foreach (var key in pendingScheduleBusinessKeys)
+            {
+                if (!registrationsByKey.TryGetValue(key, out var registration))
                 {
-                    // Customer entries are transient and may be empty between the
-                    // game's own scheduler passes. Rebuilding every business for
-                    // one temporary empty list duplicates all of the other 1.0
-                    // schedules and eventually prevents customers from spawning.
+                    resolvedKeys.Add(key);
+                    BigHaxCustomerTrafficDebugLog.Write($"pending business {key} no longer qualifies; stopped retrying its schedule.");
                     continue;
                 }
 
-                if (!lastAppliedEntryCounts.ContainsKey(key))
-                    return false;
+                ApplyCustomerCapacity(registration, key, multiplier);
+                if (!ShouldEntriesBeCreated(context, registration))
+                {
+                    BigHaxCustomerTrafficDebugLog.Write($"pending business {key}: schedule is not available yet; retry will continue.");
+                    continue;
+                }
+
+                var entries = GetBusinessCustomerEntries(context, registration, "pending schedule refresh");
+                if (entries == null || entries.Count == 0)
+                {
+                    BigHaxCustomerTrafficDebugLog.Write($"pending business {key}: schedule is still empty; retry will continue.");
+                    continue;
+                }
+
+                var originalEntryCount = entries.Count;
+                MultiplyEntries(entries, multiplier);
+                lastAppliedEntryCounts[key] = entries.Count;
+                lastKnownShouldCreateEntries[key] = true;
+                resolvedKeys.Add(key);
+                BigHaxCustomerTrafficDebugLog.Write(
+                    $"pending business {key}: entriesBeforeMultiplier={originalEntryCount}, entriesAfterMultiplier={entries.Count}; schedule multiplier applied.");
             }
 
-            return true;
+            foreach (var key in resolvedKeys)
+                pendingScheduleBusinessKeys.Remove(key);
+        }
+
+        private void ApplyCustomerCapacity(BuildingRegistration registration, string key, float multiplier)
+        {
+            if (!originalCustomerCapacities.TryGetValue(key, out var baseCapacity))
+            {
+                baseCapacity = registration.customerCapacity;
+                originalCustomerCapacities[key] = baseCapacity;
+            }
+
+            var desiredCapacity = baseCapacity > 0
+                ? Mathf.Max(baseCapacity, Mathf.CeilToInt(baseCapacity * multiplier))
+                : baseCapacity;
+            registration.customerCapacity = desiredCapacity;
+            lastAppliedCustomerCapacities[key] = desiredCapacity;
+        }
+
+        private static string GetBusinessType(BuildingRegistration registration)
+        {
+            return registration.businessTypeName ?? string.Empty;
         }
 
         private void ApplyPromotionBoost(float multiplier)
@@ -288,20 +351,6 @@ namespace BigHax
                 return;
 
             gameVariables.baseCustomerPromotionMultiplier = originalBaseCustomerPromotionMultiplier.Value;
-        }
-
-        private bool IsPromotionBoostApplied(float multiplier)
-        {
-            var gameVariables = SaveGameManager.Current?.gameVariables;
-            if (gameVariables == null)
-                return false;
-
-            if (!originalBaseCustomerPromotionMultiplier.HasValue)
-                originalBaseCustomerPromotionMultiplier = gameVariables.baseCustomerPromotionMultiplier;
-
-            var targetMultiplier = 1f + (multiplier - 1f) * AdditionalPromotionBoostPerMultiplierStep;
-            var targetValue = originalBaseCustomerPromotionMultiplier.Value * targetMultiplier;
-            return Mathf.Approximately(gameVariables.baseCustomerPromotionMultiplier, targetValue);
         }
 
         private static bool CanUseCustomerEntries()
