@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "모든 직원 요구 사항 제거",
+  "bighax_maximum_employee_satisfaction_label": "모든 직원 만족도를 100%로 설정",
   "bighax_enable_extended_bed_sleep_label": "침대에서 잘 수 있는 최대 시간을 7일로 연장",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax UI 단축키",

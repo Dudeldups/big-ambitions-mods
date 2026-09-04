@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "従業員の要求をすべて削除",
+  "bighax_maximum_employee_satisfaction_label": "すべての従業員の満足度を100%に設定",
   "bighax_enable_extended_bed_sleep_label": "ベッドで眠れる最大時間を7日間に延長",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax UIホットキー",

@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Κατάργηση όλων των απαιτήσεων εργαζομένων",
+  "bighax_maximum_employee_satisfaction_label": "Ορίστε την ικανοποίηση όλων των εργαζομένων στο 100%",
   "bighax_enable_extended_bed_sleep_label": "Αύξηση μέγιστου χρόνου ύπνου στο κρεβάτι σε 7 ημέρες",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Πλήκτρο συντόμευσης UI Big Hax",

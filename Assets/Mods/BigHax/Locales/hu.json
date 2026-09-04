@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Minden alkalmazotti igény eltávolítása",
+  "bighax_maximum_employee_satisfaction_label": "Állítsd minden alkalmazott elégedettségét 100%-ra",
   "bighax_enable_extended_bed_sleep_label": "Az ágyban alvás maximális idejének növelése 7 napra",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax felület gyorsbillentyűje",

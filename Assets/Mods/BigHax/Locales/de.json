@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Alle Mitarbeiteranforderungen entfernen",
+  "bighax_maximum_employee_satisfaction_label": "Zufriedenheit aller Mitarbeiter auf 100 % setzen",
   "bighax_enable_extended_bed_sleep_label": "Maximale Schlafzeit im Bett auf 7 Tage erhöhen",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax UI-Hotkey",

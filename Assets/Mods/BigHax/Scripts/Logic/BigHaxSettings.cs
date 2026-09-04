@@ -19,6 +19,7 @@ namespace BigHax
         public const int DefaultEmployeeTrainingSkillIncrease = 10;
         public const bool DefaultEnableRecruitmentCandidateMaximumSkill = false;
         public const bool DefaultRemoveEmployeeDemands = false;
+        public const bool DefaultEnableMaximumEmployeeSatisfaction = false;
         public const bool DefaultEnableExtendedBedSleep = false;
         public const bool DefaultEnableNoVehicleDamage = false;
         public const bool DefaultEnableInfiniteVehicleFuel = false;
@@ -56,6 +57,8 @@ namespace BigHax
         public bool EnableRecruitmentCandidateMaximumSkill { get; set; } = DefaultEnableRecruitmentCandidateMaximumSkill;
 
         public bool RemoveEmployeeDemands { get; set; } = DefaultRemoveEmployeeDemands;
+
+        public bool EnableMaximumEmployeeSatisfaction { get; set; } = DefaultEnableMaximumEmployeeSatisfaction;
 
         public bool EnableExtendedBedSleep { get; set; } = DefaultEnableExtendedBedSleep;
 
