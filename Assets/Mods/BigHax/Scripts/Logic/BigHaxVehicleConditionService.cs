@@ -7,17 +7,15 @@ using Vehicles.VehicleTypes;
 namespace BigHax
 {
     /// <summary>
-    /// Keeps player vehicles pristine through the game's vehicle-change events and
-    /// a constrained active-driver check. Collision repair is handled by a component
-    /// attached to the player vehicle's rigidbody, not by a global physics scan.
+    /// Keeps player vehicles pristine on vehicle entry and collision. Collision repair
+    /// is handled by a component attached to the player vehicle's rigidbody, not by
+    /// a global physics scan or a continuous update check.
     /// </summary>
     internal sealed class BigHaxVehicleConditionService
     {
         public void ApplyConfiguredConditions(BigHaxSettings settings)
         {
-            if (!settings.EnableNoVehicleDamage &&
-                !settings.EnableInfiniteVehicleFuel &&
-                !settings.EnableNeverDirtyVehicles)
+            if (!HasEnabledConditions(settings))
             {
                 return;
             }
@@ -50,9 +48,11 @@ namespace BigHax
                 SaveGameManager.MarkChange();
         }
 
-        public bool HasActiveDrivingConditions(BigHaxSettings settings)
+        public bool HasEnabledConditions(BigHaxSettings settings)
         {
-            return settings.EnableInfiniteVehicleFuel || settings.EnableNeverDirtyVehicles;
+            return settings.EnableNoVehicleDamage ||
+                   settings.EnableInfiniteVehicleFuel ||
+                   settings.EnableNeverDirtyVehicles;
         }
 
         public void ApplyActiveVehicleConditions(BigHaxSettings settings)

@@ -18,8 +18,6 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
-        // Fuel and dirt change gradually; this only runs while the player is driving.
-        private const float ActiveVehicleConditionPollIntervalSeconds = 10f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -59,7 +57,6 @@ namespace BigHax
         private float nextCustomerTrafficPollAt;
         private float nextEmployeeTrainingPollAt;
         private float nextLoanLimitPollAt;
-        private float nextVehicleConditionPollAt;
         private BigHaxSettings? settings;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
@@ -80,7 +77,6 @@ namespace BigHax
             runtime.nextCustomerTrafficPollAt = 0f;
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
-            runtime.nextVehicleConditionPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
             runtime.updateNoticeUi.Initialize(context.ModId);
@@ -192,7 +188,6 @@ namespace BigHax
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             PollLoanLimitChanges();
-            PollActiveVehicleConditions();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
         }
@@ -351,18 +346,6 @@ namespace BigHax
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
         }
 
-        private void PollActiveVehicleConditions()
-        {
-            if (settings == null || !vehicleConditionService.HasActiveDrivingConditions(settings) ||
-                Time.unscaledTime < nextVehicleConditionPollAt)
-            {
-                return;
-            }
-
-            nextVehicleConditionPollAt = Time.unscaledTime + ActiveVehicleConditionPollIntervalSeconds;
-            SafeApply("active vehicle conditions", () => vehicleConditionService.ApplyActiveVehicleConditions(settings));
-        }
-
         private IEnumerator ApplySleepDurationsAfterGameLoad()
         {
             // Bed activity configurations are instantiated asynchronously after
@@ -428,7 +411,7 @@ namespace BigHax
 
         private void HandleVehicleCollision()
         {
-            if (settings == null || !settings.EnableNoVehicleDamage || vehicleCollisionApplyCoroutine != null)
+            if (settings == null || !vehicleConditionService.HasEnabledConditions(settings) || vehicleCollisionApplyCoroutine != null)
                 return;
 
             vehicleCollisionApplyCoroutine = StartCoroutine(ApplyVehicleConditionsAfterCollision());
