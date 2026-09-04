@@ -370,7 +370,6 @@ namespace StreetQuestRPG
                 return;
 
             PreferredQuestGiverSpawnPosition = null;
-            CachedItemsContainerTransform = null;
             StreetQuestCharacterRuntimeResolver.ClearCache();
             LogDebug(
                 $"ApartmentVisitCharacterSpawnPrepared character={visit.CharacterId} state={visit.StateId} address={visit.ExteriorAddress} reason={reason}");

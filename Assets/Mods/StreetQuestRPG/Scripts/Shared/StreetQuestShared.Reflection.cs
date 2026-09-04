@@ -114,6 +114,19 @@ namespace StreetQuestRPG
         }
 
 
+        private static string GetHierarchyPath(Transform transform)
+        {
+            if (transform == null)
+                return string.Empty;
+
+            var names = new Stack<string>();
+            for (var current = transform; current != null; current = current.parent)
+                names.Push(current.name);
+
+            return string.Join("/", names);
+        }
+
+
         private static object GetMemberValue(object instance, string memberName)
         {
             if (instance == null || string.IsNullOrEmpty(memberName))

@@ -1,4 +1,5 @@
 using System;
+using CustomNPCAPI;
 using Helpers;
 using UnityEngine;
 
@@ -31,6 +32,7 @@ namespace StreetQuestRPG
         private static string _appearanceAgeInDays = "12410";
         private static string _appearanceSeed = "22073";
         private static string _appearanceScale = "1.00";
+        private static CustomNpcHandle _appearancePreviewHandle;
         private static GameObject _appearancePreviewRoot;
         private static int _appearancePreviewSerial;
 
@@ -123,71 +125,42 @@ namespace StreetQuestRPG
 
             var spawnPosition = player.transform.position + spawnForward * 2.5f;
             _appearancePreviewSerial++;
-            var previewId = $"streetquest_debug_preview_{_appearancePreviewSerial}";
-
-            var scale = ParseFloatOrDefault(_appearanceScale, 1f);
-            scale = Mathf.Clamp(scale, 0.35f, 2.5f);
-
-            var definition = new StreetQuestCharacterDefinition
+            var scale = Mathf.Clamp(ParseFloatOrDefault(_appearanceScale, 1f), 0.35f, 2.5f);
+            var definition = new CustomNpcDefinition
             {
-                id = previewId,
-                displayName = "Preview",
-                gameObjectName = "StreetQuestRPG.AppearancePreview",
-                visualObjectName = "AppearancePreviewVisual",
-                prefabName = _appearanceSelectedPrefab,
-                gender = _appearanceGender,
-                ageInDays = ParseIntOrDefault(_appearanceAgeInDays, 12410),
-                appearanceSeed = ParseIntOrDefault(_appearanceSeed, 22073),
-                enabled = true,
-                interactable = false,
-                useFixedSpawnPosition = true,
-                position = StreetQuestVector3Data.From(spawnPosition),
-                forward = StreetQuestVector3Data.From(spawnForward),
-                localPosition = StreetQuestVector3Data.From(Vector3.zero),
-                localEulerAngles = StreetQuestVector3Data.From(new Vector3(0f, 90f, 0f)),
-                localScale = StreetQuestVector3Data.From(Vector3.one * scale),
-                states = new[]
-                {
-                    new StreetQuestCharacterStateDefinition
-                    {
-                        id = "preview_default",
-                        overrideEnabled = true,
-                        enabled = true,
-                        overrideUseFixedSpawnPosition = true,
-                        useFixedSpawnPosition = true,
-                        position = StreetQuestVector3Data.From(spawnPosition),
-                        forward = StreetQuestVector3Data.From(spawnForward)
-                    }
-                }
+                Id = $"streetquest_debug_preview_{_appearancePreviewSerial}",
+                DisplayName = "Preview",
+                GameObjectName = "StreetQuestRPG.AppearancePreview",
+                VisualObjectName = "AppearancePreviewVisual",
+                PrefabName = _appearanceSelectedPrefab,
+                Gender = _appearanceGender,
+                AgeInDays = ParseIntOrDefault(_appearanceAgeInDays, 12410),
+                AppearanceSeed = ParseIntOrDefault(_appearanceSeed, 22073),
+                Interactable = false,
+                Position = spawnPosition,
+                Forward = spawnForward,
+                LocalEulerAngles = new Vector3(0f, 90f, 0f),
+                LocalScale = Vector3.one * scale
             };
 
-            var host = StreetQuestCharacterCreator.CreateHost(definition);
-            if (host == null)
+            _appearancePreviewHandle = CustomNpcApi.Spawn("StreetQuestRPG:debug", definition);
+            _appearancePreviewRoot = _appearancePreviewHandle?.Root;
+            if (_appearancePreviewRoot == null)
             {
-                StreetQuestShared.NotifyInfo("Failed to create preview host.", "streetquest:debug_preview_host_failed", 2.5f);
-                return;
-            }
-
-            if (!StreetQuestCharacterCreator.TryAttachPrefabVisual(host.transform, definition, out _))
-            {
-                UnityEngine.Object.Destroy(host);
                 StreetQuestShared.NotifyInfo($"Failed to spawn prefab: {_appearanceSelectedPrefab}", "streetquest:debug_preview_prefab_failed", 2.5f);
                 return;
             }
 
-            _appearancePreviewRoot = host;
             StreetQuestShared.NotifyInfo(
-                $"Preview spawned: {_appearanceSelectedPrefab} | {_appearanceGender} | age {definition.ageInDays} | seed {definition.appearanceSeed} | scale {scale:F2}",
+                $"Preview spawned: {_appearanceSelectedPrefab} | {_appearanceGender} | age {definition.AgeInDays} | seed {definition.AppearanceSeed} | scale {scale:F2}",
                 "streetquest:debug_preview_spawned",
                 3f);
         }
 
         private static void DestroyAppearancePreview()
         {
-            if (_appearancePreviewRoot == null)
-                return;
-
-            UnityEngine.Object.Destroy(_appearancePreviewRoot);
+            _appearancePreviewHandle?.Dispose();
+            _appearancePreviewHandle = null;
             _appearancePreviewRoot = null;
         }
 

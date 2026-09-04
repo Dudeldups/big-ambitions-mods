@@ -31,9 +31,23 @@ namespace StreetQuestRPG
 
         public static Vector3 GetPlayerWorldPosition()
         {
-            return PlayerHelper.PlayerController != null
-                ? PlayerHelper.PlayerController.transform.position
-                : PlayerHelper.GetPosition();
+            return TryGetPlayerWorldPosition(out var playerPosition)
+                ? playerPosition
+                : Vector3.zero;
+        }
+
+
+        public static bool TryGetPlayerWorldPosition(out Vector3 playerPosition)
+        {
+            var playerController = PlayerHelper.PlayerController;
+            if (playerController == null)
+            {
+                playerPosition = Vector3.zero;
+                return false;
+            }
+
+            playerPosition = playerController.transform.position;
+            return true;
         }
 
 
@@ -64,9 +78,8 @@ namespace StreetQuestRPG
 
         public static void TickWorldObjectives()
         {
-            var playerPosition = PlayerHelper.PlayerController != null
-                ? PlayerHelper.PlayerController.transform.position
-                : PlayerHelper.GetPosition();
+            if (!TryGetPlayerWorldPosition(out var playerPosition))
+                return;
 
             var quests = new List<StreetQuestQuestDefinition>();
             var mainQuest = GetCurrentMainQuest();

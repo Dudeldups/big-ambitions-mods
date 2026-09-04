@@ -144,35 +144,27 @@ namespace StreetQuestRPG
                     ? "streetquest:popup_favor_gain"
                     : "streetquest:popup_favor_loss";
 
-                var message = baseKey.Localize(new Dictionary<string, string>
+                var localizationData = new Dictionary<string, string>
                 {
                     { "amount", amount },
                     { "npcname", npcName }
-                }).ToString();
+                };
 
                 if (summary.CashAmount > 0)
                 {
-                    var combinedKey = favorChange.Value >= 0
+                    baseKey = favorChange.Value >= 0
                         ? "streetquest:popup_favor_gain_with_cash"
                         : "streetquest:popup_favor_loss_with_cash";
-                    message = combinedKey.Localize(new Dictionary<string, string>
+                    localizationData = new Dictionary<string, string>
                     {
                         { "favor", amount },
                         { "npcname", npcName },
                         { "amount", summary.CashAmount.ToString() }
-                    }).ToString();
-                }
-                else if (favorChange.Value < 0)
-                {
-                    message = "streetquest:popup_favor_loss".Localize(new Dictionary<string, string>
-                    {
-                        { "amount", amount },
-                        { "npcname", npcName }
-                    }).ToString();
+                    };
                 }
 
-                LogDebug($"ShowRewardSummaryNotification single message={message}");
-                ShowInfoNotification(message);
+                LogDebug($"ShowRewardSummaryNotification single key={baseKey}");
+                ShowInfoNotification(baseKey, localizationData);
                 return;
             }
 
@@ -199,7 +191,9 @@ namespace StreetQuestRPG
 
             var combinedMessage = string.Join("\n", lines);
             LogDebug($"ShowRewardSummaryNotification multi message={combinedMessage}");
-            ShowInfoNotification(combinedMessage);
+            ShowInfoNotification(
+                "streetquest:popup_raw",
+                new Dictionary<string, string> { { "message", combinedMessage } });
         }
 
 

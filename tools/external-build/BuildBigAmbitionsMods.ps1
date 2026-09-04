@@ -116,6 +116,50 @@ function Get-JsonBool {
     return [bool] $property.Value
 }
 
+function Get-JsonStringArray {
+    param(
+        [object] $Object,
+        [string] $PropertyName
+    )
+
+    if ($null -eq $Object) {
+        return @()
+    }
+
+    $property = $Object.PSObject.Properties[$PropertyName]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return @()
+    }
+
+    return @(
+        @($property.Value) |
+            ForEach-Object { [string] $_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+}
+
+function Get-RootAssemblyDefinition {
+    param([string] $SourceDir)
+
+    if (-not (Test-Path -LiteralPath $SourceDir -PathType Container)) {
+        return $null
+    }
+
+    $assemblyDefinitions = @(Get-ChildItem -LiteralPath $SourceDir -File -Filter "*.asmdef" | Sort-Object Name)
+    if ($assemblyDefinitions.Count -eq 0) {
+        return $null
+    }
+    if ($assemblyDefinitions.Count -gt 1) {
+        throw "More than one root assembly definition was found in '$SourceDir'. Set assemblyName explicitly in the external build config."
+    }
+
+    $definition = Get-Content -LiteralPath $assemblyDefinitions[0].FullName -Raw | ConvertFrom-Json
+    return [pscustomobject]@{
+        Path = $assemblyDefinitions[0].FullName
+        Name = Get-JsonString $definition "name" ""
+    }
+}
+
 function Test-IsExcludedSource {
     param([System.IO.FileInfo] $File)
 
@@ -164,10 +208,17 @@ function New-ModInfo {
     }
 
     $modName = Get-JsonString $Override "modName" $folderName
-    $assemblyName = Get-JsonString $Override "assemblyName" $folderName
+    $assemblyDefinition = Get-RootAssemblyDefinition -SourceDir $sourceDir
+    $defaultAssemblyName = if ($null -ne $assemblyDefinition -and -not [string]::IsNullOrWhiteSpace($assemblyDefinition.Name)) {
+        $assemblyDefinition.Name
+    } else {
+        $folderName
+    }
+    $assemblyName = Get-JsonString $Override "assemblyName" $defaultAssemblyName
     $modsLocalFolder = Get-JsonString $Override "modsLocalFolder" $modName
     $dllTargetSubfolder = Get-JsonString $Override "dllTargetSubfolder" ""
     $enabled = Get-JsonBool $Override "enabled" $true
+    $dependencies = Get-JsonStringArray $Override "dependencies"
 
     $sources = if (Test-Path -LiteralPath $sourceDir -PathType Container) {
         Get-ModSourceFiles $sourceDir
@@ -183,6 +234,8 @@ function New-ModInfo {
         ModsLocalFolder = $modsLocalFolder
         DllTargetSubfolder = $dllTargetSubfolder
         Enabled = $enabled
+        Dependencies = @($dependencies)
+        ResolvedDependencies = @()
         HasThumbnail = (Test-Path -LiteralPath (Join-Path $sourceDir "thumbnail.png") -PathType Leaf)
         HasLocales = (Test-Path -LiteralPath (Join-Path $sourceDir "Locales") -PathType Container)
         HasConfig = (Test-Path -LiteralPath (Join-Path $sourceDir "Config") -PathType Container)
@@ -280,6 +333,69 @@ function Assert-DependencyPaths {
         throw "UnityEngine managed DLL folder not found: $unityEngine"
     }
 
+}
+
+function Resolve-ModBuildOrder {
+    param(
+        [object[]] $AllMods,
+        [object[]] $RequestedMods
+    )
+
+    $modsByName = @{}
+    foreach ($mod in $AllMods) {
+        $modsByName[$mod.ModName] = $mod
+        $modsByName[$mod.AssemblyName] = $mod
+    }
+
+    $states = @{}
+    $ordered = [System.Collections.Generic.List[object]]::new()
+    $visit = {
+        param([object] $Mod)
+
+        $state = if ($states.ContainsKey($Mod.ModName)) { [int] $states[$Mod.ModName] } else { 0 }
+        if ($state -eq 2) {
+            return
+        }
+        if ($state -eq 1) {
+            throw "Circular external build dependency detected at mod '$($Mod.ModName)'."
+        }
+
+        $states[$Mod.ModName] = 1
+        $resolvedDependencies = [System.Collections.Generic.List[object]]::new()
+        foreach ($dependencyName in @($Mod.Dependencies)) {
+            if (-not $modsByName.ContainsKey($dependencyName)) {
+                throw "Mod '$($Mod.ModName)' depends on unknown mod or assembly '$dependencyName'."
+            }
+
+            $dependency = $modsByName[$dependencyName]
+            if (-not $dependency.Enabled) {
+                throw "Mod '$($Mod.ModName)' depends on disabled mod '$($dependency.ModName)'."
+            }
+            if (@($dependency.Sources).Count -eq 0) {
+                throw "Mod '$($Mod.ModName)' depends on '$($dependency.ModName)', which has no runtime C# sources under Scripts."
+            }
+
+            & $visit $dependency
+            foreach ($transitiveDependency in @($dependency.ResolvedDependencies)) {
+                if (-not @($resolvedDependencies | Where-Object { $_.ModName -ieq $transitiveDependency.ModName })) {
+                    $resolvedDependencies.Add($transitiveDependency)
+                }
+            }
+            if (-not @($resolvedDependencies | Where-Object { $_.ModName -ieq $dependency.ModName })) {
+                $resolvedDependencies.Add($dependency)
+            }
+        }
+
+        $Mod.ResolvedDependencies = @($resolvedDependencies)
+        $states[$Mod.ModName] = 2
+        $ordered.Add($Mod)
+    }
+
+    foreach ($mod in $RequestedMods) {
+        & $visit $mod
+    }
+
+    return @($ordered)
 }
 
 function Get-ReferenceFiles {
@@ -575,11 +691,21 @@ function Install-ModOutput {
         Write-Step ("Copied Layouts path: " + $layoutsTarget)
     }
 
-    $assetBundles = Join-Path $Mod.SourceDir "AssetBundles"
-    if (Test-Path -LiteralPath $assetBundles -PathType Container) {
+    $assetBundleCandidates = @(
+        (Join-Path $Mod.SourceDir "AssetBundles"),
+        (Join-Path $RepoRoot ("Output\" + $Mod.ModName + "\AssetBundles")),
+        (Join-Path $RepoRoot ("Output\" + $Mod.AssemblyName + "\AssetBundles"))
+    )
+    $assetBundles = @(
+        $assetBundleCandidates |
+            Select-Object -Unique |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+            Select-Object -First 1
+    )
+    if ($assetBundles.Count -gt 0) {
         $assetBundlesTarget = Join-Path $installRoot "AssetBundles"
-        Copy-DirectoryUpdate -Source $assetBundles -Destination $assetBundlesTarget
-        Write-Step ("Copied AssetBundles path: " + $assetBundlesTarget)
+        Copy-DirectoryUpdate -Source $assetBundles[0] -Destination $assetBundlesTarget
+        Write-Step ("Copied AssetBundles from '" + $assetBundles[0] + "' to: " + $assetBundlesTarget)
     }
 
     $personIcon = Join-Path $Mod.SourceDir "person.png"
@@ -683,6 +809,8 @@ if ($All) {
     }
 }
 
+$selectedMods = @(Resolve-ModBuildOrder -AllMods $detectedMods -RequestedMods $selectedMods)
+
 Write-Step "Selected mod(s):"
 foreach ($mod in $selectedMods) {
     Write-Step ("  - " + $mod.ModName)
@@ -692,6 +820,7 @@ $references = Get-ReferenceFiles -RepoRoot $repoRoot -UnityEditorPath $UnityEdit
 Write-Step ("Reference count: " + $references.Count)
 
 $results = [System.Collections.Generic.List[object]]::new()
+$builtOutputs = @{}
 foreach ($mod in $selectedMods) {
     Write-Step ("Building " + $mod.ModName + "...")
 
@@ -700,7 +829,18 @@ foreach ($mod in $selectedMods) {
             throw "Source folder not found: $($mod.SourceDir)"
         }
 
-        $buildProject = New-GeneratedProject -RepoRoot $repoRoot -Mod $mod -References $references -Configuration $Configuration
+        $modReferences = [System.Collections.Generic.List[string]]::new()
+        foreach ($reference in $references) {
+            $modReferences.Add($reference)
+        }
+        foreach ($dependency in @($mod.ResolvedDependencies)) {
+            if (-not $builtOutputs.ContainsKey($dependency.ModName)) {
+                throw "Dependency '$($dependency.ModName)' did not produce an output before '$($mod.ModName)' was built."
+            }
+            $modReferences.Add([string] $builtOutputs[$dependency.ModName])
+        }
+
+        $buildProject = New-GeneratedProject -RepoRoot $repoRoot -Mod $mod -References @($modReferences | Select-Object -Unique) -Configuration $Configuration
         Write-Step ("Generated project path: " + $buildProject.ProjectPath)
 
         Invoke-ModBuild `
@@ -711,6 +851,7 @@ foreach ($mod in $selectedMods) {
 
         $outputDll = Copy-StableOutputDll -RunOutputDll $buildProject.RunOutputDll -StableOutputDll $buildProject.StableOutputDll
         Test-BuiltDll -DllPath $outputDll -ExpectedAssemblyName $mod.AssemblyName -Mod $mod
+        $builtOutputs[$mod.ModName] = $outputDll
 
         if ($Install) {
             Install-ModOutput -Mod $mod -RepoRoot $repoRoot -DllPath $outputDll -ModsLocalRoot $ModsLocalRoot

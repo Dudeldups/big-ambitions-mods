@@ -69,7 +69,6 @@ namespace StreetQuestRPG
         internal static bool RefreshSchedulesIfVisibilityChanged()
         {
             var anyChanged = false;
-            var anyVisibleNow = false;
             foreach (var character in StreetQuestCharacterCatalog.All)
             {
                 if (character == null ||
@@ -94,7 +93,6 @@ namespace StreetQuestRPG
                 if (visibleNow)
                 {
                     EnsureSpawnedCharacter(character);
-                    anyVisibleNow = true;
                 }
                 else
                 {
@@ -106,9 +104,6 @@ namespace StreetQuestRPG
 
             if (!anyChanged)
                 return false;
-
-            if (anyVisibleNow)
-                EnsureQuestGiverCtaBehaviorInstalled();
 
             return true;
         }

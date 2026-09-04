@@ -1,3 +1,4 @@
+using Helpers;
 using UnityEngine;
 
 namespace StreetQuestRPG
@@ -60,6 +61,11 @@ namespace StreetQuestRPG
             if ((_debugOverlay != null && _debugOverlay.ShouldBlockGameplayInput()) ||
                 (_apartmentEntryOverlay != null && _apartmentEntryOverlay.ShouldBlockGameplayInput()))
                 Input.ResetInputAxes();
+
+            // Mod callbacks can begin while the main menu/loading scene is still active.
+            // Wait for the gameplay player before bootstrapping or spawning world NPCs.
+            if (PlayerHelper.PlayerController == null)
+                return;
 
             if (!_bootstrapEnsured)
                 _bootstrapEnsured = StreetQuestRuntimeBootstrap.EnsureCityRuntimeReady();

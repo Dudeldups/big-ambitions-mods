@@ -20,6 +20,23 @@
       "assemblyName": "GoodbyeIRS",
       "modsLocalFolder": "GoodbyeIRS",
       "enabled": true
+    },
+    {
+      "modName": "Custom NPC API",
+      "sourceDir": "Assets/Mods/Custom NPC API",
+      "assemblyName": "CustomNPCAPI",
+      "modsLocalFolder": "Custom NPC API",
+      "enabled": true
+    },
+    {
+      "modName": "StreetQuestRPG",
+      "sourceDir": "Assets/Mods/StreetQuestRPG",
+      "assemblyName": "StreetQuestRPG",
+      "modsLocalFolder": "StreetQuestRPG",
+      "dependencies": [
+        "Custom NPC API"
+      ],
+      "enabled": true
     }
   ]
 }

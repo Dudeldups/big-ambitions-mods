@@ -412,7 +412,11 @@ namespace StreetQuestRPG
                 var y = Convert.ToSingle(GetMemberValue(serializableQuaternion, "y") ?? 0f);
                 var z = Convert.ToSingle(GetMemberValue(serializableQuaternion, "z") ?? 0f);
                 var w = Convert.ToSingle(GetMemberValue(serializableQuaternion, "w") ?? 1f);
-                return Quaternion.Euler(0f, Quaternion.LookRotation((new Quaternion(x, y, z, w)) * Vector3.forward).eulerAngles.y, 0f).eulerAngles.y;
+                var forward = (new Quaternion(x, y, z, w)) * Vector3.forward;
+                if (forward.sqrMagnitude < 0.0001f)
+                    return 0f;
+
+                return Quaternion.Euler(0f, Quaternion.LookRotation(forward).eulerAngles.y, 0f).eulerAngles.y;
             }
             catch
             {

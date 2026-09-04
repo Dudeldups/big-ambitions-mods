@@ -7,7 +7,7 @@
   "gameObjectName": "StreetQuestRPG.IndoorQuestGiver",
   "visualObjectName": "JuliaVisual",
   "overlayHeaderKey": "streetquest:julia_name",
-  "ctaKey": "streetquest:cta_talk",
+  "ctaKey": "streetquest:cta_talk_julia",
   "showSpeechBubble": false,
   "professionKey": "streetquest:profession_child",
   "interactable": true,

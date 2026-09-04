@@ -91,17 +91,21 @@ namespace StreetQuestRPG
         }
 
 
-        private static void ShowInfoNotification(string message, string duplicateIdentifier = null, float duration = 6f)
+        private static void ShowInfoNotification(
+            string localizationKey,
+            Dictionary<string, string> localizationData = null,
+            string duplicateIdentifier = null,
+            float duration = 6f)
         {
-            if (string.IsNullOrWhiteSpace(message))
+            if (string.IsNullOrWhiteSpace(localizationKey))
                 return;
 
             try
             {
                 Notifications.Show(
                     NotificationType.Info,
-                    message,
-                    null,
+                    localizationKey,
+                    localizationData,
                     duration,
                     duplicateIdentifier,
                     null,
@@ -111,13 +115,17 @@ namespace StreetQuestRPG
             catch (Exception exception)
             {
                 Debug.LogWarning($"StreetQuestRPG: Failed to show info notification. {exception}");
-                Debug.Log(message);
+                Debug.Log(localizationKey);
             }
         }
 
         internal static void NotifyInfo(string message, string duplicateIdentifier = null, float duration = 4f)
         {
-            ShowInfoNotification(message, duplicateIdentifier, duration);
+            ShowInfoNotification(
+                "streetquest:popup_raw",
+                new Dictionary<string, string> { { "message", message } },
+                duplicateIdentifier,
+                duration);
         }
 
 
