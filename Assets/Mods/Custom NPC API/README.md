@@ -20,7 +20,8 @@ The API creates and manages the physical NPC. Your mod remains in control of gam
 
 Custom NPC API must be installed and enabled as its own mod. A consuming mod references the `CustomNPCAPI` assembly and must not bundle a second copy of `CustomNPCAPI.dll`.
 
-In this SDK, add the assembly-definition GUID to the consuming mod's `.asmdef`:
+In Unity, add `Custom NPC API/CustomNPCAPI.asmdef` to the consuming assembly's
+Assembly Definition References. If you edit the `.asmdef` JSON directly, use:
 
 ```json
 {
@@ -30,16 +31,9 @@ In this SDK, add the assembly-definition GUID to the consuming mod's `.asmdef`:
 }
 ```
 
-When using the shared external build configuration, declare the dependency by mod name:
-
-```json
-{
-  "modName": "My Mod",
-  "dependencies": [
-    "Custom NPC API"
-  ]
-}
-```
+Build and package the consuming mod with the normal Big Ambitions SDK and Unity
+workflow. Distribute Custom NPC API as a required separate mod; do not copy
+`CustomNPCAPI.dll` into the consuming mod.
 
 ## Quick start
 
@@ -106,11 +100,3 @@ _alex = null;
 Calling `Spawn` again with the same owner-mod ID and NPC ID replaces the existing NPC. A mod can also clean up all NPCs it owns with `CustomNpcApi.DespawnAll("MyModId")`.
 
 See [the Modder Guide](docs/MODDER_GUIDE.md) for field descriptions, dialogs, custom AssetBundle visuals, phone contacts, JSON definitions, lifecycle guidance and the developer preview window.
-
-## Build the API
-
-Use the repository's shared build script; no API-specific script is required:
-
-```powershell
-.\tools\external-build\BuildBigAmbitionsMods.ps1 -ModName "Custom NPC API" -Install
-```

@@ -39,21 +39,9 @@ Reference the API assembly from the consuming mod's `.asmdef`:
 
 If the consuming assembly uses `overrideReferences`, it still needs the normal Big Ambitions and Unity precompiled references required by its own code.
 
-For the shared code-only builder, add the API to the consuming mod's entry in `tools/external-build/mods.externalbuild.json`:
-
-```json
-{
-  "modName": "My Mod",
-  "sourceDir": "Assets/Mods/My Mod",
-  "assemblyName": "MyMod",
-  "dependencies": [
-    "Custom NPC API"
-  ],
-  "enabled": true
-}
-```
-
-The builder will compile the dependency first and reference the newly built `CustomNPCAPI.dll`. At runtime, players need both mods enabled. Do not place another copy of the API DLL inside the consuming mod.
+Use the normal Big Ambitions SDK and Unity workflow to build the consuming mod.
+Custom NPC API is a separate runtime dependency: players need both mods enabled,
+and the consuming mod should not contain another copy of `CustomNPCAPI.dll`.
 
 ## 3. Spawn at the right time
 
