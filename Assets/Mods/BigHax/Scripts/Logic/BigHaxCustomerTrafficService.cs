@@ -41,7 +41,7 @@ namespace BigHax
         private static readonly FieldInfo? TimestampMinuteField = TimestampType?.GetField("Minute", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
         private readonly Dictionary<string, int> originalCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, int> lastAppliedEntryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> originalCustomerCapacityBusinessTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> lastAppliedCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> lastKnownShouldCreateEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> lastKnownBusinessTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -54,9 +54,14 @@ namespace BigHax
 
         public void InvalidateCache()
         {
-            // New player businesses are detected by address and business type on
-            // every lightweight traffic health check. Scene loads therefore do
-            // not need to invalidate already-applied customer schedules.
+            // A scene load is followed by a forced traffic apply. Keep the captured
+            // vanilla capacity baselines so an already-multiplied live value is not
+            // accidentally learned as the new baseline, but force business/schedule
+            // discovery to be rebuilt from the current save state.
+            lastKnownShouldCreateEntries.Clear();
+            lastKnownBusinessTypes.Clear();
+            pendingScheduleBusinessKeys.Clear();
+            nextPendingScheduleRefreshAt = 0f;
         }
 
         public void ApplyConfiguredTraffic(ModContext context, BigHaxSettings settings, bool forceRefresh)
@@ -86,7 +91,7 @@ namespace BigHax
             if (SaveGameManager.Current?.gameVariables == null)
                 return;
 
-            if (!hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
+            if (forceRefresh || !hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
             {
                 RebuildAndApplyTraffic(context, multiplier);
                 return;
@@ -112,66 +117,22 @@ namespace BigHax
                 return;
 
             ApplyPromotionBoost(multiplier);
-
-            lastAppliedEntryCounts.Clear();
-            lastAppliedCustomerCapacities.Clear();
-            lastKnownShouldCreateEntries.Clear();
-            lastKnownBusinessTypes.Clear();
-            pendingScheduleBusinessKeys.Clear();
-            nextPendingScheduleRefreshAt = 0f;
-
-            var appliedBusinessCount = 0;
-            var waitingForEntriesCount = 0;
-            var clonedBusinessCount = 0;
-
-            foreach (var registration in GetPlayerBusinessRegistrations())
-            {
-                var key = GetRegistrationKey(registration);
-                lastKnownBusinessTypes[key] = GetBusinessType(registration);
-                var isNewBusiness = !originalCustomerCapacities.ContainsKey(key);
-                if (isNewBusiness)
-                    originalCustomerCapacities[key] = registration.customerCapacity;
-
-                var baseCapacity = originalCustomerCapacities[key];
-                var desiredCapacity = baseCapacity > 0
-                    ? Mathf.Max(baseCapacity, Mathf.CeilToInt(baseCapacity * multiplier))
-                    : baseCapacity;
-                registration.customerCapacity = desiredCapacity;
-                lastAppliedCustomerCapacities[key] = desiredCapacity;
-                appliedBusinessCount++;
-
-                var shouldCreateEntries = ShouldEntriesBeCreated(context, registration);
-                lastKnownShouldCreateEntries[key] = shouldCreateEntries;
-                if (!shouldCreateEntries)
-                {
-                    lastAppliedEntryCounts[key] = 0;
-                    waitingForEntriesCount++;
-                    continue;
-                }
-
-                var entries = GetBusinessCustomerEntries(context, registration, "after refresh");
-                if (entries == null || entries.Count == 0)
-                {
-                    lastAppliedEntryCounts[key] = 0;
-                    waitingForEntriesCount++;
-                    pendingScheduleBusinessKeys.Add(key);
-                    continue;
-                }
-
-                var originalEntryCount = entries.Count;
-                MultiplyEntries(entries, multiplier);
-                lastAppliedEntryCounts[key] = entries.Count;
-                pendingScheduleBusinessKeys.Remove(key);
-                if (entries.Count > originalEntryCount)
-                    clonedBusinessCount++;
-
-            }
+            ApplyTrafficAfterVanillaRefresh(
+                context,
+                multiplier,
+                out var appliedBusinessCount,
+                out var waitingForInitializationCount,
+                out var clonedBusinessCount);
 
             hasAppliedCustomTraffic = true;
             lastAppliedMultiplier = multiplier;
+            nextPendingScheduleRefreshAt = pendingScheduleBusinessKeys.Count > 0
+                ? Time.unscaledTime + PendingScheduleRefreshIntervalSeconds
+                : 0f;
+
             BigHaxLogger.Info(
                 context,
-                $"BigHax: applied customer traffic multiplier x{multiplier} to player businesses. businesses={appliedBusinessCount}, waitingForEntries={waitingForEntriesCount}, clonedEntryBusinesses={clonedBusinessCount}.");
+                $"BigHax: applied customer traffic multiplier x{multiplier} to player businesses. businesses={appliedBusinessCount}, waitingForInitialization={waitingForInitializationCount}, clonedEntryBusinesses={clonedBusinessCount}.");
         }
 
         private void RestoreVanillaTraffic(ModContext? context, bool refreshEntries = true)
@@ -187,30 +148,63 @@ namespace BigHax
                     registration.customerCapacity = originalCapacity;
             }
 
-            lastAppliedEntryCounts.Clear();
             lastAppliedCustomerCapacities.Clear();
             lastKnownShouldCreateEntries.Clear();
             lastKnownBusinessTypes.Clear();
             pendingScheduleBusinessKeys.Clear();
+            nextPendingScheduleRefreshAt = 0f;
             BigHaxLogger.Info(context, "BigHax: restored vanilla customer traffic for player businesses.");
         }
 
         private void DiscoverActivatedBusinesses(ModContext? context, float multiplier)
         {
-            foreach (var registration in GetPlayerBusinessRegistrations())
+            var registrations = GetPlayerBusinessRegistrations();
+            PruneRemovedBusinessState(registrations);
+
+            foreach (var registration in registrations)
             {
                 var key = GetRegistrationKey(registration);
                 var businessType = GetBusinessType(registration);
                 var isNewRegistration = !lastKnownBusinessTypes.TryGetValue(key, out var previousBusinessType);
-                if (!isNewRegistration && string.Equals(previousBusinessType, businessType, StringComparison.Ordinal))
-                    continue;
+                var businessTypeChanged = !isNewRegistration &&
+                                          !string.Equals(previousBusinessType, businessType, StringComparison.Ordinal);
+                var capacityChangedSinceLastApply =
+                    lastAppliedCustomerCapacities.TryGetValue(key, out var lastAppliedCapacity) &&
+                    registration.customerCapacity != lastAppliedCapacity;
+                var baselineBecameAvailable =
+                    !originalCustomerCapacities.ContainsKey(key) &&
+                    registration.customerCapacity > 0;
+
+                var shouldCreateEntries = ShouldEntriesBeCreated(context, registration);
+                var becameEligibleForEntries =
+                    lastKnownShouldCreateEntries.TryGetValue(key, out var previouslyShouldCreateEntries) &&
+                    !previouslyShouldCreateEntries &&
+                    shouldCreateEntries;
+
+                if (businessTypeChanged)
+                    ResetBusinessBaseline(key);
+                else if (capacityChangedSinceLastApply && registration.customerCapacity <= 0)
+                    ResetBusinessBaseline(key);
 
                 lastKnownBusinessTypes[key] = businessType;
-                ApplyCustomerCapacity(registration, key, multiplier);
+                lastKnownShouldCreateEntries[key] = shouldCreateEntries;
+
+                if (!isNewRegistration &&
+                    !businessTypeChanged &&
+                    !capacityChangedSinceLastApply &&
+                    !baselineBecameAvailable &&
+                    !becameEligibleForEntries)
+                {
+                    continue;
+                }
+
+                // A newly created business can temporarily report customerCapacity == 0.
+                // Never capture or re-apply that transient value as its permanent vanilla
+                // baseline. The pending refresh will retry after vanilla has finished setup.
+                ApplyCustomerCapacity(registration, key, multiplier, afterVanillaRefresh: false);
                 pendingScheduleBusinessKeys.Add(key);
                 nextPendingScheduleRefreshAt = 0f;
             }
-
         }
 
         private void TryApplyPendingBusinessSchedules(ModContext? context, float multiplier)
@@ -226,55 +220,173 @@ namespace BigHax
             if (!TryUpdateAllCustomerEntries(context))
                 return;
 
-            var registrationsByKey = new Dictionary<string, BuildingRegistration>(StringComparer.OrdinalIgnoreCase);
-            foreach (var registration in GetPlayerBusinessRegistrations())
-                registrationsByKey[GetRegistrationKey(registration)] = registration;
+            // UpdateCustomerEntriesForAllPlayerBusinesses rebuilds every player-business
+            // schedule, not just the new/pending one. Re-apply the multiplier to all of
+            // them immediately so an existing business does not silently fall back to
+            // vanilla traffic while another business is being initialized.
+            ApplyTrafficAfterVanillaRefresh(
+                context,
+                multiplier,
+                out _,
+                out _,
+                out _);
+        }
 
-            var resolvedKeys = new List<string>();
-            foreach (var key in pendingScheduleBusinessKeys)
+        private void ApplyTrafficAfterVanillaRefresh(
+            ModContext? context,
+            float multiplier,
+            out int appliedBusinessCount,
+            out int waitingForInitializationCount,
+            out int clonedBusinessCount)
+        {
+            appliedBusinessCount = 0;
+            waitingForInitializationCount = 0;
+            clonedBusinessCount = 0;
+
+            var registrations = GetPlayerBusinessRegistrations();
+            PruneRemovedBusinessState(registrations);
+
+            pendingScheduleBusinessKeys.Clear();
+            lastKnownShouldCreateEntries.Clear();
+            lastKnownBusinessTypes.Clear();
+
+            foreach (var registration in registrations)
             {
-                if (!registrationsByKey.TryGetValue(key, out var registration))
+                var key = GetRegistrationKey(registration);
+                lastKnownBusinessTypes[key] = GetBusinessType(registration);
+
+                var capacityReady = ApplyCustomerCapacity(registration, key, multiplier, afterVanillaRefresh: true);
+                if (capacityReady)
+                    appliedBusinessCount++;
+
+                var shouldCreateEntries = ShouldEntriesBeCreated(context, registration);
+                lastKnownShouldCreateEntries[key] = shouldCreateEntries;
+                if (!shouldCreateEntries)
                 {
-                    resolvedKeys.Add(key);
+                    // Some player-owned locations never create customer schedules. Do not
+                    // refresh those forever. If this is a real customer business that is
+                    // still initializing, the poller will notice either its first positive
+                    // capacity or a later false -> true ShouldEntriesBeCreated transition.
                     continue;
                 }
 
-                ApplyCustomerCapacity(registration, key, multiplier);
-                if (!ShouldEntriesBeCreated(context, registration))
-                {
-                    continue;
-                }
-
-                var entries = GetBusinessCustomerEntries(context, registration, "pending schedule refresh");
+                var entries = GetBusinessCustomerEntries(context, registration, "after vanilla refresh");
                 if (entries == null || entries.Count == 0)
                 {
+                    pendingScheduleBusinessKeys.Add(key);
+                    waitingForInitializationCount++;
                     continue;
                 }
 
                 var originalEntryCount = entries.Count;
                 MultiplyEntries(entries, multiplier);
-                lastAppliedEntryCounts[key] = entries.Count;
-                lastKnownShouldCreateEntries[key] = true;
-                resolvedKeys.Add(key);
-            }
+                if (entries.Count > originalEntryCount)
+                    clonedBusinessCount++;
 
-            foreach (var key in resolvedKeys)
-                pendingScheduleBusinessKeys.Remove(key);
+                // Schedule traffic is ready, but keep retrying if vanilla has not yet
+                // supplied a positive customer capacity for this just-created business.
+                if (!capacityReady)
+                {
+                    pendingScheduleBusinessKeys.Add(key);
+                    waitingForInitializationCount++;
+                }
+            }
         }
 
-        private void ApplyCustomerCapacity(BuildingRegistration registration, string key, float multiplier)
+        private bool ApplyCustomerCapacity(
+            BuildingRegistration registration,
+            string key,
+            float multiplier,
+            bool afterVanillaRefresh)
         {
-            if (!originalCustomerCapacities.TryGetValue(key, out var baseCapacity))
+            var businessType = GetBusinessType(registration);
+            var currentCapacity = registration.customerCapacity;
+
+            if (originalCustomerCapacityBusinessTypes.TryGetValue(key, out var capturedBusinessType) &&
+                !string.Equals(capturedBusinessType, businessType, StringComparison.Ordinal))
             {
-                baseCapacity = registration.customerCapacity;
-                originalCustomerCapacities[key] = baseCapacity;
+                ResetBusinessBaseline(key);
             }
 
-            var desiredCapacity = baseCapacity > 0
-                ? Mathf.Max(baseCapacity, Mathf.CeilToInt(baseCapacity * multiplier))
-                : baseCapacity;
+            var hasBaseCapacity = originalCustomerCapacities.TryGetValue(key, out var baseCapacity);
+            var hasLastAppliedCapacity = lastAppliedCustomerCapacities.TryGetValue(key, out var lastAppliedCapacity);
+
+            if (currentCapacity <= 0)
+            {
+                // Zero is a valid transient state while a newly opened business is being
+                // initialized. If vanilla reset a previously patched registration to zero,
+                // discard the old baseline as well so the new business can learn its own
+                // real capacity once it becomes available.
+                if (!hasBaseCapacity || (hasLastAppliedCapacity && currentCapacity != lastAppliedCapacity))
+                    ResetBusinessBaseline(key);
+
+                lastAppliedCustomerCapacities.Remove(key);
+                return false;
+            }
+
+            var shouldRefreshBaseCapacity =
+                !hasBaseCapacity ||
+                (hasLastAppliedCapacity && currentCapacity != lastAppliedCapacity) ||
+                (afterVanillaRefresh && !hasLastAppliedCapacity);
+
+            if (shouldRefreshBaseCapacity)
+            {
+                baseCapacity = currentCapacity;
+                originalCustomerCapacities[key] = baseCapacity;
+                originalCustomerCapacityBusinessTypes[key] = businessType;
+            }
+
+            if (baseCapacity <= 0)
+                return false;
+
+            var desiredCapacity = Mathf.Max(baseCapacity, Mathf.CeilToInt(baseCapacity * multiplier));
             registration.customerCapacity = desiredCapacity;
             lastAppliedCustomerCapacities[key] = desiredCapacity;
+            return true;
+        }
+
+        private void PruneRemovedBusinessState(List<BuildingRegistration> registrations)
+        {
+            // During scene transitions the save can briefly expose no player-business
+            // registrations. Do not throw away known vanilla baselines during that window.
+            if (registrations.Count == 0)
+                return;
+
+            var activeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var registration in registrations)
+                activeKeys.Add(GetRegistrationKey(registration));
+
+            var trackedKeys = new List<string>(originalCustomerCapacities.Keys);
+            foreach (var key in trackedKeys)
+            {
+                if (!activeKeys.Contains(key))
+                    ResetBusinessBaseline(key);
+            }
+
+            var knownKeys = new List<string>(lastKnownBusinessTypes.Keys);
+            foreach (var key in knownKeys)
+            {
+                if (!activeKeys.Contains(key))
+                    lastKnownBusinessTypes.Remove(key);
+            }
+
+            var shouldCreateKeys = new List<string>(lastKnownShouldCreateEntries.Keys);
+            foreach (var key in shouldCreateKeys)
+            {
+                if (!activeKeys.Contains(key))
+                    lastKnownShouldCreateEntries.Remove(key);
+            }
+
+            pendingScheduleBusinessKeys.RemoveWhere(key => !activeKeys.Contains(key));
+        }
+
+        private void ResetBusinessBaseline(string key)
+        {
+            originalCustomerCapacities.Remove(key);
+            originalCustomerCapacityBusinessTypes.Remove(key);
+            lastAppliedCustomerCapacities.Remove(key);
+            lastKnownShouldCreateEntries.Remove(key);
+            pendingScheduleBusinessKeys.Remove(key);
         }
 
         private static string GetBusinessType(BuildingRegistration registration)
