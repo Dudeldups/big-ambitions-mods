@@ -1,9 +1,7 @@
 {
-    "name": "StreetQuestRPG",
-    "rootNamespace": "StreetQuestRPG",
-    "references": [
-        "GUID:94353d1844744b1c85e1418224d759c9"
-    ],
+    "name": "CustomNPCAPI",
+    "rootNamespace": "CustomNPCAPI",
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

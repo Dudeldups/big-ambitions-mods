@@ -1,21 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using BAModAPI;
-using BigAmbitions.Characters;
-using BigAmbitions.Items;
-using BigAmbitions.SaveSystem.Legacy;
-using Buildings;
-using Dialogs;
-using Entities;
-using Helpers;
-using Localizor;
-using Player.HUD.ItemInfoOverlays;
-using UI.Notification;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace StreetQuestRPG
 {
@@ -25,12 +10,31 @@ namespace StreetQuestRPG
         {
             try
             {
-                RemoveLegacyQuestGiverCtaBehaviors();
+                RemoveLegacyStreetQuestCtaBehaviors();
             }
             catch (Exception exception)
             {
                 LogDebug($"CleanupLegacyContacts failed: {exception}");
                 Debug.LogWarning($"StreetQuestRPG: Failed to clean legacy runtime state. {exception}");
+            }
+        }
+
+        private static void RemoveLegacyStreetQuestCtaBehaviors()
+        {
+            var ctaManagerType = FindType("CtaManager");
+            var ctaBehaviorsField = ctaManagerType?.GetField("CtaBehaviors", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            var list = ctaBehaviorsField?.GetValue(null) as System.Collections.IList;
+            if (list == null)
+                return;
+
+            for (var index = list.Count - 1; index >= 0; index--)
+            {
+                var behavior = list[index];
+                if (behavior == null)
+                    continue;
+                var typeName = behavior.GetType().FullName ?? string.Empty;
+                if (typeName.IndexOf("StreetQuestGiverCtaBehavior", StringComparison.Ordinal) >= 0)
+                    list.RemoveAt(index);
             }
         }
     }
