@@ -211,7 +211,7 @@ namespace BigHax
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
-                SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings));
+                SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings, "apply-requested"));
             }
             finally
             {
@@ -406,13 +406,17 @@ namespace BigHax
             if (settings.DisableIllegalParkingPenalties)
                 SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
 
-            SafeApply("vehicle conditions onVehicleVariablesChanged", () => vehicleConditionService.ApplyConfiguredConditions(settings));
+            SafeApply("vehicle conditions onVehicleVariablesChanged", () => vehicleConditionService.ApplyConfiguredConditions(settings, "vehicle-variables-changed"));
         }
 
         private void HandleVehicleCollision()
         {
+            BigHaxVehicleConditionDebugLog.Write("trigger=collision-signal-received");
             if (settings == null || !vehicleConditionService.HasEnabledConditions(settings) || vehicleCollisionApplyCoroutine != null)
+            {
+                BigHaxVehicleConditionDebugLog.Write("trigger=collision-signal skipped=no-settings-or-already-pending");
                 return;
+            }
 
             vehicleCollisionApplyCoroutine = StartCoroutine(ApplyVehicleConditionsAfterCollision());
         }
@@ -421,7 +425,7 @@ namespace BigHax
         {
             yield return new WaitForEndOfFrame();
             if (settings != null)
-                SafeApply("vehicle conditions after collision", () => vehicleConditionService.ApplyActiveVehicleConditions(settings));
+                SafeApply("vehicle conditions after collision", () => vehicleConditionService.ApplyActiveVehicleConditions(settings, "collision-end-of-frame"));
 
             vehicleCollisionApplyCoroutine = null;
         }
@@ -444,7 +448,7 @@ namespace BigHax
             if (settings.DisableIllegalParkingPenalties)
                 SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
 
-            SafeApply("vehicle conditions onEnterVehicle", () => vehicleConditionService.ApplyConfiguredConditions(settings));
+            SafeApply("vehicle conditions onEnterVehicle", () => vehicleConditionService.ApplyConfiguredConditions(settings, "enter-vehicle"));
         }
 
         private void HandleVehicleExited()
