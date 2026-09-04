@@ -189,6 +189,7 @@ namespace BigHax
             AddCategory(Localize("bighax_category_employee"));
             AddToggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"), () => settings.EnableRecruitmentCandidateMaximumSkill, value => { settings.EnableRecruitmentCandidateMaximumSkill = value; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context.ModId, value); });
             AddToggle(Localize("bighax_remove_employee_demands_label"), () => settings.RemoveEmployeeDemands, value => { settings.RemoveEmployeeDemands = value; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value); });
+            AddToggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings.EnableMaximumEmployeeSatisfaction, value => { settings.EnableMaximumEmployeeSatisfaction = value; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value); });
             AddSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings.EmployeeTrainingSkillIncrease, 10, 100, value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
 
             AddCategory(Localize("bighax_category_business"));
@@ -289,6 +290,7 @@ namespace BigHax
                 Localize("bighax_vantander_maximum_loan_override_label"),
                 Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
                 Localize("bighax_remove_employee_demands_label"),
+                Localize("bighax_maximum_employee_satisfaction_label"),
                 Localize("bighax_enable_extended_bed_sleep_label"),
                 Localize("bighax_no_vehicle_damage_label"),
                 Localize("bighax_infinite_vehicle_fuel_label"),

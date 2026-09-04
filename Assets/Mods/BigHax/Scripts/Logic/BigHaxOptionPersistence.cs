@@ -48,6 +48,10 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.RemoveEmployeeDemands,
                 BigHaxSettings.DefaultRemoveEmployeeDemands);
+            settings.EnableMaximumEmployeeSatisfaction = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableMaximumEmployeeSatisfaction,
+                BigHaxSettings.DefaultEnableMaximumEmployeeSatisfaction);
             settings.EnableExtendedBedSleep = LoadBool(
                 modId,
                 BigHaxOptionIds.EnableExtendedBedSleep,
@@ -133,6 +137,11 @@ namespace BigHax
         public static void SaveRemoveEmployeeDemands(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.RemoveEmployeeDemands, value);
+        }
+
+        public static void SaveEnableMaximumEmployeeSatisfaction(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableMaximumEmployeeSatisfaction, value);
         }
 
         public static void SaveEnableExtendedBedSleep(string modId, bool value)

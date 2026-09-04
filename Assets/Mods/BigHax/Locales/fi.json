@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Poista kaikki työntekijöiden vaatimukset",
+  "bighax_maximum_employee_satisfaction_label": "Aseta kaikkien työntekijöiden tyytyväisyys 100 %:iin",
   "bighax_enable_extended_bed_sleep_label": "Pidennä sängyssä nukkumisen enimmäisaika 7 päivään",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax -käyttöliittymän pikanäppäin",

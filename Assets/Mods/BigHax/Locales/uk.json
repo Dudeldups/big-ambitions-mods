@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Видалити всі вимоги працівників",
+  "bighax_maximum_employee_satisfaction_label": "Встановити задоволеність усіх працівників на 100%",
   "bighax_enable_extended_bed_sleep_label": "Збільшити максимальний час сну в ліжку до 7 днів",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Гаряча клавіша інтерфейсу Big Hax",

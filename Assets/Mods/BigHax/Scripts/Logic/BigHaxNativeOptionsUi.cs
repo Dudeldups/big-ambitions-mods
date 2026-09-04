@@ -105,6 +105,7 @@ namespace BigHax
             Section(Localize("bighax_category_employee"));
             Toggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"), () => settings!.EnableRecruitmentCandidateMaximumSkill, v => { settings!.EnableRecruitmentCandidateMaximumSkill = v; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context!.ModId, v); });
             Toggle(Localize("bighax_remove_employee_demands_label"), () => settings!.RemoveEmployeeDemands, v => { settings!.RemoveEmployeeDemands = v; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context!.ModId, v); });
+            Toggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings!.EnableMaximumEmployeeSatisfaction, v => { settings!.EnableMaximumEmployeeSatisfaction = v; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context!.ModId, v); });
             Slider(Localize("bighax_employee_training_skill_increase_label"), () => settings!.EmployeeTrainingSkillIncrease, 10, 100, v => { settings!.EmployeeTrainingSkillIncrease = v; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context!.ModId, v); }, v => v.ToString());
             Section(Localize("bighax_category_business"));
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);

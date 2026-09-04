@@ -210,6 +210,15 @@ namespace BigHax
                         settings.RemoveEmployeeDemands = value;
                         BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value);
                     });
+                DrawToggleOption(
+                    context,
+                    settings.EnableMaximumEmployeeSatisfaction,
+                    Localize("bighax_maximum_employee_satisfaction_label"),
+                    value =>
+                    {
+                        settings.EnableMaximumEmployeeSatisfaction = value;
+                        BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value);
+                    });
                 DrawSeparator();
                 var activeVehicleEnabled = GUILayout.Toggle(
                     settings.EnableActiveVehicleCapacityOverride,

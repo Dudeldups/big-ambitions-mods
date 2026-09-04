@@ -1,5 +1,6 @@
 {
   "bighax_remove_employee_demands_label": "Tüm çalışan taleplerini kaldır",
+  "bighax_maximum_employee_satisfaction_label": "Tüm çalışanların memnuniyetini %100'e ayarla",
   "bighax_enable_extended_bed_sleep_label": "Yataktaki maksimum uyku süresini 7 güne çıkar",
   "bighax_options_header": "Big Hax",
   "bighax_ui_hotkey_label": "Big Hax arayüz kısayol tuşu",
