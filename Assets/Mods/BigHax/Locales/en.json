@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "{itemName} capacity",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} delivery places",
   "bighax_active_vehicle_enabled_label": "Enable Active Vehicle Capacity Override",
-  "bighax_active_vehicle_label": "Active Vehicle Capacity"
+  "bighax_active_vehicle_label": "Active Vehicle Capacity",
+  "bighax_category_money": "Money Hax",
+  "bighax_category_employee": "Employee Hax",
+  "bighax_category_business": "Business Hax",
+  "bighax_category_vehicle": "Vehicle Hax",
+  "bighax_category_capacity": "Capacity Hax",
+  "bighax_category_time": "Time Hax",
+  "bighax_no_vehicle_damage_label": "No vehicle damage",
+  "bighax_infinite_vehicle_fuel_label": "Infinite vehicle fuel",
+  "bighax_never_dirty_vehicles_label": "Never dirty vehicles"
 }

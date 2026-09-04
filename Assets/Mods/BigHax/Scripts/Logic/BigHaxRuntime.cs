@@ -37,6 +37,7 @@ namespace BigHax
         private readonly BigHaxSleepTimeAccelerationService sleepTimeAccelerationService = new BigHaxSleepTimeAccelerationService();
         private readonly BigHaxUpdateNoticeUi updateNoticeUi = new BigHaxUpdateNoticeUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
+        private readonly BigHaxVehicleConditionService vehicleConditionService = new BigHaxVehicleConditionService();
 
         private bool applyRequested;
         private bool parkingVehicleEventsSubscribed;
@@ -201,6 +202,7 @@ namespace BigHax
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
+                SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings));
             }
             finally
             {
@@ -389,10 +391,13 @@ namespace BigHax
 
         private void HandleVehicleVariablesChanged()
         {
-            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+            if (context == null || settings == null)
                 return;
 
-            SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+            if (settings.DisableIllegalParkingPenalties)
+                SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+
+            SafeApply("vehicle conditions onVehicleVariablesChanged", () => vehicleConditionService.ApplyConfiguredConditions(settings));
         }
 
         private void HandleTimeMachineStarted()
@@ -407,10 +412,13 @@ namespace BigHax
 
         private void HandleVehicleEntered()
         {
-            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+            if (context == null || settings == null)
                 return;
 
-            SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
+            if (settings.DisableIllegalParkingPenalties)
+                SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
+
+            SafeApply("vehicle conditions onEnterVehicle", () => vehicleConditionService.ApplyConfiguredConditions(settings));
         }
 
         private void HandleVehicleExited()

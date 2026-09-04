@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Capacidade de {itemName}",
   "bighax_freight_truck_delivery_places_label": "Locais de entrega de {vehicleName}",
   "bighax_active_vehicle_enabled_label": "Ativar substituição da capacidade do veículo ativo",
-  "bighax_active_vehicle_label": "Capacidade do veículo ativo"
+  "bighax_active_vehicle_label": "Capacidade do veículo ativo",
+  "bighax_category_money": "Truques de dinheiro",
+  "bighax_category_employee": "Truques de funcionários",
+  "bighax_category_business": "Truques de negócios",
+  "bighax_category_vehicle": "Truques de veículos",
+  "bighax_category_capacity": "Truques de capacidade",
+  "bighax_category_time": "Truques de tempo",
+  "bighax_no_vehicle_damage_label": "Sem danos ao veículo",
+  "bighax_infinite_vehicle_fuel_label": "Combustível infinito do veículo",
+  "bighax_never_dirty_vehicles_label": "Veículos nunca ficam sujos"
 }

@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "{itemName} kapacitása",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} szállítási helyei",
   "bighax_active_vehicle_enabled_label": "Aktív jármű kapacitás-felülírásának engedélyezése",
-  "bighax_active_vehicle_label": "Aktív jármű kapacitása"
+  "bighax_active_vehicle_label": "Aktív jármű kapacitása",
+  "bighax_category_money": "Pénz trükkök",
+  "bighax_category_employee": "Alkalmazott trükkök",
+  "bighax_category_business": "Üzleti trükkök",
+  "bighax_category_vehicle": "Jármű trükkök",
+  "bighax_category_capacity": "Kapacitás trükkök",
+  "bighax_category_time": "Idő trükkök",
+  "bighax_no_vehicle_damage_label": "Nincs járműsérülés",
+  "bighax_infinite_vehicle_fuel_label": "Végtelen járműüzemanyag",
+  "bighax_never_dirty_vehicles_label": "A járművek sosem koszolódnak"
 }

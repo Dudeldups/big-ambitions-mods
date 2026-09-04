@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "{itemName}の容量",
   "bighax_freight_truck_delivery_places_label": "{vehicleName}の配送先数",
   "bighax_active_vehicle_enabled_label": "アクティブ車両の容量上書きを有効化",
-  "bighax_active_vehicle_label": "アクティブ車両の容量"
+  "bighax_active_vehicle_label": "アクティブ車両の容量",
+  "bighax_category_money": "資金ハック",
+  "bighax_category_employee": "従業員ハック",
+  "bighax_category_business": "事業ハック",
+  "bighax_category_vehicle": "車両ハック",
+  "bighax_category_capacity": "容量ハック",
+  "bighax_category_time": "時間ハック",
+  "bighax_no_vehicle_damage_label": "車両ダメージなし",
+  "bighax_infinite_vehicle_fuel_label": "車両燃料無限",
+  "bighax_never_dirty_vehicles_label": "車両が汚れない"
 }

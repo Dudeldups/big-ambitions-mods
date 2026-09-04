@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Вместимость {itemName}",
   "bighax_freight_truck_delivery_places_label": "Места доставки для {vehicleName}",
   "bighax_active_vehicle_enabled_label": "Включить переопределение вместимости активного транспорта",
-  "bighax_active_vehicle_label": "Вместимость активного транспорта"
+  "bighax_active_vehicle_label": "Вместимость активного транспорта",
+  "bighax_category_money": "Денежные хаки",
+  "bighax_category_employee": "Хаки сотрудников",
+  "bighax_category_business": "Хаки бизнеса",
+  "bighax_category_vehicle": "Хаки транспорта",
+  "bighax_category_capacity": "Хаки вместимости",
+  "bighax_category_time": "Хаки времени",
+  "bighax_no_vehicle_damage_label": "Нет повреждений транспорта",
+  "bighax_infinite_vehicle_fuel_label": "Бесконечное топливо",
+  "bighax_never_dirty_vehicles_label": "Транспорт никогда не пачкается"
 }
