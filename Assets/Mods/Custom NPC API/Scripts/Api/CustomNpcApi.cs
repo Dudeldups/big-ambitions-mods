@@ -6,7 +6,6 @@ using BAModAPI;
 using Dialogs;
 using Entities;
 using Helpers;
-using Localizor;
 using Player.HUD.ItemInfoOverlays;
 using UnityEngine;
 
@@ -215,21 +214,12 @@ namespace CustomNPCAPI
                 }
 
                 var definition = handle.Definition;
-                var displayName = !string.IsNullOrWhiteSpace(definition.DisplayName) ? definition.DisplayName : definition.Id;
                 if (!string.IsNullOrWhiteSpace(definition.CtaTextKey))
-                {
-                    try
-                    {
-                        var localized = definition.CtaTextKey.Localize(new Dictionary<string, string> { { "npcname", displayName } }).ToString();
-                        if (!string.IsNullOrWhiteSpace(localized) && !string.Equals(localized, definition.CtaTextKey, StringComparison.Ordinal))
-                            return localized;
-                    }
-                    catch { }
-                }
+                    return definition.CtaTextKey;
 
-                return !string.IsNullOrWhiteSpace(definition.CtaTextFallback)
-                    ? definition.CtaTextFallback.Replace("{npcname}", displayName)
-                    : $"Talk to {displayName}";
+                // CtaField localizes the value returned by ICtaBehavior. Returning display text
+                // makes the game interpret that text as a missing localization key.
+                return "customnpcapi:cta_talk";
             }
         }
     }
@@ -316,6 +306,7 @@ namespace CustomNPCAPI
             if (IsDisposed)
                 return;
 
+            SetInteractionEnabled(false);
             IsDisposed = true;
             CustomNpcApi.Unregister(this);
             if (Root != null)

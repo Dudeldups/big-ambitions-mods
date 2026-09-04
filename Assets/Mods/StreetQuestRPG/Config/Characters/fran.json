@@ -9,7 +9,7 @@
   "gameObjectName": "StreetQuestRPG.IndoorQuestGiver",
   "visualObjectName": "FranVisual",
   "overlayHeaderKey": "streetquest:fran_name",
-  "ctaKey": "streetquest:cta_talk",
+  "ctaKey": "streetquest:cta_talk_fran",
   "showSpeechBubble": true,
   "speechBubbleEmojiName": "Neutral",
   "speechBubbleColor": "red",

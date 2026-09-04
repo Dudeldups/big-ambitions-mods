@@ -57,8 +57,7 @@ var npc = new CustomNpcDefinition
     LocalScale = Vector3.one,
 
     Interactable = true,
-    CtaTextKey = "mymod:cta_talk",
-    CtaTextFallback = "Talk to {npcname}"
+    CtaTextKey = "mymod:cta_talk_alex"
 };
 ```
 
@@ -188,16 +187,13 @@ Do **not** replace the proxy with the humanoid renderers. That was the important
 Preferred:
 
 ```csharp
-CtaTextKey = "mymod:cta_talk"
+CtaTextKey = "mymod:cta_talk_alex"
 ```
 
-The localization key can use the replacement `npcname` if your localization path supports it.
-
-Fallback:
-
-```csharp
-CtaTextFallback = "Talk to {npcname}"
-```
+The game localizes the CTA key after the API returns it, but that CTA path does not
+accept replacement data. Use a fully rendered localization entry per NPC, for example
+`"mymod:cta_talk_alex": "Talk to Alex"`. When no key is supplied, the API uses its
+generic `customnpcapi:cta_talk` entry (`"Talk"`).
 
 ---
 

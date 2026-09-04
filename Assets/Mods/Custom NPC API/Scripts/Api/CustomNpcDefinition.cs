@@ -80,7 +80,10 @@ namespace CustomNPCAPI
         /// <summary>Called by the Big Ambitions CTA when the physical NPC is clicked.</summary>
         public Action<CustomNpcInteractionContext> OnInteract;
 
-        /// <summary>Optional runtime text resolver. Return null/empty to use key/fallback behavior.</summary>
+        /// <summary>
+        /// Optional runtime CTA localization-key resolver. The game localizes the returned value;
+        /// return null/empty to use CtaTextKey or the API fallback key.
+        /// </summary>
         public Func<CustomNpcInteractionContext, string> CtaTextResolver;
 
         public bool Visible = true;

@@ -7,7 +7,7 @@
   "gameObjectName": "StreetQuestRPG.OutdoorQuestGiver",
   "visualObjectName": "MackVisual",
   "overlayHeaderKey": "streetquest:mack_name",
-  "ctaKey": "streetquest:cta_talk",
+  "ctaKey": "streetquest:cta_talk_mack",
   "showSpeechBubble": true,
   "speechBubbleTextKeys": ["streetquest:bubble_drunk_hic", "streetquest:bubble_drunk_burp"],
   "speechBubbleVisibleSeconds": 2.8,

@@ -78,8 +78,6 @@ namespace StreetQuestRPG
             _animators = GetComponentsInChildren<Animator>(true) ?? Array.Empty<Animator>();
             BuildWalkInRoute();
             _configured = true;
-
-            EnsureAgent();
         }
 
         public void OnVisibilityChanged(bool visible)
@@ -145,13 +143,14 @@ namespace StreetQuestRPG
             {
                 _walkAwayRouteIndex++;
                 var nextPoint = _walkAwayRoutePoints[_walkAwayRouteIndex];
-                if (_agent.SetDestination(nextPoint))
+                if (TrySetDestination(nextPoint))
                     return;
             }
 
             _walkingAway = false;
             _walkAwayCompleted = true;
             _agent.ResetPath();
+            _agent.enabled = false;
             UpdateAnimatorState(false, 0f);
 
             if (_walkAwayCompletedStoryFlags.Length > 0)
@@ -216,13 +215,6 @@ namespace StreetQuestRPG
 
         private void BeginWalkAway()
         {
-            EnsureAgent();
-            if (_agent == null)
-            {
-                StreetQuestShared.LogDebug($"WalkAwayBegin failed character={_characterId} reason=agent_missing");
-                return;
-            }
-
             if (_walkAwayCompleted)
                 return;
 
@@ -241,13 +233,20 @@ namespace StreetQuestRPG
 
             ShowCharacterPresentation();
             transform.position = startPosition;
+            EnsureAgent();
+            if (_agent == null)
+            {
+                StreetQuestShared.LogDebug($"WalkAwayBegin failed character={_characterId} reason=agent_missing");
+                return;
+            }
+
             _agent.enabled = true;
             _agent.Warp(startPosition);
             _agent.speed = _walkAwaySpeed;
             _agent.isStopped = false;
             _walkAwayRouteIndex = 1;
             var firstTarget = _walkAwayRoutePoints[_walkAwayRouteIndex];
-            _walkingAway = _agent.SetDestination(firstTarget);
+            _walkingAway = TrySetDestination(firstTarget);
             if (_walkingAway)
                 ApplyWalkAwayStartFlagsOnce();
 
@@ -256,11 +255,11 @@ namespace StreetQuestRPG
 
         private void ResetWalker()
         {
-            EnsureAgent();
             if (_agent != null && _agent.enabled)
             {
                 _agent.isStopped = true;
                 _agent.ResetPath();
+                _agent.enabled = false;
             }
 
             _walkingAway = false;
@@ -273,9 +272,6 @@ namespace StreetQuestRPG
             _lastObservedMinuteOfDay = -1f;
             _presentationHidden = true;
             transform.SetPositionAndRotation(_spawnPosition, _spawnRotation);
-
-            if (_agent != null && _agent.enabled && _agent.isOnNavMesh)
-                _agent.Warp(_spawnPosition);
 
             UpdateAnimatorState(false, 0f);
         }
@@ -432,6 +428,15 @@ namespace StreetQuestRPG
 
             sampledPosition = requestedPosition;
             return false;
+        }
+
+        private bool TrySetDestination(Vector3 requestedPosition)
+        {
+            return _agent != null &&
+                   _agent.enabled &&
+                   _agent.isOnNavMesh &&
+                   TrySampleNavMeshPosition(requestedPosition, out var sampledPosition) &&
+                   _agent.SetDestination(sampledPosition);
         }
 
         private static string FormatVector3(Vector3 value)

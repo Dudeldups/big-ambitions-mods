@@ -6,7 +6,7 @@
   "gameObjectName": "StreetQuestRPG.MrWhiskerton",
   "visualObjectName": "MrWhiskertonVisual",
   "overlayHeaderKey": "streetquest:mr_whiskerton_name",
-  "ctaKey": "streetquest:cta_talk",
+  "ctaKey": "streetquest:cta_talk_mr_whiskerton",
   "professionKey": "streetquest:profession_cat",
   "interactable": true,
   "collectibleQuestItemId": "streetquest:item_mr_whiskerton",

@@ -43,7 +43,7 @@ private void SpawnNpc()
         Forward = new Vector3(0f, 0f, -1f),
         LocalEulerAngles = new Vector3(0f, 90f, 0f),
         LocalScale = Vector3.one,
-        CtaTextFallback = "Talk to {npcname}"
+        CtaTextKey = "mymod:cta_talk_alex"
     };
 
     _npc = CustomNpcApi.Spawn(
