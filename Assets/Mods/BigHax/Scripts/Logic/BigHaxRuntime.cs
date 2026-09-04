@@ -18,6 +18,7 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
+        private const float ActiveVehicleConditionPollIntervalSeconds = 0.5f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -46,6 +47,7 @@ namespace BigHax
         private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private Coroutine? sleepDurationApplyCoroutine;
+        private Coroutine? vehicleCollisionApplyCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
         private Delegate? onEnterVehicleHandler;
@@ -56,6 +58,7 @@ namespace BigHax
         private float nextCustomerTrafficPollAt;
         private float nextEmployeeTrainingPollAt;
         private float nextLoanLimitPollAt;
+        private float nextVehicleConditionPollAt;
         private BigHaxSettings? settings;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
@@ -76,6 +79,7 @@ namespace BigHax
             runtime.nextCustomerTrafficPollAt = 0f;
             runtime.nextEmployeeTrainingPollAt = 0f;
             runtime.nextLoanLimitPollAt = 0f;
+            runtime.nextVehicleConditionPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
             runtime.updateNoticeUi.Initialize(context.ModId);
@@ -123,6 +127,12 @@ namespace BigHax
                 sleepDurationApplyCoroutine = null;
             }
 
+            if (vehicleCollisionApplyCoroutine != null)
+            {
+                StopCoroutine(vehicleCollisionApplyCoroutine);
+                vehicleCollisionApplyCoroutine = null;
+            }
+
             TryRestoreCustomerTraffic();
             casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
@@ -153,6 +163,7 @@ namespace BigHax
             GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
             GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
+            BigHaxVehicleCollisionGuard.CollisionDetected += HandleVehicleCollision;
             SubscribeParkingVehicleEvents();
         }
 
@@ -164,6 +175,7 @@ namespace BigHax
             GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
             GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
+            BigHaxVehicleCollisionGuard.CollisionDetected -= HandleVehicleCollision;
             UnsubscribeParkingVehicleEvents();
         }
 
@@ -179,6 +191,7 @@ namespace BigHax
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             PollLoanLimitChanges();
+            PollActiveVehicleConditions();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
         }
@@ -337,6 +350,18 @@ namespace BigHax
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
         }
 
+        private void PollActiveVehicleConditions()
+        {
+            if (settings == null || !vehicleConditionService.HasActiveDrivingConditions(settings) ||
+                Time.unscaledTime < nextVehicleConditionPollAt)
+            {
+                return;
+            }
+
+            nextVehicleConditionPollAt = Time.unscaledTime + ActiveVehicleConditionPollIntervalSeconds;
+            SafeApply("active vehicle conditions", () => vehicleConditionService.ApplyActiveVehicleConditions(settings));
+        }
+
         private IEnumerator ApplySleepDurationsAfterGameLoad()
         {
             // Bed activity configurations are instantiated asynchronously after
@@ -398,6 +423,23 @@ namespace BigHax
                 SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
 
             SafeApply("vehicle conditions onVehicleVariablesChanged", () => vehicleConditionService.ApplyConfiguredConditions(settings));
+        }
+
+        private void HandleVehicleCollision()
+        {
+            if (settings == null || !settings.EnableNoVehicleDamage || vehicleCollisionApplyCoroutine != null)
+                return;
+
+            vehicleCollisionApplyCoroutine = StartCoroutine(ApplyVehicleConditionsAfterCollision());
+        }
+
+        private IEnumerator ApplyVehicleConditionsAfterCollision()
+        {
+            yield return new WaitForEndOfFrame();
+            if (settings != null)
+                SafeApply("vehicle conditions after collision", () => vehicleConditionService.ApplyActiveVehicleConditions(settings));
+
+            vehicleCollisionApplyCoroutine = null;
         }
 
         private void HandleTimeMachineStarted()

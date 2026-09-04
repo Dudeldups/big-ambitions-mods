@@ -7,9 +7,9 @@ using Vehicles.VehicleTypes;
 namespace BigHax
 {
     /// <summary>
-    /// Keeps player vehicles pristine through the game's existing vehicle-change events.
-    /// No Update polling is used: the game emits onVehicleVariablesChanged whenever a
-    /// vehicle's fuel, dirtiness, or damage state changes.
+    /// Keeps player vehicles pristine through the game's vehicle-change events and
+    /// a constrained active-driver check. Collision repair is handled by a component
+    /// attached to the player vehicle's rigidbody, not by a global physics scan.
     /// </summary>
     internal sealed class BigHaxVehicleConditionService
     {
@@ -30,6 +30,7 @@ namespace BigHax
                     if (controller?.vehicleInstance == null)
                         continue;
 
+                    EnsureCollisionGuard(controller);
                     ApplyControllerConditions(controller, settings);
                 }
             }
@@ -47,6 +48,41 @@ namespace BigHax
 
             if (changed)
                 SaveGameManager.MarkChange();
+        }
+
+        public bool HasActiveDrivingConditions(BigHaxSettings settings)
+        {
+            return settings.EnableInfiniteVehicleFuel || settings.EnableNeverDirtyVehicles;
+        }
+
+        public void ApplyActiveVehicleConditions(BigHaxSettings settings)
+        {
+            var activeVehicleId = SaveGameManager.Current?.ActiveVehicleId;
+            if (string.IsNullOrWhiteSpace(activeVehicleId))
+                return;
+
+            var controllers = VehicleHelper.AllPlayerVehicles;
+            if (controllers == null)
+                return;
+
+            foreach (var controller in controllers)
+            {
+                if (controller?.vehicleInstance == null ||
+                    !string.Equals(controller.vehicleInstance.id, activeVehicleId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                EnsureCollisionGuard(controller);
+                ApplyControllerConditions(controller, settings);
+                return;
+            }
+        }
+
+        private static void EnsureCollisionGuard(VehicleController controller)
+        {
+            if (controller.GetComponent<BigHaxVehicleCollisionGuard>() == null)
+                controller.gameObject.AddComponent<BigHaxVehicleCollisionGuard>();
         }
 
         private static bool ApplySavedVehicleConditions(VehicleInstance? vehicle, BigHaxSettings settings)
