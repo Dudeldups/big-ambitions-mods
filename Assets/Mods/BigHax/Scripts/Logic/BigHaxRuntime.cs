@@ -18,7 +18,8 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
-        private const float ActiveVehicleConditionPollIntervalSeconds = 0.5f;
+        // Fuel and dirt change gradually; this only runs while the player is driving.
+        private const float ActiveVehicleConditionPollIntervalSeconds = 10f;
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
