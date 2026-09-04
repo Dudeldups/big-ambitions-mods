@@ -13,14 +13,17 @@ namespace BigHax
     /// </summary>
     internal sealed class BigHaxVehicleConditionService
     {
-        public void ApplyConfiguredConditions(BigHaxSettings settings)
+        public void ApplyConfiguredConditions(BigHaxSettings settings, string trigger = "configured")
         {
             if (!HasEnabledConditions(settings))
             {
+                BigHaxVehicleConditionDebugLog.Write($"trigger={trigger} skipped=no-enabled-conditions");
                 return;
             }
 
             var controllers = VehicleHelper.AllPlayerVehicles;
+            BigHaxVehicleConditionDebugLog.Write(
+                $"trigger={trigger} activeId={SaveGameManager.Current?.ActiveVehicleId ?? "<null>"} controllers={(controllers?.Count ?? 0)} enabled=damage:{settings.EnableNoVehicleDamage},fuel:{settings.EnableInfiniteVehicleFuel},dirt:{settings.EnableNeverDirtyVehicles}");
             if (controllers != null)
             {
                 foreach (var controller in controllers)
@@ -29,7 +32,7 @@ namespace BigHax
                         continue;
 
                     EnsureCollisionGuard(controller);
-                    ApplyControllerConditions(controller, settings);
+                    ApplyControllerConditions(controller, settings, trigger);
                 }
             }
 
@@ -55,15 +58,23 @@ namespace BigHax
                    settings.EnableNeverDirtyVehicles;
         }
 
-        public void ApplyActiveVehicleConditions(BigHaxSettings settings)
+        public void ApplyActiveVehicleConditions(BigHaxSettings settings, string trigger)
         {
             var activeVehicleId = SaveGameManager.Current?.ActiveVehicleId;
             if (string.IsNullOrWhiteSpace(activeVehicleId))
+            {
+                BigHaxVehicleConditionDebugLog.Write($"trigger={trigger} active-pass skipped=missing-active-id");
                 return;
+            }
 
             var controllers = VehicleHelper.AllPlayerVehicles;
             if (controllers == null)
+            {
+                BigHaxVehicleConditionDebugLog.Write($"trigger={trigger} activeId={activeVehicleId} active-pass skipped=controllers-null");
                 return;
+            }
+
+            BigHaxVehicleConditionDebugLog.Write($"trigger={trigger} activeId={activeVehicleId} active-pass controllers={controllers.Count}");
 
             foreach (var controller in controllers)
             {
@@ -74,9 +85,11 @@ namespace BigHax
                 }
 
                 EnsureCollisionGuard(controller);
-                ApplyControllerConditions(controller, settings);
+                ApplyControllerConditions(controller, settings, trigger);
                 return;
             }
+
+            BigHaxVehicleConditionDebugLog.Write($"trigger={trigger} activeId={activeVehicleId} active-pass skipped=no-matching-controller");
         }
 
         private static void EnsureCollisionGuard(VehicleController controller)
@@ -117,11 +130,15 @@ namespace BigHax
             return changed;
         }
 
-        private static void ApplyControllerConditions(VehicleController controller, BigHaxSettings settings)
+        private static void ApplyControllerConditions(VehicleController controller, BigHaxSettings settings, string trigger)
         {
             var vehicle = controller.vehicleInstance;
             if (vehicle == null)
                 return;
+
+            var maxFuel = controller.vehicleType?.maxFuel ?? -1f;
+            BigHaxVehicleConditionDebugLog.Write(
+                $"trigger={trigger} controllerId={vehicle.id} type={vehicle.vehicleTypeName} before fuel={vehicle.fuel:F3}/{maxFuel:F3} dirt={vehicle.dirtiness:F3} damage={vehicle.damage:F3} deformations={vehicle.deformations?.Count ?? 0}");
 
             // Use the controller setters for loaded cars so the visible fuel gauge,
             // dirt material, and deformation mesh update immediately as well.
@@ -141,6 +158,9 @@ namespace BigHax
             {
                 controller.Repair();
             }
+
+            BigHaxVehicleConditionDebugLog.Write(
+                $"trigger={trigger} controllerId={vehicle.id} after fuel={vehicle.fuel:F3}/{maxFuel:F3} dirt={vehicle.dirtiness:F3} damage={vehicle.damage:F3} deformations={vehicle.deformations?.Count ?? 0}");
         }
     }
 }
