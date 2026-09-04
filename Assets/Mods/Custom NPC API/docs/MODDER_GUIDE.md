@@ -1,27 +1,25 @@
 # Custom NPC API — Modder Guide
 
-## 1. What the API is for
+## 1. Purpose and ownership
 
-Use this library when your mod needs a persistent-looking named NPC in the Big Ambitions world and you do not want to reproduce the reflection-heavy interaction code yourself.
+Custom NPC API provides the physical, interactive NPC layer for a Big Ambitions mod. You describe the final NPC you want, provide an interaction callback, and receive a handle that controls the spawned object.
 
-The API is intentionally small:
+The public API is intentionally small:
 
 ```text
-CustomNpcDefinition       -> what the NPC looks like and where it stands
-CustomNpcSpawnOptions     -> interaction callback / custom prefab factory / visibility
-CustomNpcApi.Spawn(...)   -> creates the NPC and returns a handle
-CustomNpcHandle           -> hide/show, disable interaction, despawn
-CustomNpcApi.OpenDialog() -> opens a CallDialogType that your mod registered
-CustomNpcPhone            -> vanilla phone-contact helper
+CustomNpcDefinition         appearance, placement and interaction labels
+CustomNpcSpawnOptions       callback, parent, custom visual factory and initial state
+CustomNpcApi.Spawn          create or replace an NPC
+CustomNpcHandle             inspect, show, hide, disable interaction or dispose
+CustomNpcApi.OpenDialog     open a dialog type registered by the consuming mod
+CustomNpcPhone              create contacts and append phone-message history
 ```
 
-Your mod still decides *why* an NPC is visible, which dialog is registered, which quest is active, what rewards happen, and when the NPC should move.
+Your mod owns the gameplay around the NPC. This includes deciding when the NPC exists, tracking quests and relationships, moving the NPC, granting rewards, creating map markers and persisting mod-specific state.
 
----
+## 2. Add the dependency
 
-## 2. SDK setup
-
-Place the library beside your mod:
+Keep Custom NPC API as a separate mod beside the consuming mod:
 
 ```text
 Assets/Mods/
@@ -29,43 +27,114 @@ Assets/Mods/
   My Mod/
 ```
 
-Add the `CustomNPCAPI` assembly to your mod's `.asmdef` references. When using GUID references, use the GUID from `Custom NPC API/CustomNPCAPI.asmdef.meta` in the same checkout.
+Reference the API assembly from the consuming mod's `.asmdef`:
 
-At runtime, distribute/enable `Custom NPC API` as a separate dependency. Do not copy its DLL into every consuming mod unless you intentionally want to fork the API.
-
----
-
-## 3. Basic NPC definition
-
-```csharp
-var npc = new CustomNpcDefinition
+```json
 {
-    Id = "mymod:alex",
-    DisplayName = "Alex",
-    NameKey = "mymod:alex_name",
-    PrefabName = "Characters/Homeless",
-
-    Gender = "Male",
-    AgeInDays = 35 * 365,
-    AppearanceSeed = 104729,
-
-    Position = new Vector3(301.58f, 0.09f, -188.47f),
-    Forward = new Vector3(0f, 0f, -1f),
-
-    LocalPosition = Vector3.zero,
-    LocalEulerAngles = new Vector3(0f, 90f, 0f),
-    LocalScale = Vector3.one,
-
-    Interactable = true,
-    CtaTextKey = "mymod:cta_talk_alex"
-};
+  "references": [
+    "GUID:94353d1844744b1c85e1418224d759c9"
+  ]
+}
 ```
 
-`Id` must be stable and unique inside your mod. Prefixing it with your mod id is recommended.
+If the consuming assembly uses `overrideReferences`, it still needs the normal Big Ambitions and Unity precompiled references required by its own code.
 
-### Known vanilla character prefab candidates
+For the shared code-only builder, add the API to the consuming mod's entry in `tools/external-build/mods.externalbuild.json`:
 
-The developer tool exposes the prefab candidates that were already proven useful while building StreetQuestRPG:
+```json
+{
+  "modName": "My Mod",
+  "sourceDir": "Assets/Mods/My Mod",
+  "assemblyName": "MyMod",
+  "dependencies": [
+    "Custom NPC API"
+  ],
+  "enabled": true
+}
+```
+
+The builder will compile the dependency first and reference the newly built `CustomNPCAPI.dll`. At runtime, players need both mods enabled. Do not place another copy of the API DLL inside the consuming mod.
+
+## 3. Spawn at the right time
+
+Spawn world NPCs after the city has loaded and the API host is active. `CustomNpcApi.IsHostActive` reports whether the API is ready.
+
+Keep the returned handle and dispose it when the owning runtime unloads:
+
+```csharp
+private CustomNpcHandle _alex;
+
+private void CreateNpc()
+{
+    if (!CustomNpcApi.IsHostActive)
+        return;
+
+    _alex = CustomNpcApi.Spawn("MyModId", CreateAlexDefinition(), CreateAlexOptions());
+}
+
+private void RemoveNpc()
+{
+    _alex?.Dispose();
+    _alex = null;
+}
+```
+
+The pair `ownerModId + definition.Id` uniquely identifies an active NPC. Spawning the same pair again disposes the old instance before creating its replacement.
+
+## 4. Define a vanilla humanoid
+
+```csharp
+private static CustomNpcDefinition CreateAlexDefinition()
+{
+    return new CustomNpcDefinition
+    {
+        Id = "mymod:alex",
+        DisplayName = "Alex",
+        NameKey = "mymod:alex_name",
+        OverlayHeaderKey = "mymod:alex_name",
+        CtaTextKey = "mymod:cta_talk_alex",
+
+        PrefabName = "Characters/Homeless",
+        Gender = "Male",
+        AgeInDays = 35 * 365,
+        AppearanceSeed = 104729,
+
+        Position = new Vector3(301.58f, 0.09f, -188.47f),
+        Forward = new Vector3(0f, 0f, -1f),
+        LocalPosition = Vector3.zero,
+        LocalEulerAngles = new Vector3(0f, 90f, 0f),
+        LocalScale = Vector3.one,
+
+        Interactable = true
+    };
+}
+```
+
+The important fields are:
+
+| Field | Meaning |
+| --- | --- |
+| `Id` | Stable ID unique within the owner mod. Prefix it with your mod ID. |
+| `DisplayName` | Plain name used by the API and fallback visual. |
+| `NameKey` | Localization key for the NPC's name. |
+| `OverlayHeaderKey` | Localization key shown by the interaction overlay. Usually the same as `NameKey`. |
+| `CtaTextKey` | Localization key for the click action, such as “Talk to Alex.” |
+| `PrefabName` | Vanilla prefab name used by the game's `PrefabHelper`. |
+| `Position` | World-space spawn position. |
+| `Forward` | Flat world-space facing direction. A zero vector falls back safely. |
+| `LocalPosition` | Offset applied to the visual beneath the NPC root. |
+| `LocalEulerAngles` | Visual rotation correction. Many humanoids need `y = 90`. |
+| `LocalScale` | Visual scale. Prefer uniform scaling. |
+| `Gender` | Game gender enum name, normally `Male` or `Female`. |
+| `AgeInDays` | Age passed to compatible appearance generators. |
+| `AppearanceSeed` | Stable seed used to reproduce the same generated appearance. |
+| `Interactable` | Whether the API creates a clickable interaction host. |
+
+`GameObjectName` and `VisualObjectName` optionally override the generated hierarchy names. They are useful for diagnostics but should not be used as persistent IDs.
+
+## 5. Choose and tune a prefab
+
+Known vanilla candidates exposed by the developer preview are:
 
 ```text
 Characters/Homeless
@@ -86,65 +155,11 @@ Characters/DummyAi
 Characters/HumanDefinitionLow
 ```
 
-Not every prefab has identical scripts/poses. Test the exact prefab and appearance you intend to ship.
+These prefabs do not all contain the same components or default pose. Test the exact prefab and game build you plan to support.
 
----
+For compatible generated humans, the combination of `Gender`, `AgeInDays` and `AppearanceSeed` produces a stable appearance across reloads. If a prefab does not expose the expected appearance method, the API falls back to that prefab's normal appearance setup.
 
-## 4. Placement and facing
-
-`Position` is a world-space position. For reliable placement, stand where the NPC should appear and copy the current player coordinates from a debug tool.
-
-`Forward` should normally be a flat world-space direction (`y = 0`). The API preserves StreetQuestRPG's proven humanoid orientation handling internally, so you can feed it the direction you want to record rather than manually building a Quaternion.
-
-Typical example:
-
-```csharp
-Position = new Vector3(301.58f, 0.09f, -188.47f),
-Forward  = new Vector3(0f, 0f, -1f)
-```
-
-For many humanoid prefabs, this visual correction is a useful starting point:
-
-```csharp
-LocalEulerAngles = new Vector3(0f, 90f, 0f)
-```
-
-If a specific prefab looks sideways, adjust `LocalEulerAngles.y`, not the world position.
-
-### Scale
-
-Use uniform scale unless you intentionally want distortion:
-
-```csharp
-LocalScale = Vector3.one;           // normal adult
-LocalScale = Vector3.one * 0.72f;   // smaller/child-sized visual
-```
-
-StreetQuest's Julia is an example of a smaller `DummyHuman` appearance driven through scale rather than a separate child model.
-
----
-
-## 5. Deterministic appearance
-
-For compatible humanoid prefabs, the API calls the game's internal appearance setter with:
-
-```text
-Gender + AgeInDays + AppearanceSeed
-```
-
-Keeping those three values stable gives the named NPC the same generated appearance after reloads.
-
-```csharp
-Gender = "Female",
-AgeInDays = 30 * 365,
-AppearanceSeed = 32119
-```
-
-If the prefab does not expose the expected overload, the API falls back to its normal `SetAppearance()` path.
-
-### Hide unwanted prefab props
-
-Some vanilla character prefabs include child props such as donation buckets or boxes. Remove them by name:
+Some prefabs contain props that do not suit the character. Hide them by exact child-object name:
 
 ```csharp
 HiddenChildObjectNames = new[]
@@ -154,100 +169,116 @@ HiddenChildObjectNames = new[]
 };
 ```
 
----
+## 6. Place and face the NPC
 
-## 6. Physical interaction
-
-The physical interaction is intentionally callback-based:
+`Position` is in world space. Capture it while standing at the intended location. `Forward` should normally be horizontal:
 
 ```csharp
-var handle = CustomNpcApi.Spawn(
-    "MyModId",
-    definition,
-    new CustomNpcSpawnOptions
+Position = new Vector3(301.58f, 0.09f, -188.47f),
+Forward = new Vector3(0f, 0f, -1f)
+```
+
+Correct a sideways visual with `LocalEulerAngles.y`; do not rotate the world position to compensate:
+
+```csharp
+LocalEulerAngles = new Vector3(0f, 90f, 0f)
+```
+
+Uniform scale avoids distortion:
+
+```csharp
+LocalScale = Vector3.one;
+LocalScale = Vector3.one * 0.75f;
+```
+
+The remaining offset and collider fields are advanced tuning controls. Their defaults work for common humanoids:
+
+- `NavTargetLocalOffset` controls where the player navigates for interaction.
+- `ColliderCenterWithPrefab` and `ColliderSizeWithPrefab` define the clickable volume when a visual exists.
+- `ColliderCenterFallback` and `ColliderSizeFallback` define it for the generated fallback stand.
+- `InteractionRendererLocalPosition` and `InteractionRendererLocalScale` position the invisible selection proxy.
+- `SellerPositionLocalOffset` is used by the fallback interaction host when no visual was created.
+
+Change these only when testing shows that the interaction target or clickable area is misplaced.
+
+## 7. Handle physical interaction
+
+Supply `OnInteract` in `CustomNpcSpawnOptions`:
+
+```csharp
+private static CustomNpcSpawnOptions CreateAlexOptions()
+{
+    return new CustomNpcSpawnOptions
     {
         OnInteract = context =>
         {
-            Debug.Log("Clicked " + context.Definition.Id);
+            Debug.Log($"Clicked {context.Definition.Id} owned by {context.OwnerModId}");
+
+            // Run mod-owned quest, shop, dialog or other gameplay logic here.
         }
-    });
+    };
+}
 ```
 
-The API uses the stable StreetQuest pattern:
+The context exposes:
 
-1. visible humanoid prefab is only the visual
-2. an invisible tiny proxy renderer is used for hover/selection bookkeeping
-3. a runtime `SellerStandController` provides the physical Big Ambitions interaction host
-4. one shared custom CTA behavior routes the click back to the correct `CustomNpcHandle`
+- `OwnerModId`
+- the cloned `CustomNpcDefinition`
+- the NPC's `CustomNpcHandle`
+- `Root`, the spawned root `GameObject`
 
-Do **not** replace the proxy with the humanoid renderers. That was the important fix that prevented hover from poisoning normal world clicks.
+Exceptions thrown by the callback are caught and logged by the API so they do not break the shared CTA handler.
 
-### CTA text
+### CTA localization
 
-Preferred:
+The game localizes the string returned by the CTA handler. Therefore `CtaTextKey` must be a registered localization key, not display text:
+
+```json
+{
+  "mymod:cta_talk_alex": "Talk to Alex"
+}
+```
 
 ```csharp
-CtaTextKey = "mymod:cta_talk_alex"
+CtaTextKey = "mymod:cta_talk_alex";
 ```
 
-The game localizes the CTA key after the API returns it, but that CTA path does not
-accept replacement data. Use a fully rendered localization entry per NPC, for example
-`"mymod:cta_talk_alex": "Talk to Alex"`. When no key is supplied, the API uses its
-generic `customnpcapi:cta_talk` entry (`"Talk"`).
+That game UI path does not accept replacement data, so a value such as `"Talk to {npcname}"` cannot receive an `npcname` argument. Create a fully rendered locale entry for each NPC. If no key is supplied, the API uses `customnpcapi:cta_talk`, which displays “Talk.”
 
----
+`CtaTextResolver` may choose a localization key at click time:
 
-## 7. Opening your own dialog
+```csharp
+CtaTextResolver = context => IsShopOpen
+    ? "mymod:cta_shop_alex"
+    : "mymod:cta_talk_alex";
+```
 
-Register your normal Big Ambitions `CallDialogType` in your consuming mod. The API only opens it.
+Return `null` or an empty string to use the definition's `CtaTextKey`. `CtaTextFallback` is retained as a legacy data field but is not used for CTA rendering; plain fallback text would be treated as a missing localization key by the game.
+
+## 8. Open a registered dialog
+
+The API can open a `CallDialogType`, but the consuming mod must define and register that dialog first:
 
 ```csharp
 var dialogType = (CallDialogType)ModEnumHash.GetSafeHash("mymod_alex_dialog");
 CallDialogFactory.RegisterDialog(dialogType, () => new AlexDialog());
 ```
 
-Then:
+Then route the physical interaction to it:
 
 ```csharp
-OnInteract = _ => CustomNpcApi.OpenDialog("mymod_alex_dialog")
-```
-
-This same dialog key can also be assigned to the NPC's phone contact, so physical talking and calling reach the same mod-owned conversation logic.
-
----
-
-## 8. Phone contacts
-
-```csharp
-var contact = CustomNpcPhone.EnsureContact(new CustomNpcPhoneDefinition
+OnInteract = _ =>
 {
-    ContactId = "mymod:alex_contact",
-    DescriptionKey = "mymod:contact_group_friends",
-    ContactCategory = "General",
-    DialogTypeKey = "mymod_alex_dialog"
-});
+    if (!CustomNpcApi.OpenDialog("mymod_alex_dialog"))
+        Debug.LogWarning("Alex dialog could not be opened.");
+};
 ```
 
-This uses the vanilla contact system and assigns `callDialogTypeOverride` from the stable hashed dialog key.
+`OpenDialog` returns `false` for an empty key or when the dialog cannot be opened.
 
-To keep visible phone history:
+## 9. Use a custom AssetBundle visual
 
-```csharp
-CustomNpcPhone.AppendNpcMessage(contact, "mymod:alex_message_1");
-CustomNpcPhone.AppendPlayerMessage(contact, "mymod:alex_reply_1");
-```
-
-The helper marks the save as changed after contact/dialog/history mutations.
-
-Important: the API does not decide when the player earns a contact. Your quest/business/story code should call `EnsureContact(...)` when appropriate.
-
----
-
-## 9. Custom AssetBundle prefabs
-
-`PrefabName` alone uses the game's `PrefabHelper` and is meant for vanilla character prefab names.
-
-For a prefab owned by your mod's AssetBundle, supply `VisualFactory`:
+`PrefabName` uses the game's vanilla `PrefabHelper`. For a prefab shipped by the consuming mod, provide a `VisualFactory` instead:
 
 ```csharp
 var options = new CustomNpcSpawnOptions
@@ -271,100 +302,147 @@ var options = new CustomNpcSpawnOptions
 var handle = CustomNpcApi.Spawn(context.ModId, definition, options);
 ```
 
-This keeps AssetBundle ownership in the consuming mod. Custom NPC API never assumes another mod's bundle key or source path.
+The factory receives the NPC root transform and must return the spawned visual `GameObject`, or `null` when creation fails. AssetBundle loading, keys and source paths remain the responsibility of the consuming mod.
 
----
+`BuildFallbackVisual` defaults to `true`. If neither the vanilla prefab nor `VisualFactory` produces a visual, the API creates a simple labelled stand so the failed asset is obvious and the interaction remains testable. Set it to `false` if an invisible NPC is preferable.
 
-## 10. Visibility and despawning
+## 10. Control lifecycle and visibility
 
-For a simple NPC:
+The handle exposes `Root`, `Controller`, `Definition`, `OwnerModId`, `IsVisible`, `InteractionEnabled` and `IsDisposed` for inspection.
 
-```csharp
-handle.SetVisible(false);
-handle.SetVisible(true);
-```
-
-To disable only talking/clicking while leaving the visual under your own movement/presentation control:
+Common operations:
 
 ```csharp
-handle.SetInteractionEnabled(false);
+handle.SetVisible(false);            // disables renderers, colliders and interaction
+handle.SetVisible(true);             // restores the captured component states
+handle.SetInteractionEnabled(false); // leaves the visual visible
+handle.SetInteractionEnabled(true);
 ```
 
-This split is useful for schedule handoffs or walk-away animations.
+Find an active NPC without keeping the original handle:
 
-When done:
+```csharp
+if (CustomNpcApi.TryGetById("MyModId", "mymod:alex", out var handle))
+    handle.SetVisible(true);
+```
+
+Inspect all API-owned NPCs with `CustomNpcApi.ActiveNpcs`. Filter by `OwnerModId` before changing instances belonging to a particular mod.
+
+Clean up explicitly:
 
 ```csharp
 handle.Dispose();
+CustomNpcApi.DespawnAll("MyModId");
 ```
 
-Or clean every NPC created by your mod:
+Do not keep using a handle after `Dispose`. The API also removes active NPCs when its host unloads, but each consuming mod should still clean up the NPCs it owns.
+
+## 11. Add a phone contact
+
+Create or retrieve a vanilla contact and assign the same registered dialog used by physical interaction:
 
 ```csharp
-CustomNpcApi.DespawnAll(context.ModId);
+var contact = CustomNpcPhone.EnsureContact(new CustomNpcPhoneDefinition
+{
+    ContactId = "mymod:alex_contact",
+    DescriptionKey = "mymod:alex_contact_description",
+    ContactCategory = "General",
+    DialogTypeKey = "mymod_alex_dialog"
+});
 ```
 
----
+`ContactId` must be stable. `ContactCategory` is parsed as a vanilla `ContactCategoryName`; an invalid or empty value falls back to `General`.
 
-## 11. Developer preview interface
+Find an existing contact:
 
-The library contains a small runtime developer window, but it is intentionally disabled by default so normal players do not get a modding UI.
+```csharp
+var existing = CustomNpcPhone.FindContact("mymod:alex_contact");
+```
 
-Enable it from a development build/mod entry:
+Append localized conversation history:
+
+```csharp
+CustomNpcPhone.AppendNpcMessage(contact, "mymod:alex_message_1", true);
+CustomNpcPhone.AppendPlayerMessage(contact, "mymod:alex_reply_1");
+```
+
+Message arguments are localization keys. The optional Boolean on `AppendNpcMessage` controls whether the game sends an immediate notification. Contact, dialog-override and history changes mark the save as changed.
+
+The API does not decide when a player earns a contact. Call `EnsureContact` from the consuming mod when its own progression rules allow it.
+
+## 12. Load definitions from JSON
+
+`CustomNpcDefinition` is Unity-serializable and includes convenience methods:
+
+```csharp
+var definition = CustomNpcDefinition.FromJson(jsonText);
+var editableCopy = definition.Clone();
+var json = editableCopy.ToJson(prettyPrint: true);
+```
+
+`FromJson` throws `ArgumentException` for empty or invalid input. Validate the required `Id` before calling `Spawn`; `Spawn` rejects an empty owner-mod ID, null definition or empty NPC ID.
+
+`Clone` copies the definition and its `HiddenChildObjectNames` array. The handle stores a clone, so later changes to the original definition do not rewrite the already spawned NPC.
+
+## 13. Use the developer preview
+
+The API includes an optional in-game preview window. It is disabled by default and should normally stay disabled in releases.
+
+Enable it from development-only code:
 
 ```csharp
 CustomNpcApi.DeveloperToolsEnabled = true;
 ```
 
-Then press:
+Press `F7` to toggle the window. It provides:
 
-```text
-F7
-```
-
-The window provides:
-
-- currently active Custom NPC API NPCs, grouped by owner mod id
-- a `Go` button to move the player to an active NPC
+- a list of active API NPCs grouped by owner-mod ID
+- a `Go` button that moves the player near an active NPC
 - live player position and forward direction
-- `Capture player transform` so you can mark the exact NPC location, walk away, and preview it without standing inside the model
-- `Copy player JSON` for quick coordinate/forward capture
-- vanilla character prefab selection
-- gender, age-in-days, appearance seed, uniform scale and local yaw controls
-- `Spawn / Refresh` at the captured placement (or 2.5m in front of the player when no placement is captured)
-- `Despawn`
-- `Copy NPC JSON` for a paste-ready block containing prefab, appearance, position, forward, local rotation and scale
+- capture and clipboard helpers for placement
+- selection from the known vanilla prefab candidates
+- gender, age, appearance-seed, uniform-scale and local-yaw controls
+- spawn, refresh and despawn controls for a preview NPC
+- JSON output for the selected appearance and placement
 
-Recommended workflow:
+Suggested workflow:
 
-1. enable developer tools
-2. stand exactly where the NPC should be placed
-3. press F7 and choose `Capture player transform`
-4. walk a few meters away so you can see the target spot
-5. choose a prefab and tune gender / age / seed / scale / local yaw
-6. use `Spawn / Refresh` until the NPC looks right
-7. use `Copy NPC JSON`
-8. paste the values into your own config/C# definition
-9. disable `DeveloperToolsEnabled` before release
+1. Stand at the exact NPC location.
+2. Press `F7` and select `Capture player transform`.
+3. Move away so the target location is visible.
+4. Choose a prefab and tune gender, age, seed, scale and local yaw.
+5. Select `Spawn / Refresh` until the result looks correct.
+6. Select `Copy NPC JSON`.
+7. Paste the appearance and placement into the consuming mod's definition.
+8. Give the definition a stable `Id`, localization keys and interaction callback.
+9. Disable `DeveloperToolsEnabled` before release.
 
-The developer window is a convenience tool, not part of save data and not required for NPCs at runtime.
+The preview is temporary, does not save its NPC, and is not required by production NPCs.
 
----
+## 14. Scope and troubleshooting
 
-## 12. What remains outside the API
+Custom NPC API does not implement:
 
-These StreetQuest systems are deliberately **not** part of Custom NPC API:
-
-- quest catalogs and objective types
-- story flags / favor
-- character `states`
-- daily/building schedules
-- walk-in / walk-away waypoint state machines
+- quest or objective systems
+- story flags, favor or rewards
+- daily schedules or waypoint movement
 - ambient speech bubbles
-- city-map People markers and filters
-- shared-shell apartment routing
-- custom quest inventory
+- map markers or filters
+- apartment/interior routing
+- custom inventory or collectible rules
+- consuming-mod save formats
 
-A consuming mod can implement any of those systems and simply feed the resolved final position/appearance into `CustomNpcApi.Spawn(...)`.
+These features can be built independently and use `Spawn`, `SetVisible`, `SetInteractionEnabled` and `Dispose` as their physical-NPC boundary.
 
-That boundary is intentional: it keeps the reusable dependency small and makes updates to fragile Big Ambitions interaction internals happen in one place.
+If an NPC does not appear or behave correctly:
+
+1. Confirm both mods are enabled and `CustomNpcApi.IsHostActive` is true.
+2. Confirm `ownerModId` and `Id` are non-empty.
+3. Test with `Characters/Homeless` and default scale to separate prefab issues from placement issues.
+4. Use the F7 preview to verify position, facing, local yaw and appearance values.
+5. Confirm `CtaTextKey`, `NameKey` and `OverlayHeaderKey` exist in the consuming mod's locale file.
+6. Confirm the callback was supplied in `CustomNpcSpawnOptions` and `Interactable` is true.
+7. For custom visuals, confirm the AssetBundle is loaded and `VisualFactory` returns the spawned object.
+8. Dispose stale handles before scene/runtime teardown.
+
+This boundary keeps the shared dependency focused: it handles the game-facing physical NPC and interaction integration, while each consuming mod remains free to implement its own gameplay.

@@ -1,77 +1,116 @@
 # Custom NPC API
 
-`Custom NPC API` is a small runtime library for Big Ambitions mods that need named, configurable NPCs without copying the physical-NPC implementation out of StreetQuestRPG.
+Custom NPC API is a reusable runtime library for Big Ambitions mods. It lets a mod create named NPCs in the game world without implementing the fragile game-facing interaction plumbing itself.
 
-The library owns the fragile game-facing pieces:
+With the API, a modder can:
 
-- spawn a vanilla humanoid prefab such as `Characters/Homeless` or `Characters/DummyHuman`
-- apply deterministic `gender` / `ageInDays` / `appearanceSeed`
-- position, rotate and scale the NPC
-- add a stable click/hover host using the working `SellerStandController` + invisible proxy-renderer pattern
-- expose a simple `OnInteract` callback instead of hard-coding a quest system
-- open a registered Big Ambitions call dialog from a physical NPC
-- create/update vanilla phone contacts and route their Call button to the same dialog type
-- provide an optional in-game developer preview window for appearance and placement work
+- spawn a generated humanoid from a compatible vanilla character prefab
+- use a custom character prefab from the consuming mod's AssetBundle
+- control world position, facing, local rotation, scale, gender, age and appearance seed
+- remove unwanted child props from a vanilla prefab
+- make the NPC clickable and handle the interaction with a callback
+- open a mod-registered Big Ambitions call dialog
+- show, hide, find and despawn NPCs at runtime
+- create a vanilla phone contact for an NPC and append conversation history
+- preview prefabs and appearances in-game with an optional developer window
 
-It deliberately does **not** own quests, story flags, schedules, map markers, apartments or relationship systems. Those remain responsibilities of the consuming mod.
+The API creates and manages the physical NPC. Your mod remains in control of gameplay rules such as quests, schedules, movement, rewards, relationships, map markers and save data.
 
-## Dependency
+## Requirements
 
-A mod that references this library needs `CustomNPCAPI.dll` available as a separate enabled Big Ambitions mod. In the SDK, add the `CustomNPCAPI` assembly definition as a reference to the consuming mod's `.asmdef`.
+Custom NPC API must be installed and enabled as its own mod. A consuming mod references the `CustomNPCAPI` assembly and must not bundle a second copy of `CustomNPCAPI.dll`.
 
-StreetQuestRPG in this source package is an example consumer: it resolves its quest/state-specific character definition first and then hands the final physical NPC definition to `CustomNpcApi.Spawn(...)`.
+In this SDK, add the assembly-definition GUID to the consuming mod's `.asmdef`:
 
-## Minimal example
+```json
+{
+  "references": [
+    "GUID:94353d1844744b1c85e1418224d759c9"
+  ]
+}
+```
+
+When using the shared external build configuration, declare the dependency by mod name:
+
+```json
+{
+  "modName": "My Mod",
+  "dependencies": [
+    "Custom NPC API"
+  ]
+}
+```
+
+## Quick start
+
+Add a fully rendered CTA entry to your mod's locale file. The CTA path accepts a localization key, but no replacement values:
+
+```json
+{
+  "mymod:cta_talk_alex": "Talk to Alex"
+}
+```
+
+Spawn the NPC after the city has loaded:
 
 ```csharp
 using CustomNPCAPI;
 using UnityEngine;
 
-private CustomNpcHandle _npc;
+private CustomNpcHandle _alex;
 
-private void SpawnNpc()
+private void SpawnAlex()
 {
     var definition = new CustomNpcDefinition
     {
-        Id = "example:alex",
+        Id = "mymod:alex",
         DisplayName = "Alex",
+        NameKey = "mymod:alex_name",
+        OverlayHeaderKey = "mymod:alex_name",
+        CtaTextKey = "mymod:cta_talk_alex",
+
         PrefabName = "Characters/Homeless",
         Gender = "Male",
         AgeInDays = 35 * 365,
         AppearanceSeed = 104729,
+
         Position = new Vector3(301.58f, 0.09f, -188.47f),
         Forward = new Vector3(0f, 0f, -1f),
         LocalEulerAngles = new Vector3(0f, 90f, 0f),
-        LocalScale = Vector3.one,
-        CtaTextKey = "mymod:cta_talk_alex"
+        LocalScale = Vector3.one
     };
 
-    _npc = CustomNpcApi.Spawn(
+    _alex = CustomNpcApi.Spawn(
         "MyModId",
         definition,
         new CustomNpcSpawnOptions
         {
-            OnInteract = _ => CustomNpcApi.OpenDialog("mymod_alex_dialog")
+            OnInteract = context =>
+            {
+                Debug.Log("Interacted with " + context.Definition.Id);
+            }
         });
 }
 ```
 
-Dispose the returned handle when your NPC is no longer needed:
+`Spawn` returns a `CustomNpcHandle`. Keep it while the NPC exists:
 
 ```csharp
-_npc?.Dispose();
-_npc = null;
+_alex.SetVisible(false);              // hide visual and interaction
+_alex.SetVisible(true);               // show both again
+_alex.SetInteractionEnabled(false);   // keep visible, but disable interaction
+_alex.Dispose();                      // remove the NPC permanently
+_alex = null;
 ```
 
-See [docs/MODDER_GUIDE.md](docs/MODDER_GUIDE.md) for placement, appearance, interaction, custom prefabs, phone contacts and the developer preview UI.
+Calling `Spawn` again with the same owner-mod ID and NPC ID replaces the existing NPC. A mod can also clean up all NPCs it owns with `CustomNpcApi.DespawnAll("MyModId")`.
 
+See [the Modder Guide](docs/MODDER_GUIDE.md) for field descriptions, dialogs, custom AssetBundle visuals, phone contacts, JSON definitions, lifecycle guidance and the developer preview window.
 
-## External code-only build
+## Build the API
 
-Use the repository's shared external builder. It resolves the declared StreetQuest dependency, builds Custom NPC API first, and references the freshly built API assembly when compiling StreetQuest:
+Use the repository's shared build script; no API-specific script is required:
 
 ```powershell
-.\tools\external-build\BuildBigAmbitionsMods.ps1 -ModName StreetQuestRPG -Install
+.\tools\external-build\BuildBigAmbitionsMods.ps1 -ModName "Custom NPC API" -Install
 ```
-
-To build only the library, pass `-ModName "Custom NPC API"` instead.
