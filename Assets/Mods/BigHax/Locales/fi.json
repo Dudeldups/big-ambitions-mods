@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Kohteen {itemName} kapasiteetti",
   "bighax_freight_truck_delivery_places_label": "Ajoneuvon {vehicleName} toimituspaikat",
   "bighax_active_vehicle_enabled_label": "Ota aktiivisen ajoneuvon kapasiteetin ohitus käyttöön",
-  "bighax_active_vehicle_label": "Aktiivisen ajoneuvon kapasiteetti"
+  "bighax_active_vehicle_label": "Aktiivisen ajoneuvon kapasiteetti",
+  "bighax_category_money": "Rahahuijaukset",
+  "bighax_category_employee": "Työntekijähuijaukset",
+  "bighax_category_business": "Liikehuijaukset",
+  "bighax_category_vehicle": "Ajoneuvohuijaukset",
+  "bighax_category_capacity": "Kapasiteettihuijaukset",
+  "bighax_category_time": "Aikahuijaukset",
+  "bighax_no_vehicle_damage_label": "Ei ajoneuvovaurioita",
+  "bighax_infinite_vehicle_fuel_label": "Rajaton ajoneuvon polttoaine",
+  "bighax_never_dirty_vehicles_label": "Ajoneuvot eivät koskaan likaannu"
 }

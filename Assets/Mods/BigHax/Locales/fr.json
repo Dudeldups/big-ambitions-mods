@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Capacité de {itemName}",
   "bighax_freight_truck_delivery_places_label": "Lieux de livraison de {vehicleName}",
   "bighax_active_vehicle_enabled_label": "Activer le remplacement de capacité du véhicule actif",
-  "bighax_active_vehicle_label": "Capacité du véhicule actif"
+  "bighax_active_vehicle_label": "Capacité du véhicule actif",
+  "bighax_category_money": "Hacks d'argent",
+  "bighax_category_employee": "Hacks d'employés",
+  "bighax_category_business": "Hacks d'entreprise",
+  "bighax_category_vehicle": "Hacks de véhicules",
+  "bighax_category_capacity": "Hacks de capacité",
+  "bighax_category_time": "Hacks de temps",
+  "bighax_no_vehicle_damage_label": "Aucun dégât au véhicule",
+  "bighax_infinite_vehicle_fuel_label": "Carburant de véhicule illimité",
+  "bighax_never_dirty_vehicles_label": "Véhicules toujours propres"
 }

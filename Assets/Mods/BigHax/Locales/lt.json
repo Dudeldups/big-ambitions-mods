@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "{itemName} talpa",
   "bighax_freight_truck_delivery_places_label": "{vehicleName} pristatymo vietos",
   "bighax_active_vehicle_enabled_label": "Įjungti aktyvios transporto priemonės talpos perrašymą",
-  "bighax_active_vehicle_label": "Aktyvios transporto priemonės talpa"
+  "bighax_active_vehicle_label": "Aktyvios transporto priemonės talpa",
+  "bighax_category_money": "Pinigų gudrybės",
+  "bighax_category_employee": "Darbuotojų gudrybės",
+  "bighax_category_business": "Verslo gudrybės",
+  "bighax_category_vehicle": "Transporto priemonių gudrybės",
+  "bighax_category_capacity": "Talpos gudrybės",
+  "bighax_category_time": "Laiko gudrybės",
+  "bighax_no_vehicle_damage_label": "Nėra transporto priemonės žalos",
+  "bighax_infinite_vehicle_fuel_label": "Neriboti transporto priemonės degalai",
+  "bighax_never_dirty_vehicles_label": "Transporto priemonės niekada nesusitepa"
 }

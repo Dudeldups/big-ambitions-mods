@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Pojemność {itemName}",
   "bighax_freight_truck_delivery_places_label": "Miejsca dostaw dla {vehicleName}",
   "bighax_active_vehicle_enabled_label": "Włącz nadpisanie pojemności aktywnego pojazdu",
-  "bighax_active_vehicle_label": "Pojemność aktywnego pojazdu"
+  "bighax_active_vehicle_label": "Pojemność aktywnego pojazdu",
+  "bighax_category_money": "Haki na pieniądze",
+  "bighax_category_employee": "Haki na pracowników",
+  "bighax_category_business": "Haki biznesowe",
+  "bighax_category_vehicle": "Haki pojazdów",
+  "bighax_category_capacity": "Haki pojemności",
+  "bighax_category_time": "Haki czasu",
+  "bighax_no_vehicle_damage_label": "Brak uszkodzeń pojazdu",
+  "bighax_infinite_vehicle_fuel_label": "Nieskończone paliwo pojazdu",
+  "bighax_never_dirty_vehicles_label": "Pojazdy nigdy się nie brudzą"
 }

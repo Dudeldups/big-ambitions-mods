@@ -52,6 +52,9 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.EnableExtendedBedSleep,
                 BigHaxSettings.DefaultEnableExtendedBedSleep);
+            settings.EnableNoVehicleDamage = LoadBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, BigHaxSettings.DefaultEnableNoVehicleDamage);
+            settings.EnableInfiniteVehicleFuel = LoadBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, BigHaxSettings.DefaultEnableInfiniteVehicleFuel);
+            settings.EnableNeverDirtyVehicles = LoadBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, BigHaxSettings.DefaultEnableNeverDirtyVehicles);
 
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
@@ -136,6 +139,12 @@ namespace BigHax
         {
             SaveBool(modId, BigHaxOptionIds.EnableExtendedBedSleep, value);
         }
+
+        public static void SaveEnableNoVehicleDamage(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, value);
+
+        public static void SaveEnableInfiniteVehicleFuel(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, value);
+
+        public static void SaveEnableNeverDirtyVehicles(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, value);
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
         {

@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Kapacitet for {itemName}",
   "bighax_freight_truck_delivery_places_label": "Leveringspladser for {vehicleName}",
   "bighax_active_vehicle_enabled_label": "Aktivér tilsidesættelse af aktivt køretøjs kapacitet",
-  "bighax_active_vehicle_label": "Aktivt køretøjs kapacitet"
+  "bighax_active_vehicle_label": "Aktivt køretøjs kapacitet",
+  "bighax_category_money": "Penge-hax",
+  "bighax_category_employee": "Medarbejder-hax",
+  "bighax_category_business": "Forretnings-hax",
+  "bighax_category_vehicle": "Køretøjs-hax",
+  "bighax_category_capacity": "Kapacitets-hax",
+  "bighax_category_time": "Tids-hax",
+  "bighax_no_vehicle_damage_label": "Ingen køretøjsskade",
+  "bighax_infinite_vehicle_fuel_label": "Uendeligt køretøjsbrændstof",
+  "bighax_never_dirty_vehicles_label": "Køretøjer bliver aldrig beskidte"
 }

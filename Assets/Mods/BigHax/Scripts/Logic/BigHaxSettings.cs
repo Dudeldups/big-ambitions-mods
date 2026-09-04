@@ -20,6 +20,9 @@ namespace BigHax
         public const bool DefaultEnableRecruitmentCandidateMaximumSkill = false;
         public const bool DefaultRemoveEmployeeDemands = false;
         public const bool DefaultEnableExtendedBedSleep = false;
+        public const bool DefaultEnableNoVehicleDamage = false;
+        public const bool DefaultEnableInfiniteVehicleFuel = false;
+        public const bool DefaultEnableNeverDirtyVehicles = false;
         public const int RecruitmentCandidateMaximumSkillOverride = 100;
 
         public static readonly float[] CustomerTrafficMultiplierValues = { 1f, 1.5f, 2f, 3f, 5f, 10f };
@@ -55,6 +58,12 @@ namespace BigHax
         public bool RemoveEmployeeDemands { get; set; } = DefaultRemoveEmployeeDemands;
 
         public bool EnableExtendedBedSleep { get; set; } = DefaultEnableExtendedBedSleep;
+
+        public bool EnableNoVehicleDamage { get; set; } = DefaultEnableNoVehicleDamage;
+
+        public bool EnableInfiniteVehicleFuel { get; set; } = DefaultEnableInfiniteVehicleFuel;
+
+        public bool EnableNeverDirtyVehicles { get; set; } = DefaultEnableNeverDirtyVehicles;
 
         public float CustomerTrafficMultiplier
         {

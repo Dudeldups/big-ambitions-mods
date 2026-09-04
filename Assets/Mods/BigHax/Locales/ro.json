@@ -21,5 +21,14 @@
   "bighax_storage_shelf_capacity_label": "Capacitate {itemName}",
   "bighax_freight_truck_delivery_places_label": "Locuri de livrare pentru {vehicleName}",
   "bighax_active_vehicle_enabled_label": "Activează suprascrierea capacității vehiculului activ",
-  "bighax_active_vehicle_label": "Capacitatea vehiculului activ"
+  "bighax_active_vehicle_label": "Capacitatea vehiculului activ",
+  "bighax_category_money": "Trucuri pentru bani",
+  "bighax_category_employee": "Trucuri pentru angajați",
+  "bighax_category_business": "Trucuri de afaceri",
+  "bighax_category_vehicle": "Trucuri pentru vehicule",
+  "bighax_category_capacity": "Trucuri de capacitate",
+  "bighax_category_time": "Trucuri de timp",
+  "bighax_no_vehicle_damage_label": "Fără daune la vehicul",
+  "bighax_infinite_vehicle_fuel_label": "Combustibil infinit pentru vehicul",
+  "bighax_never_dirty_vehicles_label": "Vehiculele nu se murdăresc niciodată"
 }
