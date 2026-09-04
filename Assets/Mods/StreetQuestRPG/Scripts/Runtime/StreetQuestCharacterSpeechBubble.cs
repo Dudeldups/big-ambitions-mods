@@ -121,7 +121,9 @@ namespace StreetQuestRPG
             if (_anchor == null)
                 return false;
 
-            var playerPosition = StreetQuestShared.GetPlayerWorldPosition();
+            if (!StreetQuestShared.TryGetPlayerWorldPosition(out var playerPosition))
+                return false;
+
             var anchorPosition = _anchor.position;
             var maxDistanceSquared = _maxDistance * _maxDistance;
             return (playerPosition - anchorPosition).sqrMagnitude <= maxDistanceSquared;
