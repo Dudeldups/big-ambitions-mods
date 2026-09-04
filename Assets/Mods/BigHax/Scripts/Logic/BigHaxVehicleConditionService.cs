@@ -147,7 +147,7 @@ namespace BigHax
             if (settings.EnableInfiniteVehicleFuel &&
                 controller.vehicleType != null &&
                 controller.vehicleType.maxFuel > 0f &&
-                vehicle.fuel < controller.vehicleType.maxFuel - 0.001f)
+                (carController != null ? runtimeFuelBefore : vehicle.fuel) < controller.vehicleType.maxFuel - 0.001f)
             {
                 // VehicleController changes the saved value, but the driving HUD is
                 // backed by CarController's runtime fuel module. Its setter invokes
