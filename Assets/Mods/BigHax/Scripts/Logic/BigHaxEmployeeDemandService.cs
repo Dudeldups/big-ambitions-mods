@@ -13,6 +13,7 @@ namespace BigHax
     internal sealed class BigHaxEmployeeDemandService
     {
         private const string EmployeeHiredEvent = "ba:gameevent_employeehired";
+        private const string CandidateReceivedEvent = "ba:gameevent_candidatereceived";
         private const string NewDayEvent = "ba:gameevent_newday";
         private const string NewDemandMessageKey = "ba:messagetype_employee_contact_message_new_demand";
         private static readonly FieldInfo? ContactsToSendNotificationField =
@@ -45,7 +46,7 @@ namespace BigHax
             }
 
             Subscribe();
-            ClearCurrentSaveEmployeesOnce();
+            ClearCurrentSaveEmployeesAndCandidatesOnce();
         }
 
         public void InvalidateCache()
@@ -147,28 +148,43 @@ namespace BigHax
             isSubscribed = true;
         }
 
-        private void ClearCurrentSaveEmployeesOnce()
+        private void ClearCurrentSaveEmployeesAndCandidatesOnce()
         {
             if (clearedCurrentSaveEmployees)
                 return;
 
             try
             {
-                var employees = SaveGameManager.Current?.EmployeeInstances;
-                if (employees == null)
+                var saveGame = SaveGameManager.Current;
+                if (saveGame == null)
                     return;
 
                 var removedDemandCount = 0;
                 var removedMessageCount = 0;
-                foreach (var employee in employees)
+
+                var employees = saveGame.EmployeeInstances;
+                if (employees != null)
                 {
-                    removedDemandCount += ClearDemands(employee);
-                    removedMessageCount += RemoveDemandMessages(employee);
+                    foreach (var employee in employees)
+                    {
+                        removedDemandCount += ClearDemands(employee);
+                        removedMessageCount += RemoveDemandMessages(employee);
+                    }
+                }
+
+                // Recruitment candidates already carry scheduling demands before they are
+                // hired, so clear those too while the cheat is enabled.
+                var candidates = saveGame.CandidateEmployeeInstances;
+                if (candidates != null)
+                {
+                    foreach (var candidate in candidates)
+                        removedDemandCount += ClearDemands(candidate);
                 }
 
                 clearedCurrentSaveEmployees = true;
-                MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0);
-                saveCleanupAfterLoad |= removedDemandCount > 0 || removedMessageCount > 0;
+                var changed = removedDemandCount > 0 || removedMessageCount > 0;
+                MarkSaveChangedIfNeeded(changed);
+                saveCleanupAfterLoad |= changed;
             }
             catch (Exception exception)
             {
@@ -189,18 +205,54 @@ namespace BigHax
                 return;
             }
 
-            if (eventId != EmployeeHiredEvent)
+            if (eventId == CandidateReceivedEvent)
+            {
+                ClearLatestRecruitmentCandidateDemands();
                 return;
+            }
 
+            if (eventId == EmployeeHiredEvent)
+                ClearAllEmployeeDemandsAfterHire();
+        }
+
+        private void ClearLatestRecruitmentCandidateDemands()
+        {
+            try
+            {
+                var candidates = SaveGameManager.Current?.CandidateEmployeeInstances;
+                if (candidates == null || candidates.Count == 0)
+                    return;
+
+                // GenerateCandidate has already added the employee when this event fires.
+                var candidate = candidates[candidates.Count - 1];
+                var removedDemandCount = ClearDemands(candidate);
+                MarkSaveChangedIfNeeded(removedDemandCount > 0);
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+            }
+        }
+
+        private void ClearAllEmployeeDemandsAfterHire()
+        {
             try
             {
                 var employees = SaveGameManager.Current?.EmployeeInstances;
                 if (employees == null || employees.Count == 0)
                     return;
 
-                var employee = employees[employees.Count - 1];
-                var removedDemandCount = ClearDemands(employee);
-                MarkSaveChangedIfNeeded(removedDemandCount > 0);
+                // Do not assume the freshly hired employee is always the last list entry.
+                // Hiring is infrequent, so a full pass is cheap and avoids timing/order issues.
+                var removedDemandCount = 0;
+                var removedMessageCount = 0;
+                foreach (var employee in employees)
+                {
+                    removedDemandCount += ClearDemands(employee);
+                    removedMessageCount += RemoveDemandMessages(employee);
+                }
+
+                MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0);
             }
             catch (Exception exception)
             {
