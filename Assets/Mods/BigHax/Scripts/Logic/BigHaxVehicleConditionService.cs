@@ -137,8 +137,10 @@ namespace BigHax
                 return;
 
             var maxFuel = controller.vehicleType?.maxFuel ?? -1f;
+            var carController = controller.GetComponent<CarController>() ?? controller.GetComponentInChildren<CarController>(true);
+            var runtimeFuelBefore = carController?.GetCurrentFuel() ?? -1f;
             BigHaxVehicleConditionDebugLog.Write(
-                $"trigger={trigger} controllerId={vehicle.id} type={vehicle.vehicleTypeName} before fuel={vehicle.fuel:F3}/{maxFuel:F3} dirt={vehicle.dirtiness:F3} damage={vehicle.damage:F3} deformations={vehicle.deformations?.Count ?? 0}");
+                $"trigger={trigger} controllerId={vehicle.id} type={vehicle.vehicleTypeName} before savedFuel={vehicle.fuel:F3}/{maxFuel:F3} runtimeFuel={runtimeFuelBefore:F3} carController={(carController != null)} dirt={vehicle.dirtiness:F3} damage={vehicle.damage:F3} deformations={vehicle.deformations?.Count ?? 0}");
 
             // Use the controller setters for loaded cars so the visible fuel gauge,
             // dirt material, and deformation mesh update immediately as well.
@@ -147,7 +149,13 @@ namespace BigHax
                 controller.vehicleType.maxFuel > 0f &&
                 vehicle.fuel < controller.vehicleType.maxFuel - 0.001f)
             {
-                controller.SetFuel(controller.vehicleType.maxFuel);
+                // VehicleController changes the saved value, but the driving HUD is
+                // backed by CarController's runtime fuel module. Its setter invokes
+                // the UI refresh callback as well.
+                if (carController != null)
+                    carController.SetFuel(controller.vehicleType.maxFuel);
+                else
+                    controller.SetFuel(controller.vehicleType.maxFuel);
             }
 
             if (settings.EnableNeverDirtyVehicles && vehicle.dirtiness > 0.001f)
@@ -159,8 +167,9 @@ namespace BigHax
                 controller.Repair();
             }
 
+            var runtimeFuelAfter = carController?.GetCurrentFuel() ?? -1f;
             BigHaxVehicleConditionDebugLog.Write(
-                $"trigger={trigger} controllerId={vehicle.id} after fuel={vehicle.fuel:F3}/{maxFuel:F3} dirt={vehicle.dirtiness:F3} damage={vehicle.damage:F3} deformations={vehicle.deformations?.Count ?? 0}");
+                $"trigger={trigger} controllerId={vehicle.id} after savedFuel={vehicle.fuel:F3}/{maxFuel:F3} runtimeFuel={runtimeFuelAfter:F3} dirt={vehicle.dirtiness:F3} damage={vehicle.damage:F3} deformations={vehicle.deformations?.Count ?? 0}");
         }
     }
 }
