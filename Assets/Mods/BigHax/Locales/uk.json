@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Цю дію неможливо скасувати",
   "bighax_unlock_all_contacts_confirmation": "Розблокувати всі ділові контакти? Цю дію неможливо скасувати.",
   "bighax_unlock_all_courses_confirmation": "Завершити всі курси? Цю дію неможливо скасувати.",
-  "bighax_unlock_confirmation_button": "Розблокувати все"
+  "bighax_unlock_confirmation_button": "Розблокувати все",
+  "bighax_enable_instant_imports_label": "Миттєвий імпорт",
+  "bighax_enable_instant_furniture_deliveries_label": "Миттєва доставка меблів"
 }

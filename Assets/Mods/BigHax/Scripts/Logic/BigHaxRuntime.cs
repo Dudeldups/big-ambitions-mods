@@ -27,6 +27,7 @@ namespace BigHax
         private readonly BigHaxEmployeeDemandService employeeDemandService = new BigHaxEmployeeDemandService();
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxIllegalParkingService illegalParkingService = new BigHaxIllegalParkingService();
+        private readonly BigHaxInstantDeliveryService instantDeliveryService = new BigHaxInstantDeliveryService();
         private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
@@ -45,6 +46,7 @@ namespace BigHax
         private bool parkingVehicleEventsSubscribed;
         private Coroutine? employeeDemandCleanupCoroutine;
         private Coroutine? employeeDemandMessageCleanupCoroutine;
+        private Coroutine? instantDeliveryCoroutine;
         private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private Coroutine? sleepDurationApplyCoroutine;
@@ -121,6 +123,12 @@ namespace BigHax
                 parkingExitCleanupCoroutine = null;
             }
 
+            if (instantDeliveryCoroutine != null)
+            {
+                StopCoroutine(instantDeliveryCoroutine);
+                instantDeliveryCoroutine = null;
+            }
+
             if (sleepDurationApplyCoroutine != null)
             {
                 StopCoroutine(sleepDurationApplyCoroutine);
@@ -159,11 +167,7 @@ namespace BigHax
         private void OnEnable()
         {
             SceneManager.sceneLoaded += HandleSceneLoaded;
-            GlobalEvents.onNewHour += HandleNewHour;
-            GlobalEvents.onNewDay += HandleNewDay;
-            GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
-            GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
-            GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
+            ReattachGlobalEventHandlers();
             BigHaxVehicleCollisionGuard.CollisionDetected += HandleVehicleCollision;
             SubscribeParkingVehicleEvents();
         }
@@ -214,6 +218,7 @@ namespace BigHax
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));
+                SafeApply("instant deliveries", () => instantDeliveryService.ApplyConfiguredBehavior(settings));
                 SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
                 SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings));
@@ -292,6 +297,7 @@ namespace BigHax
             businessCapacityService.InvalidateCache();
             illegalParkingService.InvalidateCache();
             itemCapacityService.InvalidateCache();
+            instantDeliveryService.InvalidateCache();
             loanLimitService.InvalidateCache();
             sleepRestDurationService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
@@ -313,6 +319,12 @@ namespace BigHax
                 return;
 
             SafeApply("illegal parking onNewHour", () => illegalParkingService.HandleNewHour(context, settings));
+            if (instantDeliveryService.ShouldProcessHourly)
+            {
+                SafeApply("instant deliveries order capture", instantDeliveryService.CaptureNewOrdersBeforeHourlyDelivery);
+                if (instantDeliveryCoroutine == null)
+                    instantDeliveryCoroutine = StartCoroutine(CompleteInstantDeliveriesAfterHourlyUpdate());
+            }
         }
 
         private void HandleNewDay()
@@ -339,17 +351,34 @@ namespace BigHax
         {
             playerHaxService.ApplyConfiguredBehavior(settings!);
             extendedBedSleepLabelService.Attach(settings!);
-            // GlobalEvents is reset while a save is loading, after this runtime
-            // has been created. Reattach these handlers once the load completes.
-            GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
-            GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
-            GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
-            GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
+            // SaveGameManager.Load clears GlobalEvents while this runtime survives.
+            // Reattach every handler that BigHax owns once the loaded game is ready.
+            ReattachGlobalEventHandlers();
             ScheduleEmployeeDemandMessageCleanup();
             if (sleepDurationApplyCoroutine == null)
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             if (optionsUiPrewarmCoroutine == null)
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
+        }
+
+        private void ReattachGlobalEventHandlers()
+        {
+            GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onNewHour += HandleNewHour;
+            GlobalEvents.onNewDay -= HandleNewDay;
+            GlobalEvents.onNewDay += HandleNewDay;
+            GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+            GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
+            GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
+            GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
+            GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
+            GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
+        }
+
+        private IEnumerator CompleteInstantDeliveriesAfterHourlyUpdate()
+        {
+            yield return instantDeliveryService.CompletePendingOrdersAfterHourlyDelivery();
+            instantDeliveryCoroutine = null;
         }
 
         private IEnumerator ApplySleepDurationsAfterGameLoad()

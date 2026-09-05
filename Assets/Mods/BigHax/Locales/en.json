@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "This action cannot be undone",
   "bighax_unlock_all_contacts_confirmation": "Unlock every business contact? This action cannot be undone.",
   "bighax_unlock_all_courses_confirmation": "Complete every course? This action cannot be undone.",
-  "bighax_unlock_confirmation_button": "Unlock All"
+  "bighax_unlock_confirmation_button": "Unlock All",
+  "bighax_enable_instant_imports_label": "Instant imports",
+  "bighax_enable_instant_furniture_deliveries_label": "Instant furniture deliveries"
 }

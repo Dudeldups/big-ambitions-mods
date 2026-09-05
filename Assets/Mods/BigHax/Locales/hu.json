@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Ez a művelet nem vonható vissza",
   "bighax_unlock_all_contacts_confirmation": "Feloldod az összes üzleti kapcsolatot? Ez a művelet nem vonható vissza.",
   "bighax_unlock_all_courses_confirmation": "Teljesíted az összes kurzust? Ez a művelet nem vonható vissza.",
-  "bighax_unlock_confirmation_button": "Összes feloldása"
+  "bighax_unlock_confirmation_button": "Összes feloldása",
+  "bighax_enable_instant_imports_label": "Azonnali importok",
+  "bighax_enable_instant_furniture_deliveries_label": "Azonnali bútorszállítások"
 }

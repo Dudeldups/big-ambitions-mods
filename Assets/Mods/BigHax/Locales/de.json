@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Diese Aktion kann nicht rückgängig gemacht werden",
   "bighax_unlock_all_contacts_confirmation": "Alle Geschäftskontakte freischalten? Diese Aktion kann nicht rückgängig gemacht werden.",
   "bighax_unlock_all_courses_confirmation": "Alle Kurse abschließen? Diese Aktion kann nicht rückgängig gemacht werden.",
-  "bighax_unlock_confirmation_button": "Alle freischalten"
+  "bighax_unlock_confirmation_button": "Alle freischalten",
+  "bighax_enable_instant_imports_label": "Sofortige Importe",
+  "bighax_enable_instant_furniture_deliveries_label": "Sofortige Möbellieferungen"
 }

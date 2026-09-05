@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Bu işlem geri alınamaz",
   "bighax_unlock_all_contacts_confirmation": "Tüm iş kişileri açılsın mı? Bu işlem geri alınamaz.",
   "bighax_unlock_all_courses_confirmation": "Tüm kurslar tamamlansın mı? Bu işlem geri alınamaz.",
-  "bighax_unlock_confirmation_button": "Tümünü aç"
+  "bighax_unlock_confirmation_button": "Tümünü aç",
+  "bighax_enable_instant_imports_label": "Anında ithalat",
+  "bighax_enable_instant_furniture_deliveries_label": "Anında mobilya teslimatları"
 }

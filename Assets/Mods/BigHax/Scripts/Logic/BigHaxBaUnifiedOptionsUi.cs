@@ -207,6 +207,8 @@ namespace BigHax
             AddActionButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
 
             AddCategory(Localize("bighax_category_business"));
+            AddToggle(Localize("bighax_enable_instant_imports_label"), () => settings.EnableInstantImports, value => { settings.EnableInstantImports = value; BigHaxOptionPersistence.SaveEnableInstantImports(context.ModId, value); });
+            AddToggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings.EnableInstantFurnitureDeliveries, value => { settings.EnableInstantFurnitureDeliveries = value; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value); });
             AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
 
             AddCategory(Localize("bighax_category_vehicle"));
@@ -311,6 +313,8 @@ namespace BigHax
                 Localize("bighax_disable_player_happiness_decay_label"),
                 Localize("bighax_unlock_all_contacts_button"),
                 Localize("bighax_unlock_all_courses_button"),
+                Localize("bighax_enable_instant_imports_label"),
+                Localize("bighax_enable_instant_furniture_deliveries_label"),
                 Localize("bighax_enable_extended_bed_sleep_label"),
                 Localize("bighax_no_vehicle_damage_label"),
                 Localize("bighax_infinite_vehicle_fuel_label"),

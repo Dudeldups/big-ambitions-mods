@@ -22,6 +22,8 @@ namespace BigHax
         public const bool DefaultEnableMaximumEmployeeSatisfaction = false;
         public const bool DefaultDisablePlayerHungerAndEnergyDecay = false;
         public const bool DefaultDisablePlayerHappinessDecay = false;
+        public const bool DefaultEnableInstantImports = false;
+        public const bool DefaultEnableInstantFurnitureDeliveries = false;
         public const bool DefaultEnableExtendedBedSleep = false;
         public const bool DefaultEnableNoVehicleDamage = false;
         public const bool DefaultEnableInfiniteVehicleFuel = false;
@@ -65,6 +67,10 @@ namespace BigHax
         public bool DisablePlayerHungerAndEnergyDecay { get; set; } = DefaultDisablePlayerHungerAndEnergyDecay;
 
         public bool DisablePlayerHappinessDecay { get; set; } = DefaultDisablePlayerHappinessDecay;
+
+        public bool EnableInstantImports { get; set; } = DefaultEnableInstantImports;
+
+        public bool EnableInstantFurnitureDeliveries { get; set; } = DefaultEnableInstantFurnitureDeliveries;
 
         public bool EnableExtendedBedSleep { get; set; } = DefaultEnableExtendedBedSleep;
 

@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Această acțiune nu poate fi anulată",
   "bighax_unlock_all_contacts_confirmation": "Deblochezi toate contactele de afaceri? Această acțiune nu poate fi anulată.",
   "bighax_unlock_all_courses_confirmation": "Finalizezi toate cursurile? Această acțiune nu poate fi anulată.",
-  "bighax_unlock_confirmation_button": "Deblochează tot"
+  "bighax_unlock_confirmation_button": "Deblochează tot",
+  "bighax_enable_instant_imports_label": "Importuri instantanee",
+  "bighax_enable_instant_furniture_deliveries_label": "Livrări instantanee de mobilier"
 }

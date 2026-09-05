@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Denne handling kan ikke fortrydes",
   "bighax_unlock_all_contacts_confirmation": "Lås alle forretningskontakter op? Denne handling kan ikke fortrydes.",
   "bighax_unlock_all_courses_confirmation": "Gennemfør alle kurser? Denne handling kan ikke fortrydes.",
-  "bighax_unlock_confirmation_button": "Lås alt op"
+  "bighax_unlock_confirmation_button": "Lås alt op",
+  "bighax_enable_instant_imports_label": "Øjeblikkelige importer",
+  "bighax_enable_instant_furniture_deliveries_label": "Øjeblikkelige møbelleveringer"
 }

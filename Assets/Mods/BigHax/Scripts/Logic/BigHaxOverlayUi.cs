@@ -247,6 +247,25 @@ namespace BigHax
                     BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
                 }
 
+                DrawSectionTitle(Localize("bighax_category_business"));
+                DrawToggleOption(
+                    context,
+                    settings.EnableInstantImports,
+                    Localize("bighax_enable_instant_imports_label"),
+                    value =>
+                    {
+                        settings.EnableInstantImports = value;
+                        BigHaxOptionPersistence.SaveEnableInstantImports(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.EnableInstantFurnitureDeliveries,
+                    Localize("bighax_enable_instant_furniture_deliveries_label"),
+                    value =>
+                    {
+                        settings.EnableInstantFurnitureDeliveries = value;
+                        BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value);
+                    });
                 DrawCustomerMultiplier(context, settings);
                 DrawIntSlider(
                     context,

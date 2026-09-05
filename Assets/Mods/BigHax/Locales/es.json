@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Esta acción no se puede deshacer",
   "bighax_unlock_all_contacts_confirmation": "¿Desbloquear todos los contactos comerciales? Esta acción no se puede deshacer.",
   "bighax_unlock_all_courses_confirmation": "¿Completar todos los cursos? Esta acción no se puede deshacer.",
-  "bighax_unlock_confirmation_button": "Desbloquear todo"
+  "bighax_unlock_confirmation_button": "Desbloquear todo",
+  "bighax_enable_instant_imports_label": "Importaciones instantáneas",
+  "bighax_enable_instant_furniture_deliveries_label": "Entregas de muebles instantáneas"
 }

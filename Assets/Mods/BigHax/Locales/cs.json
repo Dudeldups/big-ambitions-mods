@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Tuto akci nelze vrátit zpět",
   "bighax_unlock_all_contacts_confirmation": "Odemknout všechny obchodní kontakty? Tuto akci nelze vrátit zpět.",
   "bighax_unlock_all_courses_confirmation": "Dokončit všechny kurzy? Tuto akci nelze vrátit zpět.",
-  "bighax_unlock_confirmation_button": "Odemknout vše"
+  "bighax_unlock_confirmation_button": "Odemknout vše",
+  "bighax_enable_instant_imports_label": "Okamžité importy",
+  "bighax_enable_instant_furniture_deliveries_label": "Okamžité dodávky nábytku"
 }
