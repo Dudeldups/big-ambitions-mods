@@ -23,6 +23,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private object? brakes;
     private object? blinkers;
     private Light? headlightBeam;
+    private Light? leftHeadlightBeam;
+    private Light? rightHeadlightBeam;
     private MeshRenderer? headlightOverlay;
     private MeshRenderer? brakeLightOverlay;
     private MeshRenderer? leftFrontBlinkerOverlay;
@@ -56,11 +58,20 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var glassSourceShader = FirstMaterial(outerWindowRenderer)?.shader?.name ?? "<none>";
 
         var glassConfigured = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
-        ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", Color.white);
-        ConfigureLampSurface(rearLampRenderer, "AudiRS6R Rear Lamp Housing", new Color(0.45f, 0.025f, 0.015f, 1f));
+        ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", Color.white, preserveSourceShader: false);
+        ConfigureLampSurface(
+            rearLampRenderer,
+            "AudiRS6R Rear Lamp Housing",
+            new Color(0.45f, 0.025f, 0.015f, 1f),
+            preserveSourceShader: true);
+        var headlightBeamsConfigured = ConfigureHeadlightBeams();
 
         headlightOverlay = CreateFunctionalOverlay(
-            frontLampRenderer, position => position.z >= 0f, "Headlights", Color.white);
+            frontLampRenderer,
+            position => position.z >= 1.80f && position.y >= 0.55f && Mathf.Abs(position.x) >= 0.50f,
+            "Headlights",
+            Color.white,
+            copyBaseTexture: false);
         brakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f,
             "BrakeLights", new Color(1f, 0.015f, 0.003f, 1f));
@@ -86,6 +97,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             $"frontLampRenderer={frontLampRenderer != null} rearLampRenderer={rearLampRenderer != null} " +
             $"outerGlassRenderer={outerWindowRenderer != null} innerGlassEnabled={innerWindowRenderer != null && innerWindowRenderer.enabled} " +
             $"glassConfigured={glassConfigured} headlightBeam={headlightBeam != null} brakesSource={brakes != null} " +
+            $"headlightBeamsConfigured={headlightBeamsConfigured} " +
             $"blinkerSource={blinkers != null} functionalOverlays={CountFunctionalOverlays()} " +
             $"overlayShader=\"{headlightOverlay?.sharedMaterial?.shader?.name ?? "<none>"}\" " +
             $"sourceShaders=[front=\"{frontSourceShader}\",rear=\"{rearSourceShader}\",glass=\"{glassSourceShader}\"]");
@@ -174,7 +186,55 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return material;
     }
 
-    private void ConfigureLampSurface(MeshRenderer? renderer, string materialName, Color baseColor)
+    private int ConfigureHeadlightBeams()
+    {
+        if (headlightBeam == null)
+            return 0;
+
+        headlightBeam.enabled = false;
+        leftHeadlightBeam = CloneHeadlightBeam(headlightBeam, -0.82f, "AudiRS6R_LeftHeadlightBeam");
+        rightHeadlightBeam = CloneHeadlightBeam(headlightBeam, 0.82f, "AudiRS6R_RightHeadlightBeam");
+        return (leftHeadlightBeam != null ? 1 : 0) + (rightHeadlightBeam != null ? 1 : 0);
+    }
+
+    private Light? CloneHeadlightBeam(Light source, float localX, string objectName)
+    {
+        try
+        {
+            var clone = Instantiate(source.gameObject, source.transform.parent, false);
+            clone.name = objectName;
+            clone.transform.localPosition = new Vector3(localX, 0.88f, 2.38f);
+            clone.transform.localRotation = Quaternion.Euler(9f, 0f, 0f);
+            clone.layer = source.gameObject.layer;
+
+            var light = clone.GetComponent<Light>();
+            if (light == null)
+            {
+                Destroy(clone);
+                return null;
+            }
+
+            light.enabled = false;
+            light.range = 45f;
+            light.spotAngle = 68f;
+            light.innerSpotAngle = 42f;
+            light.colorTemperature = 5000f;
+            light.useColorTemperature = true;
+            generatedObjects.Add(clone);
+            return light;
+        }
+        catch (Exception ex)
+        {
+            AudiRS6RDiagnostics.Error("CloneHeadlightBeam." + objectName, ex);
+            return null;
+        }
+    }
+
+    private void ConfigureLampSurface(
+        MeshRenderer? renderer,
+        string materialName,
+        Color baseColor,
+        bool preserveSourceShader)
     {
         if (renderer == null)
             return;
@@ -183,8 +243,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (source == null)
             return;
 
-        var material = new Material(source) { name = materialName };
+        var shader = preserveSourceShader
+            ? source.shader
+            : Shader.Find("HDRP/Lit") ?? Shader.Find("High Definition Render Pipeline/Lit") ?? source.shader;
+        var material = new Material(shader) { name = materialName };
         generatedMaterials.Add(material);
+        if (preserveSourceShader)
+            CopyBaseTexture(source, material);
         SetColorIfPresent(material, "baseColorFactor", baseColor);
         SetColorIfPresent(material, "_BaseColor", baseColor);
         SetColorIfPresent(material, "_Color", baseColor);
@@ -195,7 +260,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         MeshRenderer? sourceRenderer,
         Func<Vector3, bool> includeTriangleCenter,
         string suffix,
-        Color activeColor)
+        Color activeColor,
+        bool copyBaseTexture = true)
     {
         if (sourceRenderer == null)
             return null;
@@ -218,7 +284,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             overlayObject.AddComponent<MeshFilter>().sharedMesh = overlayMesh;
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
             overlayRenderer.sharedMaterial = CreateUnlitMaterial(
-                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor);
+                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture);
             overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
@@ -289,7 +355,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
-    private Material CreateUnlitMaterial(Material? source, string materialName, Color color)
+    private Material CreateUnlitMaterial(Material? source, string materialName, Color color, bool copyBaseTexture)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
                      Shader.Find("High Definition Render Pipeline/Unlit") ??
@@ -299,7 +365,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         var material = new Material(shader) { name = materialName };
         generatedMaterials.Add(material);
-        CopyBaseTexture(source, material);
+        if (copyBaseTexture)
+            CopyBaseTexture(source, material);
         var hdrColor = color * 3.5f;
         hdrColor.a = 1f;
         SetColorIfPresent(material, "_UnlitColor", hdrColor);
@@ -344,8 +411,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private void ApplyLightState(bool forceLog)
     {
         var controlledByPlayer = vehicleController != null && vehicleController.controlledByPlayer;
-        var automaticHeadlights = (headlightBeam != null && headlightBeam.enabled) ||
-                                  GetBoolProperty(vehicleController, "ShouldLightsBeOn");
+        var automaticHeadlights = GetBoolProperty(vehicleController, "ShouldLightsBeOn");
         var headlights = controlledByPlayer;
         var rawBraking = GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking");
         var braking = controlledByPlayer && rawBraking;
@@ -360,6 +426,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         wasBlinking = isBlinking;
 
         SetRendererState(headlightOverlay, headlights);
+        if (headlightBeam != null)
+            headlightBeam.enabled = false;
+        SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
+        SetLightState(rightHeadlightBeam, controlledByPlayer && automaticHeadlights);
         SetRendererState(brakeLightOverlay, braking);
         SetRendererState(leftFrontBlinkerOverlay, leftBlinker && blinkerFlash);
         SetRendererState(leftRearBlinkerOverlay, leftBlinker && blinkerFlash);
@@ -376,6 +446,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"controlled={controlledByPlayer} automaticHeadlights={automaticHeadlights} headlights={headlights} " +
                 $"rawBrakes={rawBraking} brakes={braking} leftBlinker={leftBlinker} " +
                 $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
+                $"beams=[left={IsLightEnabled(leftHeadlightBeam)},right={IsLightEnabled(rightHeadlightBeam)}] " +
                 $"renderers=[head={IsRendererEnabled(headlightOverlay)},brake={IsRendererEnabled(brakeLightOverlay)}," +
                 $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
                 $"rightFront={IsRendererEnabled(rightFrontBlinkerOverlay)},rightRear={IsRendererEnabled(rightRearBlinkerOverlay)}]");
@@ -393,6 +464,14 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (renderer != null && renderer.enabled != active)
             renderer.enabled = active;
     }
+
+    private static void SetLightState(Light? light, bool active)
+    {
+        if (light != null && light.enabled != active)
+            light.enabled = active;
+    }
+
+    private static bool IsLightEnabled(Light? light) => light != null && light.enabled;
 
     private static bool IsRendererEnabled(Renderer? renderer) => renderer != null && renderer.enabled;
 

@@ -143,6 +143,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
         var damageHandlersConfigured = ConfigureDamageHandlers(vehicleController);
         var deformationControllersConfigured = ConfigureDeformationControllers(vehicleController);
+        var sleepConfigsAssigned = ConfigureSleepEnvironment(vehicleController);
         ConfigureLights(vehicleController, out var lightManagerCount, out var lightSourceCount, out var invalidLightSourceCount);
 
         AudiRS6RDiagnostics.Vehicle(
@@ -159,6 +160,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             $"damageIntensity={DamageIntensity:0.000} damageHandlersConfigured={damageHandlersConfigured} " +
             $"deformationStrength={DeformationStrength:0.000} deformationRadius={DeformationRadius:0.000} " +
             $"deformationControllersConfigured={deformationControllersConfigured} " +
+            $"sleepConfigsAssigned={sleepConfigsAssigned} " +
             $"lightManagers={lightManagerCount} validLightSources={lightSourceCount} " +
             $"invalidLightSourcesRemoved={invalidLightSourceCount}");
     }
@@ -281,6 +283,65 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         }
 
         return configuredCount;
+    }
+
+    private int ConfigureSleepEnvironment(VehicleController vehicleController)
+    {
+        try
+        {
+            var environmentField = typeof(VehicleController).GetField(
+                "sleepEnvironment",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var environment = environmentField?.GetValue(vehicleController);
+            if (environmentField == null || environment == null)
+                return 0;
+
+            var configField = environment.GetType().BaseType?.GetField(
+                "config",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (configField == null)
+                return 0;
+
+            if (configField.GetValue(environment) is UnityEngine.Object currentConfig && currentConfig != null)
+                return 0;
+
+            UnityEngine.Object? carConfig = null;
+            foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+            {
+                if (candidate == null || candidate.GetType().FullName != "PlayerActivity.SleepEnvironmentConfig")
+                    continue;
+
+                var typeField = candidate.GetType().GetField(
+                    "sleepEnvironmentType",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var typeValue = typeField?.GetValue(candidate);
+                if (typeValue == null || Convert.ToInt32(typeValue) != 1)
+                    continue;
+
+                carConfig = candidate;
+                break;
+            }
+
+            if (carConfig == null)
+            {
+                context?.Logger.Warn("AudiRS6R: current Car sleep configuration was not loaded.");
+                return 0;
+            }
+
+            configField.SetValue(environment, carConfig);
+            environmentField.SetValue(vehicleController, environment);
+            AudiRS6RDiagnostics.Vehicle(
+                "SLEEP_CONFIG",
+                $"vehicleId=\"{vehicleController.vehicleInstance?.id ?? "<none>"}\" " +
+                $"assigned=True config=\"{carConfig.name}\" type=Car");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            context?.Logger.Warn($"AudiRS6R: could not assign the current Car sleep configuration: {ex.Message}");
+            AudiRS6RDiagnostics.Error("ConfigureSleepEnvironment", ex);
+            return 0;
+        }
     }
 
     private void ConfigureSuspension(
