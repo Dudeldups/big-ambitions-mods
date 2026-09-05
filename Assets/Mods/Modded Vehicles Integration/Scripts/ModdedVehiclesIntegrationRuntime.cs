@@ -12,6 +12,7 @@ namespace ModdedVehiclesIntegration
             new DealerDeskInteractionIntegration();
         private ModContext? context;
         private object? currentSave;
+        private bool wasEnteringBuilding;
 
         internal static ModdedVehiclesIntegrationRuntime Initialize(ModContext context)
         {
@@ -21,7 +22,6 @@ namespace ModdedVehiclesIntegration
                 existing.context = context;
                 existing.deskInteractionIntegration.SetCatalogSynchronizer(
                     existing.SynchronizeCatalogForInteraction);
-                existing.SubscribeToEvents();
                 return existing;
             }
 
@@ -30,14 +30,11 @@ namespace ModdedVehiclesIntegration
             var runtime = runtimeObject.AddComponent<ModdedVehiclesIntegrationRuntime>();
             runtime.context = context;
             runtime.deskInteractionIntegration.SetCatalogSynchronizer(runtime.SynchronizeCatalogForInteraction);
-            runtime.SubscribeToEvents();
-            GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
             return runtime;
         }
 
         internal void Shutdown()
         {
-            UnsubscribeFromEvents();
             deskInteractionIntegration.Shutdown();
             catalogIntegration.RestoreExternalCatalogs(context);
             DealerServiceIntegration.Restore(context);
@@ -46,6 +43,7 @@ namespace ModdedVehiclesIntegration
 
         private void Update()
         {
+            RefreshLayoutCacheOnBuildingEntry();
             deskInteractionIntegration.Update(context);
 
             var save = SaveGameManager.Current;
@@ -58,34 +56,13 @@ namespace ModdedVehiclesIntegration
                 RefreshAll("save became available");
         }
 
-        private void SubscribeToEvents()
+        private void RefreshLayoutCacheOnBuildingEntry()
         {
-            GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
-            GlobalEvents.onEnterBuildingDelayed += HandleEnterBuildingDelayed;
-        }
+            var enteringBuilding = InstanceBehavior<BuildingManager>.Instance?.enteringBuilding == true;
+            if (enteringBuilding && !wasEnteringBuilding)
+                DealerLayoutIntegration.EnsureApplied(context);
 
-        private void UnsubscribeFromEvents()
-        {
-            GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
-        }
-
-        private void HandleGameLoadedLate()
-        {
-            var save = SaveGameManager.Current;
-            if (!ReferenceEquals(currentSave, save))
-            {
-                currentSave = save;
-                catalogIntegration.ResetTracking();
-            }
-
-            RefreshAll("game loaded");
-        }
-
-        private void HandleEnterBuildingDelayed(Address _)
-        {
-            var dealerContactId = InstanceBehavior<BuildingManager>.Instance?.buildingRegistration?.BusinessName;
-            if (DealerDeskInteractionIntegration.IsInteractiveDealerContactId(dealerContactId))
-                catalogIntegration.Synchronize(context);
+            wasEnteringBuilding = enteringBuilding;
         }
 
         private void SynchronizeCatalogForInteraction()
@@ -103,7 +80,7 @@ namespace ModdedVehiclesIntegration
             DealerServiceIntegration.EnsureApplied(context);
             catalogIntegration.Synchronize(context);
             context?.Logger.Info(
-                $"Modded Vehicles Integration: event-driven integration refresh completed ({source}).");
+                $"Modded Vehicles Integration: state-driven integration refresh completed ({source}).");
         }
     }
 }

@@ -24,11 +24,6 @@ namespace ModdedVehiclesIntegration
             "The Hamptons Axis"
         };
 
-        internal static bool IsInteractiveDealerContactId(string? contactId)
-        {
-            return !string.IsNullOrEmpty(contactId) && InteractiveDealerContactIds.Contains(contactId!);
-        }
-
         private Vector3 lastStandingPosition;
         private Quaternion lastStandingRotation;
         private bool hasStandingSnapshot;
