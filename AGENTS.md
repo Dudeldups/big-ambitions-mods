@@ -64,7 +64,8 @@ this repository. Do not wait for the user to request a commit separately.
   example: `feat(BigHax): add vehicle teleport action`.
 - Choose the Conventional Commit type that fits the change (`feat`, `fix`,
   `refactor`, `docs`, `test`, `build`, `chore`, and so on).
-- Commit locally only; do not push unless the user explicitly asks.
+- Never push directly to `main`. For work completed on a dedicated task branch,
+  push only that branch as part of the pull-request workflow below.
 
 ## Parallel Work and Branches
 
@@ -75,14 +76,36 @@ this repository. Do not wait for the user to request a commit separately.
   `BigHax/vehicle-teleport`.
 - Do not add a `codex/` prefix to branch names.
 - Keep each branch limited to its requested mod change and any required shared
-  SDK changes. Integrate completed branches into `main` one at a time.
+  SDK changes.
+- Before opening or merging a pull request, update the task branch against the
+  latest `origin/main`, resolve any conflicts in the task worktree, and rerun
+  the required verification.
+- When the task is complete, verified, and committed, push the task branch to
+  `origin` and create a pull request targeting `main`.
+- Use pull requests as the only path for integrating task branches into `main`.
+  Merge completed pull requests one at a time, only after required checks pass
+  and the pull request reports that it is mergeable. Never merge a task branch
+  directly into the local `main` checkout.
+- If another pull request changes `main` first and introduces a conflict, update
+  the task branch from the new `origin/main`, resolve and verify it again, then
+  merge its pull request.
+- If authentication, branch protection, failed checks, or unresolved conflicts
+  prevent the push, pull request, or merge, stop and report the blocker. Never
+  bypass repository protections.
 
 ## Workshop Releases
 
 - Finish, verify, and commit a fix or feature on its dedicated branch before
-  integrating it into `main`.
-- Upload a mod to Steam Workshop only from a clean, verified `main` after the
-  relevant branch has been integrated.
-- Completing an implementation does not by itself authorize merging, pushing,
-  or uploading to Steam Workshop. Perform each of those actions only when the
-  user explicitly requests it.
+  integrating it into `main` through the pull-request workflow above.
+- Run the final Workshop preparation and `ba-workshop upload` only from the
+  local checkout on branch `main`. Never upload from a worktree, task branch,
+  or detached `HEAD`.
+- Before Workshop publication, confirm that local `main` is clean and matches
+  the latest `origin/main`, that the relevant pull request was merged, and that
+  the mod was rebuilt and verified from that exact `main` state. Rerun the
+  uploader's `validate`, `stage-check`, and `plan` commands from `main` before
+  `upload`.
+- Pushing the task branch, creating its pull request, and merging that pull
+  request are expected completion steps for a verified branch task. Workshop
+  publication remains a separate action and requires an explicit user request
+  to upload the named mod.
