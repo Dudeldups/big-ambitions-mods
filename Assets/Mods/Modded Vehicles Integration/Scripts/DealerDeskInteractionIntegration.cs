@@ -15,6 +15,7 @@ namespace ModdedVehiclesIntegration
     internal sealed class DealerDeskInteractionIntegration
     {
         private const string NoVehiclesNotificationKey = "modded-vehicles-integration:no_mod_vehicles";
+        private const float RuntimeDiagnosticIntervalSeconds = 1f;
 
         private static readonly HashSet<string> InteractiveDealerContactIds = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -28,11 +29,15 @@ namespace ModdedVehiclesIntegration
         private bool hasStandingSnapshot;
         private bool dealerDialogWasOpen;
         private bool failureLogged;
+        private float nextRuntimeDiagnosticAt;
+        private string lastRuntimeDiagnosticSignature = string.Empty;
 
         internal void Update(ModContext? context)
         {
             try
             {
+                LogActiveDealerState(context);
+
                 var character = InstanceBehavior<GameManager>.Instance?.playerController?.Character;
                 if (character == null)
                     return;
@@ -92,6 +97,51 @@ namespace ModdedVehiclesIntegration
                 failureLogged = true;
                 context?.Logger.Error(exception);
             }
+        }
+
+        private void LogActiveDealerState(ModContext? context)
+        {
+            if (Time.unscaledTime < nextRuntimeDiagnosticAt)
+                return;
+
+            nextRuntimeDiagnosticAt = Time.unscaledTime + RuntimeDiagnosticIntervalSeconds;
+
+            var buildingManager = InstanceBehavior<BuildingManager>.Instance;
+            var registration = buildingManager?.buildingRegistration;
+            var dealerContactId = registration?.BusinessName;
+            if (!BuildingManager.IsInsideBuilding ||
+                string.IsNullOrEmpty(dealerContactId) ||
+                !InteractiveDealerContactIds.Contains(dealerContactId!))
+            {
+                lastRuntimeDiagnosticSignature = string.Empty;
+                return;
+            }
+
+            var specialEmployeeDesks = UnityEngine.Object.FindObjectsOfType<SpecialEmployeeController>();
+            var vehicleStoreDesks = 0;
+            foreach (var specialEmployeeDesk in specialEmployeeDesks)
+            {
+                if (specialEmployeeDesk != null &&
+                    specialEmployeeDesk.GetEmployeeType == SpecialEmployeeController.SpecialEmployeeType.VehicleStore)
+                {
+                    vehicleStoreDesks++;
+                }
+            }
+
+            var signature =
+                $"{dealerContactId}|{registration!.Layout}|{specialEmployeeDesks.Length}|{vehicleStoreDesks}";
+            if (string.Equals(signature, lastRuntimeDiagnosticSignature, StringComparison.Ordinal))
+                return;
+
+            lastRuntimeDiagnosticSignature = signature;
+            var message =
+                $"Modded Vehicles Integration: active dealer diagnostics: dealer='{dealerContactId}', " +
+                $"layout='{registration.Layout}', specialEmployeeDesks={specialEmployeeDesks.Length}, " +
+                $"vehicleStoreDesks={vehicleStoreDesks}.";
+            if (vehicleStoreDesks == 0)
+                context?.Logger.Warn(message);
+            else
+                context?.Logger.Info(message);
         }
 
         private bool RestoreStandingPosition(ThirdPersonCharacter character)

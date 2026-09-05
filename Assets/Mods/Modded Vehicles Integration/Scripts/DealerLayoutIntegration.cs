@@ -27,7 +27,8 @@ namespace ModdedVehiclesIntegration
                 "ba:buildingsize_m",
                 1,
                 "MurrayHillCarDealershipLuxury",
-                "ba:itemname_officedesk2left")
+                "ba:itemname_officedesk2left",
+                "ba:itemname_officedesk2right")
         };
 
         private static readonly List<PatchRecord> AppliedPatches = new List<PatchRecord>();
@@ -69,24 +70,28 @@ namespace ModdedVehiclesIntegration
                 return;
             }
 
-            if (layout?.Items == null || IsAlreadyTracked(layout))
+            if (layout?.Items == null)
                 return;
 
-            foreach (var existingItem in layout.Items)
-            {
-                if (string.Equals(existingItem.itemName, VehicleStoreDeskItem, StringComparison.Ordinal) &&
-                    string.Equals(existingItem.customValue, VehicleStoreCustomValue, StringComparison.Ordinal))
-                {
-                    return;
-                }
-            }
+            foreach (var deskItemName in definition.DeskItemNames)
+                TryApplyDesk(layout, definition, deskItemName, context);
+        }
+
+        private static void TryApplyDesk(
+            BusinessLayoutSet layout,
+            LayoutDefinition definition,
+            string deskItemName,
+            ModContext? context)
+        {
+            if (IsAlreadyTracked(layout, deskItemName))
+                return;
 
             var desk = layout.Items.Find(item =>
-                item != null && string.Equals(item.itemName, definition.DeskItemName, StringComparison.Ordinal));
+                item != null && string.Equals(item.itemName, deskItemName, StringComparison.Ordinal));
             if (desk == null)
             {
                 context?.Logger.Warn(
-                    $"Modded Vehicles Integration: desk '{definition.DeskItemName}' was not found in '{definition.LayoutName}'.");
+                    $"Modded Vehicles Integration: desk '{deskItemName}' was not found in '{definition.LayoutName}'.");
                 return;
             }
 
@@ -130,15 +135,19 @@ namespace ModdedVehiclesIntegration
             layout.Items.Add(customerChair);
 
             context?.Logger.Info(
-                $"Modded Vehicles Integration: enabled the native vehicle-store desk in '{definition.LayoutName}'.");
+                $"Modded Vehicles Integration: enabled native vehicle-store desk '{deskItemName}' " +
+                $"in '{definition.LayoutName}'.");
         }
 
-        private static bool IsAlreadyTracked(BusinessLayoutSet layout)
+        private static bool IsAlreadyTracked(BusinessLayoutSet layout, string originalDeskItemName)
         {
             foreach (var patch in AppliedPatches)
             {
-                if (ReferenceEquals(patch.Layout, layout))
+                if (ReferenceEquals(patch.Layout, layout) &&
+                    string.Equals(patch.OriginalItemName, originalDeskItemName, StringComparison.Ordinal))
+                {
                     return true;
+                }
             }
 
             return false;
@@ -192,18 +201,22 @@ namespace ModdedVehiclesIntegration
 
         private sealed class LayoutDefinition
         {
-            internal LayoutDefinition(string buildingSize, int buildingVersion, string layoutName, string deskItemName)
+            internal LayoutDefinition(
+                string buildingSize,
+                int buildingVersion,
+                string layoutName,
+                params string[] deskItemNames)
             {
                 BuildingSize = buildingSize;
                 BuildingVersion = buildingVersion;
                 LayoutName = layoutName;
-                DeskItemName = deskItemName;
+                DeskItemNames = deskItemNames;
             }
 
             internal string BuildingSize { get; }
             internal int BuildingVersion { get; }
             internal string LayoutName { get; }
-            internal string DeskItemName { get; }
+            internal string[] DeskItemNames { get; }
         }
 
         private sealed class PatchRecord
