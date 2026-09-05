@@ -5,12 +5,14 @@ using System.Reflection;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 
 public sealed class AudiRS6RRuntime : MonoBehaviour
 {
-    private const float DealerSyncInterval = 10f;
-    private const float VehicleScanInterval = 1f;
+    private const int InitializationRetryCount = 20;
+    private const int RequiredStableInitializationPasses = 8;
+    private const float InitializationRetryDelay = 0.25f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
     private const float BrakeMaxTorque = 18000f;
@@ -44,8 +46,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         "tailLights"
     };
 
-    private float nextVehicleScanAt;
-    private float nextDealerSyncAt;
+    private Coroutine? initializationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
 
@@ -61,35 +62,179 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
-        runtime.nextDealerSyncAt = 0f;
-        runtime.nextVehicleScanAt = 0f;
-        runtime.EnsureVehiclesConfigured();
+        runtime.SubscribeGlobalEvents();
+        GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
+        runtime.ScheduleInitialization("mod-load");
+        context.Logger.Info(
+            "AudiRS6R: event-driven runtime initialized; " +
+            $"startupRetries={InitializationRetryCount}, retryDelay={InitializationRetryDelay:0.##}s.");
         return runtime;
     }
 
     public void Shutdown()
     {
+        if (initializationCoroutine != null)
+        {
+            StopCoroutine(initializationCoroutine);
+            initializationCoroutine = null;
+        }
+
         RemoveVehicleRuntimeComponents();
         Destroy(gameObject);
     }
 
-    private void Update()
+    private void OnEnable()
     {
-        if (Time.unscaledTime >= nextDealerSyncAt)
-        {
-            AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
-            nextDealerSyncAt = Time.unscaledTime + DealerSyncInterval;
-        }
-
-        if (Time.unscaledTime >= nextVehicleScanAt)
-        {
-            EnsureVehiclesConfigured();
-            nextVehicleScanAt = Time.unscaledTime + VehicleScanInterval;
-        }
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+        SubscribeGlobalEvents();
     }
 
-    private void EnsureVehiclesConfigured()
+    private void OnDisable()
     {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        UnsubscribeGlobalEvents();
+    }
+
+    private void SubscribeGlobalEvents()
+    {
+        GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onBuildingRegistrationChange -= HandleBuildingRegistrationChanged;
+        GlobalEvents.onBuildingRegistrationChange += HandleBuildingRegistrationChanged;
+        GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
+        GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
+        GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
+        GlobalEvents.onGameUnloaded += HandleGameUnloaded;
+    }
+
+    private void UnsubscribeGlobalEvents()
+    {
+        GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onBuildingRegistrationChange -= HandleBuildingRegistrationChanged;
+        GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
+        GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // GlobalEvents delegates can be reset during a game-state transition.
+        SubscribeGlobalEvents();
+        ScheduleInitialization($"scene-loaded:{scene.name}");
+    }
+
+    private void HandleGameLoadedLate()
+    {
+        SubscribeGlobalEvents();
+        ScheduleInitialization("game-loaded-late");
+    }
+
+    private void HandleGameUnloaded()
+    {
+        if (initializationCoroutine != null)
+        {
+            StopCoroutine(initializationCoroutine);
+            initializationCoroutine = null;
+        }
+
+        context?.Logger.Info("AudiRS6R: game unloaded; stopped pending lifecycle initialization.");
+    }
+
+    private void HandleVehicleEntered(VehicleController vehicleController)
+    {
+        TryConfigureVehicle(vehicleController, "vehicle-entered");
+    }
+
+    private void HandleBuildingEntered(Address address)
+    {
+        RefreshDealerStockForAddress(address, "dealer-entered");
+    }
+
+    private void HandleBuildingRegistrationChanged(Address address)
+    {
+        RefreshDealerStockForAddress(address, "dealer-registration-changed");
+    }
+
+    private void HandleFullMenuToggle(bool isOpen)
+    {
+        if (!isOpen)
+            return;
+
+        if (!AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context))
+            context?.Logger.Warn("AudiRS6R: luxury dealer catalog was not ready when the full menu opened.");
+    }
+
+    private void RefreshDealerStockForAddress(Address address, string source)
+    {
+        if (address == null)
+            return;
+
+        var registration = BuildingHelper.GetBuildingRegistration(address);
+        if (!AudiRS6RLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+            return;
+
+        var ready = AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+        if (ready)
+            context?.Logger.Info($"AudiRS6R: luxury dealer catalog verified source='{source}'.");
+        else
+            context?.Logger.Warn($"AudiRS6R: luxury dealer catalog was not ready source='{source}'.");
+    }
+
+    private void ScheduleInitialization(string source)
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+
+        initializationCoroutine = StartCoroutine(InitializeForLifecycle(source));
+    }
+
+    private IEnumerator InitializeForLifecycle(string source)
+    {
+        var dealerReady = false;
+        var previousMatchedCount = -1;
+        var stablePasses = 0;
+        var attempts = 0;
+        var maximumMatchedCount = 0;
+        var configuredCount = 0;
+
+        for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
+        {
+            attempts = attempt;
+            dealerReady |= AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+            EnsureVehiclesConfigured(source, out var matchedCount, out var configuredThisPass);
+            maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
+            configuredCount += configuredThisPass;
+
+            if (dealerReady && matchedCount == previousMatchedCount)
+                stablePasses++;
+            else
+                stablePasses = 0;
+
+            previousMatchedCount = matchedCount;
+            if (dealerReady && stablePasses >= RequiredStableInitializationPasses)
+                break;
+
+            if (attempt < InitializationRetryCount)
+                yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
+        initializationCoroutine = null;
+        var summary =
+            $"AudiRS6R: lifecycle initialization complete source='{source}', attempts={attempts}, " +
+            $"dealerReady={dealerReady}, matchedVehicles={maximumMatchedCount}, configuredVehicles={configuredCount}.";
+        if (dealerReady)
+            context?.Logger.Info(summary);
+        else
+            context?.Logger.Warn(summary);
+    }
+
+    private void EnsureVehiclesConfigured(string source, out int matchedCount, out int configuredCount)
+    {
+        matchedCount = 0;
+        configuredCount = 0;
         if (string.IsNullOrWhiteSpace(vehicleTypeName))
             return;
 
@@ -105,21 +250,47 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 continue;
             }
 
-            ConfigureSleepEnvironment(vehicleController);
-            var roadDamageGuard = vehicleController.GetComponent<AudiRS6RRoadDamageGuard>();
-            if (roadDamageGuard == null)
-            {
-                ConfigureVehiclePhysics(vehicleController);
-                roadDamageGuard = vehicleController.gameObject.AddComponent<AudiRS6RRoadDamageGuard>();
-            }
-
-            var lightingController = vehicleController.GetComponent<AudiRS6RLightingController>();
-            if (lightingController == null)
-                lightingController = vehicleController.gameObject.AddComponent<AudiRS6RLightingController>();
-
-            lightingController.Initialize(vehicleController);
-            roadDamageGuard.Initialize(vehicleController);
+            matchedCount++;
+            if (TryConfigureVehicle(vehicleController, source))
+                configuredCount++;
         }
+    }
+
+    private bool TryConfigureVehicle(VehicleController? vehicleController, string source)
+    {
+        if (vehicleController?.vehicleInstance == null ||
+            !string.Equals(vehicleController.vehicleInstance.vehicleTypeName, vehicleTypeName, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var sleepConfigured = ConfigureSleepEnvironment(vehicleController);
+        var roadDamageGuard = vehicleController.GetComponent<AudiRS6RRoadDamageGuard>();
+        var lightingController = vehicleController.GetComponent<AudiRS6RLightingController>();
+        var addedRoadDamageGuard = roadDamageGuard == null;
+        var addedLightingController = lightingController == null;
+
+        if (addedRoadDamageGuard)
+        {
+            ConfigureVehiclePhysics(vehicleController);
+            roadDamageGuard = vehicleController.gameObject.AddComponent<AudiRS6RRoadDamageGuard>();
+        }
+
+        if (addedLightingController)
+            lightingController = vehicleController.gameObject.AddComponent<AudiRS6RLightingController>();
+
+        lightingController!.Initialize(vehicleController);
+        roadDamageGuard!.Initialize(vehicleController);
+
+        var changed = sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController;
+        if (changed)
+        {
+            context?.Logger.Info(
+                $"AudiRS6R: configured vehicle id='{vehicleController.vehicleInstance.id}' source='{source}', " +
+                $"sleep={sleepConfigured > 0}, physics={addedRoadDamageGuard}, lighting={addedLightingController}.");
+        }
+
+        return changed;
     }
 
     private void ConfigureVehiclePhysics(VehicleController vehicleController)
