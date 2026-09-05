@@ -17042,7 +17042,7 @@ MonoBehaviour:
   - Wheel
   - ExitTrigger
   collisionTimeout: 0.8
-  damageIntensity: 0.8
+  damageIntensity: 0.5
   decelerationThreshold: 200
   deformationIgnoreTags:
   - Wheel
@@ -26565,8 +26565,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.99, y: 0.7, z: 4.58}
-  m_Center: {x: 0, y: 0.46, z: 0}
+  m_Size: {x: 1.99, y: 0.62, z: 4.58}
+  m_Center: {x: 0, y: 0.6, z: 0}
 --- !u!65 &334089193490022289
 BoxCollider:
   m_ObjectHideFlags: 0

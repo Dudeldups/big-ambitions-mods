@@ -1,5 +1,7 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -9,10 +11,15 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
     private const float CollisionCorrelationWindow = 3f;
     private const float DamageTolerance = 0.0001f;
     private const float MinimumDrivingSpeedKph = 2f;
+    private const float RoadDamageSuppressionWindow = 0.5f;
+    private const float RoadSurfaceNormalThreshold = 0.65f;
     private const float TelemetryInterval = 5f;
 
     private VehicleController? vehicleController;
     private Rigidbody? body;
+    private VehicleDeformationController? deformationController;
+    private FieldInfo? deformationQueueField;
+    private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
     private bool initialized;
     private bool wasControlledByPlayer;
     private float lastDamage;
@@ -20,6 +27,10 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
     private float nextTelemetryAt;
     private CollisionSnapshot lastCollision;
     private bool hasCollisionSnapshot;
+    private float approvedDamage;
+    private float roadDamageSuppressionUntil;
+    private int roadSurfaceContactFrame = -1;
+    private int obstacleContactFrame = -1;
 
     public void Initialize(VehicleController controller)
     {
@@ -28,10 +39,16 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
 
         vehicleController = controller;
         body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
+        deformationController = controller.GetComponentInChildren<VehicleDeformationController>(true);
+        deformationQueueField = typeof(VehicleDeformationController).GetField(
+            "_deformationQueue",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         initialized = true;
         wasControlledByPlayer = controller.controlledByPlayer;
         lastDamage = controller.vehicleInstance?.damage ?? 0f;
         lastDeformationCount = controller.vehicleInstance?.deformations?.Count ?? 0;
+        approvedDamage = lastDamage;
+        SnapshotApprovedDeformations();
         nextTelemetryAt = Time.unscaledTime;
 
         AudiRS6RDiagnostics.Vehicle("ATTACH", BuildAttachmentMessage());
@@ -54,6 +71,7 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
                 nextTelemetryAt = Time.unscaledTime;
             }
 
+            SuppressRoadSurfaceDamage();
             DetectConditionChange();
 
             if (controlledByPlayer && GetSpeedKph() >= MinimumDrivingSpeedKph && Time.unscaledTime >= nextTelemetryAt)
@@ -83,7 +101,6 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
             var layer = otherCollider != null ? otherCollider.gameObject.layer : -1;
             var layerName = layer >= 0 ? LayerMask.LayerToName(layer) : string.Empty;
             var relativeSpeedKph = collision.relativeVelocity.magnitude * 3.6f;
-            var isRoadLike = IsRoadLike(otherName, otherPath, tag, layerName);
             var point = Vector3.zero;
             var normal = Vector3.zero;
 
@@ -97,9 +114,26 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
                     : "<none>";
             }
 
+            var isRoadLike = IsRoadLike(otherName, otherPath, tag, layerName);
+            var isRoadSurfaceContact = isRoadLike &&
+                                       normal.y >= RoadSurfaceNormalThreshold &&
+                                       Vector3.Dot(transform.up, Vector3.up) >= 0.7f;
+
+            if (isRoadSurfaceContact)
+            {
+                roadSurfaceContactFrame = Time.frameCount;
+                roadDamageSuppressionUntil = Time.unscaledTime + RoadDamageSuppressionWindow;
+            }
+            else
+            {
+                obstacleContactFrame = Time.frameCount;
+                roadDamageSuppressionUntil = 0f;
+            }
+
             lastCollision = new CollisionSnapshot(
                 Time.unscaledTime,
                 isRoadLike,
+                isRoadSurfaceContact,
                 otherName,
                 otherPath,
                 selfPath,
@@ -191,6 +225,91 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
         lastDeformationCount = currentDeformationCount;
     }
 
+    private void SuppressRoadSurfaceDamage()
+    {
+        if (vehicleController?.vehicleInstance == null)
+            return;
+
+        var instance = vehicleController.vehicleInstance;
+        var roadOnlyThisFrame = roadSurfaceContactFrame == Time.frameCount &&
+                                obstacleContactFrame != Time.frameCount;
+        var roadDamageMayBePending = Time.unscaledTime <= roadDamageSuppressionUntil &&
+                                     (!hasCollisionSnapshot || lastCollision.IsRoadSurfaceContact);
+        var queueEntriesDiscarded = roadOnlyThisFrame ? ClearPendingDeformationQueue() : 0;
+        var deformationEntriesDiscarded = 0;
+        var damageDiscarded = 0f;
+
+        if (roadOnlyThisFrame && !MatchesApprovedDeformations(instance.deformations))
+        {
+            deformationEntriesDiscarded = Math.Max(0, instance.deformations.Count - approvedDeformations.Count);
+            instance.deformations.Clear();
+            instance.deformations.AddRange(approvedDeformations);
+        }
+
+        if (roadDamageMayBePending && instance.damage > approvedDamage + DamageTolerance)
+        {
+            damageDiscarded = instance.damage - approvedDamage;
+            if (vehicleController is CarController carController)
+                carController.SetDamage(approvedDamage);
+            else
+                instance.damage = approvedDamage;
+        }
+
+        if (queueEntriesDiscarded > 0 || deformationEntriesDiscarded > 0 || damageDiscarded > DamageTolerance)
+        {
+            AudiRS6RDiagnostics.Damage(
+                $"classification=ROAD_SURFACE_DAMAGE_SUPPRESSED {VehicleIdentity()} " +
+                $"queueEntriesDiscarded={queueEntriesDiscarded} " +
+                $"deformationEntriesDiscarded={deformationEntriesDiscarded} " +
+                $"damageDiscarded={damageDiscarded:0.000000} state=[{BuildMotionState()}] " +
+                $"collision=[{(hasCollisionSnapshot ? lastCollision.Describe() : "none")}]");
+        }
+
+        if (!roadOnlyThisFrame && !roadDamageMayBePending)
+        {
+            approvedDamage = instance.damage;
+            SnapshotApprovedDeformations();
+        }
+    }
+
+    private int ClearPendingDeformationQueue()
+    {
+        if (deformationController == null || deformationQueueField == null)
+            return 0;
+
+        var queue = deformationQueueField.GetValue(deformationController);
+        if (queue == null)
+            return 0;
+
+        var queueType = queue.GetType();
+        var countProperty = queueType.GetProperty("Count");
+        var count = countProperty?.GetValue(queue) is int currentCount ? currentCount : 0;
+        queueType.GetMethod("Clear", BindingFlags.Instance | BindingFlags.Public)?.Invoke(queue, null);
+        return count;
+    }
+
+    private void SnapshotApprovedDeformations()
+    {
+        approvedDeformations.Clear();
+        var deformations = vehicleController?.vehicleInstance?.deformations;
+        if (deformations != null)
+            approvedDeformations.AddRange(deformations);
+    }
+
+    private bool MatchesApprovedDeformations(List<VehicleDeformationController.VehicleDeformation> deformations)
+    {
+        if (deformations.Count != approvedDeformations.Count)
+            return false;
+
+        for (var index = 0; index < deformations.Count; index++)
+        {
+            if (!ReferenceEquals(deformations[index], approvedDeformations[index]))
+                return false;
+        }
+
+        return true;
+    }
+
     private string ClassifyDamage(bool hasRecentCollision)
     {
         if (hasRecentCollision)
@@ -216,6 +335,9 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
               $"collisionMode={body.collisionDetectionMode} interpolation={body.interpolation}]";
 
         return $"{VehicleIdentity()} root={GetHierarchyPath(transform)} {rigidbodyDescription} " +
+               $"roadDeformationGuard=[controllerFound={deformationController != null} " +
+               $"queueAccessReady={deformationQueueField != null} approvedDamage={approvedDamage:0.000000} " +
+               $"approvedDeformations={approvedDeformations.Count}] " +
                $"colliders=[{DescribeColliders()}] state=[{BuildMotionState()}]";
     }
 
@@ -300,21 +422,36 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
 
     private static bool IsRoadLike(string name, string path, string tag, string layerName)
     {
+        var objectName = name.ToLowerInvariant();
         var objectIdentity = $"{name} {path} {tag}".ToLowerInvariant();
         var normalizedLayerName = layerName.ToLowerInvariant();
 
-        if (normalizedLayerName.Contains("prop") ||
-            objectIdentity.Contains("barricade") ||
-            objectIdentity.Contains("delimiter") ||
-            objectIdentity.Contains("barrier") ||
-            objectIdentity.Contains("bollard") ||
-            objectIdentity.Contains("curb") ||
-            objectIdentity.Contains("kerb") ||
-            objectIdentity.Contains("sidewalk") ||
-            objectIdentity.Contains("pavement"))
+        if (objectName.Contains("tree") ||
+            objectName.Contains("pine") ||
+            objectName.Contains("trunk") ||
+            objectName.Contains("fence") ||
+            objectName.Contains("wall") ||
+            objectName.Contains("building") ||
+            objectName.Contains("pole") ||
+            objectName.Contains("lamp") ||
+            objectName.Contains("hydrant") ||
+            objectName.Contains("barricade") ||
+            objectName.Contains("delimiter") ||
+            objectName.Contains("barrier") ||
+            objectName.Contains("bollard") ||
+            objectName.Contains("curb") ||
+            objectName.Contains("kerb") ||
+            objectName.Contains("sidewalk") ||
+            objectName.Contains("pavement"))
         {
             return false;
         }
+
+        if (objectName.Contains("road"))
+            return true;
+
+        if (normalizedLayerName.Contains("prop"))
+            return false;
 
         if (normalizedLayerName == "ground" ||
             normalizedLayerName == "terrain" ||
@@ -365,6 +502,7 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
         public CollisionSnapshot(
             float time,
             bool isRoadLike,
+            bool isRoadSurfaceContact,
             string otherName,
             string otherPath,
             string selfPath,
@@ -378,6 +516,7 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
         {
             Time = time;
             IsRoadLike = isRoadLike;
+            IsRoadSurfaceContact = isRoadSurfaceContact;
             OtherName = otherName;
             OtherPath = otherPath;
             SelfPath = selfPath;
@@ -392,6 +531,7 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
 
         public float Time { get; }
         public bool IsRoadLike { get; }
+        public bool IsRoadSurfaceContact { get; }
         private string OtherName { get; }
         private string OtherPath { get; }
         private string SelfPath { get; }
@@ -405,7 +545,8 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
 
         public string Describe()
         {
-            return $"roadLike={IsRoadLike} other=\"{Sanitize(OtherName)}\" otherPath=\"{Sanitize(OtherPath)}\" " +
+            return $"roadLike={IsRoadLike} roadSurface={IsRoadSurfaceContact} " +
+                   $"other=\"{Sanitize(OtherName)}\" otherPath=\"{Sanitize(OtherPath)}\" " +
                    $"selfCollider=\"{Sanitize(SelfPath)}\" tag=\"{Sanitize(Tag)}\" layer={Layer} " +
                    $"layerName=\"{Sanitize(LayerName)}\" relativeSpeedKph={RelativeSpeedKph:0.000} " +
                    $"impulse={Impulse:0.000} point={FormatVector(Point)} normal={FormatVector(Normal)}";
