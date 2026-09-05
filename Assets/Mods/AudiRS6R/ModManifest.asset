@@ -15,7 +15,7 @@ MonoBehaviour:
   ModId: AudiRS6R
   DisplayName: Audi RS6-R
   Author: Big Ambitions Mod Template
-  Version: 0.4.7
+  Version: 0.4.8
   AssetBundleName: audirs6r.unity3d
   ModAssembly: {fileID: 5897886265953266890, guid: 5c1fdf80d12c0994e9c2ece61002b927,
     type: 3}

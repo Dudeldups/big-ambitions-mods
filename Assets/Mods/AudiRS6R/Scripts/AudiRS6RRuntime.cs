@@ -66,9 +66,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         runtime.SubscribeGlobalEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
-        context.Logger.Info(
-            "AudiRS6R: event-driven runtime initialized; " +
-            $"startupRetries={InitializationRetryCount}, retryDelay={InitializationRetryDelay:0.##}s.");
         return runtime;
     }
 
@@ -140,13 +137,11 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
             initializationCoroutine = null;
         }
-
-        context?.Logger.Info("AudiRS6R: game unloaded; stopped pending lifecycle initialization.");
     }
 
     private void HandleVehicleEntered(VehicleController vehicleController)
     {
-        TryConfigureVehicle(vehicleController, "vehicle-entered");
+        TryConfigureVehicle(vehicleController);
     }
 
     private void HandleBuildingEntered(Address address)
@@ -178,9 +173,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             return;
 
         var ready = AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
-        if (ready)
-            context?.Logger.Info($"AudiRS6R: luxury dealer catalog verified source='{source}'.");
-        else
+        if (!ready)
             context?.Logger.Warn($"AudiRS6R: luxury dealer catalog was not ready source='{source}'.");
     }
 
@@ -205,7 +198,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         {
             attempts = attempt;
             dealerReady |= AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
-            EnsureVehiclesConfigured(source, out var matchedCount, out var configuredThisPass);
+            EnsureVehiclesConfigured(out var matchedCount, out var configuredThisPass);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
             configuredCount += configuredThisPass;
 
@@ -223,16 +216,15 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         }
 
         initializationCoroutine = null;
-        var summary =
-            $"AudiRS6R: lifecycle initialization complete source='{source}', attempts={attempts}, " +
-            $"dealerReady={dealerReady}, matchedVehicles={maximumMatchedCount}, configuredVehicles={configuredCount}.";
-        if (dealerReady)
-            context?.Logger.Info(summary);
-        else
-            context?.Logger.Warn(summary);
+        if (!dealerReady)
+        {
+            context?.Logger.Warn(
+                $"AudiRS6R: lifecycle initialization did not find dealer stock source='{source}', " +
+                $"attempts={attempts}, matchedVehicles={maximumMatchedCount}, configuredVehicles={configuredCount}.");
+        }
     }
 
-    private void EnsureVehiclesConfigured(string source, out int matchedCount, out int configuredCount)
+    private void EnsureVehiclesConfigured(out int matchedCount, out int configuredCount)
     {
         matchedCount = 0;
         configuredCount = 0;
@@ -252,12 +244,12 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             }
 
             matchedCount++;
-            if (TryConfigureVehicle(vehicleController, source))
+            if (TryConfigureVehicle(vehicleController))
                 configuredCount++;
         }
     }
 
-    private bool TryConfigureVehicle(VehicleController? vehicleController, string source)
+    private bool TryConfigureVehicle(VehicleController? vehicleController)
     {
         if (vehicleController?.vehicleInstance == null ||
             !string.Equals(vehicleController.vehicleInstance.vehicleTypeName, vehicleTypeName, StringComparison.Ordinal))
@@ -283,15 +275,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         lightingController!.Initialize(vehicleController);
         roadDamageGuard!.Initialize(vehicleController);
 
-        var changed = sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController;
-        if (changed)
-        {
-            context?.Logger.Info(
-                $"AudiRS6R: configured vehicle id='{vehicleController.vehicleInstance.id}' source='{source}', " +
-                $"sleep={sleepConfigured > 0}, physics={addedRoadDamageGuard}, lighting={addedLightingController}.");
-        }
-
-        return changed;
+        return sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController;
     }
 
     private void ConfigureVehiclePhysics(VehicleController vehicleController)
@@ -305,7 +289,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             rigidbody.drag = VehicleLinearDrag;
         }
 
-        ConfigureAccelerationDynamics(vehicleController, rigidbody);
+        ConfigureAccelerationDynamics(vehicleController);
         ConfigureVisualBodyHeight(vehicleController);
         ConfigureExitMarkers(vehicleController);
         ConfigureBodyColliders(vehicleController, out _, out _);
@@ -317,14 +301,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureLights(vehicleController, out _, out _, out _);
     }
 
-    private void ConfigureAccelerationDynamics(VehicleController vehicleController, Rigidbody? rigidbody)
+    private static void ConfigureAccelerationDynamics(VehicleController vehicleController)
     {
         var targetEnginePower = vehicleController.vehicleType?.enginePower ?? 0f;
         var targetSpeedLimit = vehicleController.vehicleType?.maxSpeed ?? 0;
-        var enginePowerConfigured = false;
-        var speedLimitConfigured = false;
-        var actualEnginePower = 0f;
-        var actualSpeedLimit = 0f;
 
         foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
         {
@@ -337,23 +317,15 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 var powertrain = GetMemberValue(component, "powertrain");
                 var engine = GetMemberValue(powertrain, "engine");
                 if (engine != null && targetEnginePower > 0f)
-                    enginePowerConfigured = TrySetFloatMember(engine, "maxPower", targetEnginePower);
-                actualEnginePower = GetFloatMember(engine, "maxPower");
+                    TrySetFloatMember(engine, "maxPower", targetEnginePower);
             }
             else if (string.Equals(componentType.Name, "SpeedLimiterModuleWrapper", StringComparison.Ordinal))
             {
                 var module = GetMemberValue(component, "module") ?? InvokeNoArgumentMethod(component, "GetModule");
                 if (module != null && targetSpeedLimit > 0)
-                    speedLimitConfigured = TrySetFloatMember(module, "speedLimit", targetSpeedLimit);
-                actualSpeedLimit = GetFloatMember(module, "speedLimit");
+                    TrySetFloatMember(module, "speedLimit", targetSpeedLimit);
             }
         }
-
-        context?.Logger.Info(
-            "AudiRS6R: acceleration dynamics configured " +
-            $"mass={rigidbody?.mass:0.##}, linearDrag={rigidbody?.drag:0.###}, " +
-            $"enginePower={actualEnginePower:0.##}/{targetEnginePower:0.##} (set={enginePowerConfigured}), " +
-            $"speedLimit={actualSpeedLimit:0.##}/{targetSpeedLimit} (set={speedLimitConfigured}).");
     }
 
     private static int ConfigureCenterOfMassModules(VehicleController vehicleController)
@@ -892,16 +864,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 var idleConfigured = TrySetFloatField(module, "idleConsumption", FuelIdleConsumption);
                 if (multiplierConfigured || idleConfigured)
                     moduleField.SetValue(component, module);
-
-                var efficiency = GetFloatMember(module, "efficiency");
-                var enginePower = vehicleController.vehicleType?.enginePower ?? 0f;
-                var derivedMaximum = enginePower / 10f * Mathf.Clamp01(1f - efficiency);
-                context?.Logger.Info(
-                    "AudiRS6R: fuel consumption configured " +
-                    $"multiplier={GetFloatMember(module, "consumptionMultiplier"):0.###}/{FuelConsumptionMultiplier:0.###} " +
-                    $"(set={multiplierConfigured}), idle={GetFloatMember(module, "idleConsumption"):0.###}/" +
-                    $"{FuelIdleConsumption:0.###} (set={idleConfigured}), " +
-                    $"derivedMaxLph={derivedMaximum:0.##} (enginePower={enginePower:0.##}, efficiency={efficiency:0.###}).");
             }
             catch (Exception ex)
             {
@@ -972,12 +934,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         }
 
         return false;
-    }
-
-    private static float GetFloatMember(object? target, string memberName)
-    {
-        var value = GetMemberValue(target, memberName);
-        return value is float result ? result : 0f;
     }
 
     private static object? InvokeNoArgumentMethod(object target, string methodName)

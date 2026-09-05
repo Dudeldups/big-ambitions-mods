@@ -42,7 +42,6 @@ public class AudiRS6RMod : IModBigAmbitions
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
         runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName);
-        context.Logger.Info($"AudiRS6R: registered vehicle type '{vehicleType.vehicleTypeName}'.");
         return Task.CompletedTask;
     }
 
@@ -161,8 +160,6 @@ internal static class AudiRS6RLuxuryDealerStock
                 return true;
 
             ContractItemsForSaleService.SetVehiclesForContact(dealerContactId, mergedStock);
-            context?.Logger.Info(
-                $"AudiRS6R: added '{vehicleName}' to '{dealerContactId}' vehicle catalog ({mergedStock.Count} entries).");
             return true;
         }
         catch (Exception exception)
