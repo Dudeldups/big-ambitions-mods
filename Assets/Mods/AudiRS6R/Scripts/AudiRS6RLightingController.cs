@@ -25,7 +25,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? headlightBeam;
     private Light? leftHeadlightBeam;
     private Light? rightHeadlightBeam;
-    private MeshRenderer? headlightOverlay;
+    private MeshRenderer? leftHeadlightOverlay;
+    private MeshRenderer? rightHeadlightOverlay;
     private MeshRenderer? headlightLensOverlay;
     private MeshRenderer? brakeLightOverlay;
     private MeshRenderer? leftFrontBlinkerOverlay;
@@ -67,10 +68,16 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             preserveSourceShader: true);
         var headlightBeamsConfigured = ConfigureHeadlightBeams();
 
-        headlightOverlay = CreateFunctionalOverlay(
+        leftHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f,
-            "Headlights",
+            position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
+            "LeftHeadlight",
+            Color.white,
+            copyBaseTexture: false);
+        rightHeadlightOverlay = CreateFunctionalOverlay(
+            frontLampRenderer,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
+            "RightHeadlight",
             Color.white,
             copyBaseTexture: false);
         headlightLensOverlay = CreateFunctionalOverlay(
@@ -106,7 +113,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             $"glassConfigured={glassConfigured} headlightBeam={headlightBeam != null} brakesSource={brakes != null} " +
             $"headlightBeamsConfigured={headlightBeamsConfigured} " +
             $"blinkerSource={blinkers != null} functionalOverlays={CountFunctionalOverlays()} " +
-            $"overlayShader=\"{headlightOverlay?.sharedMaterial?.shader?.name ?? "<none>"}\" " +
+            $"overlayShader=\"{leftHeadlightOverlay?.sharedMaterial?.shader?.name ?? "<none>"}\" " +
             $"sourceShaders=[front=\"{frontSourceShader}\",rear=\"{rearSourceShader}\",glass=\"{glassSourceShader}\"]");
     }
 
@@ -433,7 +440,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                            Mathf.Repeat(Time.unscaledTime - blinkerPhaseStartedAt, BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = isBlinking;
 
-        SetRendererState(headlightOverlay, headlights);
+        SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
+        SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
         SetRendererState(headlightLensOverlay, headlights);
         if (headlightBeam != null)
             headlightBeam.enabled = false;
@@ -456,7 +464,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"rawBrakes={rawBraking} brakes={braking} leftBlinker={leftBlinker} " +
                 $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
                 $"beams=[left={IsLightEnabled(leftHeadlightBeam)},right={IsLightEnabled(rightHeadlightBeam)}] " +
-                $"renderers=[head={IsRendererEnabled(headlightOverlay)},lens={IsRendererEnabled(headlightLensOverlay)}," +
+                $"renderers=[headLeft={IsRendererEnabled(leftHeadlightOverlay)}," +
+                $"headRight={IsRendererEnabled(rightHeadlightOverlay)},lens={IsRendererEnabled(headlightLensOverlay)}," +
                 $"brake={IsRendererEnabled(brakeLightOverlay)}," +
                 $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
                 $"rightFront={IsRendererEnabled(rightFrontBlinkerOverlay)},rightRear={IsRendererEnabled(rightRearBlinkerOverlay)}]");
@@ -531,7 +540,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private int CountFunctionalOverlays()
     {
         var count = 0;
-        if (headlightOverlay != null) count++;
+        if (leftHeadlightOverlay != null) count++;
+        if (rightHeadlightOverlay != null) count++;
         if (headlightLensOverlay != null) count++;
         if (brakeLightOverlay != null) count++;
         if (leftFrontBlinkerOverlay != null) count++;
