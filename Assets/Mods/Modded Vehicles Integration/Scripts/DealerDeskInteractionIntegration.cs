@@ -16,7 +16,6 @@ namespace ModdedVehiclesIntegration
     internal sealed class DealerDeskInteractionIntegration
     {
         private const string NoVehiclesNotificationKey = "modded-vehicles-integration:no_mod_vehicles";
-        private const float RuntimeDiagnosticIntervalSeconds = 1f;
 
         private static readonly HashSet<string> InteractiveDealerContactIds = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -25,15 +24,25 @@ namespace ModdedVehiclesIntegration
             "The Hamptons Axis"
         };
 
+        internal static bool IsInteractiveDealerContactId(string? contactId)
+        {
+            return !string.IsNullOrEmpty(contactId) && InteractiveDealerContactIds.Contains(contactId!);
+        }
+
         private Vector3 lastStandingPosition;
         private Quaternion lastStandingRotation;
         private bool hasStandingSnapshot;
         private bool dealerDialogWasOpen;
         private bool failureLogged;
-        private float nextRuntimeDiagnosticAt;
-        private string lastRuntimeDiagnosticSignature = string.Empty;
+        private string lastDiagnosedDealerSignature = string.Empty;
         private SpecialEmployeeController? directInteractionDesk;
         private Action? directInteractionAction;
+        private Action? synchronizeCatalogBeforeDialog;
+
+        internal void SetCatalogSynchronizer(Action synchronizer)
+        {
+            synchronizeCatalogBeforeDialog = synchronizer;
+        }
 
         internal void Update(ModContext? context)
         {
@@ -110,6 +119,7 @@ namespace ModdedVehiclesIntegration
 
             directInteractionDesk = null;
             directInteractionAction = null;
+            synchronizeCatalogBeforeDialog = null;
         }
 
         private void InstallDirectDeskInteraction(ModContext? context)
@@ -140,7 +150,7 @@ namespace ModdedVehiclesIntegration
             CtaManager.ctaAction = directInteractionAction;
         }
 
-        private static void InteractWithDeskDirectly(
+        private void InteractWithDeskDirectly(
             SpecialEmployeeController desk,
             string dealerContactId,
             ModContext? context)
@@ -159,6 +169,15 @@ namespace ModdedVehiclesIntegration
                 $"deskPosition={desk.transform.position}, navTarget={navTarget}, hasRoute={hasRoute}; " +
                 "opening the vehicle-store dialog without moving the player.");
 
+            try
+            {
+                synchronizeCatalogBeforeDialog?.Invoke();
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+            }
+
             var interactionAccepted = desk.Interact();
             InstanceBehavior<OverlayManager>.Instance?.HideSimpleOverlayAndClearCta();
             context?.Logger.Info(
@@ -168,11 +187,6 @@ namespace ModdedVehiclesIntegration
 
         private void LogActiveDealerState(ModContext? context)
         {
-            if (Time.unscaledTime < nextRuntimeDiagnosticAt)
-                return;
-
-            nextRuntimeDiagnosticAt = Time.unscaledTime + RuntimeDiagnosticIntervalSeconds;
-
             var buildingManager = InstanceBehavior<BuildingManager>.Instance;
             var registration = buildingManager?.buildingRegistration;
             var dealerContactId = registration?.BusinessName;
@@ -180,10 +194,15 @@ namespace ModdedVehiclesIntegration
                 string.IsNullOrEmpty(dealerContactId) ||
                 !InteractiveDealerContactIds.Contains(dealerContactId!))
             {
-                lastRuntimeDiagnosticSignature = string.Empty;
+                lastDiagnosedDealerSignature = string.Empty;
                 return;
             }
 
+            var dealerSignature = $"{dealerContactId}|{registration!.Layout}";
+            if (string.Equals(dealerSignature, lastDiagnosedDealerSignature, StringComparison.Ordinal))
+                return;
+
+            lastDiagnosedDealerSignature = dealerSignature;
             var specialEmployeeDesks = UnityEngine.Object.FindObjectsOfType<SpecialEmployeeController>();
             var vehicleStoreDesks = 0;
             foreach (var specialEmployeeDesk in specialEmployeeDesks)
@@ -195,12 +214,6 @@ namespace ModdedVehiclesIntegration
                 }
             }
 
-            var signature =
-                $"{dealerContactId}|{registration!.Layout}|{specialEmployeeDesks.Length}|{vehicleStoreDesks}";
-            if (string.Equals(signature, lastRuntimeDiagnosticSignature, StringComparison.Ordinal))
-                return;
-
-            lastRuntimeDiagnosticSignature = signature;
             var message =
                 $"Modded Vehicles Integration: active dealer diagnostics: dealer='{dealerContactId}', " +
                 $"layout='{registration.Layout}', specialEmployeeDesks={specialEmployeeDesks.Length}, " +
