@@ -17,6 +17,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float BrakeMaxTorque = 18000f;
     private const float CenterOfMassHeight = 0.25f;
     private const float DamageIntensity = 0.5f;
+    private const float DeformationRadius = 0.32f;
+    private const float DeformationStrength = 0.35f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
     private const float LowerBodyColliderHeight = 0.62f;
@@ -140,6 +142,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureSuspension(vehicleController, out var suspensionCount, out var suspensionAdjustedCount);
         ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
         var damageHandlersConfigured = ConfigureDamageHandlers(vehicleController);
+        var deformationControllersConfigured = ConfigureDeformationControllers(vehicleController);
         ConfigureLights(vehicleController, out var lightManagerCount, out var lightSourceCount, out var invalidLightSourceCount);
 
         AudiRS6RDiagnostics.Vehicle(
@@ -154,6 +157,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             $"rearBrakeCoefficient={RearBrakeCoefficient:0.000} handbrakeCoefficient={HandbrakeCoefficient:0.000} " +
             $"antiRollBarForce={AntiRollBarForce:0} brakeModules={brakeModuleCount} axleGroups={axleGroupCount} " +
             $"damageIntensity={DamageIntensity:0.000} damageHandlersConfigured={damageHandlersConfigured} " +
+            $"deformationStrength={DeformationStrength:0.000} deformationRadius={DeformationRadius:0.000} " +
+            $"deformationControllersConfigured={deformationControllersConfigured} " +
             $"lightManagers={lightManagerCount} validLightSources={lightSourceCount} " +
             $"invalidLightSourcesRemoved={invalidLightSourceCount}");
     }
@@ -248,6 +253,30 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             catch (Exception ex)
             {
                 context?.Logger.Warn($"AudiRS6R: could not configure damage handler: {ex.Message}");
+            }
+        }
+
+        return configuredCount;
+    }
+
+    private int ConfigureDeformationControllers(VehicleController vehicleController)
+    {
+        var configuredCount = 0;
+        foreach (var component in vehicleController.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null || component.GetType().Name != "VehicleDeformationController")
+                continue;
+
+            try
+            {
+                var configured = TrySetFloatField(component, "deformationStrength", DeformationStrength);
+                configured |= TrySetFloatField(component, "deformationRadius", DeformationRadius);
+                if (configured)
+                    configuredCount++;
+            }
+            catch (Exception ex)
+            {
+                context?.Logger.Warn($"AudiRS6R: could not configure deformation controller: {ex.Message}");
             }
         }
 
