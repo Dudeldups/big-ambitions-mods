@@ -32,6 +32,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float PassengerExitLocalX = 1.5f;
     private const float RearBrakeCoefficient = 0.55f;
     private const float SuspensionMaxLength = 0.25f;
+    private const float VehicleLinearDrag = 0f;
+    private const float VehicleMass = 2050f;
     private const float VisualBodyLocalHeight = 0.08f;
 
     private static readonly string[] VehicleLightGroupFieldNames =
@@ -298,8 +300,13 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         var rigidbody = vehicleController.GetComponent<Rigidbody>() ?? vehicleController.GetComponentInParent<Rigidbody>();
         ConfigureCenterOfMassModules(vehicleController);
         if (rigidbody != null)
+        {
             rigidbody.centerOfMass = new Vector3(0f, CenterOfMassHeight, 0f);
+            rigidbody.mass = VehicleMass;
+            rigidbody.drag = VehicleLinearDrag;
+        }
 
+        ConfigureAccelerationDynamics(vehicleController, rigidbody);
         ConfigureVisualBodyHeight(vehicleController);
         ConfigureExitMarkers(vehicleController);
         ConfigureBodyColliders(vehicleController, out _, out _);
@@ -309,6 +316,45 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureDeformationControllers(vehicleController);
         ConfigureFuelConsumption(vehicleController);
         ConfigureLights(vehicleController, out _, out _, out _);
+    }
+
+    private void ConfigureAccelerationDynamics(VehicleController vehicleController, Rigidbody? rigidbody)
+    {
+        var targetEnginePower = vehicleController.vehicleType?.enginePower ?? 0f;
+        var targetSpeedLimit = vehicleController.vehicleType?.maxSpeed ?? 0;
+        var enginePowerConfigured = false;
+        var speedLimitConfigured = false;
+        var actualEnginePower = 0f;
+        var actualSpeedLimit = 0f;
+
+        foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
+        {
+            if (component == null)
+                continue;
+
+            var componentType = component.GetType();
+            if (string.Equals(componentType.FullName, "NWH.VehiclePhysics2.VehicleController", StringComparison.Ordinal))
+            {
+                var powertrain = GetMemberValue(component, "powertrain");
+                var engine = GetMemberValue(powertrain, "engine");
+                if (engine != null && targetEnginePower > 0f)
+                    enginePowerConfigured = TrySetFloatMember(engine, "maxPower", targetEnginePower);
+                actualEnginePower = GetFloatMember(engine, "maxPower");
+            }
+            else if (string.Equals(componentType.Name, "SpeedLimiterModuleWrapper", StringComparison.Ordinal))
+            {
+                var module = GetMemberValue(component, "module") ?? InvokeNoArgumentMethod(component, "GetModule");
+                if (module != null && targetSpeedLimit > 0)
+                    speedLimitConfigured = TrySetFloatMember(module, "speedLimit", targetSpeedLimit);
+                actualSpeedLimit = GetFloatMember(module, "speedLimit");
+            }
+        }
+
+        context?.Logger.Info(
+            "AudiRS6R: acceleration dynamics configured " +
+            $"mass={rigidbody?.mass:0.##}, linearDrag={rigidbody?.drag:0.###}, " +
+            $"enginePower={actualEnginePower:0.##}/{targetEnginePower:0.##} (set={enginePowerConfigured}), " +
+            $"speedLimit={actualSpeedLimit:0.##}/{targetSpeedLimit} (set={speedLimitConfigured}).");
     }
 
     private static int ConfigureCenterOfMassModules(VehicleController vehicleController)
@@ -863,6 +909,72 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         field.SetValue(target, value);
         return true;
+    }
+
+    private static object? GetMemberValue(object? target, string memberName)
+    {
+        if (target == null)
+            return null;
+
+        for (var type = target.GetType(); type != null; type = type.BaseType)
+        {
+            var field = type.GetField(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field.GetValue(target);
+
+            var property = type.GetProperty(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (property != null && property.GetIndexParameters().Length == 0)
+                return property.GetValue(target, null);
+        }
+
+        return null;
+    }
+
+    private static bool TrySetFloatMember(object target, string memberName, float value)
+    {
+        for (var type = target.GetType(); type != null; type = type.BaseType)
+        {
+            var field = type.GetField(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null && field.FieldType == typeof(float))
+            {
+                field.SetValue(target, value);
+                return true;
+            }
+
+            var property = type.GetProperty(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (property != null && property.CanWrite && property.PropertyType == typeof(float))
+            {
+                property.SetValue(target, value, null);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static float GetFloatMember(object? target, string memberName)
+    {
+        var value = GetMemberValue(target, memberName);
+        return value is float result ? result : 0f;
+    }
+
+    private static object? InvokeNoArgumentMethod(object target, string methodName)
+    {
+        var method = target.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            Type.EmptyTypes,
+            null);
+        return method?.Invoke(target, null);
     }
 
     private static bool TrySetVector3Field(object target, string fieldName, Vector3 value)
