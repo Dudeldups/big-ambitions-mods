@@ -871,7 +871,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             if (component == null ||
                 !string.Equals(
                     component.GetType().FullName,
-                    "NWH.VehiclePhysics2.Modules.Fuel.FuelModule",
+                    "NWH.VehiclePhysics2.Modules.Fuel.FuelModuleWrapper",
                     StringComparison.Ordinal))
             {
                 continue;
