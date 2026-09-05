@@ -192,6 +192,10 @@ namespace BigHax
             AddToggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings.EnableMaximumEmployeeSatisfaction, value => { settings.EnableMaximumEmployeeSatisfaction = value; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value); });
             AddSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings.EmployeeTrainingSkillIncrease, 10, 100, value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
 
+            AddCategory(Localize("bighax_category_player"));
+            AddToggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings.DisablePlayerHungerAndEnergyDecay, value => { settings.DisablePlayerHungerAndEnergyDecay = value; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_player_happiness_decay_label"), () => settings.DisablePlayerHappinessDecay, value => { settings.DisablePlayerHappinessDecay = value; BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context.ModId, value); });
+
             AddCategory(Localize("bighax_category_business"));
             AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
 
@@ -280,6 +284,7 @@ namespace BigHax
                 Localize("bighax_options_header"),
                 Localize("bighax_category_money"),
                 Localize("bighax_category_employee"),
+                Localize("bighax_category_player"),
                 Localize("bighax_category_business"),
                 Localize("bighax_category_vehicle"),
                 Localize("bighax_category_capacity"),
@@ -291,6 +296,8 @@ namespace BigHax
                 Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
                 Localize("bighax_remove_employee_demands_label"),
                 Localize("bighax_maximum_employee_satisfaction_label"),
+                Localize("bighax_disable_player_hunger_and_energy_decay_label"),
+                Localize("bighax_disable_player_happiness_decay_label"),
                 Localize("bighax_enable_extended_bed_sleep_label"),
                 Localize("bighax_no_vehicle_damage_label"),
                 Localize("bighax_infinite_vehicle_fuel_label"),

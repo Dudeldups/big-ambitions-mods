@@ -32,6 +32,7 @@ namespace BigHax
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
+        private readonly BigHaxPlayerHaxService playerHaxService = new BigHaxPlayerHaxService();
         private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
         private readonly BigHaxExtendedBedSleepLabelService extendedBedSleepLabelService = new BigHaxExtendedBedSleepLabelService();
         private readonly BigHaxSleepTimeAccelerationService sleepTimeAccelerationService = new BigHaxSleepTimeAccelerationService();
@@ -140,6 +141,7 @@ namespace BigHax
             loanLimitService.RestoreOriginalLimit();
             recruitmentCandidateService.Unsubscribe();
             employeeDemandService.Unsubscribe();
+            playerHaxService.Shutdown();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
             extendedBedSleepLabelService.Detach();
             sleepTimeAccelerationService.RestoreOriginalCurve();
@@ -209,6 +211,7 @@ namespace BigHax
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
+                SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));
                 SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
                 SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings));
@@ -332,6 +335,7 @@ namespace BigHax
 
         private void HandleGameLoadedLate()
         {
+            playerHaxService.ApplyConfiguredBehavior(settings!);
             extendedBedSleepLabelService.Attach(settings!);
             // GlobalEvents is reset while a save is loading, after this runtime
             // has been created. Reattach these handlers once the load completes.

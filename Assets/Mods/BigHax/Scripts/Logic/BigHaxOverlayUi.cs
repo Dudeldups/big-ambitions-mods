@@ -244,6 +244,26 @@ namespace BigHax
                         settings.EmployeeTrainingSkillIncrease = value;
                         BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value);
                     });
+                DrawSectionTitle(Localize("bighax_category_player"));
+                DrawToggleOption(
+                    context,
+                    settings.DisablePlayerHungerAndEnergyDecay,
+                    Localize("bighax_disable_player_hunger_and_energy_decay_label"),
+                    value =>
+                    {
+                        settings.DisablePlayerHungerAndEnergyDecay = value;
+                        BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.DisablePlayerHappinessDecay,
+                    Localize("bighax_disable_player_happiness_decay_label"),
+                    value =>
+                    {
+                        settings.DisablePlayerHappinessDecay = value;
+                        BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context.ModId, value);
+                    });
+                DrawSeparator();
                 DrawIntSlider(
                     context,
                     settings,
