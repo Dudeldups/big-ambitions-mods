@@ -16143,7 +16143,7 @@ Rigidbody:
   m_Mass: 2200
   m_Drag: 0.05
   m_AngularDrag: 1.5
-  m_CenterOfMass: {x: 0, y: -0.3, z: 0}
+  m_CenterOfMass: {x: 0, y: 0.25, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
   m_IncludeLayers:
@@ -16309,10 +16309,10 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 14500
+    maxTorque: 18000
     handbrakeType: 0
     handbrakeValue: 0
-    actuationTime: 0.1
+    actuationTime: 0.06
     onBrakesActivate:
       m_PersistentCalls:
         m_Calls: []
@@ -16657,7 +16657,7 @@ MonoBehaviour:
     wheelGroups:
     - name: Front Axle 0
       addAckerman: 1
-      antiRollBarForce: 4200
+      antiRollBarForce: 6500
       brakeCoefficient: 1
       handbrakeCoefficient: 0
       isSolid: 0
@@ -16671,9 +16671,9 @@ MonoBehaviour:
       vc: {fileID: 167550288057349501}
     - name: Rear Axle 1
       addAckerman: 1
-      antiRollBarForce: 4200
-      brakeCoefficient: 0.42
-      handbrakeCoefficient: 1
+      antiRollBarForce: 6500
+      brakeCoefficient: 0.55
+      handbrakeCoefficient: 2
       isSolid: 0
       trackWidth: 0
       steerCoefficient: 0
@@ -17049,8 +17049,8 @@ MonoBehaviour:
   combinedMass: 2200
   dimensions: {x: 1.989083, y: 1.414327, z: 4.584719}
   useDefaultCenterOfMass: 0
-  centerOfMass: {x: 0, y: -0.3, z: 0}
-  combinedCenterOfMass: {x: 0, y: -0.3, z: 0}
+  centerOfMass: {x: 0, y: 0.25, z: 0}
+  combinedCenterOfMass: {x: 0, y: 0.25, z: 0}
   useDefaultInertia: 1
   inertiaTensor: {x: 2222.068, y: 2206.0933, z: 623.19104}
   combinedInertiaTensor: {x: 0, y: 0, z: 0}
@@ -20453,7 +20453,7 @@ Transform:
   m_GameObject: {fileID: 4941002883087958202}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.18, z: 0}
+  m_LocalPosition: {x: 0, y: 0.08, z: 0}
   m_LocalScale: {x: 0.95, y: 0.95000017, z: 0.95000017}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -23210,7 +23210,7 @@ Transform:
   m_GameObject: {fileID: 6077871272308408183}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.18, z: 0}
+  m_LocalPosition: {x: 0, y: 0.08, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
