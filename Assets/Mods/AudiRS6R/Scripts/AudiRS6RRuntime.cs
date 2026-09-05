@@ -9,7 +9,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 {
     private const float DealerRetryInterval = 1f;
     private const float DiagnosticsScanInterval = 1f;
-    private const bool DebugVehicleSpawnEnabled = false;
+    private const bool DebugVehicleSpawnEnabled = true;
     private const float SpawnDistance = 6f;
 
     private bool dealerRegistrationPending;
