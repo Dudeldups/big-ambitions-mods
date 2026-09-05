@@ -458,8 +458,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
         SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
-        SetRendererState(leftHeadlightLensOverlay, headlights && !(leftBlinker && blinkerFlash));
-        SetRendererState(rightHeadlightLensOverlay, headlights && !(rightBlinker && blinkerFlash));
+        SetRendererState(leftHeadlightLensOverlay, headlights);
+        SetRendererState(rightHeadlightLensOverlay, headlights);
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
