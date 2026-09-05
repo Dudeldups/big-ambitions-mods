@@ -33,6 +33,7 @@ namespace ModdedVehiclesIntegration
 
         internal void Shutdown()
         {
+            deskInteractionIntegration.Shutdown();
             catalogIntegration.RestoreExternalCatalogs(context);
             DealerServiceIntegration.Restore(context);
             Destroy(gameObject);

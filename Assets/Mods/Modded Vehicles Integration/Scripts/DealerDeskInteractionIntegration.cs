@@ -5,6 +5,7 @@ using BAModAPI;
 using Buildings;
 using Dialogs;
 using JimmysUnityUtilities;
+using Player.HUD.ItemInfoOverlays;
 using Services;
 using UI.Notification;
 using UnityEngine;
@@ -31,12 +32,15 @@ namespace ModdedVehiclesIntegration
         private bool failureLogged;
         private float nextRuntimeDiagnosticAt;
         private string lastRuntimeDiagnosticSignature = string.Empty;
+        private SpecialEmployeeController? directInteractionDesk;
+        private Action? directInteractionAction;
 
         internal void Update(ModContext? context)
         {
             try
             {
                 LogActiveDealerState(context);
+                InstallDirectDeskInteraction(context);
 
                 var character = InstanceBehavior<GameManager>.Instance?.playerController?.Character;
                 if (character == null)
@@ -97,6 +101,69 @@ namespace ModdedVehiclesIntegration
                 failureLogged = true;
                 context?.Logger.Error(exception);
             }
+        }
+
+        internal void Shutdown()
+        {
+            if (directInteractionAction != null && ReferenceEquals(CtaManager.ctaAction, directInteractionAction))
+                CtaManager.Clear();
+
+            directInteractionDesk = null;
+            directInteractionAction = null;
+        }
+
+        private void InstallDirectDeskInteraction(ModContext? context)
+        {
+            var registration = InstanceBehavior<BuildingManager>.Instance?.buildingRegistration;
+            var dealerContactId = registration?.BusinessName;
+            var selectedDesk = MouseController.currentTargetEntity as SpecialEmployeeController;
+            if (!BuildingManager.IsInsideBuilding ||
+                string.IsNullOrEmpty(dealerContactId) ||
+                !InteractiveDealerContactIds.Contains(dealerContactId!) ||
+                selectedDesk == null ||
+                selectedDesk.GetEmployeeType != SpecialEmployeeController.SpecialEmployeeType.VehicleStore)
+            {
+                if (directInteractionAction != null && ReferenceEquals(CtaManager.ctaAction, directInteractionAction))
+                    CtaManager.Clear();
+
+                directInteractionDesk = null;
+                directInteractionAction = null;
+                return;
+            }
+
+            if (!ReferenceEquals(directInteractionDesk, selectedDesk) || directInteractionAction == null)
+            {
+                directInteractionDesk = selectedDesk;
+                directInteractionAction = () => InteractWithDeskDirectly(selectedDesk, dealerContactId!, context);
+            }
+
+            CtaManager.ctaAction = directInteractionAction;
+        }
+
+        private static void InteractWithDeskDirectly(
+            SpecialEmployeeController desk,
+            string dealerContactId,
+            ModContext? context)
+        {
+            var playerController = InstanceBehavior<GameManager>.Instance?.playerController;
+            var character = playerController?.Character;
+            if (playerController == null || character == null)
+                return;
+
+            var navTarget = desk.GetClosestNavMeshTargetPosition(character.transform.position);
+            var hasRoute = navTarget != Vector3.zero && playerController.ExistsRoute(navTarget, false, desk);
+            playerController.RemoveGoal();
+
+            context?.Logger.Info(
+                $"Modded Vehicles Integration: direct dealer desk click at '{dealerContactId}': " +
+                $"deskPosition={desk.transform.position}, navTarget={navTarget}, hasRoute={hasRoute}; " +
+                "opening the vehicle-store dialog without moving the player.");
+
+            var interactionAccepted = desk.Interact();
+            InstanceBehavior<OverlayManager>.Instance?.HideSimpleOverlayAndClearCta();
+            context?.Logger.Info(
+                $"Modded Vehicles Integration: direct dealer desk interaction returned {interactionAccepted} " +
+                $"for '{dealerContactId}'.");
         }
 
         private void LogActiveDealerState(ModContext? context)
