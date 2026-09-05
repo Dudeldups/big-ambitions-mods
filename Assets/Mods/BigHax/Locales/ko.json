@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "이 작업은 되돌릴 수 없습니다",
   "bighax_unlock_all_contacts_confirmation": "모든 사업 연락처를 잠금 해제할까요? 이 작업은 되돌릴 수 없습니다.",
   "bighax_unlock_all_courses_confirmation": "모든 과정을 완료할까요? 이 작업은 되돌릴 수 없습니다.",
-  "bighax_unlock_confirmation_button": "모두 잠금 해제"
+  "bighax_unlock_confirmation_button": "모두 잠금 해제",
+  "bighax_enable_instant_imports_label": "즉시 수입",
+  "bighax_enable_instant_furniture_deliveries_label": "즉시 가구 배달"
 }

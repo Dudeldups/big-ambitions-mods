@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Это действие нельзя отменить",
   "bighax_unlock_all_contacts_confirmation": "Разблокировать все деловые контакты? Это действие нельзя отменить.",
   "bighax_unlock_all_courses_confirmation": "Пройти все курсы? Это действие нельзя отменить.",
-  "bighax_unlock_confirmation_button": "Разблокировать всё"
+  "bighax_unlock_confirmation_button": "Разблокировать всё",
+  "bighax_enable_instant_imports_label": "Мгновенный импорт",
+  "bighax_enable_instant_furniture_deliveries_label": "Мгновенная доставка мебели"
 }

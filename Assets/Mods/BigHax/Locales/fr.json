@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Cette action est irréversible",
   "bighax_unlock_all_contacts_confirmation": "Débloquer tous les contacts professionnels ? Cette action est irréversible.",
   "bighax_unlock_all_courses_confirmation": "Terminer tous les cours ? Cette action est irréversible.",
-  "bighax_unlock_confirmation_button": "Tout débloquer"
+  "bighax_unlock_confirmation_button": "Tout débloquer",
+  "bighax_enable_instant_imports_label": "Importations instantanées",
+  "bighax_enable_instant_furniture_deliveries_label": "Livraisons de meubles instantanées"
 }

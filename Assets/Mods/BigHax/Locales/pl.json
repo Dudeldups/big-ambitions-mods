@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Tej akcji nie można cofnąć",
   "bighax_unlock_all_contacts_confirmation": "Odblokować wszystkie kontakty biznesowe? Tej akcji nie można cofnąć.",
   "bighax_unlock_all_courses_confirmation": "Ukończyć wszystkie kursy? Tej akcji nie można cofnąć.",
-  "bighax_unlock_confirmation_button": "Odblokuj wszystko"
+  "bighax_unlock_confirmation_button": "Odblokuj wszystko",
+  "bighax_enable_instant_imports_label": "Natychmiastowy import",
+  "bighax_enable_instant_furniture_deliveries_label": "Natychmiastowe dostawy mebli"
 }

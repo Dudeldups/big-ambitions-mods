@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Toimintoa ei voi kumota",
   "bighax_unlock_all_contacts_confirmation": "Avataanko kaikki liikekontaktit? Toimintoa ei voi kumota.",
   "bighax_unlock_all_courses_confirmation": "Suoritetaanko kaikki kurssit? Toimintoa ei voi kumota.",
-  "bighax_unlock_confirmation_button": "Avaa kaikki"
+  "bighax_unlock_confirmation_button": "Avaa kaikki",
+  "bighax_enable_instant_imports_label": "Välittömät tuonnit",
+  "bighax_enable_instant_furniture_deliveries_label": "Välittömät huonekalutoimitukset"
 }

@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Questa azione non può essere annullata",
   "bighax_unlock_all_contacts_confirmation": "Sbloccare tutti i contatti commerciali? Questa azione non può essere annullata.",
   "bighax_unlock_all_courses_confirmation": "Completare tutti i corsi? Questa azione non può essere annullata.",
-  "bighax_unlock_confirmation_button": "Sblocca tutto"
+  "bighax_unlock_confirmation_button": "Sblocca tutto",
+  "bighax_enable_instant_imports_label": "Importazioni istantanee",
+  "bighax_enable_instant_furniture_deliveries_label": "Consegne di mobili istantanee"
 }

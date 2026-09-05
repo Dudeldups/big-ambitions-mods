@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Deze actie kan niet ongedaan worden gemaakt",
   "bighax_unlock_all_contacts_confirmation": "Alle zakelijke contacten ontgrendelen? Deze actie kan niet ongedaan worden gemaakt.",
   "bighax_unlock_all_courses_confirmation": "Alle cursussen voltooien? Deze actie kan niet ongedaan worden gemaakt.",
-  "bighax_unlock_confirmation_button": "Alles ontgrendelen"
+  "bighax_unlock_confirmation_button": "Alles ontgrendelen",
+  "bighax_enable_instant_imports_label": "Directe importen",
+  "bighax_enable_instant_furniture_deliveries_label": "Directe meubelleveringen"
 }

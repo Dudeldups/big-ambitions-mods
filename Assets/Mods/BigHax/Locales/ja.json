@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "この操作は元に戻せません",
   "bighax_unlock_all_contacts_confirmation": "すべてのビジネス連絡先をアンロックしますか？この操作は元に戻せません。",
   "bighax_unlock_all_courses_confirmation": "すべてのコースを修了しますか？この操作は元に戻せません。",
-  "bighax_unlock_confirmation_button": "すべてアンロック"
+  "bighax_unlock_confirmation_button": "すべてアンロック",
+  "bighax_enable_instant_imports_label": "即時輸入",
+  "bighax_enable_instant_furniture_deliveries_label": "即時家具配達"
 }

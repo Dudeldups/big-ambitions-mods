@@ -60,6 +60,14 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.DisablePlayerHappinessDecay,
                 BigHaxSettings.DefaultDisablePlayerHappinessDecay);
+            settings.EnableInstantImports = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableInstantImports,
+                BigHaxSettings.DefaultEnableInstantImports);
+            settings.EnableInstantFurnitureDeliveries = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableInstantFurnitureDeliveries,
+                BigHaxSettings.DefaultEnableInstantFurnitureDeliveries);
             settings.EnableExtendedBedSleep = LoadBool(
                 modId,
                 BigHaxOptionIds.EnableExtendedBedSleep,
@@ -160,6 +168,16 @@ namespace BigHax
         public static void SaveDisablePlayerHappinessDecay(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.DisablePlayerHappinessDecay, value);
+        }
+
+        public static void SaveEnableInstantImports(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableInstantImports, value);
+        }
+
+        public static void SaveEnableInstantFurnitureDeliveries(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableInstantFurnitureDeliveries, value);
         }
 
         public static void SaveEnableExtendedBedSleep(string modId, bool value)

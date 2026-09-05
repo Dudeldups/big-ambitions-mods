@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Šio veiksmo negalima atšaukti",
   "bighax_unlock_all_contacts_confirmation": "Atrakinti visus verslo kontaktus? Šio veiksmo negalima atšaukti.",
   "bighax_unlock_all_courses_confirmation": "Baigti visus kursus? Šio veiksmo negalima atšaukti.",
-  "bighax_unlock_confirmation_button": "Atrakinti viską"
+  "bighax_unlock_confirmation_button": "Atrakinti viską",
+  "bighax_enable_instant_imports_label": "Momentinis importas",
+  "bighax_enable_instant_furniture_deliveries_label": "Momentinis baldų pristatymas"
 }

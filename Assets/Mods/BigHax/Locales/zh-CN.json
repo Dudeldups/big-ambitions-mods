@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "此操作无法撤销",
   "bighax_unlock_all_contacts_confirmation": "解锁所有商务联系人？此操作无法撤销。",
   "bighax_unlock_all_courses_confirmation": "完成所有课程？此操作无法撤销。",
-  "bighax_unlock_confirmation_button": "全部解锁"
+  "bighax_unlock_confirmation_button": "全部解锁",
+  "bighax_enable_instant_imports_label": "即时进口",
+  "bighax_enable_instant_furniture_deliveries_label": "即时家具配送"
 }

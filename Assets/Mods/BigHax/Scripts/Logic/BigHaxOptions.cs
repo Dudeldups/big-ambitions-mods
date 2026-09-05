@@ -28,6 +28,8 @@ namespace BigHax
         public const string EnableMaximumEmployeeSatisfaction = "big_hax_enable_maximum_employee_satisfaction";
         public const string DisablePlayerHungerAndEnergyDecay = "big_hax_disable_player_hunger_and_energy_decay";
         public const string DisablePlayerHappinessDecay = "big_hax_disable_player_happiness_decay";
+        public const string EnableInstantImports = "big_hax_enable_instant_imports";
+        public const string EnableInstantFurnitureDeliveries = "big_hax_enable_instant_furniture_deliveries";
         public const string EnableExtendedBedSleep = "big_hax_enable_extended_bed_sleep";
         public const string EnableNoVehicleDamage = "big_hax_enable_no_vehicle_damage";
         public const string EnableInfiniteVehicleFuel = "big_hax_enable_infinite_vehicle_fuel";

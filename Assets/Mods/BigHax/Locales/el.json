@@ -41,5 +41,7 @@
   "bighax_unlock_confirmation_title": "Αυτή η ενέργεια δεν αναιρείται",
   "bighax_unlock_all_contacts_confirmation": "Ξεκλείδωμα όλων των επαγγελματικών επαφών; Αυτή η ενέργεια δεν αναιρείται.",
   "bighax_unlock_all_courses_confirmation": "Ολοκλήρωση όλων των μαθημάτων; Αυτή η ενέργεια δεν αναιρείται.",
-  "bighax_unlock_confirmation_button": "Ξεκλείδωμα όλων"
+  "bighax_unlock_confirmation_button": "Ξεκλείδωμα όλων",
+  "bighax_enable_instant_imports_label": "Άμεσες εισαγωγές",
+  "bighax_enable_instant_furniture_deliveries_label": "Άμεσες παραδόσεις επίπλων"
 }
