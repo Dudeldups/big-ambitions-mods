@@ -18333,7 +18333,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 16000
-    maxLength: 0.42
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -19128,7 +19128,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 16000
-    maxLength: 0.42
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -25908,7 +25908,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 16000
-    maxLength: 0.42
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -31349,7 +31349,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 16000
-    maxLength: 0.42
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0

@@ -152,9 +152,9 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
 
         var collisionAge = hasCollisionSnapshot ? Time.unscaledTime - lastCollision.Time : float.PositiveInfinity;
         var hasRecentCollision = hasCollisionSnapshot && collisionAge >= 0f && collisionAge <= CollisionCorrelationWindow;
-        var conditionWorsened = damageDelta > DamageTolerance || deformationDelta > 0;
+        var damageIncreased = damageDelta > DamageTolerance;
 
-        if (conditionWorsened)
+        if (damageIncreased)
         {
             var classification = ClassifyDamage(hasRecentCollision);
             var collisionContext = hasRecentCollision
@@ -164,6 +164,18 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
             AudiRS6RDiagnostics.Damage(
                 $"classification={classification} {VehicleIdentity()} " +
                 $"damage={lastDamage:0.000000}->{currentDamage:0.000000} delta={damageDelta:+0.000000;-0.000000;0.000000} " +
+                $"deformations={lastDeformationCount}->{currentDeformationCount} delta={deformationDelta:+0;-0;0} " +
+                $"state=[{BuildMotionState()}] collision=[{collisionContext}]");
+        }
+        else if (deformationDelta > 0)
+        {
+            var collisionContext = hasRecentCollision
+                ? $"age={collisionAge:0.000}s {lastCollision.Describe()}"
+                : "none within correlation window";
+
+            AudiRS6RDiagnostics.Vehicle(
+                "DEFORMATION_EVENT",
+                $"{VehicleIdentity()} damageUnchanged={currentDamage:0.000000} " +
                 $"deformations={lastDeformationCount}->{currentDeformationCount} delta={deformationDelta:+0;-0;0} " +
                 $"state=[{BuildMotionState()}] collision=[{collisionContext}]");
         }
@@ -288,17 +300,38 @@ internal sealed class AudiRS6RVehicleDiagnostics : MonoBehaviour
 
     private static bool IsRoadLike(string name, string path, string tag, string layerName)
     {
-        var combined = $"{name} {path} {tag} {layerName}".ToLowerInvariant();
-        return combined.Contains("road") ||
-               combined.Contains("street") ||
-               combined.Contains("asphalt") ||
-               combined.Contains("ground") ||
-               combined.Contains("terrain") ||
-               combined.Contains("sidewalk") ||
-               combined.Contains("pavement") ||
-               combined.Contains("curb") ||
-               combined.Contains("kerb") ||
-               combined.Contains("bridge");
+        var objectIdentity = $"{name} {path} {tag}".ToLowerInvariant();
+        var normalizedLayerName = layerName.ToLowerInvariant();
+
+        if (normalizedLayerName.Contains("prop") ||
+            objectIdentity.Contains("barricade") ||
+            objectIdentity.Contains("delimiter") ||
+            objectIdentity.Contains("barrier") ||
+            objectIdentity.Contains("bollard") ||
+            objectIdentity.Contains("curb") ||
+            objectIdentity.Contains("kerb") ||
+            objectIdentity.Contains("sidewalk") ||
+            objectIdentity.Contains("pavement"))
+        {
+            return false;
+        }
+
+        if (normalizedLayerName == "ground" ||
+            normalizedLayerName == "terrain" ||
+            normalizedLayerName == "road" ||
+            normalizedLayerName == "roads")
+        {
+            return true;
+        }
+
+        return objectIdentity.Contains("groundplane") ||
+               objectIdentity.Contains("ground_plane") ||
+               objectIdentity.Contains("roadmesh") ||
+               objectIdentity.Contains("road_mesh") ||
+               objectIdentity.Contains("roadsurface") ||
+               objectIdentity.Contains("road_surface") ||
+               objectIdentity.Contains("asphalt") ||
+               objectIdentity.Contains("terrain");
     }
 
     private static string GetHierarchyPath(Transform? target)
