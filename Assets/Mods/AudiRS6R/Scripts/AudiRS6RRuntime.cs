@@ -23,9 +23,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float DriverExitLocalX = -1.5f;
     private const float ExitLocalY = 0.1f;
     private const float ExitLocalZ = 0.117f;
-    private const float FuelConsumptionMultiplier = 27f;
+    private const float FuelConsumptionMultiplier = 12f;
     private const float FuelIdleConsumption = 0.045f;
-    private const float FuelMaxConsumptionPerHour = 9f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
     private const float LowerBodyColliderHeight = 0.62f;
@@ -866,6 +865,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void ConfigureFuelConsumption(VehicleController vehicleController)
     {
+        var fuelModuleFound = false;
         foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
         {
             if (component == null ||
@@ -877,6 +877,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 continue;
             }
 
+            fuelModuleFound = true;
             try
             {
                 var moduleField = component.GetType().GetField(
@@ -886,17 +887,30 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 if (moduleField == null || module == null)
                     continue;
 
-                var configured = TrySetFloatField(module, "consumptionMultiplier", FuelConsumptionMultiplier);
-                configured |= TrySetFloatField(module, "idleConsumption", FuelIdleConsumption);
-                configured |= TrySetFloatField(module, "maxConsumptionPerHour", FuelMaxConsumptionPerHour);
-                if (configured)
+                var multiplierConfigured =
+                    TrySetFloatField(module, "consumptionMultiplier", FuelConsumptionMultiplier);
+                var idleConfigured = TrySetFloatField(module, "idleConsumption", FuelIdleConsumption);
+                if (multiplierConfigured || idleConfigured)
                     moduleField.SetValue(component, module);
+
+                var efficiency = GetFloatMember(module, "efficiency");
+                var enginePower = vehicleController.vehicleType?.enginePower ?? 0f;
+                var derivedMaximum = enginePower / 10f * Mathf.Clamp01(1f - efficiency);
+                context?.Logger.Info(
+                    "AudiRS6R: fuel consumption configured " +
+                    $"multiplier={GetFloatMember(module, "consumptionMultiplier"):0.###}/{FuelConsumptionMultiplier:0.###} " +
+                    $"(set={multiplierConfigured}), idle={GetFloatMember(module, "idleConsumption"):0.###}/" +
+                    $"{FuelIdleConsumption:0.###} (set={idleConfigured}), " +
+                    $"derivedMaxLph={derivedMaximum:0.##} (enginePower={enginePower:0.##}, efficiency={efficiency:0.###}).");
             }
             catch (Exception ex)
             {
                 context?.Logger.Warn($"AudiRS6R: could not configure fuel consumption: {ex.Message}");
             }
         }
+
+        if (!fuelModuleFound)
+            context?.Logger.Warn("AudiRS6R: fuel module was not found on the configured vehicle.");
     }
 
     private static bool TrySetFloatField(object target, string fieldName, float value)
