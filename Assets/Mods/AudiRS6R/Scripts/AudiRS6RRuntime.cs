@@ -11,7 +11,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 {
     private const float DealerRetryInterval = 1f;
     private const float VehicleScanInterval = 1f;
-    private const bool DebugVehicleSpawnEnabled = true;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
     private const float BrakeMaxTorque = 18000f;
@@ -22,12 +21,14 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float DriverExitLocalX = -1.5f;
     private const float ExitLocalY = 0.1f;
     private const float ExitLocalZ = 0.117f;
+    private const float FuelConsumptionMultiplier = 27f;
+    private const float FuelIdleConsumption = 0.045f;
+    private const float FuelMaxConsumptionPerHour = 9f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
     private const float LowerBodyColliderHeight = 0.62f;
     private const float PassengerExitLocalX = 1.5f;
     private const float RearBrakeCoefficient = 0.55f;
-    private const float SpawnDistance = 6f;
     private const float SuspensionMaxLength = 0.25f;
     private const float VisualBodyLocalHeight = 0.08f;
 
@@ -89,9 +90,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             }
         }
 
-        if (DebugVehicleSpawnEnabled && Input.GetKeyDown(KeyCode.F9))
-            TrySpawnVehicleInFrontOfPlayer();
-
         if (Time.unscaledTime >= nextVehicleScanAt)
         {
             EnsureVehiclesConfigured();
@@ -147,6 +145,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureBrakes(vehicleController, out _, out _);
         ConfigureDamageHandlers(vehicleController);
         ConfigureDeformationControllers(vehicleController);
+        ConfigureFuelConsumption(vehicleController);
         ConfigureLights(vehicleController, out _, out _, out _);
     }
 
@@ -657,6 +656,41 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         }
     }
 
+    private void ConfigureFuelConsumption(VehicleController vehicleController)
+    {
+        foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
+        {
+            if (component == null ||
+                !string.Equals(
+                    component.GetType().FullName,
+                    "NWH.VehiclePhysics2.Modules.Fuel.FuelModule",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                var moduleField = component.GetType().GetField(
+                    "module",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var module = moduleField?.GetValue(component);
+                if (moduleField == null || module == null)
+                    continue;
+
+                var configured = TrySetFloatField(module, "consumptionMultiplier", FuelConsumptionMultiplier);
+                configured |= TrySetFloatField(module, "idleConsumption", FuelIdleConsumption);
+                configured |= TrySetFloatField(module, "maxConsumptionPerHour", FuelMaxConsumptionPerHour);
+                if (configured)
+                    moduleField.SetValue(component, module);
+            }
+            catch (Exception ex)
+            {
+                context?.Logger.Warn($"AudiRS6R: could not configure fuel consumption: {ex.Message}");
+            }
+        }
+    }
+
     private static bool TrySetFloatField(object target, string fieldName, float value)
     {
         var field = target.GetType().GetField(
@@ -736,80 +770,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         if (string.IsNullOrWhiteSpace(vehicleTypeName))
             return false;
 
-        try
-        {
-            var dealerType = Type.GetType("BackAlleyDealer.BackAlleyDealerInit, BackAlleyDealer");
-            var dealerInstance = dealerType?.GetProperty("Instance")?.GetValue(null);
-            var registerMethod = dealerType?.GetMethod("RegisterVehicle");
-            if (dealerInstance == null || registerMethod == null)
-                return false;
-
-            registerMethod.Invoke(dealerInstance, new object[] { vehicleTypeName });
-            return true;
-        }
-        catch (Exception ex)
-        {
-            context?.Logger.Warn($"AudiRS6R: dealer sync failed: {ex.Message}");
-            return false;
-        }
-    }
-
-    private void TrySpawnVehicleInFrontOfPlayer()
-    {
-        if (string.IsNullOrWhiteSpace(vehicleTypeName))
-        {
-            Debug.LogWarning("AudiRS6R: no vehicle type configured for F9 spawn.");
-            return;
-        }
-
-        var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
-        if (vehicleType == null)
-        {
-            Debug.LogWarning($"AudiRS6R: vehicle type '{vehicleTypeName}' is not registered.");
-            return;
-        }
-
-        var playerController = GameManager.Instance?.playerController;
-        if (playerController == null)
-        {
-            Debug.LogWarning("AudiRS6R: player controller unavailable, cannot spawn vehicle.");
-            return;
-        }
-
-        var spawnRotation = playerController.transform.rotation;
-        var spawnPosition = playerController.transform.position + playerController.transform.forward * SpawnDistance;
-        spawnPosition.y += 0.5f;
-
-        var vehicleInstance = new VehicleInstance(vehicleTypeName)
-        {
-            id = CreateVehicleId(),
-            fuel = vehicleType.maxFuel * 0.98f
-        };
-
-        VehicleHelper.CreateAndSpawnVehicle(vehicleInstance, spawnPosition, spawnRotation);
-        TrySnapSpawnedVehicleToGround(vehicleInstance.id, spawnPosition, spawnRotation);
-        EnsureVehiclesConfigured();
-        Debug.Log($"AudiRS6R: spawned '{vehicleTypeName}' with id '{vehicleInstance.id}'.");
-    }
-
-    private static void TrySnapSpawnedVehicleToGround(string vehicleId, Vector3 spawnPosition, Quaternion spawnRotation)
-    {
-        var allPlayerVehicles = VehicleHelper.AllPlayerVehicles;
-        if (allPlayerVehicles == null)
-            return;
-
-        foreach (var vehicleController in allPlayerVehicles)
-        {
-            if (vehicleController?.vehicleInstance == null || vehicleController.vehicleInstance.id != vehicleId)
-                continue;
-
-            VehicleHelper.TeleportVehicleToGround(vehicleController, spawnPosition, spawnRotation);
-            return;
-        }
-    }
-
-    private static string CreateVehicleId()
-    {
-        return Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+        return AudiRS6RMod.TryRegisterWithBackAlleyDealer(vehicleTypeName, context);
     }
 }

@@ -16971,10 +16971,10 @@ MonoBehaviour:
     useFuel: 1
     amount: 62
     capacity: 62
-    consumptionMultiplier: 60
+    consumptionMultiplier: 27
     efficiency: 0.45
-    idleConsumption: 0.1
-    maxConsumptionPerHour: 20
+    idleConsumption: 0.045
+    maxConsumptionPerHour: 9
     onOutOfFuel:
       m_PersistentCalls:
         m_Calls: []
