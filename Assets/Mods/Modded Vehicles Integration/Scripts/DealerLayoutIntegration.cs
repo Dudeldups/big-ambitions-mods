@@ -5,6 +5,7 @@ using BAModAPI;
 using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
+using UnityEngine;
 
 namespace ModdedVehiclesIntegration
 {
@@ -13,6 +14,7 @@ namespace ModdedVehiclesIntegration
         private const string CarDealershipBusinessType = "ba:businesstype_cardealership";
         private const string VehicleStoreDeskItem = "ba:itemname_specialemployeedesk";
         private const string VehicleStoreCustomValue = "VehicleStore";
+        private const float CustomerChairDistance = 1.5f;
 
         private static readonly LayoutDefinition[] Layouts =
         {
@@ -100,6 +102,7 @@ namespace ModdedVehiclesIntegration
             }
 
             var customerChair = CloneChair(employeeChair);
+            PositionCustomerChair(desk, customerChair);
             var originalStackedItems = desk.stackedItems ?? new List<AttachableChild>();
             var updatedStackedItems = new List<AttachableChild>(originalStackedItems)
             {
@@ -172,6 +175,19 @@ namespace ModdedVehiclesIntegration
                 worldSpaceTextValue = source.worldSpaceTextValue ?? string.Empty,
                 linkedItemName = source.linkedItemName
             };
+        }
+
+        private static void PositionCustomerChair(
+            BusinessLayoutSets.Item desk,
+            BusinessLayoutSets.Item customerChair)
+        {
+            Quaternion deskRotation = desk.rotation;
+            var offset = deskRotation * Vector3.back * CustomerChairDistance;
+            customerChair.position = new SerializableVector3(
+                desk.position.x + offset.x,
+                customerChair.position.y,
+                desk.position.z + offset.z);
+            customerChair.rotation = desk.rotation;
         }
 
         private sealed class LayoutDefinition

@@ -9,6 +9,8 @@ namespace ModdedVehiclesIntegration
         private const float RefreshIntervalSeconds = 2f;
 
         private readonly DealerCatalogIntegration catalogIntegration = new DealerCatalogIntegration();
+        private readonly DealerDeskInteractionIntegration deskInteractionIntegration =
+            new DealerDeskInteractionIntegration();
         private ModContext? context;
         private object? currentSave;
         private float nextRefreshAt;
@@ -38,6 +40,8 @@ namespace ModdedVehiclesIntegration
 
         private void Update()
         {
+            deskInteractionIntegration.Update(context);
+
             if (Time.unscaledTime < nextRefreshAt)
                 return;
 

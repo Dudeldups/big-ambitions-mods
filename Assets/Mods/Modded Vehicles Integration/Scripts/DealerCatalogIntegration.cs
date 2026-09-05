@@ -84,9 +84,15 @@ namespace ModdedVehiclesIntegration
             foreach (var dealerContactId in DealerContactIds)
             {
                 var state = states[dealerContactId];
+                var registeredModStock = new List<string>();
+                foreach (var vehicleTypeName in state.ExternalStock)
+                {
+                    if (VehicleTypeHelper.IsModVehicleType(vehicleTypeName))
+                        AddUnique(registeredModStock, vehicleTypeName);
+                }
+
                 var desiredStock = new List<string>();
-                AddUniqueRange(desiredStock, vanillaStockByDealer[dealerContactId]);
-                AddUniqueRange(desiredStock, state.ExternalStock);
+                AddUniqueRange(desiredStock, registeredModStock);
                 if (LuxuryDealerContactIds.Contains(dealerContactId))
                     AddUniqueRange(desiredStock, fallbackLuxuryVehicles);
 
@@ -107,15 +113,15 @@ namespace ModdedVehiclesIntegration
                 var diagnosticSignature = string.Join(
                     "|",
                     vanillaStockByDealer[dealerContactId].Count,
-                    state.ExternalStock.Count,
+                    registeredModStock.Count,
                     assignedFallbackCount,
                     desiredStock.Count);
                 if (!string.Equals(state.LastDiagnosticSignature, diagnosticSignature, StringComparison.Ordinal))
                 {
                     context?.Logger.Info(
                         $"Modded Vehicles Integration: dealer catalogue ready for '{dealerContactId}': " +
-                        $"vanilla={vanillaStockByDealer[dealerContactId].Count}, " +
-                        $"registeredByMods={state.ExternalStock.Count}, fallback={assignedFallbackCount}, " +
+                        $"vanillaExcluded={vanillaStockByDealer[dealerContactId].Count}, " +
+                        $"registeredByMods={registeredModStock.Count}, fallback={assignedFallbackCount}, " +
                         $"total={desiredStock.Count}.");
                     state.LastDiagnosticSignature = diagnosticSignature;
                 }
