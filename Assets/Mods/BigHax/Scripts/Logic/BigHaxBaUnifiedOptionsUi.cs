@@ -25,6 +25,8 @@ namespace BigHax
 
         private readonly BaUiReflection api;
         private readonly Action close;
+        private readonly Action? confirmUnlockAllContacts;
+        private readonly Action? confirmUnlockAllCourses;
         private GameObject? root;
         private RectTransform? content;
         private ModContext? context;
@@ -33,10 +35,12 @@ namespace BigHax
         private bool rebuildForLanguageChange;
         private string localizationSignature = string.Empty;
 
-        private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close)
+        private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close, Action? unlockAllContacts, Action? unlockAllCourses)
         {
             this.api = api;
             this.close = close;
+            confirmUnlockAllContacts = unlockAllContacts;
+            confirmUnlockAllCourses = unlockAllCourses;
             LocalizorManager.OnLanguageChanged += HandleLanguageChanged;
         }
 
@@ -54,6 +58,8 @@ namespace BigHax
             BigHaxSettings settings,
             bool visible,
             Action close,
+            Action? unlockAllContacts,
+            Action? unlockAllCourses,
             out BigHaxBaUnifiedOptionsUi? ui,
             out string reason)
         {
@@ -67,7 +73,7 @@ namespace BigHax
                 return false;
             }
 
-            var candidate = new BigHaxBaUnifiedOptionsUi(api, close);
+            var candidate = new BigHaxBaUnifiedOptionsUi(api, close, unlockAllContacts, unlockAllCourses);
             try
             {
                 candidate.EnsureCreated(context, settings, visible);
@@ -181,38 +187,39 @@ namespace BigHax
             scroll.verticalScrollbar = scrollbar;
             scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
 
-            AddToggle(Localize("bighax_disable_casino_bet_limit_label"),
-                () => settings.DisableCasinoBetLimit,
-                value => { settings.DisableCasinoBetLimit = value; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context.ModId, value); });
-            AddToggle(Localize("bighax_disable_illegal_parking_penalties_label"),
-                () => settings.DisableIllegalParkingPenalties,
-                value => { settings.DisableIllegalParkingPenalties = value; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context.ModId, value); });
-            AddToggle(Localize("bighax_disable_investment_limit_label"),
-                () => settings.DisableInvestmentLimit,
-                value => { settings.DisableInvestmentLimit = value; BigHaxOptionPersistence.SaveDisableInvestmentLimit(context.ModId, value); });
-            AddToggle(Localize("bighax_vantander_maximum_loan_override_label"),
-                () => settings.EnableVantanderMaxLoanOverride,
-                value => { settings.EnableVantanderMaxLoanOverride = value; BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value); });
-            AddToggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
-                () => settings.EnableRecruitmentCandidateMaximumSkill,
-                value => { settings.EnableRecruitmentCandidateMaximumSkill = value; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context.ModId, value); });
-            AddToggle(Localize("bighax_remove_employee_demands_label"),
-                () => settings.RemoveEmployeeDemands,
-                value => { settings.RemoveEmployeeDemands = value; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value); });
-            AddToggle(Localize("bighax_enable_extended_bed_sleep_label"),
-                () => settings.EnableExtendedBedSleep,
-                value => { settings.EnableExtendedBedSleep = value; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context.ModId, value); });
-            AddToggle(Localize("bighax_active_vehicle_enabled_label"),
-                () => settings.EnableActiveVehicleCapacityOverride,
-                value => { settings.EnableActiveVehicleCapacityOverride = value; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, value); });
+            AddCategory(Localize("bighax_category_money"));
+            AddToggle(Localize("bighax_disable_casino_bet_limit_label"), () => settings.DisableCasinoBetLimit, value => { settings.DisableCasinoBetLimit = value; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_investment_limit_label"), () => settings.DisableInvestmentLimit, value => { settings.DisableInvestmentLimit = value; BigHaxOptionPersistence.SaveDisableInvestmentLimit(context.ModId, value); });
+            AddToggle(Localize("bighax_vantander_maximum_loan_override_label"), () => settings.EnableVantanderMaxLoanOverride, value => { settings.EnableVantanderMaxLoanOverride = value; BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context.ModId, value); });
 
-            AddSlider(Localize("bighax_customer_traffic_multiplier_label"),
-                () => settings.CustomerTrafficMultiplierIndex, 0, 5,
-                value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); },
-                value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
-            AddSlider(Localize("bighax_employee_training_skill_increase_label"),
-                () => settings.EmployeeTrainingSkillIncrease, 10, 100,
-                value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
+            AddCategory(Localize("bighax_category_employee"));
+            AddToggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"), () => settings.EnableRecruitmentCandidateMaximumSkill, value => { settings.EnableRecruitmentCandidateMaximumSkill = value; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context.ModId, value); });
+            AddToggle(Localize("bighax_remove_employee_demands_label"), () => settings.RemoveEmployeeDemands, value => { settings.RemoveEmployeeDemands = value; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value); });
+            AddToggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings.EnableMaximumEmployeeSatisfaction, value => { settings.EnableMaximumEmployeeSatisfaction = value; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value); });
+            AddSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings.EmployeeTrainingSkillIncrease, 10, 100, value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
+
+            AddCategory(Localize("bighax_category_player"));
+            AddToggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings.DisablePlayerHungerAndEnergyDecay, value => { settings.DisablePlayerHungerAndEnergyDecay = value; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_player_happiness_decay_label"), () => settings.DisablePlayerHappinessDecay, value => { settings.DisablePlayerHappinessDecay = value; BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context.ModId, value); });
+
+            AddCategory(Localize("bighax_category_unlock"));
+            AddActionButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
+            AddActionButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
+
+            AddCategory(Localize("bighax_category_business"));
+            AddToggle(Localize("bighax_enable_instant_imports_label"), () => settings.EnableInstantImports, value => { settings.EnableInstantImports = value; BigHaxOptionPersistence.SaveEnableInstantImports(context.ModId, value); });
+            AddToggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings.EnableInstantFurnitureDeliveries, value => { settings.EnableInstantFurnitureDeliveries = value; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value); });
+            AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
+
+            AddCategory(Localize("bighax_category_vehicle"));
+            AddToggle(Localize("bighax_disable_illegal_parking_penalties_label"), () => settings.DisableIllegalParkingPenalties, value => { settings.DisableIllegalParkingPenalties = value; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context.ModId, value); });
+            AddToggle(Localize("bighax_no_vehicle_damage_label"), () => settings.EnableNoVehicleDamage, value => { settings.EnableNoVehicleDamage = value; BigHaxOptionPersistence.SaveEnableNoVehicleDamage(context.ModId, value); });
+            AddToggle(Localize("bighax_infinite_vehicle_fuel_label"), () => settings.EnableInfiniteVehicleFuel, value => { settings.EnableInfiniteVehicleFuel = value; BigHaxOptionPersistence.SaveEnableInfiniteVehicleFuel(context.ModId, value); });
+            AddToggle(Localize("bighax_never_dirty_vehicles_label"), () => settings.EnableNeverDirtyVehicles, value => { settings.EnableNeverDirtyVehicles = value; BigHaxOptionPersistence.SaveEnableNeverDirtyVehicles(context.ModId, value); });
+            AddSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces, value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
+
+            AddCategory(Localize("bighax_category_capacity"));
+            AddToggle(Localize("bighax_active_vehicle_enabled_label"), () => settings.EnableActiveVehicleCapacityOverride, value => { settings.EnableActiveVehicleCapacityOverride = value; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, value); });
             AddSlider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }),
                 () => settings.StandardFridgeCapacity, 50, 1000,
                 value => { settings.StandardFridgeCapacity = value; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context.ModId, value); }, value => value.ToString());
@@ -222,12 +229,12 @@ namespace BigHax
             AddSlider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }),
                 () => settings.StorageShelfCapacity, 16, 1000,
                 value => { settings.StorageShelfCapacity = value; BigHaxOptionPersistence.SaveStorageShelfCapacity(context.ModId, value); }, value => value.ToString());
-            AddSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }),
-                () => settings.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
-                value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
             AddSlider(Localize("bighax_active_vehicle_label"),
                 () => settings.ActiveVehicleCapacity, 20, 1000,
                 value => { settings.ActiveVehicleCapacity = value; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context.ModId, value); }, value => value.ToString());
+
+            AddCategory(Localize("bighax_category_time"));
+            AddToggle(Localize("bighax_enable_extended_bed_sleep_label"), () => settings.EnableExtendedBedSleep, value => { settings.EnableExtendedBedSleep = value; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context.ModId, value); });
 
             AddFooter(panel);
             api.ApplyUiLayer(root);
@@ -287,13 +294,31 @@ namespace BigHax
             return string.Join("\u001f", new[]
             {
                 Localize("bighax_options_header"),
+                Localize("bighax_category_money"),
+                Localize("bighax_category_employee"),
+                Localize("bighax_category_player"),
+                Localize("bighax_category_unlock"),
+                Localize("bighax_category_business"),
+                Localize("bighax_category_vehicle"),
+                Localize("bighax_category_capacity"),
+                Localize("bighax_category_time"),
                 Localize("bighax_disable_casino_bet_limit_label"),
                 Localize("bighax_disable_illegal_parking_penalties_label"),
                 Localize("bighax_disable_investment_limit_label"),
                 Localize("bighax_vantander_maximum_loan_override_label"),
                 Localize("bighax_enable_recruitment_candidate_maximum_skill_label"),
                 Localize("bighax_remove_employee_demands_label"),
+                Localize("bighax_maximum_employee_satisfaction_label"),
+                Localize("bighax_disable_player_hunger_and_energy_decay_label"),
+                Localize("bighax_disable_player_happiness_decay_label"),
+                Localize("bighax_unlock_all_contacts_button"),
+                Localize("bighax_unlock_all_courses_button"),
+                Localize("bighax_enable_instant_imports_label"),
+                Localize("bighax_enable_instant_furniture_deliveries_label"),
                 Localize("bighax_enable_extended_bed_sleep_label"),
+                Localize("bighax_no_vehicle_damage_label"),
+                Localize("bighax_infinite_vehicle_fuel_label"),
+                Localize("bighax_never_dirty_vehicles_label"),
                 Localize("bighax_active_vehicle_enabled_label"),
                 Localize("bighax_customer_traffic_multiplier_label"),
                 Localize("bighax_employee_training_skill_increase_label"),
@@ -326,12 +351,41 @@ namespace BigHax
             }), "BigHaxToggle");
         }
 
+        private void AddCategory(string label)
+        {
+            var category = new GameObject("Category", typeof(RectTransform), typeof(LayoutElement), typeof(Text));
+            category.transform.SetParent(content!, false);
+            category.GetComponent<LayoutElement>().preferredHeight = 42f;
+            var text = category.GetComponent<Text>();
+            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.fontSize = 19;
+            text.fontStyle = FontStyle.Bold;
+            text.alignment = TextAnchor.LowerLeft;
+            text.color = api.MutedTextColor;
+            text.text = label;
+        }
+
         private void AddSlider(string label, Func<int> read, int min, int max, Action<int> write, Func<int, string> format)
         {
             api.CreateNativeSlider(content!, label, min, max, read(), format, new UnityAction<int>(value =>
             {
                 write(value);
             }), "BigHaxSlider");
+        }
+
+        private void AddActionButton(string label, Action? onClick)
+        {
+            if (onClick == null)
+                return;
+
+            var row = new GameObject("ActionButton", typeof(RectTransform), typeof(LayoutElement));
+            row.transform.SetParent(content!, false);
+            row.GetComponent<LayoutElement>().preferredHeight = 42f;
+            var button = api.CreateVanillaButton(row.transform, label, 320f, 36f, new UnityAction(onClick), "Blue", 15f);
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
         }
 
         private Scrollbar CreateScrollbar(RectTransform panel)

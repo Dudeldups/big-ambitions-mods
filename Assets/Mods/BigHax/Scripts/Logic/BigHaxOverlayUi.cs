@@ -22,6 +22,8 @@ namespace BigHax
         private int hotControlId;
         private bool isVisible;
         private bool needsCentering = true;
+        private System.Action? confirmUnlockAllContacts;
+        private System.Action? confirmUnlockAllCourses;
 
         private Texture2D? solidTexture;
         private GUIStyle? windowStyle;
@@ -45,6 +47,13 @@ namespace BigHax
         }
 
         public bool IsVisible => isVisible;
+
+        public void ConfigureUnlockActions(System.Action unlockAllContacts, System.Action unlockAllCourses)
+        {
+            confirmUnlockAllContacts = unlockAllContacts;
+            confirmUnlockAllCourses = unlockAllCourses;
+            nativeUi.ConfigureUnlockActions(unlockAllContacts, unlockAllCourses);
+        }
 
         public void Toggle()
         {
@@ -112,7 +121,15 @@ namespace BigHax
 
         private bool ResolveUi(ModContext context, BigHaxSettings settings, bool waitForNativeOptions)
         {
-            if (BigHaxBaUnifiedOptionsUi.TryCreate(context, settings, isVisible, Hide, out baUnifiedUi, out var reason))
+            if (BigHaxBaUnifiedOptionsUi.TryCreate(
+                    context,
+                    settings,
+                    isVisible,
+                    Hide,
+                    confirmUnlockAllContacts,
+                    confirmUnlockAllCourses,
+                    out baUnifiedUi,
+                    out var reason))
             {
                 uiSelectionResolved = true;
                 nativeUi.Destroy();
@@ -210,6 +227,15 @@ namespace BigHax
                         settings.RemoveEmployeeDemands = value;
                         BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value);
                     });
+                DrawToggleOption(
+                    context,
+                    settings.EnableMaximumEmployeeSatisfaction,
+                    Localize("bighax_maximum_employee_satisfaction_label"),
+                    value =>
+                    {
+                        settings.EnableMaximumEmployeeSatisfaction = value;
+                        BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value);
+                    });
                 DrawSeparator();
                 var activeVehicleEnabled = GUILayout.Toggle(
                     settings.EnableActiveVehicleCapacityOverride,
@@ -221,6 +247,25 @@ namespace BigHax
                     BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, activeVehicleEnabled);
                 }
 
+                DrawSectionTitle(Localize("bighax_category_business"));
+                DrawToggleOption(
+                    context,
+                    settings.EnableInstantImports,
+                    Localize("bighax_enable_instant_imports_label"),
+                    value =>
+                    {
+                        settings.EnableInstantImports = value;
+                        BigHaxOptionPersistence.SaveEnableInstantImports(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.EnableInstantFurnitureDeliveries,
+                    Localize("bighax_enable_instant_furniture_deliveries_label"),
+                    value =>
+                    {
+                        settings.EnableInstantFurnitureDeliveries = value;
+                        BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value);
+                    });
                 DrawCustomerMultiplier(context, settings);
                 DrawIntSlider(
                     context,
@@ -235,6 +280,29 @@ namespace BigHax
                         settings.EmployeeTrainingSkillIncrease = value;
                         BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value);
                     });
+                DrawSectionTitle(Localize("bighax_category_player"));
+                DrawToggleOption(
+                    context,
+                    settings.DisablePlayerHungerAndEnergyDecay,
+                    Localize("bighax_disable_player_hunger_and_energy_decay_label"),
+                    value =>
+                    {
+                        settings.DisablePlayerHungerAndEnergyDecay = value;
+                        BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context.ModId, value);
+                    });
+                DrawToggleOption(
+                    context,
+                    settings.DisablePlayerHappinessDecay,
+                    Localize("bighax_disable_player_happiness_decay_label"),
+                    value =>
+                    {
+                        settings.DisablePlayerHappinessDecay = value;
+                        BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context.ModId, value);
+                    });
+                DrawSectionTitle(Localize("bighax_category_unlock"));
+                DrawUnlockButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
+                DrawUnlockButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
+                DrawSeparator();
                 DrawIntSlider(
                     context,
                     settings,
@@ -390,6 +458,12 @@ namespace BigHax
                 return;
 
             applyValue(toggledValue);
+        }
+
+        private void DrawUnlockButton(string label, System.Action? onClick)
+        {
+            if (onClick != null && GUILayout.Button(label, primaryButtonStyle!, GUILayout.Height(42f)))
+                onClick();
         }
 
         private void DrawIntSlider(
