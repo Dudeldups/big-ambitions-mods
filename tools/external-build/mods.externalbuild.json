@@ -15,6 +15,13 @@
       "enabled": true
     },
     {
+      "modName": "Camera Store",
+      "sourceDir": "Assets/Mods/Camera Store",
+      "assemblyName": "CameraStore-BusinessType",
+      "modsLocalFolder": "Camera Store",
+      "enabled": true
+    },
+    {
       "modName": "GoodbyeIRS",
       "sourceDir": "Assets/Mods/GoodbyeIRS",
       "assemblyName": "GoodbyeIRS",

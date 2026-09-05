@@ -1,0 +1,116 @@
+ManifestFileVersion: 0
+CRC: 356697797
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 4986633531b234ea60abf86f37982531
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: fafb29444616307f05eaacaa19522d63
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 4986633531b234ea60abf86f37982531
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1411348409, guid: db7404fdd66bed727abbb3141ba453dd, type: 3}
+- Class: 114
+  Script: {fileID: -33017213, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -189057480, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -194827119, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 1955463686, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 604638584, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -2029471245, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 634219542, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 208
+  Script: {instanceID: 0}
+- Class: 213
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: BigAmbitions.Items
+  ClassName: AttachmentPointType
+- AssemblyName: BigAmbitions.Items
+  ClassName: BigAmbitions.Items.CustomColorChannel
+- AssemblyName: BigAmbitions.Items
+  ClassName: BigAmbitions.Items.Item/ItemProducerSettings
+- AssemblyName: BigAmbitions.Items
+  ClassName: BigAmbitions.Items.PlayerItemPurchaserSettings
+- AssemblyName: BigAmbitions
+  ClassName: BusinessProduct
+- AssemblyName: BigAmbitions
+  ClassName: CustomerType
+- AssemblyName: BigAmbitions
+  ClassName: DayFactorMultiplier
+- AssemblyName: BigAmbitions
+  ClassName: DiplomaName
+- AssemblyName: BigAmbitions
+  ClassName: Entities.CustomerDemandSet
+- AssemblyName: BigAmbitions
+  ClassName: HourlyFactorMultiplier
+- AssemblyName: BigAmbitions
+  ClassName: RadioStation
+- AssemblyName: DayNightCycle
+  ClassName: BigAmbitions.DayNightCycle.DayOfWeekOrdered
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent
+Assets:
+- Assets/Mods/Camera Store/Prefabs/camera_bag.prefab
+- Assets/Mods/Camera Store/Models/Materials/CameraSilver.mat
+- Assets/Mods/Camera Store/Prefabs/camera_accessories_shelf.prefab
+- Assets/Mods/Camera Store/Prefabs/compact_camera.prefab
+- Assets/Mods/Camera Store/Items/Tripod.asset
+- Assets/Mods/Camera Store/Models/Materials/CameraTeal.mat
+- Assets/Mods/Camera Store/Prefabs/camera_display.prefab
+- Assets/Mods/Camera Store/Models/Materials/CameraAmber.mat
+- Assets/Mods/Camera Store/Items/CameraFlash.asset
+- Assets/Mods/Camera Store/Items/ProfessionalCamera.asset
+- Assets/Mods/Camera Store/Models/Materials/CameraFabric.mat
+- Assets/Mods/Camera Store/Prefabs/action_camera.prefab
+- Assets/Mods/Camera Store/Items/DslrCamera.asset
+- Assets/Mods/Camera Store/Models/Materials/CameraBlack.mat
+- Assets/Mods/Camera Store/Models/Materials/CameraGlass.mat
+- Assets/Mods/Camera Store/Prefabs/camera_flash.prefab
+- Assets/Mods/Camera Store/Prefabs/tripod.prefab
+- Assets/Mods/Camera Store/Items/CameraLens.asset
+- Assets/Mods/Camera Store/Items/CameraAccessoriesShelf.asset
+- Assets/Mods/Camera Store/Items/CameraDisplay.asset
+- Assets/Mods/Camera Store/Items/CameraBag.asset
+- Assets/Mods/Camera Store/CameraStore.asset
+- Assets/Mods/Camera Store/Items/CompactCamera.asset
+- "Assets/Mods/Camera Store/Camera Store \u2013 plan.md"
+- Assets/Mods/Camera Store/Models/Materials/CameraDarkGray.mat
+- Assets/Mods/Camera Store/Prefabs/professional_camera.prefab
+- Assets/Mods/Camera Store/Prefabs/camera_lens.prefab
+- Assets/Mods/Camera Store/Prefabs/dslr_camera.prefab
+- Assets/Mods/Camera Store/Items/ActionCamera.asset
+Dependencies: []
