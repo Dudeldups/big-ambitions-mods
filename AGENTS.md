@@ -109,3 +109,18 @@ this repository. Do not wait for the user to request a commit separately.
   request are expected completion steps for a verified branch task. Workshop
   publication remains a separate action and requires an explicit user request
   to upload the named mod.
+- A user's explicit request to upload, publish, or update a named mod on Steam
+  Workshop authorizes the complete prerequisite workflow for that release:
+  push its verified task branch, create and merge its pull request into `main`,
+  synchronize the local `main`, rebuild and verify the mod, run the uploader's
+  final checks, and make one matching Workshop upload attempt. Do not ask for
+  separate confirmation for those prerequisite steps or for that one upload
+  attempt.
+- This end-to-end authorization applies only to the named mod and the Workshop
+  action the user requested. Stop and ask if `plan` unexpectedly resolves to
+  CREATE instead of UPDATE, if a visibility change is required but was not
+  requested, or if the target item or Steam identity is ambiguous.
+- Do not bypass failed checks, branch protection, unresolved merge conflicts, or
+  unrelated changes to complete an upload. If the upload fails or times out, do
+  not retry it automatically; report the observed state and wait for renewed
+  direction.
