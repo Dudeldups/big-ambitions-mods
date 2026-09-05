@@ -26,6 +26,8 @@ namespace BigHax
         public const string EnableRecruitmentCandidateMaximumSkill = "big_hax_enable_recruitment_candidate_maximum_skill";
         public const string RemoveEmployeeDemands = "big_hax_remove_employee_demands";
         public const string EnableMaximumEmployeeSatisfaction = "big_hax_enable_maximum_employee_satisfaction";
+        public const string DisablePlayerHungerAndEnergyDecay = "big_hax_disable_player_hunger_and_energy_decay";
+        public const string DisablePlayerHappinessDecay = "big_hax_disable_player_happiness_decay";
         public const string EnableExtendedBedSleep = "big_hax_enable_extended_bed_sleep";
         public const string EnableNoVehicleDamage = "big_hax_enable_no_vehicle_damage";
         public const string EnableInfiniteVehicleFuel = "big_hax_enable_infinite_vehicle_fuel";

@@ -52,6 +52,14 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.EnableMaximumEmployeeSatisfaction,
                 BigHaxSettings.DefaultEnableMaximumEmployeeSatisfaction);
+            settings.DisablePlayerHungerAndEnergyDecay = LoadBool(
+                modId,
+                BigHaxOptionIds.DisablePlayerHungerAndEnergyDecay,
+                BigHaxSettings.DefaultDisablePlayerHungerAndEnergyDecay);
+            settings.DisablePlayerHappinessDecay = LoadBool(
+                modId,
+                BigHaxOptionIds.DisablePlayerHappinessDecay,
+                BigHaxSettings.DefaultDisablePlayerHappinessDecay);
             settings.EnableExtendedBedSleep = LoadBool(
                 modId,
                 BigHaxOptionIds.EnableExtendedBedSleep,
@@ -142,6 +150,16 @@ namespace BigHax
         public static void SaveEnableMaximumEmployeeSatisfaction(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.EnableMaximumEmployeeSatisfaction, value);
+        }
+
+        public static void SaveDisablePlayerHungerAndEnergyDecay(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.DisablePlayerHungerAndEnergyDecay, value);
+        }
+
+        public static void SaveDisablePlayerHappinessDecay(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.DisablePlayerHappinessDecay, value);
         }
 
         public static void SaveEnableExtendedBedSleep(string modId, bool value)
