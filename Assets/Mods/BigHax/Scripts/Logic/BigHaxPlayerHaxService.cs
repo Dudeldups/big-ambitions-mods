@@ -12,7 +12,7 @@ namespace BigHax
     {
         private const string NewHourEvent = "ba:gameevent_newhour";
         private static readonly FieldInfo? EnergyInvincibilityField = typeof(EnergyHelper).GetField(
-            "_invincibility",
+            "Invincibility",
             BindingFlags.Static | BindingFlags.NonPublic);
 
         private bool energyInvincibilityEnabledByBigHax;
@@ -51,6 +51,7 @@ namespace BigHax
                 "Player hax configured: hungerEnergyDisabled=" + hungerAndEnergyDecayDisabled +
                 ", energyInvincibilityFieldFound=" + (EnergyInvincibilityField != null) +
                 ", energyInvincibilityValue=" + GetEnergyInvincibilityValue() +
+                ", " + DescribeEnergyAndHunger() +
                 ", happinessDisabled=" + happinessDecayDisabled +
                 ", protectedHappiness=" + FormatHappiness(protectedHappiness));
         }
@@ -83,9 +84,9 @@ namespace BigHax
 
         private void Subscribe()
         {
-            if (isSubscribed)
-                return;
-
+            // GameEvent can clear its static delegate while this service survives
+            // a save load. Remove/add is cheap and guarantees the hook is current.
+            GameEvent.onGameEventTriggered -= HandleGameEvent;
             GameEvent.onGameEventTriggered += HandleGameEvent;
             isSubscribed = true;
         }
@@ -105,7 +106,9 @@ namespace BigHax
                 return;
 
             if (hungerAndEnergyDecayDisabled)
-                BigHaxLogger.Diagnostic("Player hax hourly check: energyInvincibilityValue=" + GetEnergyInvincibilityValue());
+                BigHaxLogger.Diagnostic(
+                    "Player hax hourly check: energyInvincibilityValue=" + GetEnergyInvincibilityValue() +
+                    ", " + DescribeEnergyAndHunger());
 
             if (happinessDecayDisabled)
                 PreserveHappinessAfterHourlyUpdate();
@@ -162,6 +165,15 @@ namespace BigHax
         private static string FormatHappiness(float? value)
         {
             return value.HasValue ? value.Value.ToString("0.###") : "<unavailable>";
+        }
+
+        private static string DescribeEnergyAndHunger()
+        {
+            var saveGame = SaveGameManager.Current;
+            return saveGame == null
+                ? "energy=<unavailable>, hunger=<unavailable>"
+                : "energy=" + saveGame.Energy.ToString("0.###") +
+                  ", hunger=" + saveGame.Hunger.ToString("0.###");
         }
     }
 }
