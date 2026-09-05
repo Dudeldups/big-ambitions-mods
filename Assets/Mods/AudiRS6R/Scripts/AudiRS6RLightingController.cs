@@ -39,14 +39,9 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private MeshRenderer? leftRearBlinkerOverlay;
     private MeshRenderer? rightRearBlinkerOverlay;
     private bool initialized;
+    private bool updateFailureReported;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
-    private bool lastHeadlights;
-    private bool lastTailLights;
-    private bool lastBrakes;
-    private bool lastLeftBlinker;
-    private bool lastRightBlinker;
-    private bool lastBlinkerFlash;
 
     public void Initialize(VehicleController controller)
     {
@@ -61,18 +56,14 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var rearLampRenderer = FindRenderer(renderers, RearLampRendererName);
         var outerWindowRenderer = FindRenderer(renderers, OuterWindowRendererName);
         var innerWindowRenderer = FindRenderer(renderers, InnerWindowRendererName);
-        var frontSourceShader = FirstMaterial(frontLampRenderer)?.shader?.name ?? "<none>";
-        var rearSourceShader = FirstMaterial(rearLampRenderer)?.shader?.name ?? "<none>";
-        var glassSourceShader = FirstMaterial(outerWindowRenderer)?.shader?.name ?? "<none>";
-
-        var glassConfigured = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
+        ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
         ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", Color.white, preserveSourceShader: false);
         ConfigureLampSurface(
             rearLampRenderer,
             "AudiRS6R Rear Lamp Housing",
             new Color(0.45f, 0.025f, 0.015f, 1f),
             preserveSourceShader: true);
-        var headlightBeamsConfigured = ConfigureHeadlightBeams();
+        ConfigureHeadlightBeams();
 
         leftHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
@@ -127,18 +118,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
 
         initialized = true;
-        ApplyLightState(forceLog: true);
-
-        AudiRS6RDiagnostics.Vehicle(
-            "LIGHTING_CONFIG",
-            $"vehicleId=\"{controller.vehicleInstance?.id ?? "<none>"}\" " +
-            $"frontLampRenderer={frontLampRenderer != null} rearLampRenderer={rearLampRenderer != null} " +
-            $"outerGlassRenderer={outerWindowRenderer != null} innerGlassEnabled={innerWindowRenderer != null && innerWindowRenderer.enabled} " +
-            $"glassConfigured={glassConfigured} headlightBeam={headlightBeam != null} brakesSource={brakes != null} " +
-            $"headlightBeamsConfigured={headlightBeamsConfigured} " +
-            $"blinkerSource={blinkers != null} functionalOverlays={CountFunctionalOverlays()} " +
-            $"overlayShader=\"{leftHeadlightOverlay?.sharedMaterial?.shader?.name ?? "<none>"}\" " +
-            $"sourceShaders=[front=\"{frontSourceShader}\",rear=\"{rearSourceShader}\",glass=\"{glassSourceShader}\"]");
+        ApplyLightState();
     }
 
     private void Update()
@@ -148,11 +128,15 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         try
         {
-            ApplyLightState(forceLog: false);
+            ApplyLightState();
         }
         catch (Exception ex)
         {
-            AudiRS6RDiagnostics.Error(nameof(AudiRS6RLightingController) + ".Update", ex);
+            if (!updateFailureReported)
+            {
+                updateFailureReported = true;
+                Debug.LogWarning($"AudiRS6R lighting update failed: {ex.GetType().Name}: {ex.Message}");
+            }
         }
     }
 
@@ -264,7 +248,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
         catch (Exception ex)
         {
-            AudiRS6RDiagnostics.Error("CloneHeadlightBeam." + objectName, ex);
+            Debug.LogWarning($"AudiRS6R could not clone headlight beam '{objectName}': {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -335,7 +319,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
         catch (Exception ex)
         {
-            AudiRS6RDiagnostics.Error("CreateFunctionalOverlay." + suffix, ex);
+            Debug.LogWarning($"AudiRS6R could not create light overlay '{suffix}': {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -448,7 +432,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetTextureIfPresent(destination, "_EmissionMap", baseTexture);
     }
 
-    private void ApplyLightState(bool forceLog)
+    private void ApplyLightState()
     {
         var controlledByPlayer = vehicleController != null && vehicleController.controlledByPlayer;
         var automaticHeadlights = GetBoolProperty(vehicleController, "ShouldLightsBeOn");
@@ -484,37 +468,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
         SetRendererState(rightRearBlinkerOverlay, rightBlinker && blinkerFlash);
 
-        if (forceLog || headlights != lastHeadlights || tailLights != lastTailLights || braking != lastBrakes ||
-            leftBlinker != lastLeftBlinker || rightBlinker != lastRightBlinker ||
-            blinkerFlash != lastBlinkerFlash)
-        {
-            AudiRS6RDiagnostics.Vehicle(
-                "LIGHT_STATE",
-                $"vehicleId=\"{vehicleController?.vehicleInstance?.id ?? "<none>"}\" " +
-                $"controlled={controlledByPlayer} automaticHeadlights={automaticHeadlights} headlights={headlights} " +
-                $"tailLights={tailLights} " +
-                $"rawBrakes={rawBraking} brakes={braking} leftBlinker={leftBlinker} " +
-                $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
-                $"beams=[left={IsLightEnabled(leftHeadlightBeam)},right={IsLightEnabled(rightHeadlightBeam)}] " +
-                $"renderers=[headLeft={IsRendererEnabled(leftHeadlightOverlay)}," +
-                $"headRight={IsRendererEnabled(rightHeadlightOverlay)}," +
-                $"lensLeft={IsRendererEnabled(leftHeadlightLensOverlay)}," +
-                $"lensRight={IsRendererEnabled(rightHeadlightLensOverlay)}," +
-                $"tailLeft={IsRendererEnabled(leftTailLightOverlay)}," +
-                $"tailRight={IsRendererEnabled(rightTailLightOverlay)}," +
-                $"brakeLeft={IsRendererEnabled(leftBrakeLightOverlay)}," +
-                $"brakeRight={IsRendererEnabled(rightBrakeLightOverlay)}," +
-                $"brakeCenter={IsRendererEnabled(centerBrakeLightOverlay)}," +
-                $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
-                $"rightFront={IsRendererEnabled(rightFrontBlinkerOverlay)},rightRear={IsRendererEnabled(rightRearBlinkerOverlay)}]");
-        }
-
-        lastHeadlights = headlights;
-        lastTailLights = tailLights;
-        lastBrakes = braking;
-        lastLeftBlinker = leftBlinker;
-        lastRightBlinker = rightBlinker;
-        lastBlinkerFlash = blinkerFlash;
     }
 
     private static void SetRendererState(Renderer? renderer, bool active)
@@ -528,10 +481,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (light != null && light.enabled != active)
             light.enabled = active;
     }
-
-    private static bool IsLightEnabled(Light? light) => light != null && light.enabled;
-
-    private static bool IsRendererEnabled(Renderer? renderer) => renderer != null && renderer.enabled;
 
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string objectName)
     {
@@ -576,24 +525,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (value != null && material.HasProperty(propertyName)) material.SetTexture(propertyName, value);
     }
 
-    private int CountFunctionalOverlays()
-    {
-        var count = 0;
-        if (leftHeadlightOverlay != null) count++;
-        if (rightHeadlightOverlay != null) count++;
-        if (leftHeadlightLensOverlay != null) count++;
-        if (rightHeadlightLensOverlay != null) count++;
-        if (leftTailLightOverlay != null) count++;
-        if (rightTailLightOverlay != null) count++;
-        if (leftBrakeLightOverlay != null) count++;
-        if (rightBrakeLightOverlay != null) count++;
-        if (centerBrakeLightOverlay != null) count++;
-        if (leftFrontBlinkerOverlay != null) count++;
-        if (rightFrontBlinkerOverlay != null) count++;
-        if (leftRearBlinkerOverlay != null) count++;
-        if (rightRearBlinkerOverlay != null) count++;
-        return count;
-    }
 
     private void OnDestroy()
     {
