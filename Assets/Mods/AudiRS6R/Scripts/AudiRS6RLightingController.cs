@@ -10,6 +10,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private const string InnerWindowRendererName = "B:WindowInside_Geo_lodA_B:Window_Geo_lodASG1_0";
     private const string OuterWindowRendererName = "B:Window_Geo_lodA_B:Window_Geo_lodASG1_0";
     private const string RearLampRendererName = "B:Window_Geo_lodA_red_glass_0";
+    private const float BlinkerHalfPeriod = 0.42f;
 
     private static readonly BindingFlags InstanceFields =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -22,14 +23,15 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private object? brakes;
     private object? blinkers;
     private Light? headlightBeam;
-    private Material? frontLampMaterial;
-    private Material? headlightOverlayMaterial;
-    private Material? rearLampMaterial;
-    private Material? leftFrontBlinkerMaterial;
-    private Material? rightFrontBlinkerMaterial;
-    private Material? leftRearBlinkerMaterial;
-    private Material? rightRearBlinkerMaterial;
+    private MeshRenderer? headlightOverlay;
+    private MeshRenderer? brakeLightOverlay;
+    private MeshRenderer? leftFrontBlinkerOverlay;
+    private MeshRenderer? rightFrontBlinkerOverlay;
+    private MeshRenderer? leftRearBlinkerOverlay;
+    private MeshRenderer? rightRearBlinkerOverlay;
     private bool initialized;
+    private bool wasBlinking;
+    private float blinkerPhaseStartedAt;
     private bool lastHeadlights;
     private bool lastBrakes;
     private bool lastLeftBlinker;
@@ -49,26 +51,30 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var rearLampRenderer = FindRenderer(renderers, RearLampRendererName);
         var outerWindowRenderer = FindRenderer(renderers, OuterWindowRendererName);
         var innerWindowRenderer = FindRenderer(renderers, InnerWindowRendererName);
+        var frontSourceShader = FirstMaterial(frontLampRenderer)?.shader?.name ?? "<none>";
+        var rearSourceShader = FirstMaterial(rearLampRenderer)?.shader?.name ?? "<none>";
+        var glassSourceShader = FirstMaterial(outerWindowRenderer)?.shader?.name ?? "<none>";
 
         var glassConfigured = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
-        frontLampMaterial = ConfigureLampSurface(
-            frontLampRenderer,
-            "AudiRS6R Front Lamps",
-            Color.white,
-            new Color(0.95f, 0.95f, 0.95f, 1f),
-            transparent: false);
-        headlightOverlayMaterial = CreateHeadlightOverlay(frontLampRenderer);
-        rearLampMaterial = ConfigureLampSurface(
-            rearLampRenderer,
-            "AudiRS6R Rear Lamps",
-            new Color(1f, 0.025f, 0.01f),
-            new Color(0.42f, 0.005f, 0.005f, 0.52f),
-            transparent: true);
+        ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", new Color(0.82f, 0.84f, 0.86f, 1f));
+        ConfigureLampSurface(rearLampRenderer, "AudiRS6R Rear Lamp Housing", new Color(0.32f, 0.004f, 0.002f, 1f));
 
-        leftFrontBlinkerMaterial = CreateBlinkerOverlay(frontLampRenderer, true, "FrontLeft");
-        rightFrontBlinkerMaterial = CreateBlinkerOverlay(frontLampRenderer, false, "FrontRight");
-        leftRearBlinkerMaterial = CreateBlinkerOverlay(rearLampRenderer, true, "RearLeft");
-        rightRearBlinkerMaterial = CreateBlinkerOverlay(rearLampRenderer, false, "RearRight");
+        headlightOverlay = CreateFunctionalOverlay(
+            frontLampRenderer, position => position.z >= 0f, "Headlights", Color.white);
+        brakeLightOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, _ => true, "BrakeLights", new Color(1f, 0.015f, 0.003f, 1f));
+        leftFrontBlinkerOverlay = CreateFunctionalOverlay(
+            frontLampRenderer, position => position.z >= 0f && position.x <= 0f,
+            "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f));
+        rightFrontBlinkerOverlay = CreateFunctionalOverlay(
+            frontLampRenderer, position => position.z >= 0f && position.x > 0f,
+            "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f));
+        leftRearBlinkerOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.x <= 0f,
+            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f));
+        rightRearBlinkerOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.x > 0f,
+            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f));
 
         initialized = true;
         ApplyLightState(forceLog: true);
@@ -77,10 +83,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "LIGHTING_CONFIG",
             $"vehicleId=\"{controller.vehicleInstance?.id ?? "<none>"}\" " +
             $"frontLampRenderer={frontLampRenderer != null} rearLampRenderer={rearLampRenderer != null} " +
-            $"outerGlassRenderer={outerWindowRenderer != null} innerGlassDisabled={innerWindowRenderer != null && !innerWindowRenderer.enabled} " +
+            $"outerGlassRenderer={outerWindowRenderer != null} innerGlassEnabled={innerWindowRenderer != null && innerWindowRenderer.enabled} " +
             $"glassConfigured={glassConfigured} headlightBeam={headlightBeam != null} brakesSource={brakes != null} " +
-            $"blinkerSource={blinkers != null} blinkerOverlays={CountBlinkerOverlays()} " +
-            $"shader=\"{frontLampMaterial?.shader?.name ?? "<none>"}\"");
+            $"blinkerSource={blinkers != null} functionalOverlays={CountFunctionalOverlays()} " +
+            $"overlayShader=\"{headlightOverlay?.sharedMaterial?.shader?.name ?? "<none>"}\" " +
+            $"sourceShaders=[front=\"{frontSourceShader}\",rear=\"{rearSourceShader}\",glass=\"{glassSourceShader}\"]");
     }
 
     private void Update()
@@ -108,7 +115,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             var componentType = component.GetType();
             if (brakes == null)
                 brakes = componentType.GetField("brakes", InstanceFields)?.GetValue(component);
-
             if (componentType.FullName == "Vehicles.Components.VehicleBlinker")
                 blinkers = component;
         }
@@ -126,50 +132,58 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private int ConfigureGlass(MeshRenderer? outerWindowRenderer, MeshRenderer? innerWindowRenderer)
     {
         var configuredCount = 0;
-        if (innerWindowRenderer != null)
+        if (outerWindowRenderer != null)
         {
-            innerWindowRenderer.enabled = false;
+            outerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
+                FirstMaterial(outerWindowRenderer), "AudiRS6R Corrected Outer Glass",
+                new Color(0.17f, 0.20f, 0.22f, 0.16f));
+            outerWindowRenderer.enabled = true;
             configuredCount++;
         }
 
-        if (outerWindowRenderer == null)
-            return configuredCount;
+        if (innerWindowRenderer != null)
+        {
+            innerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
+                FirstMaterial(innerWindowRenderer) ?? FirstMaterial(outerWindowRenderer),
+                "AudiRS6R Corrected Inner Glass", new Color(0.17f, 0.20f, 0.22f, 0.08f));
+            innerWindowRenderer.enabled = true;
+            configuredCount++;
+        }
 
-        var original = FirstMaterial(outerWindowRenderer);
-        var glass = CreateCompatibleMaterial(
-            original,
-            "AudiRS6R Corrected Glass",
-            new Color(0.11f, 0.15f, 0.18f, 0.3f),
-            transparent: true,
-            copyBaseTexture: false);
-        outerWindowRenderer.sharedMaterial = glass;
-        configuredCount++;
         return configuredCount;
     }
 
-    private Material? ConfigureLampSurface(
-        MeshRenderer? renderer,
-        string materialName,
-        Color emissionColor,
-        Color baseColor,
-        bool transparent)
+    private Material CloneAndConfigureGlass(Material? source, string materialName, Color tint)
     {
-        if (renderer == null)
-            return null;
+        if (source == null)
+            throw new InvalidOperationException("Audi glass source material is missing.");
 
-        var original = FirstMaterial(renderer);
-        var material = CreateCompatibleMaterial(
-            original,
-            materialName,
-            baseColor,
-            transparent,
-            copyBaseTexture: true);
-        renderer.sharedMaterial = material;
-        SetEmission(material, emissionColor, 0.08f);
+        var material = new Material(source) { name = materialName };
+        generatedMaterials.Add(material);
+        SetColorIfPresent(material, "_BaseColor", tint);
+        SetColorIfPresent(material, "_Color", tint);
+        SetFloatIfPresent(material, "_Cull", 0f);
+        SetFloatIfPresent(material, "_CullMode", 0f);
+        SetFloatIfPresent(material, "_CullModeForward", 0f);
+        SetFloatIfPresent(material, "_TransparentCullMode", 0f);
+        SetFloatIfPresent(material, "_DoubleSidedEnable", 1f);
+        material.EnableKeyword("_DOUBLESIDED_ON");
         return material;
     }
 
-    private Material? CreateBlinkerOverlay(MeshRenderer? sourceRenderer, bool leftSide, string suffix)
+    private void ConfigureLampSurface(MeshRenderer? renderer, string materialName, Color baseColor)
+    {
+        if (renderer == null)
+            return;
+
+        renderer.sharedMaterial = CreateLitMaterial(FirstMaterial(renderer), materialName, baseColor);
+    }
+
+    private MeshRenderer? CreateFunctionalOverlay(
+        MeshRenderer? sourceRenderer,
+        Func<Vector3, bool> includeTriangleCenter,
+        string suffix,
+        Color activeColor)
     {
         if (sourceRenderer == null)
             return null;
@@ -181,86 +195,29 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         try
         {
             var overlayMesh = CreateFilteredMesh(
-                sourceRenderer,
-                sourceFilter.sharedMesh,
-                vehiclePosition => leftSide ? vehiclePosition.x <= 0f : vehiclePosition.x > 0f,
-                suffix);
+                sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
             if (overlayMesh == null)
                 return null;
 
-            var overlayObject = new GameObject("AudiRS6R_Blinker_" + suffix);
+            var overlayObject = new GameObject("AudiRS6R_" + suffix);
             overlayObject.transform.SetParent(sourceRenderer.transform, false);
-            overlayObject.layer = sourceRenderer.gameObject.layer;
-            var overlayFilter = overlayObject.AddComponent<MeshFilter>();
-            var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
-            overlayFilter.sharedMesh = overlayMesh;
-
-            var material = CreateCompatibleMaterial(
-                FirstMaterial(sourceRenderer),
-                "AudiRS6R Blinker " + suffix,
-                new Color(1f, 0.22f, 0.005f, 0f),
-                transparent: true,
-                copyBaseTexture: true);
-            material.renderQueue = Math.Max(material.renderQueue, 3100);
-            overlayRenderer.sharedMaterial = material;
-            overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            overlayRenderer.receiveShadows = false;
-            SetOverlayState(material, false);
-
-            generatedObjects.Add(overlayObject);
-            generatedMeshes.Add(overlayMesh);
-            return material;
-        }
-        catch (Exception ex)
-        {
-            AudiRS6RDiagnostics.Error("CreateBlinkerOverlay." + suffix, ex);
-            return null;
-        }
-    }
-
-    private Material? CreateHeadlightOverlay(MeshRenderer? sourceRenderer)
-    {
-        if (sourceRenderer == null || vehicleController == null)
-            return null;
-
-        var sourceFilter = sourceRenderer.GetComponent<MeshFilter>();
-        if (sourceFilter?.sharedMesh == null)
-            return null;
-
-        try
-        {
-            var overlayMesh = CreateFilteredMesh(
-                sourceRenderer,
-                sourceFilter.sharedMesh,
-                vehiclePosition => vehiclePosition.z >= 0f,
-                "Headlights");
-            if (overlayMesh == null)
-                return null;
-
-            var overlayObject = new GameObject("AudiRS6R_HeadlightOverlay");
-            overlayObject.transform.SetParent(sourceRenderer.transform, false);
+            overlayObject.transform.localScale = Vector3.one * 1.0015f;
             overlayObject.layer = sourceRenderer.gameObject.layer;
             overlayObject.AddComponent<MeshFilter>().sharedMesh = overlayMesh;
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
-            var material = CreateCompatibleMaterial(
-                FirstMaterial(sourceRenderer),
-                "AudiRS6R Headlight Emission",
-                new Color(1f, 1f, 1f, 0f),
-                transparent: true,
-                copyBaseTexture: true);
-            material.renderQueue = Math.Max(material.renderQueue, 3050);
-            overlayRenderer.sharedMaterial = material;
+            overlayRenderer.sharedMaterial = CreateUnlitMaterial(
+                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor);
             overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             overlayRenderer.receiveShadows = false;
+            overlayRenderer.enabled = false;
 
             generatedObjects.Add(overlayObject);
             generatedMeshes.Add(overlayMesh);
-            SetHeadlightOverlayState(material, false);
-            return material;
+            return overlayRenderer;
         }
         catch (Exception ex)
         {
-            AudiRS6RDiagnostics.Error("CreateHeadlightOverlay", ex);
+            AudiRS6RDiagnostics.Error("CreateFunctionalOverlay." + suffix, ex);
             return null;
         }
     }
@@ -272,10 +229,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         string suffix)
     {
         var vertices = source.vertices;
-        if (vertices.Length == 0)
-            return null;
-
-        if (vehicleController == null)
+        if (vertices.Length == 0 || vehicleController == null)
             return null;
 
         var vehicleTransform = vehicleController.transform;
@@ -296,12 +250,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 var b = sourceTriangles[index + 1];
                 var c = sourceTriangles[index + 2];
                 var center = (vehiclePositions[a] + vehiclePositions[b] + vehiclePositions[c]) / 3f;
-                if (includeTriangleCenter(center))
-                {
-                    triangles.Add(a);
-                    triangles.Add(b);
-                    triangles.Add(c);
-                }
+                if (!includeTriangleCenter(center))
+                    continue;
+                triangles.Add(a);
+                triangles.Add(b);
+                triangles.Add(c);
             }
         }
 
@@ -324,88 +277,104 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
-    private Material CreateCompatibleMaterial(
-        Material? source,
-        string materialName,
-        Color baseColor,
-        bool transparent,
-        bool copyBaseTexture)
+    private Material CreateLitMaterial(Material? source, string materialName, Color baseColor)
     {
         var shader = Shader.Find("HDRP/Lit") ??
                      Shader.Find("High Definition Render Pipeline/Lit") ??
-                     source?.shader ??
-                     Shader.Find("Standard");
+                     source?.shader ?? Shader.Find("Standard");
         if (shader == null)
             throw new InvalidOperationException("No compatible lit shader is available.");
 
         var material = new Material(shader) { name = materialName };
         generatedMaterials.Add(material);
-
-        Texture? baseTexture = null;
-        if (copyBaseTexture && source != null)
-        {
-            if (source.HasProperty("_BaseColorMap"))
-                baseTexture = source.GetTexture("_BaseColorMap");
-            if (baseTexture == null && source.HasProperty("_BaseMap"))
-                baseTexture = source.GetTexture("_BaseMap");
-            if (baseTexture == null && source.HasProperty("_MainTex"))
-                baseTexture = source.GetTexture("_MainTex");
-        }
-
-        SetTextureIfPresent(material, "_BaseColorMap", baseTexture);
-        SetTextureIfPresent(material, "_BaseMap", baseTexture);
-        SetTextureIfPresent(material, "_MainTex", baseTexture);
-        SetTextureIfPresent(material, "_EmissiveColorMap", baseTexture);
-        SetTextureIfPresent(material, "_EmissionMap", baseTexture);
+        CopyBaseTexture(source, material);
         SetColorIfPresent(material, "_BaseColor", baseColor);
         SetColorIfPresent(material, "_Color", baseColor);
-
-        if (transparent)
-        {
-            SetFloatIfPresent(material, "_SurfaceType", 1f);
-            SetFloatIfPresent(material, "_BlendMode", 0f);
-            SetFloatIfPresent(material, "_SrcBlend", 1f);
-            SetFloatIfPresent(material, "_DstBlend", 10f);
-            SetFloatIfPresent(material, "_ZWrite", 0f);
-            SetFloatIfPresent(material, "_DoubleSidedEnable", 1f);
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.renderQueue = 3000;
-        }
-
         return material;
+    }
+
+    private Material CreateUnlitMaterial(Material? source, string materialName, Color color)
+    {
+        var shader = Shader.Find("HDRP/Unlit") ??
+                     Shader.Find("High Definition Render Pipeline/Unlit") ??
+                     Shader.Find("Unlit/Texture") ?? source?.shader;
+        if (shader == null)
+            throw new InvalidOperationException("No compatible unlit shader is available.");
+
+        var material = new Material(shader) { name = materialName };
+        generatedMaterials.Add(material);
+        CopyBaseTexture(source, material);
+        var hdrColor = color * 3.5f;
+        hdrColor.a = 1f;
+        SetColorIfPresent(material, "_UnlitColor", hdrColor);
+        SetColorIfPresent(material, "_BaseColor", hdrColor);
+        SetColorIfPresent(material, "_Color", hdrColor);
+        SetColorIfPresent(material, "_EmissiveColor", hdrColor);
+        SetColorIfPresent(material, "_EmissionColor", hdrColor);
+        SetFloatIfPresent(material, "_SurfaceType", 0f);
+        SetFloatIfPresent(material, "_ZWrite", 1f);
+        SetFloatIfPresent(material, "_Cull", 0f);
+        SetFloatIfPresent(material, "_CullMode", 0f);
+        material.EnableKeyword("_EMISSION");
+        material.renderQueue = 2450;
+        return material;
+    }
+
+    private static void CopyBaseTexture(Material? source, Material destination)
+    {
+        if (source == null)
+            return;
+
+        Texture? baseTexture = null;
+        if (source.HasProperty("_BaseColorMap"))
+            baseTexture = source.GetTexture("_BaseColorMap");
+        if (baseTexture == null && source.HasProperty("_BaseMap"))
+            baseTexture = source.GetTexture("_BaseMap");
+        if (baseTexture == null && source.HasProperty("_MainTex"))
+            baseTexture = source.GetTexture("_MainTex");
+
+        SetTextureIfPresent(destination, "_UnlitColorMap", baseTexture);
+        SetTextureIfPresent(destination, "_BaseColorMap", baseTexture);
+        SetTextureIfPresent(destination, "_BaseMap", baseTexture);
+        SetTextureIfPresent(destination, "_MainTex", baseTexture);
+        SetTextureIfPresent(destination, "_EmissiveColorMap", baseTexture);
+        SetTextureIfPresent(destination, "_EmissionMap", baseTexture);
     }
 
     private void ApplyLightState(bool forceLog)
     {
-        var headlights = headlightBeam != null && headlightBeam.enabled;
+        var headlights = (headlightBeam != null && headlightBeam.enabled) ||
+                         GetBoolProperty(vehicleController, "ShouldLightsBeOn");
         var braking = GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking");
         var leftBlinker = GetBoolField(blinkers, "_isLeftBlinkerOn");
         var rightBlinker = GetBoolField(blinkers, "_isRightBlinkerOn");
-        var blinkerFlash = GetBoolField(blinkers, "_isBlinkerOn");
+        var isBlinking = leftBlinker || rightBlinker;
 
-        SetEmission(frontLampMaterial, Color.white, 0.12f);
-        SetHeadlightOverlayState(headlightOverlayMaterial, headlights);
-        SetEmission(
-            rearLampMaterial,
-            new Color(1f, 0.025f, 0.01f),
-            braking ? 7f : headlights ? 0.9f : 0.08f);
-        SetOverlayState(leftFrontBlinkerMaterial, leftBlinker && blinkerFlash);
-        SetOverlayState(leftRearBlinkerMaterial, leftBlinker && blinkerFlash);
-        SetOverlayState(rightFrontBlinkerMaterial, rightBlinker && blinkerFlash);
-        SetOverlayState(rightRearBlinkerMaterial, rightBlinker && blinkerFlash);
+        if (isBlinking && !wasBlinking)
+            blinkerPhaseStartedAt = Time.unscaledTime;
+        var blinkerFlash = isBlinking &&
+                           Mathf.Repeat(Time.unscaledTime - blinkerPhaseStartedAt, BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
+        wasBlinking = isBlinking;
 
-        if (forceLog ||
-            headlights != lastHeadlights ||
-            braking != lastBrakes ||
-            leftBlinker != lastLeftBlinker ||
-            rightBlinker != lastRightBlinker ||
+        SetRendererState(headlightOverlay, headlights);
+        SetRendererState(brakeLightOverlay, braking || headlights);
+        SetRendererState(leftFrontBlinkerOverlay, leftBlinker && blinkerFlash);
+        SetRendererState(leftRearBlinkerOverlay, leftBlinker && blinkerFlash);
+        SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
+        SetRendererState(rightRearBlinkerOverlay, rightBlinker && blinkerFlash);
+
+        if (forceLog || headlights != lastHeadlights || braking != lastBrakes ||
+            leftBlinker != lastLeftBlinker || rightBlinker != lastRightBlinker ||
             blinkerFlash != lastBlinkerFlash)
         {
             AudiRS6RDiagnostics.Vehicle(
                 "LIGHT_STATE",
                 $"vehicleId=\"{vehicleController?.vehicleInstance?.id ?? "<none>"}\" " +
                 $"headlights={headlights} brakes={braking} leftBlinker={leftBlinker} " +
-                $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash}");
+                $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
+                $"renderers=[head={IsRendererEnabled(headlightOverlay)},brake={IsRendererEnabled(brakeLightOverlay)}," +
+                $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
+                $"rightFront={IsRendererEnabled(rightFrontBlinkerOverlay)},rightRear={IsRendererEnabled(rightRearBlinkerOverlay)}]");
         }
 
         lastHeadlights = headlights;
@@ -415,43 +384,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         lastBlinkerFlash = blinkerFlash;
     }
 
-    private static void SetEmission(Material? material, Color color, float intensity)
+    private static void SetRendererState(Renderer? renderer, bool active)
     {
-        if (material == null)
-            return;
-
-        var emission = color * intensity;
-        emission.a = 1f;
-        SetColorIfPresent(material, "_EmissiveColor", emission);
-        SetColorIfPresent(material, "_EmissionColor", emission);
-        SetFloatIfPresent(material, "_EmissiveIntensity", 1f);
-        SetFloatIfPresent(material, "_UseEmissiveIntensity", 0f);
-        material.EnableKeyword("_EMISSION");
-        material.EnableKeyword("_EMISSIVE_COLOR_MAP");
-        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        if (renderer != null && renderer.enabled != active)
+            renderer.enabled = active;
     }
 
-    private static void SetOverlayState(Material? material, bool active)
-    {
-        if (material == null)
-            return;
-
-        var amber = new Color(1f, 0.22f, 0.005f, active ? 0.42f : 0f);
-        SetColorIfPresent(material, "_BaseColor", amber);
-        SetColorIfPresent(material, "_Color", amber);
-        SetEmission(material, new Color(1f, 0.12f, 0.002f), active ? 9f : 0f);
-    }
-
-    private static void SetHeadlightOverlayState(Material? material, bool active)
-    {
-        if (material == null)
-            return;
-
-        var white = new Color(1f, 1f, 1f, active ? 0.32f : 0f);
-        SetColorIfPresent(material, "_BaseColor", white);
-        SetColorIfPresent(material, "_Color", white);
-        SetEmission(material, Color.white, active ? 7f : 0f);
-    }
+    private static bool IsRendererEnabled(Renderer? renderer) => renderer != null && renderer.enabled;
 
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string objectName)
     {
@@ -460,83 +399,61 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             if (renderer != null && string.Equals(renderer.name, objectName, StringComparison.Ordinal))
                 return renderer;
         }
-
         return null;
     }
 
-    private static Material? FirstMaterial(Renderer renderer)
+    private static Material? FirstMaterial(Renderer? renderer)
     {
+        if (renderer == null)
+            return null;
         var materials = renderer.sharedMaterials;
         return materials.Length > 0 ? materials[0] : null;
     }
 
-    private static bool GetBoolField(object? target, string fieldName)
-    {
-        return target != null &&
-               target.GetType().GetField(fieldName, InstanceFields)?.GetValue(target) is bool value &&
-               value;
-    }
+    private static bool GetBoolField(object? target, string fieldName) =>
+        target != null && target.GetType().GetField(fieldName, InstanceFields)?.GetValue(target) is bool value && value;
 
-    private static bool GetBoolProperty(object? target, string propertyName)
-    {
-        return target != null &&
-               target.GetType().GetProperty(propertyName, InstanceFields)?.GetValue(target) is bool value &&
-               value;
-    }
+    private static bool GetBoolProperty(object? target, string propertyName) =>
+        target != null && target.GetType().GetProperty(propertyName, InstanceFields)?.GetValue(target) is bool value && value;
 
-    private static bool GetBoolMethod(object? target, string methodName)
-    {
-        return target != null &&
-               target.GetType().GetMethod(methodName, InstanceFields, null, Type.EmptyTypes, null)?.Invoke(target, null) is bool value &&
-               value;
-    }
+    private static bool GetBoolMethod(object? target, string methodName) =>
+        target != null &&
+        target.GetType().GetMethod(methodName, InstanceFields, null, Type.EmptyTypes, null)?.Invoke(target, null) is bool value && value;
 
     private static void SetColorIfPresent(Material material, string propertyName, Color value)
     {
-        if (material.HasProperty(propertyName))
-            material.SetColor(propertyName, value);
+        if (material.HasProperty(propertyName)) material.SetColor(propertyName, value);
     }
 
     private static void SetFloatIfPresent(Material material, string propertyName, float value)
     {
-        if (material.HasProperty(propertyName))
-            material.SetFloat(propertyName, value);
+        if (material.HasProperty(propertyName)) material.SetFloat(propertyName, value);
     }
 
     private static void SetTextureIfPresent(Material material, string propertyName, Texture? value)
     {
-        if (value != null && material.HasProperty(propertyName))
-            material.SetTexture(propertyName, value);
+        if (value != null && material.HasProperty(propertyName)) material.SetTexture(propertyName, value);
     }
 
-    private int CountBlinkerOverlays()
+    private int CountFunctionalOverlays()
     {
         var count = 0;
-        if (leftFrontBlinkerMaterial != null) count++;
-        if (rightFrontBlinkerMaterial != null) count++;
-        if (leftRearBlinkerMaterial != null) count++;
-        if (rightRearBlinkerMaterial != null) count++;
+        if (headlightOverlay != null) count++;
+        if (brakeLightOverlay != null) count++;
+        if (leftFrontBlinkerOverlay != null) count++;
+        if (rightFrontBlinkerOverlay != null) count++;
+        if (leftRearBlinkerOverlay != null) count++;
+        if (rightRearBlinkerOverlay != null) count++;
         return count;
     }
 
     private void OnDestroy()
     {
         foreach (var generatedObject in generatedObjects)
-        {
-            if (generatedObject != null)
-                Destroy(generatedObject);
-        }
-
+            if (generatedObject != null) Destroy(generatedObject);
         foreach (var material in generatedMaterials)
-        {
-            if (material != null)
-                Destroy(material);
-        }
-
+            if (material != null) Destroy(material);
         foreach (var mesh in generatedMeshes)
-        {
-            if (mesh != null)
-                Destroy(mesh);
-        }
+            if (mesh != null) Destroy(mesh);
     }
 }
