@@ -19,9 +19,13 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float DamageIntensity = 0.5f;
     private const float DeformationRadius = 0.32f;
     private const float DeformationStrength = 0.35f;
+    private const float DriverExitLocalX = -1.5f;
+    private const float ExitLocalY = 0.1f;
+    private const float ExitLocalZ = 0.117f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
     private const float LowerBodyColliderHeight = 0.62f;
+    private const float PassengerExitLocalX = 1.5f;
     private const float RearBrakeCoefficient = 0.55f;
     private const float SpawnDistance = 6f;
     private const float SuspensionMaxLength = 0.25f;
@@ -139,6 +143,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             rigidbody.centerOfMass = new Vector3(0f, CenterOfMassHeight, 0f);
 
         var visualPartsConfigured = ConfigureVisualBodyHeight(vehicleController);
+        var exitMarkersConfigured = ConfigureExitMarkers(vehicleController);
         ConfigureBodyColliders(vehicleController, out var bodyColliderCount, out var bodyCollidersAdjusted);
         ConfigureSuspension(vehicleController, out var suspensionCount, out var suspensionAdjustedCount);
         ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
@@ -150,7 +155,9 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             "VEHICLE_PHYSICS_CONFIG",
             $"vehicleId=\"{vehicleController.vehicleInstance.id}\" centerOfMass=(0.000,{CenterOfMassHeight:0.000},0.000) " +
             $"centerOfMassModules={centerOfMassModules} visualBodyLocalY={VisualBodyLocalHeight:0.000} " +
-            $"visualPartsConfigured={visualPartsConfigured} lowerBodyColliderCenterY={LowerBodyColliderCenterY:0.000} " +
+            $"visualPartsConfigured={visualPartsConfigured} exitMarkersConfigured={exitMarkersConfigured} " +
+            $"exitLocalX=({DriverExitLocalX:0.000},{PassengerExitLocalX:0.000}) exitLocalY={ExitLocalY:0.000} " +
+            $"lowerBodyColliderCenterY={LowerBodyColliderCenterY:0.000} " +
             $"lowerBodyColliderHeight={LowerBodyColliderHeight:0.000} bodyCollidersFound={bodyColliderCount} " +
             $"bodyCollidersAdjusted={bodyCollidersAdjusted} suspensionMaxLength={SuspensionMaxLength:0.000} " +
             $"suspensionsFound={suspensionCount} suspensionsAdjusted={suspensionAdjustedCount} " +
@@ -198,6 +205,29 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             var position = child.localPosition;
             position.y = VisualBodyLocalHeight;
             child.localPosition = position;
+            configuredCount++;
+        }
+
+        return configuredCount;
+    }
+
+    private static int ConfigureExitMarkers(VehicleController vehicleController)
+    {
+        var configuredCount = 0;
+        foreach (var child in vehicleController.GetComponentsInChildren<Transform>(true))
+        {
+            if (child == null)
+                continue;
+
+            float localX;
+            if (string.Equals(child.name, "Driverside", StringComparison.Ordinal))
+                localX = DriverExitLocalX;
+            else if (string.Equals(child.name, "Passengerside", StringComparison.Ordinal))
+                localX = PassengerExitLocalX;
+            else
+                continue;
+
+            child.localPosition = new Vector3(localX, ExitLocalY, ExitLocalZ);
             configuredCount++;
         }
 
