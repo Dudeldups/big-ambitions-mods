@@ -23,7 +23,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float DriverExitLocalX = -1.5f;
     private const float ExitLocalY = 0.1f;
     private const float ExitLocalZ = 0.117f;
-    private const float FuelConsumptionMultiplier = 27f;
+    private const float FuelConsumptionMultiplier = 20f;
     private const float FuelIdleConsumption = 0.045f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
