@@ -26,6 +26,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? leftHeadlightBeam;
     private Light? rightHeadlightBeam;
     private MeshRenderer? headlightOverlay;
+    private MeshRenderer? headlightLensOverlay;
     private MeshRenderer? brakeLightOverlay;
     private MeshRenderer? leftFrontBlinkerOverlay;
     private MeshRenderer? rightFrontBlinkerOverlay;
@@ -71,6 +72,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             position => position.z >= 1.80f && position.y >= 0.55f,
             "Headlights",
             Color.white,
+            copyBaseTexture: false);
+        headlightLensOverlay = CreateFunctionalOverlay(
+            outerWindowRenderer,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f,
+            "HeadlightLenses",
+            new Color(0.32f, 0.40f, 0.55f, 1f),
             copyBaseTexture: false);
         brakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f,
@@ -427,6 +434,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         wasBlinking = isBlinking;
 
         SetRendererState(headlightOverlay, headlights);
+        SetRendererState(headlightLensOverlay, headlights);
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
@@ -448,7 +456,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"rawBrakes={rawBraking} brakes={braking} leftBlinker={leftBlinker} " +
                 $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
                 $"beams=[left={IsLightEnabled(leftHeadlightBeam)},right={IsLightEnabled(rightHeadlightBeam)}] " +
-                $"renderers=[head={IsRendererEnabled(headlightOverlay)},brake={IsRendererEnabled(brakeLightOverlay)}," +
+                $"renderers=[head={IsRendererEnabled(headlightOverlay)},lens={IsRendererEnabled(headlightLensOverlay)}," +
+                $"brake={IsRendererEnabled(brakeLightOverlay)}," +
                 $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
                 $"rightFront={IsRendererEnabled(rightFrontBlinkerOverlay)},rightRear={IsRendererEnabled(rightRearBlinkerOverlay)}]");
         }
@@ -523,6 +532,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     {
         var count = 0;
         if (headlightOverlay != null) count++;
+        if (headlightLensOverlay != null) count++;
         if (brakeLightOverlay != null) count++;
         if (leftFrontBlinkerOverlay != null) count++;
         if (rightFrontBlinkerOverlay != null) count++;
