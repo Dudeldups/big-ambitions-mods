@@ -27,8 +27,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? rightHeadlightBeam;
     private MeshRenderer? leftHeadlightOverlay;
     private MeshRenderer? rightHeadlightOverlay;
-    private MeshRenderer? headlightLensOverlay;
-    private MeshRenderer? brakeLightOverlay;
+    private MeshRenderer? leftHeadlightLensOverlay;
+    private MeshRenderer? rightHeadlightLensOverlay;
+    private MeshRenderer? leftBrakeLightOverlay;
+    private MeshRenderer? rightBrakeLightOverlay;
+    private MeshRenderer? centerBrakeLightOverlay;
     private MeshRenderer? leftFrontBlinkerOverlay;
     private MeshRenderer? rightFrontBlinkerOverlay;
     private MeshRenderer? leftRearBlinkerOverlay;
@@ -80,27 +83,39 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "RightHeadlight",
             Color.white,
             copyBaseTexture: false);
-        headlightLensOverlay = CreateFunctionalOverlay(
+        leftHeadlightLensOverlay = CreateFunctionalOverlay(
             outerWindowRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f,
-            "HeadlightLenses",
+            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x <= 0f,
+            "LeftHeadlightLens",
             new Color(0.32f, 0.40f, 0.55f, 1f),
             copyBaseTexture: false);
-        brakeLightOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f,
-            "BrakeLights", new Color(1f, 0.015f, 0.003f, 1f));
+        rightHeadlightLensOverlay = CreateFunctionalOverlay(
+            outerWindowRenderer,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x > 0f,
+            "RightHeadlightLens",
+            new Color(0.32f, 0.40f, 0.55f, 1f),
+            copyBaseTexture: false);
+        leftBrakeLightOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
+            "LeftBrakeLight", new Color(1f, 0.015f, 0.003f, 1f));
+        rightBrakeLightOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
+            "RightBrakeLight", new Color(1f, 0.015f, 0.003f, 1f));
+        centerBrakeLightOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.y >= 1.10f,
+            "CenterBrakeLight", new Color(1f, 0.015f, 0.003f, 1f));
         leftFrontBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z >= 0f && position.x <= 0f,
-            "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f));
+            "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
         rightFrontBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z >= 0f && position.x > 0f,
-            "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f));
+            "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
         leftRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.x <= 0f,
-            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f));
+            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
+            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
         rightRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.x > 0f,
-            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f));
+            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
+            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
 
         initialized = true;
         ApplyLightState(forceLog: true);
@@ -276,7 +291,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         Func<Vector3, bool> includeTriangleCenter,
         string suffix,
         Color activeColor,
-        bool copyBaseTexture = true)
+        bool copyBaseTexture = true,
+        float overlayScale = 1.0015f)
     {
         if (sourceRenderer == null)
             return null;
@@ -294,7 +310,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
             var overlayObject = new GameObject("AudiRS6R_" + suffix);
             overlayObject.transform.SetParent(sourceRenderer.transform, false);
-            overlayObject.transform.localScale = Vector3.one * 1.0015f;
+            overlayObject.transform.localScale = Vector3.one * overlayScale;
             overlayObject.layer = sourceRenderer.gameObject.layer;
             overlayObject.AddComponent<MeshFilter>().sharedMesh = overlayMesh;
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
@@ -442,12 +458,15 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
         SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
-        SetRendererState(headlightLensOverlay, headlights);
+        SetRendererState(leftHeadlightLensOverlay, headlights && !(leftBlinker && blinkerFlash));
+        SetRendererState(rightHeadlightLensOverlay, headlights && !(rightBlinker && blinkerFlash));
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
         SetLightState(rightHeadlightBeam, controlledByPlayer && automaticHeadlights);
-        SetRendererState(brakeLightOverlay, braking);
+        SetRendererState(leftBrakeLightOverlay, braking && !(leftBlinker && blinkerFlash));
+        SetRendererState(rightBrakeLightOverlay, braking && !(rightBlinker && blinkerFlash));
+        SetRendererState(centerBrakeLightOverlay, braking);
         SetRendererState(leftFrontBlinkerOverlay, leftBlinker && blinkerFlash);
         SetRendererState(leftRearBlinkerOverlay, leftBlinker && blinkerFlash);
         SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
@@ -465,8 +484,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
                 $"beams=[left={IsLightEnabled(leftHeadlightBeam)},right={IsLightEnabled(rightHeadlightBeam)}] " +
                 $"renderers=[headLeft={IsRendererEnabled(leftHeadlightOverlay)}," +
-                $"headRight={IsRendererEnabled(rightHeadlightOverlay)},lens={IsRendererEnabled(headlightLensOverlay)}," +
-                $"brake={IsRendererEnabled(brakeLightOverlay)}," +
+                $"headRight={IsRendererEnabled(rightHeadlightOverlay)}," +
+                $"lensLeft={IsRendererEnabled(leftHeadlightLensOverlay)}," +
+                $"lensRight={IsRendererEnabled(rightHeadlightLensOverlay)}," +
+                $"brakeLeft={IsRendererEnabled(leftBrakeLightOverlay)}," +
+                $"brakeRight={IsRendererEnabled(rightBrakeLightOverlay)}," +
+                $"brakeCenter={IsRendererEnabled(centerBrakeLightOverlay)}," +
                 $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
                 $"rightFront={IsRendererEnabled(rightFrontBlinkerOverlay)},rightRear={IsRendererEnabled(rightRearBlinkerOverlay)}]");
         }
@@ -542,8 +565,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var count = 0;
         if (leftHeadlightOverlay != null) count++;
         if (rightHeadlightOverlay != null) count++;
-        if (headlightLensOverlay != null) count++;
-        if (brakeLightOverlay != null) count++;
+        if (leftHeadlightLensOverlay != null) count++;
+        if (rightHeadlightLensOverlay != null) count++;
+        if (leftBrakeLightOverlay != null) count++;
+        if (rightBrakeLightOverlay != null) count++;
+        if (centerBrakeLightOverlay != null) count++;
         if (leftFrontBlinkerOverlay != null) count++;
         if (rightFrontBlinkerOverlay != null) count++;
         if (leftRearBlinkerOverlay != null) count++;
