@@ -36,8 +36,8 @@ namespace ModdedVehiclesIntegration
         internal void Shutdown()
         {
             deskInteractionIntegration.Shutdown();
-            catalogIntegration.RestoreExternalCatalogs(context);
-            DealerServiceIntegration.Restore(context);
+            catalogIntegration.RestoreExternalCatalogs();
+            DealerServiceIntegration.Restore();
             Destroy(gameObject);
         }
 
@@ -53,7 +53,7 @@ namespace ModdedVehiclesIntegration
             currentSave = save;
             catalogIntegration.ResetTracking();
             if (save != null)
-                RefreshAll("save became available");
+                RefreshAll();
         }
 
         private void RefreshLayoutCacheOnBuildingEntry()
@@ -67,10 +67,10 @@ namespace ModdedVehiclesIntegration
 
         private void SynchronizeCatalogForInteraction()
         {
-            catalogIntegration.Synchronize(context);
+            catalogIntegration.Synchronize();
         }
 
-        private void RefreshAll(string source)
+        private void RefreshAll()
         {
             var save = SaveGameManager.Current;
             if (save == null)
@@ -78,9 +78,7 @@ namespace ModdedVehiclesIntegration
 
             DealerLayoutIntegration.EnsureApplied(context);
             DealerServiceIntegration.EnsureApplied(context);
-            catalogIntegration.Synchronize(context);
-            context?.Logger.Info(
-                $"Modded Vehicles Integration: state-driven integration refresh completed ({source}).");
+            catalogIntegration.Synchronize();
         }
     }
 }

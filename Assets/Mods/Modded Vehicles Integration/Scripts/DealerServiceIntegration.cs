@@ -67,12 +67,6 @@ namespace ModdedVehiclesIntegration
                             service.contactCategory,
                             service.isBusinessContact);
                         AppliedPatches.Add(patch);
-
-                        context?.Logger.Info(
-                            $"Modded Vehicles Integration: dealer dialog diagnosis for '{dealerContactId}' at '{registration.Address}': " +
-                            $"dialog={service.dialogType}, settings={GetSettingsName(service.settings)}, " +
-                            $"contactCategory={service.contactCategory}, businessContact={service.isBusinessContact}. " +
-                            "The vanilla showroom configuration cannot open VehicleStoreDialog from a desk.");
                     }
 
                     var needsRepair =
@@ -87,11 +81,6 @@ namespace ModdedVehiclesIntegration
                     service.settings = sourceSettings;
                     service.contactCategory = sourceService.contactCategory;
                     service.isBusinessContact = sourceService.isBusinessContact;
-
-                    context?.Logger.Info(
-                        $"Modded Vehicles Integration: dealer dialog ready for '{dealerContactId}' at '{registration.Address}': " +
-                        $"dialog={service.dialogType}, settings={GetSettingsName(service.settings)}, " +
-                        $"contactCategory={service.contactCategory}, businessContact={service.isBusinessContact}.");
                 }
                 catch (Exception exception)
                 {
@@ -100,7 +89,7 @@ namespace ModdedVehiclesIntegration
             }
         }
 
-        internal static void Restore(ModContext? context)
+        internal static void Restore()
         {
             for (var index = AppliedPatches.Count - 1; index >= 0; index--)
             {
@@ -109,12 +98,6 @@ namespace ModdedVehiclesIntegration
                 patch.Service.settings = patch.OriginalSettings;
                 patch.Service.contactCategory = patch.OriginalContactCategory;
                 patch.Service.isBusinessContact = patch.OriginalIsBusinessContact;
-            }
-
-            if (AppliedPatches.Count > 0)
-            {
-                context?.Logger.Info(
-                    $"Modded Vehicles Integration: restored native service configuration for {AppliedPatches.Count} dealer(s).");
             }
 
             AppliedPatches.Clear();
@@ -136,11 +119,6 @@ namespace ModdedVehiclesIntegration
         {
             if (ReportedProblems.Add(key))
                 context?.Logger.Warn("Modded Vehicles Integration: " + message);
-        }
-
-        private static string GetSettingsName(SpecialServiceSettings? settings)
-        {
-            return settings == null ? "null" : settings.GetType().Name;
         }
 
         private sealed class PatchRecord

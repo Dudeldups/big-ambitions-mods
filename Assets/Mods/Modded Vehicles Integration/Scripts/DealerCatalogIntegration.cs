@@ -1,7 +1,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using BAModAPI;
 using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
@@ -31,29 +30,24 @@ namespace ModdedVehiclesIntegration
 
         private readonly Dictionary<string, DealerState> states =
             new Dictionary<string, DealerState>(StringComparer.Ordinal);
-        private string lastFallbackSignature = string.Empty;
 
         internal void ResetTracking()
         {
             states.Clear();
-            lastFallbackSignature = string.Empty;
         }
 
-        internal void Synchronize(ModContext? context)
+        internal void Synchronize()
         {
             var save = SaveGameManager.Current;
             if (save?.BuildingRegistrations == null)
                 return;
 
-            var vanillaStockByDealer = new Dictionary<string, List<string>>(StringComparer.Ordinal);
             foreach (var dealerContactId in DealerContactIds)
             {
                 var registration = save.BuildingRegistrations.Find(candidate =>
                     candidate != null && string.Equals(candidate.BusinessName, dealerContactId, StringComparison.Ordinal));
-                if (registration == null || !TryGetLayoutVehicles(registration, out var vanillaStock))
+                if (registration == null || !TryGetLayoutVehicles(registration, out _))
                     return;
-
-                vanillaStockByDealer[dealerContactId] = vanillaStock;
             }
 
             CaptureExternalChanges();
@@ -122,67 +116,10 @@ namespace ModdedVehiclesIntegration
 
                 state.LastApplied = new List<string>(desiredStock);
                 state.LastAppliedHadContact = true;
-
-                var assignedFallbackCount = string.Equals(
-                    dealerContactId,
-                    CityCarsContactId,
-                    StringComparison.Ordinal)
-                        ? fallbackCityVehicles.Count
-                        : LuxuryDealerContactIds.Contains(dealerContactId)
-                            ? fallbackLuxuryVehicles.Count
-                            : 0;
-                var diagnosticSignature = string.Join(
-                    "|",
-                    vanillaStockByDealer[dealerContactId].Count,
-                    registeredModStock.Count,
-                    assignedFallbackCount,
-                    desiredStock.Count);
-                if (!string.Equals(state.LastDiagnosticSignature, diagnosticSignature, StringComparison.Ordinal))
-                {
-                    context?.Logger.Info(
-                        $"Modded Vehicles Integration: dealer catalogue ready for '{dealerContactId}': " +
-                        $"vanillaExcluded={vanillaStockByDealer[dealerContactId].Count}, " +
-                        $"registeredByMods={registeredModStock.Count}, fallback={assignedFallbackCount}, " +
-                        $"total={desiredStock.Count}.");
-                    state.LastDiagnosticSignature = diagnosticSignature;
-                }
-            }
-
-            var fallbackSignature =
-                "city:" + string.Join("\n", fallbackCityVehicles) +
-                "\nluxury:" + string.Join("\n", fallbackLuxuryVehicles);
-            if (fallbackSignature != lastFallbackSignature)
-            {
-                LogFallbackAssignments(fallbackCityVehicles, CityCarsContactId, "price is below $60,000", context);
-                LogFallbackAssignments(
-                    fallbackLuxuryVehicles,
-                    "Manhattan Luxury Cars + The Hamptons Axis",
-                    "price is at or above $60,000",
-                    context);
-            }
-
-            lastFallbackSignature = fallbackSignature;
-        }
-
-        private static void LogFallbackAssignments(
-            List<string> vehicleTypeNames,
-            string destination,
-            string reason,
-            ModContext? context)
-        {
-            foreach (var vehicleTypeName in vehicleTypeNames)
-            {
-                var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
-                if (vehicleType == null)
-                    continue;
-
-                context?.Logger.Info(
-                    $"Modded Vehicles Integration: fallback-routed unregistered vehicle '{vehicleTypeName}' " +
-                    $"(price=${vehicleType.price:0.##}) to '{destination}' because its {reason}.");
             }
         }
 
-        internal void RestoreExternalCatalogs(ModContext? context)
+        internal void RestoreExternalCatalogs()
         {
             foreach (var dealerContactId in DealerContactIds)
             {
@@ -196,8 +133,6 @@ namespace ModdedVehiclesIntegration
             }
 
             states.Clear();
-            lastFallbackSignature = string.Empty;
-            context?.Logger.Info("Modded Vehicles Integration: restored externally managed dealer catalogues.");
         }
 
         private void CaptureExternalChanges()
@@ -320,7 +255,6 @@ namespace ModdedVehiclesIntegration
             internal List<string> ExternalStock = new List<string>();
             internal List<string> LastApplied = new List<string>();
             internal bool LastAppliedHadContact;
-            internal string LastDiagnosticSignature = string.Empty;
         }
     }
 }

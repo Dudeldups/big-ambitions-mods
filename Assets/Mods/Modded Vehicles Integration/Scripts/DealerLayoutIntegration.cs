@@ -139,10 +139,6 @@ namespace ModdedVehiclesIntegration
             desk.customColors = new List<CustomColor>();
             desk.stackedItems = updatedStackedItems;
             layout.Items.Add(customerChair);
-
-            context?.Logger.Info(
-                $"Modded Vehicles Integration: enabled native vehicle-store desk '{deskItemName}' " +
-                $"in '{definition.LayoutName}'.");
         }
 
         private static bool IsAlreadyTracked(BusinessLayoutSet layout, string originalDeskItemName)
