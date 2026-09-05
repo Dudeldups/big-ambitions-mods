@@ -10,7 +10,7 @@ using Vehicles.VehicleTypes;
 public sealed class AudiRS6RRuntime : MonoBehaviour
 {
     private const float DealerRetryInterval = 1f;
-    private const float DiagnosticsScanInterval = 1f;
+    private const float VehicleScanInterval = 1f;
     private const bool DebugVehicleSpawnEnabled = true;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
@@ -44,7 +44,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     };
 
     private bool dealerRegistrationPending;
-    private float nextDiagnosticsScanAt;
+    private float nextVehicleScanAt;
     private float nextDealerSyncAt;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
@@ -63,16 +63,14 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
         runtime.dealerRegistrationPending = !dealerRegistered;
         runtime.nextDealerSyncAt = runtime.dealerRegistrationPending ? 0f : float.PositiveInfinity;
-        runtime.nextDiagnosticsScanAt = 0f;
-        AudiRS6RDiagnostics.Initialize(context, runtime.vehicleTypeName);
-        runtime.EnsureVehicleDiagnosticsAttached();
+        runtime.nextVehicleScanAt = 0f;
+        runtime.EnsureVehiclesConfigured();
         return runtime;
     }
 
     public void Shutdown()
     {
-        RemoveVehicleDiagnostics();
-        AudiRS6RDiagnostics.Shutdown();
+        RemoveVehicleRuntimeComponents();
         Destroy(gameObject);
     }
 
@@ -94,14 +92,14 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         if (DebugVehicleSpawnEnabled && Input.GetKeyDown(KeyCode.F9))
             TrySpawnVehicleInFrontOfPlayer();
 
-        if (Time.unscaledTime >= nextDiagnosticsScanAt)
+        if (Time.unscaledTime >= nextVehicleScanAt)
         {
-            EnsureVehicleDiagnosticsAttached();
-            nextDiagnosticsScanAt = Time.unscaledTime + DiagnosticsScanInterval;
+            EnsureVehiclesConfigured();
+            nextVehicleScanAt = Time.unscaledTime + VehicleScanInterval;
         }
     }
 
-    private void EnsureVehicleDiagnosticsAttached()
+    private void EnsureVehiclesConfigured()
     {
         if (string.IsNullOrWhiteSpace(vehicleTypeName))
             return;
@@ -119,11 +117,11 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             }
 
             ConfigureSleepEnvironment(vehicleController);
-            var diagnostics = vehicleController.GetComponent<AudiRS6RVehicleDiagnostics>();
-            if (diagnostics == null)
+            var roadDamageGuard = vehicleController.GetComponent<AudiRS6RRoadDamageGuard>();
+            if (roadDamageGuard == null)
             {
                 ConfigureVehiclePhysics(vehicleController);
-                diagnostics = vehicleController.gameObject.AddComponent<AudiRS6RVehicleDiagnostics>();
+                roadDamageGuard = vehicleController.gameObject.AddComponent<AudiRS6RRoadDamageGuard>();
             }
 
             var lightingController = vehicleController.GetComponent<AudiRS6RLightingController>();
@@ -131,44 +129,25 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 lightingController = vehicleController.gameObject.AddComponent<AudiRS6RLightingController>();
 
             lightingController.Initialize(vehicleController);
-            diagnostics.Initialize(vehicleController);
+            roadDamageGuard.Initialize(vehicleController);
         }
     }
 
     private void ConfigureVehiclePhysics(VehicleController vehicleController)
     {
         var rigidbody = vehicleController.GetComponent<Rigidbody>() ?? vehicleController.GetComponentInParent<Rigidbody>();
-        var centerOfMassModules = ConfigureCenterOfMassModules(vehicleController);
+        ConfigureCenterOfMassModules(vehicleController);
         if (rigidbody != null)
             rigidbody.centerOfMass = new Vector3(0f, CenterOfMassHeight, 0f);
 
-        var visualPartsConfigured = ConfigureVisualBodyHeight(vehicleController);
-        var exitMarkersConfigured = ConfigureExitMarkers(vehicleController);
-        ConfigureBodyColliders(vehicleController, out var bodyColliderCount, out var bodyCollidersAdjusted);
-        ConfigureSuspension(vehicleController, out var suspensionCount, out var suspensionAdjustedCount);
-        ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
-        var damageHandlersConfigured = ConfigureDamageHandlers(vehicleController);
-        var deformationControllersConfigured = ConfigureDeformationControllers(vehicleController);
-        ConfigureLights(vehicleController, out var lightManagerCount, out var lightSourceCount, out var invalidLightSourceCount);
-
-        AudiRS6RDiagnostics.Vehicle(
-            "VEHICLE_PHYSICS_CONFIG",
-            $"vehicleId=\"{vehicleController.vehicleInstance.id}\" centerOfMass=(0.000,{CenterOfMassHeight:0.000},0.000) " +
-            $"centerOfMassModules={centerOfMassModules} visualBodyLocalY={VisualBodyLocalHeight:0.000} " +
-            $"visualPartsConfigured={visualPartsConfigured} exitMarkersConfigured={exitMarkersConfigured} " +
-            $"exitLocalX=({DriverExitLocalX:0.000},{PassengerExitLocalX:0.000}) exitLocalY={ExitLocalY:0.000} " +
-            $"lowerBodyColliderCenterY={LowerBodyColliderCenterY:0.000} " +
-            $"lowerBodyColliderHeight={LowerBodyColliderHeight:0.000} bodyCollidersFound={bodyColliderCount} " +
-            $"bodyCollidersAdjusted={bodyCollidersAdjusted} suspensionMaxLength={SuspensionMaxLength:0.000} " +
-            $"suspensionsFound={suspensionCount} suspensionsAdjusted={suspensionAdjustedCount} " +
-            $"brakeMaxTorque={BrakeMaxTorque:0} brakeActuationTime={BrakeActuationTime:0.000} " +
-            $"rearBrakeCoefficient={RearBrakeCoefficient:0.000} handbrakeCoefficient={HandbrakeCoefficient:0.000} " +
-            $"antiRollBarForce={AntiRollBarForce:0} brakeModules={brakeModuleCount} axleGroups={axleGroupCount} " +
-            $"damageIntensity={DamageIntensity:0.000} damageHandlersConfigured={damageHandlersConfigured} " +
-            $"deformationStrength={DeformationStrength:0.000} deformationRadius={DeformationRadius:0.000} " +
-            $"deformationControllersConfigured={deformationControllersConfigured} " +
-            $"lightManagers={lightManagerCount} validLightSources={lightSourceCount} " +
-            $"invalidLightSourcesRemoved={invalidLightSourceCount}");
+        ConfigureVisualBodyHeight(vehicleController);
+        ConfigureExitMarkers(vehicleController);
+        ConfigureBodyColliders(vehicleController, out _, out _);
+        ConfigureSuspension(vehicleController, out _, out _);
+        ConfigureBrakes(vehicleController, out _, out _);
+        ConfigureDamageHandlers(vehicleController);
+        ConfigureDeformationControllers(vehicleController);
+        ConfigureLights(vehicleController, out _, out _, out _);
     }
 
     private static int ConfigureCenterOfMassModules(VehicleController vehicleController)
@@ -362,16 +341,11 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
             configField.SetValue(environment, carConfig);
             environmentField.SetValue(vehicleController, environment);
-            AudiRS6RDiagnostics.Vehicle(
-                "SLEEP_CONFIG",
-                $"vehicleId=\"{vehicleController.vehicleInstance?.id ?? "<none>"}\" " +
-                $"assigned=True config=\"{carConfig.name}\" type=Car");
             return 1;
         }
         catch (Exception ex)
         {
             context?.Logger.Warn($"AudiRS6R: could not assign the current Car sleep configuration: {ex.Message}");
-            AudiRS6RDiagnostics.Error("ConfigureSleepEnvironment", ex);
             return 0;
         }
     }
@@ -740,13 +714,13 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                string.Equals(objectName, "RearRight_WheelController", StringComparison.Ordinal);
     }
 
-    private void RemoveVehicleDiagnostics()
+    private void RemoveVehicleRuntimeComponents()
     {
-        var diagnostics = FindObjectsOfType<AudiRS6RVehicleDiagnostics>();
-        foreach (var diagnostic in diagnostics)
+        var roadDamageGuards = FindObjectsOfType<AudiRS6RRoadDamageGuard>();
+        foreach (var roadDamageGuard in roadDamageGuards)
         {
-            if (diagnostic != null)
-                Destroy(diagnostic);
+            if (roadDamageGuard != null)
+                Destroy(roadDamageGuard);
         }
 
         var lightingControllers = FindObjectsOfType<AudiRS6RLightingController>();
@@ -814,7 +788,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         VehicleHelper.CreateAndSpawnVehicle(vehicleInstance, spawnPosition, spawnRotation);
         TrySnapSpawnedVehicleToGround(vehicleInstance.id, spawnPosition, spawnRotation);
-        EnsureVehicleDiagnosticsAttached();
+        EnsureVehiclesConfigured();
         Debug.Log($"AudiRS6R: spawned '{vehicleTypeName}' with id '{vehicleInstance.id}'.");
     }
 
