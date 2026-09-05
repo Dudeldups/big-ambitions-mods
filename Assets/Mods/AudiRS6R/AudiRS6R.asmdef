@@ -1,9 +1,7 @@
 {
     "name": "AudiRS6R",
     "rootNamespace": "",
-    "references": [
-        "GUID:43415f9a12052d84fa4a180264d76a9d"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
