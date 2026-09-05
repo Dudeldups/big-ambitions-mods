@@ -16341,14 +16341,7 @@ MonoBehaviour:
       particleSystems: []
     lightsManager:
       brakeLights:
-        lightSources:
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 0}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _BackLightStrength
-          shaderPropertyBrightness: 40000
-          type: 2
+        lightSources: []
       extraLights:
         lightSources: []
       highBeamLights:
@@ -16364,33 +16357,12 @@ MonoBehaviour:
           shaderPropertyName: 
           shaderPropertyBrightness: 0
           type: 0
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 2832831535291872765}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _FrontLightStrength
-          shaderPropertyBrightness: 50000
-          type: 2
       reverseLights:
-        lightSources:
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 0}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _ReverseLightStrength
-          shaderPropertyBrightness: 40000
-          type: 2
+        lightSources: []
       rightBlinkers:
         lightSources: []
       tailLights:
-        lightSources:
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 0}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _BackLightStrength
-          shaderPropertyBrightness: 20000
-          type: 2
+        lightSources: []
     skidmarkManager:
       globalSkidmarkIntensity: 0.6
       groundOffset: 0.025

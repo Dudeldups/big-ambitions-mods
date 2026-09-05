@@ -22,6 +22,18 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float SuspensionMaxLength = 0.25f;
     private const float VisualBodyLocalHeight = 0.08f;
 
+    private static readonly string[] VehicleLightGroupFieldNames =
+    {
+        "brakeLights",
+        "extraLights",
+        "highBeamLights",
+        "leftBlinkers",
+        "lowBeamLights",
+        "reverseLights",
+        "rightBlinkers",
+        "tailLights"
+    };
+
     private bool dealerRegistrationPending;
     private float nextDiagnosticsScanAt;
     private float nextDealerSyncAt;
@@ -118,6 +130,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         var visualPartsConfigured = ConfigureVisualBodyHeight(vehicleController);
         ConfigureSuspension(vehicleController, out var suspensionCount, out var suspensionAdjustedCount);
         ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
+        ConfigureLights(vehicleController, out var lightManagerCount, out var lightSourceCount, out var invalidLightSourceCount);
 
         AudiRS6RDiagnostics.Vehicle(
             "VEHICLE_PHYSICS_CONFIG",
@@ -127,7 +140,9 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             $"suspensionsFound={suspensionCount} suspensionsAdjusted={suspensionAdjustedCount} " +
             $"brakeMaxTorque={BrakeMaxTorque:0} brakeActuationTime={BrakeActuationTime:0.000} " +
             $"rearBrakeCoefficient={RearBrakeCoefficient:0.000} handbrakeCoefficient={HandbrakeCoefficient:0.000} " +
-            $"antiRollBarForce={AntiRollBarForce:0} brakeModules={brakeModuleCount} axleGroups={axleGroupCount}");
+            $"antiRollBarForce={AntiRollBarForce:0} brakeModules={brakeModuleCount} axleGroups={axleGroupCount} " +
+            $"lightManagers={lightManagerCount} validLightSources={lightSourceCount} " +
+            $"invalidLightSourcesRemoved={invalidLightSourceCount}");
     }
 
     private static int ConfigureCenterOfMassModules(VehicleController vehicleController)
@@ -290,6 +305,95 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         }
     }
 
+    private void ConfigureLights(
+        VehicleController vehicleController,
+        out int lightManagerCount,
+        out int validLightSourceCount,
+        out int invalidLightSourceCount)
+    {
+        lightManagerCount = 0;
+        validLightSourceCount = 0;
+        invalidLightSourceCount = 0;
+
+        foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
+        {
+            if (component == null)
+                continue;
+
+            try
+            {
+                var effectsManagerField = component.GetType().GetField(
+                    "effectsManager",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var effectsManager = effectsManagerField?.GetValue(component);
+                if (effectsManagerField == null || effectsManager == null)
+                    continue;
+
+                var lightsManagerField = effectsManager.GetType().GetField(
+                    "lightsManager",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var lightsManager = lightsManagerField?.GetValue(effectsManager);
+                if (lightsManagerField == null || lightsManager == null)
+                    continue;
+
+                lightManagerCount++;
+                foreach (var groupFieldName in VehicleLightGroupFieldNames)
+                {
+                    var groupField = lightsManager.GetType().GetField(
+                        groupFieldName,
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    var group = groupField?.GetValue(lightsManager);
+                    if (groupField == null || group == null)
+                        continue;
+
+                    var sourcesField = group.GetType().GetField(
+                        "lightSources",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (!(sourcesField?.GetValue(group) is IList sources))
+                        continue;
+
+                    for (var index = sources.Count - 1; index >= 0; index--)
+                    {
+                        var source = sources[index];
+                        if (source == null)
+                        {
+                            sources.RemoveAt(index);
+                            invalidLightSourceCount++;
+                            continue;
+                        }
+
+                        var light = GetObjectField(source, "light");
+                        var meshRenderer = GetObjectField(source, "meshRenderer");
+                        var lightSourceType = GetIntField(source, "type", -1);
+                        var isValid = lightSourceType == 0 ? light != null : meshRenderer != null;
+                        if (!isValid)
+                        {
+                            sources.RemoveAt(index);
+                            invalidLightSourceCount++;
+                        }
+                        else
+                        {
+                            validLightSourceCount++;
+                        }
+                    }
+
+                    sourcesField.SetValue(group, sources);
+                    if (group.GetType().IsValueType)
+                        groupField.SetValue(lightsManager, group);
+                }
+
+                if (lightsManager.GetType().IsValueType)
+                    lightsManagerField.SetValue(effectsManager, lightsManager);
+                if (effectsManager.GetType().IsValueType)
+                    effectsManagerField.SetValue(component, effectsManager);
+            }
+            catch (Exception ex)
+            {
+                context?.Logger.Warn($"AudiRS6R: could not sanitize vehicle lights: {ex.Message}");
+            }
+        }
+    }
+
     private static bool TrySetFloatField(object target, string fieldName, float value)
     {
         var field = target.GetType().GetField(
@@ -320,6 +424,23 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             fieldName,
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         return field?.GetValue(target) as string ?? string.Empty;
+    }
+
+    private static UnityEngine.Object? GetObjectField(object target, string fieldName)
+    {
+        var field = target.GetType().GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return field?.GetValue(target) as UnityEngine.Object;
+    }
+
+    private static int GetIntField(object target, string fieldName, int fallback)
+    {
+        var field = target.GetType().GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var value = field?.GetValue(target);
+        return value != null ? Convert.ToInt32(value) : fallback;
     }
 
     private static bool IsWheelController(string objectName)
