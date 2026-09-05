@@ -29,6 +29,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private MeshRenderer? rightHeadlightOverlay;
     private MeshRenderer? leftHeadlightLensOverlay;
     private MeshRenderer? rightHeadlightLensOverlay;
+    private MeshRenderer? leftTailLightOverlay;
+    private MeshRenderer? rightTailLightOverlay;
     private MeshRenderer? leftBrakeLightOverlay;
     private MeshRenderer? rightBrakeLightOverlay;
     private MeshRenderer? centerBrakeLightOverlay;
@@ -40,6 +42,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
     private bool lastHeadlights;
+    private bool lastTailLights;
     private bool lastBrakes;
     private bool lastLeftBlinker;
     private bool lastRightBlinker;
@@ -95,6 +98,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "RightHeadlightLens",
             new Color(0.27f, 0.34f, 0.47f, 1f),
             copyBaseTexture: false);
+        leftTailLightOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
+            "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
+        rightTailLightOverlay = CreateFunctionalOverlay(
+            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
+            "RightTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
         leftBrakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
             "LeftBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
@@ -444,6 +453,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var controlledByPlayer = vehicleController != null && vehicleController.controlledByPlayer;
         var automaticHeadlights = GetBoolProperty(vehicleController, "ShouldLightsBeOn");
         var headlights = controlledByPlayer;
+        var tailLights = controlledByPlayer && automaticHeadlights;
         var rawBraking = GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking");
         var braking = controlledByPlayer && rawBraking;
         var leftBlinker = controlledByPlayer && GetBoolField(blinkers, "_isLeftBlinkerOn");
@@ -464,6 +474,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
         SetLightState(rightHeadlightBeam, controlledByPlayer && automaticHeadlights);
+        SetRendererState(leftTailLightOverlay, tailLights && !braking && !(leftBlinker && blinkerFlash));
+        SetRendererState(rightTailLightOverlay, tailLights && !braking && !(rightBlinker && blinkerFlash));
         SetRendererState(leftBrakeLightOverlay, braking && !(leftBlinker && blinkerFlash));
         SetRendererState(rightBrakeLightOverlay, braking && !(rightBlinker && blinkerFlash));
         SetRendererState(centerBrakeLightOverlay, braking);
@@ -472,7 +484,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
         SetRendererState(rightRearBlinkerOverlay, rightBlinker && blinkerFlash);
 
-        if (forceLog || headlights != lastHeadlights || braking != lastBrakes ||
+        if (forceLog || headlights != lastHeadlights || tailLights != lastTailLights || braking != lastBrakes ||
             leftBlinker != lastLeftBlinker || rightBlinker != lastRightBlinker ||
             blinkerFlash != lastBlinkerFlash)
         {
@@ -480,6 +492,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 "LIGHT_STATE",
                 $"vehicleId=\"{vehicleController?.vehicleInstance?.id ?? "<none>"}\" " +
                 $"controlled={controlledByPlayer} automaticHeadlights={automaticHeadlights} headlights={headlights} " +
+                $"tailLights={tailLights} " +
                 $"rawBrakes={rawBraking} brakes={braking} leftBlinker={leftBlinker} " +
                 $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
                 $"beams=[left={IsLightEnabled(leftHeadlightBeam)},right={IsLightEnabled(rightHeadlightBeam)}] " +
@@ -487,6 +500,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"headRight={IsRendererEnabled(rightHeadlightOverlay)}," +
                 $"lensLeft={IsRendererEnabled(leftHeadlightLensOverlay)}," +
                 $"lensRight={IsRendererEnabled(rightHeadlightLensOverlay)}," +
+                $"tailLeft={IsRendererEnabled(leftTailLightOverlay)}," +
+                $"tailRight={IsRendererEnabled(rightTailLightOverlay)}," +
                 $"brakeLeft={IsRendererEnabled(leftBrakeLightOverlay)}," +
                 $"brakeRight={IsRendererEnabled(rightBrakeLightOverlay)}," +
                 $"brakeCenter={IsRendererEnabled(centerBrakeLightOverlay)}," +
@@ -495,6 +510,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
 
         lastHeadlights = headlights;
+        lastTailLights = tailLights;
         lastBrakes = braking;
         lastLeftBlinker = leftBlinker;
         lastRightBlinker = rightBlinker;
@@ -567,6 +583,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (rightHeadlightOverlay != null) count++;
         if (leftHeadlightLensOverlay != null) count++;
         if (rightHeadlightLensOverlay != null) count++;
+        if (leftTailLightOverlay != null) count++;
+        if (rightTailLightOverlay != null) count++;
         if (leftBrakeLightOverlay != null) count++;
         if (rightBrakeLightOverlay != null) count++;
         if (centerBrakeLightOverlay != null) count++;
