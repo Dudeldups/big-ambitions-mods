@@ -16142,8 +16142,8 @@ Rigidbody:
   serializedVersion: 4
   m_Mass: 2050
   m_Drag: 0
-  m_AngularDrag: 0
-  m_CenterOfMass: {x: 0, y: 0.3, z: 0}
+  m_AngularDrag: 1.5
+  m_CenterOfMass: {x: 0, y: 0.25, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
   m_IncludeLayers:
@@ -16158,7 +16158,7 @@ Rigidbody:
   m_IsKinematic: 0
   m_Interpolate: 1
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!114 &7752433723060951901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16309,10 +16309,10 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 22000
+    maxTorque: 18000
     handbrakeType: 0
     handbrakeValue: 0
-    actuationTime: 0.1
+    actuationTime: 0.06
     onBrakesActivate:
       m_PersistentCalls:
         m_Calls: []
@@ -16341,14 +16341,7 @@ MonoBehaviour:
       particleSystems: []
     lightsManager:
       brakeLights:
-        lightSources:
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 0}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _BackLightStrength
-          shaderPropertyBrightness: 40000
-          type: 2
+        lightSources: []
       extraLights:
         lightSources: []
       highBeamLights:
@@ -16364,33 +16357,12 @@ MonoBehaviour:
           shaderPropertyName: 
           shaderPropertyBrightness: 0
           type: 0
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 2832831535291872765}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _FrontLightStrength
-          shaderPropertyBrightness: 50000
-          type: 2
       reverseLights:
-        lightSources:
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 0}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _ReverseLightStrength
-          shaderPropertyBrightness: 40000
-          type: 2
+        lightSources: []
       rightBlinkers:
         lightSources: []
       tailLights:
-        lightSources:
-        - emissionColor: {r: 0, g: 0, b: 0, a: 0}
-          light: {fileID: 0}
-          meshRenderer: {fileID: 0}
-          rendererMaterialIndex: -1
-          shaderPropertyName: _BackLightStrength
-          shaderPropertyBrightness: 20000
-          type: 2
+        lightSources: []
     skidmarkManager:
       globalSkidmarkIntensity: 0.6
       groundOffset: 0.025
@@ -16576,10 +16548,19 @@ MonoBehaviour:
           inWeight: 0.088005394
           outWeight: 0.03899401
         - serializedVersion: 3
-          time: 1
+          time: 0.86
           value: 1
           inSlope: 0
           outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 0.88
+          inSlope: -0.85
+          outSlope: -0.85
           tangentMode: 0
           weightedMode: 0
           inWeight: 0
@@ -16588,7 +16569,7 @@ MonoBehaviour:
         m_PostInfinity: 2
         m_RotationOrder: 4
       revLimiterCutoffDuration: 0
-      revLimiterRPM: 10000
+      revLimiterRPM: 7000
       stallingEnabled: 1
       startDuration: 0.5
     transmission:
@@ -16616,8 +16597,8 @@ MonoBehaviour:
       - 1
       - 0.82
       - 0.64
-      forwardGearCount: 0
-      reverseGearCount: 0
+      forwardGearCount: 8
+      reverseGearCount: 1
       inclineEffectCoeff: 0
       onDownshift:
         m_PersistentCalls:
@@ -16639,8 +16620,8 @@ MonoBehaviour:
       isPostShiftBanActive: 0
       isShifting: 0
       shiftProgress: 0
-      _downshiftRPM: 6000
-      _upshiftRPM: 9500
+      _downshiftRPM: 3200
+      _upshiftRPM: 6600
       transmissionType: 1
       isSequential: 0
       allowUpshiftGearSkipping: 0
@@ -16648,7 +16629,7 @@ MonoBehaviour:
     wheelGroups:
     - name: Front Axle 0
       addAckerman: 1
-      antiRollBarForce: 4200
+      antiRollBarForce: 6500
       brakeCoefficient: 1
       handbrakeCoefficient: 0
       isSolid: 0
@@ -16662,9 +16643,9 @@ MonoBehaviour:
       vc: {fileID: 167550288057349501}
     - name: Rear Axle 1
       addAckerman: 1
-      antiRollBarForce: 4200
-      brakeCoefficient: 0.184
-      handbrakeCoefficient: 1
+      antiRollBarForce: 6500
+      brakeCoefficient: 0.55
+      handbrakeCoefficient: 2
       isSolid: 0
       trackWidth: 0
       steerCoefficient: 0
@@ -16933,7 +16914,7 @@ MonoBehaviour:
   enginePosition: {x: 0, y: 0.4, z: 1.5}
   exhaustPosition: {x: 0, y: 0.1, z: -2}
   transmissionPosition: {x: 0, y: 0.2, z: 0.2}
-  wheelbase: 4
+  wheelbase: 2.93
   realtimeSinceStartup: 0
   runAutomaticValidation: 1
   lodCamera: {fileID: 0}
@@ -16988,12 +16969,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   module:
     useFuel: 1
-    amount: 55
-    capacity: 55
-    consumptionMultiplier: 60
+    amount: 62
+    capacity: 62
+    consumptionMultiplier: 20
     efficiency: 0.45
-    idleConsumption: 0.1
-    maxConsumptionPerHour: 20
+    idleConsumption: 0.045
+    maxConsumptionPerHour: 29.92
     onOutOfFuel:
       m_PersistentCalls:
         m_Calls: []
@@ -17040,8 +17021,8 @@ MonoBehaviour:
   combinedMass: 2200
   dimensions: {x: 1.989083, y: 1.414327, z: 4.584719}
   useDefaultCenterOfMass: 0
-  centerOfMass: {x: 0, y: 0.3, z: 0}
-  combinedCenterOfMass: {x: 0, y: 0.3, z: 0}
+  centerOfMass: {x: 0, y: 0.25, z: 0}
+  combinedCenterOfMass: {x: 0, y: 0.25, z: 0}
   useDefaultInertia: 1
   inertiaTensor: {x: 2222.068, y: 2206.0933, z: 623.19104}
   combinedInertiaTensor: {x: 0, y: 0, z: 0}
@@ -17061,7 +17042,7 @@ MonoBehaviour:
   - Wheel
   - ExitTrigger
   collisionTimeout: 0.8
-  damageIntensity: 0.8
+  damageIntensity: 0.5
   decelerationThreshold: 200
   deformationIgnoreTags:
   - Wheel
@@ -17800,7 +17781,7 @@ Transform:
   m_GameObject: {fileID: 3942621424439436342}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.235, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -18323,14 +18304,14 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     length: 0
-    maxForce: 5000
-    maxLength: 0.6
+    maxForce: 16000
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
   damper:
-    bumpRate: 5000
-    reboundRate: 5000
+    bumpRate: 15000
+    reboundRate: 17000
     slowBump: 1.4
     fastBump: 0.6
     bumpDivisionVelocity: 0.06
@@ -18351,7 +18332,7 @@ MonoBehaviour:
     angularVelocity: 0
     inertia: 0
     baseInertia: 0
-    mass: 14
+    mass: 20
     radius: 0.355
     width: 0.255
   sideFriction:
@@ -18375,7 +18356,7 @@ MonoBehaviour:
   frictionCircleStrength: 1
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8542125854478981154}
-  forceApplicationPointDistance: 0.2
+  forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 6
   damageMaxWobbleAngle: 30
@@ -19118,14 +19099,14 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     length: 0
-    maxForce: 5000
-    maxLength: 0.6
+    maxForce: 16000
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
   damper:
-    bumpRate: 5000
-    reboundRate: 5000
+    bumpRate: 15000
+    reboundRate: 17000
     slowBump: 1.4
     fastBump: 0.6
     bumpDivisionVelocity: 0.06
@@ -19146,7 +19127,7 @@ MonoBehaviour:
     angularVelocity: 0
     inertia: 0
     baseInertia: 0
-    mass: 14
+    mass: 20
     radius: 0.355
     width: 0.255
   sideFriction:
@@ -19170,7 +19151,7 @@ MonoBehaviour:
   frictionCircleStrength: 1
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8542125854478981154}
-  forceApplicationPointDistance: 0.2
+  forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 6
   damageMaxWobbleAngle: 30
@@ -20444,7 +20425,7 @@ Transform:
   m_GameObject: {fileID: 4941002883087958202}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.18, z: 0}
+  m_LocalPosition: {x: 0, y: 0.08, z: 0}
   m_LocalScale: {x: 0.95, y: 0.95000017, z: 0.95000017}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -20819,7 +20800,7 @@ Transform:
   m_GameObject: {fileID: 5130541185267157401}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.007, y: 0, z: 0.117}
+  m_LocalPosition: {x: 1.5, y: 0.1, z: 0.117}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -23201,7 +23182,7 @@ Transform:
   m_GameObject: {fileID: 6077871272308408183}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.18, z: 0}
+  m_LocalPosition: {x: 0, y: 0.08, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -25323,7 +25304,7 @@ Transform:
   m_GameObject: {fileID: 6791419741945506877}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.243, y: 0, z: 0.117}
+  m_LocalPosition: {x: -1.5, y: 0.1, z: 0.117}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -25898,14 +25879,14 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     length: 0
-    maxForce: 5000
-    maxLength: 0.6
+    maxForce: 16000
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
   damper:
-    bumpRate: 5000
-    reboundRate: 5000
+    bumpRate: 15000
+    reboundRate: 17000
     slowBump: 1.4
     fastBump: 0.6
     bumpDivisionVelocity: 0.06
@@ -25926,7 +25907,7 @@ MonoBehaviour:
     angularVelocity: 0
     inertia: 0
     baseInertia: 0
-    mass: 14
+    mass: 20
     radius: 0.355
     width: 0.255
   sideFriction:
@@ -25950,7 +25931,7 @@ MonoBehaviour:
   frictionCircleStrength: 1
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8542125854478981154}
-  forceApplicationPointDistance: 0.2
+  forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 6
   damageMaxWobbleAngle: 30
@@ -26542,6 +26523,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1534328665485777206}
   - component: {fileID: 334089193490022288}
+  - component: {fileID: 334089193490022289}
   m_Layer: 12
   m_Name: BodyCollider
   m_TagString: Vehicle
@@ -26564,8 +26546,8 @@ Transform:
   m_Children: []
   m_Father: {fileID: 8120936231790416447}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!64 &334089193490022288
-MeshCollider:
+--- !u!65 &334089193490022288
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -26582,10 +26564,30 @@ MeshCollider:
   m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 1
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -4209182782497736992, guid: 2e5de3e501118a6489219c1b34b21baa, type: 3}
+  serializedVersion: 3
+  m_Size: {x: 1.99, y: 0.62, z: 4.58}
+  m_Center: {x: 0, y: 0.6, z: 0}
+--- !u!65 &334089193490022289
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7297075236039679177}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.72, y: 0.72, z: 2.65}
+  m_Center: {x: 0, y: 1, z: -0.2}
 --- !u!1 &7301647037726199894
 GameObject:
   m_ObjectHideFlags: 0
@@ -31318,14 +31320,14 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     length: 0
-    maxForce: 5000
-    maxLength: 0.6
+    maxForce: 16000
+    maxLength: 0.25
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
   damper:
-    bumpRate: 5000
-    reboundRate: 5000
+    bumpRate: 15000
+    reboundRate: 17000
     slowBump: 1.4
     fastBump: 0.6
     bumpDivisionVelocity: 0.06
@@ -31346,7 +31348,7 @@ MonoBehaviour:
     angularVelocity: 0
     inertia: 0
     baseInertia: 0
-    mass: 14
+    mass: 20
     radius: 0.355
     width: 0.255
   sideFriction:
@@ -31370,7 +31372,7 @@ MonoBehaviour:
   frictionCircleStrength: 1
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8542125854478981154}
-  forceApplicationPointDistance: 0.2
+  forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 6
   damageMaxWobbleAngle: 30
