@@ -100,6 +100,25 @@ namespace ModdedVehiclesIntegration
 
                 state.LastApplied = new List<string>(desiredStock);
                 state.LastAppliedHadContact = true;
+
+                var assignedFallbackCount = LuxuryDealerContactIds.Contains(dealerContactId)
+                    ? fallbackLuxuryVehicles.Count
+                    : 0;
+                var diagnosticSignature = string.Join(
+                    "|",
+                    vanillaStockByDealer[dealerContactId].Count,
+                    state.ExternalStock.Count,
+                    assignedFallbackCount,
+                    desiredStock.Count);
+                if (!string.Equals(state.LastDiagnosticSignature, diagnosticSignature, StringComparison.Ordinal))
+                {
+                    context?.Logger.Info(
+                        $"Modded Vehicles Integration: dealer catalogue ready for '{dealerContactId}': " +
+                        $"vanilla={vanillaStockByDealer[dealerContactId].Count}, " +
+                        $"registeredByMods={state.ExternalStock.Count}, fallback={assignedFallbackCount}, " +
+                        $"total={desiredStock.Count}.");
+                    state.LastDiagnosticSignature = diagnosticSignature;
+                }
             }
 
             var fallbackSignature = string.Join("\n", fallbackLuxuryVehicles);
@@ -250,6 +269,7 @@ namespace ModdedVehiclesIntegration
             internal List<string> ExternalStock = new List<string>();
             internal List<string> LastApplied = new List<string>();
             internal bool LastAppliedHadContact;
+            internal string LastDiagnosticSignature = string.Empty;
         }
     }
 }

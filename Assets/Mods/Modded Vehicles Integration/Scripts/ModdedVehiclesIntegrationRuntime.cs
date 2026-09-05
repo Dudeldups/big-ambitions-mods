@@ -32,6 +32,7 @@ namespace ModdedVehiclesIntegration
         internal void Shutdown()
         {
             catalogIntegration.RestoreExternalCatalogs(context);
+            DealerServiceIntegration.Restore(context);
             Destroy(gameObject);
         }
 
@@ -57,6 +58,7 @@ namespace ModdedVehiclesIntegration
             }
 
             DealerLayoutIntegration.EnsureApplied(context);
+            DealerServiceIntegration.EnsureApplied(context);
             catalogIntegration.Synchronize(context);
         }
     }

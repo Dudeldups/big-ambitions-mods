@@ -15,7 +15,7 @@ MonoBehaviour:
   ModId: ModdedVehiclesIntegration
   DisplayName: Modded Vehicles Integration
   Author: Arne Jacob
-  Version: 0.1.0
+  Version: 0.1.1
   AssetBundleName:
   ModAssembly: {fileID: 5897886265953266890, guid: c14813bc5d97472c9dccce138175a5a1, type: 3}
   LocalesFolder: {fileID: 0}
