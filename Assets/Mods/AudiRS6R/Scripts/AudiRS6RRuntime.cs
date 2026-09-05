@@ -9,7 +9,7 @@ using Vehicles.VehicleTypes;
 
 public sealed class AudiRS6RRuntime : MonoBehaviour
 {
-    private const float DealerRetryInterval = 1f;
+    private const float DealerSyncInterval = 10f;
     private const float VehicleScanInterval = 1f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
@@ -44,13 +44,12 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         "tailLights"
     };
 
-    private bool dealerRegistrationPending;
     private float nextVehicleScanAt;
     private float nextDealerSyncAt;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
 
-    public static AudiRS6RRuntime Initialize(ModContext context, string vehicleTypeName, bool dealerRegistered)
+    public static AudiRS6RRuntime Initialize(ModContext context, string vehicleTypeName)
     {
         var runtime = FindObjectOfType<AudiRS6RRuntime>();
         if (runtime == null)
@@ -62,8 +61,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
-        runtime.dealerRegistrationPending = !dealerRegistered;
-        runtime.nextDealerSyncAt = runtime.dealerRegistrationPending ? 0f : float.PositiveInfinity;
+        runtime.nextDealerSyncAt = 0f;
         runtime.nextVehicleScanAt = 0f;
         runtime.EnsureVehiclesConfigured();
         return runtime;
@@ -77,17 +75,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (dealerRegistrationPending && Time.unscaledTime >= nextDealerSyncAt)
+        if (Time.unscaledTime >= nextDealerSyncAt)
         {
-            if (TryRegisterWithDealer())
-            {
-                dealerRegistrationPending = false;
-                nextDealerSyncAt = float.PositiveInfinity;
-            }
-            else
-            {
-                nextDealerSyncAt = Time.unscaledTime + DealerRetryInterval;
-            }
+            AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+            nextDealerSyncAt = Time.unscaledTime + DealerSyncInterval;
         }
 
         if (Time.unscaledTime >= nextVehicleScanAt)
@@ -765,11 +756,4 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         }
     }
 
-    private bool TryRegisterWithDealer()
-    {
-        if (string.IsNullOrWhiteSpace(vehicleTypeName))
-            return false;
-
-        return AudiRS6RMod.TryRegisterWithBackAlleyDealer(vehicleTypeName, context);
-    }
 }
