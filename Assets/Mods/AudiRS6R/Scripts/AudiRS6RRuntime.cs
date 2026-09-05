@@ -16,7 +16,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float BrakeActuationTime = 0.06f;
     private const float BrakeMaxTorque = 18000f;
     private const float CenterOfMassHeight = 0.25f;
+    private const float DamageIntensity = 0.5f;
     private const float HandbrakeCoefficient = 2f;
+    private const float LowerBodyColliderCenterY = 0.6f;
+    private const float LowerBodyColliderHeight = 0.62f;
     private const float RearBrakeCoefficient = 0.55f;
     private const float SpawnDistance = 6f;
     private const float SuspensionMaxLength = 0.25f;
@@ -128,19 +131,24 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             rigidbody.centerOfMass = new Vector3(0f, CenterOfMassHeight, 0f);
 
         var visualPartsConfigured = ConfigureVisualBodyHeight(vehicleController);
+        ConfigureBodyColliders(vehicleController, out var bodyColliderCount, out var bodyCollidersAdjusted);
         ConfigureSuspension(vehicleController, out var suspensionCount, out var suspensionAdjustedCount);
         ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
+        var damageHandlersConfigured = ConfigureDamageHandlers(vehicleController);
         ConfigureLights(vehicleController, out var lightManagerCount, out var lightSourceCount, out var invalidLightSourceCount);
 
         AudiRS6RDiagnostics.Vehicle(
             "VEHICLE_PHYSICS_CONFIG",
             $"vehicleId=\"{vehicleController.vehicleInstance.id}\" centerOfMass=(0.000,{CenterOfMassHeight:0.000},0.000) " +
             $"centerOfMassModules={centerOfMassModules} visualBodyLocalY={VisualBodyLocalHeight:0.000} " +
-            $"visualPartsConfigured={visualPartsConfigured} suspensionMaxLength={SuspensionMaxLength:0.000} " +
+            $"visualPartsConfigured={visualPartsConfigured} lowerBodyColliderCenterY={LowerBodyColliderCenterY:0.000} " +
+            $"lowerBodyColliderHeight={LowerBodyColliderHeight:0.000} bodyCollidersFound={bodyColliderCount} " +
+            $"bodyCollidersAdjusted={bodyCollidersAdjusted} suspensionMaxLength={SuspensionMaxLength:0.000} " +
             $"suspensionsFound={suspensionCount} suspensionsAdjusted={suspensionAdjustedCount} " +
             $"brakeMaxTorque={BrakeMaxTorque:0} brakeActuationTime={BrakeActuationTime:0.000} " +
             $"rearBrakeCoefficient={RearBrakeCoefficient:0.000} handbrakeCoefficient={HandbrakeCoefficient:0.000} " +
             $"antiRollBarForce={AntiRollBarForce:0} brakeModules={brakeModuleCount} axleGroups={axleGroupCount} " +
+            $"damageIntensity={DamageIntensity:0.000} damageHandlersConfigured={damageHandlersConfigured} " +
             $"lightManagers={lightManagerCount} validLightSources={lightSourceCount} " +
             $"invalidLightSourcesRemoved={invalidLightSourceCount}");
     }
@@ -180,6 +188,62 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             position.y = VisualBodyLocalHeight;
             child.localPosition = position;
             configuredCount++;
+        }
+
+        return configuredCount;
+    }
+
+    private static void ConfigureBodyColliders(
+        VehicleController vehicleController,
+        out int bodyColliderCount,
+        out int adjustedCount)
+    {
+        bodyColliderCount = 0;
+        adjustedCount = 0;
+
+        foreach (var boxCollider in vehicleController.GetComponentsInChildren<BoxCollider>(true))
+        {
+            if (boxCollider == null ||
+                !string.Equals(boxCollider.name, "BodyCollider", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            bodyColliderCount++;
+            if (boxCollider.center.y >= 0.8f)
+                continue;
+
+            var center = boxCollider.center;
+            var size = boxCollider.size;
+            center.y = LowerBodyColliderCenterY;
+            size.y = LowerBodyColliderHeight;
+            boxCollider.center = center;
+            boxCollider.size = size;
+            adjustedCount++;
+        }
+    }
+
+    private int ConfigureDamageHandlers(VehicleController vehicleController)
+    {
+        var configuredCount = 0;
+        foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
+        {
+            if (component == null)
+                continue;
+
+            try
+            {
+                var damageHandlerField = component.GetType().GetField(
+                    "damageHandler",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var damageHandler = damageHandlerField?.GetValue(component);
+                if (damageHandler != null && TrySetFloatField(damageHandler, "damageIntensity", DamageIntensity))
+                    configuredCount++;
+            }
+            catch (Exception ex)
+            {
+                context?.Logger.Warn($"AudiRS6R: could not configure damage handler: {ex.Message}");
+            }
         }
 
         return configuredCount;
