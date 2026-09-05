@@ -8,10 +8,12 @@ using Vehicles.VehicleTypes;
 public sealed class AudiRS6RRuntime : MonoBehaviour
 {
     private const float DealerRetryInterval = 1f;
+    private const float DiagnosticsScanInterval = 1f;
     private const bool DebugVehicleSpawnEnabled = false;
     private const float SpawnDistance = 6f;
 
     private bool dealerRegistrationPending;
+    private float nextDiagnosticsScanAt;
     private float nextDealerSyncAt;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
@@ -30,11 +32,16 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
         runtime.dealerRegistrationPending = !dealerRegistered;
         runtime.nextDealerSyncAt = runtime.dealerRegistrationPending ? 0f : float.PositiveInfinity;
+        runtime.nextDiagnosticsScanAt = 0f;
+        AudiRS6RDiagnostics.Initialize(context, runtime.vehicleTypeName);
+        runtime.EnsureVehicleDiagnosticsAttached();
         return runtime;
     }
 
     public void Shutdown()
     {
+        RemoveVehicleDiagnostics();
+        AudiRS6RDiagnostics.Shutdown();
         Destroy(gameObject);
     }
 
@@ -55,6 +62,47 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         if (DebugVehicleSpawnEnabled && Input.GetKeyDown(KeyCode.F9))
             TrySpawnVehicleInFrontOfPlayer();
+
+        if (Time.unscaledTime >= nextDiagnosticsScanAt)
+        {
+            EnsureVehicleDiagnosticsAttached();
+            nextDiagnosticsScanAt = Time.unscaledTime + DiagnosticsScanInterval;
+        }
+    }
+
+    private void EnsureVehicleDiagnosticsAttached()
+    {
+        if (string.IsNullOrWhiteSpace(vehicleTypeName))
+            return;
+
+        var allPlayerVehicles = VehicleHelper.AllPlayerVehicles;
+        if (allPlayerVehicles == null)
+            return;
+
+        foreach (var vehicleController in allPlayerVehicles)
+        {
+            if (vehicleController?.vehicleInstance == null ||
+                !string.Equals(vehicleController.vehicleInstance.vehicleTypeName, vehicleTypeName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var diagnostics = vehicleController.GetComponent<AudiRS6RVehicleDiagnostics>();
+            if (diagnostics == null)
+                diagnostics = vehicleController.gameObject.AddComponent<AudiRS6RVehicleDiagnostics>();
+
+            diagnostics.Initialize(vehicleController);
+        }
+    }
+
+    private void RemoveVehicleDiagnostics()
+    {
+        var diagnostics = FindObjectsOfType<AudiRS6RVehicleDiagnostics>();
+        foreach (var diagnostic in diagnostics)
+        {
+            if (diagnostic != null)
+                Destroy(diagnostic);
+        }
     }
 
     private bool TryRegisterWithDealer()
