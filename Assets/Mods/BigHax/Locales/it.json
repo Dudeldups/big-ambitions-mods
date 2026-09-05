@@ -8,7 +8,7 @@
   "bighax_ui_close_button": "Chiudi",
   "bighax_ui_fallback_notice": "Iscriviti a LIB BA Unified UI nello Steam Workshop per un’esperienza migliore.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Corretto il moltiplicatore dei clienti che faceva registrare 0 vendite ai negozi appena aperti. (Speriamo davvero, stavolta.)",
+  "bighax_update_notification": "- Aggiunti trucchi del giocatore per mantenere piene le barre di fame, energia e felicità senza cali.\n- Aggiunti trucchi veicoli: nessun danno, carburante infinito e veicoli puliti.\n- Aggiunti trucchi di sblocco, importazioni e consegne di mobili istantanee e soddisfazione dei dipendenti al 100%.\n- Corretti i requisiti di orario dei dipendenti, il prestito da 100M $ della Vantander Bank e gli scatti allo scoccare dell’ora.",
   "bighax_update_notice_got_it": "Capito",
   "bighax_customer_traffic_multiplier_label": "Moltiplicatore clienti per l’attività del giocatore",
   "bighax_disable_casino_bet_limit_label": "Aumenta il limite di puntata del casinò",

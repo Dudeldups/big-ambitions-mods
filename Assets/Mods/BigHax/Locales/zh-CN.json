@@ -8,7 +8,7 @@
   "bighax_ui_close_button": "关闭",
   "bighax_ui_fallback_notice": "请在 Steam 创意工坊订阅 LIB BA Unified UI，以获得更好的体验。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- 修复了客户倍数导致新开店铺销量为 0 的问题。（希望这次真的修好了。）",
+  "bighax_update_notification": "- 新增玩家功能：停止饥饿、精力和幸福度衰减，并保持状态条全满。\n- 新增车辆功能：无损坏、无限燃料和车辆永远干净。\n- 新增解锁功能、即时进口和家具配送，以及员工满意度 100%。\n- 修复员工排班要求、Vantander Bank 的 100M $ 贷款和整点卡顿。",
   "bighax_update_notice_got_it": "明白了",
   "bighax_customer_traffic_multiplier_label": "玩家企业顾客倍率",
   "bighax_disable_casino_bet_limit_label": "提高赌场下注上限",
