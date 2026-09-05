@@ -114,6 +114,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 continue;
             }
 
+            ConfigureSleepEnvironment(vehicleController);
             var diagnostics = vehicleController.GetComponent<AudiRS6RVehicleDiagnostics>();
             if (diagnostics == null)
             {
@@ -143,7 +144,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureBrakes(vehicleController, out var brakeModuleCount, out var axleGroupCount);
         var damageHandlersConfigured = ConfigureDamageHandlers(vehicleController);
         var deformationControllersConfigured = ConfigureDeformationControllers(vehicleController);
-        var sleepConfigsAssigned = ConfigureSleepEnvironment(vehicleController);
         ConfigureLights(vehicleController, out var lightManagerCount, out var lightSourceCount, out var invalidLightSourceCount);
 
         AudiRS6RDiagnostics.Vehicle(
@@ -160,7 +160,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             $"damageIntensity={DamageIntensity:0.000} damageHandlersConfigured={damageHandlersConfigured} " +
             $"deformationStrength={DeformationStrength:0.000} deformationRadius={DeformationRadius:0.000} " +
             $"deformationControllersConfigured={deformationControllersConfigured} " +
-            $"sleepConfigsAssigned={sleepConfigsAssigned} " +
             $"lightManagers={lightManagerCount} validLightSources={lightSourceCount} " +
             $"invalidLightSourcesRemoved={invalidLightSourceCount}");
     }
@@ -305,27 +304,30 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             if (configField.GetValue(environment) is UnityEngine.Object currentConfig && currentConfig != null)
                 return 0;
 
-            UnityEngine.Object? carConfig = null;
+            UnityEngine.Object? carConfig = FindLoadedVehicleCarSleepConfig(
+                vehicleController,
+                environmentField,
+                configField);
             foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
             {
+                if (carConfig != null)
+                    break;
                 if (candidate == null || candidate.GetType().FullName != "PlayerActivity.SleepEnvironmentConfig")
                     continue;
-
-                var typeField = candidate.GetType().GetField(
-                    "sleepEnvironmentType",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                var typeValue = typeField?.GetValue(candidate);
-                if (typeValue == null || Convert.ToInt32(typeValue) != 1)
+                if (!IsCarSleepConfig(candidate))
                     continue;
 
                 carConfig = candidate;
-                break;
             }
 
             if (carConfig == null)
             {
-                context?.Logger.Warn("AudiRS6R: current Car sleep configuration was not loaded.");
-                return 0;
+                carConfig = CreateFallbackCarSleepConfig(configField.FieldType);
+                if (carConfig == null)
+                {
+                    context?.Logger.Warn("AudiRS6R: current Car sleep configuration was unavailable and fallback creation failed.");
+                    return 0;
+                }
             }
 
             configField.SetValue(environment, carConfig);
@@ -342,6 +344,104 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             AudiRS6RDiagnostics.Error("ConfigureSleepEnvironment", ex);
             return 0;
         }
+    }
+
+    private static UnityEngine.Object? FindLoadedVehicleCarSleepConfig(
+        VehicleController target,
+        FieldInfo environmentField,
+        FieldInfo configField)
+    {
+        foreach (var otherVehicle in Resources.FindObjectsOfTypeAll<VehicleController>())
+        {
+            if (otherVehicle == null || otherVehicle == target)
+                continue;
+
+            var otherEnvironment = environmentField.GetValue(otherVehicle);
+            if (otherEnvironment == null)
+                continue;
+
+            var candidate = configField.GetValue(otherEnvironment) as UnityEngine.Object;
+            if (candidate != null && IsCarSleepConfig(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static bool IsCarSleepConfig(UnityEngine.Object candidate)
+    {
+        var typeField = FindField(candidate.GetType(), "sleepEnvironmentType");
+        var typeValue = typeField?.GetValue(candidate);
+        return typeValue != null && Convert.ToInt32(typeValue) == 1;
+    }
+
+    private static UnityEngine.Object? CreateFallbackCarSleepConfig(Type configType)
+    {
+        if (!typeof(ScriptableObject).IsAssignableFrom(configType))
+            return null;
+
+        var config = ScriptableObject.CreateInstance(configType);
+        config.name = "AudiRS6R Runtime Car Sleep Config";
+        config.hideFlags = HideFlags.HideAndDontSave;
+
+        SetEnumField(config, "sleepEnvironmentType", 1);
+        SetEnumField(config, "energyRegen", 3);
+
+        var balanceConfigField = FindField(configType, "balanceConfig");
+        if (balanceConfigField == null || !typeof(ScriptableObject).IsAssignableFrom(balanceConfigField.FieldType))
+        {
+            Destroy(config);
+            return null;
+        }
+
+        var balance = ScriptableObject.CreateInstance(balanceConfigField.FieldType);
+        balance.name = "AudiRS6R Runtime Car Sleep Balance";
+        balance.hideFlags = HideFlags.HideAndDontSave;
+        SetStringField(balance, "displayName", "Car");
+        SetEnumField(balance, "source", 0);
+        SetIntField(balance, "defaultDurationMinutes", 480);
+        SetIntField(balance, "minDurationMinutes", 60);
+        SetIntField(balance, "maxDurationMinutes", 1440);
+        balanceConfigField.SetValue(config, balance);
+
+        var luxuryBalanceField = FindField(configType, "luxuryOverrideBalanceConfig");
+        luxuryBalanceField?.SetValue(config, balance);
+        return config;
+    }
+
+    private static FieldInfo? FindField(Type type, string fieldName)
+    {
+        for (var current = type; current != null; current = current.BaseType)
+        {
+            var field = current.GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field;
+        }
+
+        return null;
+    }
+
+    private static void SetEnumField(object target, string fieldName, int value)
+    {
+        var field = FindField(target.GetType(), fieldName);
+        if (field?.FieldType.IsEnum == true)
+            field.SetValue(target, Enum.ToObject(field.FieldType, value));
+    }
+
+    private static void SetIntField(object target, string fieldName, int value)
+    {
+        var field = FindField(target.GetType(), fieldName);
+        if (field?.FieldType == typeof(int))
+            field.SetValue(target, value);
+    }
+
+    private static void SetStringField(object target, string fieldName, string value)
+    {
+        var field = FindField(target.GetType(), fieldName);
+        if (field?.FieldType == typeof(string))
+            field.SetValue(target, value);
     }
 
     private void ConfigureSuspension(

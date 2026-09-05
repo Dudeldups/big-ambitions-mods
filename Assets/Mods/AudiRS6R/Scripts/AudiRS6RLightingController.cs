@@ -68,7 +68,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         headlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && Mathf.Abs(position.x) >= 0.50f,
+            position => position.z >= 1.80f && position.y >= 0.55f,
             "Headlights",
             Color.white,
             copyBaseTexture: false);
@@ -215,6 +215,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             }
 
             light.enabled = false;
+            light.cookie = null;
             light.range = 45f;
             light.spotAngle = 68f;
             light.innerSpotAngle = 42f;
