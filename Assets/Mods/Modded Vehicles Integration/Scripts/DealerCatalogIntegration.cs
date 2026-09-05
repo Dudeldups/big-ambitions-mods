@@ -12,6 +12,9 @@ namespace ModdedVehiclesIntegration
 {
     internal sealed class DealerCatalogIntegration
     {
+        private const string CityCarsContactId = "City Cars";
+        private const float CityCarsFallbackPriceThreshold = 60000f;
+
         private static readonly string[] DealerContactIds =
         {
             "City Cars",
@@ -72,13 +75,24 @@ namespace ModdedVehiclesIntegration
                 }
             }
 
+            var fallbackCityVehicles = new List<string>();
             var fallbackLuxuryVehicles = new List<string>();
             foreach (var vehicleTypeName in modVehicles)
             {
-                if (!explicitlyRegistered.Contains(vehicleTypeName))
+                if (explicitlyRegistered.Contains(vehicleTypeName))
+                    continue;
+
+                var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
+                if (vehicleType == null)
+                    continue;
+
+                if (vehicleType.price < CityCarsFallbackPriceThreshold)
+                    fallbackCityVehicles.Add(vehicleTypeName);
+                else
                     fallbackLuxuryVehicles.Add(vehicleTypeName);
             }
 
+            fallbackCityVehicles.Sort(StringComparer.Ordinal);
             fallbackLuxuryVehicles.Sort(StringComparer.Ordinal);
 
             foreach (var dealerContactId in DealerContactIds)
@@ -93,7 +107,9 @@ namespace ModdedVehiclesIntegration
 
                 var desiredStock = new List<string>();
                 AddUniqueRange(desiredStock, registeredModStock);
-                if (LuxuryDealerContactIds.Contains(dealerContactId))
+                if (string.Equals(dealerContactId, CityCarsContactId, StringComparison.Ordinal))
+                    AddUniqueRange(desiredStock, fallbackCityVehicles);
+                else if (LuxuryDealerContactIds.Contains(dealerContactId))
                     AddUniqueRange(desiredStock, fallbackLuxuryVehicles);
 
                 desiredStock.RemoveAll(vehicleTypeName => VehicleTypeHelper.GetVehicleType(vehicleTypeName) == null);
@@ -107,9 +123,14 @@ namespace ModdedVehiclesIntegration
                 state.LastApplied = new List<string>(desiredStock);
                 state.LastAppliedHadContact = true;
 
-                var assignedFallbackCount = LuxuryDealerContactIds.Contains(dealerContactId)
-                    ? fallbackLuxuryVehicles.Count
-                    : 0;
+                var assignedFallbackCount = string.Equals(
+                    dealerContactId,
+                    CityCarsContactId,
+                    StringComparison.Ordinal)
+                        ? fallbackCityVehicles.Count
+                        : LuxuryDealerContactIds.Contains(dealerContactId)
+                            ? fallbackLuxuryVehicles.Count
+                            : 0;
                 var diagnosticSignature = string.Join(
                     "|",
                     vanillaStockByDealer[dealerContactId].Count,
@@ -127,14 +148,38 @@ namespace ModdedVehiclesIntegration
                 }
             }
 
-            var fallbackSignature = string.Join("\n", fallbackLuxuryVehicles);
-            if (fallbackLuxuryVehicles.Count > 0 && fallbackSignature != lastFallbackSignature)
+            var fallbackSignature =
+                "city:" + string.Join("\n", fallbackCityVehicles) +
+                "\nluxury:" + string.Join("\n", fallbackLuxuryVehicles);
+            if (fallbackSignature != lastFallbackSignature)
             {
-                context?.Logger.Info(
-                    $"Modded Vehicles Integration: assigned {fallbackLuxuryVehicles.Count} unclaimed mod vehicle(s) to both luxury dealers.");
+                LogFallbackAssignments(fallbackCityVehicles, CityCarsContactId, "price is below $60,000", context);
+                LogFallbackAssignments(
+                    fallbackLuxuryVehicles,
+                    "Manhattan Luxury Cars + The Hamptons Axis",
+                    "price is at or above $60,000",
+                    context);
             }
 
             lastFallbackSignature = fallbackSignature;
+        }
+
+        private static void LogFallbackAssignments(
+            List<string> vehicleTypeNames,
+            string destination,
+            string reason,
+            ModContext? context)
+        {
+            foreach (var vehicleTypeName in vehicleTypeNames)
+            {
+                var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
+                if (vehicleType == null)
+                    continue;
+
+                context?.Logger.Info(
+                    $"Modded Vehicles Integration: fallback-routed unregistered vehicle '{vehicleTypeName}' " +
+                    $"(price=${vehicleType.price:0.##}) to '{destination}' because its {reason}.");
+            }
         }
 
         internal void RestoreExternalCatalogs(ModContext? context)
