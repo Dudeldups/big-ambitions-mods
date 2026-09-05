@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Reflection;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
@@ -11,6 +12,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float DiagnosticsScanInterval = 1f;
     private const bool DebugVehicleSpawnEnabled = true;
     private const float SpawnDistance = 6f;
+    private const float SuspensionMaxLength = 0.25f;
 
     private bool dealerRegistrationPending;
     private float nextDiagnosticsScanAt;
@@ -89,10 +91,76 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
             var diagnostics = vehicleController.GetComponent<AudiRS6RVehicleDiagnostics>();
             if (diagnostics == null)
+            {
+                ConfigureRideHeight(vehicleController, out var suspensionCount, out var adjustedCount);
+                AudiRS6RDiagnostics.Vehicle(
+                    "RIDE_HEIGHT_CONFIG",
+                    $"vehicleId=\"{vehicleController.vehicleInstance.id}\" targetMaxLength={SuspensionMaxLength:0.000} " +
+                    $"suspensionsFound={suspensionCount} suspensionsAdjusted={adjustedCount}");
                 diagnostics = vehicleController.gameObject.AddComponent<AudiRS6RVehicleDiagnostics>();
+            }
 
             diagnostics.Initialize(vehicleController);
         }
+    }
+
+    private void ConfigureRideHeight(
+        VehicleController vehicleController,
+        out int suspensionCount,
+        out int adjustedCount)
+    {
+        suspensionCount = 0;
+        adjustedCount = 0;
+
+        foreach (var child in vehicleController.GetComponentsInChildren<Transform>(true))
+        {
+            if (child == null || !IsWheelController(child.name))
+                continue;
+
+            foreach (var component in child.GetComponents<MonoBehaviour>())
+            {
+                if (component == null)
+                    continue;
+
+                try
+                {
+                    var springField = component.GetType().GetField(
+                        "spring",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    var spring = springField?.GetValue(component);
+                    if (springField == null || spring == null)
+                        continue;
+
+                    var maxLengthField = spring.GetType().GetField(
+                        "maxLength",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (maxLengthField == null || maxLengthField.FieldType != typeof(float))
+                        continue;
+
+                    suspensionCount++;
+                    var currentMaxLength = (float)(maxLengthField.GetValue(spring) ?? 0f);
+                    if (Mathf.Approximately(currentMaxLength, SuspensionMaxLength))
+                        continue;
+
+                    maxLengthField.SetValue(spring, SuspensionMaxLength);
+                    springField.SetValue(component, spring);
+                    adjustedCount++;
+                }
+                catch (Exception ex)
+                {
+                    context?.Logger.Warn(
+                        $"AudiRS6R: could not configure suspension '{child.name}': {ex.Message}");
+                }
+            }
+        }
+    }
+
+    private static bool IsWheelController(string objectName)
+    {
+        return string.Equals(objectName, "FrontLeft_WheelController", StringComparison.Ordinal) ||
+               string.Equals(objectName, "FrontRight_WheelController", StringComparison.Ordinal) ||
+               string.Equals(objectName, "RearLeft_WheelController", StringComparison.Ordinal) ||
+               string.Equals(objectName, "RearRight_WheelController", StringComparison.Ordinal);
     }
 
     private void RemoveVehicleDiagnostics()
@@ -162,6 +230,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         VehicleHelper.CreateAndSpawnVehicle(vehicleInstance, spawnPosition, spawnRotation);
         TrySnapSpawnedVehicleToGround(vehicleInstance.id, spawnPosition, spawnRotation);
+        EnsureVehicleDiagnosticsAttached();
         Debug.Log($"AudiRS6R: spawned '{vehicleTypeName}' with id '{vehicleInstance.id}'.");
     }
 
