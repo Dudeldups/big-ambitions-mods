@@ -40,6 +40,9 @@ namespace BigHax
             this.context = context;
             demandRemovalEnabled = settings.RemoveEmployeeDemands;
             maximumSatisfactionEnabled = settings.EnableMaximumEmployeeSatisfaction;
+            BigHaxLogger.Diagnostic(
+                "Employee hax configured: removeDemands=" + demandRemovalEnabled +
+                ", maximumSatisfaction=" + maximumSatisfactionEnabled + ".");
             if (!demandRemovalEnabled)
                 initialDemandRemovalProcessed = false;
             if (!maximumSatisfactionEnabled)
@@ -109,10 +112,17 @@ namespace BigHax
                 }
 
                 MarkSaveChangedIfNeeded(clearedEmployeeCount > 0 || removedMessageCount > 0 || satisfactionRaisedEmployeeCount > 0);
+                BigHaxLogger.Diagnostic(
+                    "Employee hax daily cleanup: employees=" + employees.Count +
+                    ", demandsRemoved=" + clearedEmployeeCount +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", satisfactionChanged=" + satisfactionRaisedEmployeeCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax daily cleanup", exception);
             }
         }
 
@@ -136,10 +146,15 @@ namespace BigHax
 
                 MarkSaveChangedIfNeeded(removedMessageCount > 0);
                 SaveDemandCleanupAfterLoadIfNeeded();
+                BigHaxLogger.Diagnostic(
+                    "Employee hax post-load message cleanup: employees=" + employees.Count +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax post-load cleanup", exception);
             }
         }
 
@@ -172,7 +187,10 @@ namespace BigHax
             {
                 var saveGame = SaveGameManager.Current;
                 if (saveGame == null)
+                {
+                    BigHaxLogger.Diagnostic("Employee hax initial pass deferred: no active save.");
                     return;
+                }
 
                 var removedDemandCount = 0;
                 var removedMessageCount = 0;
@@ -212,10 +230,18 @@ namespace BigHax
                 var changed = demandStateChanged || satisfactionChangedCount > 0;
                 MarkSaveChangedIfNeeded(changed);
                 saveCleanupAfterLoad |= demandStateChanged;
+                BigHaxLogger.Diagnostic(
+                    "Employee hax initial pass: employees=" + (employees?.Count ?? 0) +
+                    ", candidates=" + (candidates?.Count ?? 0) +
+                    ", demandsRemoved=" + removedDemandCount +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", satisfactionChanged=" + satisfactionChangedCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax initial pass", exception);
             }
         }
 
@@ -254,10 +280,14 @@ namespace BigHax
                 var candidate = candidates[candidates.Count - 1];
                 var removedDemandCount = ClearDemands(candidate);
                 MarkSaveChangedIfNeeded(removedDemandCount > 0);
+                BigHaxLogger.Diagnostic(
+                    "Employee hax candidate received: demandsRemoved=" + removedDemandCount +
+                    ", candidateDemandCountAfter=" + (candidate.demands?.Count ?? 0) + ".");
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax candidate cleanup", exception);
             }
         }
 
@@ -287,10 +317,17 @@ namespace BigHax
                 }
 
                 MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0 || satisfactionChangedCount > 0);
+                BigHaxLogger.Diagnostic(
+                    "Employee hax employee hired: employees=" + employees.Count +
+                    ", demandsRemoved=" + removedDemandCount +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", satisfactionChanged=" + satisfactionChangedCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax hired-employee cleanup", exception);
             }
         }
 
@@ -322,6 +359,36 @@ namespace BigHax
 
             employee.satisfaction = 100f;
             return true;
+        }
+
+        private static string DescribeSatisfaction(IList? employees)
+        {
+            if (employees == null || employees.Count == 0)
+                return "satisfaction=none";
+
+            var employeeCount = 0;
+            var maximumSatisfactionCount = 0;
+            var minimumSatisfaction = float.MaxValue;
+            var maximumSatisfaction = float.MinValue;
+
+            foreach (var item in employees)
+            {
+                if (item is not EmployeeInstance employee)
+                    continue;
+
+                employeeCount++;
+                minimumSatisfaction = Mathf.Min(minimumSatisfaction, employee.satisfaction);
+                maximumSatisfaction = Mathf.Max(maximumSatisfaction, employee.satisfaction);
+                if (employee.satisfaction >= 99.999f)
+                    maximumSatisfactionCount++;
+            }
+
+            if (employeeCount == 0)
+                return "satisfaction=none";
+
+            return "satisfaction=min " + minimumSatisfaction.ToString("0.###") +
+                   ", max " + maximumSatisfaction.ToString("0.###") +
+                   ", at100=" + maximumSatisfactionCount + "/" + employeeCount;
         }
 
         private static int RemoveDemandMessages(EmployeeInstance? employee)

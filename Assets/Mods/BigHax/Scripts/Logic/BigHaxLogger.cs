@@ -1,13 +1,54 @@
 #nullable enable
+using System;
+using System.IO;
+using System.Text;
 using BAModAPI;
 
 namespace BigHax
 {
     internal static class BigHaxLogger
     {
-        // Retained as a source-compatible no-op for existing call sites. Release
-        // builds do not emit diagnostic logs; unexpected failures use Logger.Error.
+        private const string PreferredLogDirectory =
+            @"E:\Coding\Big Ambitions\mods\BigAmbitionsModdingSDK\Logs\Mods";
+
+        private static readonly object Sync = new object();
+        public static string DiagnosticLogPath => Path.Combine(PreferredLogDirectory, "BigHax-debug.log");
+
+        // Retained as source-compatible no-ops. Release builds should not emit
+        // general diagnostics; use Diagnostic only for a focused test session.
         public static void Info(ModContext? context, string message) { }
         public static void WarnOnce(ModContext? context, string key, string message) { }
+
+        public static void StartDiagnosticSession()
+        {
+            Write("===== BigHax diagnostic session started " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " =====");
+        }
+
+        public static void Diagnostic(string message)
+        {
+            if (!string.IsNullOrWhiteSpace(message))
+                Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message);
+        }
+
+        public static void DiagnosticException(string source, Exception exception)
+        {
+            Diagnostic(source + " failed: " + exception);
+        }
+
+        private static void Write(string message)
+        {
+            try
+            {
+                lock (Sync)
+                {
+                    Directory.CreateDirectory(PreferredLogDirectory);
+                    File.AppendAllText(DiagnosticLogPath, message + Environment.NewLine, Encoding.UTF8);
+                }
+            }
+            catch
+            {
+                // Diagnostics must never affect game play if the SDK workspace is unavailable.
+            }
+        }
     }
 }
