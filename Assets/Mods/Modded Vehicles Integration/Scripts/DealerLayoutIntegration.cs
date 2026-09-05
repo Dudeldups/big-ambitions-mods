@@ -28,6 +28,12 @@ namespace ModdedVehiclesIntegration
                 1,
                 "MurrayHillCarDealershipLuxury",
                 "ba:itemname_officedesk2left",
+                "ba:itemname_officedesk2right"),
+            new LayoutDefinition(
+                "ba:buildingsize_m",
+                1,
+                "HamptonsCarDealershipLuxury",
+                "ba:itemname_officedesk2left",
                 "ba:itemname_officedesk2right")
         };
 
