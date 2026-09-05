@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using System.Collections.Generic;
 using Buildings;
 using Dialogs;
@@ -88,6 +89,13 @@ namespace BigHax
             }
 
             if (building == null || building.SpecialService == null)
+                return false;
+
+            // BankDialog itself identifies Jensen Capital by this registration
+            // name and treats the other bank as Vantander. Mirror that rule so
+            // the Vantander cheat cannot alter Jensen's separate loan limit.
+            var registration = BuildingHelper.GetBuildingRegistration(dialogController.contact.Address);
+            if (registration != null && string.Equals(registration.BusinessName, "Jensen Capital", StringComparison.Ordinal))
                 return false;
 
             if (building.SpecialService.settings is not BankSettings resolvedSettings)
