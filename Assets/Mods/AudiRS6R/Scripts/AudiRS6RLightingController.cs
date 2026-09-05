@@ -56,13 +56,14 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var glassSourceShader = FirstMaterial(outerWindowRenderer)?.shader?.name ?? "<none>";
 
         var glassConfigured = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
-        ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", new Color(0.82f, 0.84f, 0.86f, 1f));
-        ConfigureLampSurface(rearLampRenderer, "AudiRS6R Rear Lamp Housing", new Color(0.32f, 0.004f, 0.002f, 1f));
+        ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", Color.white);
+        ConfigureLampSurface(rearLampRenderer, "AudiRS6R Rear Lamp Housing", new Color(0.45f, 0.025f, 0.015f, 1f));
 
         headlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z >= 0f, "Headlights", Color.white);
         brakeLightOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, _ => true, "BrakeLights", new Color(1f, 0.015f, 0.003f, 1f));
+            rearLampRenderer, position => position.y >= 0.70f,
+            "BrakeLights", new Color(1f, 0.015f, 0.003f, 1f));
         leftFrontBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z >= 0f && position.x <= 0f,
             "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f));
@@ -70,10 +71,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             frontLampRenderer, position => position.z >= 0f && position.x > 0f,
             "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f));
         leftRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.x <= 0f,
+            rearLampRenderer, position => position.y >= 0.70f && position.x <= 0f,
             "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f));
         rightRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.x > 0f,
+            rearLampRenderer, position => position.y >= 0.70f && position.x > 0f,
             "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f));
 
         initialized = true;
@@ -136,7 +137,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             outerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
                 FirstMaterial(outerWindowRenderer), "AudiRS6R Corrected Outer Glass",
-                new Color(0.17f, 0.20f, 0.22f, 0.16f));
+                new Color(0.55f, 0.61f, 0.66f, 0.32f));
             outerWindowRenderer.enabled = true;
             configuredCount++;
         }
@@ -145,7 +146,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             innerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
                 FirstMaterial(innerWindowRenderer) ?? FirstMaterial(outerWindowRenderer),
-                "AudiRS6R Corrected Inner Glass", new Color(0.17f, 0.20f, 0.22f, 0.08f));
+                "AudiRS6R Corrected Inner Glass", new Color(0.55f, 0.61f, 0.66f, 0.12f));
             innerWindowRenderer.enabled = true;
             configuredCount++;
         }
@@ -162,6 +163,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         generatedMaterials.Add(material);
         SetColorIfPresent(material, "_BaseColor", tint);
         SetColorIfPresent(material, "_Color", tint);
+        SetColorIfPresent(material, "baseColorFactor", tint);
+        SetFloatIfPresent(material, "transmissionFactor", 0.65f);
         SetFloatIfPresent(material, "_Cull", 0f);
         SetFloatIfPresent(material, "_CullMode", 0f);
         SetFloatIfPresent(material, "_CullModeForward", 0f);
@@ -176,7 +179,16 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (renderer == null)
             return;
 
-        renderer.sharedMaterial = CreateLitMaterial(FirstMaterial(renderer), materialName, baseColor);
+        var source = FirstMaterial(renderer);
+        if (source == null)
+            return;
+
+        var material = new Material(source) { name = materialName };
+        generatedMaterials.Add(material);
+        SetColorIfPresent(material, "baseColorFactor", baseColor);
+        SetColorIfPresent(material, "_BaseColor", baseColor);
+        SetColorIfPresent(material, "_Color", baseColor);
+        renderer.sharedMaterial = material;
     }
 
     private MeshRenderer? CreateFunctionalOverlay(
@@ -277,22 +289,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
-    private Material CreateLitMaterial(Material? source, string materialName, Color baseColor)
-    {
-        var shader = Shader.Find("HDRP/Lit") ??
-                     Shader.Find("High Definition Render Pipeline/Lit") ??
-                     source?.shader ?? Shader.Find("Standard");
-        if (shader == null)
-            throw new InvalidOperationException("No compatible lit shader is available.");
-
-        var material = new Material(shader) { name = materialName };
-        generatedMaterials.Add(material);
-        CopyBaseTexture(source, material);
-        SetColorIfPresent(material, "_BaseColor", baseColor);
-        SetColorIfPresent(material, "_Color", baseColor);
-        return material;
-    }
-
     private Material CreateUnlitMaterial(Material? source, string materialName, Color color)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
@@ -309,6 +305,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetColorIfPresent(material, "_UnlitColor", hdrColor);
         SetColorIfPresent(material, "_BaseColor", hdrColor);
         SetColorIfPresent(material, "_Color", hdrColor);
+        SetColorIfPresent(material, "baseColorFactor", hdrColor);
         SetColorIfPresent(material, "_EmissiveColor", hdrColor);
         SetColorIfPresent(material, "_EmissionColor", hdrColor);
         SetFloatIfPresent(material, "_SurfaceType", 0f);
@@ -332,22 +329,28 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             baseTexture = source.GetTexture("_BaseMap");
         if (baseTexture == null && source.HasProperty("_MainTex"))
             baseTexture = source.GetTexture("_MainTex");
+        if (baseTexture == null && source.HasProperty("baseColorTexture"))
+            baseTexture = source.GetTexture("baseColorTexture");
 
         SetTextureIfPresent(destination, "_UnlitColorMap", baseTexture);
         SetTextureIfPresent(destination, "_BaseColorMap", baseTexture);
         SetTextureIfPresent(destination, "_BaseMap", baseTexture);
         SetTextureIfPresent(destination, "_MainTex", baseTexture);
+        SetTextureIfPresent(destination, "baseColorTexture", baseTexture);
         SetTextureIfPresent(destination, "_EmissiveColorMap", baseTexture);
         SetTextureIfPresent(destination, "_EmissionMap", baseTexture);
     }
 
     private void ApplyLightState(bool forceLog)
     {
-        var headlights = (headlightBeam != null && headlightBeam.enabled) ||
-                         GetBoolProperty(vehicleController, "ShouldLightsBeOn");
-        var braking = GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking");
-        var leftBlinker = GetBoolField(blinkers, "_isLeftBlinkerOn");
-        var rightBlinker = GetBoolField(blinkers, "_isRightBlinkerOn");
+        var controlledByPlayer = vehicleController != null && vehicleController.controlledByPlayer;
+        var automaticHeadlights = (headlightBeam != null && headlightBeam.enabled) ||
+                                  GetBoolProperty(vehicleController, "ShouldLightsBeOn");
+        var headlights = controlledByPlayer;
+        var rawBraking = GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking");
+        var braking = controlledByPlayer && rawBraking;
+        var leftBlinker = controlledByPlayer && GetBoolField(blinkers, "_isLeftBlinkerOn");
+        var rightBlinker = controlledByPlayer && GetBoolField(blinkers, "_isRightBlinkerOn");
         var isBlinking = leftBlinker || rightBlinker;
 
         if (isBlinking && !wasBlinking)
@@ -357,7 +360,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         wasBlinking = isBlinking;
 
         SetRendererState(headlightOverlay, headlights);
-        SetRendererState(brakeLightOverlay, braking || headlights);
+        SetRendererState(brakeLightOverlay, braking);
         SetRendererState(leftFrontBlinkerOverlay, leftBlinker && blinkerFlash);
         SetRendererState(leftRearBlinkerOverlay, leftBlinker && blinkerFlash);
         SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
@@ -370,7 +373,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             AudiRS6RDiagnostics.Vehicle(
                 "LIGHT_STATE",
                 $"vehicleId=\"{vehicleController?.vehicleInstance?.id ?? "<none>"}\" " +
-                $"headlights={headlights} brakes={braking} leftBlinker={leftBlinker} " +
+                $"controlled={controlledByPlayer} automaticHeadlights={automaticHeadlights} headlights={headlights} " +
+                $"rawBrakes={rawBraking} brakes={braking} leftBlinker={leftBlinker} " +
                 $"rightBlinker={rightBlinker} blinkerFlash={blinkerFlash} " +
                 $"renderers=[head={IsRendererEnabled(headlightOverlay)},brake={IsRendererEnabled(brakeLightOverlay)}," +
                 $"leftFront={IsRendererEnabled(leftFrontBlinkerOverlay)},leftRear={IsRendererEnabled(leftRearBlinkerOverlay)}," +
