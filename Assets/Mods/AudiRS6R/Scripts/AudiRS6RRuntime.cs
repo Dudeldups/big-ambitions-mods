@@ -119,6 +119,11 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 diagnostics = vehicleController.gameObject.AddComponent<AudiRS6RVehicleDiagnostics>();
             }
 
+            var lightingController = vehicleController.GetComponent<AudiRS6RLightingController>();
+            if (lightingController == null)
+                lightingController = vehicleController.gameObject.AddComponent<AudiRS6RLightingController>();
+
+            lightingController.Initialize(vehicleController);
             diagnostics.Initialize(vehicleController);
         }
     }
@@ -522,6 +527,13 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         {
             if (diagnostic != null)
                 Destroy(diagnostic);
+        }
+
+        var lightingControllers = FindObjectsOfType<AudiRS6RLightingController>();
+        foreach (var lightingController in lightingControllers)
+        {
+            if (lightingController != null)
+                Destroy(lightingController);
         }
     }
 
