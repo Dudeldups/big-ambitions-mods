@@ -34,5 +34,12 @@
   "bighax_category_time": "Time Hax",
   "bighax_no_vehicle_damage_label": "No vehicle damage",
   "bighax_infinite_vehicle_fuel_label": "Infinite vehicle fuel",
-  "bighax_never_dirty_vehicles_label": "Never dirty vehicles"
+  "bighax_never_dirty_vehicles_label": "Never dirty vehicles",
+  "bighax_category_unlock": "Unlock Hax",
+  "bighax_unlock_all_contacts_button": "Unlock All Contacts",
+  "bighax_unlock_all_courses_button": "Unlock All Courses",
+  "bighax_unlock_confirmation_title": "This action cannot be undone",
+  "bighax_unlock_all_contacts_confirmation": "Unlock every business contact? This action cannot be undone.",
+  "bighax_unlock_all_courses_confirmation": "Complete every course? This action cannot be undone.",
+  "bighax_unlock_confirmation_button": "Unlock All"
 }

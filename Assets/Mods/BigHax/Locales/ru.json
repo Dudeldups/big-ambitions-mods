@@ -34,5 +34,12 @@
   "bighax_category_time": "Хаки времени",
   "bighax_no_vehicle_damage_label": "Нет повреждений транспорта",
   "bighax_infinite_vehicle_fuel_label": "Бесконечное топливо",
-  "bighax_never_dirty_vehicles_label": "Транспорт никогда не пачкается"
+  "bighax_never_dirty_vehicles_label": "Транспорт никогда не пачкается",
+  "bighax_category_unlock": "Хаки разблокировки",
+  "bighax_unlock_all_contacts_button": "Разблокировать все контакты",
+  "bighax_unlock_all_courses_button": "Разблокировать все курсы",
+  "bighax_unlock_confirmation_title": "Это действие нельзя отменить",
+  "bighax_unlock_all_contacts_confirmation": "Разблокировать все деловые контакты? Это действие нельзя отменить.",
+  "bighax_unlock_all_courses_confirmation": "Пройти все курсы? Это действие нельзя отменить.",
+  "bighax_unlock_confirmation_button": "Разблокировать всё"
 }

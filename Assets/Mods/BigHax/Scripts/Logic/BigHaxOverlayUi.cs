@@ -22,6 +22,8 @@ namespace BigHax
         private int hotControlId;
         private bool isVisible;
         private bool needsCentering = true;
+        private System.Action? confirmUnlockAllContacts;
+        private System.Action? confirmUnlockAllCourses;
 
         private Texture2D? solidTexture;
         private GUIStyle? windowStyle;
@@ -45,6 +47,13 @@ namespace BigHax
         }
 
         public bool IsVisible => isVisible;
+
+        public void ConfigureUnlockActions(System.Action unlockAllContacts, System.Action unlockAllCourses)
+        {
+            confirmUnlockAllContacts = unlockAllContacts;
+            confirmUnlockAllCourses = unlockAllCourses;
+            nativeUi.ConfigureUnlockActions(unlockAllContacts, unlockAllCourses);
+        }
 
         public void Toggle()
         {
@@ -112,7 +121,15 @@ namespace BigHax
 
         private bool ResolveUi(ModContext context, BigHaxSettings settings, bool waitForNativeOptions)
         {
-            if (BigHaxBaUnifiedOptionsUi.TryCreate(context, settings, isVisible, Hide, out baUnifiedUi, out var reason))
+            if (BigHaxBaUnifiedOptionsUi.TryCreate(
+                    context,
+                    settings,
+                    isVisible,
+                    Hide,
+                    confirmUnlockAllContacts,
+                    confirmUnlockAllCourses,
+                    out baUnifiedUi,
+                    out var reason))
             {
                 uiSelectionResolved = true;
                 nativeUi.Destroy();
@@ -263,6 +280,9 @@ namespace BigHax
                         settings.DisablePlayerHappinessDecay = value;
                         BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context.ModId, value);
                     });
+                DrawSectionTitle(Localize("bighax_category_unlock"));
+                DrawUnlockButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
+                DrawUnlockButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
                 DrawSeparator();
                 DrawIntSlider(
                     context,
@@ -419,6 +439,12 @@ namespace BigHax
                 return;
 
             applyValue(toggledValue);
+        }
+
+        private void DrawUnlockButton(string label, System.Action? onClick)
+        {
+            if (onClick != null && GUILayout.Button(label, primaryButtonStyle!, GUILayout.Height(42f)))
+                onClick();
         }
 
         private void DrawIntSlider(

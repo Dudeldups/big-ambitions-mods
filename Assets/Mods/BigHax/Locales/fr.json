@@ -34,5 +34,12 @@
   "bighax_category_time": "Hacks de temps",
   "bighax_no_vehicle_damage_label": "Aucun dégât au véhicule",
   "bighax_infinite_vehicle_fuel_label": "Carburant de véhicule illimité",
-  "bighax_never_dirty_vehicles_label": "Véhicules toujours propres"
+  "bighax_never_dirty_vehicles_label": "Véhicules toujours propres",
+  "bighax_category_unlock": "Hacks de déblocage",
+  "bighax_unlock_all_contacts_button": "Débloquer tous les contacts",
+  "bighax_unlock_all_courses_button": "Débloquer tous les cours",
+  "bighax_unlock_confirmation_title": "Cette action est irréversible",
+  "bighax_unlock_all_contacts_confirmation": "Débloquer tous les contacts professionnels ? Cette action est irréversible.",
+  "bighax_unlock_all_courses_confirmation": "Terminer tous les cours ? Cette action est irréversible.",
+  "bighax_unlock_confirmation_button": "Tout débloquer"
 }

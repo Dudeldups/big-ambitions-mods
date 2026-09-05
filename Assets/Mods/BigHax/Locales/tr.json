@@ -34,5 +34,12 @@
   "bighax_category_time": "Zaman hileleri",
   "bighax_no_vehicle_damage_label": "Araç hasarı yok",
   "bighax_infinite_vehicle_fuel_label": "Sonsuz araç yakıtı",
-  "bighax_never_dirty_vehicles_label": "Araçlar hiç kirlenmez"
+  "bighax_never_dirty_vehicles_label": "Araçlar hiç kirlenmez",
+  "bighax_category_unlock": "Kilit açma hileleri",
+  "bighax_unlock_all_contacts_button": "Tüm kişileri aç",
+  "bighax_unlock_all_courses_button": "Tüm kursları aç",
+  "bighax_unlock_confirmation_title": "Bu işlem geri alınamaz",
+  "bighax_unlock_all_contacts_confirmation": "Tüm iş kişileri açılsın mı? Bu işlem geri alınamaz.",
+  "bighax_unlock_all_courses_confirmation": "Tüm kurslar tamamlansın mı? Bu işlem geri alınamaz.",
+  "bighax_unlock_confirmation_button": "Tümünü aç"
 }

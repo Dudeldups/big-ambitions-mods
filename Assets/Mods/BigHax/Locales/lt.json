@@ -34,5 +34,12 @@
   "bighax_category_time": "Laiko gudrybės",
   "bighax_no_vehicle_damage_label": "Nėra transporto priemonės žalos",
   "bighax_infinite_vehicle_fuel_label": "Neriboti transporto priemonės degalai",
-  "bighax_never_dirty_vehicles_label": "Transporto priemonės niekada nesusitepa"
+  "bighax_never_dirty_vehicles_label": "Transporto priemonės niekada nesusitepa",
+  "bighax_category_unlock": "Atrakinimo gudrybės",
+  "bighax_unlock_all_contacts_button": "Atrakinti visus kontaktus",
+  "bighax_unlock_all_courses_button": "Atrakinti visus kursus",
+  "bighax_unlock_confirmation_title": "Šio veiksmo negalima atšaukti",
+  "bighax_unlock_all_contacts_confirmation": "Atrakinti visus verslo kontaktus? Šio veiksmo negalima atšaukti.",
+  "bighax_unlock_all_courses_confirmation": "Baigti visus kursus? Šio veiksmo negalima atšaukti.",
+  "bighax_unlock_confirmation_button": "Atrakinti viską"
 }

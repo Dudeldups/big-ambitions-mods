@@ -34,5 +34,12 @@
   "bighax_category_time": "Χακ χρόνου",
   "bighax_no_vehicle_damage_label": "Χωρίς ζημιά οχήματος",
   "bighax_infinite_vehicle_fuel_label": "Άπειρα καύσιμα οχήματος",
-  "bighax_never_dirty_vehicles_label": "Τα οχήματα δεν λερώνουν ποτέ"
+  "bighax_never_dirty_vehicles_label": "Τα οχήματα δεν λερώνουν ποτέ",
+  "bighax_category_unlock": "Χακ ξεκλειδώματος",
+  "bighax_unlock_all_contacts_button": "Ξεκλείδωμα όλων των επαφών",
+  "bighax_unlock_all_courses_button": "Ξεκλείδωμα όλων των μαθημάτων",
+  "bighax_unlock_confirmation_title": "Αυτή η ενέργεια δεν αναιρείται",
+  "bighax_unlock_all_contacts_confirmation": "Ξεκλείδωμα όλων των επαγγελματικών επαφών; Αυτή η ενέργεια δεν αναιρείται.",
+  "bighax_unlock_all_courses_confirmation": "Ολοκλήρωση όλων των μαθημάτων; Αυτή η ενέργεια δεν αναιρείται.",
+  "bighax_unlock_confirmation_button": "Ξεκλείδωμα όλων"
 }

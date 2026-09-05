@@ -34,5 +34,12 @@
   "bighax_category_time": "Haxy na čas",
   "bighax_no_vehicle_damage_label": "Žádné poškození vozidla",
   "bighax_infinite_vehicle_fuel_label": "Nekonečné palivo vozidla",
-  "bighax_never_dirty_vehicles_label": "Vozidla se nikdy nezašpiní"
+  "bighax_never_dirty_vehicles_label": "Vozidla se nikdy nezašpiní",
+  "bighax_category_unlock": "Haxy pro odemykání",
+  "bighax_unlock_all_contacts_button": "Odemknout všechny kontakty",
+  "bighax_unlock_all_courses_button": "Odemknout všechny kurzy",
+  "bighax_unlock_confirmation_title": "Tuto akci nelze vrátit zpět",
+  "bighax_unlock_all_contacts_confirmation": "Odemknout všechny obchodní kontakty? Tuto akci nelze vrátit zpět.",
+  "bighax_unlock_all_courses_confirmation": "Dokončit všechny kurzy? Tuto akci nelze vrátit zpět.",
+  "bighax_unlock_confirmation_button": "Odemknout vše"
 }
