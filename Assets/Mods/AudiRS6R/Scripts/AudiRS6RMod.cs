@@ -76,6 +76,20 @@ internal static class AudiRS6RLuxuryDealerStock
         "Manhattan Luxury Cars"
     };
 
+    internal static bool IsTargetDealer(string? contactId)
+    {
+        if (string.IsNullOrEmpty(contactId))
+            return false;
+
+        foreach (var dealerContactId in DealerContactIds)
+        {
+            if (string.Equals(dealerContactId, contactId, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
     internal static bool EnsureVehicleAvailable(string vehicleName, ModContext? context)
     {
         if (string.IsNullOrWhiteSpace(vehicleName))
