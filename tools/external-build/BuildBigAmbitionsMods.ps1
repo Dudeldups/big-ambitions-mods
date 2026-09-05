@@ -501,6 +501,8 @@ function New-GeneratedProject {
         Nullable = "disable"
         ImplicitUsings = "disable"
         GenerateAssemblyInfo = "false"
+        DebugSymbols = "false"
+        DebugType = "None"
         CopyLocalLockFileAssemblies = "false"
         AppendTargetFrameworkToOutputPath = "false"
         EnableDefaultCompileItems = "false"
