@@ -75,35 +75,35 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             frontLampRenderer,
             position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
             "LeftHeadlight",
-            Color.white,
+            new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false);
         rightHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
             position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
             "RightHeadlight",
-            Color.white,
+            new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false);
         leftHeadlightLensOverlay = CreateFunctionalOverlay(
             outerWindowRenderer,
             position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x <= 0f,
             "LeftHeadlightLens",
-            new Color(0.32f, 0.40f, 0.55f, 1f),
+            new Color(0.27f, 0.34f, 0.47f, 1f),
             copyBaseTexture: false);
         rightHeadlightLensOverlay = CreateFunctionalOverlay(
             outerWindowRenderer,
             position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x > 0f,
             "RightHeadlightLens",
-            new Color(0.32f, 0.40f, 0.55f, 1f),
+            new Color(0.27f, 0.34f, 0.47f, 1f),
             copyBaseTexture: false);
         leftBrakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
-            "LeftBrakeLight", new Color(1f, 0.015f, 0.003f, 1f));
+            "LeftBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
         rightBrakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
-            "RightBrakeLight", new Color(1f, 0.015f, 0.003f, 1f));
+            "RightBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
         centerBrakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 1.10f,
-            "CenterBrakeLight", new Color(1f, 0.015f, 0.003f, 1f));
+            "CenterBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
         leftFrontBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z >= 0f && position.x <= 0f,
             "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
