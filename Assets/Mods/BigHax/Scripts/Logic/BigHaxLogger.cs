@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using BAModAPI;
@@ -19,17 +20,20 @@ namespace BigHax
         public static void Info(ModContext? context, string message) { }
         public static void WarnOnce(ModContext? context, string key, string message) { }
 
+        [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void StartDiagnosticSession()
         {
             Write("===== BigHax diagnostic session started " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " =====");
         }
 
+        [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void Diagnostic(string message)
         {
             if (!string.IsNullOrWhiteSpace(message))
                 Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message);
         }
 
+        [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void DiagnosticException(string source, Exception exception)
         {
             Diagnostic(source + " failed: " + exception);
