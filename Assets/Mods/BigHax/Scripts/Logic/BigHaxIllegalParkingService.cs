@@ -40,22 +40,6 @@ namespace BigHax
             RemoveParkingTicketMessages();
         }
 
-        public void HandleNewHour(ModContext? context, BigHaxSettings settings)
-        {
-            if (!settings.DisableIllegalParkingPenalties)
-                return;
-
-            ApplyConfiguredBehavior(context, settings);
-        }
-
-        public void HandleNewDay(ModContext? context, BigHaxSettings settings)
-        {
-            if (!settings.DisableIllegalParkingPenalties)
-                return;
-
-            ApplyConfiguredBehavior(context, settings);
-        }
-
         public void HandleVehicleExited(ModContext? context, BigHaxSettings settings)
         {
             if (!settings.DisableIllegalParkingPenalties)

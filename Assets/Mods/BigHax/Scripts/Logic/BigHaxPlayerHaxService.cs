@@ -26,16 +26,44 @@ namespace BigHax
             ApplyHungerAndEnergyDecaySetting(settings.DisablePlayerHungerAndEnergyDecay);
             hungerAndEnergyDecayDisabled = settings.DisablePlayerHungerAndEnergyDecay;
 
-            var wasHappinessDecayDisabled = happinessDecayDisabled;
+            var saveGame = SaveGameManager.Current;
+            var playerStatsChanged = false;
+            if (hungerAndEnergyDecayDisabled && saveGame != null)
+            {
+                if (saveGame.Energy < 100f)
+                {
+                    saveGame.Energy = 100f;
+                    playerStatsChanged = true;
+                }
+
+                if (saveGame.Hunger < 100f)
+                {
+                    saveGame.Hunger = 100f;
+                    playerStatsChanged = true;
+                }
+            }
+
             happinessDecayDisabled = settings.DisablePlayerHappinessDecay;
             if (happinessDecayDisabled)
             {
-                if (!wasHappinessDecayDisabled || !protectedHappiness.HasValue)
-                    protectedHappiness = SaveGameManager.Current?.Happiness;
+                if (saveGame != null && saveGame.Happiness < 100f)
+                {
+                    saveGame.Happiness = 100f;
+                    playerStatsChanged = true;
+                }
+
+                protectedHappiness = 100f;
             }
             else
             {
                 protectedHappiness = null;
+            }
+
+            if (playerStatsChanged)
+            {
+                SaveGameManager.MarkChange();
+                BigHaxLogger.Diagnostic(
+                    "Player hax filled enabled stats: " + DescribePlayerStats() + ".");
             }
 
             if (hungerAndEnergyDecayDisabled || happinessDecayDisabled)
@@ -51,7 +79,7 @@ namespace BigHax
                 "Player hax configured: hungerEnergyDisabled=" + hungerAndEnergyDecayDisabled +
                 ", energyInvincibilityFieldFound=" + (EnergyInvincibilityField != null) +
                 ", energyInvincibilityValue=" + GetEnergyInvincibilityValue() +
-                ", " + DescribeEnergyAndHunger() +
+                ", " + DescribePlayerStats() +
                 ", happinessDisabled=" + happinessDecayDisabled +
                 ", protectedHappiness=" + FormatHappiness(protectedHappiness));
         }
@@ -105,11 +133,6 @@ namespace BigHax
             if (eventId != NewHourEvent)
                 return;
 
-            if (hungerAndEnergyDecayDisabled)
-                BigHaxLogger.Diagnostic(
-                    "Player hax hourly check: energyInvincibilityValue=" + GetEnergyInvincibilityValue() +
-                    ", " + DescribeEnergyAndHunger());
-
             if (happinessDecayDisabled)
                 PreserveHappinessAfterHourlyUpdate();
         }
@@ -128,16 +151,12 @@ namespace BigHax
             if (!protectedHappiness.HasValue)
             {
                 protectedHappiness = saveGame.Happiness;
-                BigHaxLogger.Diagnostic("Happiness hax hourly check: initialized protected value=" + FormatHappiness(protectedHappiness));
                 return;
             }
 
             if (saveGame.Happiness >= protectedHappiness.Value)
             {
                 protectedHappiness = saveGame.Happiness;
-                BigHaxLogger.Diagnostic(
-                    "Happiness hax hourly check: current=" + FormatHappiness(happinessBefore) +
-                    ", protected=" + FormatHappiness(protectedHappiness) + ", action=accepted gain/no decay.");
                 return;
             }
 
@@ -167,13 +186,14 @@ namespace BigHax
             return value.HasValue ? value.Value.ToString("0.###") : "<unavailable>";
         }
 
-        private static string DescribeEnergyAndHunger()
+        private static string DescribePlayerStats()
         {
             var saveGame = SaveGameManager.Current;
             return saveGame == null
-                ? "energy=<unavailable>, hunger=<unavailable>"
+                ? "energy=<unavailable>, hunger=<unavailable>, happiness=<unavailable>"
                 : "energy=" + saveGame.Energy.ToString("0.###") +
-                  ", hunger=" + saveGame.Hunger.ToString("0.###");
+                  ", hunger=" + saveGame.Hunger.ToString("0.###") +
+                  ", happiness=" + saveGame.Happiness.ToString("0.###");
         }
     }
 }

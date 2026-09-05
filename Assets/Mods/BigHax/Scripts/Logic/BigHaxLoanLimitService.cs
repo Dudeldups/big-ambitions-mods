@@ -10,8 +10,6 @@ namespace BigHax
 {
     internal sealed class BigHaxLoanLimitService
     {
-        private const int VantanderDefaultMaximumLoanAmount = 800000;
-
         private readonly List<PatchedSettingsState> patchedStates = new List<PatchedSettingsState>();
 
         public void InvalidateCache()
@@ -24,22 +22,29 @@ namespace BigHax
                 return;
 
             var state = GetOrCreateState(bankSettings, currentValue);
-            var isVantander = state.OriginalValue == VantanderDefaultMaximumLoanAmount ||
-                              Mathf.Approximately(currentValue, VantanderDefaultMaximumLoanAmount);
-
-            if (!isVantander)
-                return;
 
             if (settings.EnableVantanderMaxLoanOverride)
             {
                 if (!Mathf.Approximately(currentValue, BigHaxSettings.VantanderMaximumLoanOverrideAmount))
+                {
                     bankSettings.maxTotalLoanAmount = BigHaxSettings.VantanderMaximumLoanOverrideAmount;
+                    BigHaxLogger.Diagnostic(
+                        "Vantander loan limit applied: address=" + building.Address +
+                        ", original=" + state.OriginalValue.ToString("0.###") +
+                        ", previous=" + currentValue.ToString("0.###") +
+                        ", final=" + bankSettings.maxTotalLoanAmount.ToString("0.###") + ".");
+                }
 
                 return;
             }
 
             if (!Mathf.Approximately(bankSettings.maxTotalLoanAmount, state.OriginalValue))
+            {
                 state.Restore();
+                BigHaxLogger.Diagnostic(
+                    "Vantander loan limit restored: address=" + building.Address +
+                    ", final=" + bankSettings.maxTotalLoanAmount.ToString("0.###") + ".");
+            }
         }
 
         public void RestoreOriginalLimit()
@@ -58,6 +63,8 @@ namespace BigHax
 
             var createdState = new PatchedSettingsState(bankSettings, currentValue);
             patchedStates.Add(createdState);
+            BigHaxLogger.Diagnostic(
+                "Bank settings detected: originalMaximumLoan=" + currentValue.ToString("0.###") + ".");
             return createdState;
         }
 

@@ -162,8 +162,6 @@ namespace BigHax
         private void OnEnable()
         {
             SceneManager.sceneLoaded += HandleSceneLoaded;
-            GlobalEvents.onNewHour += HandleNewHour;
-            GlobalEvents.onNewDay += HandleNewDay;
             GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
             GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
@@ -174,8 +172,6 @@ namespace BigHax
         private void OnDisable()
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
-            GlobalEvents.onNewHour -= HandleNewHour;
-            GlobalEvents.onNewDay -= HandleNewDay;
             GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
             GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
@@ -310,22 +306,6 @@ namespace BigHax
 
             overlayUi.OnGui(context, settings);
             updateNoticeUi.OnGui(context);
-        }
-
-        private void HandleNewHour()
-        {
-            if (context == null || settings == null)
-                return;
-
-            SafeApply("illegal parking onNewHour", () => illegalParkingService.HandleNewHour(context, settings));
-        }
-
-        private void HandleNewDay()
-        {
-            if (context == null || settings == null)
-                return;
-
-            SafeApply("illegal parking onNewDay", () => illegalParkingService.HandleNewDay(context, settings));
         }
 
         private void ScheduleEmployeeDemandCleanup()

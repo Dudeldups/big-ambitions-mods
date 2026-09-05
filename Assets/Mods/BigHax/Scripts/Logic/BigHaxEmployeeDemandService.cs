@@ -280,9 +280,6 @@ namespace BigHax
                 var candidate = candidates[candidates.Count - 1];
                 var removedDemandCount = ClearDemands(candidate);
                 MarkSaveChangedIfNeeded(removedDemandCount > 0);
-                BigHaxLogger.Diagnostic(
-                    "Employee hax candidate received: demandsRemoved=" + removedDemandCount +
-                    ", candidateDemandCountAfter=" + (candidate.demands?.Count ?? 0) + ".");
             }
             catch (Exception exception)
             {
