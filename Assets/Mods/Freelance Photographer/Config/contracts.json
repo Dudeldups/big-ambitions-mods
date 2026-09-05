@@ -1,0 +1,72 @@
+{
+  "availableContractCount": 4,
+  "minimumAvailableDays": 1,
+  "maximumAvailableDays": 3,
+  "acceptedContractDays": 4,
+  "definitions": [
+    {
+      "id": "city_architecture",
+      "category": 0,
+      "titleKey": "freelancephotographer:contract_location_title",
+      "descriptionKey": "freelancephotographer:contract_location_description",
+      "minimumLevel": 1,
+      "requiredTier": 1,
+      "requiredAccessory": 0,
+      "minimumDistance": 4.0,
+      "idealDistanceMinimum": 10.0,
+      "idealDistanceMaximum": 20.0,
+      "maximumDistance": 35.0,
+      "minimumPayout": 300,
+      "maximumPayout": 550,
+      "requiredSubjectCount": 1
+    },
+    {
+      "id": "street_life",
+      "category": 3,
+      "titleKey": "freelancephotographer:contract_street_title",
+      "descriptionKey": "freelancephotographer:contract_street_description",
+      "minimumLevel": 2,
+      "requiredTier": 2,
+      "requiredAccessory": 0,
+      "minimumDistance": 3.0,
+      "idealDistanceMinimum": 7.0,
+      "idealDistanceMaximum": 16.0,
+      "maximumDistance": 28.0,
+      "minimumPayout": 500,
+      "maximumPayout": 750,
+      "requiredSubjectCount": 3
+    },
+    {
+      "id": "automotive",
+      "category": 2,
+      "titleKey": "freelancephotographer:contract_vehicle_title",
+      "descriptionKey": "freelancephotographer:contract_vehicle_description",
+      "minimumLevel": 2,
+      "requiredTier": 2,
+      "requiredAccessory": 1,
+      "minimumDistance": 4.0,
+      "idealDistanceMinimum": 9.0,
+      "idealDistanceMaximum": 18.0,
+      "maximumDistance": 32.0,
+      "minimumPayout": 650,
+      "maximumPayout": 950,
+      "requiredSubjectCount": 1
+    },
+    {
+      "id": "commercial_exterior",
+      "category": 1,
+      "titleKey": "freelancephotographer:contract_business_title",
+      "descriptionKey": "freelancephotographer:contract_business_description",
+      "minimumLevel": 3,
+      "requiredTier": 3,
+      "requiredAccessory": 2,
+      "minimumDistance": 6.0,
+      "idealDistanceMinimum": 14.0,
+      "idealDistanceMaximum": 24.0,
+      "maximumDistance": 42.0,
+      "minimumPayout": 900,
+      "maximumPayout": 1400,
+      "requiredSubjectCount": 1
+    }
+  ]
+}
