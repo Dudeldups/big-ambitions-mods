@@ -19,8 +19,6 @@ namespace ModdedVehiclesIntegration
             DealerLayoutIntegration.EnsureApplied(context);
             DealerServiceIntegration.EnsureApplied(context);
             runtime = ModdedVehiclesIntegrationRuntime.Initialize(context);
-            context.Logger.Info(
-                "Modded Vehicles Integration: dealer desks, vehicle-store dialogs, and catalog integration initialized.");
             return Task.CompletedTask;
         }
 
