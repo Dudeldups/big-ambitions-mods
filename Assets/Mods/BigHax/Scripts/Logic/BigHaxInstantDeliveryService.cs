@@ -1,28 +1,32 @@
 #nullable enable
 using System;
 using System.Collections;
-using System.Collections.Generic;
+using System.Reflection;
+using Buildings.BuildingTypes.Special.FurnitureStore;
 using Entities;
+using UI.Smartphone.Apps.BizMan.PurchasingAgent;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace BigHax
 {
     /// <summary>
-    /// Detects new delivery orders on the game's hourly event. No per-frame polling
-    /// is used: an order is made due at the next game hour and completed by the
-    /// game's existing delivery routines.
+    /// Hooks the existing order buttons and completes the order immediately after
+    /// vanilla has created or activated it. This service performs no periodic scan.
     /// </summary>
     internal sealed class BigHaxInstantDeliveryService
     {
-        private readonly Dictionary<ImportPartnership, ImportState> knownImportStates = new Dictionary<ImportPartnership, ImportState>();
-        private readonly HashSet<FurnitureDeliveryContract> knownFurnitureContracts = new HashSet<FurnitureDeliveryContract>();
-        private readonly HashSet<ImportPartnership> recentlyForcedImports = new HashSet<ImportPartnership>();
-        private readonly List<ImportPartnership> pendingImports = new List<ImportPartnership>();
-        private readonly List<FurnitureDeliveryContract> pendingFurnitureDeliveries = new List<FurnitureDeliveryContract>();
-
+        private Action<IEnumerator>? startCoroutine;
         private bool instantImportsEnabled;
         private bool instantFurnitureDeliveriesEnabled;
 
-        public bool ShouldProcessHourly => instantImportsEnabled || instantFurnitureDeliveriesEnabled;
+        public void Initialize(Action<IEnumerator> coroutineStarter)
+        {
+            startCoroutine = coroutineStarter;
+            BigHaxInstantDeliveryUiHooks.FurnitureOrderConfirmed = HandleFurnitureOrderConfirmed;
+            BigHaxInstantDeliveryUiHooks.ImportOrderConfirmed = HandleImportOrderConfirmed;
+            AttachUiHooks();
+        }
 
         public void ApplyConfiguredBehavior(BigHaxSettings settings)
         {
@@ -31,211 +35,312 @@ namespace BigHax
             instantImportsEnabled = settings.EnableInstantImports;
             instantFurnitureDeliveriesEnabled = settings.EnableInstantFurnitureDeliveries;
 
-            if (!instantImportsEnabled)
-            {
-                knownImportStates.Clear();
-                recentlyForcedImports.Clear();
-                pendingImports.Clear();
-            }
-
-            if (!instantFurnitureDeliveriesEnabled)
-            {
-                knownFurnitureContracts.Clear();
-                pendingFurnitureDeliveries.Clear();
-            }
-
+            AttachUiHooks();
             if (importsChanged || furnitureChanged)
             {
                 BigHaxLogger.Diagnostic(
                     "Instant deliveries configured: imports=" + instantImportsEnabled +
-                    ", furniture=" + instantFurnitureDeliveriesEnabled + ".");
+                    ", furniture=" + instantFurnitureDeliveriesEnabled +
+                    ", mode=order-button hooks (no hourly scan).");
             }
         }
 
-        public void InvalidateCache()
+        public void AttachUiHooks()
         {
-            knownImportStates.Clear();
-            knownFurnitureContracts.Clear();
-            recentlyForcedImports.Clear();
-            pendingImports.Clear();
-            pendingFurnitureDeliveries.Clear();
-        }
-
-        public void CaptureNewOrdersBeforeHourlyDelivery()
-        {
-            var saveGame = SaveGameManager.Current;
-            if (saveGame == null)
-                return;
-
-            var detectedImports = 0;
-            var detectedFurnitureDeliveries = 0;
-
-            if (instantImportsEnabled && saveGame.importPartnerships != null)
+            var furnitureWatchersAdded = 0;
+            foreach (var controller in Resources.FindObjectsOfTypeAll<DialogController>())
             {
-                foreach (var partnership in saveGame.importPartnerships)
+                if (controller == null)
+                    continue;
+
+                foreach (var child in controller.GetComponentsInChildren<Transform>(true))
                 {
-                    if (partnership == null || !partnership.isActive)
+                    if (child == null || child.name != "Buttons" || child.GetComponent<BigHaxFurnitureDeliveryButtonsWatcher>() != null)
                         continue;
 
-                    var becameActive = !knownImportStates.TryGetValue(partnership, out var previousState) ||
-                        !previousState.IsActive ||
-                        previousState.NextDeliveryDay != partnership.nextDeliveryDay;
-                    if (!becameActive)
-                        continue;
-
-                    // During accelerated time several game hours can be processed in
-                    // one frame. A forced delivery may have already been completed by
-                    // vanilla before this handler gets its one-frame completion pass.
-                    if (recentlyForcedImports.Remove(partnership))
-                    {
-                        knownImportStates[partnership] = new ImportState(partnership.isActive, partnership.nextDeliveryDay);
-                        continue;
-                    }
-
-                    if (!pendingImports.Contains(partnership))
-                    {
-                        pendingImports.Add(partnership);
-                        detectedImports++;
-                    }
-
-                    partnership.nextDeliveryDay = saveGame.Day;
-                    knownImportStates[partnership] = new ImportState(partnership.isActive, partnership.nextDeliveryDay);
-                    recentlyForcedImports.Add(partnership);
+                    child.gameObject.AddComponent<BigHaxFurnitureDeliveryButtonsWatcher>();
+                    furnitureWatchersAdded++;
                 }
             }
 
-            if (instantFurnitureDeliveriesEnabled && saveGame.FurnitureDeliveryContracts != null)
+            var importHooksAdded = 0;
+            foreach (var planUi in Resources.FindObjectsOfTypeAll<PurchasingAgentPlanUI>())
             {
-                foreach (var contract in saveGame.FurnitureDeliveryContracts)
-                {
-                    if (contract == null || knownFurnitureContracts.Contains(contract))
-                        continue;
+                if (planUi == null)
+                    continue;
 
-                    if (!pendingFurnitureDeliveries.Contains(contract))
-                    {
-                        pendingFurnitureDeliveries.Add(contract);
-                        detectedFurnitureDeliveries++;
-                    }
-                    contract.dayOfDelivery = saveGame.Day;
-                    contract.hourOfDelivery = saveGame.Hour;
-                }
+                importHooksAdded += AttachImportButton(planUi.orderButton, planUi, "regular");
+                importHooksAdded += AttachImportButton(planUi.urgentOrderButton, planUi, "urgent");
             }
 
-            if (detectedImports > 0 || detectedFurnitureDeliveries > 0)
+            if (furnitureWatchersAdded > 0 || importHooksAdded > 0)
             {
                 BigHaxLogger.Diagnostic(
-                    "Instant deliveries detected new orders: imports=" + detectedImports +
-                    ", furniture=" + detectedFurnitureDeliveries +
-                    ", day=" + saveGame.Day + ", hour=" + saveGame.Hour + ".");
-                SaveGameManager.MarkChange();
+                    "Instant delivery UI hooks attached: furnitureWatchers=" + furnitureWatchersAdded +
+                    ", importButtons=" + importHooksAdded +
+                    ", furnitureEntryFieldFound=" + BigHaxFurnitureDeliveryButtonsWatcher.CanInspectCurrentEntry +
+                    ", importPlanFieldFound=" + BigHaxImportOrderButtonHook.CanInspectCurrentPlan + ".");
             }
         }
 
-        public IEnumerator CompletePendingOrdersAfterHourlyDelivery()
+        public void Shutdown()
         {
-            // GlobalEvents.onNewHour runs before the game's hourly delivery methods.
-            // Wait one frame so Monday's normal delivery reset and any furniture
-            // delivery both finish before we complete imports outside regular hours.
+            instantImportsEnabled = false;
+            instantFurnitureDeliveriesEnabled = false;
+            startCoroutine = null;
+            BigHaxInstantDeliveryUiHooks.FurnitureOrderConfirmed = null;
+            BigHaxInstantDeliveryUiHooks.ImportOrderConfirmed = null;
+        }
+
+        private static int AttachImportButton(Button? button, PurchasingAgentPlanUI owner, string orderKind)
+        {
+            if (button == null)
+                return 0;
+
+            var hook = button.GetComponent<BigHaxImportOrderButtonHook>();
+            if (hook != null)
+                return 0;
+
+            hook = button.gameObject.AddComponent<BigHaxImportOrderButtonHook>();
+            hook.Configure(owner, orderKind);
+            return 1;
+        }
+
+        private void HandleFurnitureOrderConfirmed()
+        {
+            if (!instantFurnitureDeliveriesEnabled)
+                return;
+
+            if (startCoroutine == null)
+            {
+                BigHaxLogger.Diagnostic("Instant furniture delivery skipped: coroutine runner unavailable.");
+                return;
+            }
+
+            startCoroutine(CompleteFurnitureOrderAfterVanillaConfirm());
+        }
+
+        private IEnumerator CompleteFurnitureOrderAfterVanillaConfirm()
+        {
+            // The button callback is added after vanilla's callback, but waiting one
+            // frame also makes this robust if Unity changes listener ordering.
             yield return null;
 
             var saveGame = SaveGameManager.Current;
-            if (saveGame == null)
+            var contracts = saveGame?.FurnitureDeliveryContracts;
+            if (saveGame == null || contracts == null)
             {
-                pendingImports.Clear();
-                pendingFurnitureDeliveries.Clear();
+                BigHaxLogger.Diagnostic("Instant furniture delivery skipped: no active save or contract list.");
                 yield break;
+            }
+
+            var pendingBefore = contracts.Count;
+            if (pendingBefore == 0)
+            {
+                BigHaxLogger.Diagnostic("Instant furniture delivery confirmation observed, but vanilla created no contract.");
+                yield break;
+            }
+
+            foreach (var contract in contracts)
+            {
+                if (contract == null)
+                    continue;
+
+                contract.dayOfDelivery = saveGame.Day;
+                contract.hourOfDelivery = saveGame.Hour;
             }
 
             try
             {
-                var importsCompletedByVanilla = 0;
-                var importsStillDue = 0;
-                foreach (var partnership in pendingImports)
-                {
-                    if (partnership == null)
-                        continue;
-
-                    if (!partnership.isActive || partnership.nextDeliveryDay > saveGame.Day)
-                        importsCompletedByVanilla++;
-                    else
-                        importsStillDue++;
-                }
-
-                if (importsStillDue > 0)
-                    ImportPartnership.DoAllDeliveries();
-
-                var importsRemainingAfterCompletion = 0;
-                foreach (var partnership in pendingImports)
-                {
-                    if (partnership != null && partnership.isActive && partnership.nextDeliveryDay <= saveGame.Day)
-                        importsRemainingAfterCompletion++;
-                }
-                var importsCompletedAfterHourly = importsStillDue - importsRemainingAfterCompletion;
-
-                var furnitureDelivered = 0;
-                foreach (var contract in pendingFurnitureDeliveries)
-                {
-                    if (contract == null || saveGame.FurnitureDeliveryContracts == null || !saveGame.FurnitureDeliveryContracts.Contains(contract))
-                        furnitureDelivered++;
-                }
-
-                if (pendingImports.Count > 0 || pendingFurnitureDeliveries.Count > 0)
-                {
-                    BigHaxLogger.Diagnostic(
-                        "Instant deliveries completed: importsDetected=" + pendingImports.Count +
-                        ", importsCompletedByVanilla=" + importsCompletedByVanilla +
-                        ", importsCompletedAfterHourly=" + importsCompletedAfterHourly +
-                        ", importsRemainingAfterCompletion=" + importsRemainingAfterCompletion +
-                        ", furnitureDetected=" + pendingFurnitureDeliveries.Count +
-                        ", furnitureDelivered=" + furnitureDelivered + ".");
-                }
+                FurnitureDeliveryHelper.RunHourly();
+                BigHaxLogger.Diagnostic(
+                    "Instant furniture delivery executed after order confirmation: pendingBefore=" + pendingBefore +
+                    ", pendingAfter=" + contracts.Count +
+                    ", delivered=" + (pendingBefore - contracts.Count) +
+                    ", day=" + saveGame.Day + ", hour=" + saveGame.Hour + ".");
             }
             catch (Exception exception)
             {
-                BigHaxLogger.DiagnosticException("Instant deliveries completion", exception);
-            }
-            finally
-            {
-                RefreshKnownOrders(saveGame);
-                pendingImports.Clear();
-                pendingFurnitureDeliveries.Clear();
+                BigHaxLogger.DiagnosticException("Instant furniture delivery", exception);
             }
         }
 
-        private void RefreshKnownOrders(GameInstance saveGame)
+        private void HandleImportOrderConfirmed(ImportPartnership? partnership, string orderKind)
         {
-            knownImportStates.Clear();
-            recentlyForcedImports.Clear();
-            if (instantImportsEnabled && saveGame.importPartnerships != null)
+            if (!instantImportsEnabled)
+                return;
+
+            if (startCoroutine == null)
             {
-                foreach (var partnership in saveGame.importPartnerships)
-                {
-                    if (partnership != null)
-                        knownImportStates[partnership] = new ImportState(partnership.isActive, partnership.nextDeliveryDay);
-                }
+                BigHaxLogger.Diagnostic("Instant import skipped: coroutine runner unavailable.");
+                return;
             }
 
-            knownFurnitureContracts.Clear();
-            if (instantFurnitureDeliveriesEnabled && saveGame.FurnitureDeliveryContracts != null)
-            {
-                foreach (var contract in saveGame.FurnitureDeliveryContracts)
-                {
-                    if (contract != null)
-                        knownFurnitureContracts.Add(contract);
-                }
-            }
+            startCoroutine(CompleteImportOrderAfterVanillaConfirm(partnership, orderKind));
         }
 
-        private readonly struct ImportState
+        private IEnumerator CompleteImportOrderAfterVanillaConfirm(ImportPartnership? partnership, string orderKind)
         {
-            public ImportState(bool isActive, int nextDeliveryDay)
+            yield return null;
+
+            var saveGame = SaveGameManager.Current;
+            if (saveGame == null || partnership == null)
             {
-                IsActive = isActive;
-                NextDeliveryDay = nextDeliveryDay;
+                BigHaxLogger.Diagnostic(
+                    "Instant import skipped after " + orderKind + " order click: " +
+                    (saveGame == null ? "no active save" : "current partnership unavailable") + ".");
+                yield break;
             }
 
-            public bool IsActive { get; }
-            public int NextDeliveryDay { get; }
+            if (!partnership.isActive)
+            {
+                BigHaxLogger.Diagnostic(
+                    "Instant import skipped after " + orderKind +
+                    " order click: vanilla did not activate the order.");
+                yield break;
+            }
+
+            var originalDeliveryDay = partnership.nextDeliveryDay;
+            var productCount = partnership.products?.Count ?? 0;
+            partnership.nextDeliveryDay = saveGame.Day;
+
+            try
+            {
+                ImportPartnership.DoAllDeliveries();
+                var completed = !partnership.isActive || partnership.nextDeliveryDay != saveGame.Day;
+                BigHaxLogger.Diagnostic(
+                    "Instant import executed after " + orderKind + " order click: products=" + productCount +
+                    ", originalDeliveryDay=" + originalDeliveryDay +
+                    ", currentDay=" + saveGame.Day +
+                    ", activeAfter=" + partnership.isActive +
+                    ", nextDeliveryDayAfter=" + partnership.nextDeliveryDay +
+                    ", processed=" + completed + ".");
+            }
+            catch (Exception exception)
+            {
+                BigHaxLogger.DiagnosticException("Instant import", exception);
+            }
+        }
+    }
+
+    internal static class BigHaxInstantDeliveryUiHooks
+    {
+        public static Action? FurnitureOrderConfirmed;
+        public static Action<ImportPartnership?, string>? ImportOrderConfirmed;
+    }
+
+    internal sealed class BigHaxFurnitureDeliveryButtonsWatcher : MonoBehaviour
+    {
+        private static readonly FieldInfo? CurrentEntryField = typeof(DialogController).GetField(
+            "_currentEntry",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private Coroutine? attachCoroutine;
+
+        public static bool CanInspectCurrentEntry => CurrentEntryField != null;
+
+        private void OnEnable()
+        {
+            ScheduleAttach();
+        }
+
+        private void OnTransformChildrenChanged()
+        {
+            ScheduleAttach();
+        }
+
+        private void ScheduleAttach()
+        {
+            if (attachCoroutine == null && gameObject.activeInHierarchy)
+                attachCoroutine = StartCoroutine(AttachConfirmButtonAfterLayout());
+        }
+
+        private IEnumerator AttachConfirmButtonAfterLayout()
+        {
+            yield return null;
+            attachCoroutine = null;
+
+            if (CurrentEntryField == null)
+                yield break;
+
+            var controller = GetComponentInParent<DialogController>();
+            var entry = controller == null ? null : CurrentEntryField.GetValue(controller) as DialogEntry;
+            if (entry == null ||
+                entry.InputTemplate != DialogEntry.InputTemplateName.FurnitureDeliverySettings ||
+                entry.OnConfirm?.Method.DeclaringType != typeof(Dialogs.FurnitureStoreManagerDialog))
+                yield break;
+
+            var buttons = GetComponentsInChildren<Button>(true);
+            if (buttons.Length == 0)
+                yield break;
+
+            var confirmButton = buttons[buttons.Length - 1];
+            if (confirmButton.GetComponent<BigHaxFurnitureDeliveryConfirmHook>() == null)
+                confirmButton.gameObject.AddComponent<BigHaxFurnitureDeliveryConfirmHook>();
+        }
+    }
+
+    internal sealed class BigHaxFurnitureDeliveryConfirmHook : MonoBehaviour
+    {
+        private Button? button;
+
+        private void Awake()
+        {
+            button = GetComponent<Button>();
+            button?.onClick.AddListener(HandleClick);
+        }
+
+        private void OnDestroy()
+        {
+            button?.onClick.RemoveListener(HandleClick);
+        }
+
+        private static void HandleClick()
+        {
+            BigHaxInstantDeliveryUiHooks.FurnitureOrderConfirmed?.Invoke();
+        }
+    }
+
+    internal sealed class BigHaxImportOrderButtonHook : MonoBehaviour
+    {
+        private static readonly FieldInfo? CurrentPartnershipField = typeof(PurchasingAgentPlanUI).GetField(
+            "_currentImportPartnership",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private Button? button;
+        private PurchasingAgentPlanUI? owner;
+        private string orderKind = "unknown";
+
+        public static bool CanInspectCurrentPlan => CurrentPartnershipField != null;
+
+        public void Configure(PurchasingAgentPlanUI planUi, string kind)
+        {
+            owner = planUi;
+            orderKind = kind;
+            button = GetComponent<Button>();
+            button?.onClick.AddListener(HandleClick);
+        }
+
+        private void OnDestroy()
+        {
+            button?.onClick.RemoveListener(HandleClick);
+        }
+
+        private void HandleClick()
+        {
+            ImportPartnership? partnership = null;
+            try
+            {
+                partnership = owner == null || CurrentPartnershipField == null
+                    ? null
+                    : CurrentPartnershipField.GetValue(owner) as ImportPartnership;
+            }
+            catch (Exception exception)
+            {
+                BigHaxLogger.DiagnosticException("Reading current import plan", exception);
+            }
+
+            BigHaxInstantDeliveryUiHooks.ImportOrderConfirmed?.Invoke(partnership, orderKind);
         }
     }
 }
