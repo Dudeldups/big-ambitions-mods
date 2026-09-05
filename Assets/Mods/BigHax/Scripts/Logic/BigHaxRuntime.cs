@@ -27,16 +27,20 @@ namespace BigHax
         private readonly BigHaxEmployeeDemandService employeeDemandService = new BigHaxEmployeeDemandService();
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxIllegalParkingService illegalParkingService = new BigHaxIllegalParkingService();
+        private readonly BigHaxInstantDeliveryService instantDeliveryService = new BigHaxInstantDeliveryService();
         private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
+        private readonly BigHaxPlayerHaxService playerHaxService = new BigHaxPlayerHaxService();
+        private readonly BigHaxUnlockService unlockService = new BigHaxUnlockService();
         private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
         private readonly BigHaxExtendedBedSleepLabelService extendedBedSleepLabelService = new BigHaxExtendedBedSleepLabelService();
         private readonly BigHaxSleepTimeAccelerationService sleepTimeAccelerationService = new BigHaxSleepTimeAccelerationService();
         private readonly BigHaxUpdateNoticeUi updateNoticeUi = new BigHaxUpdateNoticeUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
+        private readonly BigHaxVehicleConditionService vehicleConditionService = new BigHaxVehicleConditionService();
 
         private bool applyRequested;
         private bool parkingVehicleEventsSubscribed;
@@ -45,6 +49,7 @@ namespace BigHax
         private Coroutine? optionsUiPrewarmCoroutine;
         private Coroutine? parkingExitCleanupCoroutine;
         private Coroutine? sleepDurationApplyCoroutine;
+        private Coroutine? vehicleCollisionApplyCoroutine;
         private FieldInfo? onEnterVehicleField;
         private FieldInfo? onExitVehicleField;
         private Delegate? onEnterVehicleHandler;
@@ -77,6 +82,8 @@ namespace BigHax
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
+            runtime.instantDeliveryService.Initialize(runtime.StartInstantDeliveryOperation);
+            runtime.overlayUi.ConfigureUnlockActions(runtime.unlockService.ConfirmUnlockAllContacts, runtime.unlockService.ConfirmUnlockAllCourses);
             runtime.updateNoticeUi.Initialize(context.ModId);
             instance = runtime;
             runtime.ApplyIfRequested();
@@ -122,6 +129,12 @@ namespace BigHax
                 sleepDurationApplyCoroutine = null;
             }
 
+            if (vehicleCollisionApplyCoroutine != null)
+            {
+                StopCoroutine(vehicleCollisionApplyCoroutine);
+                vehicleCollisionApplyCoroutine = null;
+            }
+
             TryRestoreCustomerTraffic();
             casinoBetLimitService.RestoreOriginalLimit();
             buildingCustomerCapacityService.RestoreOriginalCapacities();
@@ -132,6 +145,8 @@ namespace BigHax
             loanLimitService.RestoreOriginalLimit();
             recruitmentCandidateService.Unsubscribe();
             employeeDemandService.Unsubscribe();
+            playerHaxService.Shutdown();
+            instantDeliveryService.Shutdown();
             sleepRestDurationService.RestoreOriginalDurationsOnShutdown();
             extendedBedSleepLabelService.Detach();
             sleepTimeAccelerationService.RestoreOriginalCurve();
@@ -147,22 +162,20 @@ namespace BigHax
         private void OnEnable()
         {
             SceneManager.sceneLoaded += HandleSceneLoaded;
-            GlobalEvents.onNewHour += HandleNewHour;
-            GlobalEvents.onNewDay += HandleNewDay;
             GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
             GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
+            BigHaxVehicleCollisionGuard.CollisionDetected += HandleVehicleCollision;
             SubscribeParkingVehicleEvents();
         }
 
         private void OnDisable()
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
-            GlobalEvents.onNewHour -= HandleNewHour;
-            GlobalEvents.onNewDay -= HandleNewDay;
             GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
             GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
+            BigHaxVehicleCollisionGuard.CollisionDetected -= HandleVehicleCollision;
             UnsubscribeParkingVehicleEvents();
         }
 
@@ -199,8 +212,11 @@ namespace BigHax
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
+                SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));
+                SafeApply("instant deliveries", () => instantDeliveryService.ApplyConfiguredBehavior(settings));
                 SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
+                SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings));
             }
             finally
             {
@@ -276,6 +292,7 @@ namespace BigHax
             businessCapacityService.InvalidateCache();
             illegalParkingService.InvalidateCache();
             itemCapacityService.InvalidateCache();
+            instantDeliveryService.AttachUiHooks();
             loanLimitService.InvalidateCache();
             sleepRestDurationService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
@@ -289,22 +306,6 @@ namespace BigHax
 
             overlayUi.OnGui(context, settings);
             updateNoticeUi.OnGui(context);
-        }
-
-        private void HandleNewHour()
-        {
-            if (context == null || settings == null)
-                return;
-
-            SafeApply("illegal parking onNewHour", () => illegalParkingService.HandleNewHour(context, settings));
-        }
-
-        private void HandleNewDay()
-        {
-            if (context == null || settings == null)
-                return;
-
-            SafeApply("illegal parking onNewDay", () => illegalParkingService.HandleNewDay(context, settings));
         }
 
         private void ScheduleEmployeeDemandCleanup()
@@ -321,18 +322,25 @@ namespace BigHax
 
         private void HandleGameLoadedLate()
         {
+            playerHaxService.ApplyConfiguredBehavior(settings!);
             extendedBedSleepLabelService.Attach(settings!);
-            // GlobalEvents is reset while a save is loading, after this runtime
-            // has been created. Reattach these handlers once the load completes.
+            // These callbacks are cleared while a save is loading and are required
+            // by extended bed sleep once the loaded game is ready.
             GlobalEvents.onTimeMachineStarted -= HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineStarted += HandleTimeMachineStarted;
             GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
             GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
+            instantDeliveryService.AttachUiHooks();
             ScheduleEmployeeDemandMessageCleanup();
             if (sleepDurationApplyCoroutine == null)
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             if (optionsUiPrewarmCoroutine == null)
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
+        }
+
+        private void StartInstantDeliveryOperation(IEnumerator operation)
+        {
+            StartCoroutine(operation);
         }
 
         private IEnumerator ApplySleepDurationsAfterGameLoad()
@@ -389,10 +397,30 @@ namespace BigHax
 
         private void HandleVehicleVariablesChanged()
         {
-            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+            if (context == null || settings == null)
                 return;
 
-            SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+            if (settings.DisableIllegalParkingPenalties)
+                SafeApply("illegal parking onVehicleVariablesChanged", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+
+            SafeApply("vehicle conditions onVehicleVariablesChanged", () => vehicleConditionService.ApplyConfiguredConditions(settings));
+        }
+
+        private void HandleVehicleCollision()
+        {
+            if (settings == null || !vehicleConditionService.HasEnabledConditions(settings) || vehicleCollisionApplyCoroutine != null)
+                return;
+
+            vehicleCollisionApplyCoroutine = StartCoroutine(ApplyVehicleConditionsAfterCollision());
+        }
+
+        private IEnumerator ApplyVehicleConditionsAfterCollision()
+        {
+            yield return new WaitForEndOfFrame();
+            if (settings != null)
+                SafeApply("vehicle conditions after collision", () => vehicleConditionService.ApplyActiveVehicleConditions(settings));
+
+            vehicleCollisionApplyCoroutine = null;
         }
 
         private void HandleTimeMachineStarted()
@@ -407,10 +435,13 @@ namespace BigHax
 
         private void HandleVehicleEntered()
         {
-            if (context == null || settings == null || !settings.DisableIllegalParkingPenalties)
+            if (context == null || settings == null)
                 return;
 
-            SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
+            if (settings.DisableIllegalParkingPenalties)
+                SafeApply("illegal parking onEnterVehicle", () => illegalParkingService.HandleVehicleEntered(context, settings));
+
+            SafeApply("vehicle conditions onEnterVehicle", () => vehicleConditionService.ApplyConfiguredConditions(settings));
         }
 
         private void HandleVehicleExited()

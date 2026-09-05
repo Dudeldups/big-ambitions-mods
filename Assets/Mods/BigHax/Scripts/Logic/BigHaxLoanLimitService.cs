@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using System.Collections.Generic;
 using Buildings;
 using Dialogs;
@@ -10,8 +11,6 @@ namespace BigHax
 {
     internal sealed class BigHaxLoanLimitService
     {
-        private const int VantanderDefaultMaximumLoanAmount = 800000;
-
         private readonly List<PatchedSettingsState> patchedStates = new List<PatchedSettingsState>();
 
         public void InvalidateCache()
@@ -24,22 +23,29 @@ namespace BigHax
                 return;
 
             var state = GetOrCreateState(bankSettings, currentValue);
-            var isVantander = state.OriginalValue == VantanderDefaultMaximumLoanAmount ||
-                              Mathf.Approximately(currentValue, VantanderDefaultMaximumLoanAmount);
-
-            if (!isVantander)
-                return;
 
             if (settings.EnableVantanderMaxLoanOverride)
             {
                 if (!Mathf.Approximately(currentValue, BigHaxSettings.VantanderMaximumLoanOverrideAmount))
+                {
                     bankSettings.maxTotalLoanAmount = BigHaxSettings.VantanderMaximumLoanOverrideAmount;
+                    BigHaxLogger.Diagnostic(
+                        "Vantander loan limit applied: address=" + building.Address +
+                        ", original=" + state.OriginalValue.ToString("0.###") +
+                        ", previous=" + currentValue.ToString("0.###") +
+                        ", final=" + bankSettings.maxTotalLoanAmount.ToString("0.###") + ".");
+                }
 
                 return;
             }
 
             if (!Mathf.Approximately(bankSettings.maxTotalLoanAmount, state.OriginalValue))
+            {
                 state.Restore();
+                BigHaxLogger.Diagnostic(
+                    "Vantander loan limit restored: address=" + building.Address +
+                    ", final=" + bankSettings.maxTotalLoanAmount.ToString("0.###") + ".");
+            }
         }
 
         public void RestoreOriginalLimit()
@@ -58,6 +64,8 @@ namespace BigHax
 
             var createdState = new PatchedSettingsState(bankSettings, currentValue);
             patchedStates.Add(createdState);
+            BigHaxLogger.Diagnostic(
+                "Bank settings detected: originalMaximumLoan=" + currentValue.ToString("0.###") + ".");
             return createdState;
         }
 
@@ -81,6 +89,13 @@ namespace BigHax
             }
 
             if (building == null || building.SpecialService == null)
+                return false;
+
+            // BankDialog itself identifies Jensen Capital by this registration
+            // name and treats the other bank as Vantander. Mirror that rule so
+            // the Vantander cheat cannot alter Jensen's separate loan limit.
+            var registration = BuildingHelper.GetBuildingRegistration(dialogController.contact.Address);
+            if (registration != null && string.Equals(registration.BusinessName, "Jensen Capital", StringComparison.Ordinal))
                 return false;
 
             if (building.SpecialService.settings is not BankSettings resolvedSettings)

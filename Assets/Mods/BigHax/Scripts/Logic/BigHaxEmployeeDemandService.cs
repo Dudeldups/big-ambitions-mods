@@ -13,15 +13,18 @@ namespace BigHax
     internal sealed class BigHaxEmployeeDemandService
     {
         private const string EmployeeHiredEvent = "ba:gameevent_employeehired";
+        private const string CandidateReceivedEvent = "ba:gameevent_candidatereceived";
         private const string NewDayEvent = "ba:gameevent_newday";
         private const string NewDemandMessageKey = "ba:messagetype_employee_contact_message_new_demand";
         private static readonly FieldInfo? ContactsToSendNotificationField =
             typeof(ContactsHelper).GetField("ContactsToSendNotification", BindingFlags.Static | BindingFlags.NonPublic);
 
         private ModContext? context;
-        private bool isEnabled;
+        private bool demandRemovalEnabled;
+        private bool maximumSatisfactionEnabled;
         private bool isSubscribed;
-        private bool clearedCurrentSaveEmployees;
+        private bool initialDemandRemovalProcessed;
+        private bool initialMaximumSatisfactionProcessed;
         private bool dailyCleanupScheduled;
         private bool saveCleanupAfterLoad;
         private Action? scheduleDailyCleanup;
@@ -35,28 +38,37 @@ namespace BigHax
         public void ApplyConfiguredBehavior(ModContext context, BigHaxSettings settings)
         {
             this.context = context;
-            isEnabled = settings.RemoveEmployeeDemands;
-            if (!isEnabled)
+            demandRemovalEnabled = settings.RemoveEmployeeDemands;
+            maximumSatisfactionEnabled = settings.EnableMaximumEmployeeSatisfaction;
+            BigHaxLogger.Diagnostic(
+                "Employee hax configured: removeDemands=" + demandRemovalEnabled +
+                ", maximumSatisfaction=" + maximumSatisfactionEnabled + ".");
+            if (!demandRemovalEnabled)
+                initialDemandRemovalProcessed = false;
+            if (!maximumSatisfactionEnabled)
+                initialMaximumSatisfactionProcessed = false;
+
+            if (!demandRemovalEnabled && !maximumSatisfactionEnabled)
             {
-                clearedCurrentSaveEmployees = false;
                 dailyCleanupScheduled = false;
                 Unsubscribe();
                 return;
             }
 
             Subscribe();
-            ClearCurrentSaveEmployeesOnce();
+            ApplyCurrentSaveEmployeeStateOnce();
         }
 
         public void InvalidateCache()
         {
-            clearedCurrentSaveEmployees = false;
+            initialDemandRemovalProcessed = false;
+            initialMaximumSatisfactionProcessed = false;
             dailyCleanupScheduled = false;
         }
 
         public bool TryScheduleDailyCleanup()
         {
-            if (!isEnabled || dailyCleanupScheduled)
+            if ((!demandRemovalEnabled && !maximumSatisfactionEnabled) || dailyCleanupScheduled)
                 return false;
 
             dailyCleanupScheduled = true;
@@ -69,7 +81,7 @@ namespace BigHax
             yield return null;
             dailyCleanupScheduled = false;
 
-            if (!isEnabled)
+            if (!demandRemovalEnabled && !maximumSatisfactionEnabled)
                 yield break;
 
             try
@@ -83,22 +95,34 @@ namespace BigHax
                 var satisfactionRaisedEmployeeCount = 0;
                 foreach (var employee in employees)
                 {
-                    var removedDemands = ClearDemands(employee);
-                    if (removedDemands > 0)
+                    if (demandRemovalEnabled)
                     {
-                        clearedEmployeeCount++;
-                        removedMessageCount += RemoveDemandMessages(employee);
+                        var removedDemands = ClearDemands(employee);
+                        if (removedDemands > 0)
+                        {
+                            clearedEmployeeCount++;
+                            removedMessageCount += RemoveDemandMessages(employee);
+                        }
                     }
 
-                    if (RaiseSatisfactionForDemandFreeEmployee(employee))
+                    if (maximumSatisfactionEnabled
+                        ? SetMaximumSatisfaction(employee)
+                        : demandRemovalEnabled && RaiseSatisfactionForDemandFreeEmployee(employee))
                         satisfactionRaisedEmployeeCount++;
                 }
 
                 MarkSaveChangedIfNeeded(clearedEmployeeCount > 0 || removedMessageCount > 0 || satisfactionRaisedEmployeeCount > 0);
+                BigHaxLogger.Diagnostic(
+                    "Employee hax daily cleanup: employees=" + employees.Count +
+                    ", demandsRemoved=" + clearedEmployeeCount +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", satisfactionChanged=" + satisfactionRaisedEmployeeCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax daily cleanup", exception);
             }
         }
 
@@ -107,7 +131,7 @@ namespace BigHax
             // Contact queues can finish restoring after the normal runtime initialization pass.
             yield return null;
 
-            if (!isEnabled)
+            if (!demandRemovalEnabled)
                 yield break;
 
             try
@@ -122,10 +146,15 @@ namespace BigHax
 
                 MarkSaveChangedIfNeeded(removedMessageCount > 0);
                 SaveDemandCleanupAfterLoadIfNeeded();
+                BigHaxLogger.Diagnostic(
+                    "Employee hax post-load message cleanup: employees=" + employees.Count +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax post-load cleanup", exception);
             }
         }
 
@@ -147,38 +176,78 @@ namespace BigHax
             isSubscribed = true;
         }
 
-        private void ClearCurrentSaveEmployeesOnce()
+        private void ApplyCurrentSaveEmployeeStateOnce()
         {
-            if (clearedCurrentSaveEmployees)
+            var demandRemovalNeedsInitialPass = demandRemovalEnabled && !initialDemandRemovalProcessed;
+            var maximumSatisfactionNeedsInitialPass = maximumSatisfactionEnabled && !initialMaximumSatisfactionProcessed;
+            if (!demandRemovalNeedsInitialPass && !maximumSatisfactionNeedsInitialPass)
                 return;
 
             try
             {
-                var employees = SaveGameManager.Current?.EmployeeInstances;
-                if (employees == null)
+                var saveGame = SaveGameManager.Current;
+                if (saveGame == null)
+                {
+                    BigHaxLogger.Diagnostic("Employee hax initial pass deferred: no active save.");
                     return;
+                }
 
                 var removedDemandCount = 0;
                 var removedMessageCount = 0;
-                foreach (var employee in employees)
+                var satisfactionChangedCount = 0;
+
+                var employees = saveGame.EmployeeInstances;
+                if (employees != null)
                 {
-                    removedDemandCount += ClearDemands(employee);
-                    removedMessageCount += RemoveDemandMessages(employee);
+                    foreach (var employee in employees)
+                    {
+                        if (demandRemovalNeedsInitialPass)
+                        {
+                            removedDemandCount += ClearDemands(employee);
+                            removedMessageCount += RemoveDemandMessages(employee);
+                        }
+
+                        if (maximumSatisfactionNeedsInitialPass && SetMaximumSatisfaction(employee))
+                            satisfactionChangedCount++;
+                    }
                 }
 
-                clearedCurrentSaveEmployees = true;
-                MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0);
-                saveCleanupAfterLoad |= removedDemandCount > 0 || removedMessageCount > 0;
+                // Recruitment candidates already carry scheduling demands before they are
+                // hired, so clear those too while the cheat is enabled.
+                var candidates = saveGame.CandidateEmployeeInstances;
+                if (demandRemovalNeedsInitialPass && candidates != null)
+                {
+                    foreach (var candidate in candidates)
+                        removedDemandCount += ClearDemands(candidate);
+                }
+
+                if (demandRemovalEnabled)
+                    initialDemandRemovalProcessed = true;
+                if (maximumSatisfactionEnabled)
+                    initialMaximumSatisfactionProcessed = true;
+
+                var demandStateChanged = removedDemandCount > 0 || removedMessageCount > 0;
+                var changed = demandStateChanged || satisfactionChangedCount > 0;
+                MarkSaveChangedIfNeeded(changed);
+                saveCleanupAfterLoad |= demandStateChanged;
+                BigHaxLogger.Diagnostic(
+                    "Employee hax initial pass: employees=" + (employees?.Count ?? 0) +
+                    ", candidates=" + (candidates?.Count ?? 0) +
+                    ", demandsRemoved=" + removedDemandCount +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", satisfactionChanged=" + satisfactionChangedCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax initial pass", exception);
             }
         }
 
         private void HandleGameEvent(string eventId)
         {
-            if (!isEnabled)
+            if (!demandRemovalEnabled && !maximumSatisfactionEnabled)
                 return;
 
             if (eventId == NewDayEvent)
@@ -189,22 +258,73 @@ namespace BigHax
                 return;
             }
 
-            if (eventId != EmployeeHiredEvent)
+            if (eventId == CandidateReceivedEvent && demandRemovalEnabled)
+            {
+                ClearLatestRecruitmentCandidateDemands();
                 return;
+            }
 
+            if (eventId == EmployeeHiredEvent)
+                ApplyEmployeeStateAfterHire();
+        }
+
+        private void ClearLatestRecruitmentCandidateDemands()
+        {
+            try
+            {
+                var candidates = SaveGameManager.Current?.CandidateEmployeeInstances;
+                if (candidates == null || candidates.Count == 0)
+                    return;
+
+                // GenerateCandidate has already added the employee when this event fires.
+                var candidate = candidates[candidates.Count - 1];
+                var removedDemandCount = ClearDemands(candidate);
+                MarkSaveChangedIfNeeded(removedDemandCount > 0);
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax candidate cleanup", exception);
+            }
+        }
+
+        private void ApplyEmployeeStateAfterHire()
+        {
             try
             {
                 var employees = SaveGameManager.Current?.EmployeeInstances;
                 if (employees == null || employees.Count == 0)
                     return;
 
-                var employee = employees[employees.Count - 1];
-                var removedDemandCount = ClearDemands(employee);
-                MarkSaveChangedIfNeeded(removedDemandCount > 0);
+                // Do not assume the freshly hired employee is always the last list entry.
+                // Hiring is infrequent, so a full pass is cheap and avoids timing/order issues.
+                var removedDemandCount = 0;
+                var removedMessageCount = 0;
+                var satisfactionChangedCount = 0;
+                foreach (var employee in employees)
+                {
+                    if (demandRemovalEnabled)
+                    {
+                        removedDemandCount += ClearDemands(employee);
+                        removedMessageCount += RemoveDemandMessages(employee);
+                    }
+
+                    if (maximumSatisfactionEnabled && SetMaximumSatisfaction(employee))
+                        satisfactionChangedCount++;
+                }
+
+                MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0 || satisfactionChangedCount > 0);
+                BigHaxLogger.Diagnostic(
+                    "Employee hax employee hired: employees=" + employees.Count +
+                    ", demandsRemoved=" + removedDemandCount +
+                    ", demandMessagesRemoved=" + removedMessageCount +
+                    ", satisfactionChanged=" + satisfactionChangedCount +
+                    ", " + DescribeSatisfaction(employees));
             }
             catch (Exception exception)
             {
                 context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Employee hax hired-employee cleanup", exception);
             }
         }
 
@@ -227,6 +347,45 @@ namespace BigHax
             // With an empty demand list, the game's own calculation instead produces a zero delta.
             employee.satisfaction = Mathf.Min(100f, employee.satisfaction + 0.6f);
             return true;
+        }
+
+        private static bool SetMaximumSatisfaction(EmployeeInstance? employee)
+        {
+            if (employee == null || Mathf.Abs(employee.satisfaction - 100f) < 0.001f)
+                return false;
+
+            employee.satisfaction = 100f;
+            return true;
+        }
+
+        private static string DescribeSatisfaction(IList? employees)
+        {
+            if (employees == null || employees.Count == 0)
+                return "satisfaction=none";
+
+            var employeeCount = 0;
+            var maximumSatisfactionCount = 0;
+            var minimumSatisfaction = float.MaxValue;
+            var maximumSatisfaction = float.MinValue;
+
+            foreach (var item in employees)
+            {
+                if (item is not EmployeeInstance employee)
+                    continue;
+
+                employeeCount++;
+                minimumSatisfaction = Mathf.Min(minimumSatisfaction, employee.satisfaction);
+                maximumSatisfaction = Mathf.Max(maximumSatisfaction, employee.satisfaction);
+                if (employee.satisfaction >= 99.999f)
+                    maximumSatisfactionCount++;
+            }
+
+            if (employeeCount == 0)
+                return "satisfaction=none";
+
+            return "satisfaction=min " + minimumSatisfaction.ToString("0.###") +
+                   ", max " + maximumSatisfaction.ToString("0.###") +
+                   ", at100=" + maximumSatisfactionCount + "/" + employeeCount;
         }
 
         private static int RemoveDemandMessages(EmployeeInstance? employee)

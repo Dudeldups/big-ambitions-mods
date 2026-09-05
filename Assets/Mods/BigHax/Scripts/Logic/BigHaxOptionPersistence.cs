@@ -48,10 +48,33 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.RemoveEmployeeDemands,
                 BigHaxSettings.DefaultRemoveEmployeeDemands);
+            settings.EnableMaximumEmployeeSatisfaction = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableMaximumEmployeeSatisfaction,
+                BigHaxSettings.DefaultEnableMaximumEmployeeSatisfaction);
+            settings.DisablePlayerHungerAndEnergyDecay = LoadBool(
+                modId,
+                BigHaxOptionIds.DisablePlayerHungerAndEnergyDecay,
+                BigHaxSettings.DefaultDisablePlayerHungerAndEnergyDecay);
+            settings.DisablePlayerHappinessDecay = LoadBool(
+                modId,
+                BigHaxOptionIds.DisablePlayerHappinessDecay,
+                BigHaxSettings.DefaultDisablePlayerHappinessDecay);
+            settings.EnableInstantImports = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableInstantImports,
+                BigHaxSettings.DefaultEnableInstantImports);
+            settings.EnableInstantFurnitureDeliveries = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableInstantFurnitureDeliveries,
+                BigHaxSettings.DefaultEnableInstantFurnitureDeliveries);
             settings.EnableExtendedBedSleep = LoadBool(
                 modId,
                 BigHaxOptionIds.EnableExtendedBedSleep,
                 BigHaxSettings.DefaultEnableExtendedBedSleep);
+            settings.EnableNoVehicleDamage = LoadBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, BigHaxSettings.DefaultEnableNoVehicleDamage);
+            settings.EnableInfiniteVehicleFuel = LoadBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, BigHaxSettings.DefaultEnableInfiniteVehicleFuel);
+            settings.EnableNeverDirtyVehicles = LoadBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, BigHaxSettings.DefaultEnableNeverDirtyVehicles);
 
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
@@ -132,10 +155,41 @@ namespace BigHax
             SaveBool(modId, BigHaxOptionIds.RemoveEmployeeDemands, value);
         }
 
+        public static void SaveEnableMaximumEmployeeSatisfaction(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableMaximumEmployeeSatisfaction, value);
+        }
+
+        public static void SaveDisablePlayerHungerAndEnergyDecay(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.DisablePlayerHungerAndEnergyDecay, value);
+        }
+
+        public static void SaveDisablePlayerHappinessDecay(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.DisablePlayerHappinessDecay, value);
+        }
+
+        public static void SaveEnableInstantImports(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableInstantImports, value);
+        }
+
+        public static void SaveEnableInstantFurnitureDeliveries(string modId, bool value)
+        {
+            SaveBool(modId, BigHaxOptionIds.EnableInstantFurnitureDeliveries, value);
+        }
+
         public static void SaveEnableExtendedBedSleep(string modId, bool value)
         {
             SaveBool(modId, BigHaxOptionIds.EnableExtendedBedSleep, value);
         }
+
+        public static void SaveEnableNoVehicleDamage(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, value);
+
+        public static void SaveEnableInfiniteVehicleFuel(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, value);
+
+        public static void SaveEnableNeverDirtyVehicles(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, value);
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
         {
