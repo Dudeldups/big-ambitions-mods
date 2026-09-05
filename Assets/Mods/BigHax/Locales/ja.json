@@ -34,5 +34,12 @@
   "bighax_category_time": "時間ハック",
   "bighax_no_vehicle_damage_label": "車両ダメージなし",
   "bighax_infinite_vehicle_fuel_label": "車両燃料無限",
-  "bighax_never_dirty_vehicles_label": "車両が汚れない"
+  "bighax_never_dirty_vehicles_label": "車両が汚れない",
+  "bighax_category_unlock": "アンロックハック",
+  "bighax_unlock_all_contacts_button": "すべての連絡先をアンロック",
+  "bighax_unlock_all_courses_button": "すべてのコースをアンロック",
+  "bighax_unlock_confirmation_title": "この操作は元に戻せません",
+  "bighax_unlock_all_contacts_confirmation": "すべてのビジネス連絡先をアンロックしますか？この操作は元に戻せません。",
+  "bighax_unlock_all_courses_confirmation": "すべてのコースを修了しますか？この操作は元に戻せません。",
+  "bighax_unlock_confirmation_button": "すべてアンロック"
 }

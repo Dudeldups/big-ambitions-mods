@@ -34,5 +34,12 @@
   "bighax_category_time": "Trucchi tempo",
   "bighax_no_vehicle_damage_label": "Nessun danno al veicolo",
   "bighax_infinite_vehicle_fuel_label": "Carburante veicolo infinito",
-  "bighax_never_dirty_vehicles_label": "Veicoli mai sporchi"
+  "bighax_never_dirty_vehicles_label": "Veicoli mai sporchi",
+  "bighax_category_unlock": "Trucchi di sblocco",
+  "bighax_unlock_all_contacts_button": "Sblocca tutti i contatti",
+  "bighax_unlock_all_courses_button": "Sblocca tutti i corsi",
+  "bighax_unlock_confirmation_title": "Questa azione non può essere annullata",
+  "bighax_unlock_all_contacts_confirmation": "Sbloccare tutti i contatti commerciali? Questa azione non può essere annullata.",
+  "bighax_unlock_all_courses_confirmation": "Completare tutti i corsi? Questa azione non può essere annullata.",
+  "bighax_unlock_confirmation_button": "Sblocca tutto"
 }

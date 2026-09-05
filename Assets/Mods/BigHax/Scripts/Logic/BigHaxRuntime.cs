@@ -33,6 +33,7 @@ namespace BigHax
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxPlayerHaxService playerHaxService = new BigHaxPlayerHaxService();
+        private readonly BigHaxUnlockService unlockService = new BigHaxUnlockService();
         private readonly BigHaxSleepRestDurationService sleepRestDurationService = new BigHaxSleepRestDurationService();
         private readonly BigHaxExtendedBedSleepLabelService extendedBedSleepLabelService = new BigHaxExtendedBedSleepLabelService();
         private readonly BigHaxSleepTimeAccelerationService sleepTimeAccelerationService = new BigHaxSleepTimeAccelerationService();
@@ -80,6 +81,7 @@ namespace BigHax
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
+            runtime.overlayUi.ConfigureUnlockActions(runtime.unlockService.ConfirmUnlockAllContacts, runtime.unlockService.ConfirmUnlockAllCourses);
             runtime.updateNoticeUi.Initialize(context.ModId);
             instance = runtime;
             runtime.ApplyIfRequested();

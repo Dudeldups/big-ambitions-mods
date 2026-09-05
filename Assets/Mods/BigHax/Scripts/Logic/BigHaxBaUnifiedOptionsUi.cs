@@ -25,6 +25,8 @@ namespace BigHax
 
         private readonly BaUiReflection api;
         private readonly Action close;
+        private readonly Action? confirmUnlockAllContacts;
+        private readonly Action? confirmUnlockAllCourses;
         private GameObject? root;
         private RectTransform? content;
         private ModContext? context;
@@ -33,10 +35,12 @@ namespace BigHax
         private bool rebuildForLanguageChange;
         private string localizationSignature = string.Empty;
 
-        private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close)
+        private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close, Action? unlockAllContacts, Action? unlockAllCourses)
         {
             this.api = api;
             this.close = close;
+            confirmUnlockAllContacts = unlockAllContacts;
+            confirmUnlockAllCourses = unlockAllCourses;
             LocalizorManager.OnLanguageChanged += HandleLanguageChanged;
         }
 
@@ -54,6 +58,8 @@ namespace BigHax
             BigHaxSettings settings,
             bool visible,
             Action close,
+            Action? unlockAllContacts,
+            Action? unlockAllCourses,
             out BigHaxBaUnifiedOptionsUi? ui,
             out string reason)
         {
@@ -67,7 +73,7 @@ namespace BigHax
                 return false;
             }
 
-            var candidate = new BigHaxBaUnifiedOptionsUi(api, close);
+            var candidate = new BigHaxBaUnifiedOptionsUi(api, close, unlockAllContacts, unlockAllCourses);
             try
             {
                 candidate.EnsureCreated(context, settings, visible);
@@ -196,6 +202,10 @@ namespace BigHax
             AddToggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings.DisablePlayerHungerAndEnergyDecay, value => { settings.DisablePlayerHungerAndEnergyDecay = value; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context.ModId, value); });
             AddToggle(Localize("bighax_disable_player_happiness_decay_label"), () => settings.DisablePlayerHappinessDecay, value => { settings.DisablePlayerHappinessDecay = value; BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context.ModId, value); });
 
+            AddCategory(Localize("bighax_category_unlock"));
+            AddActionButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
+            AddActionButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
+
             AddCategory(Localize("bighax_category_business"));
             AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
 
@@ -285,6 +295,7 @@ namespace BigHax
                 Localize("bighax_category_money"),
                 Localize("bighax_category_employee"),
                 Localize("bighax_category_player"),
+                Localize("bighax_category_unlock"),
                 Localize("bighax_category_business"),
                 Localize("bighax_category_vehicle"),
                 Localize("bighax_category_capacity"),
@@ -298,6 +309,8 @@ namespace BigHax
                 Localize("bighax_maximum_employee_satisfaction_label"),
                 Localize("bighax_disable_player_hunger_and_energy_decay_label"),
                 Localize("bighax_disable_player_happiness_decay_label"),
+                Localize("bighax_unlock_all_contacts_button"),
+                Localize("bighax_unlock_all_courses_button"),
                 Localize("bighax_enable_extended_bed_sleep_label"),
                 Localize("bighax_no_vehicle_damage_label"),
                 Localize("bighax_infinite_vehicle_fuel_label"),
@@ -354,6 +367,21 @@ namespace BigHax
             {
                 write(value);
             }), "BigHaxSlider");
+        }
+
+        private void AddActionButton(string label, Action? onClick)
+        {
+            if (onClick == null)
+                return;
+
+            var row = new GameObject("ActionButton", typeof(RectTransform), typeof(LayoutElement));
+            row.transform.SetParent(content!, false);
+            row.GetComponent<LayoutElement>().preferredHeight = 42f;
+            var button = api.CreateVanillaButton(row.transform, label, 320f, 36f, new UnityAction(onClick), "Blue", 15f);
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
         }
 
         private Scrollbar CreateScrollbar(RectTransform panel)

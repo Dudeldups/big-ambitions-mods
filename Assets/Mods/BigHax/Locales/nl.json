@@ -34,5 +34,12 @@
   "bighax_category_time": "Tijdhacks",
   "bighax_no_vehicle_damage_label": "Geen voertuigschade",
   "bighax_infinite_vehicle_fuel_label": "Oneindige voertuigbrandstof",
-  "bighax_never_dirty_vehicles_label": "Voertuigen worden nooit vies"
+  "bighax_never_dirty_vehicles_label": "Voertuigen worden nooit vies",
+  "bighax_category_unlock": "Ontgrendel-hacks",
+  "bighax_unlock_all_contacts_button": "Alle contacten ontgrendelen",
+  "bighax_unlock_all_courses_button": "Alle cursussen ontgrendelen",
+  "bighax_unlock_confirmation_title": "Deze actie kan niet ongedaan worden gemaakt",
+  "bighax_unlock_all_contacts_confirmation": "Alle zakelijke contacten ontgrendelen? Deze actie kan niet ongedaan worden gemaakt.",
+  "bighax_unlock_all_courses_confirmation": "Alle cursussen voltooien? Deze actie kan niet ongedaan worden gemaakt.",
+  "bighax_unlock_confirmation_button": "Alles ontgrendelen"
 }

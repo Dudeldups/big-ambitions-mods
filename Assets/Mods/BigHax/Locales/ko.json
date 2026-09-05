@@ -34,5 +34,12 @@
   "bighax_category_time": "시간 핵",
   "bighax_no_vehicle_damage_label": "차량 피해 없음",
   "bighax_infinite_vehicle_fuel_label": "무한 차량 연료",
-  "bighax_never_dirty_vehicles_label": "차량이 더러워지지 않음"
+  "bighax_never_dirty_vehicles_label": "차량이 더러워지지 않음",
+  "bighax_category_unlock": "잠금 해제 핵",
+  "bighax_unlock_all_contacts_button": "모든 연락처 잠금 해제",
+  "bighax_unlock_all_courses_button": "모든 과정 잠금 해제",
+  "bighax_unlock_confirmation_title": "이 작업은 되돌릴 수 없습니다",
+  "bighax_unlock_all_contacts_confirmation": "모든 사업 연락처를 잠금 해제할까요? 이 작업은 되돌릴 수 없습니다.",
+  "bighax_unlock_all_courses_confirmation": "모든 과정을 완료할까요? 이 작업은 되돌릴 수 없습니다.",
+  "bighax_unlock_confirmation_button": "모두 잠금 해제"
 }

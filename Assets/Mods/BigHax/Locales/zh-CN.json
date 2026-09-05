@@ -34,5 +34,12 @@
   "bighax_category_time": "时间功能",
   "bighax_no_vehicle_damage_label": "车辆无损坏",
   "bighax_infinite_vehicle_fuel_label": "车辆无限燃料",
-  "bighax_never_dirty_vehicles_label": "车辆永不变脏"
+  "bighax_never_dirty_vehicles_label": "车辆永不变脏",
+  "bighax_category_unlock": "解锁功能",
+  "bighax_unlock_all_contacts_button": "解锁所有联系人",
+  "bighax_unlock_all_courses_button": "解锁所有课程",
+  "bighax_unlock_confirmation_title": "此操作无法撤销",
+  "bighax_unlock_all_contacts_confirmation": "解锁所有商务联系人？此操作无法撤销。",
+  "bighax_unlock_all_courses_confirmation": "完成所有课程？此操作无法撤销。",
+  "bighax_unlock_confirmation_button": "全部解锁"
 }

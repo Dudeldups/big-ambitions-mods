@@ -34,5 +34,12 @@
   "bighax_category_time": "Aikahuijaukset",
   "bighax_no_vehicle_damage_label": "Ei ajoneuvovaurioita",
   "bighax_infinite_vehicle_fuel_label": "Rajaton ajoneuvon polttoaine",
-  "bighax_never_dirty_vehicles_label": "Ajoneuvot eivät koskaan likaannu"
+  "bighax_never_dirty_vehicles_label": "Ajoneuvot eivät koskaan likaannu",
+  "bighax_category_unlock": "Avaushuijaukset",
+  "bighax_unlock_all_contacts_button": "Avaa kaikki kontaktit",
+  "bighax_unlock_all_courses_button": "Avaa kaikki kurssit",
+  "bighax_unlock_confirmation_title": "Toimintoa ei voi kumota",
+  "bighax_unlock_all_contacts_confirmation": "Avataanko kaikki liikekontaktit? Toimintoa ei voi kumota.",
+  "bighax_unlock_all_courses_confirmation": "Suoritetaanko kaikki kurssit? Toimintoa ei voi kumota.",
+  "bighax_unlock_confirmation_button": "Avaa kaikki"
 }

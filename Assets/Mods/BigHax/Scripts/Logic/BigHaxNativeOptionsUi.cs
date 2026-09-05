@@ -11,17 +11,25 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 1650f;
+        private const float ContentHeight = 1800f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
         private ModContext? context;
         private BigHaxSettings? settings;
         private readonly System.Action close;
+        private System.Action? confirmUnlockAllContacts;
+        private System.Action? confirmUnlockAllCourses;
 
         public BigHaxNativeOptionsUi(System.Action close)
         {
             this.close = close;
+        }
+
+        public void ConfigureUnlockActions(System.Action unlockAllContacts, System.Action unlockAllCourses)
+        {
+            confirmUnlockAllContacts = unlockAllContacts;
+            confirmUnlockAllCourses = unlockAllCourses;
         }
 
         public void EnsureCreated(ModContext modContext, BigHaxSettings currentSettings, bool visible)
@@ -110,6 +118,9 @@ namespace BigHax
             Section(Localize("bighax_category_player"));
             Toggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings!.DisablePlayerHungerAndEnergyDecay, v => { settings!.DisablePlayerHungerAndEnergyDecay = v; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context!.ModId, v); });
             Toggle(Localize("bighax_disable_player_happiness_decay_label"), () => settings!.DisablePlayerHappinessDecay, v => { settings!.DisablePlayerHappinessDecay = v; BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context!.ModId, v); });
+            Section(Localize("bighax_category_unlock"));
+            ActionButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
+            ActionButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
             Section(Localize("bighax_category_business"));
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
             Section(Localize("bighax_category_vehicle"));
@@ -198,6 +209,20 @@ namespace BigHax
             button.targetGraphic = image;
             button.onClick.AddListener(() => close());
             Text(row.transform, Localize("bighax_ui_close_button"), 16, TextAnchor.MiddleCenter, Color.white, Vector2.zero, Vector2.zero);
+        }
+
+        private void ActionButton(string label, System.Action? onClick)
+        {
+            if (onClick == null)
+                return;
+
+            var row = Row();
+            var image = row.GetComponent<Image>();
+            image.color = new Color(.18f, .48f, .84f);
+            var button = row.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => onClick());
+            Text(row.transform, label, 16, TextAnchor.MiddleCenter, Color.white, Vector2.zero, Vector2.zero);
         }
         private void Label(string value, int size, TextAnchor align, Color color, float height)
         {
