@@ -11,7 +11,7 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 1950f;
+        private const float ContentHeight = 2007f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -141,6 +141,7 @@ namespace BigHax
             Slider(Localize("bighax_active_vehicle_label"), () => settings!.ActiveVehicleCapacity, 20, 1000, v => { settings!.ActiveVehicleCapacity = v; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context!.ModId, v); }, v => v.ToString());
             Section(Localize("bighax_category_time"));
             Toggle(Localize("bighax_enable_extended_bed_sleep_label"), () => settings!.EnableExtendedBedSleep, v => { settings!.EnableExtendedBedSleep = v; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context!.ModId, v); });
+            FeedbackButtons();
             CloseButton();
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
@@ -227,6 +228,56 @@ namespace BigHax
             button.targetGraphic = image;
             button.onClick.AddListener(() => onClick());
             Text(row.transform, label, 16, TextAnchor.MiddleCenter, Color.white, Vector2.zero, Vector2.zero);
+        }
+
+        private void FeedbackButtons()
+        {
+            var row = Row();
+            CreateFeedbackButton(
+                row.transform,
+                "Steam",
+                new Color(.10f, .17f, .24f),
+                -166f,
+                BigHaxFeedbackLinks.SteamIcon,
+                BigHaxFeedbackLinks.OpenSteam);
+            CreateFeedbackButton(
+                row.transform,
+                "Discord",
+                new Color(.35f, .40f, .95f),
+                166f,
+                BigHaxFeedbackLinks.DiscordIcon,
+                BigHaxFeedbackLinks.OpenDiscord);
+        }
+
+        private static void CreateFeedbackButton(
+            Transform parent,
+            string label,
+            Color color,
+            float x,
+            Sprite icon,
+            System.Action onClick)
+        {
+            var buttonObject = Create(label + "Button", parent, color);
+            var rect = buttonObject.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f);
+            rect.pivot = new Vector2(.5f, .5f);
+            rect.anchoredPosition = new Vector2(x, 0f);
+            rect.sizeDelta = new Vector2(320f, 42f);
+            var button = buttonObject.AddComponent<Button>();
+            button.targetGraphic = buttonObject.GetComponent<Image>();
+            button.onClick.AddListener(() => onClick());
+            Text(buttonObject.transform, label, 16, TextAnchor.MiddleCenter, Color.white, Vector2.zero, Vector2.zero).raycastTarget = false;
+
+            var iconObject = Create("BrandIcon", buttonObject.transform, Color.white);
+            var iconRect = iconObject.GetComponent<RectTransform>();
+            iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, .5f);
+            iconRect.pivot = new Vector2(.5f, .5f);
+            iconRect.anchoredPosition = new Vector2(28f, 0f);
+            iconRect.sizeDelta = new Vector2(24f, 24f);
+            var image = iconObject.GetComponent<Image>();
+            image.sprite = icon;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
         }
         private void Label(string value, int size, TextAnchor align, Color color, float height)
         {
