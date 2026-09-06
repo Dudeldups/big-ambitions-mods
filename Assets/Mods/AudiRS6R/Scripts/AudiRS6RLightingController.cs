@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 internal sealed class AudiRS6RLightingController : MonoBehaviour
 {
@@ -20,6 +22,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private readonly List<Mesh> generatedMeshes = new();
 
     private VehicleController? vehicleController;
+    private ModContext? context;
     private object? brakes;
     private object? blinkers;
     private Light? headlightBeam;
@@ -42,13 +45,15 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private bool updateFailureReported;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
+    private int lastHeadlightState = -1;
 
-    public void Initialize(VehicleController controller)
+    public void Initialize(VehicleController controller, ModContext? modContext)
     {
         if (initialized && vehicleController == controller)
             return;
 
         vehicleController = controller;
+        context = modContext;
         LocateVehicleStateSources(controller);
 
         var renderers = controller.GetComponentsInChildren<MeshRenderer>(true);
@@ -56,14 +61,15 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var rearLampRenderer = FindRenderer(renderers, RearLampRendererName);
         var outerWindowRenderer = FindRenderer(renderers, OuterWindowRendererName);
         var innerWindowRenderer = FindRenderer(renderers, InnerWindowRendererName);
-        ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
-        ConfigureLampSurface(frontLampRenderer, "AudiRS6R Front Lamp Housing", Color.white, preserveSourceShader: false);
+        var glassCount = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
+        // Keep the imported housing shader, textures and roughness visible in daylight.
+        LogSurface("front-lamp-preserved", frontLampRenderer);
         ConfigureLampSurface(
             rearLampRenderer,
             "AudiRS6R Rear Lamp Housing",
             new Color(0.45f, 0.025f, 0.015f, 1f),
             preserveSourceShader: true);
-        ConfigureHeadlightBeams();
+        var beamCount = ConfigureHeadlightBeams();
 
         leftHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
@@ -118,6 +124,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
 
         initialized = true;
+        LogInfo($"initialized glassRenderers={glassCount}/2 headlightBeams={beamCount}/2 " +
+                $"overlays={generatedMeshes.Count}/13.");
+        if (glassCount != 2 || beamCount != 2 || generatedMeshes.Count != 13)
+            LogWarning("Lighting setup is incomplete; inspect the preceding material/overlay diagnostics.");
+        if (controller.GetType().GetProperty("ShouldLightsBeOn", InstanceFields) == null)
+            LogWarning("ShouldLightsBeOn is unavailable; automatic headlights cannot be read.");
         ApplyLightState();
     }
 
@@ -135,7 +147,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             if (!updateFailureReported)
             {
                 updateFailureReported = true;
-                Debug.LogWarning($"AudiRS6R lighting update failed: {ex.GetType().Name}: {ex.Message}");
+                LogWarning($"update failed: {ex.GetType().Name}: {ex.Message}");
             }
         }
     }
@@ -167,12 +179,16 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private int ConfigureGlass(MeshRenderer? outerWindowRenderer, MeshRenderer? innerWindowRenderer)
     {
         var configuredCount = 0;
+        LogSurface("outer-glass-source", outerWindowRenderer);
+        LogSurface("inner-glass-source", innerWindowRenderer);
         if (outerWindowRenderer != null)
         {
             outerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
                 FirstMaterial(outerWindowRenderer), "AudiRS6R Corrected Outer Glass",
-                new Color(0.55f, 0.61f, 0.66f, 0.32f));
+                new Color(0f, 0f, 0f, 0.25f));
+            outerWindowRenderer.shadowCastingMode = ShadowCastingMode.Off;
             outerWindowRenderer.enabled = true;
+            LogSurface("outer-glass-configured", outerWindowRenderer);
             configuredCount++;
         }
 
@@ -180,8 +196,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             innerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
                 FirstMaterial(innerWindowRenderer) ?? FirstMaterial(outerWindowRenderer),
-                "AudiRS6R Corrected Inner Glass", new Color(0.55f, 0.61f, 0.66f, 0.12f));
+                "AudiRS6R Corrected Inner Glass", new Color(0f, 0f, 0f, 0.12f));
+            innerWindowRenderer.shadowCastingMode = ShadowCastingMode.Off;
             innerWindowRenderer.enabled = true;
+            LogSurface("inner-glass-configured", innerWindowRenderer);
             configuredCount++;
         }
 
@@ -198,13 +216,43 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetColorIfPresent(material, "_BaseColor", tint);
         SetColorIfPresent(material, "_Color", tint);
         SetColorIfPresent(material, "baseColorFactor", tint);
-        SetFloatIfPresent(material, "transmissionFactor", 0.65f);
+        // HDRP requires blend/depth state as well as alpha. Use ordinary alpha
+        // transparency so glass does not depend on screen-space refraction.
+        SetFloatIfPresent(material, "transmissionFactor", 0f);
+        SetFloatIfPresent(material, "_SurfaceType", 1f);
+        SetFloatIfPresent(material, "_BlendMode", 0f);
+        // HDRP applies the source alpha inside the shader.
+        SetFloatIfPresent(material, "_SrcBlend", (float)BlendMode.One);
+        SetFloatIfPresent(material, "_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        SetFloatIfPresent(material, "_AlphaSrcBlend", (float)BlendMode.One);
+        SetFloatIfPresent(material, "_AlphaDstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        SetFloatIfPresent(material, "_ZWrite", 0f);
+        SetFloatIfPresent(material, "_TransparentZWrite", 0f);
+        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
+        SetFloatIfPresent(material, "_AlphaCutoffEnable", 0f);
+        SetFloatIfPresent(material, "_EnableBlendModePreserveSpecularLighting", 0f);
+        SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
+        SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
+        SetFloatIfPresent(material, "_TransparentBackfaceEnable", 0f);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.SetOverrideTag("RenderType", "Transparent");
+        material.renderQueue = (int)RenderQueue.Transparent;
+        material.SetShaderPassEnabled("TransparentDepthPrepass", false);
+        material.SetShaderPassEnabled("TransparentDepthPostpass", false);
+        material.SetShaderPassEnabled("TransparentBackface", false);
+        material.SetShaderPassEnabled("DepthOnly", false);
+        material.SetShaderPassEnabled("ShadowCaster", false);
         SetFloatIfPresent(material, "_Cull", 0f);
         SetFloatIfPresent(material, "_CullMode", 0f);
         SetFloatIfPresent(material, "_CullModeForward", 0f);
         SetFloatIfPresent(material, "_TransparentCullMode", 0f);
         SetFloatIfPresent(material, "_DoubleSidedEnable", 1f);
         material.EnableKeyword("_DOUBLESIDED_ON");
+        if (!material.HasProperty("_SurfaceType") || !material.HasProperty("_SrcBlend") ||
+            !material.HasProperty("_DstBlend") || !material.HasProperty("_ZWrite"))
+            LogWarning($"Glass material '{materialName}' uses unexpected shader '{material.shader.name}'; " +
+                       "transparent rendering controls are missing.");
         return material;
     }
 
@@ -248,7 +296,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"AudiRS6R could not clone headlight beam '{objectName}': {ex.GetType().Name}: {ex.Message}");
+            LogWarning($"could not clone headlight beam '{objectName}': {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -288,18 +336,27 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         float overlayScale = 1.0015f)
     {
         if (sourceRenderer == null)
+        {
+            LogWarning($"overlay '{suffix}' has no source renderer.");
             return null;
+        }
 
         var sourceFilter = sourceRenderer.GetComponent<MeshFilter>();
         if (sourceFilter?.sharedMesh == null)
+        {
+            LogWarning($"overlay '{suffix}' has no source mesh on '{sourceRenderer.name}'.");
             return null;
+        }
 
         try
         {
             var overlayMesh = CreateFilteredMesh(
                 sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
             if (overlayMesh == null)
+            {
+                LogWarning($"overlay '{suffix}' selected no triangles on '{sourceRenderer.name}'.");
                 return null;
+            }
 
             var overlayObject = new GameObject("AudiRS6R_" + suffix);
             overlayObject.transform.SetParent(sourceRenderer.transform, false);
@@ -319,7 +376,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"AudiRS6R could not create light overlay '{suffix}': {ex.GetType().Name}: {ex.Message}");
+            LogWarning($"could not create light overlay '{suffix}': {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -436,7 +493,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     {
         var controlledByPlayer = vehicleController != null && vehicleController.controlledByPlayer;
         var automaticHeadlights = GetBoolProperty(vehicleController, "ShouldLightsBeOn");
-        var headlights = controlledByPlayer;
+        var headlights = controlledByPlayer && automaticHeadlights;
         var tailLights = controlledByPlayer && automaticHeadlights;
         var rawBraking = GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking");
         var braking = controlledByPlayer && rawBraking;
@@ -468,7 +525,51 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
         SetRendererState(rightRearBlinkerOverlay, rightBlinker && blinkerFlash);
 
+        var headlightState = (controlledByPlayer ? 1 : 0) | (automaticHeadlights ? 2 : 0);
+        if (headlightState != lastHeadlightState)
+        {
+            lastHeadlightState = headlightState;
+            LogInfo($"headlight-state playerControlled={controlledByPlayer} automaticLights={automaticHeadlights} " +
+                    $"housingOverlays={headlights} lensOverlays={headlights} beams={headlights}.");
+        }
     }
+
+    private void LogSurface(string operation, MeshRenderer? renderer)
+    {
+        var material = FirstMaterial(renderer);
+        if (renderer == null || material == null)
+        {
+            LogWarning($"surface operation='{operation}' renderer='{renderer?.name ?? "missing"}' material=missing.");
+            return;
+        }
+
+        var color = material.HasProperty("baseColorFactor") ? material.GetColor("baseColorFactor") :
+            material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
+        var texture = material.HasProperty("baseColorTexture") ? material.GetTexture("baseColorTexture") :
+            material.HasProperty("_BaseColorMap") ? material.GetTexture("_BaseColorMap") : null;
+        LogInfo($"surface operation='{operation}' renderer='{renderer.name}' material='{material.name}' " +
+                $"shader='{material.shader.name}' supported={material.shader.isSupported} color={color} " +
+                $"texture='{texture?.name ?? "none"}' queue={material.renderQueue} " +
+                $"transparent={material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT")} " +
+                $"srcBlend={ReadFloat(material, "_SrcBlend")} dstBlend={ReadFloat(material, "_DstBlend")} " +
+                $"zWrite={ReadFloat(material, "_ZWrite")}.");
+        if (!material.shader.isSupported)
+            LogWarning($"surface operation='{operation}' shader '{material.shader.name}' is unsupported.");
+        if (operation == "front-lamp-preserved" && texture == null)
+            LogWarning("The imported front lamp material has no base texture; model detail may be missing.");
+    }
+
+    private static string ReadFloat(Material material, string propertyName) =>
+        material.HasProperty(propertyName) ? material.GetFloat(propertyName).ToString("0.###",
+            System.Globalization.CultureInfo.InvariantCulture) : "missing";
+
+    private void LogInfo(string message) =>
+        context?.Logger.Info($"AudiRS6R lighting vehicle='{vehicleController?.name}' " +
+                             $"instance={vehicleController?.GetInstanceID()}: {message}");
+
+    private void LogWarning(string message) =>
+        context?.Logger.Warn($"AudiRS6R lighting vehicle='{vehicleController?.name}' " +
+                             $"instance={vehicleController?.GetInstanceID()}: {message}");
 
     private static void SetRendererState(Renderer? renderer, bool active)
     {

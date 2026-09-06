@@ -272,7 +272,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         if (addedLightingController)
             lightingController = vehicleController.gameObject.AddComponent<AudiRS6RLightingController>();
 
-        lightingController!.Initialize(vehicleController);
+        lightingController!.Initialize(vehicleController, context);
         roadDamageGuard!.Initialize(vehicleController);
 
         return sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController;
