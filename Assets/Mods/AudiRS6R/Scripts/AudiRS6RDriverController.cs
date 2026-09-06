@@ -14,6 +14,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
 {
     private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const string SittingClipName = "SitDeliveryTruck";
+    private const float SeatedScale = 0.94f;
     // Pelvis position relative to the Audi's steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.28f, -0.48f);
     private const int MaximumAttempts = 20;
@@ -133,15 +134,28 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         var transforms = new Dictionary<Transform, Transform>();
         CopyTransforms(sourceRoot, driverRoot.transform, transforms);
         // EnterVehicle hides the real character by setting its root scale to zero.
-        driverRoot.transform.localScale = Vector3.one;
+        // Scale around the anchored hips, preserving the tested seat height.
+        driverRoot.transform.localScale = Vector3.one * SeatedScale;
         driverRoot.transform.localRotation = Quaternion.identity;
         driverRoot.transform.localPosition = Vector3.zero;
 
         var rendererCount = 0;
+        var suppressedCount = 0;
+        var lowerDetailRenderers = GetLowerDetailRenderers(appearance.transform);
         foreach (var source in appearance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
             if (!source.enabled || source.sharedMesh == null || !IsActiveWithinCharacter(source.transform, sourceRoot))
                 continue;
+            // enabled/activeSelf do not include shadow-only, forced-hidden or LOD
+            // visibility. Drawing those as ordinary meshes can overlap the body.
+            if (source.forceRenderingOff || source.shadowCastingMode == ShadowCastingMode.ShadowsOnly ||
+                lowerDetailRenderers.Contains(source))
+            {
+                suppressedCount++;
+                LogInfo($"skipped mesh='{source.name}' forceRenderingOff={source.forceRenderingOff} " +
+                        $"shadowMode={source.shadowCastingMode} lowerDetail={lowerDetailRenderers.Contains(source)}.");
+                continue;
+            }
             CopyRenderer(source, transforms);
             rendererCount++;
         }
@@ -173,6 +187,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         var leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
         var rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
         LogInfo($"created from current player appearance; renderers={rendererCount} " +
+                $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
                 $"transforms={transforms.Count} clip='{sittingClip.name}' " +
                 $"hips={VehiclePosition(hips)} head={VehiclePosition(head)} " +
                 $"leftHand={VehiclePosition(leftHand)} rightHand={VehiclePosition(rightHand)} " +
@@ -197,6 +212,27 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
                 return false;
         }
         return true;
+    }
+
+    private static HashSet<Renderer> GetLowerDetailRenderers(Transform root)
+    {
+        var result = new HashSet<Renderer>();
+        // The visual copy has no LODGroup. Retain one complete, highest-detail
+        // representation instead of drawing all of its LODs at the same time.
+        foreach (var group in root.GetComponentsInChildren<LODGroup>(true))
+        {
+            if (!group.enabled)
+                continue;
+            var lods = group.GetLODs();
+            if (lods.Length == 0)
+                continue;
+            var highestDetail = new HashSet<Renderer>(lods[0].renderers);
+            for (var level = 1; level < lods.Length; level++)
+                foreach (var renderer in lods[level].renderers)
+                    if (renderer != null && !highestDetail.Contains(renderer))
+                        result.Add(renderer);
+        }
+        return result;
     }
 
     private static void CopyTransforms(Transform source, Transform destination,
@@ -263,7 +299,11 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         destination.quality = source.quality;
         destination.renderingLayerMask = source.renderingLayerMask;
         destination.shadowCastingMode = ShadowCastingMode.Off;
-        destination.receiveShadows = true;
+        destination.receiveShadows = source.receiveShadows;
+        LogInfo($"copied mesh='{source.name}' vertices={mesh.vertexCount} " +
+                $"blendShapes={mesh.blendShapeCount} materials={materials.Length} " +
+                $"sourceShadowMode={source.shadowCastingMode} receiveShadows={source.receiveShadows} " +
+                $"renderingLayerMask={source.renderingLayerMask}.");
     }
 
     private string VehiclePosition(Transform? target) =>
