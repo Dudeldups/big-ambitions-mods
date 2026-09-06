@@ -76,7 +76,8 @@
 
 ## Commits
 
-When a requested change is complete and verified, commit the changes you made in
+When a requested implementation is ready for runtime testing and its required
+build and local-install verification has passed, commit the changes you made in
 this repository. Do not wait for the user to request a commit separately.
 
 - Never include pre-existing, unrelated, or unverified changes in your commit.
@@ -100,15 +101,30 @@ this repository. Do not wait for the user to request a commit separately.
 - Do not add a `codex/` prefix to branch names.
 - Keep each branch limited to its requested mod change and any required shared
   SDK changes.
-- Before opening or merging a pull request, update the task branch against the
-  latest `origin/main`, resolve any conflicts in the task worktree, and rerun
-  the required verification.
-- When the task is complete, verified, and committed, push the task branch to
-  `origin` and create a pull request targeting `main`.
+- Before opening a pull request, update the task branch against the latest
+  `origin/main`, resolve any conflicts in the task worktree, and rerun the
+  required build and local-install verification.
+- When the implementation is ready for runtime testing and committed, push the
+  task branch to `origin` and create a pull request targeting `main`. Leave the
+  pull request open while the user tests the installed mod.
 - Use pull requests as the only path for integrating task branches into `main`.
-  Merge completed pull requests one at a time, only after required checks pass
-  and the pull request reports that it is mergeable. Never merge a task branch
-  directly into the local `main` checkout.
+  Never merge a feature or bug-fix pull request merely because it builds,
+  installs, passes automated checks, or reports that it is mergeable.
+- Merge a feature or bug-fix pull request only after the user explicitly
+  confirms that the requested behavior was tested successfully in game. That
+  confirmation authorizes merging the matching pull request once required
+  checks pass and it reports that it is mergeable.
+- If runtime testing fails, keep the same task branch and pull request open,
+  diagnose and fix the issue there, rebuild and reinstall the mod, and wait for
+  another explicit successful-test confirmation before merging.
+- Immediately before merging an approved pull request, update the task branch
+  against the latest `origin/main`, resolve any conflicts in the task worktree,
+  and rerun the required build and local-install verification. Never merge a
+  task branch directly into the local `main` checkout.
+- If that update or conflict resolution changes the target mod, a shared
+  dependency, or anything that could affect the tested behavior, treat the
+  earlier runtime confirmation as stale and wait for the user to test and
+  confirm the updated installed build before merging.
 - If another pull request changes `main` first and introduces a conflict, update
   the task branch from the new `origin/main`, resolve and verify it again, then
   merge its pull request.
@@ -128,10 +144,11 @@ this repository. Do not wait for the user to request a commit separately.
   the mod was rebuilt and verified from that exact `main` state. Rerun the
   uploader's `validate`, `stage-check`, and `plan` commands from `main` before
   `upload`.
-- Pushing the task branch, creating its pull request, and merging that pull
-  request are expected completion steps for a verified branch task. Workshop
-  publication remains a separate action and requires an explicit user request
-  to upload the named mod.
+- Pushing the task branch and creating its pull request are expected steps when
+  an implementation is ready for runtime testing. Merging requires the user's
+  explicit successful in-game test confirmation. Workshop publication remains
+  a separate action and requires an explicit user request to upload the named
+  mod.
 - A user's explicit request to upload, publish, or update a named mod on Steam
   Workshop authorizes the complete prerequisite workflow for that release:
   push its verified task branch, create and merge its pull request into `main`,
@@ -139,6 +156,10 @@ this repository. Do not wait for the user to request a commit separately.
   final checks, and make one matching Workshop upload attempt. Do not ask for
   separate confirmation for those prerequisite steps or for that one upload
   attempt.
+- An upload request does not waive runtime validation. If the user has not yet
+  confirmed that the feature or bug fix works in game, stop after installing the
+  mod and opening or updating its pull request, and wait for that confirmation
+  before merging or uploading.
 - This end-to-end authorization applies only to the named mod and the Workshop
   action the user requested. Stop and ask if `plan` unexpectedly resolves to
   CREATE instead of UPDATE, if a visibility change is required but was not
