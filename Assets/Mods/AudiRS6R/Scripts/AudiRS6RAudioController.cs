@@ -35,6 +35,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private AudioSource? loopSource;
     private AudioClip? originalClip;
     private AudioClip? smoothLoop;
+    private AudiRS6RAudioComparison? comparison;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -66,6 +67,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
 
             if (physics == null || sounds == null || engineSound == null)
                 return;
+            comparison ??= new AudiRS6RAudioComparison(Info, Warn);
+            comparison.Update(engineSound.source, vehicle.controlledByPlayer);
             var state = (vehicle.controlledByPlayer ? 1 : 0) | (physics.CameraInsideVehicle ? 2 : 0);
             var stateChanged = state != lastState;
             if (stateChanged || (vehicle.controlledByPlayer && Time.unscaledTime >= nextSample))
@@ -77,6 +80,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         }
         catch (Exception ex)
         {
+            comparison?.Dispose();
             if (!failureReported)
             {
                 failureReported = true;
@@ -113,7 +117,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         RefreshActiveCabinFilter();
 
         var source = engineSound.source;
-        Info($"configured revision=2 pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
+        Info($"configured revision=3 pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
              $"baseVolume={F(BaseVolume)} volumeRange={F(VolumeRange)} maxDistortion={F(MaxDistortion)} " +
              $"cabinLowPass={F(CabinLowPass)} clip='{source.clip.name}' " +
              $"length={F(source.clip.length)}s channels={source.clip.channels} hz={source.clip.frequency} " +
@@ -223,7 +227,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         var engine = physics!.powertrain.engine;
         var mixer = source.outputAudioMixerGroup?.audioMixer;
         var lowPass = source.GetComponent<AudioLowPassFilter>();
-        Info($"sample reason={reason} controlled={vehicle!.controlledByPlayer} " +
+        Info($"sample reason={reason} comparison={comparison?.Mode ?? "mixer/rpm"} controlled={vehicle!.controlledByPlayer} " +
              $"cameraInside={physics.CameraInsideVehicle} rpmEstimate={F(engine.RPMPercent * engine.revLimiterRPM)} " +
              $"rpmPercent={F(engine.RPMPercent)} throttle={F(engine.ThrottlePosition)} load={F(engine.Load)} " +
              $"playing={source.isPlaying} pitch={F(source.pitch)} volume={F(source.volume)} " +
@@ -260,6 +264,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
 
     private void OnDestroy()
     {
+        comparison?.Dispose();
         if (loopSource != null && originalClip != null && loopSource.clip == smoothLoop)
             ReplaceClip(loopSource, originalClip);
         if (smoothLoop != null)
@@ -269,6 +274,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         original.Restore(engineSound, sounds);
         RefreshActiveCabinFilter();
     }
+
+    private void OnDisable() => comparison?.Dispose();
 
     private sealed class OriginalSettings
     {
