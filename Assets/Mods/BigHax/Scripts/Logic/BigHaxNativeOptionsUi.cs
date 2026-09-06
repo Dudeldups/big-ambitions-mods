@@ -11,7 +11,7 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 2007f;
+        private const float ContentHeight = 2205f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -110,37 +110,46 @@ namespace BigHax
             Toggle(Localize("bighax_disable_casino_bet_limit_label"), () => settings!.DisableCasinoBetLimit, v => { settings!.DisableCasinoBetLimit = v; BigHaxOptionPersistence.SaveDisableCasinoBetLimit(context!.ModId, v); });
             Toggle(Localize("bighax_disable_investment_limit_label"), () => settings!.DisableInvestmentLimit, v => { settings!.DisableInvestmentLimit = v; BigHaxOptionPersistence.SaveDisableInvestmentLimit(context!.ModId, v); });
             Toggle(Localize("bighax_vantander_maximum_loan_override_label"), () => settings!.EnableVantanderMaxLoanOverride, v => { settings!.EnableVantanderMaxLoanOverride = v; BigHaxOptionPersistence.SaveEnableVantanderMaxLoanOverride(context!.ModId, v); });
+            Separator();
             Section(Localize("bighax_category_employee"));
             Toggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"), () => settings!.EnableRecruitmentCandidateMaximumSkill, v => { settings!.EnableRecruitmentCandidateMaximumSkill = v; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context!.ModId, v); });
             Toggle(Localize("bighax_remove_employee_demands_label"), () => settings!.RemoveEmployeeDemands, v => { settings!.RemoveEmployeeDemands = v; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context!.ModId, v); });
             Toggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings!.EnableMaximumEmployeeSatisfaction, v => { settings!.EnableMaximumEmployeeSatisfaction = v; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context!.ModId, v); });
             Toggle(Localize("bighax_maximum_headhunter_recruitment_points_label"), () => settings!.EnableMaximumHeadhunterRecruitmentPoints, v => { settings!.EnableMaximumHeadhunterRecruitmentPoints = v; BigHaxOptionPersistence.SaveEnableMaximumHeadhunterRecruitmentPoints(context!.ModId, v); });
             Slider(Localize("bighax_employee_training_skill_increase_label"), () => settings!.EmployeeTrainingSkillIncrease, 10, 100, v => { settings!.EmployeeTrainingSkillIncrease = v; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context!.ModId, v); }, v => v.ToString());
+            Separator();
             Section(Localize("bighax_category_player"));
             Toggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings!.DisablePlayerHungerAndEnergyDecay, v => { settings!.DisablePlayerHungerAndEnergyDecay = v; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context!.ModId, v); });
             Toggle(Localize("bighax_disable_player_happiness_decay_label"), () => settings!.DisablePlayerHappinessDecay, v => { settings!.DisablePlayerHappinessDecay = v; BigHaxOptionPersistence.SaveDisablePlayerHappinessDecay(context!.ModId, v); });
+            Separator();
             Section(Localize("bighax_category_unlock"));
             ActionButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
             ActionButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
+            Separator();
             Section(Localize("bighax_category_business"));
             Toggle(Localize("bighax_enable_instant_imports_label"), () => settings!.EnableInstantImports, v => { settings!.EnableInstantImports = v; BigHaxOptionPersistence.SaveEnableInstantImports(context!.ModId, v); });
             Toggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings!.EnableInstantFurnitureDeliveries, v => { settings!.EnableInstantFurnitureDeliveries = v; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context!.ModId, v); });
             Slider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings!.InstallationFirmFeePercentage, 0, 100, v => { settings!.InstallationFirmFeePercentage = v; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context!.ModId, v); }, v => v + "%");
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
+            Separator();
             Section(Localize("bighax_category_vehicle"));
             Toggle(Localize("bighax_disable_illegal_parking_penalties_label"), () => settings!.DisableIllegalParkingPenalties, v => { settings!.DisableIllegalParkingPenalties = v; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context!.ModId, v); });
             Toggle(Localize("bighax_no_vehicle_damage_label"), () => settings!.EnableNoVehicleDamage, v => { settings!.EnableNoVehicleDamage = v; BigHaxOptionPersistence.SaveEnableNoVehicleDamage(context!.ModId, v); });
             Toggle(Localize("bighax_infinite_vehicle_fuel_label"), () => settings!.EnableInfiniteVehicleFuel, v => { settings!.EnableInfiniteVehicleFuel = v; BigHaxOptionPersistence.SaveEnableInfiniteVehicleFuel(context!.ModId, v); });
             Toggle(Localize("bighax_never_dirty_vehicles_label"), () => settings!.EnableNeverDirtyVehicles, v => { settings!.EnableNeverDirtyVehicles = v; BigHaxOptionPersistence.SaveEnableNeverDirtyVehicles(context!.ModId, v); });
             Slider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings!.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces, v => { settings!.FreightTruckT1DeliveryPlaces = v; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context!.ModId, v); }, v => v.ToString());
+            Separator();
             Section(Localize("bighax_category_capacity"));
             Toggle(Localize("bighax_active_vehicle_enabled_label"), () => settings!.EnableActiveVehicleCapacityOverride, v => { settings!.EnableActiveVehicleCapacityOverride = v; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context!.ModId, v); });
             Slider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }), () => settings!.StandardFridgeCapacity, 50, 1000, v => { settings!.StandardFridgeCapacity = v; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }), () => settings!.PalletShelfCapacity, 60, 1000, v => { settings!.PalletShelfCapacity = v; BigHaxOptionPersistence.SavePalletShelfCapacity(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }), () => settings!.StorageShelfCapacity, 16, 1000, v => { settings!.StorageShelfCapacity = v; BigHaxOptionPersistence.SaveStorageShelfCapacity(context!.ModId, v); }, v => v.ToString());
             Slider(Localize("bighax_active_vehicle_label"), () => settings!.ActiveVehicleCapacity, 20, 1000, v => { settings!.ActiveVehicleCapacity = v; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context!.ModId, v); }, v => v.ToString());
+            Separator();
             Section(Localize("bighax_category_time"));
             Toggle(Localize("bighax_enable_extended_bed_sleep_label"), () => settings!.EnableExtendedBedSleep, v => { settings!.EnableExtendedBedSleep = v; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context!.ModId, v); });
+            Separator();
+            Label(Localize("bighax_feedback_prompt"), 16, TextAnchor.MiddleCenter, new Color(.22f, .27f, .34f), 38);
             FeedbackButtons();
             CloseButton();
             Canvas.ForceUpdateCanvases();
@@ -204,6 +213,17 @@ namespace BigHax
 
         private GameObject Row() { var row = Create("Row", content!, Color.clear); row.AddComponent<LayoutElement>().preferredHeight = RowHeight; return row; }
         private void Section(string value) { Label(value, 19, TextAnchor.LowerLeft, new Color(.22f, .27f, .34f), 42); }
+        private void Separator()
+        {
+            var row = Create("Separator", content!, Color.clear);
+            row.AddComponent<LayoutElement>().preferredHeight = 18f;
+            var line = Create("Line", row.transform, new Color(.70f, .73f, .77f));
+            var rect = line.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0f, .5f);
+            rect.anchorMax = new Vector2(1f, .5f);
+            rect.pivot = new Vector2(.5f, .5f);
+            rect.sizeDelta = new Vector2(-12f, 2f);
+        }
         private void CloseButton()
         {
             var row = Row();

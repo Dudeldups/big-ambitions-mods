@@ -19,6 +19,7 @@ namespace BigHax
         private bool needsCentering = true;
         private bool uiSelectionResolved;
         private float libraryWaitStartedAt = -1f;
+        private string lastUiResolutionReason = string.Empty;
         private int hotControlId;
 
         private Texture2D? solidTexture;
@@ -32,7 +33,10 @@ namespace BigHax
             baUnifiedUi?.Destroy();
             baUnifiedUi = null;
             uiSelectionResolved = false;
+            libraryWaitStartedAt = -1f;
+            lastUiResolutionReason = string.Empty;
             isVisible = BigHaxOptionPersistence.LoadUpdateNoticeSeenVersion(modId) < CurrentNoticeVersion;
+            BigHaxLogger.UiDiagnostic("update notice initialized: visible=" + isVisible + ".");
             if (isVisible)
             {
                 needsCentering = true;
@@ -48,6 +52,15 @@ namespace BigHax
             needsCentering = true;
             hotControlId = 0;
             ResetStyleCache();
+            if (baUnifiedUi != null)
+            {
+                baUnifiedUi.Destroy();
+                baUnifiedUi = null;
+                uiSelectionResolved = false;
+                libraryWaitStartedAt = -1f;
+                lastUiResolutionReason = string.Empty;
+                BigHaxLogger.UiDiagnostic("update notice renderer reset after scene load.");
+            }
         }
 
         public void ConsumeGameplayInputIfNeeded()
@@ -75,8 +88,19 @@ namespace BigHax
 
             if (baUnifiedUi != null)
             {
-                baUnifiedUi.EnsureVisible();
-                return;
+                if (baUnifiedUi.EnsureVisible())
+                    return;
+
+                BigHaxLogger.UiDiagnostic("update notice BA Unified UI root was missing; resolving renderer again.");
+                baUnifiedUi.Destroy();
+                baUnifiedUi = null;
+                uiSelectionResolved = false;
+                libraryWaitStartedAt = -1f;
+                lastUiResolutionReason = string.Empty;
+                if (!ResolveUi(context))
+                    return;
+                if (baUnifiedUi != null && baUnifiedUi.EnsureVisible())
+                    return;
             }
 
             EnsureStyles();
@@ -127,6 +151,8 @@ namespace BigHax
             baUnifiedUi?.Destroy();
             baUnifiedUi = null;
             uiSelectionResolved = false;
+            libraryWaitStartedAt = -1f;
+            lastUiResolutionReason = string.Empty;
             isVisible = false;
         }
 
@@ -141,7 +167,18 @@ namespace BigHax
                     out var reason))
             {
                 uiSelectionResolved = true;
+                libraryWaitStartedAt = -1f;
+                lastUiResolutionReason = string.Empty;
+                BigHaxLogger.UiDiagnostic(
+                    "update notice selected BA Unified UI " + baUnifiedUi!.LibraryVersion +
+                    " from assembly " + baUnifiedUi.AssemblyName + ".");
                 return true;
+            }
+
+            if (!string.Equals(lastUiResolutionReason, reason, System.StringComparison.Ordinal))
+            {
+                lastUiResolutionReason = reason;
+                BigHaxLogger.UiDiagnostic("update notice BA Unified UI unavailable: " + reason);
             }
 
             // Workshop mods may load after Big Hax. Wait briefly so a present UI
@@ -156,6 +193,7 @@ namespace BigHax
             }
 
             uiSelectionResolved = true;
+            BigHaxLogger.UiDiagnostic("update notice selected IMGUI fallback after: " + reason);
             return true;
         }
 

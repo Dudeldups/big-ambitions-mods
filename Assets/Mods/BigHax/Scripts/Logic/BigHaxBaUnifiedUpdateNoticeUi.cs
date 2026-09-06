@@ -54,15 +54,21 @@ namespace BigHax
             catch (Exception exception)
             {
                 candidate.Destroy();
+                BigHaxLogger.UiDiagnostic("update notice BA Unified UI initialization exception: " + exception);
                 reason = "BAUnifiedUI update notice initialization failed: " + exception.GetBaseException().Message;
                 return false;
             }
         }
 
-        public void EnsureVisible()
+        public bool EnsureVisible()
         {
-            if (root != null && !root.activeSelf)
+            if (root == null)
+                return false;
+
+            if (!root.activeSelf)
                 root.SetActive(true);
+
+            return true;
         }
 
         public void ConsumeGameplayInputIfNeeded()
