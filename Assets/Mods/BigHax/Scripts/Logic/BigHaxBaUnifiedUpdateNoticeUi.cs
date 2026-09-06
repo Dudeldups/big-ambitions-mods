@@ -59,10 +59,15 @@ namespace BigHax
             }
         }
 
-        public void EnsureVisible()
+        public bool EnsureVisible()
         {
-            if (root != null && !root.activeSelf)
+            if (root == null)
+                return false;
+
+            if (!root.activeSelf)
                 root.SetActive(true);
+
+            return true;
         }
 
         public void ConsumeGameplayInputIfNeeded()
