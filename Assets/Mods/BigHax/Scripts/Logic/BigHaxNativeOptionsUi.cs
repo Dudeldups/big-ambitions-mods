@@ -11,7 +11,7 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 1800f;
+        private const float ContentHeight = 1950f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -114,6 +114,7 @@ namespace BigHax
             Toggle(Localize("bighax_enable_recruitment_candidate_maximum_skill_label"), () => settings!.EnableRecruitmentCandidateMaximumSkill, v => { settings!.EnableRecruitmentCandidateMaximumSkill = v; BigHaxOptionPersistence.SaveEnableRecruitmentCandidateMaximumSkill(context!.ModId, v); });
             Toggle(Localize("bighax_remove_employee_demands_label"), () => settings!.RemoveEmployeeDemands, v => { settings!.RemoveEmployeeDemands = v; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context!.ModId, v); });
             Toggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings!.EnableMaximumEmployeeSatisfaction, v => { settings!.EnableMaximumEmployeeSatisfaction = v; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context!.ModId, v); });
+            Toggle(Localize("bighax_maximum_headhunter_recruitment_points_label"), () => settings!.EnableMaximumHeadhunterRecruitmentPoints, v => { settings!.EnableMaximumHeadhunterRecruitmentPoints = v; BigHaxOptionPersistence.SaveEnableMaximumHeadhunterRecruitmentPoints(context!.ModId, v); });
             Slider(Localize("bighax_employee_training_skill_increase_label"), () => settings!.EmployeeTrainingSkillIncrease, 10, 100, v => { settings!.EmployeeTrainingSkillIncrease = v; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context!.ModId, v); }, v => v.ToString());
             Section(Localize("bighax_category_player"));
             Toggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings!.DisablePlayerHungerAndEnergyDecay, v => { settings!.DisablePlayerHungerAndEnergyDecay = v; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context!.ModId, v); });
@@ -124,6 +125,7 @@ namespace BigHax
             Section(Localize("bighax_category_business"));
             Toggle(Localize("bighax_enable_instant_imports_label"), () => settings!.EnableInstantImports, v => { settings!.EnableInstantImports = v; BigHaxOptionPersistence.SaveEnableInstantImports(context!.ModId, v); });
             Toggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings!.EnableInstantFurnitureDeliveries, v => { settings!.EnableInstantFurnitureDeliveries = v; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context!.ModId, v); });
+            Slider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings!.InstallationFirmFeePercentage, 0, 100, v => { settings!.InstallationFirmFeePercentage = v; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context!.ModId, v); }, v => v + "%");
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
             Section(Localize("bighax_category_vehicle"));
             Toggle(Localize("bighax_disable_illegal_parking_penalties_label"), () => settings!.DisableIllegalParkingPenalties, v => { settings!.DisableIllegalParkingPenalties = v; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context!.ModId, v); });

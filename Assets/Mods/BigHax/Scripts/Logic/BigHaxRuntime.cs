@@ -27,10 +27,12 @@ namespace BigHax
         private readonly BigHaxEmployeeDemandService employeeDemandService = new BigHaxEmployeeDemandService();
         private readonly BigHaxEmployeeTrainingService employeeTrainingService = new BigHaxEmployeeTrainingService();
         private readonly BigHaxIllegalParkingService illegalParkingService = new BigHaxIllegalParkingService();
+        private readonly BigHaxInstallationFeeService installationFeeService = new BigHaxInstallationFeeService();
         private readonly BigHaxInstantDeliveryService instantDeliveryService = new BigHaxInstantDeliveryService();
         private readonly BigHaxInvestmentLimitService investmentLimitService = new BigHaxInvestmentLimitService();
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
+        private readonly BigHaxHeadhunterRpService headhunterRpService = new BigHaxHeadhunterRpService();
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxPlayerHaxService playerHaxService = new BigHaxPlayerHaxService();
@@ -82,6 +84,8 @@ namespace BigHax
             runtime.nextLoanLimitPollAt = 0f;
             runtime.customerTrafficService = CreateCustomerTrafficService(context);
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
+            runtime.installationFeeService.Initialize();
+            runtime.headhunterRpService.Initialize();
             runtime.instantDeliveryService.Initialize(runtime.StartInstantDeliveryOperation);
             runtime.overlayUi.ConfigureUnlockActions(runtime.unlockService.ConfirmUnlockAllContacts, runtime.unlockService.ConfirmUnlockAllCourses);
             runtime.updateNoticeUi.Initialize(context.ModId);
@@ -140,9 +144,11 @@ namespace BigHax
             buildingCustomerCapacityService.RestoreOriginalCapacities();
             businessCapacityService.RestoreOriginalCapacities();
             illegalParkingService.RestoreOriginalState();
+            installationFeeService.Shutdown();
             investmentLimitService.RestoreOriginalLimit();
             itemCapacityService.RestoreOriginalCapacities();
             loanLimitService.RestoreOriginalLimit();
+            headhunterRpService.Shutdown();
             recruitmentCandidateService.Unsubscribe();
             employeeDemandService.Unsubscribe();
             playerHaxService.Shutdown();
@@ -206,10 +212,12 @@ namespace BigHax
                 SafeApply("building customer capacities", () => buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("business capacities", () => businessCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("illegal parking", () => illegalParkingService.ApplyConfiguredBehavior(context, settings));
+                SafeApply("installation firm fee", () => installationFeeService.ApplyConfiguredPercentage(settings));
                 SafeApply("investment limit", () => investmentLimitService.ApplyConfiguredLimit(context, settings));
                 SafeApply("customer traffic", () => TryApplyCustomerTraffic(context, settings, forceRefresh: true));
                 SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
+                SafeApply("headhunter recruitment points", () => headhunterRpService.ApplyConfiguredBehavior(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));
@@ -293,6 +301,7 @@ namespace BigHax
             illegalParkingService.InvalidateCache();
             itemCapacityService.InvalidateCache();
             instantDeliveryService.AttachUiHooks();
+            headhunterRpService.AttachUiHooks();
             loanLimitService.InvalidateCache();
             sleepRestDurationService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
@@ -331,6 +340,7 @@ namespace BigHax
             GlobalEvents.onTimeMachineEnded -= HandleTimeMachineEnded;
             GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
             instantDeliveryService.AttachUiHooks();
+            headhunterRpService.AttachUiHooks();
             ScheduleEmployeeDemandMessageCleanup();
             if (sleepDurationApplyCoroutine == null)
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());

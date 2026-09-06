@@ -236,6 +236,15 @@ namespace BigHax
                         settings.EnableMaximumEmployeeSatisfaction = value;
                         BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value);
                     });
+                DrawToggleOption(
+                    context,
+                    settings.EnableMaximumHeadhunterRecruitmentPoints,
+                    Localize("bighax_maximum_headhunter_recruitment_points_label"),
+                    value =>
+                    {
+                        settings.EnableMaximumHeadhunterRecruitmentPoints = value;
+                        BigHaxOptionPersistence.SaveEnableMaximumHeadhunterRecruitmentPoints(context.ModId, value);
+                    });
                 DrawSeparator();
                 var activeVehicleEnabled = GUILayout.Toggle(
                     settings.EnableActiveVehicleCapacityOverride,
@@ -265,6 +274,19 @@ namespace BigHax
                     {
                         settings.EnableInstantFurnitureDeliveries = value;
                         BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value);
+                    });
+                DrawIntSlider(
+                    context,
+                    settings,
+                    Localize("bighax_installation_firm_fee_percentage_label"),
+                    settings.InstallationFirmFeePercentage,
+                    0,
+                    100,
+                    value => value + "%",
+                    value =>
+                    {
+                        settings.InstallationFirmFeePercentage = value;
+                        BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value);
                     });
                 DrawCustomerMultiplier(context, settings);
                 DrawIntSlider(

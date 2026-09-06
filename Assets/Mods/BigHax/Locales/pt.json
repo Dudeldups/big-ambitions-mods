@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Concluir todos os cursos? Esta ação não pode ser desfeita.",
   "bighax_unlock_confirmation_button": "Desbloquear tudo",
   "bighax_enable_instant_imports_label": "Importações instantâneas",
-  "bighax_enable_instant_furniture_deliveries_label": "Entregas de móveis instantâneas"
+  "bighax_enable_instant_furniture_deliveries_label": "Entregas de móveis instantâneas",
+  "bighax_installation_firm_fee_percentage_label": "Taxa da empresa de instalação",
+  "bighax_maximum_headhunter_recruitment_points_label": "Aumentar os pontos de recrutamento do headhunter para 1000"
 }

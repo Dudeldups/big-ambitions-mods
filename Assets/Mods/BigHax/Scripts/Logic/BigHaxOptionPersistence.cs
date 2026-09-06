@@ -75,6 +75,14 @@ namespace BigHax
             settings.EnableNoVehicleDamage = LoadBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, BigHaxSettings.DefaultEnableNoVehicleDamage);
             settings.EnableInfiniteVehicleFuel = LoadBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, BigHaxSettings.DefaultEnableInfiniteVehicleFuel);
             settings.EnableNeverDirtyVehicles = LoadBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, BigHaxSettings.DefaultEnableNeverDirtyVehicles);
+            settings.InstallationFirmFeePercentage = UnityEngine.Mathf.Clamp(
+                LoadInt(modId, BigHaxOptionIds.InstallationFirmFeePercentage, BigHaxSettings.DefaultInstallationFirmFeePercentage),
+                0,
+                100);
+            settings.EnableMaximumHeadhunterRecruitmentPoints = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableMaximumHeadhunterRecruitmentPoints,
+                BigHaxSettings.DefaultEnableMaximumHeadhunterRecruitmentPoints);
 
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
@@ -190,6 +198,10 @@ namespace BigHax
         public static void SaveEnableInfiniteVehicleFuel(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, value);
 
         public static void SaveEnableNeverDirtyVehicles(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, value);
+
+        public static void SaveInstallationFirmFeePercentage(string modId, int value) => SaveInt(modId, BigHaxOptionIds.InstallationFirmFeePercentage, UnityEngine.Mathf.Clamp(value, 0, 100));
+
+        public static void SaveEnableMaximumHeadhunterRecruitmentPoints(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableMaximumHeadhunterRecruitmentPoints, value);
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
         {

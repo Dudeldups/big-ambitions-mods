@@ -34,6 +34,8 @@ namespace BigHax
         public const string EnableNoVehicleDamage = "big_hax_enable_no_vehicle_damage";
         public const string EnableInfiniteVehicleFuel = "big_hax_enable_infinite_vehicle_fuel";
         public const string EnableNeverDirtyVehicles = "big_hax_enable_never_dirty_vehicles";
+        public const string InstallationFirmFeePercentage = "big_hax_installation_firm_fee_percentage";
+        public const string EnableMaximumHeadhunterRecruitmentPoints = "big_hax_enable_maximum_headhunter_recruitment_points";
         public const string LegacyRecruitmentCandidateMaximumSkill = "big_hax_recruitment_candidate_maximum_skill";
     }
 

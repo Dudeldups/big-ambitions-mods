@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Завершити всі курси? Цю дію неможливо скасувати.",
   "bighax_unlock_confirmation_button": "Розблокувати все",
   "bighax_enable_instant_imports_label": "Миттєвий імпорт",
-  "bighax_enable_instant_furniture_deliveries_label": "Миттєва доставка меблів"
+  "bighax_enable_instant_furniture_deliveries_label": "Миттєва доставка меблів",
+  "bighax_installation_firm_fee_percentage_label": "Плата монтажної компанії",
+  "bighax_maximum_headhunter_recruitment_points_label": "Збільшити очки рекрутингу хедхантера до 1000"
 }

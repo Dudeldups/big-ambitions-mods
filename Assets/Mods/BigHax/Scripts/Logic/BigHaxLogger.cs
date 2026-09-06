@@ -29,8 +29,10 @@ namespace BigHax
         [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void Diagnostic(string message)
         {
-            if (!string.IsNullOrWhiteSpace(message))
-                Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message);
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message);
         }
 
         [Conditional("BIGHAX_DIAGNOSTICS")]

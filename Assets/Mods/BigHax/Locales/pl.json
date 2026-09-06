@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Ukończyć wszystkie kursy? Tej akcji nie można cofnąć.",
   "bighax_unlock_confirmation_button": "Odblokuj wszystko",
   "bighax_enable_instant_imports_label": "Natychmiastowy import",
-  "bighax_enable_instant_furniture_deliveries_label": "Natychmiastowe dostawy mebli"
+  "bighax_enable_instant_furniture_deliveries_label": "Natychmiastowe dostawy mebli",
+  "bighax_installation_firm_fee_percentage_label": "Opłata firmy instalacyjnej",
+  "bighax_maximum_headhunter_recruitment_points_label": "Zwiększ punkty rekrutacyjne headhuntera do 1000"
 }
