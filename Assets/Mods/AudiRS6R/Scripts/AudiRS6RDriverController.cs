@@ -1,0 +1,298 @@
+#nullable enable
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using BAModAPI;
+using Helpers;
+using UnityEngine;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
+using UnityEngine.Rendering;
+
+[DefaultExecutionOrder(100)]
+internal sealed class AudiRS6RDriverController : MonoBehaviour
+{
+    private const string SteeringWheelName = "Animate_SteeringWheel_033";
+    private const string SittingClipName = "SitDeliveryTruck";
+    // Pelvis position relative to the Audi's steering-wheel pivot, in vehicle axes.
+    private static readonly Vector3 SeatOffset = new(0f, -0.28f, -0.48f);
+    private const int MaximumAttempts = 20;
+    private readonly List<UnityEngine.Object> ownedAssets = new();
+    private VehicleController? vehicle;
+    private ModContext? context;
+    private GameObject? driverRoot;
+    private Transform? hips;
+    private Transform? steeringWheel;
+    private PlayableGraph poseGraph;
+    private AnimationClipPlayable pose;
+    private float poseLength;
+    private float poseTime;
+    private bool occupied;
+    private int attempts;
+    private float nextAttempt;
+    private string? lastFailure;
+
+    public void Initialize(VehicleController controller, ModContext? modContext)
+    {
+        vehicle = controller;
+        context = modContext;
+    }
+
+    private void LateUpdate()
+    {
+        if (vehicle == null)
+            return;
+
+        var isOccupied = vehicle.controlledByPlayer;
+        if (isOccupied != occupied)
+        {
+            occupied = isOccupied;
+            attempts = 0;
+            nextAttempt = 0f;
+            lastFailure = null;
+            if (!occupied)
+            {
+                RemoveDriver();
+                LogInfo("exited; seated model removed.");
+            }
+            else
+            {
+                LogInfo("occupied; preparing current player appearance.");
+            }
+        }
+
+        if (!occupied)
+            return;
+
+        try
+        {
+            if (driverRoot == null)
+            {
+                if (attempts >= MaximumAttempts || Time.unscaledTime < nextAttempt)
+                    return;
+                attempts++;
+                nextAttempt = Time.unscaledTime + 0.5f;
+                CreateDriver();
+            }
+
+            // Evaluate only the native sitting clip, without player controller scripts,
+            // animation events, navigation, colliders or animator state behaviours.
+            poseTime = Mathf.Repeat(poseTime + Time.deltaTime, poseLength);
+            pose.SetTime(poseTime);
+            poseGraph.Evaluate(0f);
+            AlignWithSeat();
+        }
+        catch (Exception ex)
+        {
+            RemoveDriver();
+            var reason = ex.GetBaseException().Message;
+            if (reason != lastFailure || attempts >= MaximumAttempts)
+            {
+                lastFailure = reason;
+                context?.Logger.Warn($"AudiRS6R driver vehicle={vehicle.GetInstanceID()} " +
+                                     $"attempt={attempts}/{MaximumAttempts}: {reason}");
+            }
+        }
+    }
+
+    private void CreateDriver()
+    {
+        var character = PlayerHelper.PlayerController?.Character;
+        var appearance = character?.appearanceSetter;
+        if (character == null || appearance == null)
+            throw new InvalidOperationException("Player appearance is not ready.");
+
+        var sourceAnimator = typeof(AppearanceSetter).GetField("animator",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(appearance) as Animator;
+        if (sourceAnimator == null || sourceAnimator.avatar == null || !sourceAnimator.avatar.isHuman ||
+            sourceAnimator.runtimeAnimatorController == null)
+            throw new InvalidOperationException("Player humanoid animator/avatar is not ready.");
+
+        AnimationClip? sittingClip = null;
+        foreach (var clip in sourceAnimator.runtimeAnimatorController.animationClips)
+            if (clip != null && string.Equals(clip.name, SittingClipName, StringComparison.Ordinal))
+                sittingClip = clip;
+        if (sittingClip == null || sittingClip.length <= 0f)
+            throw new InvalidOperationException($"Native seated animation '{SittingClipName}' is unavailable.");
+
+        steeringWheel = null;
+        foreach (var child in vehicle!.GetComponentsInChildren<Transform>(true))
+            if (child.name == SteeringWheelName)
+                steeringWheel = child;
+        if (steeringWheel == null)
+            throw new InvalidOperationException("Audi steering-wheel seat reference is missing.");
+
+        var sourceRoot = character.transform;
+        if (!sourceAnimator.transform.IsChildOf(sourceRoot) && sourceAnimator.transform != sourceRoot)
+            throw new InvalidOperationException("Player animator is outside the character hierarchy.");
+
+        driverRoot = new GameObject("AudiRS6R_SeatedPlayer");
+        driverRoot.SetActive(false);
+        driverRoot.layer = sourceRoot.gameObject.layer;
+        driverRoot.transform.SetParent(vehicle.transform, false);
+        var transforms = new Dictionary<Transform, Transform>();
+        CopyTransforms(sourceRoot, driverRoot.transform, transforms);
+        // EnterVehicle hides the real character by setting its root scale to zero.
+        driverRoot.transform.localScale = Vector3.one;
+        driverRoot.transform.localRotation = Quaternion.identity;
+        driverRoot.transform.localPosition = Vector3.zero;
+
+        var rendererCount = 0;
+        foreach (var source in appearance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            if (!source.enabled || source.sharedMesh == null || !IsActiveWithinCharacter(source.transform, sourceRoot))
+                continue;
+            CopyRenderer(source, transforms);
+            rendererCount++;
+        }
+        if (rendererCount == 0)
+            throw new InvalidOperationException("Player has no visible skinned appearance meshes yet.");
+
+        var animator = transforms[sourceAnimator.transform].gameObject.AddComponent<Animator>();
+        animator.avatar = sourceAnimator.avatar;
+        animator.applyRootMotion = false;
+        animator.fireEvents = false;
+        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        driverRoot.SetActive(true);
+        poseGraph = PlayableGraph.Create("AudiRS6R seated player");
+        poseGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
+        pose = AnimationClipPlayable.Create(poseGraph, sittingClip);
+        pose.SetApplyFootIK(false);
+        pose.SetApplyPlayableIK(false);
+        AnimationPlayableOutput.Create(poseGraph, "Seated pose", animator).SetSourcePlayable(pose);
+        poseLength = sittingClip.length;
+        poseTime = 0f;
+        poseGraph.Play();
+        poseGraph.Evaluate(0f);
+        hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+        if (hips == null)
+            throw new InvalidOperationException("Seated avatar has no humanoid hips bone.");
+
+        AlignWithSeat();
+        var head = animator.GetBoneTransform(HumanBodyBones.Head);
+        var leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
+        var rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+        LogInfo($"created from current player appearance; renderers={rendererCount} " +
+                $"transforms={transforms.Count} clip='{sittingClip.name}' " +
+                $"hips={VehiclePosition(hips)} head={VehiclePosition(head)} " +
+                $"leftHand={VehiclePosition(leftHand)} rightHand={VehiclePosition(rightHand)} " +
+                $"steeringWheel={VehiclePosition(steeringWheel)}.");
+    }
+
+    private void AlignWithSeat()
+    {
+        if (driverRoot == null || hips == null || steeringWheel == null || vehicle == null)
+            return;
+        driverRoot.transform.rotation = vehicle.transform.rotation;
+        var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
+        driverRoot.transform.position += seatPosition - hips.position;
+    }
+
+    private static bool IsActiveWithinCharacter(Transform child, Transform root)
+    {
+        // Ignore the hidden character root, but retain clothing/gender selection beneath it.
+        for (var current = child; current != root; current = current.parent)
+        {
+            if (current == null || !current.gameObject.activeSelf)
+                return false;
+        }
+        return true;
+    }
+
+    private static void CopyTransforms(Transform source, Transform destination,
+        Dictionary<Transform, Transform> transforms)
+    {
+        transforms.Add(source, destination);
+        foreach (Transform child in source)
+        {
+            var copy = new GameObject(child.name);
+            copy.SetActive(child.gameObject.activeSelf);
+            copy.layer = child.gameObject.layer;
+            copy.transform.SetParent(destination, false);
+            copy.transform.localPosition = child.localPosition;
+            copy.transform.localRotation = child.localRotation;
+            copy.transform.localScale = child.localScale;
+            CopyTransforms(child, copy.transform, transforms);
+        }
+    }
+
+    private void CopyRenderer(SkinnedMeshRenderer source, Dictionary<Transform, Transform> transforms)
+    {
+        var destination = transforms[source.transform].gameObject.AddComponent<SkinnedMeshRenderer>();
+        var mesh = Instantiate(source.sharedMesh);
+        ownedAssets.Add(mesh);
+        destination.sharedMesh = mesh;
+        var sourceBones = source.bones;
+        var bones = new Transform[sourceBones.Length];
+        for (var index = 0; index < sourceBones.Length; index++)
+        {
+            if (sourceBones[index] == null || !transforms.TryGetValue(sourceBones[index], out bones[index]))
+                throw new InvalidOperationException($"Appearance mesh '{source.name}' has an unmapped bone at {index}.");
+        }
+        destination.bones = bones;
+        if (source.rootBone != null)
+        {
+            if (!transforms.TryGetValue(source.rootBone, out var rootBone))
+                throw new InvalidOperationException($"Appearance mesh '{source.name}' has an unmapped root bone.");
+            destination.rootBone = rootBone;
+        }
+        var sourceMaterials = source.sharedMaterials;
+        var materials = new Material[sourceMaterials.Length];
+        for (var index = 0; index < sourceMaterials.Length; index++)
+        {
+            if (sourceMaterials[index] == null)
+                throw new InvalidOperationException($"Appearance mesh '{source.name}' has a missing material.");
+            materials[index] = new Material(sourceMaterials[index]);
+            ownedAssets.Add(materials[index]);
+        }
+        destination.sharedMaterials = materials;
+        for (var index = 0; index < mesh.blendShapeCount; index++)
+            destination.SetBlendShapeWeight(index, source.GetBlendShapeWeight(index));
+        var properties = new MaterialPropertyBlock();
+        source.GetPropertyBlock(properties);
+        destination.SetPropertyBlock(properties);
+        for (var index = 0; index < materials.Length; index++)
+        {
+            properties.Clear();
+            source.GetPropertyBlock(properties, index);
+            if (!properties.isEmpty)
+                destination.SetPropertyBlock(properties, index);
+        }
+        destination.localBounds = source.localBounds;
+        destination.updateWhenOffscreen = true;
+        destination.quality = source.quality;
+        destination.renderingLayerMask = source.renderingLayerMask;
+        destination.shadowCastingMode = ShadowCastingMode.Off;
+        destination.receiveShadows = true;
+    }
+
+    private string VehiclePosition(Transform? target) =>
+        target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
+
+    private void LogInfo(string message) =>
+        context?.Logger.Info($"AudiRS6R driver vehicle={vehicle?.GetInstanceID()}: {message}");
+
+    private void RemoveDriver()
+    {
+        if (poseGraph.IsValid())
+            poseGraph.Destroy();
+        if (driverRoot != null)
+        {
+            driverRoot.SetActive(false);
+            Destroy(driverRoot);
+        }
+        driverRoot = null;
+        hips = null;
+        foreach (var asset in ownedAssets)
+            if (asset != null) Destroy(asset);
+        ownedAssets.Clear();
+    }
+
+    private void OnDisable()
+    {
+        RemoveDriver();
+        occupied = false;
+    }
+
+    private void OnDestroy() => RemoveDriver();
+}
