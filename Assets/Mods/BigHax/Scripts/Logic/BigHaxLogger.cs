@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using BAModAPI;
@@ -14,26 +15,27 @@ namespace BigHax
         private static readonly object Sync = new object();
         public static string DiagnosticLogPath => Path.Combine(PreferredLogDirectory, "BigHax-debug.log");
 
-        // Retained as source-compatible no-ops. Diagnostic output is temporarily
-        // active for the installation-fee and headhunter-RP runtime test session.
+        // Retained as source-compatible no-ops. Release builds should not emit
+        // general diagnostics; use Diagnostic only for a focused test session.
         public static void Info(ModContext? context, string message) { }
         public static void WarnOnce(ModContext? context, string key, string message) { }
 
+        [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void StartDiagnosticSession()
         {
             Write("===== BigHax diagnostic session started " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " =====");
         }
 
+        [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void Diagnostic(string message)
         {
-            if (string.IsNullOrWhiteSpace(message) ||
-                (!message.StartsWith("Installation", StringComparison.OrdinalIgnoreCase) &&
-                 !message.StartsWith("Headhunter", StringComparison.OrdinalIgnoreCase)))
+            if (string.IsNullOrWhiteSpace(message))
                 return;
 
             Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message);
         }
 
+        [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void DiagnosticException(string source, Exception exception)
         {
             Diagnostic(source + " failed: " + exception);
