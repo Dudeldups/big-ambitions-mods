@@ -254,7 +254,7 @@ namespace BigHax
             string label,
             Color color,
             float x,
-            Sprite icon,
+            Sprite? icon,
             System.Action onClick)
         {
             var buttonObject = Create(label + "Button", parent, color);
@@ -267,6 +267,9 @@ namespace BigHax
             button.targetGraphic = buttonObject.GetComponent<Image>();
             button.onClick.AddListener(() => onClick());
             Text(buttonObject.transform, label, 16, TextAnchor.MiddleCenter, Color.white, Vector2.zero, Vector2.zero).raycastTarget = false;
+
+            if (icon == null)
+                return;
 
             var iconObject = Create("BrandIcon", buttonObject.transform, Color.white);
             var iconRect = iconObject.GetComponent<RectTransform>();

@@ -84,6 +84,7 @@ namespace BigHax
             catch (Exception exception)
             {
                 candidate.Destroy();
+                BigHaxLogger.UiDiagnostic("BA Unified UI initialization exception: " + exception);
                 reason = "BAUnifiedUI initialization failed: " + exception.GetBaseException().Message;
                 return false;
             }
@@ -421,13 +422,16 @@ namespace BigHax
             PositionFeedbackButton(discord, 158f, BigHaxFeedbackLinks.DiscordIcon);
         }
 
-        private static void PositionFeedbackButton(Button button, float x, Sprite icon)
+        private static void PositionFeedbackButton(Button button, float x, Sprite? icon)
         {
             var rect = button.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = new Vector2(x, 0f);
             rect.sizeDelta = new Vector2(300f, 40f);
+
+            if (icon == null)
+                return;
 
             var iconObject = new GameObject("BrandIcon", typeof(RectTransform), typeof(Image));
             iconObject.transform.SetParent(button.transform, false);
