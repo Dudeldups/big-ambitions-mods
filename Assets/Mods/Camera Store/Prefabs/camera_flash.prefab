@@ -176,6 +176,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1602757649401074926}
   - component: {fileID: 3893857014547418690}
+  - component: {fileID: 3888860719306695101}
   m_Layer: 0
   m_Name: camera_flash
   m_TagString: Untagged
@@ -244,13 +245,14 @@ MonoBehaviour:
   lHandIKAttachmentPoint: {fileID: 0}
   rHandIKAttachmentPoint: {fileID: 0}
   headIKAttachmentPoint: {fileID: 0}
-  colliders: []
+  colliders:
+  - {fileID: 3888860719306695101}
   navMeshObstacles: []
   groundIndicators: []
   directionIndicators: []
   attachmentPoints: []
   screenVideoController: {fileID: 0}
-  checkRenderersInChildren: 0
+  checkRenderersInChildren: 1
   checkRenderersDepth: -1
   shadowCasterPreserveMaterials: 0
   shadowCasterRenderingLayerMask: 17
@@ -266,6 +268,27 @@ MonoBehaviour:
   highlightChildrenOnHover: 0
   customValue: 
   blockDropdown: 0
+--- !u!65 &3888860719306695101
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4185448885478916249}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.13399999, y: 0.1715, z: 0.09149999}
+  m_Center: {x: 0, y: 0.08375, z: -0.016250003}
 --- !u!1 &6359704030548041974
 GameObject:
   m_ObjectHideFlags: 0

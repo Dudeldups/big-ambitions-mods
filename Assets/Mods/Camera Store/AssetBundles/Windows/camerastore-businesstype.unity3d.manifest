@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 607999607
+CRC: 3723860552
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 24ea3dfc74ba55179d996abca9570173
+    Hash: ec793dec298c8549ce2aaef6452afaa5
   TypeTreeHash:
     serializedVersion: 2
     Hash: fafb29444616307f05eaacaa19522d63
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 24ea3dfc74ba55179d996abca9570173
+    Hash: ec793dec298c8549ce2aaef6452afaa5
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -84,23 +84,30 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.UnityEvent
 Assets:
+- Assets/Mods/Camera Store/Prefabs/camera_flash.prefab
 - Assets/Mods/Camera Store/Prefabs/camera_bag.prefab
 - Assets/Mods/Camera Store/Models/Materials/CameraSilver.mat
 - Assets/Mods/Camera Store/Prefabs/camera_accessories_shelf.prefab
+- Assets/Mods/Camera Store/Prefabs/tripod.prefab
 - Assets/Mods/Camera Store/Prefabs/compact_camera.prefab
 - Assets/Mods/Camera Store/Items/Tripod.asset
 - Assets/Mods/Camera Store/Models/Materials/CameraTeal.mat
+- Assets/Mods/Camera Store/Models/Products/camera_lens.glb
 - Assets/Mods/Camera Store/Prefabs/camera_display.prefab
 - Assets/Mods/Camera Store/Models/Materials/CameraAmber.mat
+- Assets/Mods/Camera Store/Models/Products/professional_camera.glb
 - Assets/Mods/Camera Store/Items/CameraFlash.asset
 - Assets/Mods/Camera Store/Items/ProfessionalCamera.asset
 - Assets/Mods/Camera Store/Models/Materials/CameraFabric.mat
 - Assets/Mods/Camera Store/Prefabs/action_camera.prefab
 - Assets/Mods/Camera Store/Items/DslrCamera.asset
+- Assets/Mods/Camera Store/THIRD_PARTY_ASSETS.md
+- Assets/Mods/Camera Store/Models/Products/action_camera.glb
 - Assets/Mods/Camera Store/Models/Materials/CameraBlack.mat
 - Assets/Mods/Camera Store/Models/Materials/CameraGlass.mat
-- Assets/Mods/Camera Store/Prefabs/camera_flash.prefab
-- Assets/Mods/Camera Store/Prefabs/tripod.prefab
+- Assets/Mods/Camera Store/Models/Products/camera_bag.glb
+- Assets/Mods/Camera Store/Models/Products/tripod.glb
+- Assets/Mods/Camera Store/Models/Products/compact_camera.glb
 - Assets/Mods/Camera Store/Items/CameraLens.asset
 - Assets/Mods/Camera Store/Items/CameraAccessoriesShelf.asset
 - Assets/Mods/Camera Store/Items/CameraDisplay.asset
@@ -112,5 +119,6 @@ Assets:
 - Assets/Mods/Camera Store/Prefabs/professional_camera.prefab
 - Assets/Mods/Camera Store/Prefabs/camera_lens.prefab
 - Assets/Mods/Camera Store/Prefabs/dslr_camera.prefab
+- Assets/Mods/Camera Store/Models/Products/dslr_camera.glb
 - Assets/Mods/Camera Store/Items/ActionCamera.asset
 Dependencies: []
