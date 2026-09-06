@@ -1,8 +1,12 @@
 #nullable enable
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
+using BigAmbitions.Characters.Skills;
+using BigAmbitions.Tags;
 using Buildings.Office.Headquarters;
+using Entities.Employee.JobDemands;
 using UnityEngine;
 
 namespace BigHax
@@ -13,7 +17,9 @@ namespace BigHax
 
         private static bool enabled;
         private static int diagnosticCalculationCount;
+        private static int diagnosticCandidateCount;
 
+        private BigHaxMethodDetour? candidateDemandsDetour;
         private BigHaxMethodDetour? helperDetour;
         private BigHaxMethodDetour? planGetterDetour;
 
@@ -27,6 +33,10 @@ namespace BigHax
                 typeof(HeadhunterPlan).GetProperty(nameof(HeadhunterPlan.AvailableDealBreakersPoints))?.GetGetMethod(),
                 typeof(BigHaxHeadhunterRpService).GetMethod(nameof(GetAvailableDealBreakersPoints), BindingFlags.Static | BindingFlags.NonPublic),
                 "headhunter RP/plan getter");
+            candidateDemandsDetour = Install(
+                typeof(HeadhunterPlan).GetMethod("GetRandomDemandsForCandidate", BindingFlags.Instance | BindingFlags.NonPublic),
+                typeof(BigHaxHeadhunterRpService).GetMethod(nameof(GetRandomDemandsForCandidate), BindingFlags.Static | BindingFlags.NonPublic),
+                "headhunter RP/candidate demand generation");
             AttachUiHooks();
         }
 
@@ -37,11 +47,13 @@ namespace BigHax
             if (changed)
             {
                 diagnosticCalculationCount = 0;
+                diagnosticCandidateCount = 0;
                 BigHaxLogger.Diagnostic(
                     "Headhunter RP configured: enabled=" + enabled +
                     ", override=" + BigHaxSettings.MaximumHeadhunterRecruitmentPoints +
                     ", helperDetour=" + (helperDetour?.IsApplied == true) +
-                    ", planGetterDetour=" + (planGetterDetour?.IsApplied == true) + ".");
+                    ", planGetterDetour=" + (planGetterDetour?.IsApplied == true) +
+                    ", candidateDemandsDetour=" + (candidateDemandsDetour?.IsApplied == true) + ".");
             }
 
             AttachUiHooks();
@@ -68,11 +80,14 @@ namespace BigHax
         {
             enabled = false;
             BigHaxHeadhunterRpUiHook.RefreshAll();
+            Restore(candidateDemandsDetour, "headhunter RP/candidate demand generation");
             Restore(planGetterDetour, "headhunter RP/plan getter");
             Restore(helperDetour, "headhunter RP/helper");
             planGetterDetour = null;
             helperDetour = null;
+            candidateDemandsDetour = null;
             diagnosticCalculationCount = 0;
+            diagnosticCandidateCount = 0;
         }
 
         internal static int GetConfiguredPoints(float skill)
@@ -100,6 +115,138 @@ namespace BigHax
         private static int GetAvailableDealBreakersPoints(HeadhunterPlan plan)
         {
             return GetConfiguredPoints(plan?.HeadhunterSkillValue ?? 0f);
+        }
+
+        private static List<string>? GetRandomDemandsForCandidate(HeadhunterPlan plan, float totalSkillValue)
+        {
+            var requiredDemandCount = JobDemandHelper.GetIdealNumberOfDemands(plan.skillRecruiting, totalSkillValue);
+            var demands = new List<string>();
+            if (requiredDemandCount == 0)
+            {
+                LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "no demands required");
+                return demands;
+            }
+
+            var skillData = SkillHelper.GetData(plan.skillRecruiting);
+            if (skillData == null)
+            {
+                LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "skill data unavailable");
+                return null;
+            }
+
+            if (skillData.HasTag(TagRef.Skilltag.forcefulltime))
+            {
+                demands.Add("ba:jobdemand_fulltime");
+                requiredDemandCount--;
+            }
+            else if (skillData.HasTag(TagRef.Skilltag.hashoursperweekdemand))
+            {
+                var excludePartTime = plan.dealBreakerTypes.Contains("ba:headhuntersdealbreaker_parttime");
+                var excludeFullTime = plan.dealBreakerTypes.Contains("ba:headhuntersdealbreaker_fulltime");
+                if (excludePartTime && excludeFullTime)
+                {
+                    if (!enabled)
+                    {
+                        LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "both work schedules excluded; vanilla rejection");
+                        return null;
+                    }
+
+                    // With the 1000-RP hax, excluding every schedule demand means
+                    // this candidate simply has no schedule demand.
+                    requiredDemandCount--;
+                }
+                else if (excludePartTime)
+                {
+                    demands.Add("ba:jobdemand_fulltime");
+                    requiredDemandCount--;
+                }
+                else if (excludeFullTime)
+                {
+                    demands.Add("ba:jobdemand_parttime");
+                    requiredDemandCount--;
+                }
+                else
+                {
+                    var scheduleDemand = JobDemandHelper.GetRandomHoursPerWeekDemandForSkill(plan.skillRecruiting);
+                    if (string.IsNullOrEmpty(scheduleDemand))
+                    {
+                        LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "schedule demand unavailable");
+                        return null;
+                    }
+
+                    demands.Add(scheduleDemand);
+                    requiredDemandCount--;
+                }
+            }
+
+            var jobSpecificDemand = JobDemandHelper.GetRandomJobSpecificDemandForSkill(plan.skillRecruiting);
+            if (!string.IsNullOrEmpty(jobSpecificDemand))
+            {
+                demands.Add(jobSpecificDemand);
+                requiredDemandCount--;
+            }
+
+            var demandsToIgnore = new List<string>();
+            if (plan.skillRecruiting == "ba:skill_hrmanager")
+                demandsToIgnore.AddRange(JobDemandHelper.HealthInsuranceDemands);
+
+            foreach (var dealBreakerType in plan.dealBreakerTypes)
+            {
+                var dealBreaker = HeadhunterHelper.GetData(dealBreakerType);
+                if (dealBreaker?.applicableJobDemands != null)
+                    demandsToIgnore.AddRange(dealBreaker.applicableJobDemands);
+            }
+
+            while (requiredDemandCount > 0)
+            {
+                var demand = JobDemandHelper.GetRandomDemandForSkill(plan.skillRecruiting, demands, demandsToIgnore);
+                if (string.IsNullOrEmpty(demand))
+                {
+                    if (!enabled)
+                    {
+                        LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "no permitted random demand; vanilla rejection");
+                        return null;
+                    }
+
+                    // All remaining demands were deliberately excluded. Treat that
+                    // as a successful no-demand result instead of stopping recruitment.
+                    break;
+                }
+
+                demands.Add(demand);
+                requiredDemandCount--;
+            }
+
+            LogCandidateResult(
+                plan,
+                totalSkillValue,
+                requiredDemandCount,
+                demands,
+                requiredDemandCount > 0 ? "excluded demand slots accepted by hax" : "candidate demands generated");
+            return demands;
+        }
+
+        private static void LogCandidateResult(
+            HeadhunterPlan plan,
+            float totalSkillValue,
+            int remainingDemandCount,
+            List<string> demands,
+            string result)
+        {
+            if (diagnosticCandidateCount >= 24)
+                return;
+
+            diagnosticCandidateCount++;
+            BigHaxLogger.Diagnostic(
+                "Headhunter candidate demand result: plan=" + plan.id +
+                ", skill=" + plan.skillRecruiting +
+                ", totalSkill=" + totalSkillValue +
+                ", haxEnabled=" + enabled +
+                ", exclusions=" + plan.dealBreakerTypes.Count +
+                ", generatedDemands=" + demands.Count +
+                ", remainingDemandSlots=" + remainingDemandCount +
+                ", result=" + result +
+                ", demands=[" + string.Join(",", demands.ToArray()) + "].");
         }
 
         private static BigHaxMethodDetour? Install(MethodInfo? target, MethodInfo? replacement, string name)
