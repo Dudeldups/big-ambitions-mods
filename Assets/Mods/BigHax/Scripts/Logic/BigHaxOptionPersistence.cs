@@ -83,6 +83,10 @@ namespace BigHax
                 modId,
                 BigHaxOptionIds.EnableMaximumHeadhunterRecruitmentPoints,
                 BigHaxSettings.DefaultEnableMaximumHeadhunterRecruitmentPoints);
+            settings.EnableMaximumHrManagerCapacity = LoadBool(
+                modId,
+                BigHaxOptionIds.EnableMaximumHrManagerCapacity,
+                BigHaxSettings.DefaultEnableMaximumHrManagerCapacity);
 
             settings.FreightTruckT1DeliveryPlaces = LoadInt(
                 modId,
@@ -202,6 +206,8 @@ namespace BigHax
         public static void SaveInstallationFirmFeePercentage(string modId, int value) => SaveInt(modId, BigHaxOptionIds.InstallationFirmFeePercentage, UnityEngine.Mathf.Clamp(value, 0, 100));
 
         public static void SaveEnableMaximumHeadhunterRecruitmentPoints(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableMaximumHeadhunterRecruitmentPoints, value);
+
+        public static void SaveEnableMaximumHrManagerCapacity(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableMaximumHrManagerCapacity, value);
 
         public static void SaveFreightTruckT1DeliveryPlaces(string modId, int value)
         {

@@ -31,6 +31,8 @@ namespace BigHax
         public const int DefaultInstallationFirmFeePercentage = 100;
         public const bool DefaultEnableMaximumHeadhunterRecruitmentPoints = false;
         public const int MaximumHeadhunterRecruitmentPoints = 1000;
+        public const bool DefaultEnableMaximumHrManagerCapacity = false;
+        public const int MaximumHrManagerCapacity = 1000;
         public const int RecruitmentCandidateMaximumSkillOverride = 100;
 
         public static readonly float[] CustomerTrafficMultiplierValues = { 1f, 1.5f, 2f, 3f, 5f, 10f };
@@ -86,6 +88,8 @@ namespace BigHax
         public int InstallationFirmFeePercentage { get; set; } = DefaultInstallationFirmFeePercentage;
 
         public bool EnableMaximumHeadhunterRecruitmentPoints { get; set; } = DefaultEnableMaximumHeadhunterRecruitmentPoints;
+
+        public bool EnableMaximumHrManagerCapacity { get; set; } = DefaultEnableMaximumHrManagerCapacity;
 
         public float CustomerTrafficMultiplier
         {

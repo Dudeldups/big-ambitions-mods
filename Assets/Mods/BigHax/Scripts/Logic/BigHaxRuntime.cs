@@ -33,6 +33,7 @@ namespace BigHax
         private readonly BigHaxItemCapacityService itemCapacityService = new BigHaxItemCapacityService();
         private readonly BigHaxLoanLimitService loanLimitService = new BigHaxLoanLimitService();
         private readonly BigHaxHeadhunterRpService headhunterRpService = new BigHaxHeadhunterRpService();
+        private readonly BigHaxHrManagerCapacityService hrManagerCapacityService = new BigHaxHrManagerCapacityService();
         private readonly BigHaxRecruitmentCandidateService recruitmentCandidateService = new BigHaxRecruitmentCandidateService();
         private readonly BigHaxOverlayUi overlayUi = new BigHaxOverlayUi();
         private readonly BigHaxPlayerHaxService playerHaxService = new BigHaxPlayerHaxService();
@@ -88,6 +89,7 @@ namespace BigHax
             runtime.employeeDemandService.SetDailyCleanupScheduler(runtime.ScheduleEmployeeDemandCleanup);
             runtime.installationFeeService.Initialize();
             runtime.headhunterRpService.Initialize();
+            runtime.hrManagerCapacityService.Initialize();
             runtime.instantDeliveryService.Initialize(runtime.StartInstantDeliveryOperation);
             runtime.overlayUi.ConfigureUnlockActions(runtime.unlockService.ConfirmUnlockAllContacts, runtime.unlockService.ConfirmUnlockAllCourses);
             runtime.updateNoticeUi.Initialize(context.ModId);
@@ -154,6 +156,7 @@ namespace BigHax
             itemCapacityService.RestoreOriginalCapacities();
             loanLimitService.RestoreOriginalLimit();
             headhunterRpService.Shutdown();
+            hrManagerCapacityService.Shutdown();
             recruitmentCandidateService.Unsubscribe();
             employeeDemandService.Unsubscribe();
             playerHaxService.Shutdown();
@@ -223,6 +226,7 @@ namespace BigHax
                 SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
                 SafeApply("headhunter recruitment points", () => headhunterRpService.ApplyConfiguredBehavior(settings));
+                SafeApply("HR manager capacity", () => hrManagerCapacityService.ApplyConfiguredBehavior(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));

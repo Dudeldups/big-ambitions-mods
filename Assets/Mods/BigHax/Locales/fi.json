@@ -46,5 +46,6 @@
   "bighax_enable_instant_imports_label": "Välittömät tuonnit",
   "bighax_enable_instant_furniture_deliveries_label": "Välittömät huonekalutoimitukset",
   "bighax_installation_firm_fee_percentage_label": "Asennusyrityksen maksu",
-  "bighax_maximum_headhunter_recruitment_points_label": "Nosta headhunterin rekrytointipisteet 1000:een"
+  "bighax_maximum_headhunter_recruitment_points_label": "Nosta headhunterin rekrytointipisteet 1000:een",
+  "bighax_maximum_hr_manager_capacity_label": "Nosta HR-päällikön kapasiteetti 1000 työntekijään"
 }
