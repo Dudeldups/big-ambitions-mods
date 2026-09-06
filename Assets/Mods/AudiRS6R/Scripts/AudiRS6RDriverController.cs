@@ -15,6 +15,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
     private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
+    private const float HandHalfSpacing = 0.16f;
     // Pelvis position relative to the Audi's steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.28f, -0.48f);
     private const int MaximumAttempts = 20;
@@ -24,6 +25,8 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
     private GameObject? driverRoot;
     private Transform? hips;
     private Transform? steeringWheel;
+    private SeatedArm? leftArm;
+    private SeatedArm? rightArm;
     private PlayableGraph poseGraph;
     private AnimationClipPlayable pose;
     private float poseLength;
@@ -80,8 +83,11 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             // animation events, navigation, colliders or animator state behaviours.
             poseTime = Mathf.Repeat(poseTime + Time.deltaTime, poseLength);
             pose.SetTime(poseTime);
+            leftArm?.RestoreAnimationPose();
+            rightArm?.RestoreAnimationPose();
             poseGraph.Evaluate(0f);
             AlignWithSeat();
+            AlignHandsWithWheel();
         }
         catch (Exception ex)
         {
@@ -186,6 +192,16 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         var head = animator.GetBoneTransform(HumanBodyBones.Head);
         var leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
         var rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+        leftArm = CreateArm(animator, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm,
+            HumanBodyBones.LeftHand);
+        rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
+            HumanBodyBones.RightHand);
+        var originalLeftHand = VehiclePosition(leftHand);
+        var originalRightHand = VehiclePosition(rightHand);
+        AlignHandsWithWheel();
+        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} " +
+                $"leftBefore={originalLeftHand} leftAfter={VehiclePosition(leftHand)} " +
+                $"rightBefore={originalRightHand} rightAfter={VehiclePosition(rightHand)}.");
         LogInfo($"created from current player appearance; renderers={rendererCount} " +
                 $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
                 $"transforms={transforms.Count} clip='{sittingClip.name}' " +
@@ -201,6 +217,110 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         driverRoot.transform.rotation = vehicle.transform.rotation;
         var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
         driverRoot.transform.position += seatPosition - hips.position;
+    }
+
+    private SeatedArm? CreateArm(Animator animator, HumanBodyBones upperBone,
+        HumanBodyBones lowerBone, HumanBodyBones handBone)
+    {
+        var upper = animator.GetBoneTransform(upperBone);
+        var lower = animator.GetBoneTransform(lowerBone);
+        var hand = animator.GetBoneTransform(handBone);
+        if (upper != null && lower != null && hand != null)
+            return new SeatedArm(upper, lower, hand);
+        context?.Logger.Warn($"AudiRS6R driver vehicle={vehicle?.GetInstanceID()}: " +
+                             $"cannot refine {handBone}; arm bones are missing. Keeping native pose.");
+        return null;
+    }
+
+    private void AlignHandsWithWheel()
+    {
+        if (vehicle == null || steeringWheel == null)
+            return;
+        var centerX = vehicle.transform.InverseTransformPoint(steeringWheel.position).x;
+        AlignHand(leftArm, centerX - HandHalfSpacing);
+        AlignHand(rightArm, centerX + HandHalfSpacing);
+    }
+
+    private void AlignHand(SeatedArm? arm, float targetX)
+    {
+        if (arm == null || vehicle == null)
+            return;
+        var target = vehicle.transform.InverseTransformPoint(arm.Hand.position);
+        target.x = targetX;
+        arm.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
+    }
+
+    private sealed class SeatedArm
+    {
+        private readonly Transform upper;
+        private readonly Transform lower;
+        public readonly Transform Hand;
+        private Quaternion upperPose;
+        private Quaternion lowerPose;
+        private Quaternion handPose;
+        private bool hasAdjustment;
+
+        public SeatedArm(Transform upper, Transform lower, Transform hand)
+        {
+            this.upper = upper;
+            this.lower = lower;
+            Hand = hand;
+        }
+
+        public void RestoreAnimationPose()
+        {
+            if (!hasAdjustment)
+                return;
+            upper.localRotation = upperPose;
+            lower.localRotation = lowerPose;
+            Hand.localRotation = handPose;
+            hasAdjustment = false;
+        }
+
+        public void AimAt(Vector3 target, Vector3 fallbackDirection)
+        {
+            // Retain the native elbow bend and grip orientation. Only rotate bones;
+            // do not stretch the mesh or move the shoulder/torso.
+            if (!TrySolveElbow(upper.position, lower.position, Hand.position, target,
+                    fallbackDirection, out var elbow, out var reachableTarget))
+                return;
+            upperPose = upper.localRotation;
+            lowerPose = lower.localRotation;
+            handPose = Hand.localRotation;
+            hasAdjustment = true;
+            var gripRotation = Hand.rotation;
+            upper.rotation = Quaternion.FromToRotation(lower.position - upper.position,
+                elbow - upper.position) * upper.rotation;
+            lower.rotation = Quaternion.FromToRotation(Hand.position - lower.position,
+                reachableTarget - lower.position) * lower.rotation;
+            Hand.rotation = gripRotation;
+        }
+    }
+
+    private static bool TrySolveElbow(Vector3 shoulder, Vector3 elbow, Vector3 hand,
+        Vector3 target, Vector3 fallbackDirection, out Vector3 solvedElbow, out Vector3 reachableTarget)
+    {
+        solvedElbow = elbow;
+        reachableTarget = hand;
+        var upperLength = Vector3.Distance(shoulder, elbow);
+        var lowerLength = Vector3.Distance(elbow, hand);
+        var reach = target - shoulder;
+        if (upperLength < 0.0001f || lowerLength < 0.0001f || reach.sqrMagnitude < 0.000001f)
+            return false;
+        var direction = reach.normalized;
+        var distance = Mathf.Clamp(reach.magnitude,
+            Mathf.Abs(upperLength - lowerLength) + 0.0001f, upperLength + lowerLength - 0.0001f);
+        var bend = Vector3.ProjectOnPlane(elbow - shoulder, direction);
+        if (bend.sqrMagnitude < 0.000001f)
+            bend = Vector3.ProjectOnPlane(fallbackDirection, direction);
+        if (bend.sqrMagnitude < 0.000001f)
+            return false;
+        var along = (upperLength * upperLength + distance * distance - lowerLength * lowerLength) /
+                    (2f * distance);
+        var across = Mathf.Sqrt(Mathf.Max(0f, upperLength * upperLength - along * along));
+        solvedElbow = shoulder + direction * along + bend.normalized * across;
+        reachableTarget = shoulder + direction * distance;
+        return true;
     }
 
     private static bool IsActiveWithinCharacter(Transform child, Transform root)
@@ -323,6 +443,8 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         }
         driverRoot = null;
         hips = null;
+        leftArm = null;
+        rightArm = null;
         foreach (var asset in ownedAssets)
             if (asset != null) Destroy(asset);
         ownedAssets.Clear();
