@@ -15,7 +15,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
     private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
-    private const float HandHalfSpacing = 0.16f;
+    private const float HandHalfSpacing = 0.19f;
     // Pelvis position relative to the Audi's steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.28f, -0.48f);
     private const int MaximumAttempts = 20;
