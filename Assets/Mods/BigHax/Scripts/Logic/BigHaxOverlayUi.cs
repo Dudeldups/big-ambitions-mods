@@ -245,6 +245,19 @@ namespace BigHax
                         settings.EnableMaximumHeadhunterRecruitmentPoints = value;
                         BigHaxOptionPersistence.SaveEnableMaximumHeadhunterRecruitmentPoints(context.ModId, value);
                     });
+                DrawIntSlider(
+                    context,
+                    settings,
+                    Localize("bighax_maximum_hr_manager_capacity_label"),
+                    settings.HrManagerCapacityIndex,
+                    0,
+                    BigHaxSettings.HrManagerCapacityValues.Length - 1,
+                    value => BigHaxSettings.HrManagerCapacityValues[value].ToString(),
+                    value =>
+                    {
+                        settings.HrManagerCapacityIndex = value;
+                        BigHaxOptionPersistence.SaveHrManagerCapacityIndex(context.ModId, value);
+                    });
                 DrawSeparator();
                 var activeVehicleEnabled = GUILayout.Toggle(
                     settings.EnableActiveVehicleCapacityOverride,
