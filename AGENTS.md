@@ -35,6 +35,25 @@
   launched and the changed behavior was actually observed. Distinguish build
   verification from runtime verification in the final summary.
 
+## Diagnostic Logging
+
+- Treat useful diagnostic logging as part of implementing a feature or bug fix,
+  not as a follow-up after an inconclusive test. Before runtime testing, add
+  focused logs that can confirm whether the changed path was entered, which
+  important decision or state was observed, and whether it succeeded or failed.
+- Use the target mod's existing logging wrapper and include enough context to
+  correlate an event, such as the affected entity, operation, state transition,
+  or failure reason. Never log credentials, tokens, or other sensitive data.
+- Log warnings and errors for unexpected or failed outcomes. Use informational
+  logging for meaningful lifecycle events and results that help validate the
+  requested behavior.
+- Avoid unconditional logging in per-frame updates, tight loops, or other hot
+  paths. Gate, deduplicate, or rate-limit repeated messages so a useful trace
+  does not become log spam.
+- Keep diagnostic logs through the initial runtime validation. After the
+  behavior is confirmed, remove temporary or noisy messages and retain only
+  logs that remain useful for support and future regressions.
+
 ## Mod Dependencies and Third-Party Code
 
 - Update `tools/external-build/mods.externalbuild.json` when a new inter-mod
