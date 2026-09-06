@@ -49,6 +49,10 @@ Assets/_BaDependencies/GameDlls/**/*.dll.meta
 *.unity.meta
 *.md
 !README.md
+!Assets/Mods/BigHax/releases/**/*.md
+
+# Local planning notes are not Unity runtime assets.
+Assets/Mods/Freelance Photographer/*.md.meta
 
 # External mod repositories
 Assets/Mods/LIB_BaComputerGames/

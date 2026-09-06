@@ -8,7 +8,7 @@
   "bighax_ui_close_button": "Sulje",
   "bighax_ui_fallback_notice": "Tilaa LIB BA Unified UI Steam Workshopissa saadaksesi paremman käyttökokemuksen.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Lisätty pelaajahuijaukset, jotka pitävät nälkä-, energia- ja onnellisuuspalkit täysinä ilman vähenemistä.\n- Lisätty ajoneuvohuijaukset: ei vaurioita, rajaton polttoaine ja puhtaat ajoneuvot.\n- Lisätty avaushuijaukset, välittömät tuonnit ja huonekalutoimitukset sekä työntekijöiden 100 % tyytyväisyys.\n- Korjattu työntekijöiden työaikavaatimukset, Vantander Bankin 100M $ laina ja tasatunnein esiintyvä nykiminen.",
+  "bighax_update_notification": "- Lisätty asennusyrityksen maksun liukusäädin (0–100 %).\n- Lisätty vaihtoehto nostaa headhunterin rekrytointipisteet 1000:een.\n- Korjattu asiakasliikenteen ja nukkumis-/lepäilypäivitysten aiheuttamat toistuvat jumitukset.",
   "bighax_update_notice_got_it": "Selvä",
   "bighax_customer_traffic_multiplier_label": "Pelaajan yrityksen asiakaskerroin",
   "bighax_disable_casino_bet_limit_label": "Nosta kasinon panosrajaa",

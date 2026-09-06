@@ -8,7 +8,7 @@
   "bighax_ui_close_button": "Uždaryti",
   "bighax_ui_fallback_notice": "Užsiprenumeruokite LIB BA Unified UI „Steam“ dirbtuvėse, kad patirtis būtų geresnė.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Pridėtos žaidėjo gudrybės, kurios neleidžia mažėti alkio, energijos ir laimės juostoms ir palaiko jas pilnas.\n- Pridėtos transporto priemonių gudrybės: jokios žalos, neriboti degalai ir švarios transporto priemonės.\n- Pridėtos atrakinimo gudrybės, momentinis importas ir baldų pristatymas bei 100 % darbuotojų pasitenkinimas.\n- Ištaisyti darbuotojų darbo laiko reikalavimai, Vantander Bank 100M $ paskola ir strigimai kiekvieną pilną valandą.",
+  "bighax_update_notification": "- Pridėtas montavimo įmonės mokesčio slankiklis (0–100 %).\n- Pridėta parinktis padidinti talentų medžiotojo atrankos taškus iki 1000.\n- Ištaisyti pasikartojantys strigimai, kuriuos sukeldavo klientų srauto ir miego / poilsio atnaujinimai.",
   "bighax_update_notice_got_it": "Supratau",
   "bighax_customer_traffic_multiplier_label": "Žaidėjo verslo klientų daugiklis",
   "bighax_disable_casino_bet_limit_label": "Padidinti kazino statymų limitą",
