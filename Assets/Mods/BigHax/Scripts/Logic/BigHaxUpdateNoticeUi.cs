@@ -8,6 +8,7 @@ namespace BigHax
     internal sealed class BigHaxUpdateNoticeUi
     {
         private const int CurrentNoticeVersion = 11;
+        private const bool ForceNoticeForRuntimeTest = true;
         private const int WindowId = 348722;
         private const float WindowWidth = 540f;
         private const float WindowHeight = 260f;
@@ -35,8 +36,13 @@ namespace BigHax
             uiSelectionResolved = false;
             libraryWaitStartedAt = -1f;
             lastUiResolutionReason = string.Empty;
-            isVisible = BigHaxOptionPersistence.LoadUpdateNoticeSeenVersion(modId) < CurrentNoticeVersion;
-            BigHaxLogger.UiDiagnostic("update notice initialized: visible=" + isVisible + ".");
+            var seenVersion = BigHaxOptionPersistence.LoadUpdateNoticeSeenVersion(modId);
+            isVisible = ForceNoticeForRuntimeTest || seenVersion < CurrentNoticeVersion;
+            BigHaxLogger.UiDiagnostic(
+                "update notice initialized: visible=" + isVisible +
+                ", currentVersion=" + CurrentNoticeVersion +
+                ", seenVersion=" + seenVersion +
+                ", forcedForRuntimeTest=" + ForceNoticeForRuntimeTest + ".");
             if (isVisible)
             {
                 needsCentering = true;
