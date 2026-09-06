@@ -275,7 +275,13 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         lightingController!.Initialize(vehicleController, context);
         roadDamageGuard!.Initialize(vehicleController);
 
-        return sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController;
+        var driverController = vehicleController.GetComponent<AudiRS6RDriverController>();
+        var addedDriverController = driverController == null;
+        if (addedDriverController)
+            driverController = vehicleController.gameObject.AddComponent<AudiRS6RDriverController>();
+        driverController!.Initialize(vehicleController, context);
+
+        return sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController || addedDriverController;
     }
 
     private void ConfigureVehiclePhysics(VehicleController vehicleController)
@@ -994,6 +1000,9 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void RemoveVehicleRuntimeComponents()
     {
+        foreach (var driverController in FindObjectsOfType<AudiRS6RDriverController>(true))
+            if (driverController != null) Destroy(driverController);
+
         var roadDamageGuards = FindObjectsOfType<AudiRS6RRoadDamageGuard>();
         foreach (var roadDamageGuard in roadDamageGuards)
         {
