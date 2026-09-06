@@ -117,7 +117,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         RefreshActiveCabinFilter();
 
         var source = engineSound.source;
-        Info($"configured revision=3 pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
+        Info($"configured revision=4 pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
              $"baseVolume={F(BaseVolume)} volumeRange={F(VolumeRange)} maxDistortion={F(MaxDistortion)} " +
              $"cabinLowPass={F(CabinLowPass)} clip='{source.clip.name}' " +
              $"length={F(source.clip.length)}s channels={source.clip.channels} hz={source.clip.frequency} " +
@@ -228,6 +228,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         var mixer = source.outputAudioMixerGroup?.audioMixer;
         var lowPass = source.GetComponent<AudioLowPassFilter>();
         Info($"sample reason={reason} comparison={comparison?.Mode ?? "mixer/rpm"} controlled={vehicle!.controlledByPlayer} " +
+             $"{comparison?.PlaybackStatus ?? "dry=inactive"} " +
              $"cameraInside={physics.CameraInsideVehicle} rpmEstimate={F(engine.RPMPercent * engine.revLimiterRPM)} " +
              $"rpmPercent={F(engine.RPMPercent)} throttle={F(engine.ThrottlePosition)} load={F(engine.Load)} " +
              $"playing={source.isPlaying} pitch={F(source.pitch)} volume={F(source.volume)} " +
@@ -237,6 +238,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
              $"mixer='{mixer?.name ?? "none"}' cutoff={ReadMixer(mixer, "lowPassFrequency")} " +
              $"Q={ReadMixer(mixer, "lowPassQ")} distortion={ReadMixer(mixer, "engineDistortion")} " +
              $"attenuation={ReadMixer(mixer, "attenuation")} " +
+             $"engineDb={ReadMixer(mixer, "engine")} fxDb={ReadMixer(mixer, "fx")} " +
              $"sourceLowPass={(lowPass != null && lowPass.enabled ? F(lowPass.cutoffFrequency) : "off")} " +
              $"spatialBlend={F(source.spatialBlend)} minDistance={F(source.minDistance)} maxDistance={F(source.maxDistance)}.");
     }

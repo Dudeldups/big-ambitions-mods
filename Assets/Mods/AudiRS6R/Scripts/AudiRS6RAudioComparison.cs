@@ -15,9 +15,14 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
     private bool ownsMute;
     private bool gainFailureReported;
     private bool wasControlled;
+    private bool engineMuteReported;
     private int mode;
 
     public string Mode => mode == 0 ? "mixer/rpm" : mode == 1 ? "dry/rpm" : "dry/1x";
+
+    public string PlaybackStatus => dry == null || mode == 0 ? "dry=inactive" :
+        $"dryPlaying={dry.isPlaying} dryMuted={dry.mute} dryVolume={F(dry.volume)} " +
+        $"dryPitch={F(dry.pitch)} nativeMuted={native?.mute} listenerPaused={AudioListener.pause}";
 
     public AudiRS6RAudioComparison(Action<string> info, Action<string> warn)
     {
@@ -66,11 +71,13 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
             return;
         }
 
-        // Engine -> FX -> Master is the native vehicle mixer hierarchy. Copy its
-        // live gain controls (including options and mute snapshots), but no DSP.
+        // This diagnostic bypasses the engine bus gain as well as its DSP. Its
+        // -80 dB state otherwise silences the very source we need to audition.
+        // Keep the live FX/Master gains, which carry the user's volume settings.
+        // Do not unmute or modify the shared native mixer itself.
         var mixer = source.outputAudioMixerGroup?.audioMixer;
-        if (mixer == null || !mixer.GetFloat("engine", out var engineDb) ||
-            !mixer.GetFloat("fx", out var fxDb) || !mixer.GetFloat("attenuation", out var masterDb))
+        if (mixer == null || !mixer.GetFloat("fx", out var fxDb) ||
+            !mixer.GetFloat("attenuation", out var masterDb))
         {
             if (!gainFailureReported)
             {
@@ -84,6 +91,13 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
             return;
         }
         gainFailureReported = false;
+        var hasEngineGain = mixer.GetFloat("engine", out var engineGain);
+        var engineDb = hasEngineGain ? F(engineGain) : "unavailable";
+        var engineMuted = hasEngineGain && engineGain <= -79f;
+        if (engineMuted && !engineMuteReported)
+            info("comparison bypassing muted engine bus for dry audition; FX/Master/listener volume and pause still apply. " +
+                 "Normal and dry playback are not level-matched while that bus is muted.");
+        engineMuteReported = engineMuted;
         if (dry == null)
         {
             var host = new GameObject("AudiRS6R_DryAudioComparison");
@@ -101,7 +115,7 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
             dry.SetCustomCurve(AudioSourceCurveType.Spread, source.GetCustomCurve(AudioSourceCurveType.Spread));
             dry.rolloffMode = source.rolloffMode;
             info($"comparison dry source created; native mixer='{mixer.name}' group='{source.outputAudioMixerGroup?.name ?? "none"}', " +
-                 "direct output with mirrored Engine/FX/Master gains and native spatial settings.");
+                 "direct output with engine gain bypassed, mirrored FX/Master gains and native spatial settings.");
         }
         if (!ownsMute)
         {
@@ -109,8 +123,8 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
             ownsMute = true;
         }
         source.mute = true;
-        dry.mute = savedMute || engineDb <= -79f || fxDb <= -79f || masterDb <= -79f;
-        dry.volume = Mathf.Clamp01(source.volume * Mathf.Pow(10f, (engineDb + fxDb + masterDb) / 20f));
+        dry.mute = savedMute || fxDb <= -79f || masterDb <= -79f;
+        dry.volume = CalculateDryVolume(source.volume, fxDb, masterDb);
         dry.pitch = mode == 2 ? 1f : source.pitch;
         dry.loop = source.loop;
         dry.spatialBlend = source.spatialBlend;
@@ -130,8 +144,15 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
             dry.Play();
         }
         if (changed)
-            info($"comparison active mode={Mode} dryPitch={F(dry.pitch)} dryVolume={F(dry.volume)} " +
-                 $"engineDb={F(engineDb)} fxDb={F(fxDb)} masterDb={F(masterDb)} clip='{dry.clip.name}'.");
+            info($"comparison active mode={Mode} {PlaybackStatus} engineGainBypassed=True " +
+                 $"engineDb={engineDb} fxDb={F(fxDb)} masterDb={F(masterDb)} clip='{dry.clip.name}'.");
+    }
+
+    internal static float CalculateDryVolume(float sourceVolume, float fxDb, float masterDb)
+    {
+        if (fxDb <= -79f || masterDb <= -79f)
+            return 0f;
+        return (float)Math.Max(0d, Math.Min(1d, sourceVolume * Math.Pow(10d, (fxDb + masterDb) / 20d)));
     }
 
     private void ReleaseMute()
@@ -152,6 +173,7 @@ internal sealed class AudiRS6RAudioComparison : IDisposable
         dry = null;
         mode = 0;
         wasControlled = false;
+        engineMuteReported = false;
     }
 
     private static string F(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
