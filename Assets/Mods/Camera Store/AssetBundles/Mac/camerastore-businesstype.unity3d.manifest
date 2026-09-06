@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 3354441247
+CRC: 1341087621
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: d8e7703c1fbc637843635368217fb398
+    Hash: 39ed8eb58303d5638021a3336d252681
   TypeTreeHash:
     serializedVersion: 2
     Hash: fafb29444616307f05eaacaa19522d63
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: d8e7703c1fbc637843635368217fb398
+    Hash: 39ed8eb58303d5638021a3336d252681
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -109,6 +109,7 @@ Assets:
 - Assets/Mods/Camera Store/Models/Products/tripod.glb
 - Assets/Mods/Camera Store/Models/Products/compact_camera.glb
 - Assets/Mods/Camera Store/Items/CameraLens.asset
+- Assets/Mods/Camera Store/Models/Products/camera_flash.glb
 - Assets/Mods/Camera Store/Items/CameraAccessoriesShelf.asset
 - Assets/Mods/Camera Store/Items/CameraDisplay.asset
 - Assets/Mods/Camera Store/Items/CameraBag.asset
