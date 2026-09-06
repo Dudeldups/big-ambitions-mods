@@ -45,6 +45,7 @@ namespace BigHax
         private readonly BigHaxVehicleConditionService vehicleConditionService = new BigHaxVehicleConditionService();
 
         private bool applyRequested;
+        private bool sleepDurationApplyRequested;
         private bool parkingVehicleEventsSubscribed;
         private Coroutine? employeeDemandCleanupCoroutine;
         private Coroutine? employeeDemandMessageCleanupCoroutine;
@@ -77,6 +78,7 @@ namespace BigHax
             runtime.context = context;
             runtime.settings = settings;
             runtime.applyRequested = true;
+            runtime.sleepDurationApplyRequested = true;
             runtime.nextActiveVehiclePollAt = 0f;
             runtime.nextCasinoBetLimitPollAt = 0f;
             runtime.nextCustomerTrafficPollAt = 0f;
@@ -98,7 +100,10 @@ namespace BigHax
         public static void RequestImmediateApply()
         {
             if (instance != null)
+            {
                 instance.applyRequested = true;
+                instance.sleepDurationApplyRequested = true;
+            }
         }
 
         public void Shutdown()
@@ -222,7 +227,12 @@ namespace BigHax
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));
                 SafeApply("instant deliveries", () => instantDeliveryService.ApplyConfiguredBehavior(settings));
-                SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                if (sleepDurationApplyRequested)
+                {
+                    if (sleepRestDurationService.NeedsSettingsApply(settings))
+                        SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                    sleepDurationApplyRequested = false;
+                }
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
                 SafeApply("vehicle conditions", () => vehicleConditionService.ApplyConfiguredConditions(settings));
             }
@@ -342,7 +352,7 @@ namespace BigHax
             instantDeliveryService.AttachUiHooks();
             headhunterRpService.AttachUiHooks();
             ScheduleEmployeeDemandMessageCleanup();
-            if (sleepDurationApplyCoroutine == null)
+            if (sleepDurationApplyCoroutine == null && sleepRestDurationService.NeedsSettingsApply(settings!))
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             if (optionsUiPrewarmCoroutine == null)
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());

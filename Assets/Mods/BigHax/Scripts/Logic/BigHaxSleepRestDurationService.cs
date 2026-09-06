@@ -10,6 +10,14 @@ namespace BigHax
     {
         private const int ExtendedBenchRestMinutes = 24 * 60;
         private const int ExtendedBedSleepMinutes = 7 * 24 * 60;
+        private static readonly string[] RestBehaviourTypeNames =
+        {
+            "OutsideBenchController",
+            "OutsideChairController",
+            "Controllers.OutsideInteractableItemToRest",
+            "Controllers.SeatController"
+        };
+        private static readonly string[] BedBehaviourTypeNames = { "BedController" };
         private static readonly BindingFlags InstanceFieldFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
@@ -17,24 +25,62 @@ namespace BigHax
             new Dictionary<int, OriginalRestDurations>();
         private readonly Dictionary<int, int> originalBedConfigMaxMinutesByKey = new Dictionary<int, int>();
         private readonly Dictionary<string, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<string, EnvironmentPatchDescriptor?>();
+        private readonly Dictionary<string, Type?> targetTypeCache = new Dictionary<string, Type?>(StringComparer.Ordinal);
+        private int loggedPatchExceptions;
+        private object? lastAppliedSaveGame;
+        private bool? lastAppliedExtendedBedSetting;
 
         public void InvalidateCache()
         {
         }
 
+        public bool NeedsSettingsApply(BigHaxSettings settings)
+        {
+            return !ReferenceEquals(lastAppliedSaveGame, SaveGameManager.Current) ||
+                   !lastAppliedExtendedBedSetting.HasValue ||
+                   lastAppliedExtendedBedSetting.Value != settings.EnableExtendedBedSleep;
+        }
+
         public void ApplyConfiguredDurations(BigHaxSettings settings)
         {
-            PatchLoadedBehaviours("restEnvironment", ExtendedBenchRestMinutes, null);
+            var saveGame = SaveGameManager.Current;
+            if (saveGame?.PlayerDefaults == null || saveGame.charactersData == null || saveGame.charactersData.Count == 0)
+            {
+                BigHaxLogger.Diagnostic(
+                    "Freeze diagnostic/sleep-rest apply deferred: active save has no usable player defaults or character data.");
+                return;
+            }
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var benchResult = PatchLoadedBehaviours(
+                "restEnvironment",
+                ExtendedBenchRestMinutes,
+                RestBehaviourTypeNames);
+            PatchResult bedResult;
+            var bedConfigResult = default(PatchResult);
             if (settings.EnableExtendedBedSleep)
             {
-                PatchLoadedBehaviours("sleepEnvironment", ExtendedBedSleepMinutes, "BedController");
-                PatchLoadedBedSleepConfigurations();
+                bedResult = PatchLoadedBehaviours(
+                    "sleepEnvironment",
+                    ExtendedBedSleepMinutes,
+                    BedBehaviourTypeNames);
+                bedConfigResult = PatchLoadedBedSleepConfigurations();
             }
             else
             {
-                RestoreOriginalDurations("sleepEnvironment");
+                bedResult = RestoreOriginalDurations("sleepEnvironment");
                 RestoreOriginalBedSleepConfigurations();
             }
+
+            stopwatch.Stop();
+            lastAppliedSaveGame = saveGame;
+            lastAppliedExtendedBedSetting = settings.EnableExtendedBedSleep;
+            BigHaxLogger.Diagnostic(
+                "Freeze diagnostic/sleep-rest targeted apply completed: extendedBed=" + settings.EnableExtendedBedSleep +
+                ", bench=" + benchResult +
+                ", bed=" + bedResult +
+                ", bedConfigs=" + bedConfigResult +
+                ", elapsedMs=" + stopwatch.ElapsedMilliseconds + ".");
         }
 
         public void RestoreOriginalDurationsOnShutdown()
@@ -43,127 +89,167 @@ namespace BigHax
             originalEnvironmentDurationsByKey.Clear();
             RestoreOriginalBedSleepConfigurations();
             originalBedConfigMaxMinutesByKey.Clear();
+            lastAppliedSaveGame = null;
+            lastAppliedExtendedBedSetting = null;
         }
 
-        private int PatchLoadedBehaviours(string environmentFieldName, int extendedMinutes, string? requiredBehaviourTypeName)
+        private PatchResult PatchLoadedBehaviours(
+            string environmentFieldName,
+            int extendedMinutes,
+            IReadOnlyList<string> targetTypeNames)
         {
-            var patchedCount = 0;
-            var components = Resources.FindObjectsOfTypeAll<Component>();
-            foreach (var component in components)
+            var result = new PatchResult();
+            foreach (var component in FindLoadedComponents(targetTypeNames))
             {
-                if (component == null)
-                    continue;
-
                 var gameObject = component.gameObject;
                 if (gameObject == null || !gameObject.scene.IsValid())
                     continue;
 
-                if (requiredBehaviourTypeName != null && component.GetType().Name != requiredBehaviourTypeName)
-                    continue;
-
+                result.Inspected++;
                 var descriptor = GetDescriptor(component.GetType(), environmentFieldName);
                 if (descriptor == null)
+                {
+                    result.Skipped++;
                     continue;
+                }
 
-                if (TryPatchEnvironment(component, descriptor.Value, extendedMinutes))
-                    patchedCount++;
+                var outcome = TryPatchEnvironment(component, descriptor.Value, extendedMinutes);
+                if (outcome == PatchOutcome.Patched)
+                    result.Patched++;
+                else if (outcome == PatchOutcome.Skipped)
+                    result.Skipped++;
             }
 
-            return patchedCount;
+            return result;
         }
 
-        private int RestoreOriginalDurations(string? environmentFieldName = null)
+        private PatchResult RestoreOriginalDurations(string? environmentFieldName = null)
         {
             if (originalEnvironmentDurationsByKey.Count == 0)
-                return 0;
+                return default;
 
             if (environmentFieldName == null)
             {
-                var totalRestoredCount = RestoreOriginalDurations("restEnvironment") + RestoreOriginalDurations("sleepEnvironment");
+                var restResult = RestoreOriginalDurations("restEnvironment");
+                var sleepResult = RestoreOriginalDurations("sleepEnvironment");
                 originalEnvironmentDurationsByKey.Clear();
-                return totalRestoredCount;
+                return restResult + sleepResult;
             }
 
-            var restoredCount = 0;
-            var components = Resources.FindObjectsOfTypeAll<Component>();
-            foreach (var component in components)
+            var result = new PatchResult();
+            var targetTypes = environmentFieldName == "sleepEnvironment"
+                ? BedBehaviourTypeNames
+                : RestBehaviourTypeNames;
+            foreach (var component in FindLoadedComponents(targetTypes))
             {
-                if (component == null)
-                    continue;
-
                 var gameObject = component.gameObject;
                 if (gameObject == null || !gameObject.scene.IsValid())
                     continue;
 
-                if (environmentFieldName == "sleepEnvironment" && component.GetType().Name != "BedController")
-                    continue;
-
+                result.Inspected++;
                 var descriptor = GetDescriptor(component.GetType(), environmentFieldName);
                 if (descriptor == null)
+                {
+                    result.Skipped++;
                     continue;
+                }
 
                 if (TryRestoreEnvironment(component, descriptor.Value))
-                    restoredCount++;
+                    result.Patched++;
             }
 
-            return restoredCount;
+            return result;
         }
 
-        private bool TryPatchEnvironment(Component component, EnvironmentPatchDescriptor descriptor, int extendedMinutes)
+        private PatchOutcome TryPatchEnvironment(Component component, EnvironmentPatchDescriptor descriptor, int extendedMinutes)
         {
-            var environmentValue = descriptor.EnvironmentField.GetValue(component);
-            if (environmentValue == null)
-                return false;
+            try
+            {
+                var environmentValue = descriptor.EnvironmentField.GetValue(component);
+                if (environmentValue == null)
+                    return PatchOutcome.Skipped;
 
-            var balanceConfig = descriptor.BalanceConfigProperty.GetValue(environmentValue);
-            if (balanceConfig == null)
-                return false;
+                var balanceConfig = descriptor.BalanceConfigProperty.GetValue(environmentValue);
+                if (balanceConfig == null)
+                    return PatchOutcome.Skipped;
 
-            var currentDefaultMinutes = (int)descriptor.GetDefaultMinutesMethod.Invoke(environmentValue, null);
-            var currentMaxMinutes = (int)descriptor.MaxDurationMinutesField.GetValue(balanceConfig);
-            if (currentDefaultMinutes >= extendedMinutes && currentMaxMinutes >= extendedMinutes)
-                return false;
+                var currentDefaultMinutes = (int)descriptor.GetDefaultMinutesMethod.Invoke(environmentValue, null);
+                var currentMaxMinutes = (int)descriptor.MaxDurationMinutesField.GetValue(balanceConfig);
+                if (currentDefaultMinutes >= extendedMinutes && currentMaxMinutes >= extendedMinutes)
+                    return PatchOutcome.Unchanged;
 
-            var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
-            if (!originalEnvironmentDurationsByKey.ContainsKey(key))
-                originalEnvironmentDurationsByKey[key] = new OriginalRestDurations(currentDefaultMinutes, currentMaxMinutes);
+                var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
+                if (!originalEnvironmentDurationsByKey.ContainsKey(key))
+                    originalEnvironmentDurationsByKey[key] = new OriginalRestDurations(currentDefaultMinutes, currentMaxMinutes);
 
-            descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { extendedMinutes });
-            descriptor.MaxDurationMinutesField.SetValue(balanceConfig, extendedMinutes);
-            descriptor.EnvironmentField.SetValue(component, environmentValue);
+                descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { extendedMinutes });
+                descriptor.MaxDurationMinutesField.SetValue(balanceConfig, extendedMinutes);
+                descriptor.EnvironmentField.SetValue(component, environmentValue);
 
-            return true;
+                return PatchOutcome.Patched;
+            }
+            catch (Exception exception)
+            {
+                LogPatchException(component, descriptor.EnvironmentField.Name, exception);
+                return PatchOutcome.Skipped;
+            }
         }
 
         private bool TryRestoreEnvironment(Component component, EnvironmentPatchDescriptor descriptor)
         {
-            var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
-            if (!originalEnvironmentDurationsByKey.TryGetValue(key, out var originalDurations))
-                return false;
+            try
+            {
+                var key = BuildEnvironmentKey(component, descriptor.EnvironmentField.Name);
+                if (!originalEnvironmentDurationsByKey.TryGetValue(key, out var originalDurations))
+                    return false;
 
-            var environmentValue = descriptor.EnvironmentField.GetValue(component);
-            if (environmentValue == null)
-                return false;
+                var environmentValue = descriptor.EnvironmentField.GetValue(component);
+                if (environmentValue == null)
+                    return false;
 
-            var balanceConfig = descriptor.BalanceConfigProperty.GetValue(environmentValue);
-            if (balanceConfig == null)
-                return false;
+                var balanceConfig = descriptor.BalanceConfigProperty.GetValue(environmentValue);
+                if (balanceConfig == null)
+                    return false;
 
-            descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { originalDurations.DefaultMinutes });
-            descriptor.MaxDurationMinutesField.SetValue(balanceConfig, originalDurations.MaxMinutes);
-            descriptor.EnvironmentField.SetValue(component, environmentValue);
-            return true;
+                descriptor.SetDefaultMinutesMethod.Invoke(environmentValue, new object[] { originalDurations.DefaultMinutes });
+                descriptor.MaxDurationMinutesField.SetValue(balanceConfig, originalDurations.MaxMinutes);
+                descriptor.EnvironmentField.SetValue(component, environmentValue);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                // Scene teardown can leave the controller alive for one frame after its
+                // environment config has been released. There is nothing left to restore.
+                if (!ContainsMissingReferenceException(exception))
+                    LogPatchException(component, descriptor.EnvironmentField.Name + " restore", exception);
+                return false;
+            }
         }
 
-        private int PatchLoadedBedSleepConfigurations()
+        private static bool ContainsMissingReferenceException(Exception exception)
         {
-            var patchedCount = 0;
-            foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+            for (var current = exception; current != null; current = current.InnerException)
             {
-                if (candidate == null || candidate.GetType().FullName != "PlayerActivity.SleepEnvironmentConfig")
+                if (current is MissingReferenceException)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private PatchResult PatchLoadedBedSleepConfigurations()
+        {
+            var result = new PatchResult();
+            var configType = FindTargetType("PlayerActivity.SleepEnvironmentConfig");
+            if (configType == null)
+                return result;
+
+            foreach (var candidate in Resources.FindObjectsOfTypeAll(configType))
+            {
+                if (candidate == null)
                     continue;
 
-                var configType = candidate.GetType();
+                result.Inspected++;
                 var sleepEnvironmentTypeField = configType.GetField("sleepEnvironmentType", InstanceFieldFlags);
                 var balanceConfigField = configType.GetField("balanceConfig", InstanceFieldFlags);
                 var balanceConfig = balanceConfigField?.GetValue(candidate);
@@ -171,6 +257,7 @@ namespace BigHax
                 if (sleepEnvironmentTypeField?.GetValue(candidate)?.ToString() != "Bed" ||
                     maxDurationMinutesField == null || maxDurationMinutesField.FieldType != typeof(int))
                 {
+                    result.Skipped++;
                     continue;
                 }
 
@@ -183,10 +270,10 @@ namespace BigHax
                     originalBedConfigMaxMinutesByKey[key] = currentMaxMinutes;
 
                 maxDurationMinutesField.SetValue(balanceConfig, ExtendedBedSleepMinutes);
-                patchedCount++;
+                result.Patched++;
             }
 
-            return patchedCount;
+            return result;
         }
 
         private void RestoreOriginalBedSleepConfigurations()
@@ -194,7 +281,11 @@ namespace BigHax
             if (originalBedConfigMaxMinutesByKey.Count == 0)
                 return;
 
-            foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+            var configType = FindTargetType("PlayerActivity.SleepEnvironmentConfig");
+            if (configType == null)
+                return;
+
+            foreach (var candidate in Resources.FindObjectsOfTypeAll(configType))
             {
                 if (candidate == null || !originalBedConfigMaxMinutesByKey.TryGetValue(candidate.GetInstanceID(), out var originalMaxMinutes))
                     continue;
@@ -204,6 +295,51 @@ namespace BigHax
                 if (maxDurationMinutesField?.FieldType == typeof(int))
                     maxDurationMinutesField.SetValue(balanceConfig, originalMaxMinutes);
             }
+        }
+
+        private IEnumerable<Component> FindLoadedComponents(IReadOnlyList<string> targetTypeNames)
+        {
+            var seenInstanceIds = new HashSet<int>();
+            foreach (var typeName in targetTypeNames)
+            {
+                var targetType = FindTargetType(typeName);
+                if (targetType == null || !typeof(Component).IsAssignableFrom(targetType))
+                    continue;
+
+                foreach (var candidate in Resources.FindObjectsOfTypeAll(targetType))
+                {
+                    if (candidate is Component component && seenInstanceIds.Add(component.GetInstanceID()))
+                        yield return component;
+                }
+            }
+        }
+
+        private Type? FindTargetType(string typeName)
+        {
+            if (targetTypeCache.TryGetValue(typeName, out var cachedType))
+                return cachedType;
+
+            Type? resolvedType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                resolvedType = assembly.GetType(typeName, false);
+                if (resolvedType != null)
+                    break;
+            }
+
+            targetTypeCache[typeName] = resolvedType;
+            return resolvedType;
+        }
+
+        private void LogPatchException(Component component, string environmentName, Exception exception)
+        {
+            if (loggedPatchExceptions >= 8)
+                return;
+
+            loggedPatchExceptions++;
+            BigHaxLogger.DiagnosticException(
+                "Freeze diagnostic/sleep-rest " + component.GetType().FullName + "." + environmentName,
+                exception);
         }
 
         private EnvironmentPatchDescriptor? GetDescriptor(Type behaviourType, string environmentFieldName)
@@ -284,6 +420,35 @@ namespace BigHax
 
             public int DefaultMinutes { get; }
             public int MaxMinutes { get; }
+        }
+
+        private enum PatchOutcome
+        {
+            Unchanged,
+            Patched,
+            Skipped
+        }
+
+        private struct PatchResult
+        {
+            public int Inspected;
+            public int Patched;
+            public int Skipped;
+
+            public static PatchResult operator +(PatchResult left, PatchResult right)
+            {
+                return new PatchResult
+                {
+                    Inspected = left.Inspected + right.Inspected,
+                    Patched = left.Patched + right.Patched,
+                    Skipped = left.Skipped + right.Skipped
+                };
+            }
+
+            public override string ToString()
+            {
+                return "inspected=" + Inspected + ",patched=" + Patched + ",skipped=" + Skipped;
+            }
         }
     }
 }

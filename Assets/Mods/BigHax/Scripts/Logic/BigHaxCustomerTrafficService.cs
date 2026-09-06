@@ -11,7 +11,6 @@ namespace BigHax
     internal sealed class BigHaxCustomerTrafficService
     {
         private const float AdditionalPromotionBoostPerMultiplierStep = 0.25f;
-        private const float PendingScheduleRefreshIntervalSeconds = 10f;
 
         private static readonly MethodInfo MemberwiseCloneMethod =
             typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -19,10 +18,15 @@ namespace BigHax
         private static readonly Type? CustomerEntriesHelperType = FindType("AI.Customers.CustomerEntries.CustomerEntriesHelper");
         private static readonly MethodInfo? UpdateAllCustomerEntriesMethod =
             CustomerEntriesHelperType?.GetMethod("UpdateCustomerEntriesForAllPlayerBusinesses", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly MethodInfo? UpdateCustomerEntriesForPlayerBusinessMethod =
+            CustomerEntriesHelperType?.GetMethod("UpdateCustomerEntriesForPlayerBusiness", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly MethodInfo? GetEntriesByAddressMethod =
             CustomerEntriesHelperType?.GetMethod("GetEntriesByAddress", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
         private static readonly MethodInfo? ShouldEntriesBeCreatedMethod =
             CustomerEntriesHelperType?.GetMethod("ShouldEntriesBeCreated", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        private static readonly Type? TimeHelperType = FindType("TimeHelper");
+        private static readonly MethodInfo? GetDayOfWeekMethod =
+            TimeHelperType?.GetMethod("GetDayOfWeek", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, Type.EmptyTypes, null);
 
         private static readonly Type? CustomerEntryType = FindType("AI.Customers.CustomerEntries.CustomerEntry");
         private static readonly Type? OrderType = FindType("Order");
@@ -45,23 +49,23 @@ namespace BigHax
         private readonly Dictionary<string, int> lastAppliedCustomerCapacities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> lastKnownShouldCreateEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> lastKnownBusinessTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> lastKnownAvailableProductCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> pendingScheduleBusinessKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private bool hasAppliedCustomTraffic;
+        private bool loggedInactiveMultiplier;
+        private bool loggedUnavailableHooks;
+        private object? lastAppliedSaveGame;
         private float? originalBaseCustomerPromotionMultiplier;
         private float lastAppliedMultiplier = 1f;
-        private float nextPendingScheduleRefreshAt;
 
         public void InvalidateCache()
         {
-            // A scene load is followed by a forced traffic apply. Keep the captured
-            // vanilla capacity baselines so an already-multiplied live value is not
-            // accidentally learned as the new baseline, but force business/schedule
-            // discovery to be rebuilt from the current save state.
-            lastKnownShouldCreateEntries.Clear();
-            lastKnownBusinessTypes.Clear();
-            pendingScheduleBusinessKeys.Clear();
-            nextPendingScheduleRefreshAt = 0f;
+            // Additive scene streaming does not replace the active save or its business
+            // registrations. Preserve discovery state here; clearing it made every existing
+            // business look new and triggered a targeted schedule rebuild for all of them.
+            // A genuinely different save is detected by reference in ApplyConfiguredTraffic,
+            // and its full rebuild replaces these collections safely.
         }
 
         public void ApplyConfiguredTraffic(ModContext context, BigHaxSettings settings, bool forceRefresh)
@@ -75,26 +79,58 @@ namespace BigHax
 
                 hasAppliedCustomTraffic = false;
                 lastAppliedMultiplier = multiplier;
+                if (!loggedInactiveMultiplier)
+                {
+                    loggedInactiveMultiplier = true;
+                    BigHaxLogger.Diagnostic(
+                        "Freeze diagnostic/customer traffic inactive: multiplier=1, no polling or schedule refresh work will run.");
+                }
                 return;
             }
 
+            loggedInactiveMultiplier = false;
+
             if (!CanUseCustomerEntries())
             {
+                if (!loggedUnavailableHooks)
+                {
+                    loggedUnavailableHooks = true;
+                    BigHaxLogger.Diagnostic(
+                        "Freeze diagnostic/customer traffic hooks unavailable: updateAll=" +
+                        (UpdateAllCustomerEntriesMethod != null) +
+                        ", updateOne=" + (UpdateCustomerEntriesForPlayerBusinessMethod != null) +
+                        ", getDayOfWeek=" + (GetDayOfWeekMethod != null) +
+                        ", getEntries=" + (GetEntriesByAddressMethod != null) +
+                        ", shouldCreate=" + (ShouldEntriesBeCreatedMethod != null) + ".");
+                }
                 BigHaxLogger.WarnOnce(context, "missing-customer-entries-hooks", "BigHax: customer traffic hooks are unavailable in this game build.");
                 return;
             }
+
+            loggedUnavailableHooks = false;
 
             // During the mod's load callback, Big Ambitions 1.0 may have loaded
             // the save data but not initialized TimeHelper yet. Calling the game's
             // customer refresh at that stage throws and used to permanently disable
             // this service before the player could use the option.
-            if (SaveGameManager.Current?.gameVariables == null)
+            var currentSaveGame = SaveGameManager.Current;
+            if (currentSaveGame?.gameVariables == null)
                 return;
 
-            if (forceRefresh || !hasAppliedCustomTraffic || !Mathf.Approximately(multiplier, lastAppliedMultiplier))
+            var saveGameChanged = !ReferenceEquals(lastAppliedSaveGame, currentSaveGame);
+            if (!hasAppliedCustomTraffic ||
+                saveGameChanged ||
+                !Mathf.Approximately(multiplier, lastAppliedMultiplier))
             {
                 RebuildAndApplyTraffic(context, multiplier);
                 return;
+            }
+
+            if (forceRefresh)
+            {
+                BigHaxLogger.Diagnostic(
+                    "Freeze diagnostic/customer traffic skipped duplicate all-business rebuild: multiplier=" +
+                    multiplier + ", sameSave=True.");
             }
 
             ApplyPromotionBoost(multiplier);
@@ -108,6 +144,7 @@ namespace BigHax
             // entries at this point calls into already-cleared game state and throws in 1.0.
             RestoreVanillaTraffic(context, refreshEntries: false);
             hasAppliedCustomTraffic = false;
+            lastAppliedSaveGame = null;
             lastAppliedMultiplier = 1f;
         }
 
@@ -125,10 +162,15 @@ namespace BigHax
                 out var clonedBusinessCount);
 
             hasAppliedCustomTraffic = true;
+            lastAppliedSaveGame = SaveGameManager.Current;
             lastAppliedMultiplier = multiplier;
-            nextPendingScheduleRefreshAt = pendingScheduleBusinessKeys.Count > 0
-                ? Time.unscaledTime + PendingScheduleRefreshIntervalSeconds
-                : 0f;
+
+            BigHaxLogger.Diagnostic(
+                "Freeze diagnostic/customer traffic initial rebuild completed: multiplier=" + multiplier +
+                ", businesses=" + appliedBusinessCount +
+                ", waitingForCapacity=" + waitingForInitializationCount +
+                ", clonedBusinesses=" + clonedBusinessCount +
+                ", pendingTargetedRefreshes=" + pendingScheduleBusinessKeys.Count + ".");
 
             BigHaxLogger.Info(
                 context,
@@ -151,8 +193,8 @@ namespace BigHax
             lastAppliedCustomerCapacities.Clear();
             lastKnownShouldCreateEntries.Clear();
             lastKnownBusinessTypes.Clear();
+            lastKnownAvailableProductCounts.Clear();
             pendingScheduleBusinessKeys.Clear();
-            nextPendingScheduleRefreshAt = 0f;
             BigHaxLogger.Info(context, "BigHax: restored vanilla customer traffic for player businesses.");
         }
 
@@ -165,6 +207,7 @@ namespace BigHax
             {
                 var key = GetRegistrationKey(registration);
                 var businessType = GetBusinessType(registration);
+                var availableProductCount = registration.cachedAvailableProducts?.Count ?? 0;
                 var isNewRegistration = !lastKnownBusinessTypes.TryGetValue(key, out var previousBusinessType);
                 var businessTypeChanged = !isNewRegistration &&
                                           !string.Equals(previousBusinessType, businessType, StringComparison.Ordinal);
@@ -180,6 +223,10 @@ namespace BigHax
                     lastKnownShouldCreateEntries.TryGetValue(key, out var previouslyShouldCreateEntries) &&
                     !previouslyShouldCreateEntries &&
                     shouldCreateEntries;
+                var productsBecameAvailable =
+                    lastKnownAvailableProductCounts.TryGetValue(key, out var previousProductCount) &&
+                    previousProductCount == 0 &&
+                    availableProductCount > 0;
 
                 if (businessTypeChanged)
                     ResetBusinessBaseline(key);
@@ -188,12 +235,16 @@ namespace BigHax
 
                 lastKnownBusinessTypes[key] = businessType;
                 lastKnownShouldCreateEntries[key] = shouldCreateEntries;
+                lastKnownAvailableProductCounts[key] = availableProductCount;
 
-                if (!isNewRegistration &&
-                    !businessTypeChanged &&
-                    !capacityChangedSinceLastApply &&
-                    !baselineBecameAvailable &&
-                    !becameEligibleForEntries)
+                var scheduleRefreshRequired =
+                    isNewRegistration ||
+                    businessTypeChanged ||
+                    baselineBecameAvailable ||
+                    becameEligibleForEntries ||
+                    productsBecameAvailable;
+
+                if (!scheduleRefreshRequired && !capacityChangedSinceLastApply)
                 {
                     continue;
                 }
@@ -201,9 +252,29 @@ namespace BigHax
                 // A newly created business can temporarily report customerCapacity == 0.
                 // Never capture or re-apply that transient value as its permanent vanilla
                 // baseline. The pending refresh will retry after vanilla has finished setup.
-                ApplyCustomerCapacity(registration, key, multiplier, afterVanillaRefresh: false);
-                pendingScheduleBusinessKeys.Add(key);
-                nextPendingScheduleRefreshAt = 0f;
+                var capacityReady = ApplyCustomerCapacity(registration, key, multiplier, afterVanillaRefresh: false);
+                if (!scheduleRefreshRequired)
+                {
+                    BigHaxLogger.Diagnostic(
+                        "Freeze diagnostic/customer traffic reapplied capacity without rebuilding schedule: business=" +
+                        key + ", type=" + businessType + ", capacityReady=" + capacityReady + ".");
+                    continue;
+                }
+
+                if (capacityReady && shouldCreateEntries)
+                {
+                    pendingScheduleBusinessKeys.Add(key);
+                    BigHaxLogger.Diagnostic(
+                        "Freeze diagnostic/customer traffic queued one targeted refresh: business=" + key +
+                        ", type=" + businessType +
+                        ", products=" + availableProductCount +
+                        ", reason=" + GetRefreshReason(
+                            isNewRegistration,
+                            businessTypeChanged,
+                            baselineBecameAvailable,
+                            becameEligibleForEntries,
+                            productsBecameAvailable) + ".");
+                }
             }
         }
 
@@ -212,24 +283,43 @@ namespace BigHax
             if (pendingScheduleBusinessKeys.Count == 0)
                 return;
 
-            if (Time.unscaledTime < nextPendingScheduleRefreshAt)
-                return;
+            var registrationsByKey = new Dictionary<string, BuildingRegistration>(StringComparer.OrdinalIgnoreCase);
+            foreach (var registration in GetPlayerBusinessRegistrations())
+                registrationsByKey[GetRegistrationKey(registration)] = registration;
 
-            nextPendingScheduleRefreshAt = Time.unscaledTime + PendingScheduleRefreshIntervalSeconds;
+            var pendingKeys = new List<string>(pendingScheduleBusinessKeys);
+            pendingScheduleBusinessKeys.Clear();
 
-            if (!TryUpdateAllCustomerEntries(context))
-                return;
+            foreach (var key in pendingKeys)
+            {
+                if (!registrationsByKey.TryGetValue(key, out var registration) ||
+                    !ShouldEntriesBeCreated(context, registration) ||
+                    !ApplyCustomerCapacity(registration, key, multiplier, afterVanillaRefresh: false))
+                {
+                    BigHaxLogger.Diagnostic(
+                        "Freeze diagnostic/customer traffic discarded targeted refresh: business=" + key +
+                        ", registrationReady=" + registrationsByKey.ContainsKey(key) + ".");
+                    continue;
+                }
 
-            // UpdateCustomerEntriesForAllPlayerBusinesses rebuilds every player-business
-            // schedule, not just the new/pending one. Re-apply the multiplier to all of
-            // them immediately so an existing business does not silently fall back to
-            // vanilla traffic while another business is being initialized.
-            ApplyTrafficAfterVanillaRefresh(
-                context,
-                multiplier,
-                out _,
-                out _,
-                out _);
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var updated = TryUpdateCustomerEntriesForPlayerBusiness(registration);
+                var entries = updated
+                    ? GetBusinessCustomerEntries(context, registration, "after targeted refresh")
+                    : null;
+                var originalEntryCount = entries?.Count ?? 0;
+                if (entries != null && entries.Count > 0)
+                    MultiplyEntries(entries, multiplier);
+
+                stopwatch.Stop();
+                BigHaxLogger.Diagnostic(
+                    "Freeze diagnostic/customer traffic targeted refresh completed: business=" + key +
+                    ", updated=" + updated +
+                    ", vanillaEntries=" + originalEntryCount +
+                    ", multipliedEntries=" + (entries?.Count ?? 0) +
+                    ", elapsedMs=" + stopwatch.ElapsedMilliseconds +
+                    ", willRetry=False.");
+            }
         }
 
         private void ApplyTrafficAfterVanillaRefresh(
@@ -254,6 +344,7 @@ namespace BigHax
             {
                 var key = GetRegistrationKey(registration);
                 lastKnownBusinessTypes[key] = GetBusinessType(registration);
+                lastKnownAvailableProductCounts[key] = registration.cachedAvailableProducts?.Count ?? 0;
 
                 var capacityReady = ApplyCustomerCapacity(registration, key, multiplier, afterVanillaRefresh: true);
                 if (capacityReady)
@@ -273,8 +364,11 @@ namespace BigHax
                 var entries = GetBusinessCustomerEntries(context, registration, "after vanilla refresh");
                 if (entries == null || entries.Count == 0)
                 {
-                    pendingScheduleBusinessKeys.Add(key);
-                    waitingForInitializationCount++;
+                    // An empty schedule is valid when a business is closed or has no
+                    // customers remaining today. Retrying it forever caused a complete
+                    // all-business rebuild every ten seconds and recurring multi-second stalls.
+                    if (!capacityReady)
+                        waitingForInitializationCount++;
                     continue;
                 }
 
@@ -283,13 +377,8 @@ namespace BigHax
                 if (entries.Count > originalEntryCount)
                     clonedBusinessCount++;
 
-                // Schedule traffic is ready, but keep retrying if vanilla has not yet
-                // supplied a positive customer capacity for this just-created business.
                 if (!capacityReady)
-                {
-                    pendingScheduleBusinessKeys.Add(key);
                     waitingForInitializationCount++;
-                }
             }
         }
 
@@ -377,6 +466,13 @@ namespace BigHax
                     lastKnownShouldCreateEntries.Remove(key);
             }
 
+            var productCountKeys = new List<string>(lastKnownAvailableProductCounts.Keys);
+            foreach (var key in productCountKeys)
+            {
+                if (!activeKeys.Contains(key))
+                    lastKnownAvailableProductCounts.Remove(key);
+            }
+
             pendingScheduleBusinessKeys.RemoveWhere(key => !activeKeys.Contains(key));
         }
 
@@ -386,7 +482,22 @@ namespace BigHax
             originalCustomerCapacityBusinessTypes.Remove(key);
             lastAppliedCustomerCapacities.Remove(key);
             lastKnownShouldCreateEntries.Remove(key);
+            lastKnownAvailableProductCounts.Remove(key);
             pendingScheduleBusinessKeys.Remove(key);
+        }
+
+        private static string GetRefreshReason(
+            bool isNewRegistration,
+            bool businessTypeChanged,
+            bool baselineBecameAvailable,
+            bool becameEligible,
+            bool productsBecameAvailable)
+        {
+            if (businessTypeChanged) return "business-type-changed";
+            if (becameEligible) return "requirements-became-ready";
+            if (productsBecameAvailable) return "products-became-ready";
+            if (baselineBecameAvailable) return "capacity-became-ready";
+            return isNewRegistration ? "new-registration" : "state-changed";
         }
 
         private static string GetBusinessType(BuildingRegistration registration)
@@ -422,6 +533,8 @@ namespace BigHax
         private static bool CanUseCustomerEntries()
         {
             return UpdateAllCustomerEntriesMethod != null &&
+                   UpdateCustomerEntriesForPlayerBusinessMethod != null &&
+                   GetDayOfWeekMethod != null &&
                    GetEntriesByAddressMethod != null &&
                    CustomerEntrySpawnTimeField != null &&
                    CustomerEntryCompletedField != null &&
@@ -588,13 +701,43 @@ namespace BigHax
 
         private static bool TryUpdateAllCustomerEntries(ModContext? context)
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 UpdateAllCustomerEntriesMethod?.Invoke(null, null);
+                stopwatch.Stop();
+                BigHaxLogger.Diagnostic(
+                    "Freeze diagnostic/customer traffic all-business rebuild completed: elapsedMs=" +
+                    stopwatch.ElapsedMilliseconds + ".");
                 return true;
             }
-            catch
+            catch (Exception exception)
             {
+                stopwatch.Stop();
+                BigHaxLogger.DiagnosticException("Freeze diagnostic/customer traffic all-business rebuild", exception);
+                return false;
+            }
+        }
+
+        private static bool TryUpdateCustomerEntriesForPlayerBusiness(BuildingRegistration registration)
+        {
+            if (UpdateCustomerEntriesForPlayerBusinessMethod == null || GetDayOfWeekMethod == null)
+                return false;
+
+            try
+            {
+                var dayOfWeek = GetDayOfWeekMethod.Invoke(null, null);
+                if (dayOfWeek == null)
+                    return false;
+
+                UpdateCustomerEntriesForPlayerBusinessMethod.Invoke(null, new[] { (object)registration, dayOfWeek });
+                return true;
+            }
+            catch (Exception exception)
+            {
+                BigHaxLogger.DiagnosticException(
+                    "Freeze diagnostic/customer traffic targeted rebuild for " + GetRegistrationKey(registration),
+                    exception);
                 return false;
             }
         }
