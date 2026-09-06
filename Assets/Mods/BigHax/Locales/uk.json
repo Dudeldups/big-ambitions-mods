@@ -46,5 +46,6 @@
   "bighax_enable_instant_imports_label": "Миттєвий імпорт",
   "bighax_enable_instant_furniture_deliveries_label": "Миттєва доставка меблів",
   "bighax_installation_firm_fee_percentage_label": "Плата монтажної компанії",
-  "bighax_maximum_headhunter_recruitment_points_label": "Збільшити очки рекрутингу хедхантера до 1000"
+  "bighax_maximum_headhunter_recruitment_points_label": "Збільшити очки рекрутингу хедхантера до 1000",
+  "bighax_maximum_hr_manager_capacity_label": "Максимальний ліміт працівників HR-менеджера"
 }
