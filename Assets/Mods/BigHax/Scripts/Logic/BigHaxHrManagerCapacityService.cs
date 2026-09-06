@@ -27,18 +27,18 @@ namespace BigHax
 
             if (target == null || replacement == null)
             {
-                BigHaxLogger.HrManagerDiagnostic("HR manager capacity detour failed: method not found.");
+                BigHaxLogger.Diagnostic("HR manager capacity detour failed: method not found.");
                 return;
             }
 
             capacityDetour = new BigHaxMethodDetour(target, replacement);
             if (!capacityDetour.Apply(out var error))
             {
-                BigHaxLogger.HrManagerDiagnostic("HR manager capacity detour failed: " + error);
+                BigHaxLogger.Diagnostic("HR manager capacity detour failed: " + error);
                 return;
             }
 
-            BigHaxLogger.HrManagerDiagnostic("HR manager capacity detour installed.");
+            BigHaxLogger.Diagnostic("HR manager capacity detour installed.");
         }
 
         public void ApplyConfiguredBehavior(BigHaxSettings settings)
@@ -49,7 +49,7 @@ namespace BigHax
                 return;
 
             diagnosticCalculationCount = 0;
-            BigHaxLogger.HrManagerDiagnostic(
+            BigHaxLogger.Diagnostic(
                 "HR manager capacity configured: selectedIndex=" + configuredCapacityIndex +
                 ", selectedCapacity=" + settings.HrManagerCapacity +
                 ", detour=" + (capacityDetour?.IsApplied == true) + ".");
@@ -59,7 +59,7 @@ namespace BigHax
         {
             configuredCapacityIndex = BigHaxSettings.DefaultHrManagerCapacityIndex;
             if (capacityDetour != null && !capacityDetour.Restore(out var error))
-                BigHaxLogger.HrManagerDiagnostic("HR manager capacity detour restore skipped: " + error);
+                BigHaxLogger.Diagnostic("HR manager capacity detour restore skipped: " + error);
 
             capacityDetour = null;
             diagnosticCalculationCount = 0;
@@ -79,7 +79,7 @@ namespace BigHax
             if (diagnosticCalculationCount < DiagnosticCalculationLimit)
             {
                 diagnosticCalculationCount++;
-                BigHaxLogger.HrManagerDiagnostic(
+                BigHaxLogger.Diagnostic(
                     "HR manager capacity calculated: skill=" + skill +
                     ", selectedIndex=" + configuredCapacityIndex +
                     ", overrideActive=" + hasOverride +

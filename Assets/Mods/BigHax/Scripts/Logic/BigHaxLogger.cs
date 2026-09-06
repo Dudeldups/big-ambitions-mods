@@ -20,14 +20,6 @@ namespace BigHax
         public static void Info(ModContext? context, string message) { }
         public static void WarnOnce(ModContext? context, string key, string message) { }
 
-        public static void HrManagerDiagnostic(string message)
-        {
-            if (string.IsNullOrWhiteSpace(message))
-                return;
-
-            Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message);
-        }
-
         [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void StartDiagnosticSession()
         {
