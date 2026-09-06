@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Alle Kurse abschließen? Diese Aktion kann nicht rückgängig gemacht werden.",
   "bighax_unlock_confirmation_button": "Alle freischalten",
   "bighax_enable_instant_imports_label": "Sofortige Importe",
-  "bighax_enable_instant_furniture_deliveries_label": "Sofortige Möbellieferungen"
+  "bighax_enable_instant_furniture_deliveries_label": "Sofortige Möbellieferungen",
+  "bighax_installation_firm_fee_percentage_label": "Gebühr der Installationsfirma",
+  "bighax_maximum_headhunter_recruitment_points_label": "Rekrutierungspunkte von Headhuntern auf 1000 erhöhen"
 }

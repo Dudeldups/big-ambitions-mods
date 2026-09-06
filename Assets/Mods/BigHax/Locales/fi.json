@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Suoritetaanko kaikki kurssit? Toimintoa ei voi kumota.",
   "bighax_unlock_confirmation_button": "Avaa kaikki",
   "bighax_enable_instant_imports_label": "Välittömät tuonnit",
-  "bighax_enable_instant_furniture_deliveries_label": "Välittömät huonekalutoimitukset"
+  "bighax_enable_instant_furniture_deliveries_label": "Välittömät huonekalutoimitukset",
+  "bighax_installation_firm_fee_percentage_label": "Asennusyrityksen maksu",
+  "bighax_maximum_headhunter_recruitment_points_label": "Nosta headhunterin rekrytointipisteet 1000:een"
 }

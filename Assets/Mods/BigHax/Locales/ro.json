@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Finalizezi toate cursurile? Această acțiune nu poate fi anulată.",
   "bighax_unlock_confirmation_button": "Deblochează tot",
   "bighax_enable_instant_imports_label": "Importuri instantanee",
-  "bighax_enable_instant_furniture_deliveries_label": "Livrări instantanee de mobilier"
+  "bighax_enable_instant_furniture_deliveries_label": "Livrări instantanee de mobilier",
+  "bighax_installation_firm_fee_percentage_label": "Taxa firmei de instalare",
+  "bighax_maximum_headhunter_recruitment_points_label": "Mărește punctele de recrutare ale headhunterului la 1000"
 }

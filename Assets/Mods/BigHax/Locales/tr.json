@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Tüm kurslar tamamlansın mı? Bu işlem geri alınamaz.",
   "bighax_unlock_confirmation_button": "Tümünü aç",
   "bighax_enable_instant_imports_label": "Anında ithalat",
-  "bighax_enable_instant_furniture_deliveries_label": "Anında mobilya teslimatları"
+  "bighax_enable_instant_furniture_deliveries_label": "Anında mobilya teslimatları",
+  "bighax_installation_firm_fee_percentage_label": "Kurulum şirketi ücreti",
+  "bighax_maximum_headhunter_recruitment_points_label": "İşe alım uzmanının işe alım puanlarını 1000'e yükselt"
 }

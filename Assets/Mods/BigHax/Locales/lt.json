@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Baigti visus kursus? Šio veiksmo negalima atšaukti.",
   "bighax_unlock_confirmation_button": "Atrakinti viską",
   "bighax_enable_instant_imports_label": "Momentinis importas",
-  "bighax_enable_instant_furniture_deliveries_label": "Momentinis baldų pristatymas"
+  "bighax_enable_instant_furniture_deliveries_label": "Momentinis baldų pristatymas",
+  "bighax_installation_firm_fee_percentage_label": "Montavimo įmonės mokestis",
+  "bighax_maximum_headhunter_recruitment_points_label": "Padidinti talentų medžiotojo atrankos taškus iki 1000"
 }

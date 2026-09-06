@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Ολοκλήρωση όλων των μαθημάτων; Αυτή η ενέργεια δεν αναιρείται.",
   "bighax_unlock_confirmation_button": "Ξεκλείδωμα όλων",
   "bighax_enable_instant_imports_label": "Άμεσες εισαγωγές",
-  "bighax_enable_instant_furniture_deliveries_label": "Άμεσες παραδόσεις επίπλων"
+  "bighax_enable_instant_furniture_deliveries_label": "Άμεσες παραδόσεις επίπλων",
+  "bighax_installation_firm_fee_percentage_label": "Χρέωση εταιρείας εγκατάστασης",
+  "bighax_maximum_headhunter_recruitment_points_label": "Αύξηση πόντων πρόσληψης κυνηγού ταλέντων σε 1000"
 }

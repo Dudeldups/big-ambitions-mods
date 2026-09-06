@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Gennemfør alle kurser? Denne handling kan ikke fortrydes.",
   "bighax_unlock_confirmation_button": "Lås alt op",
   "bighax_enable_instant_imports_label": "Øjeblikkelige importer",
-  "bighax_enable_instant_furniture_deliveries_label": "Øjeblikkelige møbelleveringer"
+  "bighax_enable_instant_furniture_deliveries_label": "Øjeblikkelige møbelleveringer",
+  "bighax_installation_firm_fee_percentage_label": "Installationsfirmaets gebyr",
+  "bighax_maximum_headhunter_recruitment_points_label": "Hæv headhunterens rekrutteringspoint til 1000"
 }

@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "すべてのコースを修了しますか？この操作は元に戻せません。",
   "bighax_unlock_confirmation_button": "すべてアンロック",
   "bighax_enable_instant_imports_label": "即時輸入",
-  "bighax_enable_instant_furniture_deliveries_label": "即時家具配達"
+  "bighax_enable_instant_furniture_deliveries_label": "即時家具配達",
+  "bighax_installation_firm_fee_percentage_label": "設置業者の料金",
+  "bighax_maximum_headhunter_recruitment_points_label": "ヘッドハンターの採用ポイントを1000に増加"
 }

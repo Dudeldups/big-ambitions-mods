@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "完成所有课程？此操作无法撤销。",
   "bighax_unlock_confirmation_button": "全部解锁",
   "bighax_enable_instant_imports_label": "即时进口",
-  "bighax_enable_instant_furniture_deliveries_label": "即时家具配送"
+  "bighax_enable_instant_furniture_deliveries_label": "即时家具配送",
+  "bighax_installation_firm_fee_percentage_label": "安装公司费用",
+  "bighax_maximum_headhunter_recruitment_points_label": "将猎头招聘点数提高到 1000"
 }

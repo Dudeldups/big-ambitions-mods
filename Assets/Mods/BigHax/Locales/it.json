@@ -43,5 +43,7 @@
   "bighax_unlock_all_courses_confirmation": "Completare tutti i corsi? Questa azione non può essere annullata.",
   "bighax_unlock_confirmation_button": "Sblocca tutto",
   "bighax_enable_instant_imports_label": "Importazioni istantanee",
-  "bighax_enable_instant_furniture_deliveries_label": "Consegne di mobili istantanee"
+  "bighax_enable_instant_furniture_deliveries_label": "Consegne di mobili istantanee",
+  "bighax_installation_firm_fee_percentage_label": "Tariffa dell’azienda di installazione",
+  "bighax_maximum_headhunter_recruitment_points_label": "Aumenta a 1000 i punti reclutamento dell’head hunter"
 }
