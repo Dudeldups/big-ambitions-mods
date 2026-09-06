@@ -15,8 +15,8 @@ namespace BigHax
         private static readonly object Sync = new object();
         public static string DiagnosticLogPath => Path.Combine(PreferredLogDirectory, "BigHax-debug.log");
 
-        // Retained as source-compatible no-ops. Release builds should not emit
-        // general diagnostics; use Diagnostic only for a focused test session.
+        // Release logging remains compiled out. Define BIGHAX_DIAGNOSTICS for a
+        // focused troubleshooting build without changing call sites.
         public static void Info(ModContext? context, string message) { }
         public static void WarnOnce(ModContext? context, string key, string message) { }
 
