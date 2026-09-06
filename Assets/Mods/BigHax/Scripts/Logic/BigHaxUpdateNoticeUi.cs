@@ -32,6 +32,7 @@ namespace BigHax
             baUnifiedUi?.Destroy();
             baUnifiedUi = null;
             uiSelectionResolved = false;
+            libraryWaitStartedAt = -1f;
             isVisible = BigHaxOptionPersistence.LoadUpdateNoticeSeenVersion(modId) < CurrentNoticeVersion;
             if (isVisible)
             {
@@ -48,6 +49,13 @@ namespace BigHax
             needsCentering = true;
             hotControlId = 0;
             ResetStyleCache();
+            if (baUnifiedUi != null)
+            {
+                baUnifiedUi.Destroy();
+                baUnifiedUi = null;
+                uiSelectionResolved = false;
+                libraryWaitStartedAt = -1f;
+            }
         }
 
         public void ConsumeGameplayInputIfNeeded()
@@ -75,8 +83,17 @@ namespace BigHax
 
             if (baUnifiedUi != null)
             {
-                baUnifiedUi.EnsureVisible();
-                return;
+                if (baUnifiedUi.EnsureVisible())
+                    return;
+
+                baUnifiedUi.Destroy();
+                baUnifiedUi = null;
+                uiSelectionResolved = false;
+                libraryWaitStartedAt = -1f;
+                if (!ResolveUi(context))
+                    return;
+                if (baUnifiedUi != null && baUnifiedUi.EnsureVisible())
+                    return;
             }
 
             EnsureStyles();
@@ -127,6 +144,7 @@ namespace BigHax
             baUnifiedUi?.Destroy();
             baUnifiedUi = null;
             uiSelectionResolved = false;
+            libraryWaitStartedAt = -1f;
             isVisible = false;
         }
 
@@ -141,6 +159,7 @@ namespace BigHax
                     out var reason))
             {
                 uiSelectionResolved = true;
+                libraryWaitStartedAt = -1f;
                 return true;
             }
 
