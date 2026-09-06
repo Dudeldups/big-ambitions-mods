@@ -238,6 +238,8 @@ namespace BigHax
             AddCategory(Localize("bighax_category_time"));
             AddToggle(Localize("bighax_enable_extended_bed_sleep_label"), () => settings.EnableExtendedBedSleep, value => { settings.EnableExtendedBedSleep = value; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context.ModId, value); });
 
+            AddFeedbackButtons();
+
             AddFooter(panel);
             api.ApplyUiLayer(root);
             root.SetActive(false);
@@ -390,6 +392,55 @@ namespace BigHax
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = Vector2.zero;
+        }
+
+        private void AddFeedbackButtons()
+        {
+            var row = new GameObject("FeedbackLinks", typeof(RectTransform), typeof(LayoutElement));
+            row.transform.SetParent(content!, false);
+            row.GetComponent<LayoutElement>().preferredHeight = 48f;
+
+            var steam = api.CreateVanillaButton(
+                row.transform,
+                "Steam",
+                300f,
+                40f,
+                new UnityAction(BigHaxFeedbackLinks.OpenSteam),
+                "Blue",
+                15f);
+            PositionFeedbackButton(steam, -158f, BigHaxFeedbackLinks.SteamIcon);
+
+            var discord = api.CreateVanillaButton(
+                row.transform,
+                "Discord",
+                300f,
+                40f,
+                new UnityAction(BigHaxFeedbackLinks.OpenDiscord),
+                "Blue",
+                15f);
+            PositionFeedbackButton(discord, 158f, BigHaxFeedbackLinks.DiscordIcon);
+        }
+
+        private static void PositionFeedbackButton(Button button, float x, Sprite icon)
+        {
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(x, 0f);
+            rect.sizeDelta = new Vector2(300f, 40f);
+
+            var iconObject = new GameObject("BrandIcon", typeof(RectTransform), typeof(Image));
+            iconObject.transform.SetParent(button.transform, false);
+            var iconRect = iconObject.GetComponent<RectTransform>();
+            iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
+            iconRect.pivot = new Vector2(0.5f, 0.5f);
+            iconRect.anchoredPosition = new Vector2(28f, 0f);
+            iconRect.sizeDelta = new Vector2(24f, 24f);
+            var image = iconObject.GetComponent<Image>();
+            image.sprite = icon;
+            image.color = Color.white;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
         }
 
         private Scrollbar CreateScrollbar(RectTransform panel)
