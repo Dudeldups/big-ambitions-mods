@@ -31,14 +31,7 @@ namespace CameraStore.Editor
             Product("Action Camera", "camerastore:item_action_camera", "action_camera", 3500),
             Product("Camera Lens", "camerastore:item_camera_lens", "camera_lens", 9000),
             Product("Tripod", "camerastore:item_tripod", "tripod", 1000),
-            new ProductDefinition
-            {
-                Name = "Camera Flash",
-                ItemId = "camerastore:item_camera_flash",
-                PrefabPath = Root + "/Prefabs/camera_flash.prefab",
-                ModelPath = null,
-                TriangleLimit = 1000,
-            },
+            Product("Camera Flash", "camerastore:item_camera_flash", "camera_flash", 1000),
             Product("Camera Bag", "camerastore:item_camera_bag", "camera_bag", 20000),
         };
 
