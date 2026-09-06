@@ -25,12 +25,16 @@
 
 ## Verification
 
-- For runtime C# changes to a supported mod, build the affected mod with:
-  `.\tools\external-build\BuildBigAmbitionsMods.ps1 -ModName "<ModName>"`.
+- For runtime C# changes to a supported mod, build and locally install the
+  affected mod with:
+  `.\tools\external-build\BuildBigAmbitionsMods.ps1 -ModName "<ModName>" -Install`.
 - When a shared API or dependency changes, also build every affected dependent
   mod.
-- Use the build script's `-Install` option only when the user requests local
-  installation or in-game testing.
+- After any change to a mod, install the resulting mod into `ModsLocal` before
+  handing it back for testing. Local installation is a standard completion step
+  and does not require a separate user request.
+- If a changed mod cannot be installed, report the blocker and do not present it
+  as ready for runtime testing.
 - Do not claim that behavior is verified in game unless Big Ambitions was
   launched and the changed behavior was actually observed. Distinguish build
   verification from runtime verification in the final summary.
