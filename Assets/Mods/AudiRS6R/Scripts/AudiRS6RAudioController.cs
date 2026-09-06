@@ -11,11 +11,11 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class AudiRS6RAudioController : MonoBehaviour
 {
-    private const float PitchOffset = 0.60f;
-    private const float PitchRange = 0.95f;
+    private const float PitchOffset = 0.20f;
+    private const float PitchRange = 2.08f;
     private const float BaseVolume = 0.28f;
     private const float VolumeRange = 0.35f;
-    private const float MaxDistortion = 0.08f;
+    private const float MaxDistortion = 0f;
     private const float CabinLowPass = 6500f;
     private const int MaximumAttempts = 20;
     private const float SampleInterval = 5f;
@@ -32,6 +32,9 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private int lastState = -1;
     private bool failureReported;
     private bool sourceMissingReported;
+    private AudioSource? loopSource;
+    private AudioClip? originalClip;
+    private AudioClip? smoothLoop;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -96,26 +99,112 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
              $"maxDistortion={F(engineSound.maxDistortion)} cabinLowPass={F(sounds.lowPassFrequency)}.");
 
         // Keep the native RPM/load calculation and game audio routing. Tune only
-        // this Audi's component values; do not replace clips or bypass player volume.
+        // this Audi's component values without bypassing player volume controls.
         engineSound.pitchOffset = PitchOffset;
         engineSound.pitchRange = PitchRange;
         engineSound.baseVolume = BaseVolume;
         engineSound.volumeRange = VolumeRange;
         engineSound.maxDistortion = MaxDistortion;
         sounds.lowPassFrequency = CabinLowPass;
+        SmoothLoopJoin(engineSound.source);
 
         // The native camera events apply/reset cabin filtering. Refresh once if
         // initialization happens while already inside, including after save load.
         RefreshActiveCabinFilter();
 
         var source = engineSound.source;
-        Info($"configured pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
+        Info($"configured revision=2 pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
              $"baseVolume={F(BaseVolume)} volumeRange={F(VolumeRange)} maxDistortion={F(MaxDistortion)} " +
              $"cabinLowPass={F(CabinLowPass)} clip='{source.clip.name}' " +
              $"length={F(source.clip.length)}s channels={source.clip.channels} hz={source.clip.frequency} " +
              $"mixer='{source.outputAudioMixerGroup?.audioMixer?.name ?? "none"}' " +
              $"group='{source.outputAudioMixerGroup?.name ?? "none"}'.");
         return true;
+    }
+
+    private void SmoothLoopJoin(AudioSource source)
+    {
+        var clip = source.clip;
+        // Bound the one-time allocation and leave streaming/unreadable clips alone.
+        if (clip.length > 30f || clip.channels < 1 || clip.channels > 8 ||
+            clip.loadType == AudioClipLoadType.Streaming)
+        {
+            Warn($"loop repair skipped for unsupported clip '{clip.name}'.");
+            return;
+        }
+        var samples = new float[clip.samples * clip.channels];
+        if (!clip.GetData(samples, 0))
+        {
+            Warn($"loop repair could not read PCM data from '{clip.name}'; retaining original clip.");
+            return;
+        }
+
+        double stepEnergy = 0;
+        double seamEnergy = 0;
+        for (var i = clip.channels; i < samples.Length; i++)
+        {
+            var delta = samples[i] - samples[i - clip.channels];
+            stepEnergy += delta * delta;
+        }
+        for (var channel = 0; channel < clip.channels; channel++)
+        {
+            var delta = samples[channel] - samples[samples.Length - clip.channels + channel];
+            seamEnergy += delta * delta;
+        }
+        var stepRms = (float)Math.Sqrt(stepEnergy / Math.Max(1, samples.Length - clip.channels));
+        var seamRms = (float)Math.Sqrt(seamEnergy / clip.channels);
+        Info($"loop inspection clip='{clip.name}' seamRms={F(seamRms)} " +
+             $"adjacentStepRms={F(stepRms)} seamRatio={F(seamRms / Mathf.Max(stepRms, 0.000001f))}.");
+
+        var fadeFrames = Math.Min((int)(clip.frequency * 0.02f), clip.samples / 4);
+        if (fadeFrames < 2 || seamRms < stepRms * 4f || seamRms < 0.001f)
+        {
+            Info("loop repair unnecessary; retaining original clip.");
+            return;
+        }
+
+        // Overlap the final 20 ms with the beginning, then wrap into the sample
+        // immediately after that beginning. Both ends of the join remain continuous.
+        var outputFrames = clip.samples - fadeFrames;
+        var middleFrames = clip.samples - 2 * fadeFrames;
+        var output = new float[outputFrames * clip.channels];
+        Array.Copy(samples, fadeFrames * clip.channels, output, 0, middleFrames * clip.channels);
+        for (var frame = 0; frame < fadeFrames; frame++)
+        {
+            var blend = (float)frame / (fadeFrames - 1);
+            for (var channel = 0; channel < clip.channels; channel++)
+                output[(middleFrames + frame) * clip.channels + channel] = Mathf.Lerp(
+                    samples[(outputFrames + frame) * clip.channels + channel],
+                    samples[frame * clip.channels + channel], blend);
+        }
+
+        var repaired = AudioClip.Create("AudiRS6R_Car_SmoothLoop", outputFrames, clip.channels, clip.frequency, false);
+        if (!repaired.SetData(output, 0))
+        {
+            Destroy(repaired);
+            Warn("loop repair could not write PCM data; retaining original clip.");
+            return;
+        }
+        loopSource = source;
+        originalClip = clip;
+        smoothLoop = repaired;
+        ReplaceClip(source, repaired);
+        var repairedSeam = 0f;
+        for (var channel = 0; channel < clip.channels; channel++)
+            repairedSeam = Mathf.Max(repairedSeam,
+                Mathf.Abs(output[channel] - output[output.Length - clip.channels + channel]));
+        Info($"loop repaired fadeMs={F(1000f * fadeFrames / clip.frequency)} " +
+             $"length={F(repaired.length)}s boundaryPeak={F(repairedSeam)}; source asset unchanged.");
+    }
+
+    private static void ReplaceClip(AudioSource source, AudioClip clip)
+    {
+        var wasPlaying = source.isPlaying;
+        var position = source.time;
+        source.clip = clip;
+        source.time = position % clip.length;
+        if (wasPlaying)
+            source.Play();
     }
 
     private void LogSample(string reason)
@@ -138,6 +227,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
              $"cameraInside={physics.CameraInsideVehicle} rpmEstimate={F(engine.RPMPercent * engine.revLimiterRPM)} " +
              $"rpmPercent={F(engine.RPMPercent)} throttle={F(engine.ThrottlePosition)} load={F(engine.Load)} " +
              $"playing={source.isPlaying} pitch={F(source.pitch)} volume={F(source.volume)} " +
+             $"clip='{source.clip?.name ?? "none"}' repairedLoopActive={smoothLoop != null && source.clip == smoothLoop} " +
+             $"loop={source.loop} doppler={F(source.dopplerLevel)} " +
              $"masterVolume={F(sounds!.masterVolume)} listenerVolume={F(AudioListener.volume)} " +
              $"mixer='{mixer?.name ?? "none"}' cutoff={ReadMixer(mixer, "lowPassFrequency")} " +
              $"Q={ReadMixer(mixer, "lowPassQ")} distortion={ReadMixer(mixer, "engineDistortion")} " +
@@ -169,6 +260,10 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (loopSource != null && originalClip != null && loopSource.clip == smoothLoop)
+            ReplaceClip(loopSource, originalClip);
+        if (smoothLoop != null)
+            Destroy(smoothLoop);
         if (original == null || engineSound == null || sounds == null)
             return;
         original.Restore(engineSound, sounds);
