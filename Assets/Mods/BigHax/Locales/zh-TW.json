@@ -8,7 +8,7 @@
   "bighax_ui_close_button": "關閉",
   "bighax_ui_fallback_notice": "請在 Steam 工作坊訂閱 LIB BA Unified UI，以獲得更好的體驗。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- 新增玩家功能：停止飢餓、精力和幸福度衰減，並維持狀態條全滿。\n- 新增車輛功能：無損壞、無限燃料和車輛永遠乾淨。\n- 新增解鎖功能、即時進口和家具配送，以及員工滿意度 100%。\n- 修正員工排班要求、Vantander Bank 的 100M $ 貸款和整點卡頓。",
+  "bighax_update_notification": "- 新增安裝公司費用滑桿（0–100%）。\n- 新增將獵頭招募點數提高至 1000 的選項。\n- 修正由顧客流量及睡眠/休息更新引起的反覆卡頓。",
   "bighax_update_notice_got_it": "知道了",
   "bighax_customer_traffic_multiplier_label": "玩家企業顧客倍率",
   "bighax_disable_casino_bet_limit_label": "提高賭場下注上限",

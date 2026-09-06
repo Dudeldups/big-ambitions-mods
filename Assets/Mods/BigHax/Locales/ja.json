@@ -8,7 +8,7 @@
   "bighax_ui_close_button": "閉じる",
   "bighax_ui_fallback_notice": "より快適に利用するには、SteamワークショップでLIB BA Unified UIをサブスクライブしてください。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- 空腹・エネルギー・幸福度の減少を止め、バーを満タンに保つプレイヤーハックを追加。\n- ダメージなし、燃料無限、常にきれいな車両ハックを追加。\n- 連絡先とコースのアンロック、即時輸入・家具配達、従業員満足度100%を追加。\n- 従業員の勤務時間要求、Vantander Bankの100M $融資、毎正時のカクつきを修正。",
+  "bighax_update_notification": "- 設置業者の料金を調整するスライダー（0～100%）を追加。\n- ヘッドハンターの採用ポイントを1000に増加するオプションを追加。\n- 顧客トラフィックと睡眠/休憩の更新によって発生する定期的なフリーズを修正。",
   "bighax_update_notice_got_it": "了解",
   "bighax_customer_traffic_multiplier_label": "プレイヤー企業の顧客倍率",
   "bighax_disable_casino_bet_limit_label": "カジノの賭け金上限を引き上げる",

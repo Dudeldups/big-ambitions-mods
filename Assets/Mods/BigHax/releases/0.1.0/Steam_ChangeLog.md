@@ -1,0 +1,3 @@
+- Added an installation firm fee slider (0–100%).
+- Added an option to raise headhunter recruitment points to 1000.
+- Fixed recurring freezes caused by customer traffic and sleep/rest updates.
