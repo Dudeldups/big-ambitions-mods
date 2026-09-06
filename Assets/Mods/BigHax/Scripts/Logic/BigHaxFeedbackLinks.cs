@@ -72,18 +72,14 @@ namespace BigHax
                 if (!ImageConversion.LoadImage(texture, Convert.FromBase64String(png), markNonReadable: true))
                 {
                     UnityEngine.Object.Destroy(texture);
-                    BigHaxLogger.UiDiagnostic("could not decode " + name + "; button will remain available without its icon.");
                     return null;
                 }
             }
-            catch (Exception exception)
+            catch (Exception)
             {
                 UnityEngine.Object.Destroy(texture);
-                BigHaxLogger.UiDiagnostic("could not decode " + name + "; button will remain available without its icon: " + exception.GetBaseException().Message);
                 return null;
             }
-
-            BigHaxLogger.UiDiagnostic("decoded " + name + " as " + texture.width + "x" + texture.height + ".");
 
             var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 64f);
             sprite.name = name;

@@ -11,7 +11,6 @@ namespace BigHax
         private readonly BigHaxNativeOptionsUi nativeUi;
         private BigHaxBaUnifiedOptionsUi? baUnifiedUi;
         private bool uiSelectionResolved;
-        private string lastUiResolutionReason = string.Empty;
         private const int WindowId = 348721;
         private static readonly string[] CustomerTrafficLabels = { "1x", "1.5x", "2x", "3x", "5x", "10x" };
         private const float WindowWidth = 720f;
@@ -117,7 +116,6 @@ namespace BigHax
             baUnifiedUi = null;
             nativeUi.Destroy();
             uiSelectionResolved = false;
-            lastUiResolutionReason = string.Empty;
             isVisible = false;
         }
 
@@ -134,18 +132,8 @@ namespace BigHax
                     out var reason))
             {
                 uiSelectionResolved = true;
-                lastUiResolutionReason = string.Empty;
                 nativeUi.Destroy();
-                BigHaxLogger.UiDiagnostic(
-                    "selected BA Unified UI " + baUnifiedUi!.LibraryVersion +
-                    " from assembly " + baUnifiedUi.AssemblyName + ".");
                 return true;
-            }
-
-            if (!string.Equals(lastUiResolutionReason, reason, System.StringComparison.Ordinal))
-            {
-                lastUiResolutionReason = reason;
-                BigHaxLogger.UiDiagnostic("BA Unified UI unavailable: " + reason);
             }
 
             // Big Hax can initialize before Workshop mods. Do not permanently
@@ -157,7 +145,6 @@ namespace BigHax
 
             uiSelectionResolved = true;
             nativeUi.EnsureCreated(context, settings, isVisible);
-            BigHaxLogger.UiDiagnostic("selected native fallback after: " + reason);
             return true;
         }
 

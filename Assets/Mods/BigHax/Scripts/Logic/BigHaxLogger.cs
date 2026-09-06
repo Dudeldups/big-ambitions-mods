@@ -20,14 +20,6 @@ namespace BigHax
         public static void Info(ModContext? context, string message) { }
         public static void WarnOnce(ModContext? context, string key, string message) { }
 
-        // Temporary focused logging for the options-renderer runtime validation.
-        // Remove after the BA Unified UI and fallback paths are confirmed in game.
-        public static void UiDiagnostic(string message)
-        {
-            if (!string.IsNullOrWhiteSpace(message))
-                Write("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] Options UI: " + message);
-        }
-
         [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void StartDiagnosticSession()
         {

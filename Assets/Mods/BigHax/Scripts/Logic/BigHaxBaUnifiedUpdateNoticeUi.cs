@@ -54,7 +54,6 @@ namespace BigHax
             catch (Exception exception)
             {
                 candidate.Destroy();
-                BigHaxLogger.UiDiagnostic("update notice BA Unified UI initialization exception: " + exception);
                 reason = "BAUnifiedUI update notice initialization failed: " + exception.GetBaseException().Message;
                 return false;
             }
