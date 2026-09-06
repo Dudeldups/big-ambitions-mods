@@ -198,7 +198,13 @@ namespace BigHax
             AddToggle(Localize("bighax_remove_employee_demands_label"), () => settings.RemoveEmployeeDemands, value => { settings.RemoveEmployeeDemands = value; BigHaxOptionPersistence.SaveRemoveEmployeeDemands(context.ModId, value); });
             AddToggle(Localize("bighax_maximum_employee_satisfaction_label"), () => settings.EnableMaximumEmployeeSatisfaction, value => { settings.EnableMaximumEmployeeSatisfaction = value; BigHaxOptionPersistence.SaveEnableMaximumEmployeeSatisfaction(context.ModId, value); });
             AddToggle(Localize("bighax_maximum_headhunter_recruitment_points_label"), () => settings.EnableMaximumHeadhunterRecruitmentPoints, value => { settings.EnableMaximumHeadhunterRecruitmentPoints = value; BigHaxOptionPersistence.SaveEnableMaximumHeadhunterRecruitmentPoints(context.ModId, value); });
-            AddToggle(Localize("bighax_maximum_hr_manager_capacity_label"), () => settings.EnableMaximumHrManagerCapacity, value => { settings.EnableMaximumHrManagerCapacity = value; BigHaxOptionPersistence.SaveEnableMaximumHrManagerCapacity(context.ModId, value); });
+            AddSlider(
+                Localize("bighax_maximum_hr_manager_capacity_label"),
+                () => settings.HrManagerCapacityIndex,
+                0,
+                BigHaxSettings.HrManagerCapacityValues.Length - 1,
+                value => { settings.HrManagerCapacityIndex = value; BigHaxOptionPersistence.SaveHrManagerCapacityIndex(context.ModId, value); },
+                value => BigHaxSettings.HrManagerCapacityValues[value].ToString());
             AddSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings.EmployeeTrainingSkillIncrease, 10, 100, value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
             AddSeparator();
 

@@ -9,7 +9,7 @@ namespace BigHax
     {
         private const int DiagnosticCalculationLimit = 20;
 
-        private static bool enabled;
+        private static int configuredCapacityIndex;
         private static int diagnosticCalculationCount;
         private BigHaxMethodDetour? capacityDetour;
 
@@ -43,21 +43,21 @@ namespace BigHax
 
         public void ApplyConfiguredBehavior(BigHaxSettings settings)
         {
-            var changed = enabled != settings.EnableMaximumHrManagerCapacity;
-            enabled = settings.EnableMaximumHrManagerCapacity;
+            var changed = configuredCapacityIndex != settings.HrManagerCapacityIndex;
+            configuredCapacityIndex = settings.HrManagerCapacityIndex;
             if (!changed)
                 return;
 
             diagnosticCalculationCount = 0;
             BigHaxLogger.HrManagerDiagnostic(
-                "HR manager capacity configured: enabled=" + enabled +
-                ", override=" + BigHaxSettings.MaximumHrManagerCapacity +
+                "HR manager capacity configured: selectedIndex=" + configuredCapacityIndex +
+                ", selectedCapacity=" + settings.HrManagerCapacity +
                 ", detour=" + (capacityDetour?.IsApplied == true) + ".");
         }
 
         public void Shutdown()
         {
-            enabled = false;
+            configuredCapacityIndex = BigHaxSettings.DefaultHrManagerCapacityIndex;
             if (capacityDetour != null && !capacityDetour.Restore(out var error))
                 BigHaxLogger.HrManagerDiagnostic("HR manager capacity detour restore skipped: " + error);
 
@@ -70,14 +70,19 @@ namespace BigHax
             // Mirrors the vanilla 1.0 formula so disabling the hax preserves the
             // original skill-scaled range of 10 through 50 employees.
             var vanillaCapacity = 10 + (Mathf.FloorToInt(skill / 5f / 5f) * 10);
-            var capacity = enabled ? BigHaxSettings.MaximumHrManagerCapacity : vanillaCapacity;
+            var hasOverride = configuredCapacityIndex > BigHaxSettings.DefaultHrManagerCapacityIndex &&
+                configuredCapacityIndex < BigHaxSettings.HrManagerCapacityValues.Length;
+            var capacity = hasOverride
+                ? BigHaxSettings.HrManagerCapacityValues[configuredCapacityIndex]
+                : vanillaCapacity;
 
             if (diagnosticCalculationCount < DiagnosticCalculationLimit)
             {
                 diagnosticCalculationCount++;
                 BigHaxLogger.HrManagerDiagnostic(
                     "HR manager capacity calculated: skill=" + skill +
-                    ", enabled=" + enabled +
+                    ", selectedIndex=" + configuredCapacityIndex +
+                    ", overrideActive=" + hasOverride +
                     ", vanillaCapacity=" + vanillaCapacity +
                     ", result=" + capacity + ".");
             }

@@ -245,14 +245,18 @@ namespace BigHax
                         settings.EnableMaximumHeadhunterRecruitmentPoints = value;
                         BigHaxOptionPersistence.SaveEnableMaximumHeadhunterRecruitmentPoints(context.ModId, value);
                     });
-                DrawToggleOption(
+                DrawIntSlider(
                     context,
-                    settings.EnableMaximumHrManagerCapacity,
+                    settings,
                     Localize("bighax_maximum_hr_manager_capacity_label"),
+                    settings.HrManagerCapacityIndex,
+                    0,
+                    BigHaxSettings.HrManagerCapacityValues.Length - 1,
+                    value => BigHaxSettings.HrManagerCapacityValues[value].ToString(),
                     value =>
                     {
-                        settings.EnableMaximumHrManagerCapacity = value;
-                        BigHaxOptionPersistence.SaveEnableMaximumHrManagerCapacity(context.ModId, value);
+                        settings.HrManagerCapacityIndex = value;
+                        BigHaxOptionPersistence.SaveHrManagerCapacityIndex(context.ModId, value);
                     });
                 DrawSeparator();
                 var activeVehicleEnabled = GUILayout.Toggle(

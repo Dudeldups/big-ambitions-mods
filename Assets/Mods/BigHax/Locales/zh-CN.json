@@ -47,5 +47,5 @@
   "bighax_enable_instant_furniture_deliveries_label": "即时家具配送",
   "bighax_installation_firm_fee_percentage_label": "安装公司费用",
   "bighax_maximum_headhunter_recruitment_points_label": "将猎头招聘点数提高到 1000",
-  "bighax_maximum_hr_manager_capacity_label": "将人力资源经理的员工管理上限提高到 1000"
+  "bighax_maximum_hr_manager_capacity_label": "人力资源经理最大员工管理数"
 }
