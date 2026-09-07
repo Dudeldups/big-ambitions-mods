@@ -20,12 +20,17 @@ namespace MootorVehicle
         private const string SittingClipName = "SitDeliveryTruck";
         private const string GaitPoseAName = "MootorGaitA";
         private const string GaitPoseBName = "MootorGaitB";
+        private const string LeftEarFlapName = "MootorEarLeft";
+        private const string RightEarFlapName = "MootorEarRight";
         private const float RiderScale = 0.94f;
         private const float ParkedVisualHeightOffset = 0f;
         private const float MountedVisualHeightOffset = -0.18f;
         private const float MooHornVolume = 0.65f;
         private const float GaitStartSpeed = 0.15f;
         private const float GaitFullSpeed = 1.5f;
+        private const float EarFlapDuration = 0.55f;
+        private const float EarFlapMinimumDelay = 3.5f;
+        private const float EarFlapMaximumDelay = 9f;
         private const int MaximumAttempts = 20;
         private const int MaximumEngineStartAttempts = 4;
         private const float DormantEngineGracePeriod = 0.08f;
@@ -58,8 +63,14 @@ namespace MootorVehicle
         private SkinnedMeshRenderer? cowGaitRenderer;
         private int gaitPoseAIndex = -1;
         private int gaitPoseBIndex = -1;
+        private int leftEarFlapIndex = -1;
+        private int rightEarFlapIndex = -1;
         private float gaitPhase;
         private float gaitBlend;
+        private float nextEarFlapAt;
+        private float earFlapStartedAt;
+        private int activeEarMask;
+        private bool earFlapActive;
         private PoseLimb? leftArm;
         private PoseLimb? rightArm;
         private PoseLimb? leftLeg;
@@ -125,6 +136,7 @@ namespace MootorVehicle
             hornPressed = false;
             mountControlGraceUntil = Time.unscaledTime + 0.5f;
             lastFailure = null;
+            ScheduleNextEarFlap(true);
 
             ApplyRideHeight(true);
             LogInfo("mounted; preparing current player appearance.");
@@ -144,6 +156,7 @@ namespace MootorVehicle
                 occupied = false;
                 ApplyRideHeight(false);
                 ResetCowGait();
+                ResetCowEarFlap();
                 mooHornSource?.Stop();
                 RemoveRider();
                 enabled = false;
@@ -154,6 +167,7 @@ namespace MootorVehicle
             UpdateEngineStart();
             UpdateMooHorn();
             UpdateCowGait();
+            UpdateCowEarFlap();
 
             try
             {
@@ -569,6 +583,8 @@ namespace MootorVehicle
             {
                 gaitPoseAIndex = cowGaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseAName);
                 gaitPoseBIndex = cowGaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseBName);
+                leftEarFlapIndex = cowGaitRenderer.sharedMesh.GetBlendShapeIndex(LeftEarFlapName);
+                rightEarFlapIndex = cowGaitRenderer.sharedMesh.GetBlendShapeIndex(RightEarFlapName);
             }
 
             if (gaitPoseAIndex < 0 || gaitPoseBIndex < 0)
@@ -583,6 +599,16 @@ namespace MootorVehicle
                 LogInfo(
                     $"cow gait configured renderer='{cowGaitRenderer!.name}' " +
                     $"poses=({gaitPoseAIndex},{gaitPoseBIndex}).");
+                if (leftEarFlapIndex < 0 || rightEarFlapIndex < 0)
+                {
+                    context?.Logger.Warn(
+                        $"Moo-tor Vehicle rider vehicle={vehicle.GetInstanceID()}: " +
+                        "cow ear blend shapes are missing; ear flaps are disabled.");
+                }
+                else
+                {
+                    LogInfo($"cow ear flaps configured poses=({leftEarFlapIndex},{rightEarFlapIndex}).");
+                }
             }
 
             rideHeightConfigured = true;
@@ -635,6 +661,62 @@ namespace MootorVehicle
             }
 
             gaitBlend = 0f;
+        }
+
+        private void UpdateCowEarFlap()
+        {
+            if (cowGaitRenderer == null || leftEarFlapIndex < 0 || rightEarFlapIndex < 0)
+                return;
+
+            if (!earFlapActive)
+            {
+                if (Time.time < nextEarFlapAt)
+                    return;
+
+                var choice = UnityEngine.Random.value;
+                activeEarMask = choice < 0.4f ? 1 : choice < 0.8f ? 2 : 3;
+                earFlapStartedAt = Time.time;
+                earFlapActive = true;
+            }
+
+            var progress = Mathf.Clamp01((Time.time - earFlapStartedAt) / EarFlapDuration);
+            var weight = Mathf.Sin(progress * Mathf.PI);
+            weight *= weight * 100f;
+            cowGaitRenderer.SetBlendShapeWeight(
+                leftEarFlapIndex,
+                (activeEarMask & 1) != 0 ? weight : 0f);
+            cowGaitRenderer.SetBlendShapeWeight(
+                rightEarFlapIndex,
+                (activeEarMask & 2) != 0 ? weight : 0f);
+
+            if (progress < 1f)
+                return;
+
+            earFlapActive = false;
+            activeEarMask = 0;
+            ScheduleNextEarFlap(false);
+        }
+
+        private void ScheduleNextEarFlap(bool initial)
+        {
+            var minimumDelay = initial ? 1.5f : EarFlapMinimumDelay;
+            var maximumDelay = initial ? 4f : EarFlapMaximumDelay;
+            nextEarFlapAt = Time.time + UnityEngine.Random.Range(minimumDelay, maximumDelay);
+        }
+
+        private void ResetCowEarFlap()
+        {
+            if (cowGaitRenderer != null)
+            {
+                if (leftEarFlapIndex >= 0)
+                    cowGaitRenderer.SetBlendShapeWeight(leftEarFlapIndex, 0f);
+                if (rightEarFlapIndex >= 0)
+                    cowGaitRenderer.SetBlendShapeWeight(rightEarFlapIndex, 0f);
+            }
+
+            earFlapActive = false;
+            activeEarMask = 0;
+            nextEarFlapAt = 0f;
         }
 
         private void LogDrivetrainState(string phase)
@@ -901,6 +983,7 @@ namespace MootorVehicle
         {
             mooHornSource?.Stop();
             ResetCowGait();
+            ResetCowEarFlap();
             RemoveRider();
             occupied = false;
         }

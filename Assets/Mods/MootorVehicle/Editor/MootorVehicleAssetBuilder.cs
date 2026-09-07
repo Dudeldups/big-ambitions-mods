@@ -29,10 +29,13 @@ namespace MootorVehicle.Editor
         private const string BundleVariant = "unity3d";
         private const string GaitPoseAName = "MootorGaitA";
         private const string GaitPoseBName = "MootorGaitB";
+        private const string LeftEarFlapName = "MootorEarLeft";
+        private const string RightEarFlapName = "MootorEarRight";
         private const float TargetCowLength = 3.1f;
         private const float TargetCowGroundOffset = 0.04f;
         private const float BodyColliderGroundClearance = 0.08f;
         private const float GaitLegSwingDegrees = 17f;
+        private const float EarFlapDegrees = 24f;
 
         [MenuItem("Big Ambitions/Moo-tor Vehicle/Build First Version")]
         public static void BuildAll()
@@ -438,6 +441,8 @@ namespace MootorVehicle.Editor
             var vertices = generatedMesh.vertices;
             var poseADeltas = new Vector3[vertices.Length];
             var poseBDeltas = new Vector3[vertices.Length];
+            var leftEarDeltas = new Vector3[vertices.Length];
+            var rightEarDeltas = new Vector3[vertices.Length];
             var zeroNormals = new Vector3[vertices.Length];
             var zeroTangents = new Vector3[vertices.Length];
             var vehiclePositions = new Vector3[vertices.Length];
@@ -509,6 +514,57 @@ namespace MootorVehicle.Editor
             if (componentGroups.Values.Distinct().Count() != 4)
                 throw new InvalidOperationException("Cow gait generation could not isolate four leg components.");
 
+            var componentPositionSums = new Dictionary<int, Vector3>();
+            var componentVertexCounts = new Dictionary<int, int>();
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                var componentRoot = FindVertexRoot(componentParents, index);
+                componentPositionSums.TryGetValue(componentRoot, out var positionSum);
+                componentVertexCounts.TryGetValue(componentRoot, out var vertexCount);
+                componentPositionSums[componentRoot] = positionSum + vehiclePositions[index];
+                componentVertexCounts[componentRoot] = vertexCount + 1;
+            }
+
+            var earMinimumHeight = localCowMin.y + cowBounds.size.y * 0.72f;
+            var earMinimumForward = localCowCenter.z + cowBounds.size.z * 0.18f;
+            var earMinimumLateral = cowBounds.size.x * 0.16f;
+            var earComponents = new HashSet<int>[2]
+            {
+                new HashSet<int>(),
+                new HashSet<int>()
+            };
+
+            foreach (var pair in componentPositionSums)
+            {
+                var componentCenter = pair.Value / componentVertexCounts[pair.Key];
+                if (componentCenter.y < earMinimumHeight ||
+                    componentCenter.z < earMinimumForward ||
+                    Mathf.Abs(componentCenter.x - localCowCenter.x) < earMinimumLateral)
+                {
+                    continue;
+                }
+
+                var side = componentCenter.x < localCowCenter.x ? 0 : 1;
+                earComponents[side].Add(pair.Key);
+            }
+
+            if (earComponents[0].Count != 2 || earComponents[1].Count != 2)
+            {
+                throw new InvalidOperationException(
+                    $"Cow ear generation expected two mesh islands per ear but found " +
+                    $"{earComponents[0].Count}/{earComponents[1].Count}.");
+            }
+
+            var earPivots = new Vector3[2];
+            var earVertexCounts = new int[2];
+            for (var side = 0; side < earComponents.Length; side++)
+                earPivots[side] = CalculateEarPivot(
+                    vehiclePositions,
+                    componentParents,
+                    earComponents[side],
+                    localCowCenter,
+                    side == 0);
+
             for (var index = 0; index < vertices.Length; index++)
             {
                 var vehiclePosition = vehiclePositions[index];
@@ -547,11 +603,38 @@ namespace MootorVehicle.Editor
                 animatedGroupCounts[group]++;
             }
 
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                var componentRoot = FindVertexRoot(componentParents, index);
+                var side = earComponents[0].Contains(componentRoot)
+                    ? 0
+                    : earComponents[1].Contains(componentRoot) ? 1 : -1;
+                if (side < 0)
+                    continue;
+
+                var angle = side == 0 ? EarFlapDegrees : -EarFlapDegrees;
+                var delta = ConvertRotationDelta(
+                    vertices[index],
+                    vehiclePositions[index],
+                    earPivots[side],
+                    angle,
+                    Vector3.forward,
+                    meshFilter.transform,
+                    vehicleRoot);
+                if (side == 0)
+                    leftEarDeltas[index] = delta;
+                else
+                    rightEarDeltas[index] = delta;
+                earVertexCounts[side]++;
+            }
+
             if (animatedVertices == 0)
                 throw new InvalidOperationException("Cow gait generation did not identify any leg vertices.");
 
             generatedMesh.AddBlendShapeFrame(GaitPoseAName, 100f, poseADeltas, zeroNormals, zeroTangents);
             generatedMesh.AddBlendShapeFrame(GaitPoseBName, 100f, poseBDeltas, zeroNormals, zeroTangents);
+            generatedMesh.AddBlendShapeFrame(LeftEarFlapName, 100f, leftEarDeltas, zeroNormals, zeroTangents);
+            generatedMesh.AddBlendShapeFrame(RightEarFlapName, 100f, rightEarDeltas, zeroNormals, zeroTangents);
             generatedMesh.RecalculateBounds();
 
             var existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(CowGaitMeshPath);
@@ -592,7 +675,9 @@ namespace MootorVehicle.Editor
                 $"vertices={vertices.Length} animatedLegVertices={animatedVertices} " +
                 $"hoofSeeds={string.Join("/", seedVertexCounts)} " +
                 $"legComponents={componentGroups.Count} " +
-                $"groups={string.Join("/", animatedGroupCounts)}.");
+                $"groups={string.Join("/", animatedGroupCounts)} " +
+                $"earComponents={earComponents[0].Count}/{earComponents[1].Count} " +
+                $"earVertices={string.Join("/", earVertexCounts)}.");
         }
 
         private static int FindVertexRoot(int[] parents, int index)
@@ -614,6 +699,49 @@ namespace MootorVehicle.Editor
                 parents[secondRoot] = firstRoot;
         }
 
+        private static Vector3 CalculateEarPivot(
+            IReadOnlyList<Vector3> vehiclePositions,
+            int[] componentParents,
+            HashSet<int> earComponents,
+            Vector3 cowCenter,
+            bool isLeft)
+        {
+            var minimumLateralDistance = float.PositiveInfinity;
+            var maximumLateralDistance = 0f;
+            for (var index = 0; index < vehiclePositions.Count; index++)
+            {
+                if (!earComponents.Contains(FindVertexRoot(componentParents, index)))
+                    continue;
+
+                var distance = Mathf.Abs(vehiclePositions[index].x - cowCenter.x);
+                minimumLateralDistance = Mathf.Min(minimumLateralDistance, distance);
+                maximumLateralDistance = Mathf.Max(maximumLateralDistance, distance);
+            }
+
+            var attachmentLimit = Mathf.Lerp(minimumLateralDistance, maximumLateralDistance, 0.2f);
+            var attachmentSum = Vector3.zero;
+            var attachmentVertices = 0;
+            for (var index = 0; index < vehiclePositions.Count; index++)
+            {
+                if (!earComponents.Contains(FindVertexRoot(componentParents, index)))
+                    continue;
+
+                var position = vehiclePositions[index];
+                if (Mathf.Abs(position.x - cowCenter.x) > attachmentLimit)
+                    continue;
+
+                attachmentSum += position;
+                attachmentVertices++;
+            }
+
+            if (attachmentVertices == 0)
+                throw new InvalidOperationException("Cow ear generation could not locate an ear attachment.");
+
+            var pivot = attachmentSum / attachmentVertices;
+            pivot.x = cowCenter.x + (isLeft ? -minimumLateralDistance : minimumLateralDistance);
+            return pivot;
+        }
+
         private static Vector3 ConvertGaitDelta(
             Vector3 meshPosition,
             Vector3 vehiclePosition,
@@ -622,8 +750,27 @@ namespace MootorVehicle.Editor
             Transform meshTransform,
             Transform vehicleRoot)
         {
+            return ConvertRotationDelta(
+                meshPosition,
+                vehiclePosition,
+                pivot,
+                angle,
+                Vector3.right,
+                meshTransform,
+                vehicleRoot);
+        }
+
+        private static Vector3 ConvertRotationDelta(
+            Vector3 meshPosition,
+            Vector3 vehiclePosition,
+            Vector3 pivot,
+            float angle,
+            Vector3 axis,
+            Transform meshTransform,
+            Transform vehicleRoot)
+        {
             var rotatedVehiclePosition =
-                pivot + Quaternion.AngleAxis(angle, Vector3.right) * (vehiclePosition - pivot);
+                pivot + Quaternion.AngleAxis(angle, axis) * (vehiclePosition - pivot);
             var rotatedWorldPosition = vehicleRoot.TransformPoint(rotatedVehiclePosition);
             return meshTransform.InverseTransformPoint(rotatedWorldPosition) - meshPosition;
         }
@@ -840,6 +987,9 @@ namespace MootorVehicle.Editor
                 var gaitConfigured = gaitRenderer?.sharedMesh != null &&
                     gaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseAName) >= 0 &&
                     gaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseBName) >= 0;
+                var earFlapsConfigured = gaitRenderer?.sharedMesh != null &&
+                    gaitRenderer.sharedMesh.GetBlendShapeIndex(LeftEarFlapName) >= 0 &&
+                    gaitRenderer.sharedMesh.GetBlendShapeIndex(RightEarFlapName) >= 0;
                 var rigidbody = bundledPrefab.GetComponent<Rigidbody>();
                 var bodyCollider = bundledPrefab.GetComponentInChildren<BoxCollider>(true);
                 var hornConfigured = false;
@@ -857,18 +1007,20 @@ namespace MootorVehicle.Editor
                 }
 
                 if (wheelControllers != 4 || cowRenderers == 0 || seat == null ||
-                    rigidbody == null || bodyCollider == null || !hornConfigured || !gaitConfigured)
+                    rigidbody == null || bodyCollider == null || !hornConfigured ||
+                    !gaitConfigured || !earFlapsConfigured)
                 {
                     throw new InvalidOperationException(
                         $"Built bundle validation failed: type={bundledType.name} wheels={wheelControllers} " +
                         $"cowRenderers={cowRenderers} seat={seat != null} rigidbody={rigidbody != null} " +
-                        $"bodyCollider={bodyCollider != null} horn={hornConfigured} gait={gaitConfigured}.");
+                        $"bodyCollider={bodyCollider != null} horn={hornConfigured} " +
+                        $"gait={gaitConfigured} earFlaps={earFlapsConfigured}.");
                 }
 
                 Debug.Log(
                     $"Moo-tor Vehicle: validated built bundle type='{bundledType.name}' " +
                     $"wheels={wheelControllers} cowRenderers={cowRenderers} riderSeat=true " +
-                    $"mass={rigidbody.mass:F0} horn='Moo' gait=true.");
+                    $"mass={rigidbody.mass:F0} horn='Moo' gait=true earFlaps=true.");
             }
             finally
             {
