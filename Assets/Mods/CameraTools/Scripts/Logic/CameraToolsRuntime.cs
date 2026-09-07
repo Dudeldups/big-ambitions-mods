@@ -232,6 +232,7 @@ namespace CameraTools
         private bool hasManualVehiclePitch;
         private bool hasManualVehicleYaw;
         private bool isVehicleRuntimeSuspendedForMap;
+        private bool vehicleRuntimeHadCameraBeforeMap;
         private bool hasForcedIndoorWallsPartlyHidden;
         private bool hasShownGameplayPitchHint;
         private bool isUiHidden;
@@ -341,6 +342,7 @@ namespace CameraTools
             runtime.hasManualVehiclePitch = false;
             runtime.hasManualVehicleYaw = false;
             runtime.isVehicleRuntimeSuspendedForMap = false;
+            runtime.vehicleRuntimeHadCameraBeforeMap = false;
             runtime.hasForcedIndoorWallsPartlyHidden = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isUiHidden = false;
@@ -463,7 +465,6 @@ namespace CameraTools
                 ApplyGameplayTweaks();
             if (!cityMapOpen)
             {
-                ResumeVehicleRuntimeStateAfterMap();
                 ApplyVehicleTweaks(gameplayActive);
             }
             else

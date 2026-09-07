@@ -1,5 +1,4 @@
 #nullable enable
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
@@ -8,7 +7,12 @@ namespace CameraTools
 {
     public sealed partial class CameraToolsRuntime
     {
-        private readonly List<MapFogVolumeState> mapFogVolumeStates = new List<MapFogVolumeState>();
+        private const float MapFogOverridePriority = 10000f;
+
+        private GameObject? mapFogOverrideObject;
+        private Volume? mapFogOverrideVolume;
+        private VolumeProfile? mapFogOverrideProfile;
+        private bool mapFogOverrideActive;
         private HDAdditionalCameraData? mapFogCameraData;
         private bool savedMapCustomRenderingSettings;
         private bool savedMapAtmosphericScattering;
@@ -18,7 +22,6 @@ namespace CameraTools
         private bool savedMapVolumetricsOverride;
         private bool savedMapVolumetricReprojectionOverride;
         private bool hasSavedMapFogCameraState;
-        private bool hasCapturedMapFogVolumes;
         private int lastMissingMapFogCameraId;
 
         private void UpdateCityMapFogSuppression(bool cityMapOpen)
@@ -29,27 +32,38 @@ namespace CameraTools
                 return;
             }
 
-            if (!hasCapturedMapFogVolumes)
-                CaptureCityMapFogVolumes();
-            ApplyCityMapFogVolumes();
-
             var renderCamera = activeMapRenderCamera ?? GetLiveMainCamera();
+            var cameraData = renderCamera == null ? null : renderCamera.GetComponent<HDAdditionalCameraData>();
+            EnsureCityMapFogOverride(cameraData);
+            if (mapFogOverrideVolume != null)
+            {
+                mapFogOverrideVolume.enabled = true;
+                mapFogOverrideVolume.weight = 1f;
+            }
+
+            if (!mapFogOverrideActive)
+            {
+                mapFogOverrideActive = true;
+                context?.Logger.Info(
+                    $"CameraTools: city-map fog override activated; priority={MapFogOverridePriority:0}, layer={(mapFogOverrideObject == null ? -1 : mapFogOverrideObject.layer)}.");
+            }
+
             if (renderCamera == null)
                 return;
 
-            var cameraData = renderCamera.GetComponent<HDAdditionalCameraData>();
             if (cameraData == null)
             {
                 var cameraId = renderCamera.GetInstanceID();
                 if (cameraId != lastMissingMapFogCameraId)
                 {
                     lastMissingMapFogCameraId = cameraId;
-                    context?.Logger.Warn($"CameraTools: map camera '{renderCamera.name}' has no HDRP camera data; volume fog suppression remains active.");
+                    context?.Logger.Warn($"CameraTools: map camera '{renderCamera.name}' has no HDRP camera data; the global fog override remains active.");
                 }
                 return;
             }
 
             lastMissingMapFogCameraId = 0;
+            ConfigureCityMapFogOverrideLayer(cameraData);
             if (mapFogCameraData != cameraData)
             {
                 RestoreCityMapFogCameraState();
@@ -59,49 +73,52 @@ namespace CameraTools
             ApplyCityMapFogCameraState(cameraData);
         }
 
-        private void CaptureCityMapFogVolumes()
+        private void EnsureCityMapFogOverride(HDAdditionalCameraData? cameraData)
         {
-            hasCapturedMapFogVolumes = true;
-            mapFogVolumeStates.Clear();
-            var seenFogComponents = new HashSet<int>();
-            var activeVolumeCount = 0;
+            if (mapFogOverrideObject != null && mapFogOverrideVolume != null && mapFogOverrideProfile != null)
+                return;
 
-            foreach (var volume in Resources.FindObjectsOfTypeAll<Volume>())
+            mapFogOverrideObject = new GameObject("CameraTools City Map Fog Override")
             {
-                if (volume == null || !volume.isActiveAndEnabled || !volume.gameObject.activeInHierarchy)
-                    continue;
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            mapFogOverrideObject.transform.SetParent(transform, false);
 
-                activeVolumeCount++;
-                var profile = volume.profile;
-                if (profile == null || !profile.TryGet<Fog>(out var fog) || fog == null)
-                    continue;
+            mapFogOverrideProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+            mapFogOverrideProfile.name = "CameraTools City Map Fog Override";
+            mapFogOverrideProfile.hideFlags = HideFlags.HideAndDontSave;
+            var fog = mapFogOverrideProfile.Add<Fog>(true);
+            fog.enabled.Override(false);
+            fog.enableVolumetricFog.Override(false);
 
-                var fogId = fog.GetInstanceID();
-                if (!seenFogComponents.Add(fogId))
-                    continue;
-
-                mapFogVolumeStates.Add(new MapFogVolumeState(
-                    fog,
-                    fog.enabled.value,
-                    fog.enabled.overrideState));
-            }
-
-            context?.Logger.Info(
-                $"CameraTools: city-map fog volume scan completed; activeVolumes={activeVolumeCount}, fogComponents={mapFogVolumeStates.Count}.");
-            if (mapFogVolumeStates.Count == 0)
-                context?.Logger.Warn("CameraTools: no active HDRP fog volume was found while opening the city map.");
+            mapFogOverrideVolume = mapFogOverrideObject.AddComponent<Volume>();
+            mapFogOverrideVolume.isGlobal = true;
+            mapFogOverrideVolume.priority = MapFogOverridePriority;
+            mapFogOverrideVolume.blendDistance = 0f;
+            mapFogOverrideVolume.weight = 1f;
+            mapFogOverrideVolume.sharedProfile = mapFogOverrideProfile;
+            ConfigureCityMapFogOverrideLayer(cameraData);
         }
 
-        private void ApplyCityMapFogVolumes()
+        private void ConfigureCityMapFogOverrideLayer(HDAdditionalCameraData? cameraData)
         {
-            foreach (var state in mapFogVolumeStates)
+            if (cameraData == null || mapFogOverrideObject == null)
+                return;
+
+            var volumeLayerMask = cameraData.volumeLayerMask.value;
+            if ((volumeLayerMask & (1 << mapFogOverrideObject.layer)) != 0)
+                return;
+
+            for (var layer = 0; layer < 32; layer++)
             {
-                if (state.Fog == null)
+                if ((volumeLayerMask & (1 << layer)) == 0)
                     continue;
 
-                state.Fog.enabled.overrideState = true;
-                state.Fog.enabled.value = false;
+                mapFogOverrideObject.layer = layer;
+                return;
             }
+
+            context?.Logger.Warn("CameraTools: map camera volume layer mask contains no layers; the fog override cannot be evaluated.");
         }
 
         private void CaptureCityMapFogCameraState(HDAdditionalCameraData cameraData)
@@ -118,7 +135,7 @@ namespace CameraTools
             savedMapVolumetricsOverride = overrideMask.mask[(uint)FrameSettingsField.Volumetrics];
             savedMapVolumetricReprojectionOverride = overrideMask.mask[(uint)FrameSettingsField.ReprojectionForVolumetrics];
             hasSavedMapFogCameraState = true;
-            context?.Logger.Info($"CameraTools: city-map fog rendering disabled for camera '{cameraData.name}'.");
+            context?.Logger.Info($"CameraTools: city-map atmospheric rendering disabled for camera '{cameraData.name}'.");
         }
 
         private static void ApplyCityMapFogCameraState(HDAdditionalCameraData cameraData)
@@ -140,22 +157,14 @@ namespace CameraTools
         private void RestoreCityMapFogState()
         {
             RestoreCityMapFogCameraState();
+            if (mapFogOverrideVolume != null)
+                mapFogOverrideVolume.enabled = false;
 
-            var restoredVolumeCount = 0;
-            foreach (var state in mapFogVolumeStates)
-            {
-                if (state.Fog == null)
-                    continue;
+            if (!mapFogOverrideActive)
+                return;
 
-                state.Fog.enabled.value = state.EnabledValue;
-                state.Fog.enabled.overrideState = state.EnabledOverrideState;
-                restoredVolumeCount++;
-            }
-
-            mapFogVolumeStates.Clear();
-            if (hasCapturedMapFogVolumes)
-                context?.Logger.Info($"CameraTools: city-map fog restored; fogComponents={restoredVolumeCount}.");
-            hasCapturedMapFogVolumes = false;
+            mapFogOverrideActive = false;
+            context?.Logger.Info("CameraTools: city-map fog override deactivated and normal fog restored.");
         }
 
         private void RestoreCityMapFogCameraState()
@@ -181,20 +190,6 @@ namespace CameraTools
 
             mapFogCameraData = null;
             hasSavedMapFogCameraState = false;
-        }
-
-        private sealed class MapFogVolumeState
-        {
-            public MapFogVolumeState(Fog fog, bool enabledValue, bool enabledOverrideState)
-            {
-                Fog = fog;
-                EnabledValue = enabledValue;
-                EnabledOverrideState = enabledOverrideState;
-            }
-
-            public Fog Fog { get; }
-            public bool EnabledValue { get; }
-            public bool EnabledOverrideState { get; }
         }
     }
 }

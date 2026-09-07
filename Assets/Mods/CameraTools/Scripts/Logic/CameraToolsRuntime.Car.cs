@@ -41,15 +41,23 @@ namespace CameraTools
 
             if (!gameplayActive)
             {
+                if (isVehicleRuntimeSuspendedForMap && vehicleRuntimeHadCameraBeforeMap)
+                    return;
+
                 ResetVehicleRuntimeState();
                 return;
             }
 
             if (!hasActiveVehicleCamera)
             {
+                if (isVehicleRuntimeSuspendedForMap && vehicleRuntimeHadCameraBeforeMap)
+                    return;
+
                 ResetVehicleRuntimeState();
                 return;
             }
+
+            ResumeVehicleRuntimeStateAfterMap();
 
             if (vehicleTarget == null || !IsVehicleTargetStillValid(vehicleTarget))
                 ResolveVehicleTarget(forceSearch: false, allowExpensiveSearch: true);
@@ -601,6 +609,7 @@ namespace CameraTools
         private void ResetVehicleRuntimeState()
         {
             isVehicleRuntimeSuspendedForMap = false;
+            vehicleRuntimeHadCameraBeforeMap = false;
             activeVehicleCameraRoot = null;
             desiredVehicleDistance = float.NaN;
             vehicleTarget = null;
@@ -625,9 +634,10 @@ namespace CameraTools
                 return;
 
             isVehicleRuntimeSuspendedForMap = true;
+            vehicleRuntimeHadCameraBeforeMap = activeVehicleCameraRoot != null;
             needsVehicleDistanceReapply = true;
             context?.Logger.Info(
-                $"CameraTools: vehicle camera suspended for city map; preserving pitch={hasManualVehiclePitch}, yaw={hasManualVehicleYaw}, yawDegrees={manualVehicleYaw:0.##}.");
+                $"CameraTools: vehicle camera suspended for city map; hadCamera={vehicleRuntimeHadCameraBeforeMap}, preserving pitch={hasManualVehiclePitch}, yaw={hasManualVehicleYaw}, yawDegrees={manualVehicleYaw:0.##}.");
         }
 
         private void ResumeVehicleRuntimeStateAfterMap()
@@ -636,8 +646,11 @@ namespace CameraTools
                 return;
 
             isVehicleRuntimeSuspendedForMap = false;
+            vehicleRuntimeHadCameraBeforeMap = false;
+            if (hasManualVehicleYaw && settings != null)
+                ApplyVehicleDistance(GetCurrentVehicleZoomDistance(settings.VehicleMaxZoom), "map-resume-yaw");
             context?.Logger.Info(
-                $"CameraTools: vehicle camera resumed after city map; autoRecenter={hasManualVehicleYaw}, yawDegrees={manualVehicleYaw:0.##}.");
+                $"CameraTools: live vehicle camera resumed after city map; yawReapplied={hasManualVehicleYaw}, yawDegrees={manualVehicleYaw:0.##}.");
         }
 
         private bool ApplyVehicleDistanceToCameras(float distance, float maxZoom)
