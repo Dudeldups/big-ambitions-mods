@@ -26,7 +26,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private AudioSource? hornSource;
     private AudioClip[]? popClips;
     private float originalDistortion;
-    private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted, hornReported;
+    private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
     private int attempts;
     private float nextAttempt, smoothRpm, smoothThrottle, envelope, driveBlend, loadBlend;
 
@@ -99,8 +99,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         hornSource = CreateSource(hornHost, LoadClip("Horn"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info($"custom engine audio, exhaust pops, and horn initialized; hornMixer=" +
-             $"'{hornSource.outputAudioMixerGroup?.name ?? native.outputAudioMixerGroup.name}'.");
         return true;
     }
 
@@ -235,11 +233,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         if (pressed && !hornSource.isPlaying)
         {
             hornSource.Play();
-            if (!hornReported)
-            {
-                hornReported = true;
-                Info("horn input received; loop playback started.");
-            }
         }
         else if (!pressed && hornSource.volume <= 0f && hornSource.isPlaying)
         {
@@ -253,7 +246,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popGate.Reset();
     }
 
-    private void Info(string message) => context?.Logger.Info($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
     private void Warn(string message) => context?.Logger.Warn($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RestoreMute()

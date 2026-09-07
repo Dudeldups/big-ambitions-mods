@@ -41,7 +41,7 @@ The original Audi prefab has an empty native horn clip and a base volume of zero
 
 The horn is a one-second, dual-tone 405/510 Hz sound with restrained harmonics and a small periodic diaphragm wobble. Its exact one-second periodic construction and near-zero-slope boundary avoid clicks while held. Playback fades to or from 0.72 times the vehicle master volume over 0.1 seconds. This is about 3.2 dB louder than the initial 0.5 calibration after in-game testing confirmed the tone and behavior but found the horn slightly quiet. It remains available with the engine stopped, but only while the Audi is player-controlled and gameplay is unpaused. The source copies the vehicle's native "other" source spatial/mixer settings when available, with the engine source as a safe fallback.
 
-Initialization logs the selected horn mixer once, and the first recognized horn input per Audi logs that playback started. Failures continue through the existing audio warning/fallback. Run `python tools~/test_horn_audio.py` to validate PCM format, duration, RMS/headroom, dual tones, high-frequency limit and loop boundary. In-game testing must confirm H press/hold/release, position, loudness and mixer behavior.
+Temporary horn initialization and input diagnostics were removed after in-game validation. Failures continue through the existing audio warning/fallback. Run `python tools~/test_horn_audio.py` to validate PCM format, duration, RMS/headroom, dual tones, high-frequency limit and loop boundary. In-game testing confirmed H press/hold/release, tone and the final 0.72 playback gain.
 
 ## Exhaust pop option
 
