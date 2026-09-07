@@ -230,7 +230,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private void UpdateHorn(bool pressed, float master)
     {
         if (hornSource == null) return;
-        var target = pressed ? master * .5f : 0f;
+        var target = pressed ? master * AudiRS6RAudioModel.HornVolume : 0f;
         hornSource.volume = Mathf.MoveTowards(hornSource.volume, target, Time.unscaledDeltaTime * 5f);
         if (pressed && !hornSource.isPlaying)
         {
