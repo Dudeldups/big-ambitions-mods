@@ -3,10 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using BAModAPI.Services;
 using BigAmbitions.Items;
 using BigAmbitions.SaveSystem;
-using Helpers;
 using UnityEngine;
 
 namespace CameraStore
@@ -28,58 +26,57 @@ namespace CameraStore
         };
         private static readonly HashSet<string> LoggedPrefabIds = new(StringComparer.Ordinal);
 
-        private CameraStoreMethodDetour? createPrefabItemDetour;
+        private CameraStoreMethodDetour? getIdWithoutTypeDetour;
 
         public void Apply(AssetBundle bundle)
         {
             ValidateBundledPrefabs(bundle);
 
-            var target = typeof(PrefabHelper).GetMethod(
-                nameof(PrefabHelper.CreatePrefabItem),
+            var target = typeof(StringIdExtensions).GetMethod(
+                nameof(StringIdExtensions.GetIdWithoutType),
                 BindingFlags.Public | BindingFlags.Static,
                 null,
-                new[] { typeof(string), typeof(Transform) },
+                new[] { typeof(string) },
                 null);
             var replacement = typeof(CameraStorePrefabResolver).GetMethod(
-                nameof(CreatePrefabItem),
+                nameof(GetIdWithoutType),
                 BindingFlags.NonPublic | BindingFlags.Static);
             if (target == null || replacement == null)
-                throw new MissingMethodException("Camera Store could not resolve PrefabHelper.CreatePrefabItem.");
+                throw new MissingMethodException("Camera Store could not resolve StringIdExtensions.GetIdWithoutType.");
 
-            createPrefabItemDetour = new CameraStoreMethodDetour(target, replacement);
-            if (!createPrefabItemDetour.Apply(out var error))
-                throw new InvalidOperationException("Camera Store could not install its stable-ID prefab resolver: " + error);
+            getIdWithoutTypeDetour = new CameraStoreMethodDetour(target, replacement);
+            if (!getIdWithoutTypeDetour.Apply(out var error))
+                throw new InvalidOperationException("Camera Store could not install its stable-ID asset-key resolver: " + error);
         }
 
         public void Restore()
         {
-            if (createPrefabItemDetour == null)
+            if (getIdWithoutTypeDetour == null)
                 return;
 
-            if (!createPrefabItemDetour.Restore(out var error))
-                Debug.LogWarning("Camera Store could not restore PrefabHelper.CreatePrefabItem: " + error);
+            if (!getIdWithoutTypeDetour.Restore(out var error))
+                Debug.LogWarning("Camera Store could not restore StringIdExtensions.GetIdWithoutType: " + error);
 
-            createPrefabItemDetour = null;
+            getIdWithoutTypeDetour = null;
             LoggedPrefabIds.Clear();
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ItemController CreatePrefabItem(string itemName, Transform itemContainer)
+        private static string GetIdWithoutType(string id)
         {
-            var isCameraStoreItem = PrefabKeys.TryGetValue(itemName, out var cameraStorePrefabKey);
-            var prefabKey = isCameraStoreItem
-                ? cameraStorePrefabKey
-                : itemName.GetIdWithoutType();
-            if (isCameraStoreItem && LoggedPrefabIds.Add(itemName))
-                Debug.Log("[Camera Store] Resolved " + itemName + " to Prefabs/" + prefabKey + ".prefab.");
+            if (PrefabKeys.TryGetValue(id, out var cameraStorePrefabKey))
+            {
+                if (LoggedPrefabIds.Add(id))
+                    Debug.Log("[Camera Store] Resolved stable ID " + id + " to asset key " + cameraStorePrefabKey + ".");
 
-            var controller = PrefabHelper.CreatePrefab<ItemController>(prefabKey, itemContainer);
-            controller.itemName = itemName;
+                return cameraStorePrefabKey;
+            }
 
-            if (ItemsGetter.IsModItem(itemName))
-                AssetService.RemapShaders(controller.gameObject, null);
+            // Preserve the game's implementation exactly for every ID not owned by Camera Store.
+            if (string.IsNullOrWhiteSpace(id) || !id.Contains("_"))
+                return string.Empty;
 
-            return controller;
+            return id.Split(new[] { '_' }, StringSplitOptions.None)[1];
         }
 
         private static void ValidateBundledPrefabs(AssetBundle bundle)
