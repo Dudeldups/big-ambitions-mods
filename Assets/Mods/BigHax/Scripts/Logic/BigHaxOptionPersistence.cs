@@ -293,23 +293,35 @@ namespace BigHax
         private static int SnapToStep(int value, int[] values, bool roundTowardLowerValue)
         {
             var selected = values[0];
-            if (roundTowardLowerValue)
-            {
-                for (var index = 0; index < values.Length; index++)
-                {
-                    selected = values[index];
-                    if (values[index] <= value)
-                        return values[index];
-                }
-
-                return selected;
-            }
+            var selectedDistance = long.MaxValue;
 
             for (var index = 0; index < values.Length; index++)
             {
-                selected = values[index];
-                if (values[index] >= value)
-                    return values[index];
+                var candidate = values[index];
+                if (roundTowardLowerValue && candidate > value)
+                    continue;
+
+                if (!roundTowardLowerValue && candidate < value)
+                    continue;
+
+                var distance = System.Math.Abs((long)candidate - value);
+                if (distance < selectedDistance)
+                {
+                    selected = candidate;
+                    selectedDistance = distance;
+                }
+            }
+
+            if (selectedDistance != long.MaxValue)
+                return selected;
+
+            selected = values[0];
+            for (var index = 0; index < values.Length; index++)
+            {
+                if (roundTowardLowerValue && values[index] < selected)
+                    selected = values[index];
+                else if (!roundTowardLowerValue && values[index] > selected)
+                    selected = values[index];
             }
 
             return selected;

@@ -37,7 +37,7 @@ namespace BigHax
         public static readonly float[] CustomerTrafficMultiplierValues = { 1f, 1.5f, 2f, 3f, 5f, 10f };
         public static readonly int[] HrManagerCapacityValues = { 50, 100, 500, 1000, 10000 };
         public static readonly int[] EmployeeTrainingSkillIncreaseValues = { 10, 20, 30, 50, 100 };
-        public static readonly int[] InstallationFirmFeePercentageValues = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0 };
+        public static readonly int[] InstallationFirmFeePercentageValues = { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
         public static readonly int[] FreightTruckT1DeliveryPlacesValues = { 8, 16, 24, 80, 160 };
         public static readonly int[] StandardFridgeCapacityValues = { 50, 100, 200, 500, 1000 };
         public static readonly int[] PalletShelfCapacityValues = { 60, 120, 240, 500, 1000 };
