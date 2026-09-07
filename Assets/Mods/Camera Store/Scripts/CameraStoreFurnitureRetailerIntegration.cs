@@ -10,7 +10,8 @@ namespace CameraStore
         private static readonly string[] RetailerContactIds =
         {
             "AJ Pederson & Son",
-            "Essentials Appliances"
+            "Essentials Appliances",
+            "Hampton Supplies"
         };
 
         private readonly Dictionary<string, RetailerState> states =

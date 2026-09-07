@@ -77,11 +77,12 @@ namespace CameraStore
 
                 if (!furnitureRetailersReady)
                     throw new InvalidOperationException(
-                        "Camera Store could not find AJ Pederson & Son and Essentials Appliances.");
+                        "Camera Store could not find AJ Pederson & Son, Essentials Appliances, and Hampton Supplies.");
 
                 context.Logger.Info(
                     "Camera Store products added to BlueStone Imports and retail fixtures; " +
-                    "Camera Display and Accessories Shelf added to AJ Pederson & Son and Essentials Appliances.");
+                    "Camera Display and Accessories Shelf added to AJ Pederson & Son, Essentials Appliances, " +
+                    "and Hampton Supplies.");
             }
             catch (Exception exception)
             {
