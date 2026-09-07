@@ -1,0 +1,24 @@
+{
+  "source": "EngineHigh.wav",
+  "source_sha256": "2a9cd30b18fc32718216a4bac87eeeff2f2bfa5773fa761d9fa9eb6ec5ea034f",
+  "output_sha256": "b780d3202738a2ee87343efdf5fc286edae426294e74436eabb2c5e4402fbafb",
+  "sample_rate": 44100,
+  "channels": 1,
+  "duration_seconds": 0.37501133786848073,
+  "method": "One voice; periodic EQ: 38 Hz high-pass, broad 190 Hz body emphasis, 1400 Hz low-pass; PCM16.",
+  "before": {
+    "rms": 0.15999999664825743,
+    "peak": 0.581146240234375,
+    "seam_step": 0.041168212890625,
+    "body_power_share": 0.6001341601641864,
+    "upper_power_share": 0.013111625489041417
+  },
+  "after": {
+    "rms": 0.21000008622139238,
+    "peak": 0.635406494140625,
+    "seam_step": 3.0517578125e-05,
+    "body_power_share": 0.7379161171943811,
+    "upper_power_share": 8.20520970312813e-05
+  },
+  "calibration": "Artistic timbre and pitch mapping, not measured engine RPM or cylinder-count synthesis."
+}

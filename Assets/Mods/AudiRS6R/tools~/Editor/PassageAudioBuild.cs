@@ -8,7 +8,15 @@ public static class PassageAudioBuild
     public static void Build()
     {
         string root = "Assets/Mods/AudiRS6R/Audio/Passage01/";
-        string[] paths = { root + "EngineLow.wav", root + "EngineMid.wav", root + "EngineHigh.wav" };
+        string[] paths = { root + "EngineBody.wav" };
+        float previous = 0;
+        for (int i = 0; i <= 1000; i++)
+        {
+            float pitch = AudiRS6REngineTone.Pitch(i / 1000f);
+            if (float.IsNaN(pitch) || pitch < .649f || pitch > 1.851f || pitch < previous)
+                throw new Exception("Invalid production pitch curve.");
+            previous = pitch;
+        }
         foreach (var path in paths)
         {
             var importer = (AudioImporter)AssetImporter.GetAtPath(path);
@@ -38,9 +46,10 @@ public static class PassageAudioBuild
         // Inspect the actual Windows bundle, rather than only the imported source clips.
         var bundle = AssetBundle.LoadFromFile("AudioBuild/Windows/audirs6r-engine.unity3d");
         if (bundle == null) throw new Exception("Cannot reload audio bundle.");
+        if (bundle.LoadAllAssets<AudioClip>().Length != 1) throw new Exception("Expected exactly one engine voice.");
         foreach (var path in paths)
             if (bundle.LoadAsset<AudioClip>(path) == null) throw new Exception("Missing packaged clip: " + path);
         bundle.Unload(true);
-        Debug.Log("[PassageAudioBuild] PASS: 3 PCM clips, signal checks, Windows/Mac bundles, packaged clip lookup.");
+        Debug.Log("[PassageAudioBuild] PASS: one PCM clip, signal checks, 1001 production pitch samples, Windows/Mac bundles, packaged clip lookup.");
     }
 }
