@@ -22,7 +22,7 @@ MonoBehaviour:
   maxSpeed: 25
   enginePower: 18
   brakeForce: 3500
-  turnRadius: 34
+  turnRadius: 15
   damageIntensity: 0.2
   fitsHandTruck: 0
   fitsFlatbed: 0

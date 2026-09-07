@@ -27,7 +27,7 @@ namespace MootorVehicle.Editor
         private const string BundleName = "mootorvehicle";
         private const string BundleVariant = "unity3d";
         private const float TargetCowLength = 3.1f;
-        private const float TargetCowGroundOffset = -0.13f;
+        private const float TargetCowGroundOffset = -0.08f;
         private const float BodyColliderGroundClearance = 0.08f;
 
         [MenuItem("Big Ambitions/Moo-tor Vehicle/Build First Version")]
@@ -74,7 +74,7 @@ namespace MootorVehicle.Editor
             SetInt(serialized, "maxSpeed", 25);
             SetFloat(serialized, "enginePower", 18f);
             SetFloat(serialized, "brakeForce", 3500f);
-            SetFloat(serialized, "turnRadius", 34f);
+            SetFloat(serialized, "turnRadius", 15f);
             SetFloat(serialized, "damageIntensity", 0.2f);
             SetBool(serialized, "fitsHandTruck", false);
             SetBool(serialized, "fitsFlatbed", false);
@@ -230,6 +230,15 @@ namespace MootorVehicle.Editor
                 changed |= SetFloat(serialized, "powertrain.wheelGroups.Array.data[1].antiRollBarForce", 5200f);
                 changed |= SetFloat(serialized, "powertrain.wheelGroups.Array.data[1].brakeCoefficient", 0.6f);
                 changed |= SetFloat(serialized, "wheelbase", 2.1f);
+                changed |= SetFloat(serialized, "steering.maximumSteerAngle", 55f);
+                changed |= SetFloat(serialized, "steering.degreesPerSecondLimit", 180f);
+                changed |= SetAnimationCurve(
+                    serialized,
+                    "steering.speedSensitiveSteeringCurve",
+                    new AnimationCurve(
+                        new Keyframe(0f, 1f),
+                        new Keyframe(0.3f, 0.8f),
+                        new Keyframe(1f, 0.55f)));
 
                 changed |= SetFloat(serialized, "soundManager.engineRunningComponent.baseVolume", 0f);
                 changed |= ClearArray(serialized, "soundManager.engineRunningComponent.clips");
@@ -317,12 +326,12 @@ namespace MootorVehicle.Editor
             var isLeft = name.IndexOf("Left", StringComparison.OrdinalIgnoreCase) >= 0;
             component.transform.localPosition = new Vector3(
                 isLeft ? -0.53f : 0.53f,
-                0.34f,
+                0.3f,
                 isFront ? 1.05f : -1.05f);
 
             var serialized = new SerializedObject(component);
-            SetFloat(serialized, "spring.maxForce", 6000f);
-            SetFloat(serialized, "spring.maxLength", 0.25f);
+            SetFloat(serialized, "spring.maxForce", 9000f);
+            SetFloat(serialized, "spring.maxLength", 0.12f);
             SetFloat(serialized, "damper.bumpRate", 4200f);
             SetFloat(serialized, "damper.reboundRate", 4800f);
             SetFloat(serialized, "wheel.mass", 10f);
@@ -864,6 +873,18 @@ namespace MootorVehicle.Editor
             if (property == null || property.propertyType != SerializedPropertyType.Vector3)
                 return false;
             property.vector3Value = value;
+            return true;
+        }
+
+        private static bool SetAnimationCurve(
+            SerializedObject serialized,
+            string path,
+            AnimationCurve value)
+        {
+            var property = serialized.FindProperty(path);
+            if (property == null || property.propertyType != SerializedPropertyType.AnimationCurve)
+                return false;
+            property.animationCurveValue = value;
             return true;
         }
 

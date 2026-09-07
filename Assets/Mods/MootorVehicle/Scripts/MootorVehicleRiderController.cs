@@ -53,17 +53,16 @@ namespace MootorVehicle
         private bool occupied;
         private int attempts;
         private float nextAttempt;
-        private float driveInputDetectedAt = -1f;
-        private bool driveResponseLogged;
-        private bool drivetrainLoggingFailed;
         private int engineStartAttempts;
         private float nextEngineStartAttempt;
         private bool engineStartConfirmedLogged;
         private bool engineStartFailureLogged;
         private bool engineRestartPending;
+        private bool engineReady;
         private float dormantThrottleDetectedAt = -1f;
-        private bool hornPressed;
-        private bool hornFailureLogged;
+        private AudioSource? mooHornSource;
+        private bool hornConfigurationLogged;
+        private float mountControlGraceUntil;
         private string? lastFailure;
 
         public void Initialize(VehicleController controller, ModContext? modContext)
@@ -72,50 +71,58 @@ namespace MootorVehicle
             physicsVehicle = controller.GetComponent<PhysicsVehicle>();
             vehicleBody = controller.GetComponent<Rigidbody>();
             context = modContext;
+            ConfigureMooHorn();
+
+            if (controller.controlledByPlayer)
+                NotifyMounted();
+            else if (!occupied)
+                enabled = false;
         }
 
-        private void LateUpdate()
+        internal void NotifyMounted()
         {
             if (vehicle == null)
                 return;
 
-            var isOccupied = vehicle.controlledByPlayer;
-            if (isOccupied != occupied)
-            {
-                occupied = isOccupied;
-                attempts = 0;
-                nextAttempt = 0f;
-                driveInputDetectedAt = -1f;
-                driveResponseLogged = false;
-                drivetrainLoggingFailed = false;
-                engineStartAttempts = 0;
-                nextEngineStartAttempt = Time.unscaledTime + 0.15f;
-                engineStartConfirmedLogged = false;
-                engineStartFailureLogged = false;
-                engineRestartPending = false;
-                dormantThrottleDetectedAt = -1f;
-                hornPressed = false;
-                hornFailureLogged = false;
-                lastFailure = null;
-
-                if (!occupied)
-                {
-                    RemoveRider();
-                    LogInfo("dismounted; visible rider removed.");
-                }
-                else
-                {
-                    LogInfo("mounted; preparing current player appearance.");
-                    LogDrivetrainState("mount");
-                }
-            }
-
-            if (!occupied)
+            enabled = true;
+            if (occupied)
                 return;
 
+            occupied = true;
+            attempts = 0;
+            nextAttempt = 0f;
+            engineStartAttempts = 0;
+            nextEngineStartAttempt = Time.unscaledTime + 0.15f;
+            engineStartConfirmedLogged = false;
+            engineStartFailureLogged = false;
+            engineRestartPending = false;
+            engineReady = false;
+            dormantThrottleDetectedAt = -1f;
+            mountControlGraceUntil = Time.unscaledTime + 0.5f;
+            lastFailure = null;
+
+            LogInfo("mounted; preparing current player appearance.");
+            LogDrivetrainState("mount");
+        }
+
+        private void LateUpdate()
+        {
+            if (vehicle == null || !occupied)
+            {
+                enabled = false;
+                return;
+            }
+
+            if (!vehicle.controlledByPlayer && Time.unscaledTime >= mountControlGraceUntil)
+            {
+                occupied = false;
+                RemoveRider();
+                enabled = false;
+                LogInfo("dismounted; visible rider removed.");
+                return;
+            }
+
             UpdateEngineStart();
-            UpdateHorn();
-            UpdateDrivetrainDiagnostics();
 
             try
             {
@@ -338,7 +345,7 @@ namespace MootorVehicle
 
         private void UpdateEngineStart()
         {
-            if (physicsVehicle == null)
+            if (physicsVehicle == null || engineReady)
                 return;
 
             try
@@ -347,6 +354,7 @@ namespace MootorVehicle
                 var rpm = engine.RPMPercent * engine.revLimiterRPM;
                 if (rpm >= MinimumHealthyEngineRpm)
                 {
+                    engineReady = true;
                     if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
                     {
                         engineStartConfirmedLogged = true;
@@ -423,66 +431,55 @@ namespace MootorVehicle
             }
         }
 
-        private void UpdateDrivetrainDiagnostics()
-        {
-            if (driveResponseLogged || drivetrainLoggingFailed || physicsVehicle == null)
-                return;
-
-            try
-            {
-                if (Mathf.Abs(physicsVehicle.input.Throttle) < 0.05f)
-                    return;
-
-                if (driveInputDetectedAt < 0f)
-                {
-                    driveInputDetectedAt = Time.unscaledTime;
-                    LogDrivetrainState("drive-input");
-                    return;
-                }
-
-                if (Time.unscaledTime - driveInputDetectedAt < 0.75f)
-                    return;
-
-                driveResponseLogged = true;
-                LogDrivetrainState("drive-response");
-            }
-            catch (Exception exception)
-            {
-                drivetrainLoggingFailed = true;
-                context?.Logger.Warn(
-                    $"Moo-tor Vehicle drivetrain diagnostics vehicle={vehicle?.GetInstanceID()}: " +
-                    $"{exception.GetBaseException().Message}");
-            }
-        }
-
-        private void UpdateHorn()
+        private void ConfigureMooHorn()
         {
             if (physicsVehicle == null)
                 return;
 
-            var pressed = physicsVehicle.input.Horn;
-            if (!pressed || hornPressed)
-            {
-                hornPressed = pressed;
+            var horn = physicsVehicle.soundManager.hornComponent;
+            if (mooHornSource != null && horn.source == mooHornSource)
                 return;
-            }
 
-            hornPressed = true;
             try
             {
-                var horn = physicsVehicle.soundManager.hornComponent;
-                horn.Play(0);
-                LogInfo(
-                    $"moo horn triggered; sourceReady={horn.source != null} " +
-                    $"playing={horn.source != null && horn.source.isPlaying}.");
+                if (horn.clips == null || horn.clips.Count == 0 || horn.clips[0] == null)
+                    throw new InvalidOperationException("bundled Moo audio clip is missing");
+
+                var hornHost = transform.Find("MootorVehicle_MooHorn");
+                if (hornHost == null)
+                {
+                    var hornObject = new GameObject("MootorVehicle_MooHorn");
+                    hornObject.transform.SetParent(transform, false);
+                    hornHost = hornObject.transform;
+                }
+
+                mooHornSource = hornHost.GetComponent<AudioSource>() ??
+                    hornHost.gameObject.AddComponent<AudioSource>();
+                mooHornSource.playOnAwake = false;
+                mooHornSource.loop = true;
+                mooHornSource.clip = horn.clips[0];
+                mooHornSource.volume = Mathf.Clamp01(horn.baseVolume);
+                mooHornSource.spatialBlend = 1f;
+                mooHornSource.rolloffMode = AudioRolloffMode.Logarithmic;
+                mooHornSource.minDistance = 1f;
+                mooHornSource.maxDistance = 35f;
+                mooHornSource.dopplerLevel = 0f;
+                mooHornSource.outputAudioMixerGroup = physicsVehicle.soundManager.otherMixerGroup;
+                horn.source = mooHornSource;
+
+                if (!hornConfigurationLogged)
+                {
+                    hornConfigurationLogged = true;
+                    LogInfo(
+                        $"native moo horn source configured clip='{mooHornSource.clip.name}' " +
+                        $"loop={mooHornSource.loop} spatialBlend={mooHornSource.spatialBlend:F1}.");
+                }
             }
             catch (Exception exception)
             {
-                if (hornFailureLogged)
-                    return;
-                hornFailureLogged = true;
                 context?.Logger.Warn(
-                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: moo horn failed: " +
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: " +
+                    $"could not configure native moo horn source: " +
                     $"{exception.GetBaseException().Message}");
             }
         }

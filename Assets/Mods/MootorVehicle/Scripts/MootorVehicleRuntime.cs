@@ -206,6 +206,8 @@ namespace MootorVehicle
                 riderController = vehicleController.gameObject.AddComponent<MootorVehicleRiderController>();
 
             riderController!.Initialize(vehicleController, context);
+            if (source == "vehicle-entered")
+                riderController.NotifyMounted();
             LogVehicleConfiguration(vehicleController, source);
             return added;
         }
