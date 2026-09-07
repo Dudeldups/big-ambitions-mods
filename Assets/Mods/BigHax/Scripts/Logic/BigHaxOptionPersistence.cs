@@ -31,7 +31,6 @@ namespace BigHax
                 BigHaxSettings.DefaultStandardFridgeCapacity,
                 BigHaxSettings.StandardFridgeCapacityValues,
                 roundTowardLowerValue: false,
-                "standard fridge capacity",
                 ref migratedStepValues);
 
             settings.PalletShelfCapacity = LoadSteppedInt(
@@ -40,7 +39,6 @@ namespace BigHax
                 BigHaxSettings.DefaultPalletShelfCapacity,
                 BigHaxSettings.PalletShelfCapacityValues,
                 roundTowardLowerValue: false,
-                "pallet shelf capacity",
                 ref migratedStepValues);
             settings.StorageShelfCapacity = LoadSteppedInt(
                 modId,
@@ -48,7 +46,6 @@ namespace BigHax
                 BigHaxSettings.DefaultStorageShelfCapacity,
                 BigHaxSettings.StorageShelfCapacityValues,
                 roundTowardLowerValue: false,
-                "storage shelf capacity",
                 ref migratedStepValues);
 
             settings.EmployeeTrainingSkillIncrease = LoadSteppedInt(
@@ -57,7 +54,6 @@ namespace BigHax
                 BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
                 BigHaxSettings.EmployeeTrainingSkillIncreaseValues,
                 roundTowardLowerValue: false,
-                "employee training skill increase",
                 ref migratedStepValues);
 
             settings.EnableRecruitmentCandidateMaximumSkill = LoadEnableRecruitmentCandidateMaximumSkill(modId);
@@ -98,7 +94,6 @@ namespace BigHax
                 BigHaxSettings.DefaultInstallationFirmFeePercentage,
                 BigHaxSettings.InstallationFirmFeePercentageValues,
                 roundTowardLowerValue: true,
-                "installation firm fee percentage",
                 ref migratedStepValues);
             settings.EnableMaximumHeadhunterRecruitmentPoints = LoadBool(
                 modId,
@@ -115,7 +110,6 @@ namespace BigHax
                 BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
                 BigHaxSettings.FreightTruckT1DeliveryPlacesValues,
                 roundTowardLowerValue: false,
-                "freight truck delivery places",
                 ref migratedStepValues);
 
             settings.EnableActiveVehicleCapacityOverride = LoadBool(
@@ -271,7 +265,6 @@ namespace BigHax
             int defaultValue,
             int[] values,
             bool roundTowardLowerValue,
-            string diagnosticName,
             ref bool migrated)
         {
             var key = BuildKey(modId, optionId);
@@ -285,8 +278,6 @@ namespace BigHax
 
             UnityEngine.PlayerPrefs.SetInt(key, steppedValue);
             migrated = true;
-            BigHaxLogger.StepSliderDiagnostic(
-                "Migrated " + diagnosticName + ": stored=" + storedValue + ", stepped=" + steppedValue + ".");
             return steppedValue;
         }
 

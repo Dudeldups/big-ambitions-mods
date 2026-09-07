@@ -27,11 +27,6 @@ namespace BigHax
             RefreshCurrentCargoHolder(BigHaxTargetIds.StandardFridgeItemName);
             RefreshCurrentCargoHolder(BigHaxTargetIds.PalletShelfItemName);
             RefreshCurrentCargoHolder(BigHaxTargetIds.StorageShelfItemName);
-            BigHaxLogger.StepSliderDiagnostic(
-                "Item capacities applied: " +
-                DescribeCapacity(BigHaxTargetIds.StandardFridgeItemName, settings.StandardFridgeCapacity) + ", " +
-                DescribeCapacity(BigHaxTargetIds.PalletShelfItemName, settings.PalletShelfCapacity) + ", " +
-                DescribeCapacity(BigHaxTargetIds.StorageShelfItemName, settings.StorageShelfCapacity) + ".");
         }
 
         public void RestoreOriginalCapacities()
@@ -112,19 +107,6 @@ namespace BigHax
 
             resolvedItems[itemName] = items;
             return items;
-        }
-
-        private string DescribeCapacity(string itemName, int expectedCapacity)
-        {
-            var items = ResolveItems(itemName);
-            var matching = 0;
-            foreach (var item in items)
-            {
-                if (item != null && item.cargoCapacity == expectedCapacity)
-                    matching++;
-            }
-
-            return itemName + "=" + expectedCapacity + " (matched=" + matching + "/" + items.Count + ")";
         }
     }
 }

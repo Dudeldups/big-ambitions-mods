@@ -27,14 +27,6 @@ namespace BigHax
         public void ApplyConfiguredCapacities(ModContext context, BigHaxSettings settings, bool forceRefresh)
         {
             ApplyFreightTruckDeliveryPlaces(context, settings.FreightTruckT1DeliveryPlaces);
-            if (forceRefresh)
-            {
-                var freightTruckType = VehicleTypeHelper.GetVehicleType(BigHaxTargetIds.FreightTruckT1VehicleTypeName);
-                BigHaxLogger.StepSliderDiagnostic(
-                    "Freight capacity applied: displayed=" + settings.FreightTruckT1DeliveryPlaces +
-                    ", expectedRaw=" + ConvertDisplayedToRawDeliveryPlaces(settings.FreightTruckT1DeliveryPlaces) +
-                    ", actualRaw=" + (freightTruckType == null ? "missing" : freightTruckType.destinationsThatCanDeliver.ToString()) + ".");
-            }
 
             if (!settings.EnableActiveVehicleCapacityOverride)
             {
@@ -64,10 +56,6 @@ namespace BigHax
             }
 
             activeVehicle.vehicleType.maxCargoCapacity = BigHaxSettings.ActiveVehicleCapacityOverride;
-            BigHaxLogger.StepSliderDiagnostic(
-                "Active vehicle capacity applied: vehicleType=" + activeVehicle.vehicleType.vehicleTypeName +
-                ", expected=" + BigHaxSettings.ActiveVehicleCapacityOverride +
-                ", actual=" + activeVehicle.vehicleType.maxCargoCapacity + ".");
         }
 
         public void RestoreOriginalCapacities()

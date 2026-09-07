@@ -218,15 +218,6 @@ namespace BigHax
 
             try
             {
-                BigHaxLogger.StepSliderDiagnostic(
-                    "Applying options: training=" + settings.EmployeeTrainingSkillIncrease +
-                    ", installationFee=" + settings.InstallationFirmFeePercentage +
-                    ", freightPlaces=" + settings.FreightTruckT1DeliveryPlaces +
-                    ", fridge=" + settings.StandardFridgeCapacity +
-                    ", palletShelf=" + settings.PalletShelfCapacity +
-                    ", storageShelf=" + settings.StorageShelfCapacity +
-                    ", activeVehicleOverride=" + settings.EnableActiveVehicleCapacityOverride +
-                    ", activeVehicleTarget=" + BigHaxSettings.ActiveVehicleCapacityOverride + ".");
                 SafeApply("casino bet limit", () => casinoBetLimitService.ApplyConfiguredLimit(context, settings));
                 SafeApply("building customer capacities", () => buildingCustomerCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("business capacities", () => businessCapacityService.ApplyConfiguredCapacities(context, settings));
