@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-internal enum AudiRS6RPopEvent { None, ThrottleLift, Downshift }
+internal enum AudiRS6RPopEvent { None, ThrottleLift, Downshift, Upshift }
 
 // Pure event detector/scheduler. Throttle is driver input, not the engine's
 // automatic shift-cut throttle. Randomness shapes a detected event only.
@@ -14,7 +14,7 @@ internal sealed class AudiRS6RPopGate
     private bool valid, armed;
     private double previousTime, loadSince, nextPop, cooldownUntil, downshiftUntil;
     private float previousThrottle, previousRpm, downshiftBase, downshiftPeak;
-    private int previousGear, remaining;
+    private int previousGear, downshiftFromGear, remaining;
     private AudiRS6RPopEvent burstReason;
     internal bool OverrunActive => remaining > 0;
     internal float Intensity { get; private set; }
@@ -24,6 +24,8 @@ internal sealed class AudiRS6RPopGate
     internal string Decision { get; private set; } = "none";
     internal float Probability { get; private set; }
     internal float RpmJump { get; private set; }
+    internal float EventRpm { get; private set; }
+    internal int FromGear { get; private set; }
 
     internal AudiRS6RPopGate(int? seed = null)
     {
@@ -37,6 +39,7 @@ internal sealed class AudiRS6RPopGate
         return x*x*(3f-2f*x);
     }
     internal static float RpmFactor(float rpm) => Smooth(1400f, 5500f, rpm);
+    internal static float LiftRpmFactor(float rpm) => Smooth(1400f, 5000f, rpm);
     internal static float GearFactor(int gear, float rpm) => gear <= 1 ? 1f : gear == 2 ? .95f :
         gear == 3 ? .8f : gear == 4 ? .35f : .06f + .30f*Smooth(5700f, 7000f, rpm);
 
@@ -45,8 +48,8 @@ internal sealed class AudiRS6RPopGate
     // their separate calibration and still require a measured RPM increase.
     internal static float LiftGearFactor(int gear, float rpm) => gear <= 1 ? 1f :
         gear == 2 ? .98f : gear == 3 ? .92f : gear == 4 ?
-        .40f + .40f*Smooth(4000f, 6200f, rpm) :
-        .06f + .64f*Smooth(4200f, 6500f, rpm);
+        .45f + .40f*Smooth(3800f, 6000f, rpm) :
+        .06f + .72f*Smooth(4200f, 6400f, rpm);
 
     internal void Reset()
     {
@@ -58,10 +61,12 @@ internal sealed class AudiRS6RPopGate
         cooldownUntil = 0;
     }
 
-    private void TryBurst(AudiRS6RPopEvent reason, double time, float chance, float strength, int maxPops)
+    private void TryBurst(AudiRS6RPopEvent reason, double time, float chance, float strength, int maxPops, float eventRpm, int fromGear)
     {
         DecisionId++;
         Probability = chance;
+        EventRpm = eventRpm;
+        FromGear = fromGear;
         if (time < cooldownUntil || remaining > 0) { Decision = reason+":cooldown"; return; }
         if (chance <= 0 || random.NextDouble() >= chance) { Decision = reason+":silent"; return; }
         Intensity = .4f + .6f*strength;
@@ -73,7 +78,8 @@ internal sealed class AudiRS6RPopGate
         burstReason = reason;
         Decision = reason+":burst";
         nextPop = time + .035d + random.NextDouble()*.065d;
-        cooldownUntil = time + 1.0d + random.NextDouble()*.35d;
+        cooldownUntil = time + (reason == AudiRS6RPopEvent.Downshift ? 1.0d : .8d) +
+            random.NextDouble()*(reason == AudiRS6RPopEvent.Downshift ? .35d : .25d);
     }
 
     internal AudiRS6RPopEvent Sample(bool active, double time, float rpm, float throttle, int gear, float speedKph = 0f)
@@ -97,6 +103,7 @@ internal sealed class AudiRS6RPopGate
 
         if (continuous && gear < previousGear)
         {
+            downshiftFromGear = previousGear;
             downshiftBase = previousRpm;
             downshiftPeak = rpm;
             downshiftUntil = time + .2d;
@@ -111,7 +118,7 @@ internal sealed class AudiRS6RPopGate
                 RpmJump = Math.Max(0f, downshiftPeak-downshiftBase);
                 var strength = Smooth(200f, 1600f, RpmJump)*RpmFactor(downshiftPeak);
                 var chance = .85f*strength*GearFactor(gear, downshiftPeak)*Smooth(4f, 25f, speedKph);
-                TryBurst(AudiRS6RPopEvent.Downshift, time, chance, strength, 2);
+                TryBurst(AudiRS6RPopEvent.Downshift, time, chance, strength, 2, downshiftPeak, downshiftFromGear);
                 downshiftUntil = double.PositiveInfinity;
             }
         }
@@ -127,7 +134,19 @@ internal sealed class AudiRS6RPopGate
             var abrupt = Smooth(.30f, .75f, drop)*Smooth(1.5f, 5f, rate);
             var strength = abrupt*RpmFactor(rpm);
             RpmJump = 0f;
-            TryBurst(AudiRS6RPopEvent.ThrottleLift, time, .99f*strength*LiftGearFactor(gear,rpm), strength, 3);
+            // Raise likelihood without raising the existing burst volume/count calibration.
+            var chance = .99f*abrupt*LiftRpmFactor(rpm)*LiftGearFactor(gear,rpm);
+            TryBurst(AudiRS6RPopEvent.ThrottleLift, time, chance, strength, 3, rpm, previousGear);
+        }
+        else if (continuous && armed && (previousGear == 1 || previousGear == 2) && gear == previousGear+1)
+        {
+            // Explicit low-gear shift event. Use pre-shift driver load/RPM,
+            // not the automatic engine throttle cut or the lower post-shift RPM.
+            // A simultaneous lift takes priority, so one change cannot stack bursts.
+            var strength = Smooth(2200f, 5500f, previousRpm)*Smooth(.25f, .8f, previousThrottle)*Smooth(4f, 20f, speedKph);
+            var chance = (previousGear == 1 ? .65f : .55f)*strength;
+            RpmJump = 0f;
+            TryBurst(AudiRS6RPopEvent.Upshift, time, chance, .75f*strength, 2, previousRpm, previousGear);
         }
         // Store at most ~23 samples regardless of render rate.
         if (history.Count == 0 || time-lastHistoryTime >= .01d)

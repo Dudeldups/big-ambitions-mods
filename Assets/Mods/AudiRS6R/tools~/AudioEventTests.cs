@@ -42,10 +42,31 @@ public static class AudiAudioEventTests
         Check(count<=2,"Downshift exceeded two pops");
         return count;
     }
+    static int UpshiftTrial(int seed,int before,int after,float rpm,float throttle,float speed,double dt=.02,bool release=false)
+    {
+        var gate=new AudiRS6RPopGate(seed);
+        int count=0;
+        double previous=-10;
+        for(int i=0;i<4/dt;i++)
+        {
+            double t=i*dt;
+            var pop=gate.Sample(true,t,t<.5?rpm:Math.Max(1500,rpm-2000),
+                release && t>=.5?0:throttle,t<.5?before:after,speed);
+            if(pop==AudiRS6RPopEvent.None) continue;
+            Check(pop==(release?AudiRS6RPopEvent.ThrottleLift:AudiRS6RPopEvent.Upshift),"Wrong shift/lift event priority");
+            Check(t>=.5 && t<1.3 && t-previous>=.084,"Upshift burst timing failed");
+            Check(gate.BurstId==1,"Holding gear/throttle retriggered upshift");
+            if(!release) Check(gate.FromGear==before && gate.EventRpm==rpm,"Lost pre-shift diagnostics");
+            count++; previous=t;
+        }
+        Check(count<=(release?3:2),"Upshift exceeded burst limit");
+        return count;
+    }
     public static void Run()
     {
         int strong=0,slow=0,highGear=0,medium=0,low=0,down=0,gentle=0,fast=0,kickdown=0;
         int highGearStrongBursts=0, highGear5500Bursts=0, fourthStrongBursts=0;
+        int up12=0,up23=0,upFast=0;
         for(int seed=0;seed<500;seed++)
         {
             strong+=Trial(seed,2,6500,false);
@@ -64,12 +85,24 @@ public static class AudiAudioEventTests
             Check(ShiftTrial(seed,2,3,2800,5000,60,false)==0,"Upshift triggered pop");
             Check(ShiftTrial(seed,3,2,3000,3000,60,false)==0,"No-RPM-rise downshift triggered");
             Check(ShiftTrial(seed,3,2,2800,4900,0,false)==0,"Stationary downshift triggered");
+            if(UpshiftTrial(seed,1,2,6500,1,40)>0) up12++;
+            if(UpshiftTrial(seed,2,3,6500,1,60)>0) up23++;
+            if(UpshiftTrial(seed,1,2,6500,1,40,1d/120d)>0) upFast++;
+            Check(UpshiftTrial(seed,3,4,6500,1,80)==0,"Higher upshift popped");
+            Check(UpshiftTrial(seed,1,3,6500,1,40)==0,"Skipped gear popped");
+            Check(UpshiftTrial(seed,1,2,2000,1,15)==0,"Low-RPM upshift popped");
+            Check(UpshiftTrial(seed,1,2,6500,.2f,40)==0,"Light throttle upshift popped");
+            Check(UpshiftTrial(seed,1,2,6500,0,40)==0,"Coasting upshift popped");
+            Check(UpshiftTrial(seed,1,2,6500,1,0)==0,"Stationary upshift popped");
+            UpshiftTrial(seed,1,2,6500,1,40,.02,true);
         }
         Check(strong>600 && slow==0 && low==0,"Abrupt high-RPM lift should dominate slow/idle release");
         Check(medium>highGear*5 && highGear>0,"High-gear cruising pop probability too high");
-        Check(highGearStrongBursts>320 && highGearStrongBursts<380,"Strong high-gear lift should commonly burst");
-        Check(highGear5500Bursts>190 && highGear5500Bursts<250,"5500 RPM high-gear lifts still too suppressed");
+        Check(highGearStrongBursts>370 && highGearStrongBursts<410,"Strong high-gear lift should commonly burst");
+        Check(highGear5500Bursts>240 && highGear5500Bursts<290,"5500 RPM high-gear lifts still too suppressed");
         Check(fourthStrongBursts>highGearStrongBursts,"Lower gears must still favor lift bursts");
+        Check(up12>290 && up12<350 && up23>240 && up23<300,"Loaded low-gear upshift probability failed");
+        Check(upFast==up12,"Upshift outcome changed with render frame rate");
         Check(down>250 && gentle<5,"Downshift strength/RPM dependency failed");
         Check(kickdown>250,"RPM-raising kickdown burst cancelled by throttle");
         Check(strong==fast,"Abrupt lift outcome changed with render frame rate");
@@ -85,7 +118,7 @@ public static class AudiAudioEventTests
             previous=-1;
             for(int rpm=900;rpm<=7000;rpm+=10)
             {
-                float chance=.99f*AudiRS6RPopGate.RpmFactor(rpm)*AudiRS6RPopGate.LiftGearFactor(gear,rpm);
+                float chance=.99f*AudiRS6RPopGate.LiftRpmFactor(rpm)*AudiRS6RPopGate.LiftGearFactor(gear,rpm);
                 Check(chance>=0 && chance<=1,"Invalid lift probability");
                 Check(previous<0 || (chance>=previous && chance-previous<.01f),"Lift chance has an RPM step");
                 previous=chance;
@@ -100,16 +133,38 @@ public static class AudiAudioEventTests
             gate2.Sample(true,t,6500,throttle,2,50);
             if(gate2.BurstId!=lastId)
             {
-                Check(t-lastBurst>=1,"Cooldown ignored between bursts");
+                Check(t-lastBurst>=.8,"Cooldown ignored between bursts");
                 lastId=gate2.BurstId; lastBurst=t;
             }
         }
         Check(lastId>=2,"Throttle reapplication did not rearm");
+        var rapid=new AudiRS6RPopGate(3);
+        lastId=0; lastBurst=-10;
+        for(int i=0;i<500;i++)
+        {
+            double t=i*.02;
+            rapid.Sample(true,t,6500,t%.5<.25?1:0,2,50);
+            if(rapid.BurstId==lastId) continue;
+            Check(t-lastBurst>=.8,"Rapid throttle taps bypassed shared cooldown");
+            lastId=rapid.BurstId; lastBurst=t;
+        }
+        Check(lastId>=3,"Shorter cooldown/rearming suppressed repeated releases");
+        for(int seed=0;seed<100;seed++)
+        {
+            var shifts=new AudiRS6RPopGate(seed);
+            for(int i=0;i<100;i++)
+            {
+                double t=i*.02;
+                shifts.Sample(true,t,6500,1,t<.5?1:t<.7?2:3,50);
+            }
+            Check(shifts.BurstId<=1,"Quick consecutive upshifts stacked bursts through cooldown");
+        }
         gate2.Sample(false,12,6500,0,2,50);
         Check(!gate2.OverrunActive,"Pause/exit retained burst");
         for(int i=0;i<100;i++) Check(gate2.Sample(true,12.02+i*.02,6500,0,2,50)==AudiRS6RPopEvent.None,"Resume/coasting retriggered");
         for(int i=0;i<100;i++) Check(gate2.Sample(true,15+i*.02,6500,i<20?1:0,-1,20)==AudiRS6RPopEvent.None,"Reverse popped");
         Console.WriteLine("PASS pop events: strong="+strong+" slow="+slow+" idle="+low+" medium="+medium+" highGear="+highGear+" aggressiveDown="+down+" gentleDown="+gentle);
         Console.WriteLine("PASS lift bursts / 500 releases: sixth6500="+highGearStrongBursts+" sixth5500="+highGear5500Bursts+" fourth6500="+fourthStrongBursts);
+        Console.WriteLine("PASS upshift bursts / 500 shifts: 1->2="+up12+" 2->3="+up23+"; gentle/coasting/higher shifts silent");
     }
 }

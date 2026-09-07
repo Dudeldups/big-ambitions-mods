@@ -98,9 +98,9 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource = CreateSource(exhaustHost, popClips[0], false);
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info($"configured revision=12 idle='{idleSource.clip.name}' idlePitch=1 idleVolume=0.24 " +
+        Info($"configured revision=13 idle='{idleSource.clip.name}' idlePitch=1 idleVolume=0.24 " +
              $"driving=generatedGrowlWithBite targetHz=80..180 popVolume={F(AudiRS6RAudioModel.PopVolume)} distortion=0 mixer='{native.outputAudioMixerGroup.audioMixer.name}' " +
-             $"group='{native.outputAudioMixerGroup.name}' pops=abruptLift/downshiftRpmJump maxBurst=3 highRpmLiftBoost=true driverThrottle=input.Throttle " +
+             $"group='{native.outputAudioMixerGroup.name}' pops=abruptLift/downshiftRpmJump/lowGearUpshift maxBurst=3 liftCooldown=0.8..1.05 driverThrottle=input.Throttle " +
              $"nativeFallback='{native.clip.name}'.");
         return true;
     }
@@ -219,7 +219,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
                 {
                     nextDecisionLog = Time.unscaledTime + .5f;
                     Info($"pop event decision={popGate.Decision} chance={F(popGate.Probability)} rpm={F(rawRpm)} " +
-                         $"driverThrottle={F(driverThrottle)} gear={gear} rpmJump={F(popGate.RpmJump)} currentBurst={popGate.BurstId} " +
+                         $"driverThrottle={F(driverThrottle)} fromGear={popGate.FromGear} gear={gear} eventRpm={F(popGate.EventRpm)} rpmJump={F(popGate.RpmJump)} currentBurst={popGate.BurstId} " +
                          $"scheduledPops={(popGate.Decision.EndsWith(":burst") ? popGate.BurstSize : 0)}.");
                 }
             }
