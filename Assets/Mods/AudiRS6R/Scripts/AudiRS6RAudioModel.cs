@@ -4,11 +4,19 @@ using System;
 // Recording references are acoustic calibration values, not measured engine RPM.
 internal static class AudiRS6RAudioModel
 {
+    internal const float IdlePitch = 1f;
+    internal const float PopVolume = .8f;
+    internal static float IdleVolume(float drivingBlend) => .24f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    // Restore revision 7's idle-to-driving thresholds (1180..2440 RPM with
+    // 900 RPM idle / 7000 RPM limiter). Throttle cannot change idle gain/pitch.
+    internal static float DrivingBlend(float rpm, float idle, float limiter) =>
+        Clamp01((rpm - idle - .04f * limiter) / Math.Max(1f, .18f * limiter));
+
     internal static float Normalize(float rpm, float idle, float limiter) =>
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));
 
     internal static float ReferenceHz(int layer) => layer == 0 ? 96f : layer == 1 ? 176f : 320f;
-    internal static float TargetHz(float normalized) => (float)(96d * Math.Pow(320d / 96d, Clamp01(normalized)));
+    internal static float TargetHz(float normalized) => (float)(80d * Math.Pow(180d / 80d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

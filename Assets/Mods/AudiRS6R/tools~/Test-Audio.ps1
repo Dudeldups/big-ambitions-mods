@@ -46,6 +46,17 @@ public static class AudiAudioProbe
         }
         Require(AudiRS6RAudioModel.Normalize(900,900,7000)==0, "Idle normalization");
         Require(AudiRS6RAudioModel.Normalize(9000,900,7000)==1, "Limiter clamp");
+        Require(AudiRS6RAudioModel.IdlePitch==1 && AudiRS6RAudioModel.IdleVolume(0)==.24f,
+                "Original Car idle calibration must be preserved");
+        foreach (var rpm in new[] {0f, 900f, 1100f, 1180f})
+            Require(AudiRS6RAudioModel.DrivingBlend(rpm,900,7000)==0,
+                    "Generated layers must be silent at idle");
+        Require(Math.Abs(AudiRS6RAudioModel.DrivingBlend(1810,900,7000)-.5f)<.00001,
+                "Idle/driving transition midpoint changed");
+        Require(AudiRS6RAudioModel.DrivingBlend(2440,900,7000)==1 && AudiRS6RAudioModel.IdleVolume(1)==0,
+                "Idle must finish fading out above the transition");
+        Require(AudiRS6RAudioModel.TargetHz(0)==80 && AudiRS6RAudioModel.TargetHz(1)==180,
+                "Lower driving pitch calibration changed");
         Require(AudiRS6RAudioModel.Weight(0,0)==1 && AudiRS6RAudioModel.Weight(.5f,1)==1 &&
                 AudiRS6RAudioModel.Weight(1,2)==1, "Low/mid/high anchors");
 

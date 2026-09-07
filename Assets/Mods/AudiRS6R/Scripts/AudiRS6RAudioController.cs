@@ -22,13 +22,14 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private AudioSource? native;
     private GameObject? audioHost;
     private AudioSource[]? layers;
+    private AudioSource? idleSource;
     private AudioSource? popSource;
     private AudioClip[]? popClips;
     private float originalDistortion;
     private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
     private bool busMutedReported;
     private int attempts, popCount, lastState = -1;
-    private float nextAttempt, nextLog, nextPopLog, smoothRpm, smoothThrottle, envelope;
+    private float nextAttempt, nextLog, nextPopLog, smoothRpm, smoothThrottle, envelope, driveBlend;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -74,6 +75,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         audioHost = new GameObject("AudiRS6R_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
+        // Borrow the original Car clip without processing or taking ownership.
+        idleSource = CreateSource(audioHost, native.clip, true);
         layers = new AudioSource[3];
         for (var i = 0; i < layers.Length; i++)
         {
@@ -87,8 +90,9 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource = CreateSource(exhaustHost, popClips[0], false);
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info($"configured revision=8 layers=EngineLow/EngineMid/EngineHigh source=AudiRevving resynthesis=held " +
-             $"targetHz=96..320 distortion=0 mixer='{native.outputAudioMixerGroup.audioMixer.name}' " +
+        Info($"configured revision=9 idle='{idleSource.clip.name}' idlePitch=1 idleVolume=0.24 " +
+             $"layers=EngineLow/EngineMid/EngineHigh source=AudiRevving resynthesis=held " +
+             $"targetHz=80..180 popVolume={F(AudiRS6RAudioModel.PopVolume)} distortion=0 mixer='{native.outputAudioMixerGroup.audioMixer.name}' " +
              $"group='{native.outputAudioMixerGroup.name}' pops=throttleRelease/upshift armRpm=3000 cooldown=0.85s " +
              $"nativeFallback='{native.clip.name}'.");
         return true;
@@ -121,7 +125,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
 
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null || popSource == null)
+        if (physics == null || native == null || layers == null || audioHost == null || popSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
@@ -134,7 +138,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         {
             smoothRpm = engine.RPMPercent * engine.revLimiterRPM;
             smoothThrottle = Mathf.Clamp01(engine.ThrottlePosition);
-            Info("driver entered: three calibrated engine layers and event-driven exhaust pops active.");
+            Info($"driver entered: original '{idleSource.clip.name}' idle at pitch=1 volume=0.24; lower driving range and louder exhaust pops active.");
         }
         wasControlled = controlled;
         var shouldPause = Time.timeScale <= 0f || AudioListener.pause;
@@ -171,7 +175,12 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
             var normalized = AudiRS6RAudioModel.Normalize(smoothRpm, engine.idleRPM, engine.revLimiterRPM);
             envelope = Mathf.MoveTowards(envelope, running ? 1f : 0f, Time.deltaTime * 6f);
             var master = Mathf.Clamp01(physics.soundManager.masterVolume);
-            var gain = envelope * master * (.24f + .18f * smoothThrottle);
+            driveBlend = Mathf.MoveTowards(driveBlend,
+                AudiRS6RAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM), Time.deltaTime * 4f);
+            idleSource.pitch = AudiRS6RAudioModel.IdlePitch;
+            idleSource.volume = envelope * master * AudiRS6RAudioModel.IdleVolume(driveBlend);
+            idleSource.mute = controlled && savedMute;
+            var gain = envelope * master * (.24f + .18f * smoothThrottle) * Mathf.Sqrt(driveBlend);
             for (var i = 0; i < layers.Length; i++)
             {
                 layers[i].pitch = AudiRS6RAudioModel.Pitch(normalized, i);
@@ -184,6 +193,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
                 // Start all layers on the same DSP boundary. An inaudible layer
                 // keeps advancing so bringing it into the blend never restarts it.
                 var start = AudioSettings.dspTime + .03d;
+                idleSource.PlayScheduled(start);
                 foreach (var source in layers) source.PlayScheduled(start);
                 voicesStarted = true;
             }
@@ -198,6 +208,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
             var mixer = layers[0].outputAudioMixerGroup?.audioMixer;
             Info($"sample controlled={controlled} running={running} paused={paused} " +
                  $"rpm={F(rawRpm)} smoothRpm={F(smoothRpm)} throttle={F(engine.ThrottlePosition)} gear={gear} " +
+                 $"driveBlend={F(driveBlend)} idle='{idleSource.clip.name}'[{Status(idleSource)}] " +
                  $"low[{Status(layers[0])}] mid[{Status(layers[1])}] high[{Status(layers[2])}] pops={popCount} " +
                  $"engineDb={ReadMixer(mixer, "engine")} fxDb={ReadMixer(mixer, "fx")} " +
                  $"masterDb={ReadMixer(mixer, "attenuation")} listenerVolume={F(AudioListener.volume)}.");
@@ -212,7 +223,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         var clip = popClips![UnityEngine.Random.Range(0, popClips.Length)];
         popSource!.clip = clip;
         popSource.pitch = UnityEngine.Random.Range(.94f, 1.06f);
-        popSource.volume = master * .38f;
+        popSource.volume = master * AudiRS6RAudioModel.PopVolume;
         popSource.mute = savedMute;
         popSource.Play();
         popCount++;
@@ -220,7 +231,9 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         {
             nextPopLog = Time.unscaledTime + 2f;
             Info($"exhaust pop reason={reason} rpm={F(rpm)} gear={gear} clip='{clip.name}' " +
-                 $"volume={F(popSource.volume)} pitch={F(popSource.pitch)} total={popCount}.");
+                 $"volume={F(popSource.volume)} pitch={F(popSource.pitch)} playing={popSource.isPlaying} " +
+                 $"mute={popSource.mute} minDistance={F(popSource.minDistance)} maxDistance={F(popSource.maxDistance)} " +
+                 $"engineDb={ReadMixer(popSource.outputAudioMixerGroup?.audioMixer, "engine")} total={popCount}.");
         }
     }
 
@@ -240,6 +253,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
 
     private void StopLayers()
     {
+        if (idleSource != null) idleSource.Stop();
         if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
         voicesStarted = false;
     }
@@ -251,7 +265,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popGate.Reset();
         RestoreMute();
         if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
-        envelope = smoothRpm = smoothThrottle = 0f;
+        envelope = smoothRpm = smoothThrottle = driveBlend = 0f;
         paused = wasControlled = false;
         lastState = -1;
     }
@@ -268,6 +282,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         if (audioHost != null) Destroy(audioHost);
         audioHost = null;
         layers = null;
+        idleSource = null;
         popSource = null;
         popClips = null;
         foreach (var clip in ownedClips) if (clip != null) Destroy(clip);
