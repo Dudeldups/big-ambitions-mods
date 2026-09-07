@@ -98,10 +98,10 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource = CreateSource(exhaustHost, popClips[0], false);
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info($"configured revision=14 idle='{idleSource.clip.name}' idlePitch=1 idleVolume=0.24 " +
+        Info($"configured revision=15 idle='{idleSource.clip.name}' idlePitch=1 idleVolume=0.24 " +
              $"driving=generatedGrowlWithBite targetHz=80..180 popVolume={F(AudiRS6RAudioModel.PopVolume)} distortion=0 mixer='{native.outputAudioMixerGroup.audioMixer.name}' " +
              $"group='{native.outputAudioMixerGroup.name}' pops=abruptLift/downshiftRpmJump/lowGearUpshift maxBurst=3 liftCooldown=0.8..1.05 driverThrottle=input.Throttle " +
-             $"popTone=filteredExhaustBody popPitch={F(AudiRS6RAudioModel.PopPitchMin)}..{F(AudiRS6RAudioModel.PopPitchMax)} nativeFallback='{native.clip.name}'.");
+             $"popTone=originalAttack80Body20 popPitch={F(AudiRS6RAudioModel.PopPitchMin)}..{F(AudiRS6RAudioModel.PopPitchMax)} nativeFallback='{native.clip.name}'.");
         return true;
     }
 
