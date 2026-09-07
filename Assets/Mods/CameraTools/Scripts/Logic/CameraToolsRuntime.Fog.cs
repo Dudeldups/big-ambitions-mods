@@ -1,4 +1,6 @@
 #nullable enable
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
@@ -9,10 +11,12 @@ namespace CameraTools
     {
         private const float MapFogOverridePriority = 10000f;
 
+        private readonly List<BorderFogRendererState> mapBorderFogRendererStates = new List<BorderFogRendererState>();
         private GameObject? mapFogOverrideObject;
         private Volume? mapFogOverrideVolume;
         private VolumeProfile? mapFogOverrideProfile;
         private bool mapFogOverrideActive;
+        private bool hasScannedBorderFogRenderers;
         private bool hasLoggedResolvedMapFog;
         private HDAdditionalCameraData? mapFogCameraData;
         private bool savedMapCustomRenderingSettings;
@@ -41,6 +45,7 @@ namespace CameraTools
                 mapFogOverrideVolume.enabled = true;
                 mapFogOverrideVolume.weight = 1f;
             }
+            ApplyCityMapBorderFogSuppression();
 
             if (!mapFogOverrideActive)
             {
@@ -136,6 +141,36 @@ namespace CameraTools
             ConfigureCityMapFogOverrideLayer(cameraData);
         }
 
+        private void ApplyCityMapBorderFogSuppression()
+        {
+            if (!hasScannedBorderFogRenderers)
+            {
+                hasScannedBorderFogRenderers = true;
+                foreach (var renderer in Resources.FindObjectsOfTypeAll<Renderer>())
+                {
+                    if (renderer == null || !renderer.gameObject.scene.IsValid())
+                        continue;
+
+                    var path = GetHierarchyPath(renderer.transform);
+                    if (path.IndexOf("BorderOverlayFog", StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    mapBorderFogRendererStates.Add(new BorderFogRendererState(renderer, renderer.enabled));
+                }
+
+                context?.Logger.Info(
+                    $"CameraTools: city-map border fog scan completed; renderers={mapBorderFogRendererStates.Count}.");
+                if (mapBorderFogRendererStates.Count == 0)
+                    context?.Logger.Warn("CameraTools: no BorderOverlayFog renderers were found in the loaded city scene.");
+            }
+
+            foreach (var state in mapBorderFogRendererStates)
+            {
+                if (state.Renderer != null)
+                    state.Renderer.enabled = false;
+            }
+        }
+
         private void ConfigureCityMapFogOverrideLayer(HDAdditionalCameraData? cameraData)
         {
             if (cameraData == null || mapFogOverrideObject == null)
@@ -196,12 +231,25 @@ namespace CameraTools
             if (mapFogOverrideVolume != null)
                 mapFogOverrideVolume.enabled = false;
 
+            var restoredBorderFogRenderers = 0;
+            foreach (var state in mapBorderFogRendererStates)
+            {
+                if (state.Renderer == null)
+                    continue;
+
+                state.Renderer.enabled = state.WasEnabled;
+                restoredBorderFogRenderers++;
+            }
+            mapBorderFogRendererStates.Clear();
+            hasScannedBorderFogRenderers = false;
+
             if (!mapFogOverrideActive)
                 return;
 
             mapFogOverrideActive = false;
             hasLoggedResolvedMapFog = false;
-            context?.Logger.Info("CameraTools: city-map fog override deactivated and normal fog restored.");
+            context?.Logger.Info(
+                $"CameraTools: city-map fog override deactivated; restoredBorderFogRenderers={restoredBorderFogRenderers}.");
         }
 
         private void RestoreCityMapFogCameraState()
@@ -227,6 +275,18 @@ namespace CameraTools
 
             mapFogCameraData = null;
             hasSavedMapFogCameraState = false;
+        }
+
+        private sealed class BorderFogRendererState
+        {
+            public BorderFogRendererState(Renderer renderer, bool wasEnabled)
+            {
+                Renderer = renderer;
+                WasEnabled = wasEnabled;
+            }
+
+            public Renderer Renderer { get; }
+            public bool WasEnabled { get; }
         }
     }
 }
