@@ -48,14 +48,14 @@ namespace BigHax
                 return;
 
             CaptureOriginalCapacity(activeVehicle.vehicleType);
-            if (SetPersistedVehicleTypeCapacity(activeVehicle.vehicleType.vehicleTypeName, settings.ActiveVehicleCapacity))
+            if (SetPersistedVehicleTypeCapacity(activeVehicle.vehicleType.vehicleTypeName, BigHaxSettings.ActiveVehicleCapacityOverride))
             {
                 BigHaxLogger.Info(
                     context,
-                    $"BigHax: saved active vehicle override {activeVehicle.vehicleType.vehicleTypeName} -> {settings.ActiveVehicleCapacity}.");
+                    $"BigHax: saved active vehicle override {activeVehicle.vehicleType.vehicleTypeName} -> {BigHaxSettings.ActiveVehicleCapacityOverride}.");
             }
 
-            activeVehicle.vehicleType.maxCargoCapacity = settings.ActiveVehicleCapacity;
+            activeVehicle.vehicleType.maxCargoCapacity = BigHaxSettings.ActiveVehicleCapacityOverride;
         }
 
         public void RestoreOriginalCapacities()

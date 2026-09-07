@@ -15,7 +15,7 @@ namespace BigHax
         public const int DefaultStandardFridgeCapacity = 50;
         public const int DefaultPalletShelfCapacity = 60;
         public const int DefaultStorageShelfCapacity = 16;
-        public const int DefaultActiveVehicleCapacity = 20;
+        public const int ActiveVehicleCapacityOverride = 1000;
         public const int DefaultEmployeeTrainingSkillIncrease = 10;
         public const bool DefaultEnableRecruitmentCandidateMaximumSkill = false;
         public const bool DefaultRemoveEmployeeDemands = false;
@@ -36,6 +36,12 @@ namespace BigHax
 
         public static readonly float[] CustomerTrafficMultiplierValues = { 1f, 1.5f, 2f, 3f, 5f, 10f };
         public static readonly int[] HrManagerCapacityValues = { 50, 100, 500, 1000, 10000 };
+        public static readonly int[] EmployeeTrainingSkillIncreaseValues = { 10, 20, 30, 50, 100 };
+        public static readonly int[] InstallationFirmFeePercentageValues = { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
+        public static readonly int[] FreightTruckT1DeliveryPlacesValues = { 8, 16, 24, 80, 160 };
+        public static readonly int[] StandardFridgeCapacityValues = { 50, 100, 200, 500, 1000 };
+        public static readonly int[] PalletShelfCapacityValues = { 60, 120, 240, 500, 1000 };
+        public static readonly int[] StorageShelfCapacityValues = { 16, 32, 100, 500, 1000 };
 
         public bool EnableActiveVehicleCapacityOverride { get; set; } = false;
 
@@ -58,8 +64,6 @@ namespace BigHax
         public int PalletShelfCapacity { get; set; } = DefaultPalletShelfCapacity;
 
         public int StorageShelfCapacity { get; set; } = DefaultStorageShelfCapacity;
-
-        public int ActiveVehicleCapacity { get; set; } = DefaultActiveVehicleCapacity;
 
         public int EmployeeTrainingSkillIncrease { get; set; } = DefaultEmployeeTrainingSkillIncrease;
 
@@ -113,6 +117,17 @@ namespace BigHax
 
                 return CustomerTrafficMultiplierValues[index];
             }
+        }
+
+        public static int GetStepIndex(int[] values, int selectedValue)
+        {
+            for (var index = 0; index < values.Length; index++)
+            {
+                if (values[index] == selectedValue)
+                    return index;
+            }
+
+            return 0;
         }
 
         public UnityEngine.KeyCode UiHotkey => BigHaxHotkeys.GetKeyCode(UiHotkeyIndex);
