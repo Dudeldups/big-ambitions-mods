@@ -14,6 +14,7 @@ namespace CameraStore
     {
         private readonly CameraStoreItemRegistration itemRegistration = new();
         private readonly CameraStoreBusinessRegistration businessRegistration = new();
+        private readonly CameraStorePrefabResolver prefabResolver = new();
 
         public string[] RelativeAssetBundlePaths => new[] { CameraStoreIds.BundleKey };
 
@@ -25,14 +26,18 @@ namespace CameraStore
                 if (bundle == null)
                     throw new InvalidOperationException($"Camera Store bundle not found: {CameraStoreIds.BundleKey}");
 
+                prefabResolver.Apply(bundle);
                 itemRegistration.LoadAndRegister(bundle);
                 businessRegistration.LoadAndRegister(bundle);
-                context.Logger.Info("Camera Store registered 8 products, 2 fixtures, and its business type.");
+                context.Logger.Info(
+                    "Camera Store registered 8 products, 2 fixtures, their stable-ID prefab mappings, " +
+                    "and its business type.");
             }
             catch (Exception exception)
             {
                 businessRegistration.Unregister();
                 itemRegistration.Unregister();
+                prefabResolver.Restore();
                 context.Logger.Error(exception);
                 throw;
             }
@@ -44,6 +49,7 @@ namespace CameraStore
         {
             businessRegistration.Unregister();
             itemRegistration.Unregister();
+            prefabResolver.Restore();
             return Task.CompletedTask;
         }
     }
