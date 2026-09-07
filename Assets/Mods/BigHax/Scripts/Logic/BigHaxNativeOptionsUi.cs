@@ -11,7 +11,7 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 2262f;
+        private const float ContentHeight = 2319f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -20,6 +20,8 @@ namespace BigHax
         private readonly System.Action close;
         private System.Action? confirmUnlockAllContacts;
         private System.Action? confirmUnlockAllCourses;
+        private System.Func<bool>? arePurchaseLimitsDisabled;
+        private System.Action<bool>? setPurchaseLimitsDisabled;
 
         public BigHaxNativeOptionsUi(System.Action close)
         {
@@ -30,6 +32,12 @@ namespace BigHax
         {
             confirmUnlockAllContacts = unlockAllContacts;
             confirmUnlockAllCourses = unlockAllCourses;
+        }
+
+        public void ConfigurePurchaseLimitOption(System.Func<bool> readDisabled, System.Action<bool> setDisabled)
+        {
+            arePurchaseLimitsDisabled = readDisabled;
+            setPurchaseLimitsDisabled = setDisabled;
         }
 
         public void EnsureCreated(ModContext modContext, BigHaxSettings currentSettings, bool visible)
@@ -136,6 +144,8 @@ namespace BigHax
             Section(Localize("bighax_category_business"));
             Toggle(Localize("bighax_enable_instant_imports_label"), () => settings!.EnableInstantImports, v => { settings!.EnableInstantImports = v; BigHaxOptionPersistence.SaveEnableInstantImports(context!.ModId, v); });
             Toggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings!.EnableInstantFurnitureDeliveries, v => { settings!.EnableInstantFurnitureDeliveries = v; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context!.ModId, v); });
+            if (arePurchaseLimitsDisabled != null && setPurchaseLimitsDisabled != null)
+                Toggle(Localize("bighax_disable_purchase_limits_label"), arePurchaseLimitsDisabled, setPurchaseLimitsDisabled);
             Slider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings!.InstallationFirmFeePercentage, 0, 100, v => { settings!.InstallationFirmFeePercentage = v; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context!.ModId, v); }, v => v + "%");
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
             Separator();
