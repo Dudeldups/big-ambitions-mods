@@ -73,6 +73,3 @@
 사용 가능한 모든 치트는 선택 사항이므로, 필요한 것만 골라서 활성화하세요.
 
 게임 기본 UI처럼 보이는 인터페이스를 원한다면 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url]를 선택적으로 사용할 수 있습니다
-
-[b]피드백[/b]
-모드 옵션의 Steam 또는 Discord 버튼을 사용하여 의견, 제안 또는 버그 신고를 보내세요.

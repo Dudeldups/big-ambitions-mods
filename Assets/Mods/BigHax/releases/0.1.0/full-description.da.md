@@ -73,6 +73,3 @@ Du er meget velkommen til at foreslå, hvilke andre Hax du har brug for.
 Alle tilgængelige cheats er valgfrie, så du kan nøjes med at aktivere dem, du faktisk har brug for.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] er valgfri, hvis du vil have en brugerflade, der ligner spillets egen
-
-[b]Feedback[/b]
-Brug Steam- eller Discord-knapperne i modindstillingerne til at sende feedback, forslag eller fejlrapporter.

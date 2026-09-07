@@ -73,6 +73,3 @@ Nyugodtan javasolj további Hax funkciókat, amelyekre szükséged lenne.
 Minden elérhető cheat opcionális, így nyugodtan csak azt kapcsold be, amire tényleg szükséged van.
 
 A [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] opcionális, ha a játék natív felületéhez illő UI-t szeretnél
-
-[b]Visszajelzés[/b]
-A mod beállításaiban található Steam vagy Discord gombbal küldhetsz visszajelzést, javaslatot vagy hibajelentést.

@@ -73,6 +73,3 @@ Návrhy na další Haxy, které potřebujete, jsou vítány.
 Všechny dostupné cheaty jsou volitelné, takže můžete zapnout jen ty, které skutečně potřebujete.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] je volitelné, pokud chcete rozhraní ve stylu původního herního UI
-
-[b]Zpětná vazba[/b]
-Pomocí tlačítek Steam nebo Discord v nastavení modu můžete poslat zpětnou vazbu, návrhy nebo hlášení chyb.

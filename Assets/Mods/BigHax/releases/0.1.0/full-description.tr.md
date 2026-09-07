@@ -73,6 +73,3 @@ Dürüst olalım: Bazen bir iş dünyası patronunun hayatında gereğinden fazl
 Mevcut tüm hileler isteğe bağlıdır; yani yalnızca gerçekten ihtiyacınız olanları etkinleştirebilirsiniz.
 
 Oyunun kendi arayüzüne benzeyen bir UI istiyorsanız [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] isteğe bağlıdır
-
-[b]Geri bildirim[/b]
-Geri bildirim, öneri veya hata raporu göndermek için mod seçeneklerindeki Steam ya da Discord düğmelerini kullanın.

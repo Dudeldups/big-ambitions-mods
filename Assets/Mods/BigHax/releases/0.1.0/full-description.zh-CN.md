@@ -73,6 +73,3 @@
 所有作弊功能都是可选的，所以只启用你真正需要的就行。
 
 如果你想要更接近游戏原生风格的 UI，可以选择安装 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url]
-
-[b]反馈[/b]
-使用模组选项中的 Steam 或 Discord 按钮发送反馈、建议或错误报告。

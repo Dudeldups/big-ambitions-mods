@@ -73,6 +73,3 @@ Las sugerencias sobre qué otros Hax necesitas son más que bienvenidas.
 Todos los trucos disponibles son opcionales, así que activa solo los que realmente necesites.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] es opcional si quieres una interfaz con un aspecto nativo del juego
-
-[b]Comentarios[/b]
-Usa los botones de Steam o Discord en las opciones del mod para enviar comentarios, sugerencias o informes de errores.

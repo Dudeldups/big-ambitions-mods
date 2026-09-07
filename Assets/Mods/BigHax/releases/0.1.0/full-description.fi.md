@@ -73,6 +73,3 @@ Ehdotuksia muista tarvitsemistasi Hax-toiminnoista otetaan mielellään vastaan.
 Kaikki saatavilla olevat huijaukset ovat valinnaisia, joten ota käyttöön vain ne, joita oikeasti tarvitset.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] on valinnainen, jos haluat pelin omaa käyttöliittymää muistuttavan UI:n
-
-[b]Palaute[/b]
-Lähetä palautetta, ehdotuksia tai virheraportteja modin asetusten Steam- tai Discord-painikkeella.

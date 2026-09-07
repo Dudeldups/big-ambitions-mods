@@ -73,6 +73,3 @@
 利用可能なチートはすべて任意なので、必要なものだけ有効にしてください。
 
 ゲーム標準風の UI が欲しい場合は、[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] を任意で使用できます
-
-[b]フィードバック[/b]
-MODオプションのSteamまたはDiscordボタンから、ご意見、ご提案、バグ報告を送信できます。

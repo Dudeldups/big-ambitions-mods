@@ -73,6 +73,3 @@ Suggesties voor andere Hax die je nodig hebt zijn altijd welkom.
 Alle beschikbare cheats zijn optioneel, dus schakel gerust alleen in wat je echt nodig hebt.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] is optioneel als je een interface wilt die eruitziet alsof die bij het spel hoort
-
-[b]Feedback[/b]
-Gebruik de Steam- of Discord-knop in de modopties voor feedback, suggesties of bugmeldingen.

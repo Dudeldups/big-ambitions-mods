@@ -73,6 +73,3 @@ Jeśli potrzebujesz innych Hax, śmiało podrzucaj propozycje.
 Wszystkie dostępne cheaty są opcjonalne, więc możesz włączyć tylko te, których naprawdę potrzebujesz.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] jest opcjonalne, jeśli chcesz interfejs wyglądający jak natywny UI gry
-
-[b]Opinie[/b]
-Użyj przycisku Steam lub Discord w opcjach moda, aby przesłać opinię, sugestię lub zgłoszenie błędu.
