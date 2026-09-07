@@ -13,6 +13,7 @@ namespace CameraTools
         private Volume? mapFogOverrideVolume;
         private VolumeProfile? mapFogOverrideProfile;
         private bool mapFogOverrideActive;
+        private bool hasLoggedResolvedMapFog;
         private HDAdditionalCameraData? mapFogCameraData;
         private bool savedMapCustomRenderingSettings;
         private bool savedMapAtmosphericScattering;
@@ -44,6 +45,7 @@ namespace CameraTools
             if (!mapFogOverrideActive)
             {
                 mapFogOverrideActive = true;
+                hasLoggedResolvedMapFog = false;
                 context?.Logger.Info(
                     $"CameraTools: city-map fog override activated; priority={MapFogOverridePriority:0}, layer={(mapFogOverrideObject == null ? -1 : mapFogOverrideObject.layer)}.");
             }
@@ -71,6 +73,40 @@ namespace CameraTools
             }
 
             ApplyCityMapFogCameraState(cameraData);
+        }
+
+        private void HandleBeginCameraRendering(ScriptableRenderContext renderContext, Camera camera)
+        {
+            if (settings == null || !settings.DisableCityMapFog || !IsCityMapOpen())
+                return;
+
+            var mapRenderCamera = activeMapRenderCamera ?? GetLiveMainCamera();
+            if (mapRenderCamera == null || camera != mapRenderCamera)
+                return;
+
+            var hdCamera = HDCamera.GetOrCreate(camera);
+            var resolvedFog = hdCamera.volumeStack.GetComponent<Fog>();
+            if (resolvedFog == null)
+            {
+                if (!hasLoggedResolvedMapFog)
+                {
+                    hasLoggedResolvedMapFog = true;
+                    context?.Logger.Warn($"CameraTools: HDRP resolved no fog component for map camera '{camera.name}'.");
+                }
+                return;
+            }
+
+            var wasEnabled = resolvedFog.enabled.value;
+            var volumetricsWereEnabled = resolvedFog.enableVolumetricFog.value;
+            resolvedFog.enabled.value = false;
+            resolvedFog.enableVolumetricFog.value = false;
+
+            if (hasLoggedResolvedMapFog)
+                return;
+
+            hasLoggedResolvedMapFog = true;
+            context?.Logger.Info(
+                $"CameraTools: disabled resolved HDRP fog at render time for '{camera.name}'; wasEnabled={wasEnabled}, volumetricsWereEnabled={volumetricsWereEnabled}.");
         }
 
         private void EnsureCityMapFogOverride(HDAdditionalCameraData? cameraData)
@@ -164,6 +200,7 @@ namespace CameraTools
                 return;
 
             mapFogOverrideActive = false;
+            hasLoggedResolvedMapFog = false;
             context?.Logger.Info("CameraTools: city-map fog override deactivated and normal fog restored.");
         }
 
