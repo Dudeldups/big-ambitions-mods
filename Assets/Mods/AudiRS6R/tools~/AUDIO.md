@@ -1,6 +1,6 @@
-# Audi audio test: generated growl and reactive pops
+# Audi audio: finalized growl and reactive pops
 
-Revision 15 brings pop character closer to revision 13 after revision 14 sounded too dull and knock-like. The engine sound was accepted after revision 12 and pop frequency after revision 13. All six driving WAVs, the original Car idle, engine playback settings and the pop event detector/scheduler are unchanged in this iteration. Idle remains the borrowed Car clip at pitch 1.0 and volume 0.24, with the existing idle/driving fade and no added distortion. Old local Recorded audition files are ignored.
+Revision 15 sound and pop frequency were accepted in game. Final cleanup removes temporary audio diagnostics without changing playback, samples or event scheduling. The engine sound was accepted after revision 12 and pop frequency after revision 13. All six driving WAVs, the original Car idle, engine playback settings and the pop event detector/scheduler are unchanged in this iteration. Idle remains the borrowed Car clip at pitch 1.0 and volume 0.24, with the existing idle/driving fade and no added distortion. Old local Recorded audition files are ignored.
 
 ## Pop sound character
 
@@ -8,7 +8,7 @@ Revision 13 had a sharp noisy attack; revision 14 filtered almost all of its upp
 
 The new mix is 80% of the original waveform plus 20% of a low-pass copy of that same waveform, each normalized to unit RMS before mixing. Only the quiet parallel copy is filtered at 1100 Hz. Its filter delay is compensated before mixing to keep shared low frequencies in phase. This reinforces the original body while retaining the main waveform's unfiltered attack and crackle. Final normalization preserves each variant's previous RMS energy and duration; endpoint windows prevent boundary clicks.
 
-Encoded samples now retain about 25-29% spectral energy above 2 kHz, compared with 36-41% in revision 13 and almost none in revision 14. Roughly 66-68% remains between 70 and 700 Hz. Opening 5 ms energy is about 25-31%, and peaks are 0.66-0.70. These measurements confirm a return toward the original attack and brightness, while leaving some extra body. Perceived character still needs an in-game listening test.
+Encoded samples now retain about 25-29% spectral energy above 2 kHz, compared with 36-41% in revision 13 and almost none in revision 14. Roughly 66-68% remains between 70 and 700 Hz. Opening 5 ms energy is about 25-31%, and peaks are 0.66-0.70. These measurements confirm a return toward the original attack and brightness, while leaving some extra body. The user confirmed this character in game.
 
 Random clip and volume selection are retained. Pop pitch retains revision 14's 0.96-1.01x range, to avoid brighter outliers without dramatically lowering every sample. Pop volume remains 0.48 times event intensity and random 0.8-1.1 variation. One-shot playback retains individual tails. No new runtime filter or distortion component is added.
 
@@ -27,10 +27,10 @@ The engine generator analyzes selected sections of the supplied AudiRevving.wav 
 - Lifts schedule 1-3 pops; shifts schedule 1-2. First delay is 35-100 ms; subsequent delays are 85-205 ms. Lift/upshift cooldown is 0.8-1.05 seconds; downshifts retain 1.0-1.35 seconds. Pending bursts cannot overlap. Holding zero throttle cannot repeatedly trigger releases.
 - Idle, reverse, engine-off, exit, pause or a stale sampling gap clear pending events. Reapplying throttle cancels an unfinished lift burst.
 
-Logs identify revision=15, popTone=originalAttack80Body20 and popPitch=0.96..1.01. Existing rate-limited diagnostics report event reason, probability, pre-shift RPM/source gear, selected clip, playback volume/pitch and mixer state.
+Temporary source dumps, driver/pause traces, periodic RPM/mixer samples and per-pop/decision logs have been removed. A single successful initialization message and warnings for initialization failure, missing vehicle physics or playback failure remain for support.
 
-## Verification and listening
+## Verification
 
 Run tools~/Test-Audio.ps1 in a fresh PowerShell process for idle/driving calibration, 1001 RPM crossfades, nine WAV decodes and event scenarios. Run python tools~/test_pop_audio.py (NumPy required) for encoded pop spectral balance at both playback pitch limits, short tail, restored attack without excessive upper clack, level/headroom, distinct variants and silent boundaries. The tests do not simulate Unity DSP or the in-game mixer.
 
-Restart Big Ambitions after installation. Listen to individual releases and short bursts from loaded low-gear upshifts: compare with the original sharp pop and the rejected muffled knock; the target is closer to the former with modest extra body. Compare larger and smaller variants while checking that the accepted frequency, engine and idle remain intact. Build/install and numerical checks do not establish in-game sound quality.
+The user confirmed the engine tone, pop frequency and revision 15 pop character in game. Final cleanup changes logging only. Automated audio/event tests and the required external build/install verify the cleanup; they do not independently simulate Unity DSP.

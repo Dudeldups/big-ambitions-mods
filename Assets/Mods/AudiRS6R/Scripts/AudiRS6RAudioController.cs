@@ -1,12 +1,10 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using BAModAPI;
 using NWH.VehiclePhysics2.Sound.SoundComponents;
 using UnityEngine;
-using UnityEngine.Audio;
 using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 [DefaultExecutionOrder(200)]
@@ -28,11 +26,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private AudioClip[]? popClips;
     private float originalDistortion;
     private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
-    private bool busMutedReported;
-    private int lastDecision;
-    private float nextDecisionLog;
-    private int attempts, popCount, lastState = -1;
-    private float nextAttempt, nextLog, nextPopLog, smoothRpm, smoothThrottle, envelope, driveBlend, loadBlend;
+    private int attempts;
+    private float nextAttempt, smoothRpm, smoothThrottle, envelope, driveBlend, loadBlend;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -52,8 +47,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
                 nextAttempt = Time.unscaledTime + .5f;
                 if (!TryConfigure())
                 {
-                    if (attempts == 1 || attempts == 20)
-                        Warn($"waiting for native engine audio; attempt={attempts}/20.");
+                    if (attempts == 20)
+                        Warn("native engine audio unavailable after 20 attempts; custom audio was not initialized.");
                     return;
                 }
             }
@@ -89,8 +84,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
             layers[i] = CreateSource(audioHost, clip, true);
             var loaded = LoadClip(EngineNames[i]+"Load");
             layers[i + 3] = CreateSource(audioHost, loaded, true);
-            Info($"loaded layer={i} source=generated coast='{clip.name}' load='{loaded.name}' secondsCoast={F(clip.length)} secondsLoad={F(loaded.length)} " +
-                 $"referenceHz={F(AudiRS6RAudioModel.ReferenceHz(i))}.");
         }
         popClips = new[] { LoadClip("ExhaustPop1"), LoadClip("ExhaustPop2"), LoadClip("ExhaustPop3") };
         var exhaustHost = new GameObject("ExhaustPops");
@@ -98,10 +91,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource = CreateSource(exhaustHost, popClips[0], false);
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info($"configured revision=15 idle='{idleSource.clip.name}' idlePitch=1 idleVolume=0.24 " +
-             $"driving=generatedGrowlWithBite targetHz=80..180 popVolume={F(AudiRS6RAudioModel.PopVolume)} distortion=0 mixer='{native.outputAudioMixerGroup.audioMixer.name}' " +
-             $"group='{native.outputAudioMixerGroup.name}' pops=abruptLift/downshiftRpmJump/lowGearUpshift maxBurst=3 liftCooldown=0.8..1.05 driverThrottle=input.Throttle " +
-             $"popTone=originalAttack80Body20 popPitch={F(AudiRS6RAudioModel.PopPitchMin)}..{F(AudiRS6RAudioModel.PopPitchMax)} nativeFallback='{native.clip.name}'.");
+        Info("custom engine audio and exhaust pops initialized.");
         return true;
     }
 
@@ -145,7 +135,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         {
             smoothRpm = engine.RPMPercent * engine.revLimiterRPM;
             smoothThrottle = Mathf.Clamp01(engine.ThrottlePosition);
-            Info($"driver entered: original '{idleSource.clip.name}' idle at pitch=1 volume=0.24; driving=generatedGrowlWithBite; event-driven bursts active.");
         }
         wasControlled = controlled;
         var shouldPause = Time.timeScale <= 0f || AudioListener.pause;
@@ -158,7 +147,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
             popSource.Stop();
             popGate.Reset();
             paused = shouldPause;
-            Info($"audio pause={paused} timeScale={F(Time.timeScale)} listenerPause={AudioListener.pause}.");
         }
         if (controlled)
         {
@@ -212,40 +200,11 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
                 voicesStarted = true;
             }
             var pop = popGate.Sample(running && !savedMute, Time.time, rawRpm, driverThrottle, gear, body == null ? 0f : body.velocity.magnitude*3.6f);
-            if (popGate.DecisionId != lastDecision)
-            {
-                lastDecision = popGate.DecisionId;
-                if (Time.unscaledTime >= nextDecisionLog)
-                {
-                    nextDecisionLog = Time.unscaledTime + .5f;
-                    Info($"pop event decision={popGate.Decision} chance={F(popGate.Probability)} rpm={F(rawRpm)} " +
-                         $"driverThrottle={F(driverThrottle)} fromGear={popGate.FromGear} gear={gear} eventRpm={F(popGate.EventRpm)} rpmJump={F(popGate.RpmJump)} currentBurst={popGate.BurstId} " +
-                         $"scheduledPops={(popGate.Decision.EndsWith(":burst") ? popGate.BurstSize : 0)}.");
-                }
-            }
-            if (pop != AudiRS6RPopEvent.None) PlayPop(pop, rawRpm, gear, master);
-        }
-        var state = (controlled ? 1 : 0) | (running ? 2 : 0) | (paused ? 4 : 0);
-        if (state != lastState || (controlled && Time.unscaledTime >= nextLog))
-        {
-            lastState = state;
-            nextLog = Time.unscaledTime + 5f;
-            var mixer = layers[0].outputAudioMixerGroup?.audioMixer;
-            Info($"sample controlled={controlled} running={running} paused={paused} " +
-                 $"rpm={F(rawRpm)} smoothRpm={F(smoothRpm)} engineThrottle={F(engine.ThrottlePosition)} driverThrottle={F(driverThrottle)} gear={gear} " +
-                 $"driveBlend={F(driveBlend)} idle='{idleSource.clip.name}'[{Status(idleSource)}] " +
-                 $"low[{Status(layers[0])}] mid[{Status(layers[1])}] high[{Status(layers[2])}] pops={popCount} " +
-                 $"loadBlend={F(loadBlend)} loadedLow[{Status(layers[3])}] loadedMid[{Status(layers[4])}] loadedHigh[{Status(layers[5])}] " +
-                 $"burstActive={popGate.OverrunActive} " +
-                 $"engineDb={ReadMixer(mixer, "engine")} fxDb={ReadMixer(mixer, "fx")} " +
-                 $"masterDb={ReadMixer(mixer, "attenuation")} listenerVolume={F(AudioListener.volume)}.");
-            var busMuted = running && !paused && mixer != null && mixer.GetFloat("engine", out var db) && db <= -79f;
-            if (busMuted && !busMutedReported) Warn("engine mixer bus is muted while running; layers may be inaudible.");
-            busMutedReported = busMuted;
+            if (pop != AudiRS6RPopEvent.None) PlayPop(master);
         }
     }
 
-    private void PlayPop(AudiRS6RPopEvent reason, float rpm, int gear, float master)
+    private void PlayPop(float master)
     {
         var clip = popClips![UnityEngine.Random.Range(0, popClips.Length)];
         popSource!.clip = clip;
@@ -253,22 +212,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource.volume = master * AudiRS6RAudioModel.PopVolume * popGate.Intensity * UnityEngine.Random.Range(.8f, 1.1f);
         popSource.mute = savedMute;
         popSource.PlayOneShot(clip);
-        popCount++;
-        if (Time.unscaledTime >= nextPopLog)
-        {
-            nextPopLog = Time.unscaledTime + 2f;
-            Info($"exhaust pop reason={reason} burst={popGate.BurstId} intensity={F(popGate.Intensity)} rpm={F(rpm)} gear={gear} clip='{clip.name}' " +
-                 $"volume={F(popSource.volume)} pitch={F(popSource.pitch)} playing={popSource.isPlaying} " +
-                 $"mute={popSource.mute} minDistance={F(popSource.minDistance)} maxDistance={F(popSource.maxDistance)} " +
-                 $"engineDb={ReadMixer(popSource.outputAudioMixerGroup?.audioMixer, "engine")} total={popCount}.");
-        }
     }
 
-    private static string Status(AudioSource source) =>
-        $"playing={source.isPlaying} mute={source.mute} volume={F(source.volume)} pitch={F(source.pitch)}";
-    private static string ReadMixer(AudioMixer? mixer, string parameter) =>
-        mixer != null && mixer.GetFloat(parameter, out var value) ? F(value) : "unavailable";
-    private static string F(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
     private void Info(string message) => context?.Logger.Info($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
     private void Warn(string message) => context?.Logger.Warn($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
 
@@ -294,7 +239,6 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
         envelope = smoothRpm = smoothThrottle = driveBlend = loadBlend = 0f;
         paused = wasControlled = false;
-        lastState = -1;
     }
 
     private void OnEnable()
