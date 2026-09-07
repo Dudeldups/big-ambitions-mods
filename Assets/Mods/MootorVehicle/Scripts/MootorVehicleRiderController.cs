@@ -124,6 +124,7 @@ namespace MootorVehicle
                 return;
 
             occupied = true;
+            GetComponent<MootorVehicleFuelController>()?.NotifyMounted();
             attempts = 0;
             nextAttempt = 0f;
             engineStartAttempts = 0;
@@ -154,6 +155,7 @@ namespace MootorVehicle
             if (!vehicle.controlledByPlayer && Time.unscaledTime >= mountControlGraceUntil)
             {
                 occupied = false;
+                GetComponent<MootorVehicleFuelController>()?.NotifyDismounted();
                 ApplyRideHeight(false);
                 ResetCowGait();
                 ResetCowEarFlap();
@@ -272,6 +274,8 @@ namespace MootorVehicle
                 rendererCount++;
             }
 
+            var heldItemRendererCount = CopyHeldItemRenderers(character.GetHandContent(), sourceRoot, transforms);
+
             if (rendererCount == 0)
                 throw new InvalidOperationException("Player has no visible skinned appearance meshes yet.");
 
@@ -323,7 +327,8 @@ namespace MootorVehicle
             ApplyCowRidingPose();
             LogInfo(
                 $"created visible rider renderers={rendererCount} scale={RiderScale:F2} " +
-                $"seatLocal={riderSeat.localPosition} clip='{sittingClip.name}'.");
+                $"heldItemRenderers={heldItemRendererCount} seatLocal={riderSeat.localPosition} " +
+                $"clip='{sittingClip.name}'.");
             LogInfo($"cow-riding pose before={poseBefore} after={PosePositions()}.");
         }
 
@@ -947,6 +952,73 @@ namespace MootorVehicle
             destination.receiveShadows = source.receiveShadows;
         }
 
+        private int CopyHeldItemRenderers(
+            Transform? handContent,
+            Transform sourceRoot,
+            Dictionary<Transform, Transform> transforms)
+        {
+            if (handContent == null || PlayerHelper.ItemInstanceInHands == null)
+                return 0;
+
+            var copied = 0;
+            foreach (var source in handContent.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!source.enabled || source.forceRenderingOff || source.transform == null ||
+                    !IsActiveWithinCharacter(source.transform, sourceRoot) ||
+                    !transforms.TryGetValue(source.transform, out var destinationTransform) ||
+                    destinationTransform.GetComponent<Renderer>() != null)
+                {
+                    continue;
+                }
+
+                if (source is SkinnedMeshRenderer skinned && skinned.sharedMesh != null)
+                {
+                    CopyRenderer(skinned, transforms);
+                    copied++;
+                    continue;
+                }
+
+                if (source is not MeshRenderer meshRenderer)
+                    continue;
+
+                var sourceFilter = source.GetComponent<MeshFilter>();
+                if (sourceFilter?.sharedMesh == null)
+                    continue;
+
+                var destinationFilter = destinationTransform.gameObject.AddComponent<MeshFilter>();
+                destinationFilter.sharedMesh = sourceFilter.sharedMesh;
+                var destination = destinationTransform.gameObject.AddComponent<MeshRenderer>();
+                destination.sharedMaterials = meshRenderer.sharedMaterials;
+                destination.renderingLayerMask = meshRenderer.renderingLayerMask;
+                destination.shadowCastingMode = ShadowCastingMode.On;
+                destination.receiveShadows = meshRenderer.receiveShadows;
+
+                var properties = new MaterialPropertyBlock();
+                meshRenderer.GetPropertyBlock(properties);
+                destination.SetPropertyBlock(properties);
+                for (var index = 0; index < meshRenderer.sharedMaterials.Length; index++)
+                {
+                    properties.Clear();
+                    meshRenderer.GetPropertyBlock(properties, index);
+                    if (!properties.isEmpty)
+                        destination.SetPropertyBlock(properties, index);
+                }
+
+                copied++;
+            }
+
+            if (copied > 0)
+                LogInfo(
+                    $"copied carried-item visuals item='{PlayerHelper.ItemInstanceInHands.itemName}' " +
+                    $"renderers={copied}.");
+            else
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: carried item " +
+                    $"'{PlayerHelper.ItemInstanceInHands.itemName}' has no copyable hand-content renderers.");
+
+            return copied;
+        }
+
         private void LogInfo(string message)
         {
             context?.Logger.Info(
@@ -981,6 +1053,7 @@ namespace MootorVehicle
 
         private void OnDisable()
         {
+            GetComponent<MootorVehicleFuelController>()?.NotifyDismounted();
             mooHornSource?.Stop();
             ResetCowGait();
             ResetCowEarFlap();

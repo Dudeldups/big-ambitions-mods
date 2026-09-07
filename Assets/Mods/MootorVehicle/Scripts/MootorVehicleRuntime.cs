@@ -51,6 +51,10 @@ namespace MootorVehicle
                 if (rider != null)
                     Destroy(rider);
 
+            foreach (var fuelController in FindObjectsOfType<MootorVehicleFuelController>(true))
+                if (fuelController != null)
+                    Destroy(fuelController);
+
             Destroy(gameObject);
         }
 
@@ -205,6 +209,11 @@ namespace MootorVehicle
             if (added)
                 riderController = vehicleController.gameObject.AddComponent<MootorVehicleRiderController>();
 
+            var fuelController = vehicleController.GetComponent<MootorVehicleFuelController>();
+            if (fuelController == null)
+                fuelController = vehicleController.gameObject.AddComponent<MootorVehicleFuelController>();
+
+            fuelController.Initialize(vehicleController, context);
             riderController!.Initialize(vehicleController, context);
             if (source == "vehicle-entered")
                 riderController.NotifyMounted();

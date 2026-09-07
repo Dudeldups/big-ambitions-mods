@@ -25,6 +25,7 @@ namespace MootorVehicle.Editor
         private const string TemplateManifestPath = "Assets/Mods/Example-Vehicle/ModManifest.asset";
         private const string VehicleTypeName = "mootorvehicle:vehicletype_mootorvehicle";
         private const string OldVehicleTypeName = "example-vehicle:vehicletype_turbohonza";
+        private const string ScooterVehicleTag = "ba:vehicletag_isscooter";
         private const string BundleName = "mootorvehicle";
         private const string BundleVariant = "unity3d";
         private const string GaitPoseAName = "MootorGaitA";
@@ -73,6 +74,7 @@ namespace MootorVehicle.Editor
 
             var serialized = new SerializedObject(vehicleType);
             SetString(serialized, "vehicleTypeName", VehicleTypeName);
+            SetStringArray(serialized, "tags", new[] { ScooterVehicleTag });
             SetFloat(serialized, "price", 1800f);
             SetBool(serialized, "isATruck", false);
             SetBool(serialized, "isHandVehicle", false);
@@ -279,9 +281,12 @@ namespace MootorVehicle.Editor
 
                 changed |= SetBool(serialized, "module.active", true, "module.speedLimit");
                 changed |= SetFloat(serialized, "module.speedLimit", 25f);
-                changed |= SetBool(serialized, "module.useFuel", false);
+                changed |= SetBool(serialized, "module.useFuel", true);
                 changed |= SetFloat(serialized, "module.amount", 100f);
                 changed |= SetFloat(serialized, "module.capacity", 100f);
+                changed |= SetFloat(serialized, "module.consumptionMultiplier", 10f);
+                changed |= SetFloat(serialized, "module.idleConsumption", 0.01f);
+                changed |= SetFloat(serialized, "module.maxConsumptionPerHour", 5f);
 
                 changed |= SetBool(serialized, "useDefaultMass", false);
                 changed |= SetFloat(serialized, "baseMass", 700f);
@@ -1305,6 +1310,19 @@ namespace MootorVehicle.Editor
                     return false;
                 element.objectReferenceValue = values[index];
             }
+
+            return true;
+        }
+
+        private static bool SetStringArray(SerializedObject serialized, string path, string[] values)
+        {
+            var property = serialized.FindProperty(path);
+            if (property == null || !property.isArray)
+                return false;
+
+            property.arraySize = values.Length;
+            for (var index = 0; index < values.Length; index++)
+                property.GetArrayElementAtIndex(index).stringValue = values[index];
 
             return true;
         }
