@@ -1,0 +1,75 @@
+{
+  "source": "AudiRevving.wav",
+  "source_sha256": "f190ee6c5879bf8df625ab76ffba2e96c9afd15696055064be83decc0a246cff",
+  "method": "stationary harmonic/noise resynthesis; acoustic references are not engine RPM",
+  "layers": [
+    {
+      "name": "EngineLow",
+      "seconds": 2.0,
+      "peak": 0.27484965628439534,
+      "rms": 0.12000000000000001,
+      "rms_span_db": 0.2438380971222991,
+      "seam_step": 0.0023693066966917475,
+      "section": [
+        0.32,
+        0.62
+      ],
+      "source_harmonic_hz": 188.46,
+      "reference_hz": 96
+    },
+    {
+      "name": "EngineMid",
+      "seconds": 2.0,
+      "peak": 0.26666193845373015,
+      "rms": 0.12,
+      "rms_span_db": 0.34433327545683823,
+      "seam_step": 0.00495261969455732,
+      "section": [
+        1.5,
+        2.08
+      ],
+      "source_harmonic_hz": 242.31,
+      "reference_hz": 176
+    },
+    {
+      "name": "EngineHigh",
+      "seconds": 2.0,
+      "peak": 0.291451107216326,
+      "rms": 0.12,
+      "rms_span_db": 0.3308456660597467,
+      "seam_step": 0.0012426495641623958,
+      "section": [
+        3.82,
+        4.35
+      ],
+      "source_harmonic_hz": 246.14,
+      "reference_hz": 320
+    }
+  ],
+  "pops": [
+    {
+      "name": "ExhaustPop1",
+      "seconds": 0.2,
+      "peak": 0.72,
+      "rms": 0.06683494957100689,
+      "rms_span_db": 22.771071362777036,
+      "seam_step": 3.6019582217653785e-06
+    },
+    {
+      "name": "ExhaustPop2",
+      "seconds": 0.22498866213151927,
+      "peak": 0.72,
+      "rms": 0.06753696071011568,
+      "rms_span_db": 22.85512234502177,
+      "seam_step": 4.057296234990829e-06
+    },
+    {
+      "name": "ExhaustPop3",
+      "seconds": 0.25,
+      "peak": 0.72,
+      "rms": 0.05516521685410747,
+      "rms_span_db": 22.455714359091893,
+      "seam_step": 1.0907559181729459e-06
+    }
+  ]
+}
