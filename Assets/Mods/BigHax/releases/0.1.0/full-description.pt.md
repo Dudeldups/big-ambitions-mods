@@ -20,8 +20,9 @@ Sugestões de outros Hax que você gostaria de ter são muito bem-vindas.
 [*] Permitir candidatos de recrutamento com até 100% de habilidade
 [*] Remover todas as exigências dos funcionários
 [*] Definir a satisfação de todos os funcionários para 100%
-[*] Ganho de habilidade por treinamento de funcionários
+[*] Ganho de habilidade por treinamento de funcionários (10–100)
 [*] Aumentar os pontos de recrutamento do headhunter para 1000
+[*] Capacidade máxima do gestor de RH (50–10.000)
 [/list]
 
 [b]Truques do jogador[/b]
@@ -40,6 +41,7 @@ Sugestões de outros Hax que você gostaria de ter são muito bem-vindas.
 [list]
 [*] Importações instantâneas
 [*] Entregas de móveis instantâneas
+[*] Desativar limites de importação
 [*] Taxa da empresa de instalação (0–100%)
 [*] Multiplicador de clientes do negócio do jogador (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Sugestões de outros Hax que você gostaria de ter são muito bem-vindas.
 
 [b]Truques de capacidade[/b]
 [list]
-[*] Aumenta enormemente a capacidade do Standard Fridge, Pallet/Storage Shelves e do seu veículo atual.
+[*] Capacidade do Standard Fridge (50–1000)
+[*] Capacidade do Pallet Shelf (60–1000)
+[*] Capacidade do Storage Shelf (16–1000)
+[*] Substituição da capacidade do veículo ativo (1000)
 [/list]
 
 [b]Truques de tempo[/b]
@@ -68,3 +73,6 @@ Sugestões de outros Hax que você gostaria de ter são muito bem-vindas.
 Todos os cheats disponíveis são opcionais, então fique à vontade para ativar apenas o que realmente precisa.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] é opcional caso você queira uma interface com aparência nativa do jogo
+
+[b]Feedback[/b]
+Use os botões Steam ou Discord nas opções do mod para enviar comentários, sugestões ou relatórios de erros.

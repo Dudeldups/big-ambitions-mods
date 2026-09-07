@@ -20,8 +20,9 @@ Dürüst olalım: Bazen bir iş dünyası patronunun hayatında gereğinden fazl
 [*] İşe alım adaylarının becerilerinin %100'e kadar olmasına izin ver
 [*] Tüm çalışan taleplerini kaldır
 [*] Tüm çalışanların memnuniyetini %100'e ayarla
-[*] Çalışan eğitimi beceri kazanımı
+[*] Çalışan eğitimi beceri kazanımı (10–100)
 [*] İşe alım uzmanının işe alım puanlarını 1000'e yükselt
+[*] Maksimum İK yöneticisi kapasitesi (50–10.000)
 [/list]
 
 [b]Oyuncu hileleri[/b]
@@ -40,6 +41,7 @@ Dürüst olalım: Bazen bir iş dünyası patronunun hayatında gereğinden fazl
 [list]
 [*] Anında ithalat
 [*] Anında mobilya teslimatları
+[*] İthalat limitlerini devre dışı bırak
 [*] Kurulum şirketi ücreti (%0–100)
 [*] Oyuncu işletmesi müşteri çarpanı (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Dürüst olalım: Bazen bir iş dünyası patronunun hayatında gereğinden fazl
 
 [b]Kapasite hileleri[/b]
 [list]
-[*] Standard Fridge, Pallet/Storage Shelves ve mevcut aracınızın kapasitesini büyük ölçüde artırır.
+[*] Standard Fridge kapasitesi (50–1000)
+[*] Pallet Shelf kapasitesi (60–1000)
+[*] Storage Shelf kapasitesi (16–1000)
+[*] Aktif araç kapasitesi geçersiz kılma (1000)
 [/list]
 
 [b]Zaman hileleri[/b]
@@ -68,3 +73,6 @@ Dürüst olalım: Bazen bir iş dünyası patronunun hayatında gereğinden fazl
 Mevcut tüm hileler isteğe bağlıdır; yani yalnızca gerçekten ihtiyacınız olanları etkinleştirebilirsiniz.
 
 Oyunun kendi arayüzüne benzeyen bir UI istiyorsanız [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] isteğe bağlıdır
+
+[b]Geri bildirim[/b]
+Geri bildirim, öneri veya hata raporu göndermek için mod seçeneklerindeki Steam ya da Discord düğmelerini kullanın.

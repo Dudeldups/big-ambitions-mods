@@ -9,7 +9,7 @@
   "bighax_feedback_prompt": "Turite atsiliepimų ar pasiūlymų? Radote klaidą?",
   "bighax_ui_fallback_notice": "Užsiprenumeruokite LIB BA Unified UI „Steam“ dirbtuvėse, kad patirtis būtų geresnė.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Pridėtas montavimo įmonės mokesčio slankiklis (0–100 %).\n- Pridėta parinktis padidinti talentų medžiotojo atrankos taškus iki 1000.\n- Ištaisyti pasikartojantys strigimai, kuriuos sukeldavo klientų srauto ir miego / poilsio atnaujinimai.",
+  "bighax_update_notification": "- Pridėtos Steam ir Discord nuorodos atsiliepimams.\n- Pridėtas personalo vadovo pajėgumo slankiklis (50–10 000).\n- Pridėta parinktis išjungti importo limitus.\n- Mokymo ir talpos parinktys dabar naudoja nustatytus žingsnius; aktyvios transporto priemonės talpa dabar perjungiama į 1000.\n- Ištaisytas atnaujinimo pranešimas, kai aktyvus LIB BA Unified UI.",
   "bighax_update_notice_got_it": "Supratau",
   "bighax_customer_traffic_multiplier_label": "Žaidėjo verslo klientų daugiklis",
   "bighax_disable_casino_bet_limit_label": "Padidinti kazino statymų limitą",

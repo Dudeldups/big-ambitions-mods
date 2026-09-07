@@ -20,8 +20,9 @@ Nyugodtan javasolj további Hax funkciókat, amelyekre szükséged lenne.
 [*] Toborzási jelöltek engedélyezése legfeljebb 100%-os képzettséggel
 [*] Minden alkalmazotti igény eltávolítása
 [*] Állítsd minden alkalmazott elégedettségét 100%-ra
-[*] Alkalmazotti képzés készségnövekedése
+[*] Alkalmazotti képzés készségnövekedése (10–100)
 [*] Fejvadász toborzási pontjainak növelése 1000-re
+[*] HR-menedzser maximális kapacitása (50–10 000)
 [/list]
 
 [b]Játékos trükkök[/b]
@@ -40,6 +41,7 @@ Nyugodtan javasolj további Hax funkciókat, amelyekre szükséged lenne.
 [list]
 [*] Azonnali importok
 [*] Azonnali bútorszállítások
+[*] Importkorlátok kikapcsolása
 [*] Telepítőcég díja (0–100%)
 [*] Játékos vállalkozásának ügyfélszorzója (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Nyugodtan javasolj további Hax funkciókat, amelyekre szükséged lenne.
 
 [b]Kapacitás trükkök[/b]
 [list]
-[*] Masszívan megnöveli a Standard Fridge, Pallet/Storage Shelves és a jelenlegi járműved kapacitását.
+[*] Standard Fridge kapacitása (50–1000)
+[*] Pallet Shelf kapacitása (60–1000)
+[*] Storage Shelf kapacitása (16–1000)
+[*] Aktív jármű kapacitás-felülírása (1000)
 [/list]
 
 [b]Idő trükkök[/b]
@@ -68,3 +73,6 @@ Nyugodtan javasolj további Hax funkciókat, amelyekre szükséged lenne.
 Minden elérhető cheat opcionális, így nyugodtan csak azt kapcsold be, amire tényleg szükséged van.
 
 A [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] opcionális, ha a játék natív felületéhez illő UI-t szeretnél
+
+[b]Visszajelzés[/b]
+A mod beállításaiban található Steam vagy Discord gombbal küldhetsz visszajelzést, javaslatot vagy hibajelentést.

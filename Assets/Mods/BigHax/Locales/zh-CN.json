@@ -9,7 +9,7 @@
   "bighax_feedback_prompt": "有反馈或建议？发现了错误？",
   "bighax_ui_fallback_notice": "请在 Steam 创意工坊订阅 LIB BA Unified UI，以获得更好的体验。",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- 新增安装公司费用滑块（0–100%）。\n- 新增将猎头招聘点数提高到 1000 的选项。\n- 修复由顾客流量及睡眠/休息更新引起的反复卡顿。",
+  "bighax_update_notification": "- 新增用于反馈的 Steam 和 Discord 链接。\n- 新增人力资源经理最大员工管理数滑块（50–10,000）。\n- 新增禁用进口限额的选项。\n- 培训和容量选项现在使用预设档位；当前车辆容量改为切换至 1000。\n- 修复启用 LIB BA Unified UI 时不显示更新通知的问题。",
   "bighax_update_notice_got_it": "明白了",
   "bighax_customer_traffic_multiplier_label": "玩家企业顾客倍率",
   "bighax_disable_casino_bet_limit_label": "提高赌场下注上限",

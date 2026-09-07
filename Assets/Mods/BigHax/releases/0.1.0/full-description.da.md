@@ -20,8 +20,9 @@ Du er meget velkommen til at foreslå, hvilke andre Hax du har brug for.
 [*] Tillad rekrutteringskandidater med op til 100 % færdighed
 [*] Fjern alle medarbejderkrav
 [*] Sæt alle medarbejderes tilfredshed til 100 %
-[*] Færdighedsgevinst fra medarbejdertræning
+[*] Færdighedsgevinst fra medarbejdertræning (10–100)
 [*] Hæv headhunterens rekrutteringspoint til 1000
+[*] Maksimal kapacitet for HR-chef (50–10.000)
 [/list]
 
 [b]Spiller-hax[/b]
@@ -40,6 +41,7 @@ Du er meget velkommen til at foreslå, hvilke andre Hax du har brug for.
 [list]
 [*] Øjeblikkelige importer
 [*] Øjeblikkelige møbelleveringer
+[*] Deaktiver importgrænser
 [*] Installationsfirmaets gebyr (0–100 %)
 [*] Kundemultiplikator for spillerens virksomhed (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Du er meget velkommen til at foreslå, hvilke andre Hax du har brug for.
 
 [b]Kapacitets-hax[/b]
 [list]
-[*] Øger kapaciteten voldsomt for Standard Fridge, Pallet/Storage Shelves og dit nuværende køretøj.
+[*] Standard Fridge-kapacitet (50–1000)
+[*] Pallet Shelf-kapacitet (60–1000)
+[*] Storage Shelf-kapacitet (16–1000)
+[*] Tilsidesættelse af aktivt køretøjs kapacitet (1000)
 [/list]
 
 [b]Tids-hax[/b]
@@ -68,3 +73,6 @@ Du er meget velkommen til at foreslå, hvilke andre Hax du har brug for.
 Alle tilgængelige cheats er valgfrie, så du kan nøjes med at aktivere dem, du faktisk har brug for.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] er valgfri, hvis du vil have en brugerflade, der ligner spillets egen
+
+[b]Feedback[/b]
+Brug Steam- eller Discord-knapperne i modindstillingerne til at sende feedback, forslag eller fejlrapporter.

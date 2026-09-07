@@ -20,8 +20,9 @@ I suggerimenti su quali altri Hax potrebbero servirti sono più che benvenuti.
 [*] Consenti candidati al reclutamento fino al 100% di abilità
 [*] Rimuovi tutte le richieste dei dipendenti
 [*] Imposta la soddisfazione di tutti i dipendenti al 100%
-[*] Aumento abilità da formazione dipendenti
+[*] Aumento abilità da formazione dipendenti (10–100)
 [*] Aumenta a 1000 i punti reclutamento dell’head hunter
+[*] Capacità massima del responsabile HR (50–10.000)
 [/list]
 
 [b]Trucchi del giocatore[/b]
@@ -40,6 +41,7 @@ I suggerimenti su quali altri Hax potrebbero servirti sono più che benvenuti.
 [list]
 [*] Importazioni istantanee
 [*] Consegne di mobili istantanee
+[*] Disattiva i limiti di importazione
 [*] Tariffa dell’azienda di installazione (0–100%)
 [*] Moltiplicatore clienti per l’attività del giocatore (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ I suggerimenti su quali altri Hax potrebbero servirti sono più che benvenuti.
 
 [b]Trucchi capacità[/b]
 [list]
-[*] Aumenta enormemente la capacità di Standard Fridge, Pallet/Storage Shelves e del tuo veicolo attuale.
+[*] Capacità di Standard Fridge (50–1000)
+[*] Capacità di Pallet Shelf (60–1000)
+[*] Capacità di Storage Shelf (16–1000)
+[*] Override capacità veicolo attivo (1000)
 [/list]
 
 [b]Trucchi tempo[/b]
@@ -68,3 +73,6 @@ I suggerimenti su quali altri Hax potrebbero servirti sono più che benvenuti.
 Tutti i cheat disponibili sono opzionali, quindi attiva pure solo quelli che ti servono davvero.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] è opzionale se vuoi un’interfaccia dall’aspetto nativo
+
+[b]Feedback[/b]
+Usa i pulsanti Steam o Discord nelle opzioni della mod per inviare feedback, suggerimenti o segnalazioni di bug.

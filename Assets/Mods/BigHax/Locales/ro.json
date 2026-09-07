@@ -9,7 +9,7 @@
   "bighax_feedback_prompt": "Ai feedback sau sugestii? Ai găsit o eroare?",
   "bighax_ui_fallback_notice": "Abonează-te la LIB BA Unified UI în Atelierul Steam pentru o experiență mai bună.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Adăugat un glisor pentru taxa firmei de instalare (0–100%).\n- Adăugată o opțiune pentru a mări punctele de recrutare ale headhunterului la 1000.\n- Remediate blocările recurente cauzate de actualizările traficului de clienți și ale somnului/odihnei.",
+  "bighax_update_notification": "- Adăugate linkuri Steam și Discord pentru feedback.\n- Adăugat un glisor pentru capacitatea managerului HR (50–10.000).\n- Adăugată o opțiune pentru dezactivarea limitelor de import.\n- Opțiunile de instruire și capacitate folosesc acum trepte prestabilite; capacitatea vehiculului activ este acum un comutator la 1000.\n- Remediată notificarea de actualizare când LIB BA Unified UI este activ.",
   "bighax_update_notice_got_it": "Am înțeles",
   "bighax_customer_traffic_multiplier_label": "Multiplicator de clienți pentru afacerea jucătorului",
   "bighax_disable_casino_bet_limit_label": "Mărește limita de pariere la cazino",

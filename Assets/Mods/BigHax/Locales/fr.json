@@ -9,7 +9,7 @@
   "bighax_feedback_prompt": "Vous avez des commentaires ou des suggestions ? Vous avez trouvé un bug ?",
   "bighax_ui_fallback_notice": "Abonnez-vous à LIB BA Unified UI sur le Steam Workshop pour profiter d’une meilleure expérience.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Ajout d’un curseur pour les frais de l’entreprise d’installation (0–100 %).\n- Ajout d’une option portant les points de recrutement du chasseur de têtes à 1000.\n- Correction des blocages récurrents causés par les mises à jour du trafic client et du sommeil/repos.",
+  "bighax_update_notification": "- Ajout de liens Steam et Discord pour les retours.\n- Ajout d’un curseur de capacité du responsable RH (50–10 000).\n- Ajout d’une option pour désactiver les limites d’importation.\n- Les options de formation et de capacité utilisent désormais des paliers prédéfinis ; la capacité du véhicule actif est maintenant un interrupteur à 1000.\n- Correction de l’avis de mise à jour lorsque LIB BA Unified UI est actif.",
   "bighax_update_notice_got_it": "Compris",
   "bighax_customer_traffic_multiplier_label": "Multiplicateur de clients pour l’entreprise du joueur",
   "bighax_disable_casino_bet_limit_label": "Augmenter la limite de mise au casino",

@@ -20,8 +20,9 @@ Jeśli potrzebujesz innych Hax, śmiało podrzucaj propozycje.
 [*] Zezwalaj kandydatom rekrutacyjnym na umiejętności do 100%
 [*] Usuń wszystkie wymagania pracowników
 [*] Ustaw zadowolenie wszystkich pracowników na 100%
-[*] Przyrost umiejętności z treningu pracowników
+[*] Przyrost umiejętności z treningu pracowników (10–100)
 [*] Zwiększ punkty rekrutacyjne headhuntera do 1000
+[*] Maksymalny limit pracowników menedżera HR (50–10 000)
 [/list]
 
 [b]Haki gracza[/b]
@@ -40,6 +41,7 @@ Jeśli potrzebujesz innych Hax, śmiało podrzucaj propozycje.
 [list]
 [*] Natychmiastowy import
 [*] Natychmiastowe dostawy mebli
+[*] Wyłącz limity importowe
 [*] Opłata firmy instalacyjnej (0–100%)
 [*] Mnożnik klientów firmy gracza (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Jeśli potrzebujesz innych Hax, śmiało podrzucaj propozycje.
 
 [b]Haki pojemności[/b]
 [list]
-[*] Znacznie zwiększa pojemność Standard Fridge, Pallet/Storage Shelves oraz aktualnie używanego pojazdu.
+[*] Pojemność Standard Fridge (50–1000)
+[*] Pojemność Pallet Shelf (60–1000)
+[*] Pojemność Storage Shelf (16–1000)
+[*] Nadpisanie pojemności aktywnego pojazdu (1000)
 [/list]
 
 [b]Haki czasu[/b]
@@ -68,3 +73,6 @@ Jeśli potrzebujesz innych Hax, śmiało podrzucaj propozycje.
 Wszystkie dostępne cheaty są opcjonalne, więc możesz włączyć tylko te, których naprawdę potrzebujesz.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] jest opcjonalne, jeśli chcesz interfejs wyglądający jak natywny UI gry
+
+[b]Opinie[/b]
+Użyj przycisku Steam lub Discord w opcjach moda, aby przesłać opinię, sugestię lub zgłoszenie błędu.

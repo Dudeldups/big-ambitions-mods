@@ -20,8 +20,9 @@ Ehdotuksia muista tarvitsemistasi Hax-toiminnoista otetaan mielellään vastaan.
 [*] Salli rekrytointiehdokkaiden taitotaso 100 % asti
 [*] Poista kaikki työntekijöiden vaatimukset
 [*] Aseta kaikkien työntekijöiden tyytyväisyys 100 %:iin
-[*] Työntekijäkoulutuksen taitolisäys
+[*] Työntekijäkoulutuksen taitolisäys (10–100)
 [*] Nosta headhunterin rekrytointipisteet 1000:een
+[*] HR-päällikön enimmäiskapasiteetti (50–10 000)
 [/list]
 
 [b]Pelaajahuijaukset[/b]
@@ -40,6 +41,7 @@ Ehdotuksia muista tarvitsemistasi Hax-toiminnoista otetaan mielellään vastaan.
 [list]
 [*] Välittömät tuonnit
 [*] Välittömät huonekalutoimitukset
+[*] Poista tuontirajoitukset käytöstä
 [*] Asennusyrityksen maksu (0–100 %)
 [*] Pelaajan yrityksen asiakaskerroin (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Ehdotuksia muista tarvitsemistasi Hax-toiminnoista otetaan mielellään vastaan.
 
 [b]Kapasiteettihuijaukset[/b]
 [list]
-[*] Kasvattaa reilusti Standard Fridge-, Pallet/Storage Shelves- ja nykyisen ajoneuvosi kapasiteettia.
+[*] Standard Fridge -kapasiteetti (50–1000)
+[*] Pallet Shelf -kapasiteetti (60–1000)
+[*] Storage Shelf -kapasiteetti (16–1000)
+[*] Aktiivisen ajoneuvon kapasiteetin ohitus (1000)
 [/list]
 
 [b]Aikahuijaukset[/b]
@@ -68,3 +73,6 @@ Ehdotuksia muista tarvitsemistasi Hax-toiminnoista otetaan mielellään vastaan.
 Kaikki saatavilla olevat huijaukset ovat valinnaisia, joten ota käyttöön vain ne, joita oikeasti tarvitset.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] on valinnainen, jos haluat pelin omaa käyttöliittymää muistuttavan UI:n
+
+[b]Palaute[/b]
+Lähetä palautetta, ehdotuksia tai virheraportteja modin asetusten Steam- tai Discord-painikkeella.

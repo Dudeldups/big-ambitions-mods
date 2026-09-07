@@ -9,7 +9,7 @@
   "bighax_feedback_prompt": "Hast du Feedback oder Vorschläge? Einen Fehler gefunden?",
   "bighax_ui_fallback_notice": "Abonniere LIB BA Unified UI im Steam Workshop, um ein besseres Spielerlebnis zu erhalten.",
   "bighax_update_notice_title": "Big Hax Update",
-  "bighax_update_notification": "- Schieberegler für die Gebühr der Installationsfirma hinzugefügt (0–100 %).\n- Option hinzugefügt, um die Rekrutierungspunkte von Headhuntern auf 1000 zu erhöhen.\n- Wiederkehrende Ruckler durch Aktualisierungen des Kundenverkehrs und der Schlaf-/Ruhezeiten behoben.",
+  "bighax_update_notification": "- Steam- und Discord-Links für Feedback hinzugefügt.\n- Schieberegler für die HR-Manager-Kapazität hinzugefügt (50–10.000).\n- Option zum Deaktivieren von Importlimits hinzugefügt.\n- Schulungs- und Kapazitätsoptionen verwenden nun feste Stufen; die aktive Fahrzeugkapazität ist jetzt ein Schalter für 1000.\n- Update-Hinweis bei aktivem LIB BA Unified UI behoben.",
   "bighax_update_notice_got_it": "Alles klar",
   "bighax_customer_traffic_multiplier_label": "Kundenmultiplikator für Spielerunternehmen",
   "bighax_disable_casino_bet_limit_label": "Casino Einsatzlimit erhöhen",

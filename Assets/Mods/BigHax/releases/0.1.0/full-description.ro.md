@@ -20,8 +20,9 @@ Sugestiile pentru alte Hax de care ai nevoie sunt binevenite.
 [*] Permite candidați de recrutare cu până la 100% abilitate
 [*] Elimină toate cerințele angajaților
 [*] Setează satisfacția tuturor angajaților la 100%
-[*] Câștig de abilitate din instruirea angajaților
+[*] Câștig de abilitate din instruirea angajaților (10–100)
 [*] Mărește punctele de recrutare ale headhunterului la 1000
+[*] Capacitatea maximă a managerului HR (50–10.000)
 [/list]
 
 [b]Trucuri pentru jucător[/b]
@@ -40,6 +41,7 @@ Sugestiile pentru alte Hax de care ai nevoie sunt binevenite.
 [list]
 [*] Importuri instantanee
 [*] Livrări instantanee de mobilier
+[*] Dezactivează limitele de import
 [*] Taxa firmei de instalare (0–100%)
 [*] Multiplicator de clienți pentru afacerea jucătorului (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Sugestiile pentru alte Hax de care ai nevoie sunt binevenite.
 
 [b]Trucuri de capacitate[/b]
 [list]
-[*] Mărește masiv capacitatea pentru Standard Fridge, Pallet/Storage Shelves și vehiculul tău curent.
+[*] Capacitatea Standard Fridge (50–1000)
+[*] Capacitatea Pallet Shelf (60–1000)
+[*] Capacitatea Storage Shelf (16–1000)
+[*] Suprascrierea capacității vehiculului activ (1000)
 [/list]
 
 [b]Trucuri de timp[/b]
@@ -68,3 +73,6 @@ Sugestiile pentru alte Hax de care ai nevoie sunt binevenite.
 Toate cheat-urile disponibile sunt opționale, așa că poți activa doar ce îți trebuie.
 
 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259]LIB BA Unified UI[/url] este opțional dacă vrei un UI care să arate ca unul nativ al jocului
+
+[b]Feedback[/b]
+Folosește butoanele Steam sau Discord din opțiunile modului pentru feedback, sugestii sau raportări de erori.
