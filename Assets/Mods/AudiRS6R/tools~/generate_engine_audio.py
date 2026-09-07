@@ -101,13 +101,16 @@ def make_loaded(base, reference):
     # All partials use exact periodic bins; no slow rev or loudness wobble.
     t=np.arange(len(base))/RATE
     phase=2*np.pi*(reference/2)*t
-    body=(np.cos(phase)+.42*np.cos(2*phase+.3)+.28*np.cos(3*phase+.7)
-          +.18*np.cos(5*phase+1.1))
-    driven=.72*unit_rms(base)+.55*unit_rms(body)
-    shaped=np.tanh(1.25*driven)
-    # Tame the generated upper fizz without filtering the separate Car idle.
+    body=(np.cos(phase)+.42*np.cos(2*phase+.3)+.38*np.cos(3*phase+.7)
+          +.26*np.cos(5*phase+1.1)+.14*np.cos(7*phase+.4))
+    driven=.68*unit_rms(base)+.72*unit_rms(body)
+    shaped=np.tanh(1.65*driven)
+    # Stronger firing texture with a wider harmonic band. A parallel base
+    # component preserves upper-mid detail instead of merely lowering pitch.
+    # The borrowed Car idle and the coast layers never enter this processing.
     f=np.fft.rfftfreq(len(shaped),1/RATE)
-    shaped=np.fft.irfft(np.fft.rfft(shaped)*np.exp(-(f/(reference*14))**4),len(shaped))
+    shaped=np.fft.irfft(np.fft.rfft(shaped)*np.exp(-(f/(reference*20))**4),len(shaped))
+    shaped=.78*unit_rms(shaped)+.22*unit_rms(base)
     shaped-=shaped.mean()
     return .12*unit_rms(shaped)
 
@@ -136,7 +139,7 @@ def main():
         loaded=write(name+'Load',make_loaded(base,target))
         if loaded['rms_span_db']>1:
             raise ValueError(f'{name} loaded layer retains excessive loudness motion')
-        loaded.update(reference_hz=target,method='lower partials and soft saturation, same RMS as base')
+        loaded.update(reference_hz=target,method='stronger lower/odd partials and saturation with parallel base detail, same RMS as base')
         report['loaded_layers'].append(loaded)
     for i in range(3):
         report['pops'].append(write('ExhaustPop'+str(i+1),make_pop(i)))

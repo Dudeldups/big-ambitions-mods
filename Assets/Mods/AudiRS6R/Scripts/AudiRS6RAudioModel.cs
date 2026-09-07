@@ -20,16 +20,6 @@ internal static class AudiRS6RAudioModel
     internal static float TargetHz(float normalized) => (float)(80d * Math.Pow(180d / 80d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
-    // Comb-spacing estimates from the supplied excerpts, not physical RPM.
-    internal static float RecordedReference(int passage, int layer) => passage == 0 ?
-        (layer == 0 ? 25.3f : layer == 1 ? 32.5f : 50.9f) :
-        (layer == 0 ? 52.7f : layer == 1 ? 55.7f : 45.9f);
-    internal static float RecordedTarget(float normalized, int passage) => passage == 0 ?
-        (float)(26d * Math.Pow(65d / 26d, Clamp01(normalized))) :
-        (float)(45d * Math.Pow(85d / 45d, Clamp01(normalized)));
-    internal static float RecordedPitch(float normalized, int passage, int layer) =>
-        RecordedTarget(normalized, passage) / RecordedReference(passage, layer);
-
     internal static float Weight(float normalized, int layer)
     {
         var position = Clamp01(normalized) * 2f;

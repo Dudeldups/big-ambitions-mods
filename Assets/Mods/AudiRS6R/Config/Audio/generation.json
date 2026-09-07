@@ -50,32 +50,32 @@
     {
       "name": "EngineLowLoad",
       "seconds": 2.0,
-      "peak": 0.1807902724565569,
-      "rms": 0.12000000000000001,
-      "rms_span_db": 0.37366522088472276,
-      "seam_step": 0.00022414462843831084,
+      "peak": 0.19967150109078477,
+      "rms": 0.12,
+      "rms_span_db": 0.38485376048030806,
+      "seam_step": 0.0005614184536651134,
       "reference_hz": 96,
-      "method": "lower partials and soft saturation, same RMS as base"
+      "method": "stronger lower/odd partials and saturation with parallel base detail, same RMS as base"
     },
     {
       "name": "EngineMidLoad",
       "seconds": 2.0,
-      "peak": 0.18070467127412468,
-      "rms": 0.11999999999999998,
-      "rms_span_db": 0.27828207162709,
-      "seam_step": 0.0002142248549006076,
+      "peak": 0.19767652550023776,
+      "rms": 0.12,
+      "rms_span_db": 0.2386700551870806,
+      "seam_step": 0.0011527985934748908,
       "reference_hz": 176,
-      "method": "lower partials and soft saturation, same RMS as base"
+      "method": "stronger lower/odd partials and saturation with parallel base detail, same RMS as base"
     },
     {
       "name": "EngineHighLoad",
       "seconds": 2.0,
-      "peak": 0.1801701362039376,
-      "rms": 0.12,
-      "rms_span_db": 0.13181351778417788,
-      "seam_step": 0.00017576273943623044,
+      "peak": 0.19802955538571904,
+      "rms": 0.12000000000000001,
+      "rms_span_db": 0.15479015550399794,
+      "seam_step": 0.00030165078078281393,
       "reference_hz": 320,
-      "method": "lower partials and soft saturation, same RMS as base"
+      "method": "stronger lower/odd partials and saturation with parallel base detail, same RMS as base"
     }
   ],
   "pops": [

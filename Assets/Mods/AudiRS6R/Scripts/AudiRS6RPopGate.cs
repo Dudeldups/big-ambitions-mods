@@ -40,6 +40,14 @@ internal sealed class AudiRS6RPopGate
     internal static float GearFactor(int gear, float rpm) => gear <= 1 ? 1f : gear == 2 ? .95f :
         gear == 3 ? .8f : gear == 4 ? .35f : .06f + .30f*Smooth(5700f, 7000f, rpm);
 
+    // Strong driver lifts deserve a clear response even after an automatic
+    // upshift. Keep moderate-RPM high-gear cruising rare; downshifts retain
+    // their separate calibration and still require a measured RPM increase.
+    internal static float LiftGearFactor(int gear, float rpm) => gear <= 1 ? 1f :
+        gear == 2 ? .98f : gear == 3 ? .92f : gear == 4 ?
+        .40f + .40f*Smooth(4000f, 6200f, rpm) :
+        .06f + .64f*Smooth(4200f, 6500f, rpm);
+
     internal void Reset()
     {
         valid = armed = false;
@@ -119,7 +127,7 @@ internal sealed class AudiRS6RPopGate
             var abrupt = Smooth(.30f, .75f, drop)*Smooth(1.5f, 5f, rate);
             var strength = abrupt*RpmFactor(rpm);
             RpmJump = 0f;
-            TryBurst(AudiRS6RPopEvent.ThrottleLift, time, .95f*strength*GearFactor(gear,rpm), strength, 3);
+            TryBurst(AudiRS6RPopEvent.ThrottleLift, time, .99f*strength*LiftGearFactor(gear,rpm), strength, 3);
         }
         // Store at most ~23 samples regardless of render rate.
         if (history.Count == 0 || time-lastHistoryTime >= .01d)

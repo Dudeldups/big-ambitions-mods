@@ -1,4 +1,3 @@
-param([string] $RecordingsRoot = '')
 $ErrorActionPreference = 'Stop'
 $modRoot = Split-Path -Parent $PSScriptRoot
 $stubPath = Join-Path ([IO.Path]::GetTempPath()) ('audi-audio-stub-' + [guid]::NewGuid().ToString('N') + '.cs')
@@ -93,29 +92,7 @@ public static class AudiAudioProbe
         Console.WriteLine("PASS: original idle, driving calibration, 1001 RPM crossfades and packaged WAV decoding.");
     }
 
-    public static void RunRecorded(string root)
-    {
-        for(int passage=0;passage<2;passage++)
-        {
-            string[] names={"EngineLow","EngineMid","EngineHigh"};
-            for(int band=0;band<3;band++)
-            {
-                var clip=AudiRS6RWave.Load(Path.Combine(root,"passage_0"+(passage+1),names[band]+".wav"));
-                Require(clip.Samples.Length>=10000 && clip.Samples.Length<20000,"Unexpected supplied loop length");
-                double sum=0;
-                foreach(var sample in clip.Samples) { Require(Math.Abs(sample)<=.86,"Supplied loop clipped"); sum+=sample*sample; }
-                Require(Math.Sqrt(sum/clip.Samples.Length)>.15 && Math.Sqrt(sum/clip.Samples.Length)<.17,"Supplied loop level mismatch");
-                for(int i=0;i<=1000;i++)
-                {
-                    float rpm=i/1000f;
-                    float pitch=AudiRS6RAudioModel.RecordedPitch(rpm,passage,band);
-                    Require(pitch>=.25 && pitch<=3,"Recorded pitch outside range");
-                    Require(Math.Abs(pitch*AudiRS6RAudioModel.RecordedReference(passage,band)-AudiRS6RAudioModel.RecordedTarget(rpm,passage))<.001,"Recorded harmonics not aligned");
-                }
-            }
-        }
-        Console.WriteLine("PASS: six supplied recordings decode, levels and both passage pitch calibrations.");
-    }
+
 }
 '@
 try {
@@ -123,7 +100,6 @@ try {
     Set-Content -LiteralPath $probePath -Value $probe
     Add-Type -Path @((Join-Path $modRoot 'Scripts/AudiRS6RAudioModel.cs'), (Join-Path $modRoot 'Scripts/AudiRS6RWave.cs'), (Join-Path $modRoot 'Scripts/AudiRS6RPopGate.cs'), (Join-Path $PSScriptRoot 'AudioEventTests.cs'), $stubPath, $probePath)
     [AudiAudioProbe]::Run((Join-Path $modRoot 'Config/Audio'))
-    if ($RecordingsRoot) { [AudiAudioProbe]::RunRecorded($RecordingsRoot) }
 } finally {
     Remove-Item -LiteralPath $stubPath, $probePath -ErrorAction SilentlyContinue
 }
