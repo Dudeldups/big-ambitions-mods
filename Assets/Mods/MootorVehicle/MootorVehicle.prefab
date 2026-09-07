@@ -326,8 +326,8 @@ Transform:
   - {fileID: 4661830020697375584}
   - {fileID: 5696773507866025272}
   - {fileID: 4384787429155621254}
-  - {fileID: 6372523921675456507}
-  - {fileID: 2708395453436712077}
+  - {fileID: 6095399010549629119}
+  - {fileID: 2016174359098501909}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &2234241686164091501
@@ -370,7 +370,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bodyMeshes:
-  - {fileID: 2621630718516258314}
+  - {fileID: 2925389890073454926}
   bodyLOD: {fileID: 0}
   driverRenderer: {fileID: 0}
   lights: {fileID: 6859194767955527425}
@@ -394,7 +394,7 @@ MonoBehaviour:
   alwaysShowWarningIcon: 0
   employeeNavMeshTargets: []
   renderers:
-  - {fileID: 2621630718516258314}
+  - {fileID: 2925389890073454926}
   navMeshTargets:
   - {fileID: 4336405530762125936}
   - {fileID: 7072898375055149178}
@@ -795,8 +795,8 @@ MonoBehaviour:
       - 3.786
       - 2.778
       - 2.108
-      forwardGearCount: 0
-      reverseGearCount: 0
+      forwardGearCount: 4
+      reverseGearCount: 1
       inclineEffectCoeff: 0
       onDownshift:
         m_PersistentCalls:
@@ -1528,37 +1528,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1 &3873333452708338460
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2708395453436712077}
-  m_Layer: 19
-  m_Name: MootorVehicle_RiderSeat
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2708395453436712077
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3873333452708338460}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.0758005, z: -0.18}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1679970095160635817}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4002677206244495861
 GameObject:
   m_ObjectHideFlags: 0
@@ -1866,6 +1835,37 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: -1.8}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1679970095160635817}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &5150224550417645947
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2016174359098501909}
+  m_Layer: 19
+  m_Name: MootorVehicle_RiderSeat
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2016174359098501909
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5150224550417645947}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.4493008, z: -0.18}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3547,7 +3547,7 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 7961104974638297238}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &9146742716544030731
+--- !u!1001 &8221100867689813839
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -3593,7 +3593,7 @@ PrefabInstance:
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: 0.000000016756045
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
@@ -3603,27 +3603,27 @@ PrefabInstance:
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -0.19166672
+      value: 0.1916669
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0
+      value: -0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.7071068
+      value: 0.00000003090862
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.7071068
+      value: 0.00000003090862
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
         type: 3}
@@ -3646,15 +3646,15 @@ PrefabInstance:
     m_AddedComponents: []
   m_SourcePrefab: {fileID: -5645937942226959685, guid: 6ca40d78609c5dc42834a1643a6d6893,
     type: 3}
---- !u!23 &2621630718516258314 stripped
+--- !u!23 &2925389890073454926 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 6525193822255087105, guid: 6ca40d78609c5dc42834a1643a6d6893,
     type: 3}
-  m_PrefabInstance: {fileID: 9146742716544030731}
+  m_PrefabInstance: {fileID: 8221100867689813839}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &6372523921675456507 stripped
+--- !u!4 &6095399010549629119 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2774220344278030320, guid: 6ca40d78609c5dc42834a1643a6d6893,
     type: 3}
-  m_PrefabInstance: {fileID: 9146742716544030731}
+  m_PrefabInstance: {fileID: 8221100867689813839}
   m_PrefabAsset: {fileID: 0}

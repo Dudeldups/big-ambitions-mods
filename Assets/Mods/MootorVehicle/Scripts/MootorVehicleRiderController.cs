@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
 using UnityEngine.Rendering;
+using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 namespace MootorVehicle
 {
@@ -21,6 +22,8 @@ namespace MootorVehicle
 
         private readonly List<UnityEngine.Object> ownedAssets = new();
         private VehicleController? vehicle;
+        private PhysicsVehicle? physicsVehicle;
+        private Rigidbody? vehicleBody;
         private ModContext? context;
         private GameObject? riderRoot;
         private Transform? hips;
@@ -32,11 +35,16 @@ namespace MootorVehicle
         private bool occupied;
         private int attempts;
         private float nextAttempt;
+        private float driveInputDetectedAt = -1f;
+        private bool driveResponseLogged;
+        private bool drivetrainLoggingFailed;
         private string? lastFailure;
 
         public void Initialize(VehicleController controller, ModContext? modContext)
         {
             vehicle = controller;
+            physicsVehicle = controller.GetComponent<PhysicsVehicle>();
+            vehicleBody = controller.GetComponent<Rigidbody>();
             context = modContext;
         }
 
@@ -51,6 +59,9 @@ namespace MootorVehicle
                 occupied = isOccupied;
                 attempts = 0;
                 nextAttempt = 0f;
+                driveInputDetectedAt = -1f;
+                driveResponseLogged = false;
+                drivetrainLoggingFailed = false;
                 lastFailure = null;
 
                 if (!occupied)
@@ -61,11 +72,14 @@ namespace MootorVehicle
                 else
                 {
                     LogInfo("mounted; preparing current player appearance.");
+                    LogDrivetrainState("mount");
                 }
             }
 
             if (!occupied)
                 return;
+
+            UpdateDrivetrainDiagnostics();
 
             try
             {
@@ -203,6 +217,58 @@ namespace MootorVehicle
 
             riderRoot.transform.rotation = riderSeat.rotation;
             riderRoot.transform.position += riderSeat.position - hips.position;
+        }
+
+        private void UpdateDrivetrainDiagnostics()
+        {
+            if (driveResponseLogged || drivetrainLoggingFailed || physicsVehicle == null)
+                return;
+
+            try
+            {
+                if (Mathf.Abs(physicsVehicle.input.Throttle) < 0.05f)
+                    return;
+
+                if (driveInputDetectedAt < 0f)
+                {
+                    driveInputDetectedAt = Time.unscaledTime;
+                    LogDrivetrainState("drive-input");
+                    return;
+                }
+
+                if (Time.unscaledTime - driveInputDetectedAt < 0.75f)
+                    return;
+
+                driveResponseLogged = true;
+                LogDrivetrainState("drive-response");
+            }
+            catch (Exception exception)
+            {
+                drivetrainLoggingFailed = true;
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle drivetrain diagnostics vehicle={vehicle?.GetInstanceID()}: " +
+                    $"{exception.GetBaseException().Message}");
+            }
+        }
+
+        private void LogDrivetrainState(string phase)
+        {
+            if (physicsVehicle == null)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle drivetrain vehicle={vehicle?.GetInstanceID()} phase='{phase}': " +
+                    "native NWH VehicleController is missing.");
+                return;
+            }
+
+            var engine = physicsVehicle.powertrain.engine;
+            var transmission = physicsVehicle.powertrain.transmission;
+            var speedKmh = vehicleBody != null ? vehicleBody.velocity.magnitude * 3.6f : 0f;
+            context?.Logger.Info(
+                $"Moo-tor Vehicle drivetrain vehicle={vehicle?.GetInstanceID()} phase='{phase}' " +
+                $"throttle={physicsVehicle.input.Throttle:F2} gear={transmission.Gear} " +
+                $"rpm={engine.RPMPercent * engine.revLimiterRPM:F0}/{engine.revLimiterRPM:F0} " +
+                $"speed={speedKmh:F2}kmh.");
         }
 
         private static bool IsActiveWithinCharacter(Transform child, Transform root)

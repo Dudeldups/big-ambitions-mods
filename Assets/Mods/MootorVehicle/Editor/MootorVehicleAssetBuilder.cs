@@ -219,6 +219,8 @@ namespace MootorVehicle.Editor
                 changed |= SetFloat(serialized, "powertrain.engine.revLimiterRPM", 3000f);
                 changed |= SetBool(serialized, "powertrain.engine.stallingEnabled", false);
                 changed |= SetFloat(serialized, "powertrain.transmission.finalGearRatio", 10f);
+                changed |= SetInt(serialized, "powertrain.transmission.forwardGearCount", 4);
+                changed |= SetInt(serialized, "powertrain.transmission.reverseGearCount", 1);
                 changed |= SetFloat(serialized, "powertrain.transmission._downshiftRPM", 1200f);
                 changed |= SetFloat(serialized, "powertrain.transmission._upshiftRPM", 2500f);
                 changed |= SetFloat(serialized, "powertrain.wheelGroups.Array.data[0].antiRollBarForce", 5200f);
@@ -334,7 +336,7 @@ namespace MootorVehicle.Editor
             seat.transform.SetParent(root.transform, false);
             seat.transform.localPosition = new Vector3(
                 0f,
-                cowBounds.min.y + cowBounds.size.y * 0.7f,
+                cowBounds.min.y + cowBounds.size.y * 0.95f,
                 -0.18f);
             seat.transform.localRotation = Quaternion.identity;
 
@@ -371,7 +373,9 @@ namespace MootorVehicle.Editor
 
             var sourceForward = AxisVector(lengthAxis);
             var sourceUp = AxisVector(heightAxis);
-            cowVisual.transform.localRotation = Quaternion.Inverse(Quaternion.LookRotation(sourceForward, sourceUp));
+            cowVisual.transform.localRotation =
+                Quaternion.Euler(0f, 180f, 0f) *
+                Quaternion.Inverse(Quaternion.LookRotation(sourceForward, sourceUp));
             var scale = TargetCowLength / dimensions[lengthAxis];
             cowVisual.transform.localScale = Vector3.one * scale;
 
