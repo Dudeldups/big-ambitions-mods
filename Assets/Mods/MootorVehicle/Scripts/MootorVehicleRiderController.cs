@@ -19,6 +19,17 @@ namespace MootorVehicle
         private const string SittingClipName = "SitDeliveryTruck";
         private const float RiderScale = 0.94f;
         private const int MaximumAttempts = 20;
+        private const int MaximumEngineStartAttempts = 4;
+        private const float EngineStartRetryDelay = 0.5f;
+
+        private static readonly Vector3 LeftHandOffset = new(-0.3f, 0.02f, 0.58f);
+        private static readonly Vector3 RightHandOffset = new(0.3f, 0.02f, 0.58f);
+        private static readonly Vector3 LeftElbowHintOffset = new(-0.44f, 0.12f, 0.28f);
+        private static readonly Vector3 RightElbowHintOffset = new(0.44f, 0.12f, 0.28f);
+        private static readonly Vector3 LeftFootOffset = new(-0.5f, -0.72f, 0.1f);
+        private static readonly Vector3 RightFootOffset = new(0.5f, -0.72f, 0.1f);
+        private static readonly Vector3 LeftKneeHintOffset = new(-0.55f, -0.28f, 0.38f);
+        private static readonly Vector3 RightKneeHintOffset = new(0.55f, -0.28f, 0.38f);
 
         private readonly List<UnityEngine.Object> ownedAssets = new();
         private VehicleController? vehicle;
@@ -28,6 +39,10 @@ namespace MootorVehicle
         private GameObject? riderRoot;
         private Transform? hips;
         private Transform? riderSeat;
+        private PoseLimb? leftArm;
+        private PoseLimb? rightArm;
+        private PoseLimb? leftLeg;
+        private PoseLimb? rightLeg;
         private PlayableGraph poseGraph;
         private AnimationClipPlayable pose;
         private float poseLength;
@@ -38,6 +53,10 @@ namespace MootorVehicle
         private float driveInputDetectedAt = -1f;
         private bool driveResponseLogged;
         private bool drivetrainLoggingFailed;
+        private int engineStartAttempts;
+        private float nextEngineStartAttempt;
+        private bool engineStartConfirmedLogged;
+        private bool engineStartFailureLogged;
         private string? lastFailure;
 
         public void Initialize(VehicleController controller, ModContext? modContext)
@@ -62,6 +81,10 @@ namespace MootorVehicle
                 driveInputDetectedAt = -1f;
                 driveResponseLogged = false;
                 drivetrainLoggingFailed = false;
+                engineStartAttempts = 0;
+                nextEngineStartAttempt = Time.unscaledTime + 0.15f;
+                engineStartConfirmedLogged = false;
+                engineStartFailureLogged = false;
                 lastFailure = null;
 
                 if (!occupied)
@@ -79,6 +102,7 @@ namespace MootorVehicle
             if (!occupied)
                 return;
 
+            UpdateEngineStart();
             UpdateDrivetrainDiagnostics();
 
             try
@@ -95,8 +119,13 @@ namespace MootorVehicle
 
                 poseTime = Mathf.Repeat(poseTime + Time.deltaTime, poseLength);
                 pose.SetTime(poseTime);
+                leftArm?.RestoreAnimationPose();
+                rightArm?.RestoreAnimationPose();
+                leftLeg?.RestoreAnimationPose();
+                rightLeg?.RestoreAnimationPose();
                 poseGraph.Evaluate(0f);
                 AlignWithSeat();
+                ApplyCowRidingPose();
             }
             catch (Exception exception)
             {
@@ -205,9 +234,33 @@ namespace MootorVehicle
                 throw new InvalidOperationException("Seated avatar has no humanoid hips bone.");
 
             AlignWithSeat();
+            leftArm = CreateLimb(
+                animator,
+                HumanBodyBones.LeftUpperArm,
+                HumanBodyBones.LeftLowerArm,
+                HumanBodyBones.LeftHand);
+            rightArm = CreateLimb(
+                animator,
+                HumanBodyBones.RightUpperArm,
+                HumanBodyBones.RightLowerArm,
+                HumanBodyBones.RightHand);
+            leftLeg = CreateLimb(
+                animator,
+                HumanBodyBones.LeftUpperLeg,
+                HumanBodyBones.LeftLowerLeg,
+                HumanBodyBones.LeftFoot);
+            rightLeg = CreateLimb(
+                animator,
+                HumanBodyBones.RightUpperLeg,
+                HumanBodyBones.RightLowerLeg,
+                HumanBodyBones.RightFoot);
+
+            var poseBefore = PosePositions();
+            ApplyCowRidingPose();
             LogInfo(
                 $"created visible rider renderers={rendererCount} scale={RiderScale:F2} " +
                 $"seatLocal={riderSeat.localPosition} clip='{sittingClip.name}'.");
+            LogInfo($"cow-riding pose before={poseBefore} after={PosePositions()}.");
         }
 
         private void AlignWithSeat()
@@ -217,6 +270,109 @@ namespace MootorVehicle
 
             riderRoot.transform.rotation = riderSeat.rotation;
             riderRoot.transform.position += riderSeat.position - hips.position;
+        }
+
+        private PoseLimb? CreateLimb(
+            Animator animator,
+            HumanBodyBones upperBone,
+            HumanBodyBones lowerBone,
+            HumanBodyBones endBone)
+        {
+            var upper = animator.GetBoneTransform(upperBone);
+            var lower = animator.GetBoneTransform(lowerBone);
+            var end = animator.GetBoneTransform(endBone);
+            if (upper != null && lower != null && end != null)
+                return new PoseLimb(upper, lower, end);
+
+            context?.Logger.Warn(
+                $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: " +
+                $"cannot refine {endBone}; limb bones are missing. Keeping native pose.");
+            return null;
+        }
+
+        private void ApplyCowRidingPose()
+        {
+            if (riderSeat == null)
+                return;
+
+            leftArm?.AimAt(
+                riderSeat.TransformPoint(LeftHandOffset),
+                riderSeat.TransformPoint(LeftElbowHintOffset));
+            rightArm?.AimAt(
+                riderSeat.TransformPoint(RightHandOffset),
+                riderSeat.TransformPoint(RightElbowHintOffset));
+            leftLeg?.AimAt(
+                riderSeat.TransformPoint(LeftFootOffset),
+                riderSeat.TransformPoint(LeftKneeHintOffset));
+            rightLeg?.AimAt(
+                riderSeat.TransformPoint(RightFootOffset),
+                riderSeat.TransformPoint(RightKneeHintOffset));
+        }
+
+        private string PosePositions()
+        {
+            return
+                $"hands=({VehiclePosition(leftArm?.End)},{VehiclePosition(rightArm?.End)}) " +
+                $"knees=({VehiclePosition(leftLeg?.Middle)},{VehiclePosition(rightLeg?.Middle)}) " +
+                $"feet=({VehiclePosition(leftLeg?.End)},{VehiclePosition(rightLeg?.End)})";
+        }
+
+        private string VehiclePosition(Transform? target)
+        {
+            return target != null && vehicle != null
+                ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3")
+                : "missing";
+        }
+
+        private void UpdateEngineStart()
+        {
+            if (physicsVehicle == null)
+                return;
+
+            try
+            {
+                var engine = physicsVehicle.powertrain.engine;
+                if (engine.IsRunning)
+                {
+                    if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
+                    {
+                        engineStartConfirmedLogged = true;
+                        LogInfo(
+                            $"native engine start confirmed after {engineStartAttempts} request(s); " +
+                            $"rpm={engine.RPMPercent * engine.revLimiterRPM:F0}.");
+                    }
+                    return;
+                }
+
+                if (Time.unscaledTime < nextEngineStartAttempt)
+                    return;
+
+                if (engineStartAttempts >= MaximumEngineStartAttempts)
+                {
+                    if (!engineStartFailureLogged)
+                    {
+                        engineStartFailureLogged = true;
+                        context?.Logger.Warn(
+                            $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: native engine " +
+                            $"did not start after {engineStartAttempts} requests while mounted.");
+                    }
+                    return;
+                }
+
+                engineStartAttempts++;
+                nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
+                engine.StartEngine();
+                LogInfo($"requested native engine start attempt={engineStartAttempts}.");
+            }
+            catch (Exception exception)
+            {
+                if (engineStartFailureLogged)
+                    return;
+                engineStartFailureLogged = true;
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: native engine start failed: " +
+                    $"{exception.GetBaseException().Message}");
+            }
         }
 
         private void UpdateDrivetrainDiagnostics()
@@ -266,7 +422,7 @@ namespace MootorVehicle
             var speedKmh = vehicleBody != null ? vehicleBody.velocity.magnitude * 3.6f : 0f;
             context?.Logger.Info(
                 $"Moo-tor Vehicle drivetrain vehicle={vehicle?.GetInstanceID()} phase='{phase}' " +
-                $"throttle={physicsVehicle.input.Throttle:F2} gear={transmission.Gear} " +
+                $"throttle={physicsVehicle.input.Throttle:F2} gear={transmission.Gear} running={engine.IsRunning} " +
                 $"rpm={engine.RPMPercent * engine.revLimiterRPM:F0}/{engine.revLimiterRPM:F0} " +
                 $"speed={speedKmh:F2}kmh.");
         }
@@ -279,6 +435,100 @@ namespace MootorVehicle
                     return false;
             }
 
+            return true;
+        }
+
+        private sealed class PoseLimb
+        {
+            private readonly Transform upper;
+            public readonly Transform Middle;
+            public readonly Transform End;
+            private Quaternion upperPose;
+            private Quaternion middlePose;
+            private Quaternion endPose;
+            private bool hasAdjustment;
+
+            public PoseLimb(Transform upper, Transform middle, Transform end)
+            {
+                this.upper = upper;
+                Middle = middle;
+                End = end;
+            }
+
+            public void RestoreAnimationPose()
+            {
+                if (!hasAdjustment)
+                    return;
+
+                upper.localRotation = upperPose;
+                Middle.localRotation = middlePose;
+                End.localRotation = endPose;
+                hasAdjustment = false;
+            }
+
+            public void AimAt(Vector3 target, Vector3 bendHint)
+            {
+                if (!TrySolveJoint(
+                        upper.position,
+                        Middle.position,
+                        End.position,
+                        target,
+                        bendHint,
+                        out var solvedMiddle,
+                        out var reachableTarget))
+                {
+                    return;
+                }
+
+                upperPose = upper.localRotation;
+                middlePose = Middle.localRotation;
+                endPose = End.localRotation;
+                hasAdjustment = true;
+                var endRotation = End.rotation;
+                upper.rotation = Quaternion.FromToRotation(
+                    Middle.position - upper.position,
+                    solvedMiddle - upper.position) * upper.rotation;
+                Middle.rotation = Quaternion.FromToRotation(
+                    End.position - Middle.position,
+                    reachableTarget - Middle.position) * Middle.rotation;
+                End.rotation = endRotation;
+            }
+        }
+
+        private static bool TrySolveJoint(
+            Vector3 upper,
+            Vector3 middle,
+            Vector3 end,
+            Vector3 target,
+            Vector3 bendHint,
+            out Vector3 solvedMiddle,
+            out Vector3 reachableTarget)
+        {
+            solvedMiddle = middle;
+            reachableTarget = end;
+            var upperLength = Vector3.Distance(upper, middle);
+            var lowerLength = Vector3.Distance(middle, end);
+            var reach = target - upper;
+            if (upperLength < 0.0001f || lowerLength < 0.0001f || reach.sqrMagnitude < 0.000001f)
+                return false;
+
+            var direction = reach.normalized;
+            var distance = Mathf.Clamp(
+                reach.magnitude,
+                Mathf.Abs(upperLength - lowerLength) + 0.0001f,
+                upperLength + lowerLength - 0.0001f);
+            var bend = Vector3.ProjectOnPlane(bendHint - upper, direction);
+            if (bend.sqrMagnitude < 0.000001f)
+                bend = Vector3.ProjectOnPlane(middle - upper, direction);
+            if (bend.sqrMagnitude < 0.000001f)
+                return false;
+
+            var along =
+                (upperLength * upperLength + distance * distance - lowerLength * lowerLength) /
+                (2f * distance);
+            var across = Mathf.Sqrt(Mathf.Max(0f, upperLength * upperLength - along * along));
+            solvedMiddle = upper + direction * along + bend.normalized * across;
+            reachableTarget = upper + direction * distance;
             return true;
         }
 
@@ -405,6 +655,10 @@ namespace MootorVehicle
             riderRoot = null;
             hips = null;
             riderSeat = null;
+            leftArm = null;
+            rightArm = null;
+            leftLeg = null;
+            rightLeg = null;
 
             foreach (var asset in ownedAssets)
                 if (asset != null)
