@@ -30,7 +30,7 @@ namespace MootorVehicle.Editor
         private const string GaitPoseAName = "MootorGaitA";
         private const string GaitPoseBName = "MootorGaitB";
         private const float TargetCowLength = 3.1f;
-        private const float TargetCowGroundOffset = -0.04f;
+        private const float TargetCowGroundOffset = 0f;
         private const float BodyColliderGroundClearance = 0.08f;
         private const float GaitLegSwingDegrees = 17f;
 
@@ -441,14 +441,16 @@ namespace MootorVehicle.Editor
             var zeroNormals = new Vector3[vertices.Length];
             var zeroTangents = new Vector3[vertices.Length];
             var vehiclePositions = new Vector3[vertices.Length];
-            var gaitGroups = new int[vertices.Length];
-            var groupPositionSums = new Vector2[4];
-            var groupVertexCounts = new int[4];
+            var seedPositionSums = new Vector2[4];
+            var seedVertexCounts = new int[4];
+            var animatedGroupCounts = new int[4];
             var localCowCenter = vehicleRoot.InverseTransformPoint(cowBounds.center);
             var localCowMin = vehicleRoot.InverseTransformPoint(cowBounds.min);
             var hipHeight = localCowMin.y + cowBounds.size.y * 0.43f;
-            var lowerLegHeight = localCowMin.y + cowBounds.size.y * 0.15f;
+            var hoofSeedHeight = localCowMin.y + cowBounds.size.y * 0.15f;
             var sideThreshold = cowBounds.extents.x * 0.2f;
+            var lateralLegRadius = cowBounds.size.x * 0.22f;
+            var longitudinalLegRadius = cowBounds.size.z * 0.11f;
             var animatedVertices = 0;
 
             for (var index = 0; index < vertices.Length; index++)
@@ -456,8 +458,7 @@ namespace MootorVehicle.Editor
                 var worldPosition = meshFilter.transform.TransformPoint(vertices[index]);
                 var vehiclePosition = vehicleRoot.InverseTransformPoint(worldPosition);
                 vehiclePositions[index] = vehiclePosition;
-                gaitGroups[index] = -1;
-                if (vehiclePosition.y >= hipHeight ||
+                if (vehiclePosition.y >= hoofSeedHeight ||
                     Mathf.Abs(vehiclePosition.x - localCowCenter.x) <= sideThreshold)
                 {
                     continue;
@@ -466,23 +467,35 @@ namespace MootorVehicle.Editor
                 var isLeft = vehiclePosition.x < localCowCenter.x;
                 var isFront = vehiclePosition.z > localCowCenter.z;
                 var group = (isLeft ? 0 : 1) + (isFront ? 0 : 2);
-                gaitGroups[index] = group;
-                groupPositionSums[group] += new Vector2(vehiclePosition.x, vehiclePosition.z);
-                groupVertexCounts[group]++;
+                seedPositionSums[group] += new Vector2(vehiclePosition.x, vehiclePosition.z);
+                seedVertexCounts[group]++;
             }
+
+            if (seedVertexCounts.Any(count => count == 0))
+                throw new InvalidOperationException("Cow gait generation could not locate all four hooves.");
 
             for (var index = 0; index < vertices.Length; index++)
             {
-                var group = gaitGroups[index];
-                if (group < 0 || groupVertexCounts[group] == 0)
+                var vehiclePosition = vehiclePositions[index];
+                if (vehiclePosition.y >= hipHeight)
                     continue;
 
-                var vehiclePosition = vehiclePositions[index];
-                var isLeft = (group & 1) == 0;
-                var isFront = group < 2;
+                var isLeft = vehiclePosition.x < localCowCenter.x;
+                var isFront = vehiclePosition.z > localCowCenter.z;
+                var group = (isLeft ? 0 : 1) + (isFront ? 0 : 2);
+                var groupCenter = seedPositionSums[group] / seedVertexCounts[group];
+                var normalizedLateralDistance =
+                    (vehiclePosition.x - groupCenter.x) / lateralLegRadius;
+                var normalizedLongitudinalDistance =
+                    (vehiclePosition.z - groupCenter.y) / longitudinalLegRadius;
+                if (normalizedLateralDistance * normalizedLateralDistance +
+                    normalizedLongitudinalDistance * normalizedLongitudinalDistance > 1f)
+                {
+                    continue;
+                }
+
                 var diagonalDirection = isLeft == isFront ? 1f : -1f;
-                var influence = Mathf.InverseLerp(hipHeight, lowerLegHeight, vehiclePosition.y);
-                var groupCenter = groupPositionSums[group] / groupVertexCounts[group];
+                var influence = Mathf.InverseLerp(hipHeight, hoofSeedHeight, vehiclePosition.y);
                 var pivot = new Vector3(
                     groupCenter.x,
                     hipHeight,
@@ -503,6 +516,7 @@ namespace MootorVehicle.Editor
                     meshFilter.transform,
                     vehicleRoot);
                 animatedVertices++;
+                animatedGroupCounts[group]++;
             }
 
             if (animatedVertices == 0)
@@ -548,7 +562,8 @@ namespace MootorVehicle.Editor
             Debug.Log(
                 $"Moo-tor Vehicle: generated lightweight cow gait blend shapes " +
                 $"vertices={vertices.Length} animatedLegVertices={animatedVertices} " +
-                $"groups={string.Join("/", groupVertexCounts)}.");
+                $"hoofSeeds={string.Join("/", seedVertexCounts)} " +
+                $"groups={string.Join("/", animatedGroupCounts)}.");
         }
 
         private static Vector3 ConvertGaitDelta(

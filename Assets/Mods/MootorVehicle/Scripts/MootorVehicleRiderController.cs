@@ -22,7 +22,7 @@ namespace MootorVehicle
         private const string GaitPoseBName = "MootorGaitB";
         private const float RiderScale = 0.94f;
         private const float ParkedVisualHeightOffset = 0f;
-        private const float MountedVisualHeightOffset = -0.1f;
+        private const float MountedVisualHeightOffset = -0.14f;
         private const float MooHornVolume = 0.65f;
         private const float GaitStartSpeed = 0.15f;
         private const float GaitFullSpeed = 1.5f;
