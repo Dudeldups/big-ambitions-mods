@@ -27,6 +27,8 @@ namespace BigHax
         private readonly Action close;
         private readonly Action? confirmUnlockAllContacts;
         private readonly Action? confirmUnlockAllCourses;
+        private readonly Func<bool>? arePurchaseLimitsDisabled;
+        private readonly Action<bool>? setPurchaseLimitsDisabled;
         private GameObject? root;
         private RectTransform? content;
         private ModContext? context;
@@ -35,12 +37,20 @@ namespace BigHax
         private bool rebuildForLanguageChange;
         private string localizationSignature = string.Empty;
 
-        private BigHaxBaUnifiedOptionsUi(BaUiReflection api, Action close, Action? unlockAllContacts, Action? unlockAllCourses)
+        private BigHaxBaUnifiedOptionsUi(
+            BaUiReflection api,
+            Action close,
+            Action? unlockAllContacts,
+            Action? unlockAllCourses,
+            Func<bool>? readPurchaseLimitsDisabled,
+            Action<bool>? setPurchaseLimitsDisabled)
         {
             this.api = api;
             this.close = close;
             confirmUnlockAllContacts = unlockAllContacts;
             confirmUnlockAllCourses = unlockAllCourses;
+            arePurchaseLimitsDisabled = readPurchaseLimitsDisabled;
+            this.setPurchaseLimitsDisabled = setPurchaseLimitsDisabled;
             LocalizorManager.OnLanguageChanged += HandleLanguageChanged;
         }
 
@@ -60,6 +70,8 @@ namespace BigHax
             Action close,
             Action? unlockAllContacts,
             Action? unlockAllCourses,
+            Func<bool>? readPurchaseLimitsDisabled,
+            Action<bool>? setPurchaseLimitsDisabled,
             out BigHaxBaUnifiedOptionsUi? ui,
             out string reason)
         {
@@ -73,7 +85,13 @@ namespace BigHax
                 return false;
             }
 
-            var candidate = new BigHaxBaUnifiedOptionsUi(api, close, unlockAllContacts, unlockAllCourses);
+            var candidate = new BigHaxBaUnifiedOptionsUi(
+                api,
+                close,
+                unlockAllContacts,
+                unlockAllCourses,
+                readPurchaseLimitsDisabled,
+                setPurchaseLimitsDisabled);
             try
             {
                 candidate.EnsureCreated(context, settings, visible);
@@ -221,6 +239,8 @@ namespace BigHax
             AddCategory(Localize("bighax_category_business"));
             AddToggle(Localize("bighax_enable_instant_imports_label"), () => settings.EnableInstantImports, value => { settings.EnableInstantImports = value; BigHaxOptionPersistence.SaveEnableInstantImports(context.ModId, value); });
             AddToggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings.EnableInstantFurnitureDeliveries, value => { settings.EnableInstantFurnitureDeliveries = value; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value); });
+            if (arePurchaseLimitsDisabled != null && setPurchaseLimitsDisabled != null)
+                AddToggle(Localize("bighax_disable_purchase_limits_label"), arePurchaseLimitsDisabled, setPurchaseLimitsDisabled);
             AddSlider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings.InstallationFirmFeePercentage, 0, 100, value => { settings.InstallationFirmFeePercentage = value; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value); }, value => value + "%");
             AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
             AddSeparator();
@@ -337,6 +357,7 @@ namespace BigHax
                 Localize("bighax_unlock_all_courses_button"),
                 Localize("bighax_enable_instant_imports_label"),
                 Localize("bighax_enable_instant_furniture_deliveries_label"),
+                Localize("bighax_disable_purchase_limits_label"),
                 Localize("bighax_installation_firm_fee_percentage_label"),
                 Localize("bighax_enable_extended_bed_sleep_label"),
                 Localize("bighax_no_vehicle_damage_label"),
