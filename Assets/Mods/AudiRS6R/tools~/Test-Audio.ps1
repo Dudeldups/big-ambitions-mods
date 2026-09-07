@@ -62,6 +62,9 @@ public static class AudiAudioProbe
 
         Require(AudiRS6RAudioModel.LoadBlend(0)==0 && AudiRS6RAudioModel.LoadBlend(.15f)==0 &&
                 AudiRS6RAudioModel.LoadBlend(1)==1, "Load sound must follow throttle");
+        Require(AudiRS6RAudioModel.PopPitchMin>=.94f && AudiRS6RAudioModel.PopPitchMax<=1.02f &&
+                AudiRS6RAudioModel.PopPitchMin<AudiRS6RAudioModel.PopPitchMax,
+                "Pop pitch variation must stay subtle and avoid bright outliers");
         AudiAudioEventTests.Run();
 
         int count=0;

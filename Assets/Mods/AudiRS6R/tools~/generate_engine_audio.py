@@ -79,21 +79,54 @@ def make_layer(source, sr, start, end, source_hz, target_hz, seed):
     return audio
 
 
+def lowpass(audio, cutoff):
+    # Offline windowed-sinc FIR; no runtime mixer/filter changes. A causal
+    # convolution keeps the pressure pulse after the event, without pre-echo.
+    positions=np.arange(129)-64
+    kernel=2*cutoff/RATE*np.sinc(2*cutoff/RATE*positions)*np.blackman(129)
+    kernel/=kernel.sum()
+    return np.convolve(audio,kernel,mode='full')[:len(audio)]
+
+
 def make_pop(index):
     rng=np.random.default_rng(860+index)
     duration=.20+index*.025
     t=np.arange(round(duration*RATE))/RATE
     noise=rng.normal(size=len(t))
-    noise=np.convolve(noise,[.2,.6,.2],mode='same')
-    body=np.sin(2*np.pi*(95*t+75*.018*(1-np.exp(-t/.018))))
-    crack=noise*np.exp(-t/.014)
-    rumble=(.65*body+.28*noise)*np.exp(-t/.043)
-    attack=np.minimum(t/.0008,1)
-    tail=np.minimum((duration-t)/.018,1)
-    audio=(.8*crack+rumble)*attack*tail
-    audio-=audio.mean()
-    audio*=np.sin(np.minimum(t/.001,1)*np.pi/2)*np.minimum((duration-t)/.012,1)
-    return audio*(.72/np.max(abs(audio)))
+    impact=unit_rms(lowpass(noise,1500-index*100))
+    turbulence=unit_rms(lowpass(noise,800-index*60))
+    # A few damped exhaust modes plus noisy gas flow, not a bare click or a
+    # dramatically pitched-down explosion. Larger variants settle a little
+    # deeper and retain a slightly longer, still short, low-mid body.
+    fundamental=145-index*15
+    phase=2*np.pi*(fundamental*t+25*.009*(1-np.exp(-t/.009)))
+    modes=(np.sin(phase)+.38*np.sin(1.87*phase+.2)+.20*np.sin(3.13*phase+.6))
+    attack=np.sin(np.minimum(t/.004,1)*np.pi/2)**2
+    body_decay=.034+index*.004
+    body=(.60*modes+.45*turbulence)*np.exp(-t/body_decay)
+    punch=.32*impact*np.exp(-t/.012)
+    audio=np.tanh(1.15*(body+punch)*attack)
+    # Filter after saturation too, so it cannot recreate the sharp upper crack.
+    audio=lowpass(audio,1800-index*100)
+    window=np.sin(np.minimum(t/.003,1)*np.pi/2)**2
+    window*=np.sin(np.minimum((duration-t)/.020,1)*np.pi/2)**2
+    # Zero DC while preserving silent endpoints (a plain subtraction creates
+    # a small boundary step on short one-shot samples).
+    audio=(audio-(audio*window).sum()/window.sum())*window
+    # Match each prior variant's RMS/energy, rather than peak-normalizing a
+    # fuller tail into an unexpectedly louder pop. Runtime gain is unchanged.
+    return (0.06683494957100689,0.06753696071011568,0.05516521685410747)[index]*unit_rms(audio)
+
+
+def pop_metrics(audio):
+    f=np.fft.rfftfreq(len(audio),1/RATE)
+    power=abs(np.fft.rfft(audio))**2
+    energy=audio*audio
+    return dict(centroid_hz=float((f*power).sum()/power.sum()),
+                above_2khz_fraction=float(power[f>2000].sum()/power.sum()),
+                body_70_700hz_fraction=float(power[(f>=70)&(f<=700)].sum()/power.sum()),
+                first_5ms_energy_fraction=float(energy[:round(.005*RATE)].sum()/energy.sum()),
+                after_100ms_energy_fraction=float(energy[round(.1*RATE):].sum()/energy.sum()))
 
 
 def make_loaded(base, reference):
@@ -142,7 +175,12 @@ def main():
         loaded.update(reference_hz=target,method='stronger lower/odd partials and saturation with parallel base detail, same RMS as base')
         report['loaded_layers'].append(loaded)
     for i in range(3):
-        report['pops'].append(write('ExhaustPop'+str(i+1),make_pop(i)))
+        pop=make_pop(i)
+        stats=write('ExhaustPop'+str(i+1),pop)
+        stats.update(pop_metrics(pop))
+        stats.update(method='filtered pressure/noise pulse, damped exhaust modes, 4ms attack, soft saturation, matched prior RMS',
+                     body_reference_hz=145-i*15, final_lowpass_hz=1800-i*100)
+        report['pops'].append(stats)
     (OUT/'generation.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8')
     print(json.dumps(report,indent=2))
 

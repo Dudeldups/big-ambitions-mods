@@ -82,26 +82,50 @@
     {
       "name": "ExhaustPop1",
       "seconds": 0.2,
-      "peak": 0.72,
+      "peak": 0.34391301801367047,
       "rms": 0.06683494957100689,
-      "rms_span_db": 22.771071362777036,
-      "seam_step": 3.6019582217653785e-06
+      "rms_span_db": 22.81840206047274,
+      "seam_step": 1.1881653316083608e-08,
+      "centroid_hz": 309.48827351380623,
+      "above_2khz_fraction": 6.522962218823003e-06,
+      "body_70_700hz_fraction": 0.8108096884367677,
+      "first_5ms_energy_fraction": 0.09175263684373457,
+      "after_100ms_energy_fraction": 0.005198716452943124,
+      "method": "filtered pressure/noise pulse, damped exhaust modes, 4ms attack, soft saturation, matched prior RMS",
+      "body_reference_hz": 145,
+      "final_lowpass_hz": 1800
     },
     {
       "name": "ExhaustPop2",
       "seconds": 0.22498866213151927,
-      "peak": 0.72,
+      "peak": 0.333587538473574,
       "rms": 0.06753696071011568,
-      "rms_span_db": 22.85512234502177,
-      "seam_step": 4.057296234990829e-06
+      "rms_span_db": 21.640428103869297,
+      "seam_step": 1.3749710130747902e-08,
+      "centroid_hz": 262.8723695464306,
+      "above_2khz_fraction": 1.3159134340654987e-06,
+      "body_70_700hz_fraction": 0.9121583396721522,
+      "first_5ms_energy_fraction": 0.03161948688614489,
+      "after_100ms_energy_fraction": 0.0068679742226036115,
+      "method": "filtered pressure/noise pulse, damped exhaust modes, 4ms attack, soft saturation, matched prior RMS",
+      "body_reference_hz": 130,
+      "final_lowpass_hz": 1700
     },
     {
       "name": "ExhaustPop3",
       "seconds": 0.25,
-      "peak": 0.72,
-      "rms": 0.05516521685410747,
-      "rms_span_db": 22.455714359091893,
-      "seam_step": 1.0907559181729459e-06
+      "peak": 0.2724729494521322,
+      "rms": 0.05516521685410746,
+      "rms_span_db": 19.95191838648345,
+      "seam_step": 2.437763499037119e-09,
+      "centroid_hz": 267.02000744087354,
+      "above_2khz_fraction": 1.523575091721944e-07,
+      "body_70_700hz_fraction": 0.9216492357707162,
+      "first_5ms_energy_fraction": 0.0705528612412509,
+      "after_100ms_energy_fraction": 0.010131792529742454,
+      "method": "filtered pressure/noise pulse, damped exhaust modes, 4ms attack, soft saturation, matched prior RMS",
+      "body_reference_hz": 115,
+      "final_lowpass_hz": 1600
     }
   ]
 }

@@ -6,6 +6,8 @@ internal static class AudiRS6RAudioModel
 {
     internal const float IdlePitch = 1f;
     internal const float PopVolume = .48f;
+    internal const float PopPitchMin = .96f;
+    internal const float PopPitchMax = 1.01f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .15f) / .65f);
     internal static float IdleVolume(float drivingBlend) => .24f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     // Restore revision 7's idle-to-driving thresholds (1180..2440 RPM with
