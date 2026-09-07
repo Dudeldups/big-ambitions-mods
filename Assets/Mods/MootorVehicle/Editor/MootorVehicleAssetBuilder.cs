@@ -30,7 +30,7 @@ namespace MootorVehicle.Editor
         private const string GaitPoseAName = "MootorGaitA";
         private const string GaitPoseBName = "MootorGaitB";
         private const float TargetCowLength = 3.1f;
-        private const float TargetCowGroundOffset = 0f;
+        private const float TargetCowGroundOffset = 0.04f;
         private const float BodyColliderGroundClearance = 0.08f;
         private const float GaitLegSwingDegrees = 17f;
 
@@ -449,7 +449,10 @@ namespace MootorVehicle.Editor
             var hipHeight = localCowMin.y + cowBounds.size.y * 0.43f;
             var hoofSeedHeight = localCowMin.y + cowBounds.size.y * 0.15f;
             var sideThreshold = cowBounds.extents.x * 0.2f;
-            var lateralLegRadius = cowBounds.size.x * 0.22f;
+            var frontLateralLegRadius = cowBounds.size.x * 0.22f;
+            // The rear teats sit closer to the hind legs than the rest of the udder,
+            // so keep the hind-leg columns tighter than the front-leg columns.
+            var rearLateralLegRadius = cowBounds.size.x * 0.18f;
             var longitudinalLegRadius = cowBounds.size.z * 0.11f;
             var animatedVertices = 0;
 
@@ -484,6 +487,9 @@ namespace MootorVehicle.Editor
                 var isFront = vehiclePosition.z > localCowCenter.z;
                 var group = (isLeft ? 0 : 1) + (isFront ? 0 : 2);
                 var groupCenter = seedPositionSums[group] / seedVertexCounts[group];
+                var lateralLegRadius = isFront
+                    ? frontLateralLegRadius
+                    : rearLateralLegRadius;
                 var normalizedLateralDistance =
                     (vehiclePosition.x - groupCenter.x) / lateralLegRadius;
                 var normalizedLongitudinalDistance =
