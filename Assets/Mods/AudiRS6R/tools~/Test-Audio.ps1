@@ -82,7 +82,7 @@ public static class AudiAudioProbe
             Require(power/clip.Samples.Length>.001,"WAV is silent or unexpectedly quiet");
             count++;
         }
-        Require(count==9,"Expected three coast, three load, and three pop variants");
+        Require(count==10,"Expected three coast, three load, three pop variants, and one horn");
         var bad=Path.GetTempFileName();
         try
         {

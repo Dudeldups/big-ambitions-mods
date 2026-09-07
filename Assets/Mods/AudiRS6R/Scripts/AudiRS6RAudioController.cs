@@ -23,6 +23,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private AudioSource[]? layers;
     private AudioSource? idleSource;
     private AudioSource? popSource;
+    private AudioSource? hornSource;
     private AudioClip[]? popClips;
     private float originalDistortion;
     private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
@@ -33,6 +34,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     {
         vehicle = controller;
         context = modContext;
+        AudiRS6ROptions.Changed -= ResetExhaustPops;
+        AudiRS6ROptions.Changed += ResetExhaustPops;
     }
 
     private void LateUpdate()
@@ -89,9 +92,13 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         var exhaustHost = new GameObject("ExhaustPops");
         exhaustHost.transform.SetParent(audioHost.transform, false);
         popSource = CreateSource(exhaustHost, popClips[0], false);
+        var hornHost = new GameObject("AudiRS6R_Horn");
+        hornHost.transform.SetParent(audioHost.transform, false);
+        var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
+        if (otherSource == null || otherSource.outputAudioMixerGroup == null) otherSource = native;
+        hornSource = CreateSource(hornHost, LoadClip("Horn"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info("custom engine audio and exhaust pops initialized.");
         return true;
     }
 
@@ -102,27 +109,29 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         return clip;
     }
 
-    private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop)
+    private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource? template = null)
     {
+        template ??= native!;
         var source = host.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = loop;
         source.clip = clip;
         source.volume = 0f;
-        source.outputAudioMixerGroup = native!.outputAudioMixerGroup;
-        source.spatialBlend = native.spatialBlend;
-        source.minDistance = native.minDistance;
-        source.maxDistance = native.maxDistance;
-        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, native.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
-        source.rolloffMode = native.rolloffMode;
+        source.outputAudioMixerGroup = template.outputAudioMixerGroup;
+        source.spatialBlend = template.spatialBlend;
+        source.minDistance = template.minDistance;
+        source.maxDistance = template.maxDistance;
+        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+        source.rolloffMode = template.rolloffMode;
         source.dopplerLevel = 0f;
-        source.priority = native.priority;
+        source.priority = template.priority;
         return source;
     }
 
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null || popSource == null || idleSource == null)
+        if (physics == null || native == null || layers == null || audioHost == null || popSource == null ||
+            hornSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
@@ -163,6 +172,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
         var gear = physics.powertrain.transmission.Gear;
         var driverThrottle = Mathf.Clamp01(physics.input.Throttle);
+        UpdateHorn(controlled && !paused && physics.input.Horn, Mathf.Clamp01(physics.soundManager.masterVolume));
         if (!paused)
         {
             var follow = 1f - Mathf.Exp(-Time.deltaTime / .1f);
@@ -199,7 +209,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
                 foreach (var source in layers) source.PlayScheduled(start);
                 voicesStarted = true;
             }
-            var pop = popGate.Sample(running && !savedMute, Time.time, rawRpm, driverThrottle, gear, body == null ? 0f : body.velocity.magnitude*3.6f);
+            var pop = popGate.Sample(running && !savedMute && AudiRS6ROptions.ExhaustPopsEnabled,
+                Time.time, rawRpm, driverThrottle, gear, body == null ? 0f : body.velocity.magnitude*3.6f);
             if (pop != AudiRS6RPopEvent.None) PlayPop(master);
         }
     }
@@ -214,7 +225,27 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource.PlayOneShot(clip);
     }
 
-    private void Info(string message) => context?.Logger.Info($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
+    private void UpdateHorn(bool pressed, float master)
+    {
+        if (hornSource == null) return;
+        var target = pressed ? master * AudiRS6RAudioModel.HornVolume : 0f;
+        hornSource.volume = Mathf.MoveTowards(hornSource.volume, target, Time.unscaledDeltaTime * 5f);
+        if (pressed && !hornSource.isPlaying)
+        {
+            hornSource.Play();
+        }
+        else if (!pressed && hornSource.volume <= 0f && hornSource.isPlaying)
+        {
+            hornSource.Stop();
+        }
+    }
+
+    private void ResetExhaustPops()
+    {
+        if (popSource != null) popSource.Stop();
+        popGate.Reset();
+    }
+
     private void Warn(string message) => context?.Logger.Warn($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RestoreMute()
@@ -234,6 +265,11 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     {
         StopLayers();
         if (popSource != null) popSource.Stop();
+        if (hornSource != null)
+        {
+            hornSource.Stop();
+            hornSource.volume = 0f;
+        }
         popGate.Reset();
         RestoreMute();
         if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
@@ -255,10 +291,15 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         layers = null;
         idleSource = null;
         popSource = null;
+        hornSource = null;
         popClips = null;
         foreach (var clip in ownedClips) if (clip != null) Destroy(clip);
         ownedClips.Clear();
     }
 
-    private void OnDestroy() => Cleanup();
+    private void OnDestroy()
+    {
+        AudiRS6ROptions.Changed -= ResetExhaustPops;
+        Cleanup();
+    }
 }

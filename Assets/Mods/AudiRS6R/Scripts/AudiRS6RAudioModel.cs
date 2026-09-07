@@ -5,6 +5,7 @@ using System;
 internal static class AudiRS6RAudioModel
 {
     internal const float IdlePitch = 1f;
+    internal const float HornVolume = .72f;
     internal const float PopVolume = .48f;
     internal const float PopPitchMin = .96f;
     internal const float PopPitchMax = 1.01f;
