@@ -20,6 +20,16 @@ internal static class AudiRS6RAudioModel
     internal static float TargetHz(float normalized) => (float)(80d * Math.Pow(180d / 80d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
+    // Comb-spacing estimates from the supplied excerpts, not physical RPM.
+    internal static float RecordedReference(int passage, int layer) => passage == 0 ?
+        (layer == 0 ? 25.3f : layer == 1 ? 32.5f : 50.9f) :
+        (layer == 0 ? 52.7f : layer == 1 ? 55.7f : 45.9f);
+    internal static float RecordedTarget(float normalized, int passage) => passage == 0 ?
+        (float)(26d * Math.Pow(65d / 26d, Clamp01(normalized))) :
+        (float)(45d * Math.Pow(85d / 45d, Clamp01(normalized)));
+    internal static float RecordedPitch(float normalized, int passage, int layer) =>
+        RecordedTarget(normalized, passage) / RecordedReference(passage, layer);
+
     internal static float Weight(float normalized, int layer)
     {
         var position = Clamp01(normalized) * 2f;
@@ -31,69 +41,4 @@ internal static class AudiRS6RAudioModel
     }
 
     private static float Clamp01(float value) => Math.Max(0f, Math.Min(1f, value));
-}
-
-internal enum AudiRS6RPopEvent { None, Overrun }
-
-internal sealed class AudiRS6RPopGate
-{
-    private bool previousValid;
-    private readonly Random random;
-    private double previousTime;
-    private double lastLoad;
-    private double nextPop;
-    internal bool OverrunActive { get; private set; }
-
-    internal AudiRS6RPopGate(int? seed = null)
-    {
-        random = seed.HasValue ? new Random(seed.Value) : new Random();
-        Reset();
-    }
-
-    internal static float Rate(int gear) => gear == 1 ? 2.8f : gear == 2 ? 2.2f :
-        gear == 3 ? 1.3f : gear == 4 ? .65f : .35f;
-
-    private double Delay(int gear) => .16d - Math.Log(Math.Max(1e-9d, 1d - random.NextDouble())) / Rate(gear);
-
-    internal void Reset()
-    {
-        previousValid = false;
-        lastLoad = double.NegativeInfinity;
-        nextPop = double.PositiveInfinity;
-        OverrunActive = false;
-    }
-
-    internal AudiRS6RPopEvent Sample(bool active, double time, float rpm, float throttle, int gear)
-    {
-        if (!active || gear <= 0)
-        {
-            Reset();
-            return AudiRS6RPopEvent.None;
-        }
-        var continuous = previousValid && time >= previousTime && time - previousTime <= .5d;
-        if (!continuous) Reset();
-        if (rpm >= 2500f && throttle >= .4f) lastLoad = time;
-        var eligible = continuous && rpm >= 1800f && throttle <= .22f && time - lastLoad <= 2.4d;
-        var result = AudiRS6RPopEvent.None;
-        if (!eligible)
-        {
-            OverrunActive = false;
-            nextPop = double.PositiveInfinity;
-        }
-        else if (!OverrunActive)
-        {
-            OverrunActive = true;
-            // A shift or throttle edge only opens an opportunity; it never
-            // directly triggers a pop. Sample once, not once per render frame.
-            nextPop = time + Delay(gear);
-        }
-        else if (time >= nextPop)
-        {
-            result = AudiRS6RPopEvent.Overrun;
-            nextPop = time + Delay(gear);
-        }
-        previousValid = true;
-        previousTime = time;
-        return result;
-    }
 }

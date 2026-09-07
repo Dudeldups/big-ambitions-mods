@@ -1,3 +1,4 @@
+param([string] $RecordingsRoot = '')
 $ErrorActionPreference = 'Stop'
 $modRoot = Split-Path -Parent $PSScriptRoot
 $stubPath = Join-Path ([IO.Path]::GetTempPath()) ('audi-audio-stub-' + [guid]::NewGuid().ToString('N') + '.cs')
@@ -62,27 +63,7 @@ public static class AudiAudioProbe
 
         Require(AudiRS6RAudioModel.LoadBlend(0)==0 && AudiRS6RAudioModel.LoadBlend(.15f)==0 &&
                 AudiRS6RAudioModel.LoadBlend(1)==1, "Load sound must follow throttle");
-        var gate = new AudiRS6RPopGate(42);
-        for (int i=0;i<100;i++)
-            Require(gate.Sample(true,i*.02,900,0,1)==AudiRS6RPopEvent.None,"Idle popped");
-        gate.Reset();
-        Require(gate.Sample(true,0,4500,.8f,2)==AudiRS6RPopEvent.None,"Entry popped");
-        Require(gate.Sample(true,.1,4400,0,2)==AudiRS6RPopEvent.None,"Throttle edge forced a pop");
-        Require(gate.OverrunActive,"Overrun was not armed after load");
-        Require(gate.Sample(true,.15,4300,0,3)==AudiRS6RPopEvent.None,"Shift forced an immediate pop");
-        gate.Sample(false,.2,4500,.9f,2);
-        Require(!gate.OverrunActive,"Pause/exit retained overrun state");
-        Require(gate.Sample(true,.3,4300,0,3)==AudiRS6RPopEvent.None,"Pause/exit left stale pop");
-        gate.Sample(true,.4,4500,.9f,3);
-        Require(gate.Sample(true,.5,4500,0,-1)==AudiRS6RPopEvent.None,"Reverse popped");
-        gate.Sample(true,1,4500,.9f,2);
-        Require(gate.Sample(true,3,4000,0,2)==AudiRS6RPopEvent.None,"Long suspension left stale pop");
-        gate.Reset();
-        for (int i=0;i<1000;i++)
-            Require(gate.Sample(true,i*.02,5000,1,1+i%5)==AudiRS6RPopEvent.None,"Gear changes under load forced pops");
-        int low=CountOverrun(1,.02), high=CountOverrun(5,.02), fast=CountOverrun(1,.01);
-        Require(low>high*2 && high>0,"Lower gears must pop more often, with occasional high-gear pops");
-        Require(Math.Abs(fast-low)<low*.15,"Pop rate depends excessively on render frame rate");
+        AudiAudioEventTests.Run();
 
         int count=0;
         foreach (var file in Directory.GetFiles(audioPath,"*.wav"))
@@ -109,40 +90,40 @@ public static class AudiAudioProbe
             Require(rejected,"Malformed WAV accepted");
         }
         finally { File.Delete(bad); }
-        Console.WriteLine("PASS: idle/load calibration, 1001 RPM crossfades, randomized same-gear overrun/gear bias/frame-rate checks, nine WAVs. Overrun counts: gear1="+low+" gear5="+high);
+        Console.WriteLine("PASS: original idle, driving calibration, 1001 RPM crossfades and packaged WAV decoding.");
     }
 
-    private static int CountOverrun(int gear, double step)
+    public static void RunRecorded(string root)
     {
-        int count=0;
-        var intervals=new System.Collections.Generic.HashSet<int>();
-        for(int trial=0;trial<100;trial++)
+        for(int passage=0;passage<2;passage++)
         {
-            var gate=new AudiRS6RPopGate(trial);
-            double previous=-10;
-            for(int frame=0;frame<4/step;frame++)
+            string[] names={"EngineLow","EngineMid","EngineHigh"};
+            for(int band=0;band<3;band++)
             {
-                double time=frame*step;
-                var pop=gate.Sample(true,time,4000,time<.5?.8f:0f,gear);
-                if(pop==AudiRS6RPopEvent.None) continue;
-                Require(time>=.66 && time<2.91,"Pop outside recently loaded overrun window");
-                Require(time-previous>=.159,"Random bursts have no minimum spacing");
-                if(previous>=0) intervals.Add((int)((time-previous)*100));
-                previous=time;
-                count++;
+                var clip=AudiRS6RWave.Load(Path.Combine(root,"passage_0"+(passage+1),names[band]+".wav"));
+                Require(clip.Samples.Length>=10000 && clip.Samples.Length<20000,"Unexpected supplied loop length");
+                double sum=0;
+                foreach(var sample in clip.Samples) { Require(Math.Abs(sample)<=.86,"Supplied loop clipped"); sum+=sample*sample; }
+                Require(Math.Sqrt(sum/clip.Samples.Length)>.15 && Math.Sqrt(sum/clip.Samples.Length)<.17,"Supplied loop level mismatch");
+                for(int i=0;i<=1000;i++)
+                {
+                    float rpm=i/1000f;
+                    float pitch=AudiRS6RAudioModel.RecordedPitch(rpm,passage,band);
+                    Require(pitch>=.25 && pitch<=3,"Recorded pitch outside range");
+                    Require(Math.Abs(pitch*AudiRS6RAudioModel.RecordedReference(passage,band)-AudiRS6RAudioModel.RecordedTarget(rpm,passage))<.001,"Recorded harmonics not aligned");
+                }
             }
-            Require(!gate.OverrunActive,"Overrun did not expire after prolonged coasting");
         }
-        Require(intervals.Count>3,"Pop timing follows a fixed cadence");
-        return count;
+        Console.WriteLine("PASS: six supplied recordings decode, levels and both passage pitch calibrations.");
     }
 }
 '@
 try {
     Set-Content -LiteralPath $stubPath -Value $stub
     Set-Content -LiteralPath $probePath -Value $probe
-    Add-Type -Path @((Join-Path $modRoot 'Scripts/AudiRS6RAudioModel.cs'), (Join-Path $modRoot 'Scripts/AudiRS6RWave.cs'), $stubPath, $probePath)
+    Add-Type -Path @((Join-Path $modRoot 'Scripts/AudiRS6RAudioModel.cs'), (Join-Path $modRoot 'Scripts/AudiRS6RWave.cs'), (Join-Path $modRoot 'Scripts/AudiRS6RPopGate.cs'), (Join-Path $PSScriptRoot 'AudioEventTests.cs'), $stubPath, $probePath)
     [AudiAudioProbe]::Run((Join-Path $modRoot 'Config/Audio'))
+    if ($RecordingsRoot) { [AudiAudioProbe]::RunRecorded($RecordingsRoot) }
 } finally {
     Remove-Item -LiteralPath $stubPath, $probePath -ErrorAction SilentlyContinue
 }
