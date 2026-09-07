@@ -1,8 +1,8 @@
 #nullable enable
 using System;
 using System.Globalization;
+using System.IO;
 using BAModAPI;
-using NWH.VehiclePhysics2.Sound;
 using NWH.VehiclePhysics2.Sound.SoundComponents;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -11,31 +11,30 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class AudiRS6RAudioController : MonoBehaviour
 {
-    private const float PitchOffset = 0.20f;
-    private const float PitchRange = 2.08f;
-    private const float BaseVolume = 0.28f;
-    private const float VolumeRange = 0.35f;
-    private const float MaxDistortion = 0f;
-    private const float CabinLowPass = 6500f;
-    private const int MaximumAttempts = 20;
-    private const float SampleInterval = 5f;
-
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
-    private SoundManager? sounds;
-    private EngineRunningComponent? engineSound;
     private ModContext? context;
-    private OriginalSettings? original;
+    private EngineRunningComponent? engineSound;
+    private AudioSource? native;
+    private GameObject? audioHost;
+    private AudioSource[]? layers;
+    private readonly AudioClip?[] drivingClips = new AudioClip?[2];
+    private float originalDistortion;
+    private bool savedMute;
+    private bool ownsMute;
+    private bool configured;
+    private bool failed;
+    private bool paused;
+    private bool wasControlled;
+    private bool busMutedReported;
+    private int selected;
     private int attempts;
-    private float nextAttempt;
-    private float nextSample;
     private int lastState = -1;
-    private bool failureReported;
-    private bool sourceMissingReported;
-    private AudioSource? loopSource;
-    private AudioClip? originalClip;
-    private AudioClip? smoothLoop;
-    private AudiRS6RAudioComparison? comparison;
+    private float nextAttempt;
+    private float nextLog;
+    private float driveBlend;
+    private float selectionBlend;
+    private float envelope;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -45,267 +44,196 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (vehicle == null)
-            return;
+        if (vehicle == null || failed) return;
         try
         {
-            if (original == null)
+            if (!configured)
             {
-                if (attempts >= MaximumAttempts || Time.unscaledTime < nextAttempt)
-                    return;
+                if (attempts >= 20 || Time.unscaledTime < nextAttempt) return;
                 attempts++;
-                nextAttempt = Time.unscaledTime + 0.5f;
+                nextAttempt = Time.unscaledTime + .5f;
                 if (!TryConfigure())
                 {
-                    if (attempts == 1 || attempts == MaximumAttempts)
-                        Warn($"waiting for engine audio source; attempt={attempts}/{MaximumAttempts}.");
+                    if (attempts == 1 || attempts == 20)
+                        Warn($"waiting for native engine audio; attempt={attempts}/20.");
                     return;
                 }
-                // Read actual output after the next native engine-audio update.
-                return;
             }
-
-            if (physics == null || sounds == null || engineSound == null)
-                return;
-            comparison ??= new AudiRS6RAudioComparison(Info, Warn);
-            comparison.Update(engineSound.source, vehicle.controlledByPlayer);
-            var state = (vehicle.controlledByPlayer ? 1 : 0) | (physics.CameraInsideVehicle ? 2 : 0);
-            var stateChanged = state != lastState;
-            if (stateChanged || (vehicle.controlledByPlayer && Time.unscaledTime >= nextSample))
-            {
-                lastState = state;
-                nextSample = Time.unscaledTime + SampleInterval;
-                LogSample(stateChanged ? "state-change" : "driving");
-            }
+            UpdatePlayback();
         }
         catch (Exception ex)
         {
-            comparison?.Dispose();
-            if (!failureReported)
-            {
-                failureReported = true;
-                Warn($"audio tuning/diagnostics failed: {ex.GetType().Name}: {ex.Message}");
-            }
+            failed = true;
+            Cleanup();
+            Warn($"layered audio failed; native sound restored: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
     private bool TryConfigure()
     {
         physics = vehicle!.GetComponent<PhysicsVehicle>();
-        sounds = physics?.soundManager;
-        engineSound = sounds?.engineRunningComponent;
-        if (engineSound?.source == null || engineSound.source.clip == null || sounds == null)
+        engineSound = physics?.soundManager.engineRunningComponent;
+        native = engineSound?.source;
+        if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
             return false;
-
-        original = new OriginalSettings(engineSound, sounds);
-        Info($"before pitchOffset={F(engineSound.pitchOffset)} pitchRange={F(engineSound.pitchRange)} " +
-             $"baseVolume={F(engineSound.baseVolume)} volumeRange={F(engineSound.volumeRange)} " +
-             $"maxDistortion={F(engineSound.maxDistortion)} cabinLowPass={F(sounds.lowPassFrequency)}.");
-
-        // Keep the native RPM/load calculation and game audio routing. Tune only
-        // this Audi's component values without bypassing player volume controls.
-        engineSound.pitchOffset = PitchOffset;
-        engineSound.pitchRange = PitchRange;
-        engineSound.baseVolume = BaseVolume;
-        engineSound.volumeRange = VolumeRange;
-        engineSound.maxDistortion = MaxDistortion;
-        sounds.lowPassFrequency = CabinLowPass;
-        SmoothLoopJoin(engineSound.source);
-
-        // The native camera events apply/reset cabin filtering. Refresh once if
-        // initialization happens while already inside, including after save load.
-        RefreshActiveCabinFilter();
-
-        var source = engineSound.source;
-        Info($"configured revision=4 pitchOffset={F(PitchOffset)} pitchRange={F(PitchRange)} " +
-             $"baseVolume={F(BaseVolume)} volumeRange={F(VolumeRange)} maxDistortion={F(MaxDistortion)} " +
-             $"cabinLowPass={F(CabinLowPass)} clip='{source.clip.name}' " +
-             $"length={F(source.clip.length)}s channels={source.clip.channels} hz={source.clip.frequency} " +
-             $"mixer='{source.outputAudioMixerGroup?.audioMixer?.name ?? "none"}' " +
-             $"group='{source.outputAudioMixerGroup?.name ?? "none"}'.");
+        originalDistortion = engineSound!.maxDistortion;
+        for (var i = 0; i < 2; i++)
+        {
+            var name = i == 0 ? "Audi2" : "Audi3";
+            var wave = AudiRS6RWave.Read(Path.Combine(context.ModRootPath, "Config", "Audio", name + ".wav"));
+            var pcm = wave.WithLoopJoin();
+            var clip = AudioClip.Create(name, pcm.Length / wave.Channels, wave.Channels, wave.Frequency, false);
+            drivingClips[i] = clip;
+            if (!clip.SetData(pcm, 0)) throw new InvalidDataException($"Cannot create {name} audio clip.");
+            Info($"loaded driving clip='{name}' originalFrames={wave.Samples.Length / wave.Channels} " +
+                 $"loopFrames={clip.samples} length={F(clip.length)}s hz={clip.frequency} channels={clip.channels} joinMs=20.");
+        }
+        audioHost = new GameObject("AudiRS6R_EngineLayers");
+        audioHost.transform.SetParent(vehicle.transform, false);
+        audioHost.transform.position = native.transform.position;
+        layers = new[] { CreateLayer(native.clip), CreateLayer(drivingClips[0]!), CreateLayer(drivingClips[1]!) };
+        engineSound.maxDistortion = 0f;
+        configured = true;
+        Info($"configured revision=5 idle='{native.clip.name}' idlePitch=1 driving=Audi2/Audi3 " +
+             $"mixer='{native.outputAudioMixerGroup.audioMixer.name}' group='{native.outputAudioMixerGroup.name}'. " +
+             "Ctrl+Alt+A switches driving recording; Car idle remains unchanged. Old dry modes removed.");
         return true;
     }
 
-    private void SmoothLoopJoin(AudioSource source)
+    private AudioSource CreateLayer(AudioClip clip)
     {
-        var clip = source.clip;
-        // Bound the one-time allocation and leave streaming/unreadable clips alone.
-        if (clip.length > 30f || clip.channels < 1 || clip.channels > 8 ||
-            clip.loadType == AudioClipLoadType.Streaming)
-        {
-            Warn($"loop repair skipped for unsupported clip '{clip.name}'.");
-            return;
-        }
-        var samples = new float[clip.samples * clip.channels];
-        if (!clip.GetData(samples, 0))
-        {
-            Warn($"loop repair could not read PCM data from '{clip.name}'; retaining original clip.");
-            return;
-        }
-
-        double stepEnergy = 0;
-        double seamEnergy = 0;
-        for (var i = clip.channels; i < samples.Length; i++)
-        {
-            var delta = samples[i] - samples[i - clip.channels];
-            stepEnergy += delta * delta;
-        }
-        for (var channel = 0; channel < clip.channels; channel++)
-        {
-            var delta = samples[channel] - samples[samples.Length - clip.channels + channel];
-            seamEnergy += delta * delta;
-        }
-        var stepRms = (float)Math.Sqrt(stepEnergy / Math.Max(1, samples.Length - clip.channels));
-        var seamRms = (float)Math.Sqrt(seamEnergy / clip.channels);
-        Info($"loop inspection clip='{clip.name}' seamRms={F(seamRms)} " +
-             $"adjacentStepRms={F(stepRms)} seamRatio={F(seamRms / Mathf.Max(stepRms, 0.000001f))}.");
-
-        var fadeFrames = Math.Min((int)(clip.frequency * 0.02f), clip.samples / 4);
-        if (fadeFrames < 2 || seamRms < stepRms * 4f || seamRms < 0.001f)
-        {
-            Info("loop repair unnecessary; retaining original clip.");
-            return;
-        }
-
-        // Overlap the final 20 ms with the beginning, then wrap into the sample
-        // immediately after that beginning. Both ends of the join remain continuous.
-        var outputFrames = clip.samples - fadeFrames;
-        var middleFrames = clip.samples - 2 * fadeFrames;
-        var output = new float[outputFrames * clip.channels];
-        Array.Copy(samples, fadeFrames * clip.channels, output, 0, middleFrames * clip.channels);
-        for (var frame = 0; frame < fadeFrames; frame++)
-        {
-            var blend = (float)frame / (fadeFrames - 1);
-            for (var channel = 0; channel < clip.channels; channel++)
-                output[(middleFrames + frame) * clip.channels + channel] = Mathf.Lerp(
-                    samples[(outputFrames + frame) * clip.channels + channel],
-                    samples[frame * clip.channels + channel], blend);
-        }
-
-        var repaired = AudioClip.Create("AudiRS6R_Car_SmoothLoop", outputFrames, clip.channels, clip.frequency, false);
-        if (!repaired.SetData(output, 0))
-        {
-            Destroy(repaired);
-            Warn("loop repair could not write PCM data; retaining original clip.");
-            return;
-        }
-        loopSource = source;
-        originalClip = clip;
-        smoothLoop = repaired;
-        ReplaceClip(source, repaired);
-        var repairedSeam = 0f;
-        for (var channel = 0; channel < clip.channels; channel++)
-            repairedSeam = Mathf.Max(repairedSeam,
-                Mathf.Abs(output[channel] - output[output.Length - clip.channels + channel]));
-        Info($"loop repaired fadeMs={F(1000f * fadeFrames / clip.frequency)} " +
-             $"length={F(repaired.length)}s boundaryPeak={F(repairedSeam)}; source asset unchanged.");
-    }
-
-    private static void ReplaceClip(AudioSource source, AudioClip clip)
-    {
-        var wasPlaying = source.isPlaying;
-        var position = source.time;
+        var source = audioHost!.AddComponent<AudioSource>();
+        source.playOnAwake = false;
+        source.loop = true;
         source.clip = clip;
-        source.time = position % clip.length;
-        if (wasPlaying)
-            source.Play();
+        source.volume = 0f;
+        source.outputAudioMixerGroup = native!.outputAudioMixerGroup;
+        source.spatialBlend = native.spatialBlend;
+        source.minDistance = native.minDistance;
+        source.maxDistance = native.maxDistance;
+        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, native.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+        source.rolloffMode = native.rolloffMode;
+        source.dopplerLevel = 0f;
+        source.priority = native.priority;
+        return source;
     }
 
-    private void LogSample(string reason)
+    private void UpdatePlayback()
     {
-        var source = engineSound?.source;
-        if (source == null)
+        if (physics == null || native == null || layers == null || audioHost == null)
+            throw new InvalidOperationException("Configured audio source or vehicle was removed.");
+        audioHost.transform.position = native.transform.position;
+        var controlled = vehicle!.controlledByPlayer;
+        if (controlled && !wasControlled)
         {
-            if (!sourceMissingReported)
-            {
-                sourceMissingReported = true;
-                Warn("configured engine audio source is missing.");
-            }
-            return;
+            selected = 0;
+            selectionBlend = 0f;
+            Info("driver entered: driving clip=Audi2; Ctrl+Alt+A selects Audi3, then Audi2.");
         }
-        sourceMissingReported = false;
-        var engine = physics!.powertrain.engine;
-        var mixer = source.outputAudioMixerGroup?.audioMixer;
-        var lowPass = source.GetComponent<AudioLowPassFilter>();
-        Info($"sample reason={reason} comparison={comparison?.Mode ?? "mixer/rpm"} controlled={vehicle!.controlledByPlayer} " +
-             $"{comparison?.PlaybackStatus ?? "dry=inactive"} " +
-             $"cameraInside={physics.CameraInsideVehicle} rpmEstimate={F(engine.RPMPercent * engine.revLimiterRPM)} " +
-             $"rpmPercent={F(engine.RPMPercent)} throttle={F(engine.ThrottlePosition)} load={F(engine.Load)} " +
-             $"playing={source.isPlaying} pitch={F(source.pitch)} volume={F(source.volume)} " +
-             $"clip='{source.clip?.name ?? "none"}' repairedLoopActive={smoothLoop != null && source.clip == smoothLoop} " +
-             $"loop={source.loop} doppler={F(source.dopplerLevel)} " +
-             $"masterVolume={F(sounds!.masterVolume)} listenerVolume={F(AudioListener.volume)} " +
-             $"mixer='{mixer?.name ?? "none"}' cutoff={ReadMixer(mixer, "lowPassFrequency")} " +
-             $"Q={ReadMixer(mixer, "lowPassQ")} distortion={ReadMixer(mixer, "engineDistortion")} " +
-             $"attenuation={ReadMixer(mixer, "attenuation")} " +
-             $"engineDb={ReadMixer(mixer, "engine")} fxDb={ReadMixer(mixer, "fx")} " +
-             $"sourceLowPass={(lowPass != null && lowPass.enabled ? F(lowPass.cutoffFrequency) : "off")} " +
-             $"spatialBlend={F(source.spatialBlend)} minDistance={F(source.minDistance)} maxDistance={F(source.maxDistance)}.");
+        wasControlled = controlled;
+        if (controlled && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) &&
+            (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)) && Input.GetKeyDown(KeyCode.A))
+        {
+            selected = 1 - selected;
+            Info($"driving clip selected={(selected == 0 ? "Audi2" : "Audi3")}; idle=Car.");
+            nextLog = 0f;
+        }
+        var engine = physics.powertrain.engine;
+        var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
+        var shouldPause = Time.timeScale <= 0f || AudioListener.pause;
+        if (shouldPause != paused)
+        {
+            foreach (var source in layers)
+                if (shouldPause) source.Pause(); else source.UnPause();
+            paused = shouldPause;
+            Info($"audio pause={paused} timeScale={F(Time.timeScale)} listenerPause={AudioListener.pause}.");
+        }
+        if (controlled)
+        {
+            if (!ownsMute) { savedMute = native.mute; ownsMute = true; }
+            native.mute = true;
+        }
+        else RestoreMute();
+
+        if (!paused)
+        {
+            var rpm = Mathf.Clamp01(engine.RPMPercent);
+            var idle = engine.idleRPM / Mathf.Max(1f, engine.revLimiterRPM);
+            var targetBlend = Mathf.InverseLerp(idle + .04f, idle + .22f, rpm);
+            driveBlend = Mathf.MoveTowards(driveBlend, targetBlend, Time.deltaTime * 4f);
+            selectionBlend = Mathf.MoveTowards(selectionBlend, selected, Time.deltaTime * 5f);
+            envelope = Mathf.MoveTowards(envelope, running ? 1f : 0f, Time.deltaTime * 6f);
+            var gain = envelope * Mathf.Clamp01(physics.soundManager.masterVolume);
+            var driveVolume = gain * (.26f + .18f * Mathf.Clamp01(engine.ThrottlePosition));
+            // Preserve authored rev patterns; use modest pitch movement in this test.
+            var pitch = Mathf.Lerp(.95f, 1.3f, Mathf.InverseLerp(idle, 1f, rpm));
+            layers[0].pitch = 1f;
+            layers[0].volume = gain * .24f * Mathf.Sqrt(1f - driveBlend);
+            layers[1].pitch = layers[2].pitch = pitch;
+            layers[1].volume = driveVolume * Mathf.Sqrt(driveBlend) * Mathf.Sqrt(1f - selectionBlend);
+            layers[2].volume = driveVolume * Mathf.Sqrt(driveBlend) * Mathf.Sqrt(selectionBlend);
+            foreach (var source in layers)
+            {
+                source.mute = controlled && savedMute;
+                if (envelope <= 0f) source.Stop();
+                else if (!source.isPlaying) source.Play();
+            }
+        }
+        var state = (controlled ? 1 : 0) | (running ? 2 : 0) | (paused ? 4 : 0);
+        if (state != lastState || (controlled && Time.unscaledTime >= nextLog))
+        {
+            lastState = state;
+            nextLog = Time.unscaledTime + 5f;
+            var mixer = layers[0].outputAudioMixerGroup?.audioMixer;
+            Info($"sample controlled={controlled} running={running} paused={paused} timeScale={F(Time.timeScale)} " +
+                 $"rpmEstimate={F(engine.RPMPercent * engine.revLimiterRPM)} throttle={F(engine.ThrottlePosition)} " +
+                 $"driveBlend={F(driveBlend)} selected={(selected == 0 ? "Audi2" : "Audi3")} " +
+                 $"idle[{Status(layers[0])}] audi2[{Status(layers[1])}] audi3[{Status(layers[2])}] " +
+                 $"engineDb={ReadMixer(mixer, "engine")} fxDb={ReadMixer(mixer, "fx")} " +
+                 $"masterDb={ReadMixer(mixer, "attenuation")} listenerVolume={F(AudioListener.volume)}.");
+            var busMuted = running && !paused && mixer != null && mixer.GetFloat("engine", out var db) && db <= -79f;
+            if (busMuted && !busMutedReported) Warn("engine mixer bus is muted while running; layers may be inaudible.");
+            busMutedReported = busMuted;
+        }
     }
 
+    private static string Status(AudioSource source) =>
+        $"playing={source.isPlaying} mute={source.mute} volume={F(source.volume)} pitch={F(source.pitch)}";
     private static string ReadMixer(AudioMixer? mixer, string parameter) =>
         mixer != null && mixer.GetFloat(parameter, out var value) ? F(value) : "unavailable";
-
-    private void RefreshActiveCabinFilter()
-    {
-        // Cabin filtering is a native shared-mixer effect. Change its cutoff only
-        // while this Audi is the occupied interior view; leave other mix controls alone.
-        if (vehicle != null && vehicle.controlledByPlayer && physics != null &&
-            physics.CameraInsideVehicle && sounds?.mixer != null &&
-            !sounds.mixer.SetFloat("lowPassFrequency", sounds.lowPassFrequency))
-            Warn("Active cabin mixer has no exposed lowPassFrequency parameter.");
-    }
-
     private static string F(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+    private void Info(string message) => context?.Logger.Info($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
+    private void Warn(string message) => context?.Logger.Warn($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
 
-    private void Info(string message) =>
-        context?.Logger.Info($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
-
-    private void Warn(string message) =>
-        context?.Logger.Warn($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
-
-    private void OnDestroy()
+    private void RestoreMute()
     {
-        comparison?.Dispose();
-        if (loopSource != null && originalClip != null && loopSource.clip == smoothLoop)
-            ReplaceClip(loopSource, originalClip);
-        if (smoothLoop != null)
-            Destroy(smoothLoop);
-        if (original == null || engineSound == null || sounds == null)
-            return;
-        original.Restore(engineSound, sounds);
-        RefreshActiveCabinFilter();
+        if (ownsMute && native != null) native.mute = savedMute;
+        ownsMute = false;
     }
 
-    private void OnDisable() => comparison?.Dispose();
-
-    private sealed class OriginalSettings
+    private void OnDisable()
     {
-        private readonly float pitchOffset;
-        private readonly float pitchRange;
-        private readonly float baseVolume;
-        private readonly float volumeRange;
-        private readonly float maxDistortion;
-        private readonly float lowPassFrequency;
+        if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
+        RestoreMute();
+        envelope = driveBlend = selectionBlend = 0f;
+        paused = wasControlled = false;
+        lastState = -1;
+    }
 
-        public OriginalSettings(EngineRunningComponent engine, SoundManager manager)
+    private void Cleanup()
+    {
+        OnDisable();
+        if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
+        configured = false;
+        if (audioHost != null) Destroy(audioHost);
+        audioHost = null;
+        layers = null;
+        for (var i = 0; i < drivingClips.Length; i++)
         {
-            pitchOffset = engine.pitchOffset;
-            pitchRange = engine.pitchRange;
-            baseVolume = engine.baseVolume;
-            volumeRange = engine.volumeRange;
-            maxDistortion = engine.maxDistortion;
-            lowPassFrequency = manager.lowPassFrequency;
-        }
-
-        public void Restore(EngineRunningComponent engine, SoundManager manager)
-        {
-            engine.pitchOffset = pitchOffset;
-            engine.pitchRange = pitchRange;
-            engine.baseVolume = baseVolume;
-            engine.volumeRange = volumeRange;
-            engine.maxDistortion = maxDistortion;
-            manager.lowPassFrequency = lowPassFrequency;
+            if (drivingClips[i] != null) Destroy(drivingClips[i]);
+            drivingClips[i] = null;
         }
     }
+
+    private void OnDestroy() => Cleanup();
 }
