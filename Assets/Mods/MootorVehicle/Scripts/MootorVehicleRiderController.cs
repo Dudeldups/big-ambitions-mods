@@ -20,16 +20,19 @@ namespace MootorVehicle
         private const float RiderScale = 0.94f;
         private const int MaximumAttempts = 20;
         private const int MaximumEngineStartAttempts = 4;
-        private const float EngineStartRetryDelay = 0.5f;
+        private const float DormantEngineGracePeriod = 0.35f;
+        private const float EngineRestartDelay = 0.1f;
+        private const float EngineStartRetryDelay = 0.75f;
+        private const float MinimumHealthyEngineRpm = 100f;
 
-        private static readonly Vector3 LeftHandOffset = new(-0.3f, 0.02f, 0.58f);
-        private static readonly Vector3 RightHandOffset = new(0.3f, 0.02f, 0.58f);
-        private static readonly Vector3 LeftElbowHintOffset = new(-0.44f, 0.12f, 0.28f);
-        private static readonly Vector3 RightElbowHintOffset = new(0.44f, 0.12f, 0.28f);
-        private static readonly Vector3 LeftFootOffset = new(-0.5f, -0.72f, 0.1f);
-        private static readonly Vector3 RightFootOffset = new(0.5f, -0.72f, 0.1f);
-        private static readonly Vector3 LeftKneeHintOffset = new(-0.55f, -0.28f, 0.38f);
-        private static readonly Vector3 RightKneeHintOffset = new(0.55f, -0.28f, 0.38f);
+        private static readonly Vector3 LeftHandOffset = new(-0.3f, 0f, 0.38f);
+        private static readonly Vector3 RightHandOffset = new(0.3f, 0f, 0.38f);
+        private static readonly Vector3 LeftElbowHintOffset = new(-0.46f, 0.08f, 0.18f);
+        private static readonly Vector3 RightElbowHintOffset = new(0.46f, 0.08f, 0.18f);
+        private static readonly Vector3 LeftFootOffset = new(-0.44f, -0.42f, 0.1f);
+        private static readonly Vector3 RightFootOffset = new(0.44f, -0.42f, 0.1f);
+        private static readonly Vector3 LeftKneeHintOffset = new(-0.64f, 0.1f, 0.4f);
+        private static readonly Vector3 RightKneeHintOffset = new(0.64f, 0.1f, 0.4f);
 
         private readonly List<UnityEngine.Object> ownedAssets = new();
         private VehicleController? vehicle;
@@ -57,6 +60,8 @@ namespace MootorVehicle
         private float nextEngineStartAttempt;
         private bool engineStartConfirmedLogged;
         private bool engineStartFailureLogged;
+        private bool engineRestartPending;
+        private float dormantThrottleDetectedAt = -1f;
         private string? lastFailure;
 
         public void Initialize(VehicleController controller, ModContext? modContext)
@@ -85,6 +90,8 @@ namespace MootorVehicle
                 nextEngineStartAttempt = Time.unscaledTime + 0.15f;
                 engineStartConfirmedLogged = false;
                 engineStartFailureLogged = false;
+                engineRestartPending = false;
+                dormantThrottleDetectedAt = -1f;
                 lastFailure = null;
 
                 if (!occupied)
@@ -332,20 +339,54 @@ namespace MootorVehicle
             try
             {
                 var engine = physicsVehicle.powertrain.engine;
-                if (engine.IsRunning)
+                var rpm = engine.RPMPercent * engine.revLimiterRPM;
+                if (rpm >= MinimumHealthyEngineRpm)
                 {
                     if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
                     {
                         engineStartConfirmedLogged = true;
                         LogInfo(
                             $"native engine start confirmed after {engineStartAttempts} request(s); " +
-                            $"rpm={engine.RPMPercent * engine.revLimiterRPM:F0}.");
+                            $"rpm={rpm:F0}.");
                     }
+                    engineRestartPending = false;
+                    dormantThrottleDetectedAt = -1f;
                     return;
                 }
 
-                if (Time.unscaledTime < nextEngineStartAttempt)
+                if (engineRestartPending)
+                {
+                    if (Time.unscaledTime < nextEngineStartAttempt)
+                        return;
+
+                    engineRestartPending = false;
+                    engineStartAttempts++;
+                    nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
+                    dormantThrottleDetectedAt = Time.unscaledTime;
+                    engine.StartEngine();
+                    LogInfo(
+                        $"requested native engine restart attempt={engineStartAttempts}; " +
+                        $"running={engine.IsRunning} rpm={rpm:F0}.");
                     return;
+                }
+
+                if (Mathf.Abs(physicsVehicle.input.Throttle) < 0.05f)
+                {
+                    dormantThrottleDetectedAt = -1f;
+                    return;
+                }
+
+                if (dormantThrottleDetectedAt < 0f)
+                {
+                    dormantThrottleDetectedAt = Time.unscaledTime;
+                    return;
+                }
+
+                if (Time.unscaledTime < nextEngineStartAttempt ||
+                    Time.unscaledTime - dormantThrottleDetectedAt < DormantEngineGracePeriod)
+                {
+                    return;
+                }
 
                 if (engineStartAttempts >= MaximumEngineStartAttempts)
                 {
@@ -359,10 +400,12 @@ namespace MootorVehicle
                     return;
                 }
 
-                engineStartAttempts++;
-                nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
-                engine.StartEngine();
-                LogInfo($"requested native engine start attempt={engineStartAttempts}.");
+                engine.StopEngine();
+                engineRestartPending = true;
+                nextEngineStartAttempt = Time.unscaledTime + EngineRestartDelay;
+                LogInfo(
+                    $"reset dormant native engine before restart attempt={engineStartAttempts + 1}; " +
+                    $"running={engine.IsRunning} rpm={rpm:F0}.");
             }
             catch (Exception exception)
             {

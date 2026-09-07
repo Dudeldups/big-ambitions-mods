@@ -27,6 +27,7 @@ namespace MootorVehicle.Editor
         private const string BundleName = "mootorvehicle";
         private const string BundleVariant = "unity3d";
         private const float TargetCowLength = 3.1f;
+        private const float TargetCowGroundOffset = -0.08f;
 
         [MenuItem("Big Ambitions/Moo-tor Vehicle/Build First Version")]
         public static void BuildAll()
@@ -380,7 +381,7 @@ namespace MootorVehicle.Editor
             cowVisual.transform.localScale = Vector3.one * scale;
 
             var orientedBounds = CalculateWorldBounds(cowVisual);
-            var desiredCenter = new Vector3(0f, 0.03f + orientedBounds.extents.y, 0f);
+            var desiredCenter = new Vector3(0f, TargetCowGroundOffset + orientedBounds.extents.y, 0f);
             cowVisual.transform.localPosition += desiredCenter - orientedBounds.center;
 
             var finalBounds = CalculateWorldBounds(cowVisual);
