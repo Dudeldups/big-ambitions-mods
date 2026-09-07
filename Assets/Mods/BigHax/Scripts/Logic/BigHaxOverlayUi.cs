@@ -24,6 +24,8 @@ namespace BigHax
         private bool needsCentering = true;
         private System.Action? confirmUnlockAllContacts;
         private System.Action? confirmUnlockAllCourses;
+        private System.Func<bool>? arePurchaseLimitsDisabled;
+        private System.Action<bool>? setPurchaseLimitsDisabled;
 
         private Texture2D? solidTexture;
         private GUIStyle? windowStyle;
@@ -53,6 +55,13 @@ namespace BigHax
             confirmUnlockAllContacts = unlockAllContacts;
             confirmUnlockAllCourses = unlockAllCourses;
             nativeUi.ConfigureUnlockActions(unlockAllContacts, unlockAllCourses);
+        }
+
+        public void ConfigurePurchaseLimitOption(System.Func<bool> readDisabled, System.Action<bool> setDisabled)
+        {
+            arePurchaseLimitsDisabled = readDisabled;
+            setPurchaseLimitsDisabled = setDisabled;
+            nativeUi.ConfigurePurchaseLimitOption(readDisabled, setDisabled);
         }
 
         public void Toggle()
@@ -128,6 +137,8 @@ namespace BigHax
                     Hide,
                     confirmUnlockAllContacts,
                     confirmUnlockAllCourses,
+                    arePurchaseLimitsDisabled,
+                    setPurchaseLimitsDisabled,
                     out baUnifiedUi,
                     out var reason))
             {
@@ -288,6 +299,14 @@ namespace BigHax
                         settings.EnableInstantFurnitureDeliveries = value;
                         BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value);
                     });
+                if (arePurchaseLimitsDisabled != null && setPurchaseLimitsDisabled != null)
+                {
+                    DrawToggleOption(
+                        context,
+                        arePurchaseLimitsDisabled(),
+                        Localize("bighax_disable_purchase_limits_label"),
+                        setPurchaseLimitsDisabled);
+                }
                 DrawIntSlider(
                     context,
                     settings,
