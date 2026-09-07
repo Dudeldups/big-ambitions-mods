@@ -281,6 +281,9 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             driverController = vehicleController.gameObject.AddComponent<AudiRS6RDriverController>();
         driverController!.Initialize(vehicleController, context);
 
+        if (AudiRS6REngineAudio.Clips != null && vehicleController.GetComponent<AudiRS6REngineAudio>() == null)
+            vehicleController.gameObject.AddComponent<AudiRS6REngineAudio>().Initialize(vehicleController, context);
+
         return sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController || addedDriverController;
     }
 
@@ -1000,6 +1003,12 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void RemoveVehicleRuntimeComponents()
     {
+        foreach (var audio in FindObjectsOfType<AudiRS6REngineAudio>(true))
+        {
+            audio.enabled = false;
+            audio.StopAndRestore();
+            Destroy(audio);
+        }
         foreach (var driverController in FindObjectsOfType<AudiRS6RDriverController>(true))
             if (driverController != null) Destroy(driverController);
 

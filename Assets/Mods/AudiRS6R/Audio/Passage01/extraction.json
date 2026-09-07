@@ -1,0 +1,83 @@
+{
+  "source_url": "https://www.youtube.com/watch?v=bfumTAM-aNM",
+  "source_title": "Une RS6 de 700CV ca DRIFT ???",
+  "source_author": "thierry vigneau Boiserie",
+  "source_sha256": "f91dbef1b64e0d92d9e9f4a8fd483756d9ea62a81db57f14404d5e9fc0c812a1",
+  "license": "No free-reuse license verified. Extraction is not a redistribution license.",
+  "method": "mono, 55-7000 Hz bandpass, conservative spectral noise attenuation (floor .5), 25 ms equal-power loop join, common RMS .16 with .85 peak ceiling",
+  "calibration": "Relative low/mid/high within each acceleration, not measured engine RPM. No synthetic pitch transposition. Background sounds may remain.",
+  "passages": [
+    {
+      "passage": 1,
+      "acceleration_source_seconds": [
+        181.9,
+        187.1
+      ],
+      "loops": [
+        {
+          "file": "passage_01\\EngineLow.wav",
+          "source_seconds": [
+            182.12,
+            182.52
+          ],
+          "duration_seconds": 0.37498866213151927,
+          "sample_rate": 44100,
+          "channels": 1,
+          "peak": 0.6046800376315848,
+          "rms": 0.15999999999915765,
+          "loop_boundary_jump": 0.005436763910421277,
+          "strong_spectral_peaks_hz": [
+            126.5,
+            76.7,
+            227.4,
+            100.9,
+            153.4,
+            302.8
+          ]
+        },
+        {
+          "file": "passage_01\\EngineMid.wav",
+          "source_seconds": [
+            182.85,
+            183.25
+          ],
+          "duration_seconds": 0.3750340136054422,
+          "sample_rate": 44100,
+          "channels": 1,
+          "peak": 0.8499999999990187,
+          "rms": 0.15818612405460966,
+          "loop_boundary_jump": 0.0032697654122559316,
+          "strong_spectral_peaks_hz": [
+            131.9,
+            290.7,
+            161.5,
+            642.0,
+            598.9,
+            667.5
+          ]
+        },
+        {
+          "file": "passage_01\\EngineHigh.wav",
+          "source_seconds": [
+            183.5,
+            183.9
+          ],
+          "duration_seconds": 0.37501133786848073,
+          "sample_rate": 44100,
+          "channels": 1,
+          "peak": 0.5811502908989383,
+          "rms": 0.1599999999990809,
+          "loop_boundary_jump": 0.04116895078729761,
+          "strong_spectral_peaks_hz": [
+            255.7,
+            204.6,
+            152.1,
+            411.8,
+            558.5,
+            359.3
+          ]
+        }
+      ]
+    }
+  ]
+}

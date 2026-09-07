@@ -1,0 +1,22 @@
+ManifestFileVersion: 0
+CRC: 283175356
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 11a2d547d111a28ab336c6b10e6b0019
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 9a2ca7bdbd1871f7131daf57de908e0c
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 11a2d547d111a28ab336c6b10e6b0019
+HashAppended: 0
+ClassTypes:
+- Class: 83
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Mods/AudiRS6R/Audio/Passage01/EngineLow.wav
+- Assets/Mods/AudiRS6R/Audio/Passage01/EngineMid.wav
+- Assets/Mods/AudiRS6R/Audio/Passage01/EngineHigh.wav
+Dependencies: []

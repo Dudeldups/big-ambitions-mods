@@ -19,7 +19,7 @@ public class AudiRS6RMod : IModBigAmbitions
     private const string BundleKey = "AssetBundles/audirs6r.unity3d";
     private const string VehicleAssetPath = "Assets/Mods/AudiRS6R/AudiRS6R.asset";
 
-    public string[] RelativeAssetBundlePaths => new[] { BundleKey };
+    public string[] RelativeAssetBundlePaths => new[] { BundleKey, AudiRS6REngineAudio.BundleKey };
 
     private VehicleType? vehicleType;
     private AudiRS6RRuntime? runtime;
@@ -40,6 +40,15 @@ public class AudiRS6RMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var audioBundle = AssetService.GetBundle(context.ModId, AudiRS6REngineAudio.BundleKey);
+        if (audioBundle != null)
+            AudiRS6REngineAudio.Clips = Array.ConvertAll(AudiRS6REngineAudio.ClipPaths, path => audioBundle.LoadAsset<AudioClip>(path));
+        if (AudiRS6REngineAudio.Clips == null || Array.Exists(AudiRS6REngineAudio.Clips, clip => clip == null))
+        {
+            AudiRS6REngineAudio.Clips = null;
+            context.Logger.Warn("AudiRS6R: passage_01 audio bundle incomplete; retaining original engine sound.");
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
         runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
@@ -49,6 +58,7 @@ public class AudiRS6RMod : IModBigAmbitions
     {
         runtime?.Shutdown();
         runtime = null;
+        AudiRS6REngineAudio.Clips = null;
 
         if (vehicleType == null)
             return Task.CompletedTask;
