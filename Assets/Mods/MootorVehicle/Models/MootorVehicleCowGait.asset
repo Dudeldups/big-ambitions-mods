@@ -21,30 +21,6 @@ Mesh:
       m_Extent: {x: 3.697781, y: 14.845062, z: 7.1543636}
   m_Shapes:
     vertices:
-    - vertex: {x: 0.000000059604645, y: 0.016565561, z: 0.022851944}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 174
-    - vertex: {x: 0, y: 0.008293271, z: 0.043317795}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 175
-    - vertex: {x: 0, y: 0.00033426285, z: 0.00732708}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 176
-    - vertex: {x: 0, y: 0.00047147274, z: 0.004427433}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 177
-    - vertex: {x: 0.000000059604645, y: 0.06502843, z: 0.039019108}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 178
-    - vertex: {x: 0, y: 0.024487138, z: 0.071266174}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 179
     - vertex: {x: 0.00000023841858, y: -0.48062325, z: 0.08641696}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -117,10 +93,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 845
-    - vertex: {x: 0, y: 0.005017139, z: 0.053482533}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 848
     - vertex: {x: 0, y: 0.20457447, z: 0.09080696}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -129,18 +101,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 850
-    - vertex: {x: 0, y: 0.10594845, z: -0.051147938}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 869
-    - vertex: {x: 0, y: 0.028758764, z: -0.01826191}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 870
-    - vertex: {x: 0, y: 0.03585291, z: -0.07327223}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 871
     - vertex: {x: -0.00000011920929, y: -0.4564104, z: -0.01301527}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -193,14 +153,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 971
-    - vertex: {x: 0.00000011920929, y: 0.00021338463, z: -0.0006303787}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1035
-    - vertex: {x: 0, y: -0.048225403, z: 0.14523745}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1063
     - vertex: {x: 0, y: -1.7759123, z: 0.14048946}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -329,14 +281,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1128
-    - vertex: {x: 0, y: -0.0023040771, z: 0.0049037933}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1131
-    - vertex: {x: 0.00000011920929, y: -0.0038576126, z: 0.014302731}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1132
     - vertex: {x: 0, y: -0.00065231323, z: 0.0057034492}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -372,14 +316,6 @@ Mesh:
     - vertex: {x: 0.00000011920929, y: 0.0000022649765, z: 0.00091838837}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
-      index: 1160
-    - vertex: {x: 0, y: 0.0006380081, z: 0.01416111}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1161
-    - vertex: {x: 0.00000011920929, y: 0.0000022649765, z: 0.00091838837}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
       index: 1163
     - vertex: {x: 0.00000011920929, y: 0.023853838, z: 0.07968187}
       normal: {x: 0, y: 0, z: 0}
@@ -393,10 +329,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1166
-    - vertex: {x: 0.00000011920929, y: 0.0004132986, z: 0.0075850487}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1167
     - vertex: {x: 0.00000011920929, y: 0.025827885, z: 0.053642273}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1253,30 +1185,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1395
-    - vertex: {x: 0.00000011920929, y: -0.014694214, z: 0.07191086}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1424
-    - vertex: {x: 0.00000011920929, y: -0.004761696, z: 0.05107069}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1425
-    - vertex: {x: 0.00000011920929, y: -0.0033082962, z: 0.0292449}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1426
-    - vertex: {x: 0, y: -0.030518532, z: 0.08108044}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1427
-    - vertex: {x: 0, y: -0.0054540634, z: 0.026861668}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1428
-    - vertex: {x: 0.00000011920929, y: -0.0038576126, z: 0.014302731}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1431
     - vertex: {x: 0.00000047683716, y: 0.3829826, z: 0.16665435}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1409,38 +1317,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1472
-    - vertex: {x: 0, y: -0.23706245, z: 0.26174116}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1478
-    - vertex: {x: 0.000000059604645, y: -0.24888134, z: 0.28751183}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1479
-    - vertex: {x: -0.000000059604645, y: -0.017365932, z: -0.022249222}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1679
-    - vertex: {x: 0, y: -0.00049841404, z: -0.0044231415}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1680
-    - vertex: {x: 0, y: -0.00037193298, z: -0.0073242188}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1681
-    - vertex: {x: 0, y: -0.009399414, z: -0.043090343}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1682
-    - vertex: {x: 0, y: -0.02759254, z: -0.070120335}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1683
-    - vertex: {x: 0, y: -0.06760311, z: -0.034367085}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1684
     - vertex: {x: 0, y: 0.48829937, z: 0.005901575}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1513,10 +1389,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2286
-    - vertex: {x: 0, y: -0.006101519, z: -0.053367615}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2288
     - vertex: {x: 0, y: -0.2142818, z: -0.064655304}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1525,18 +1397,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2290
-    - vertex: {x: 0, y: -0.10106754, z: 0.060222626}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2306
-    - vertex: {x: 0, y: -0.032133102, z: 0.074980736}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2308
-    - vertex: {x: 0, y: -0.027893543, z: 0.01955986}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2309
     - vertex: {x: -0.00000011920929, y: 0.44639015, z: 0.09601474}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1589,14 +1449,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2387
-    - vertex: {x: -0.00000011920929, y: -0.00021147728, z: 0.00063467026}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2448
-    - vertex: {x: 0, y: 0.057204247, z: -0.14193964}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2474
     - vertex: {x: 0, y: 1.7393894, z: 0.38487852}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1725,14 +1577,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2540
-    - vertex: {x: -0.00000011920929, y: 0.0041074753, z: -0.0142326355}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2543
-    - vertex: {x: 0, y: 0.002374649, z: -0.0048718452}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2544
     - vertex: {x: 0, y: 0.00042629242, z: -0.0022850037}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1765,14 +1609,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2568
-    - vertex: {x: 0, y: -0.00074005127, z: -0.014154434}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2572
-    - vertex: {x: -0.00000011920929, y: -0.000002861023, z: -0.000916481}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2573
     - vertex: {x: -0.00000011920929, y: -0.000002861023, z: -0.000916481}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -1789,10 +1625,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2577
-    - vertex: {x: -0.00000011920929, y: -0.0004566908, z: -0.007581234}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2579
     - vertex: {x: -0.00000011920929, y: -0.0004566908, z: -0.007581234}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -2649,30 +2481,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2806
-    - vertex: {x: -0.00000011920929, y: 0.0057725906, z: -0.050964832}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2832
-    - vertex: {x: -0.00000011920929, y: 0.017157555, z: -0.071362495}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2833
-    - vertex: {x: -0.00000011920929, y: 0.0037841797, z: -0.029187202}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2834
-    - vertex: {x: 0, y: 0.006009102, z: -0.026741982}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2835
-    - vertex: {x: 0, y: 0.034463882, z: -0.07948446}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2836
-    - vertex: {x: -0.00000011920929, y: 0.0041074753, z: -0.0142326355}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2838
     - vertex: {x: -0.00000023841858, y: -0.4130596, z: -0.14119935}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -2805,86 +2613,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2879
-    - vertex: {x: 0, y: 0.27066422, z: -0.22682238}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2883
-    - vertex: {x: 0, y: 0.28683758, z: -0.2496593}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2886
-    - vertex: {x: 0.000000059604645, y: -0.13578892, z: 0.19883013}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2911
-    - vertex: {x: 0.000000059604645, y: -0.13578892, z: 0.19883013}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2918
-    - vertex: {x: 0, y: 0.15569782, z: -0.18365908}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2938
-    - vertex: {x: 0, y: 0.15569782, z: -0.18365908}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2941
-    - vertex: {x: 0.000000059604645, y: -0.24888134, z: 0.28751183}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2954
-    - vertex: {x: 0, y: -0.23706245, z: 0.26174116}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2955
-    - vertex: {x: 0.000000059604645, y: -0.24888134, z: 0.28751183}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2957
-    - vertex: {x: 0, y: -0.23706245, z: 0.26174116}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2960
-    - vertex: {x: 0, y: 0.28683758, z: -0.2496593}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2972
-    - vertex: {x: 0, y: 0.27066422, z: -0.22682238}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2974
-    - vertex: {x: 0, y: 0.28683758, z: -0.2496593}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2975
-    - vertex: {x: 0, y: 0.27066422, z: -0.22682238}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2977
-    - vertex: {x: 0.000000059604645, y: -0.017365932, z: -0.022249222}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 174
-    - vertex: {x: 0, y: -0.009399414, z: -0.043090343}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 175
-    - vertex: {x: 0, y: -0.00037193298, z: -0.0073242188}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 176
-    - vertex: {x: 0, y: -0.00049841404, z: -0.0044231415}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 177
-    - vertex: {x: 0, y: -0.06760311, z: -0.034367085}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 178
-    - vertex: {x: 0, y: -0.02759254, z: -0.070120335}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 179
     - vertex: {x: 0.00000023841858, y: 0.4882965, z: 0.005901575}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -2957,10 +2685,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 845
-    - vertex: {x: 0, y: -0.006101519, z: -0.053367615}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 848
     - vertex: {x: 0, y: -0.2142818, z: -0.064655304}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -2969,18 +2693,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 850
-    - vertex: {x: 0, y: -0.10106754, z: 0.060222626}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 869
-    - vertex: {x: 0, y: -0.027893543, z: 0.01955986}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 870
-    - vertex: {x: 0, y: -0.032133102, z: 0.074980736}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 871
     - vertex: {x: 0.00000011920929, y: 0.44638824, z: 0.096013546}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -3033,14 +2745,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 971
-    - vertex: {x: 0.00000011920929, y: -0.00021147728, z: 0.00063467026}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1035
-    - vertex: {x: 0, y: 0.057204247, z: -0.14193964}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1063
     - vertex: {x: 0.00000023841858, y: 1.7393885, z: 0.38487735}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -3169,14 +2873,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1128
-    - vertex: {x: 0, y: 0.002374649, z: -0.0048718452}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1131
-    - vertex: {x: 0.00000011920929, y: 0.0041074753, z: -0.0142326355}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1132
     - vertex: {x: 0, y: 0.00069236755, z: -0.005697727}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -3212,14 +2908,6 @@ Mesh:
     - vertex: {x: 0.00000011920929, y: -0.000002861023, z: -0.000916481}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
-      index: 1160
-    - vertex: {x: 0, y: -0.00074005127, z: -0.014154434}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1161
-    - vertex: {x: 0.00000011920929, y: -0.000002861023, z: -0.000916481}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
       index: 1163
     - vertex: {x: 0.00000011920929, y: -0.027298748, z: -0.07856655}
       normal: {x: 0, y: 0, z: 0}
@@ -3233,10 +2921,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1166
-    - vertex: {x: 0.00000011920929, y: -0.0004566908, z: -0.007581234}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1167
     - vertex: {x: 0.00000011920929, y: -0.028201342, z: -0.05243206}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4093,30 +3777,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1395
-    - vertex: {x: 0.00000011920929, y: 0.017157555, z: -0.071362495}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1424
-    - vertex: {x: 0.00000011920929, y: 0.0057725906, z: -0.050964832}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1425
-    - vertex: {x: 0.00000011920929, y: 0.0037841797, z: -0.029187202}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1426
-    - vertex: {x: 0, y: 0.034463882, z: -0.07948446}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1427
-    - vertex: {x: 0, y: 0.006009102, z: -0.026741982}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1428
-    - vertex: {x: 0.00000011920929, y: 0.0041074753, z: -0.0142326355}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1431
     - vertex: {x: 0, y: -0.4057883, z: -0.09892058}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4249,38 +3909,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 1472
-    - vertex: {x: 0.00000011920929, y: 0.27066422, z: -0.22682238}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1478
-    - vertex: {x: 0.00000011920929, y: 0.28683758, z: -0.2496593}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1479
-    - vertex: {x: -0.000000059604645, y: 0.016565561, z: 0.022851944}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1679
-    - vertex: {x: 0, y: 0.00047147274, z: 0.004427433}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1680
-    - vertex: {x: 0, y: 0.00033426285, z: 0.00732708}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1681
-    - vertex: {x: 0, y: 0.008293271, z: 0.043317795}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1682
-    - vertex: {x: 0, y: 0.024487138, z: 0.07126522}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1683
-    - vertex: {x: 0, y: 0.065029144, z: 0.039019108}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 1684
     - vertex: {x: -0.00000023841858, y: -0.4806223, z: 0.08641696}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4353,10 +3981,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2286
-    - vertex: {x: 0, y: 0.005017139, z: 0.053482533}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2288
     - vertex: {x: 0, y: 0.20457506, z: 0.09080696}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4365,18 +3989,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2290
-    - vertex: {x: 0, y: 0.10594845, z: -0.051147938}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2306
-    - vertex: {x: 0, y: 0.03585291, z: -0.07327223}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2308
-    - vertex: {x: 0, y: 0.028758287, z: -0.01826191}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2309
     - vertex: {x: -0.00000023841858, y: -0.4564085, z: -0.01301527}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4429,14 +4041,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2387
-    - vertex: {x: -0.00000011920929, y: 0.00021338463, z: -0.0006303787}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2448
-    - vertex: {x: 0, y: -0.048225403, z: 0.14523745}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2474
     - vertex: {x: -0.00000023841858, y: -1.7759094, z: 0.14048831}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4565,14 +4169,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2540
-    - vertex: {x: -0.00000011920929, y: -0.0038576126, z: 0.014302731}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2543
-    - vertex: {x: 0, y: -0.0023040771, z: 0.0049037933}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2544
     - vertex: {x: 0, y: -0.00041389465, z: 0.0022888184}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4605,14 +4201,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2568
-    - vertex: {x: 0, y: 0.0006380081, z: 0.01416111}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2572
-    - vertex: {x: -0.00000011920929, y: 0.0000022649765, z: 0.00091838837}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2573
     - vertex: {x: -0.00000011920929, y: 0.0000022649765, z: 0.00091838837}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -4629,10 +4217,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2577
-    - vertex: {x: -0.00000011920929, y: 0.0004132986, z: 0.0075850487}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2579
     - vertex: {x: -0.00000011920929, y: 0.0004132986, z: 0.0075850487}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -5489,30 +5073,6 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2806
-    - vertex: {x: -0.00000011920929, y: -0.004761696, z: 0.05107069}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2832
-    - vertex: {x: -0.00000011920929, y: -0.014694214, z: 0.07191086}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2833
-    - vertex: {x: -0.00000011920929, y: -0.0033082962, z: 0.0292449}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2834
-    - vertex: {x: 0, y: -0.0054540634, z: 0.026861668}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2835
-    - vertex: {x: 0, y: -0.030518532, z: 0.08108044}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2836
-    - vertex: {x: -0.00000011920929, y: -0.0038576126, z: 0.014302731}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2838
     - vertex: {x: -0.00000023841858, y: 0.38277817, z: 0.20984769}
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
@@ -5645,69 +5205,13 @@ Mesh:
       normal: {x: 0, y: 0, z: 0}
       tangent: {x: 0, y: 0, z: 0}
       index: 2879
-    - vertex: {x: 0, y: -0.23706245, z: 0.26174116}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2883
-    - vertex: {x: -0.000000059604645, y: -0.24888134, z: 0.28751183}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2886
-    - vertex: {x: 0.00000011920929, y: 0.15569782, z: -0.18365908}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2911
-    - vertex: {x: 0.00000011920929, y: 0.15569782, z: -0.18365908}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2918
-    - vertex: {x: -0.000000059604645, y: -0.13578892, z: 0.19883013}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2938
-    - vertex: {x: -0.000000059604645, y: -0.13578892, z: 0.19883013}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2941
-    - vertex: {x: 0.00000011920929, y: 0.28683758, z: -0.2496593}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2954
-    - vertex: {x: 0.00000011920929, y: 0.27066422, z: -0.22682238}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2955
-    - vertex: {x: 0.00000011920929, y: 0.28683758, z: -0.2496593}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2957
-    - vertex: {x: 0.00000011920929, y: 0.27066422, z: -0.22682238}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2960
-    - vertex: {x: -0.000000059604645, y: -0.24888134, z: 0.28751183}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2972
-    - vertex: {x: 0, y: -0.23706245, z: 0.26174116}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2974
-    - vertex: {x: -0.000000059604645, y: -0.24888134, z: 0.28751183}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2975
-    - vertex: {x: 0, y: -0.23706245, z: 0.26174116}
-      normal: {x: 0, y: 0, z: 0}
-      tangent: {x: 0, y: 0, z: 0}
-      index: 2977
     shapes:
     - firstVertex: 0
-      vertexCount: 710
+      vertexCount: 648
       hasNormals: 0
       hasTangents: 0
-    - firstVertex: 710
-      vertexCount: 710
+    - firstVertex: 648
+      vertexCount: 648
       hasNormals: 0
       hasTangents: 0
     channels:

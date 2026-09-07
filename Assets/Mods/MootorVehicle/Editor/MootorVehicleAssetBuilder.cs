@@ -441,6 +441,7 @@ namespace MootorVehicle.Editor
             var zeroNormals = new Vector3[vertices.Length];
             var zeroTangents = new Vector3[vertices.Length];
             var vehiclePositions = new Vector3[vertices.Length];
+            var hoofSeedGroups = Enumerable.Repeat(-1, vertices.Length).ToArray();
             var seedPositionSums = new Vector2[4];
             var seedVertexCounts = new int[4];
             var animatedGroupCounts = new int[4];
@@ -449,11 +450,6 @@ namespace MootorVehicle.Editor
             var hipHeight = localCowMin.y + cowBounds.size.y * 0.43f;
             var hoofSeedHeight = localCowMin.y + cowBounds.size.y * 0.15f;
             var sideThreshold = cowBounds.extents.x * 0.2f;
-            var frontLateralLegRadius = cowBounds.size.x * 0.22f;
-            // The rear teats sit closer to the hind legs than the rest of the udder,
-            // so keep the hind-leg columns tighter than the front-leg columns.
-            var rearLateralLegRadius = cowBounds.size.x * 0.18f;
-            var longitudinalLegRadius = cowBounds.size.z * 0.11f;
             var animatedVertices = 0;
 
             for (var index = 0; index < vertices.Length; index++)
@@ -470,6 +466,7 @@ namespace MootorVehicle.Editor
                 var isLeft = vehiclePosition.x < localCowCenter.x;
                 var isFront = vehiclePosition.z > localCowCenter.z;
                 var group = (isLeft ? 0 : 1) + (isFront ? 0 : 2);
+                hoofSeedGroups[index] = group;
                 seedPositionSums[group] += new Vector2(vehiclePosition.x, vehiclePosition.z);
                 seedVertexCounts[group]++;
             }
@@ -477,29 +474,54 @@ namespace MootorVehicle.Editor
             if (seedVertexCounts.Any(count => count == 0))
                 throw new InvalidOperationException("Cow gait generation could not locate all four hooves.");
 
+            // The cow is one imported mesh, but its legs and teats are separate connected
+            // triangle islands. Grow each leg from its hoof component so nearby udder
+            // geometry can never be selected merely because it occupies the same area.
+            var componentParents = Enumerable.Range(0, vertices.Length).ToArray();
+            var triangles = generatedMesh.triangles;
+            if (triangles.Length % 3 != 0)
+                throw new InvalidOperationException("Cow gait mesh has invalid triangle topology.");
+
+            for (var triangleIndex = 0; triangleIndex < triangles.Length; triangleIndex += 3)
+            {
+                UnionVertices(componentParents, triangles[triangleIndex], triangles[triangleIndex + 1]);
+                UnionVertices(componentParents, triangles[triangleIndex + 1], triangles[triangleIndex + 2]);
+            }
+
+            var componentGroups = new Dictionary<int, int>();
+            for (var index = 0; index < hoofSeedGroups.Length; index++)
+            {
+                var group = hoofSeedGroups[index];
+                if (group < 0)
+                    continue;
+
+                var componentRoot = FindVertexRoot(componentParents, index);
+                if (componentGroups.TryGetValue(componentRoot, out var existingGroup) &&
+                    existingGroup != group)
+                {
+                    throw new InvalidOperationException(
+                        "Cow gait generation found a mesh component shared by multiple legs.");
+                }
+
+                componentGroups[componentRoot] = group;
+            }
+
+            if (componentGroups.Values.Distinct().Count() != 4)
+                throw new InvalidOperationException("Cow gait generation could not isolate four leg components.");
+
             for (var index = 0; index < vertices.Length; index++)
             {
                 var vehiclePosition = vehiclePositions[index];
-                if (vehiclePosition.y >= hipHeight)
-                    continue;
-
-                var isLeft = vehiclePosition.x < localCowCenter.x;
-                var isFront = vehiclePosition.z > localCowCenter.z;
-                var group = (isLeft ? 0 : 1) + (isFront ? 0 : 2);
-                var groupCenter = seedPositionSums[group] / seedVertexCounts[group];
-                var lateralLegRadius = isFront
-                    ? frontLateralLegRadius
-                    : rearLateralLegRadius;
-                var normalizedLateralDistance =
-                    (vehiclePosition.x - groupCenter.x) / lateralLegRadius;
-                var normalizedLongitudinalDistance =
-                    (vehiclePosition.z - groupCenter.y) / longitudinalLegRadius;
-                if (normalizedLateralDistance * normalizedLateralDistance +
-                    normalizedLongitudinalDistance * normalizedLongitudinalDistance > 1f)
+                var componentRoot = FindVertexRoot(componentParents, index);
+                if (vehiclePosition.y >= hipHeight ||
+                    !componentGroups.TryGetValue(componentRoot, out var group))
                 {
                     continue;
                 }
 
+                var isLeft = (group & 1) == 0;
+                var isFront = group < 2;
+                var groupCenter = seedPositionSums[group] / seedVertexCounts[group];
                 var diagonalDirection = isLeft == isFront ? 1f : -1f;
                 var influence = Mathf.InverseLerp(hipHeight, hoofSeedHeight, vehiclePosition.y);
                 var pivot = new Vector3(
@@ -569,7 +591,27 @@ namespace MootorVehicle.Editor
                 $"Moo-tor Vehicle: generated lightweight cow gait blend shapes " +
                 $"vertices={vertices.Length} animatedLegVertices={animatedVertices} " +
                 $"hoofSeeds={string.Join("/", seedVertexCounts)} " +
+                $"legComponents={componentGroups.Count} " +
                 $"groups={string.Join("/", animatedGroupCounts)}.");
+        }
+
+        private static int FindVertexRoot(int[] parents, int index)
+        {
+            while (parents[index] != index)
+            {
+                parents[index] = parents[parents[index]];
+                index = parents[index];
+            }
+
+            return index;
+        }
+
+        private static void UnionVertices(int[] parents, int first, int second)
+        {
+            var firstRoot = FindVertexRoot(parents, first);
+            var secondRoot = FindVertexRoot(parents, second);
+            if (firstRoot != secondRoot)
+                parents[secondRoot] = firstRoot;
         }
 
         private static Vector3 ConvertGaitDelta(
