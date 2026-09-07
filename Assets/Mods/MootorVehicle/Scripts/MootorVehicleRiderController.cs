@@ -20,15 +20,15 @@ namespace MootorVehicle
         private const float RiderScale = 0.94f;
         private const int MaximumAttempts = 20;
         private const int MaximumEngineStartAttempts = 4;
-        private const float DormantEngineGracePeriod = 0.35f;
+        private const float DormantEngineGracePeriod = 0.08f;
         private const float EngineRestartDelay = 0.1f;
-        private const float EngineStartRetryDelay = 0.75f;
+        private const float EngineStartRetryDelay = 0.4f;
         private const float MinimumHealthyEngineRpm = 100f;
 
-        private static readonly Vector3 LeftHandOffset = new(-0.3f, 0f, 0.38f);
-        private static readonly Vector3 RightHandOffset = new(0.3f, 0f, 0.38f);
-        private static readonly Vector3 LeftElbowHintOffset = new(-0.46f, 0.08f, 0.18f);
-        private static readonly Vector3 RightElbowHintOffset = new(0.46f, 0.08f, 0.18f);
+        private static readonly Vector3 LeftHandOffset = new(-0.3f, -0.05f, 0.38f);
+        private static readonly Vector3 RightHandOffset = new(0.3f, -0.05f, 0.38f);
+        private static readonly Vector3 LeftElbowHintOffset = new(-0.46f, 0.03f, 0.18f);
+        private static readonly Vector3 RightElbowHintOffset = new(0.46f, 0.03f, 0.18f);
         private static readonly Vector3 LeftFootOffset = new(-0.44f, -0.42f, 0.1f);
         private static readonly Vector3 RightFootOffset = new(0.44f, -0.42f, 0.1f);
         private static readonly Vector3 LeftKneeHintOffset = new(-0.64f, 0.1f, 0.4f);
@@ -62,6 +62,8 @@ namespace MootorVehicle
         private bool engineStartFailureLogged;
         private bool engineRestartPending;
         private float dormantThrottleDetectedAt = -1f;
+        private bool hornPressed;
+        private bool hornFailureLogged;
         private string? lastFailure;
 
         public void Initialize(VehicleController controller, ModContext? modContext)
@@ -92,6 +94,8 @@ namespace MootorVehicle
                 engineStartFailureLogged = false;
                 engineRestartPending = false;
                 dormantThrottleDetectedAt = -1f;
+                hornPressed = false;
+                hornFailureLogged = false;
                 lastFailure = null;
 
                 if (!occupied)
@@ -110,6 +114,7 @@ namespace MootorVehicle
                 return;
 
             UpdateEngineStart();
+            UpdateHorn();
             UpdateDrivetrainDiagnostics();
 
             try
@@ -446,6 +451,38 @@ namespace MootorVehicle
                 drivetrainLoggingFailed = true;
                 context?.Logger.Warn(
                     $"Moo-tor Vehicle drivetrain diagnostics vehicle={vehicle?.GetInstanceID()}: " +
+                    $"{exception.GetBaseException().Message}");
+            }
+        }
+
+        private void UpdateHorn()
+        {
+            if (physicsVehicle == null)
+                return;
+
+            var pressed = physicsVehicle.input.Horn;
+            if (!pressed || hornPressed)
+            {
+                hornPressed = pressed;
+                return;
+            }
+
+            hornPressed = true;
+            try
+            {
+                var horn = physicsVehicle.soundManager.hornComponent;
+                horn.Play(0);
+                LogInfo(
+                    $"moo horn triggered; sourceReady={horn.source != null} " +
+                    $"playing={horn.source != null && horn.source.isPlaying}.");
+            }
+            catch (Exception exception)
+            {
+                if (hornFailureLogged)
+                    return;
+                hornFailureLogged = true;
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: moo horn failed: " +
                     $"{exception.GetBaseException().Message}");
             }
         }

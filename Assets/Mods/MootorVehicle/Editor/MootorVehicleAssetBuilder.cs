@@ -27,7 +27,8 @@ namespace MootorVehicle.Editor
         private const string BundleName = "mootorvehicle";
         private const string BundleVariant = "unity3d";
         private const float TargetCowLength = 3.1f;
-        private const float TargetCowGroundOffset = -0.08f;
+        private const float TargetCowGroundOffset = -0.13f;
+        private const float BodyColliderGroundClearance = 0.08f;
 
         [MenuItem("Big Ambitions/Moo-tor Vehicle/Build First Version")]
         public static void BuildAll()
@@ -218,6 +219,7 @@ namespace MootorVehicle.Editor
                 changed |= SetFloat(serialized, "powertrain.engine.maxPower", 18f);
                 changed |= SetFloat(serialized, "powertrain.engine.idleRPM", 600f);
                 changed |= SetFloat(serialized, "powertrain.engine.revLimiterRPM", 3000f);
+                changed |= SetFloat(serialized, "powertrain.engine.startDuration", 0.12f);
                 changed |= SetBool(serialized, "powertrain.engine.stallingEnabled", false);
                 changed |= SetFloat(serialized, "powertrain.transmission.finalGearRatio", 10f);
                 changed |= SetInt(serialized, "powertrain.transmission.forwardGearCount", 4);
@@ -289,11 +291,15 @@ namespace MootorVehicle.Editor
                 boxCollider = colliderTransform.gameObject.AddComponent<BoxCollider>();
 
             boxCollider.isTrigger = false;
-            boxCollider.center = new Vector3(0f, cowBounds.min.y + cowBounds.size.y * 0.48f, 0f);
-            boxCollider.size = new Vector3(
+            var colliderSize = new Vector3(
                 Mathf.Max(0.9f, cowBounds.size.x * 0.88f),
                 Mathf.Max(1f, cowBounds.size.y * 0.78f),
                 Mathf.Max(2.4f, cowBounds.size.z * 0.82f));
+            boxCollider.size = colliderSize;
+            boxCollider.center = new Vector3(
+                0f,
+                BodyColliderGroundClearance + colliderSize.y * 0.5f,
+                0f);
             colliderTransform.gameObject.layer = 12;
             colliderTransform.gameObject.tag = "Vehicle";
 
