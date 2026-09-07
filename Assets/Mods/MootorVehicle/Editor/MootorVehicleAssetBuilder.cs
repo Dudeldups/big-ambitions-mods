@@ -17,6 +17,7 @@ namespace MootorVehicle.Editor
         private const string VehiclePrefabPath = ModRoot + "/MootorVehicle.prefab";
         private const string ManifestPath = ModRoot + "/ModManifest.asset";
         private const string CowModelPath = ModRoot + "/Models/cow.glb";
+        private const string CowGaitMeshPath = ModRoot + "/Models/MootorVehicleCowGait.asset";
         private const string MooAudioPath = ModRoot + "/Audio/Moo.mp3";
         private const string ThumbnailPath = ModRoot + "/thumbnail.png";
         private const string TemplateVehicleTypePath = "Assets/Mods/Example-Vehicle/TurboHonza.asset";
@@ -26,9 +27,12 @@ namespace MootorVehicle.Editor
         private const string OldVehicleTypeName = "example-vehicle:vehicletype_turbohonza";
         private const string BundleName = "mootorvehicle";
         private const string BundleVariant = "unity3d";
+        private const string GaitPoseAName = "MootorGaitA";
+        private const string GaitPoseBName = "MootorGaitB";
         private const float TargetCowLength = 3.1f;
-        private const float TargetCowGroundOffset = -0.08f;
+        private const float TargetCowGroundOffset = -0.04f;
         private const float BodyColliderGroundClearance = 0.08f;
+        private const float GaitLegSwingDegrees = 17f;
 
         [MenuItem("Big Ambitions/Moo-tor Vehicle/Build First Version")]
         public static void BuildAll()
@@ -151,13 +155,24 @@ namespace MootorVehicle.Editor
                     cowVisual.name = cowSource.name;
                 }
 
+                if (PrefabUtility.IsPartOfPrefabInstance(cowVisual))
+                {
+                    PrefabUtility.UnpackPrefabInstance(
+                        cowVisual,
+                        PrefabUnpackMode.Completely,
+                        InteractionMode.AutomatedAction);
+                }
+
                 cowVisual.name = "MootorVehicle_CowVisual";
                 SetLayerRecursively(cowVisual, 19);
                 var cowBounds = NormalizeCowVisual(cowVisual);
-                var cowRenderers = cowVisual.GetComponentsInChildren<Renderer>(true);
+                ConfigureCowGait(cowVisual, root.transform, cowBounds);
+                var cowRenderers = cowVisual
+                    .GetComponentsInChildren<Renderer>(true)
+                    .Where(renderer => renderer.enabled)
+                    .ToArray();
                 foreach (var renderer in cowRenderers)
                 {
-                    renderer.enabled = true;
                     renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                     renderer.receiveShadows = true;
                 }
@@ -407,6 +422,155 @@ namespace MootorVehicle.Editor
             return finalBounds;
         }
 
+        private static void ConfigureCowGait(GameObject cowVisual, Transform vehicleRoot, Bounds cowBounds)
+        {
+            var meshFilter = cowVisual
+                .GetComponentsInChildren<MeshFilter>(true)
+                .FirstOrDefault(candidate => candidate.sharedMesh != null);
+            var sourceRenderer = meshFilter != null ? meshFilter.GetComponent<MeshRenderer>() : null;
+            if (meshFilter == null || sourceRenderer == null)
+                throw new InvalidOperationException("Cow model has no static mesh renderer for gait generation.");
+
+            var generatedMesh = Object.Instantiate(meshFilter.sharedMesh);
+            generatedMesh.name = "MootorVehicleCowGait";
+            generatedMesh.ClearBlendShapes();
+
+            var vertices = generatedMesh.vertices;
+            var poseADeltas = new Vector3[vertices.Length];
+            var poseBDeltas = new Vector3[vertices.Length];
+            var zeroNormals = new Vector3[vertices.Length];
+            var zeroTangents = new Vector3[vertices.Length];
+            var vehiclePositions = new Vector3[vertices.Length];
+            var gaitGroups = new int[vertices.Length];
+            var groupPositionSums = new Vector2[4];
+            var groupVertexCounts = new int[4];
+            var localCowCenter = vehicleRoot.InverseTransformPoint(cowBounds.center);
+            var localCowMin = vehicleRoot.InverseTransformPoint(cowBounds.min);
+            var hipHeight = localCowMin.y + cowBounds.size.y * 0.43f;
+            var lowerLegHeight = localCowMin.y + cowBounds.size.y * 0.15f;
+            var sideThreshold = cowBounds.extents.x * 0.2f;
+            var animatedVertices = 0;
+
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                var worldPosition = meshFilter.transform.TransformPoint(vertices[index]);
+                var vehiclePosition = vehicleRoot.InverseTransformPoint(worldPosition);
+                vehiclePositions[index] = vehiclePosition;
+                gaitGroups[index] = -1;
+                if (vehiclePosition.y >= hipHeight ||
+                    Mathf.Abs(vehiclePosition.x - localCowCenter.x) <= sideThreshold)
+                {
+                    continue;
+                }
+
+                var isLeft = vehiclePosition.x < localCowCenter.x;
+                var isFront = vehiclePosition.z > localCowCenter.z;
+                var group = (isLeft ? 0 : 1) + (isFront ? 0 : 2);
+                gaitGroups[index] = group;
+                groupPositionSums[group] += new Vector2(vehiclePosition.x, vehiclePosition.z);
+                groupVertexCounts[group]++;
+            }
+
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                var group = gaitGroups[index];
+                if (group < 0 || groupVertexCounts[group] == 0)
+                    continue;
+
+                var vehiclePosition = vehiclePositions[index];
+                var isLeft = (group & 1) == 0;
+                var isFront = group < 2;
+                var diagonalDirection = isLeft == isFront ? 1f : -1f;
+                var influence = Mathf.InverseLerp(hipHeight, lowerLegHeight, vehiclePosition.y);
+                var groupCenter = groupPositionSums[group] / groupVertexCounts[group];
+                var pivot = new Vector3(
+                    groupCenter.x,
+                    hipHeight,
+                    groupCenter.y);
+
+                poseADeltas[index] = ConvertGaitDelta(
+                    vertices[index],
+                    vehiclePosition,
+                    pivot,
+                    diagonalDirection * GaitLegSwingDegrees * influence,
+                    meshFilter.transform,
+                    vehicleRoot);
+                poseBDeltas[index] = ConvertGaitDelta(
+                    vertices[index],
+                    vehiclePosition,
+                    pivot,
+                    -diagonalDirection * GaitLegSwingDegrees * influence,
+                    meshFilter.transform,
+                    vehicleRoot);
+                animatedVertices++;
+            }
+
+            if (animatedVertices == 0)
+                throw new InvalidOperationException("Cow gait generation did not identify any leg vertices.");
+
+            generatedMesh.AddBlendShapeFrame(GaitPoseAName, 100f, poseADeltas, zeroNormals, zeroTangents);
+            generatedMesh.AddBlendShapeFrame(GaitPoseBName, 100f, poseBDeltas, zeroNormals, zeroTangents);
+            generatedMesh.RecalculateBounds();
+
+            var existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(CowGaitMeshPath);
+            if (existingMesh != null)
+            {
+                EditorUtility.CopySerialized(generatedMesh, existingMesh);
+                Object.DestroyImmediate(generatedMesh);
+                generatedMesh = existingMesh;
+                EditorUtility.SetDirty(existingMesh);
+            }
+            else
+            {
+                AssetDatabase.CreateAsset(generatedMesh, CowGaitMeshPath);
+            }
+
+            var materials = sourceRenderer.sharedMaterials;
+            var shadowCastingMode = sourceRenderer.shadowCastingMode;
+            var receiveShadows = sourceRenderer.receiveShadows;
+            var lightProbeUsage = sourceRenderer.lightProbeUsage;
+            var reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+            var renderingLayerMask = sourceRenderer.renderingLayerMask;
+            Object.DestroyImmediate(sourceRenderer);
+
+            var gaitRenderer = meshFilter.gameObject.AddComponent<SkinnedMeshRenderer>();
+            gaitRenderer.sharedMesh = generatedMesh;
+            gaitRenderer.sharedMaterials = materials;
+            gaitRenderer.localBounds = ExpandBounds(generatedMesh.bounds, 0.12f);
+            gaitRenderer.updateWhenOffscreen = false;
+            gaitRenderer.quality = SkinQuality.Auto;
+            gaitRenderer.shadowCastingMode = shadowCastingMode;
+            gaitRenderer.receiveShadows = receiveShadows;
+            gaitRenderer.lightProbeUsage = lightProbeUsage;
+            gaitRenderer.reflectionProbeUsage = reflectionProbeUsage;
+            gaitRenderer.renderingLayerMask = renderingLayerMask;
+
+            Debug.Log(
+                $"Moo-tor Vehicle: generated lightweight cow gait blend shapes " +
+                $"vertices={vertices.Length} animatedLegVertices={animatedVertices} " +
+                $"groups={string.Join("/", groupVertexCounts)}.");
+        }
+
+        private static Vector3 ConvertGaitDelta(
+            Vector3 meshPosition,
+            Vector3 vehiclePosition,
+            Vector3 pivot,
+            float angle,
+            Transform meshTransform,
+            Transform vehicleRoot)
+        {
+            var rotatedVehiclePosition =
+                pivot + Quaternion.AngleAxis(angle, Vector3.right) * (vehiclePosition - pivot);
+            var rotatedWorldPosition = vehicleRoot.TransformPoint(rotatedVehiclePosition);
+            return meshTransform.InverseTransformPoint(rotatedWorldPosition) - meshPosition;
+        }
+
+        private static Bounds ExpandBounds(Bounds bounds, float amount)
+        {
+            bounds.Expand(amount * 2f);
+            return bounds;
+        }
+
         private static Vector3 AxisVector(int axis)
         {
             switch (axis)
@@ -607,6 +771,12 @@ namespace MootorVehicle.Editor
                 var cowRenderers = cowVisual != null
                     ? cowVisual.GetComponentsInChildren<Renderer>(true).Count(renderer => renderer.enabled)
                     : 0;
+                var gaitRenderer = cowVisual != null
+                    ? cowVisual.GetComponentInChildren<SkinnedMeshRenderer>(true)
+                    : null;
+                var gaitConfigured = gaitRenderer?.sharedMesh != null &&
+                    gaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseAName) >= 0 &&
+                    gaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseBName) >= 0;
                 var rigidbody = bundledPrefab.GetComponent<Rigidbody>();
                 var bodyCollider = bundledPrefab.GetComponentInChildren<BoxCollider>(true);
                 var hornConfigured = false;
@@ -624,18 +794,18 @@ namespace MootorVehicle.Editor
                 }
 
                 if (wheelControllers != 4 || cowRenderers == 0 || seat == null ||
-                    rigidbody == null || bodyCollider == null || !hornConfigured)
+                    rigidbody == null || bodyCollider == null || !hornConfigured || !gaitConfigured)
                 {
                     throw new InvalidOperationException(
                         $"Built bundle validation failed: type={bundledType.name} wheels={wheelControllers} " +
                         $"cowRenderers={cowRenderers} seat={seat != null} rigidbody={rigidbody != null} " +
-                        $"bodyCollider={bodyCollider != null} horn={hornConfigured}.");
+                        $"bodyCollider={bodyCollider != null} horn={hornConfigured} gait={gaitConfigured}.");
                 }
 
                 Debug.Log(
                     $"Moo-tor Vehicle: validated built bundle type='{bundledType.name}' " +
                     $"wheels={wheelControllers} cowRenderers={cowRenderers} riderSeat=true " +
-                    $"mass={rigidbody.mass:F0} horn='Moo'.");
+                    $"mass={rigidbody.mass:F0} horn='Moo' gait=true.");
             }
             finally
             {

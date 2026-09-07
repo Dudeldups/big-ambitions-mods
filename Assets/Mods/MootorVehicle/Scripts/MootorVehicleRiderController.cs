@@ -18,9 +18,14 @@ namespace MootorVehicle
         private const string RiderSeatName = "MootorVehicle_RiderSeat";
         private const string CowVisualName = "MootorVehicle_CowVisual";
         private const string SittingClipName = "SitDeliveryTruck";
+        private const string GaitPoseAName = "MootorGaitA";
+        private const string GaitPoseBName = "MootorGaitB";
         private const float RiderScale = 0.94f;
-        private const float ParkedVisualHeightOffset = 0.04f;
-        private const float MountedVisualHeightOffset = -0.04f;
+        private const float ParkedVisualHeightOffset = 0f;
+        private const float MountedVisualHeightOffset = -0.1f;
+        private const float MooHornVolume = 0.65f;
+        private const float GaitStartSpeed = 0.15f;
+        private const float GaitFullSpeed = 1.5f;
         private const int MaximumAttempts = 20;
         private const int MaximumEngineStartAttempts = 4;
         private const float DormantEngineGracePeriod = 0.08f;
@@ -50,6 +55,11 @@ namespace MootorVehicle
         private Vector3 cowVisualBasePosition;
         private Vector3 riderSeatBasePosition;
         private bool rideHeightConfigured;
+        private SkinnedMeshRenderer? cowGaitRenderer;
+        private int gaitPoseAIndex = -1;
+        private int gaitPoseBIndex = -1;
+        private float gaitPhase;
+        private float gaitBlend;
         private PoseLimb? leftArm;
         private PoseLimb? rightArm;
         private PoseLimb? leftLeg;
@@ -133,6 +143,7 @@ namespace MootorVehicle
             {
                 occupied = false;
                 ApplyRideHeight(false);
+                ResetCowGait();
                 mooHornSource?.Stop();
                 RemoveRider();
                 enabled = false;
@@ -142,6 +153,7 @@ namespace MootorVehicle
 
             UpdateEngineStart();
             UpdateMooHorn();
+            UpdateCowGait();
 
             try
             {
@@ -512,7 +524,8 @@ namespace MootorVehicle
             if (pressed && !hornPressed && Time.timeScale > 0f && !AudioListener.pause)
             {
                 mooHornSource.Stop();
-                mooHornSource.volume = Mathf.Clamp01(physicsVehicle.soundManager.masterVolume);
+                mooHornSource.volume = Mathf.Clamp01(
+                    physicsVehicle.soundManager.masterVolume * MooHornVolume);
                 mooHornSource.Play();
 
                 if (!hornPlaybackLogged)
@@ -551,6 +564,27 @@ namespace MootorVehicle
 
             cowVisualBasePosition = cowVisual.localPosition;
             riderSeatBasePosition = heightAdjustedSeat.localPosition;
+            cowGaitRenderer = cowVisual.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            if (cowGaitRenderer?.sharedMesh != null)
+            {
+                gaitPoseAIndex = cowGaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseAName);
+                gaitPoseBIndex = cowGaitRenderer.sharedMesh.GetBlendShapeIndex(GaitPoseBName);
+            }
+
+            if (gaitPoseAIndex < 0 || gaitPoseBIndex < 0)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle.GetInstanceID()}: " +
+                    "cow gait blend shapes are missing; movement animation is disabled.");
+                cowGaitRenderer = null;
+            }
+            else
+            {
+                LogInfo(
+                    $"cow gait configured renderer='{cowGaitRenderer!.name}' " +
+                    $"poses=({gaitPoseAIndex},{gaitPoseBIndex}).");
+            }
+
             rideHeightConfigured = true;
         }
 
@@ -562,6 +596,45 @@ namespace MootorVehicle
             var heightOffset = mounted ? MountedVisualHeightOffset : ParkedVisualHeightOffset;
             cowVisual.localPosition = cowVisualBasePosition + Vector3.up * heightOffset;
             heightAdjustedSeat.localPosition = riderSeatBasePosition + Vector3.up * heightOffset;
+        }
+
+        private void UpdateCowGait()
+        {
+            if (cowGaitRenderer == null || vehicleBody == null)
+                return;
+
+            var localVelocity = transform.InverseTransformDirection(vehicleBody.velocity);
+            var speed = new Vector2(localVelocity.x, localVelocity.z).magnitude;
+            var targetBlend = Mathf.InverseLerp(GaitStartSpeed, GaitFullSpeed, speed);
+            var wasAnimating = gaitBlend > 0.001f;
+            gaitBlend = Mathf.MoveTowards(gaitBlend, targetBlend, Time.deltaTime * 4f);
+            if (gaitBlend <= 0.001f)
+            {
+                if (wasAnimating)
+                    ResetCowGait();
+                return;
+            }
+
+            var stridesPerSecond = Mathf.Lerp(0.8f, 1.8f, Mathf.Clamp01(speed / 4f));
+            gaitPhase = Mathf.Repeat(
+                gaitPhase + stridesPerSecond * Mathf.PI * 2f * Time.deltaTime,
+                Mathf.PI * 2f);
+            var gait = Mathf.Sin(gaitPhase) * gaitBlend * 100f;
+            cowGaitRenderer.SetBlendShapeWeight(gaitPoseAIndex, Mathf.Max(0f, gait));
+            cowGaitRenderer.SetBlendShapeWeight(gaitPoseBIndex, Mathf.Max(0f, -gait));
+        }
+
+        private void ResetCowGait()
+        {
+            if (cowGaitRenderer != null)
+            {
+                if (gaitPoseAIndex >= 0)
+                    cowGaitRenderer.SetBlendShapeWeight(gaitPoseAIndex, 0f);
+                if (gaitPoseBIndex >= 0)
+                    cowGaitRenderer.SetBlendShapeWeight(gaitPoseBIndex, 0f);
+            }
+
+            gaitBlend = 0f;
         }
 
         private void LogDrivetrainState(string phase)
@@ -827,6 +900,7 @@ namespace MootorVehicle
         private void OnDisable()
         {
             mooHornSource?.Stop();
+            ResetCowGait();
             RemoveRider();
             occupied = false;
         }
