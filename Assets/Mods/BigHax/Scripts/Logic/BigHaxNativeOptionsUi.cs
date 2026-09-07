@@ -11,7 +11,7 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 2319f;
+        private const float ContentHeight = 2262f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -131,7 +131,7 @@ namespace BigHax
                 BigHaxSettings.HrManagerCapacityValues.Length - 1,
                 v => { settings!.HrManagerCapacityIndex = v; BigHaxOptionPersistence.SaveHrManagerCapacityIndex(context!.ModId, v); },
                 v => BigHaxSettings.HrManagerCapacityValues[v].ToString());
-            Slider(Localize("bighax_employee_training_skill_increase_label"), () => settings!.EmployeeTrainingSkillIncrease, 10, 100, v => { settings!.EmployeeTrainingSkillIncrease = v; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context!.ModId, v); }, v => v.ToString());
+            SteppedSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings!.EmployeeTrainingSkillIncrease, BigHaxSettings.EmployeeTrainingSkillIncreaseValues, v => { settings!.EmployeeTrainingSkillIncrease = v; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context!.ModId, v); }, v => v.ToString());
             Separator();
             Section(Localize("bighax_category_player"));
             Toggle(Localize("bighax_disable_player_hunger_and_energy_decay_label"), () => settings!.DisablePlayerHungerAndEnergyDecay, v => { settings!.DisablePlayerHungerAndEnergyDecay = v; BigHaxOptionPersistence.SaveDisablePlayerHungerAndEnergyDecay(context!.ModId, v); });
@@ -146,7 +146,7 @@ namespace BigHax
             Toggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings!.EnableInstantFurnitureDeliveries, v => { settings!.EnableInstantFurnitureDeliveries = v; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context!.ModId, v); });
             if (arePurchaseLimitsDisabled != null && setPurchaseLimitsDisabled != null)
                 Toggle(Localize("bighax_disable_purchase_limits_label"), arePurchaseLimitsDisabled, setPurchaseLimitsDisabled);
-            Slider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings!.InstallationFirmFeePercentage, 0, 100, v => { settings!.InstallationFirmFeePercentage = v; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context!.ModId, v); }, v => v + "%");
+            SteppedSlider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings!.InstallationFirmFeePercentage, BigHaxSettings.InstallationFirmFeePercentageValues, v => { settings!.InstallationFirmFeePercentage = v; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context!.ModId, v); }, v => v + "%");
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
             Separator();
             Section(Localize("bighax_category_vehicle"));
@@ -154,14 +154,13 @@ namespace BigHax
             Toggle(Localize("bighax_no_vehicle_damage_label"), () => settings!.EnableNoVehicleDamage, v => { settings!.EnableNoVehicleDamage = v; BigHaxOptionPersistence.SaveEnableNoVehicleDamage(context!.ModId, v); });
             Toggle(Localize("bighax_infinite_vehicle_fuel_label"), () => settings!.EnableInfiniteVehicleFuel, v => { settings!.EnableInfiniteVehicleFuel = v; BigHaxOptionPersistence.SaveEnableInfiniteVehicleFuel(context!.ModId, v); });
             Toggle(Localize("bighax_never_dirty_vehicles_label"), () => settings!.EnableNeverDirtyVehicles, v => { settings!.EnableNeverDirtyVehicles = v; BigHaxOptionPersistence.SaveEnableNeverDirtyVehicles(context!.ModId, v); });
-            Slider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings!.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces, v => { settings!.FreightTruckT1DeliveryPlaces = v; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context!.ModId, v); }, v => v.ToString());
+            SteppedSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings!.FreightTruckT1DeliveryPlaces, BigHaxSettings.FreightTruckT1DeliveryPlacesValues, v => { settings!.FreightTruckT1DeliveryPlaces = v; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context!.ModId, v); }, v => v.ToString());
             Separator();
             Section(Localize("bighax_category_capacity"));
             Toggle(Localize("bighax_active_vehicle_enabled_label"), () => settings!.EnableActiveVehicleCapacityOverride, v => { settings!.EnableActiveVehicleCapacityOverride = v; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context!.ModId, v); });
-            Slider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }), () => settings!.StandardFridgeCapacity, 50, 1000, v => { settings!.StandardFridgeCapacity = v; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context!.ModId, v); }, v => v.ToString());
-            Slider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }), () => settings!.PalletShelfCapacity, 60, 1000, v => { settings!.PalletShelfCapacity = v; BigHaxOptionPersistence.SavePalletShelfCapacity(context!.ModId, v); }, v => v.ToString());
-            Slider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }), () => settings!.StorageShelfCapacity, 16, 1000, v => { settings!.StorageShelfCapacity = v; BigHaxOptionPersistence.SaveStorageShelfCapacity(context!.ModId, v); }, v => v.ToString());
-            Slider(Localize("bighax_active_vehicle_label"), () => settings!.ActiveVehicleCapacity, 20, 1000, v => { settings!.ActiveVehicleCapacity = v; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context!.ModId, v); }, v => v.ToString());
+            SteppedSlider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }), () => settings!.StandardFridgeCapacity, BigHaxSettings.StandardFridgeCapacityValues, v => { settings!.StandardFridgeCapacity = v; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context!.ModId, v); }, v => v.ToString());
+            SteppedSlider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }), () => settings!.PalletShelfCapacity, BigHaxSettings.PalletShelfCapacityValues, v => { settings!.PalletShelfCapacity = v; BigHaxOptionPersistence.SavePalletShelfCapacity(context!.ModId, v); }, v => v.ToString());
+            SteppedSlider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }), () => settings!.StorageShelfCapacity, BigHaxSettings.StorageShelfCapacityValues, v => { settings!.StorageShelfCapacity = v; BigHaxOptionPersistence.SaveStorageShelfCapacity(context!.ModId, v); }, v => v.ToString());
             Separator();
             Section(Localize("bighax_category_time"));
             Toggle(Localize("bighax_enable_extended_bed_sleep_label"), () => settings!.EnableExtendedBedSleep, v => { settings!.EnableExtendedBedSleep = v; BigHaxOptionPersistence.SaveEnableExtendedBedSleep(context!.ModId, v); });
@@ -226,6 +225,22 @@ namespace BigHax
             };
             slider.handleRect = dragHandleRect; slider.targetGraphic = handle; slider.value = read(); updateAppearance(slider.value);
             slider.onValueChanged.AddListener(v => { var i = Mathf.RoundToInt(v); updateAppearance(v); value.text = format(i); write(i); });
+        }
+
+        private void SteppedSlider(
+            string name,
+            System.Func<int> read,
+            int[] values,
+            System.Action<int> write,
+            System.Func<int, string> format)
+        {
+            Slider(
+                name,
+                () => BigHaxSettings.GetStepIndex(values, read()),
+                0,
+                values.Length - 1,
+                index => write(values[index]),
+                index => format(values[index]));
         }
 
         private GameObject Row() { var row = Create("Row", content!, Color.clear); row.AddComponent<LayoutElement>().preferredHeight = RowHeight; return row; }

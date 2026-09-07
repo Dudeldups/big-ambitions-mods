@@ -20,8 +20,9 @@ Suggesties voor andere Hax die je nodig hebt zijn altijd welkom.
 [*] Sta wervingskandidaten toe met maximaal 100% vaardigheid
 [*] Verwijder alle eisen van werknemers
 [*] Stel de tevredenheid van alle werknemers in op 100%
-[*] Vaardigheidswinst door werknemerstraining
+[*] Vaardigheidswinst door werknemerstraining (10–100)
 [*] Verhoog de wervingspunten van de headhunter naar 1000
+[*] Maximale capaciteit HR-manager (50–10.000)
 [/list]
 
 [b]Spelerhacks[/b]
@@ -40,6 +41,7 @@ Suggesties voor andere Hax die je nodig hebt zijn altijd welkom.
 [list]
 [*] Directe importen
 [*] Directe meubelleveringen
+[*] Importlimieten uitschakelen
 [*] Kosten installatiebedrijf (0–100%)
 [*] Klantvermenigvuldiger voor spelersbedrijf (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Suggesties voor andere Hax die je nodig hebt zijn altijd welkom.
 
 [b]Capaciteitshacks[/b]
 [list]
-[*] Verhoogt de capaciteit van Standard Fridge, Pallet/Storage Shelves en je huidige voertuig enorm.
+[*] Capaciteit van Standard Fridge (50–1000)
+[*] Capaciteit van Pallet Shelf (60–1000)
+[*] Capaciteit van Storage Shelf (16–1000)
+[*] Capaciteitsoverschrijving voor actief voertuig (1000)
 [/list]
 
 [b]Tijdhacks[/b]

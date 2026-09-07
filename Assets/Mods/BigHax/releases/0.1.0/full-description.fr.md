@@ -20,8 +20,9 @@ N’hésitez pas à proposer les autres Hax dont vous auriez besoin.
 [*] Autoriser les candidats au recrutement jusqu'à 100 % de compétence
 [*] Supprimer toutes les demandes des employés
 [*] Définir la satisfaction de tous les employés à 100 %
-[*] Gain de compétence par formation des employés
+[*] Gain de compétence par formation des employés (10–100)
 [*] Augmenter les points de recrutement du chasseur de têtes à 1000
+[*] Capacité maximale du responsable RH (50–10 000)
 [/list]
 
 [b]Hacks du joueur[/b]
@@ -40,6 +41,7 @@ N’hésitez pas à proposer les autres Hax dont vous auriez besoin.
 [list]
 [*] Importations instantanées
 [*] Livraisons de meubles instantanées
+[*] Désactiver les limites d’importation
 [*] Frais de l’entreprise d’installation (0–100 %)
 [*] Multiplicateur de clients pour l’entreprise du joueur (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ N’hésitez pas à proposer les autres Hax dont vous auriez besoin.
 
 [b]Hacks de capacité[/b]
 [list]
-[*] Augmente massivement la capacité du Standard Fridge, des Pallet/Storage Shelves et de votre véhicule actuel.
+[*] Capacité du Standard Fridge (50–1000)
+[*] Capacité du Pallet Shelf (60–1000)
+[*] Capacité du Storage Shelf (16–1000)
+[*] Remplacement de capacité du véhicule actif (1000)
 [/list]
 
 [b]Hacks de temps[/b]

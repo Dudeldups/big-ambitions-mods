@@ -307,13 +307,12 @@ namespace BigHax
                         Localize("bighax_disable_purchase_limits_label"),
                         setPurchaseLimitsDisabled);
                 }
-                DrawIntSlider(
+                DrawSteppedIntSlider(
                     context,
                     settings,
                     Localize("bighax_installation_firm_fee_percentage_label"),
                     settings.InstallationFirmFeePercentage,
-                    0,
-                    100,
+                    BigHaxSettings.InstallationFirmFeePercentageValues,
                     value => value + "%",
                     value =>
                     {
@@ -321,13 +320,12 @@ namespace BigHax
                         BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value);
                     });
                 DrawCustomerMultiplier(context, settings);
-                DrawIntSlider(
+                DrawSteppedIntSlider(
                     context,
                     settings,
                     Localize("bighax_employee_training_skill_increase_label"),
                     settings.EmployeeTrainingSkillIncrease,
-                    BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
-                    100,
+                    BigHaxSettings.EmployeeTrainingSkillIncreaseValues,
                     value => value.ToString(),
                     value =>
                     {
@@ -357,7 +355,7 @@ namespace BigHax
                 DrawUnlockButton(Localize("bighax_unlock_all_contacts_button"), confirmUnlockAllContacts);
                 DrawUnlockButton(Localize("bighax_unlock_all_courses_button"), confirmUnlockAllCourses);
                 DrawSeparator();
-                DrawIntSlider(
+                DrawSteppedIntSlider(
                     context,
                     settings,
                     Localize(
@@ -367,15 +365,14 @@ namespace BigHax
                             { "itemName", Localize("ba:itemname_standardfridge") }
                         }),
                     settings.StandardFridgeCapacity,
-                    BigHaxSettings.DefaultStandardFridgeCapacity,
-                    BigHaxTargetIds.SliderMaximum,
+                    BigHaxSettings.StandardFridgeCapacityValues,
                     value => value.ToString(),
                     value =>
                     {
                         settings.StandardFridgeCapacity = value;
                         BigHaxOptionPersistence.SaveStandardFridgeCapacity(context.ModId, value);
                     });
-                DrawIntSlider(
+                DrawSteppedIntSlider(
                     context,
                     settings,
                     Localize(
@@ -385,15 +382,14 @@ namespace BigHax
                             { "itemName", Localize("ba:itemname_palletshelf") }
                         }),
                     settings.PalletShelfCapacity,
-                    BigHaxSettings.DefaultPalletShelfCapacity,
-                    BigHaxTargetIds.SliderMaximum,
+                    BigHaxSettings.PalletShelfCapacityValues,
                     value => value.ToString(),
                     value =>
                     {
                         settings.PalletShelfCapacity = value;
                         BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value);
                     });
-                DrawIntSlider(
+                DrawSteppedIntSlider(
                     context,
                     settings,
                     Localize(
@@ -403,15 +399,14 @@ namespace BigHax
                             { "itemName", Localize("ba:itemname_storageshelf") }
                         }),
                     settings.StorageShelfCapacity,
-                    BigHaxSettings.DefaultStorageShelfCapacity,
-                    BigHaxTargetIds.SliderMaximum,
+                    BigHaxSettings.StorageShelfCapacityValues,
                     value => value.ToString(),
                     value =>
                     {
                         settings.StorageShelfCapacity = value;
                         BigHaxOptionPersistence.SaveStorageShelfCapacity(context.ModId, value);
                     });
-                DrawIntSlider(
+                DrawSteppedIntSlider(
                     context,
                     settings,
                     Localize(
@@ -421,31 +416,13 @@ namespace BigHax
                             { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
                         }),
                     settings.FreightTruckT1DeliveryPlaces,
-                    BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
-                    BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces,
+                    BigHaxSettings.FreightTruckT1DeliveryPlacesValues,
                     value => value.ToString(),
                     value =>
                     {
                         settings.FreightTruckT1DeliveryPlaces = value;
                         BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value);
                     });
-
-                if (settings.EnableActiveVehicleCapacityOverride)
-                {
-                    DrawIntSlider(
-                        context,
-                        settings,
-                        Localize("bighax_active_vehicle_label"),
-                        settings.ActiveVehicleCapacity,
-                        BigHaxSettings.DefaultActiveVehicleCapacity,
-                        BigHaxTargetIds.SliderMaximum,
-                        value => value.ToString(),
-                        value =>
-                        {
-                            settings.ActiveVehicleCapacity = value;
-                            BigHaxOptionPersistence.SaveActiveVehicleCapacity(context.ModId, value);
-                        });
-                }
 
                 GUILayout.EndScrollView();
             }
@@ -540,6 +517,26 @@ namespace BigHax
                 return;
 
             applyValue(sliderValue);
+        }
+
+        private void DrawSteppedIntSlider(
+            ModContext context,
+            BigHaxSettings settings,
+            string label,
+            int currentValue,
+            int[] values,
+            System.Func<int, string> formatValue,
+            System.Action<int> applyValue)
+        {
+            DrawIntSlider(
+                context,
+                settings,
+                label,
+                BigHaxSettings.GetStepIndex(values, currentValue),
+                0,
+                values.Length - 1,
+                index => formatValue(values[index]),
+                index => applyValue(values[index]));
         }
 
         private void CaptureOverlayHotControl()

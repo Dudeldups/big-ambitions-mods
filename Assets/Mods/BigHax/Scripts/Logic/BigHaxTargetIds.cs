@@ -10,9 +10,5 @@ namespace BigHax
         public const int CustomerTrafficMultiplierMaximum = 5;
         public const int FreightTruckT1VanillaRawDeliveryPlaces = 4;
         public const int FreightTruckT1VanillaDisplayedDeliveryPlaces = 8;
-        public const int FreightTruckT1MaxDisplayedDeliveryPlaces = FreightTruckT1VanillaDisplayedDeliveryPlaces * 20;
-
-        public const int SliderMinimum = 1;
-        public const int SliderMaximum = 1000;
     }
 }

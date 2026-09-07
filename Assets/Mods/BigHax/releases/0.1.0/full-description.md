@@ -20,8 +20,9 @@ You're welcome to make suggestions about what other Hax you need.
 [*] Allow recruitment candidates up to 100% skill
 [*] Remove all employee demands
 [*] Set all employee satisfaction to 100%
-[*] Employee Training Skill Gain
+[*] Employee Training Skill Gain (10–100)
 [*] Raise headhunter recruitment points to 1000
+[*] Maximum HR manager capacity (50–10,000)
 [/list]
 
 [b]Player Hax[/b]
@@ -40,6 +41,7 @@ You're welcome to make suggestions about what other Hax you need.
 [list]
 [*] Instant imports
 [*] Instant furniture deliveries
+[*] Disable import limits
 [*] Installation firm fee (0–100%)
 [*] Player Business Customer Multiplier (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ You're welcome to make suggestions about what other Hax you need.
 
 [b]Capacity Hax[/b]
 [list]
-[*] Massively buffs the capacity of the Standard Fridge, Pallet/Storage Shelves, and your current vehicle.
+[*] Standard Fridge capacity (50–1000)
+[*] Pallet Shelf capacity (60–1000)
+[*] Storage Shelf capacity (16–1000)
+[*] Active vehicle capacity override (1000)
 [/list]
 
 [b]Time Hax[/b]

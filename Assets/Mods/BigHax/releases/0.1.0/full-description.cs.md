@@ -20,8 +20,9 @@ Návrhy na další Haxy, které potřebujete, jsou vítány.
 [*] Povolit uchazeče z náboru až do 100 % dovednosti
 [*] Odstranit všechny požadavky zaměstnanců
 [*] Nastavit spokojenost všech zaměstnanců na 100 %
-[*] Přírůstek dovednosti z tréninku zaměstnanců
+[*] Přírůstek dovednosti z tréninku zaměstnanců (10–100)
 [*] Zvýšit náborové body headhunterů na 1000
+[*] Maximální kapacita HR manažera (50–10 000)
 [/list]
 
 [b]Haxy na hráče[/b]
@@ -40,6 +41,7 @@ Návrhy na další Haxy, které potřebujete, jsou vítány.
 [list]
 [*] Okamžité importy
 [*] Okamžité dodávky nábytku
+[*] Zakázat limity importu
 [*] Poplatek instalační firmy (0–100 %)
 [*] Násobitel zákazníků podniku hráče (1x–10x)
 [/list]
@@ -55,7 +57,10 @@ Návrhy na další Haxy, které potřebujete, jsou vítány.
 
 [b]Haxy na kapacitu[/b]
 [list]
-[*] Výrazně zvyšuje kapacitu Standard Fridge, Pallet/Storage Shelves a aktuálního vozidla.
+[*] Kapacita Standard Fridge (50–1000)
+[*] Kapacita Pallet Shelf (60–1000)
+[*] Kapacita Storage Shelf (16–1000)
+[*] Přepsání kapacity aktivního vozidla (1000)
 [/list]
 
 [b]Haxy na čas[/b]

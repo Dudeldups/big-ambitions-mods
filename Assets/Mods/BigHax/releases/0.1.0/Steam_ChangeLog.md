@@ -1,3 +1,5 @@
-- Added an installation firm fee slider (0–100%).
-- Added an option to raise headhunter recruitment points to 1000.
-- Fixed recurring freezes caused by customer traffic and sleep/rest updates.
+- Added Steam and Discord feedback links.
+- Added an HR manager capacity slider (50–10,000).
+- Added an option to disable import limits.
+- Changed training and capacity options to preset steps; active vehicle capacity is now a 1000 toggle.
+- Fixed the update notice when LIB BA Unified UI is active.
