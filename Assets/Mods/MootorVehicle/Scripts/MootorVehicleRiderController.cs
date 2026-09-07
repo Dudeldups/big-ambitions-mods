@@ -16,8 +16,11 @@ namespace MootorVehicle
     internal sealed class MootorVehicleRiderController : MonoBehaviour
     {
         private const string RiderSeatName = "MootorVehicle_RiderSeat";
+        private const string CowVisualName = "MootorVehicle_CowVisual";
         private const string SittingClipName = "SitDeliveryTruck";
         private const float RiderScale = 0.94f;
+        private const float ParkedVisualHeightOffset = 0.04f;
+        private const float MountedVisualHeightOffset = -0.04f;
         private const int MaximumAttempts = 20;
         private const int MaximumEngineStartAttempts = 4;
         private const float DormantEngineGracePeriod = 0.08f;
@@ -42,6 +45,11 @@ namespace MootorVehicle
         private GameObject? riderRoot;
         private Transform? hips;
         private Transform? riderSeat;
+        private Transform? cowVisual;
+        private Transform? heightAdjustedSeat;
+        private Vector3 cowVisualBasePosition;
+        private Vector3 riderSeatBasePosition;
+        private bool rideHeightConfigured;
         private PoseLimb? leftArm;
         private PoseLimb? rightArm;
         private PoseLimb? leftLeg;
@@ -62,6 +70,8 @@ namespace MootorVehicle
         private float dormantThrottleDetectedAt = -1f;
         private AudioSource? mooHornSource;
         private bool hornConfigurationLogged;
+        private bool hornPressed;
+        private bool hornPlaybackLogged;
         private float mountControlGraceUntil;
         private string? lastFailure;
 
@@ -72,11 +82,15 @@ namespace MootorVehicle
             vehicleBody = controller.GetComponent<Rigidbody>();
             context = modContext;
             ConfigureMooHorn();
+            ConfigureRideHeight();
 
             if (controller.controlledByPlayer)
                 NotifyMounted();
             else if (!occupied)
+            {
+                ApplyRideHeight(false);
                 enabled = false;
+            }
         }
 
         internal void NotifyMounted()
@@ -98,9 +112,11 @@ namespace MootorVehicle
             engineRestartPending = false;
             engineReady = false;
             dormantThrottleDetectedAt = -1f;
+            hornPressed = false;
             mountControlGraceUntil = Time.unscaledTime + 0.5f;
             lastFailure = null;
 
+            ApplyRideHeight(true);
             LogInfo("mounted; preparing current player appearance.");
             LogDrivetrainState("mount");
         }
@@ -116,6 +132,8 @@ namespace MootorVehicle
             if (!vehicle.controlledByPlayer && Time.unscaledTime >= mountControlGraceUntil)
             {
                 occupied = false;
+                ApplyRideHeight(false);
+                mooHornSource?.Stop();
                 RemoveRider();
                 enabled = false;
                 LogInfo("dismounted; visible rider removed.");
@@ -123,6 +141,7 @@ namespace MootorVehicle
             }
 
             UpdateEngineStart();
+            UpdateMooHorn();
 
             try
             {
@@ -437,7 +456,7 @@ namespace MootorVehicle
                 return;
 
             var horn = physicsVehicle.soundManager.hornComponent;
-            if (mooHornSource != null && horn.source == mooHornSource)
+            if (mooHornSource != null)
                 return;
 
             try
@@ -456,7 +475,7 @@ namespace MootorVehicle
                 mooHornSource = hornHost.GetComponent<AudioSource>() ??
                     hornHost.gameObject.AddComponent<AudioSource>();
                 mooHornSource.playOnAwake = false;
-                mooHornSource.loop = true;
+                mooHornSource.loop = false;
                 mooHornSource.clip = horn.clips[0];
                 mooHornSource.volume = Mathf.Clamp01(horn.baseVolume);
                 mooHornSource.spatialBlend = 1f;
@@ -465,13 +484,13 @@ namespace MootorVehicle
                 mooHornSource.maxDistance = 35f;
                 mooHornSource.dopplerLevel = 0f;
                 mooHornSource.outputAudioMixerGroup = physicsVehicle.soundManager.otherMixerGroup;
-                horn.source = mooHornSource;
+                mooHornSource.clip.LoadAudioData();
 
                 if (!hornConfigurationLogged)
                 {
                     hornConfigurationLogged = true;
                     LogInfo(
-                        $"native moo horn source configured clip='{mooHornSource.clip.name}' " +
+                        $"moo horn source configured clip='{mooHornSource.clip.name}' " +
                         $"loop={mooHornSource.loop} spatialBlend={mooHornSource.spatialBlend:F1}.");
                 }
             }
@@ -482,6 +501,67 @@ namespace MootorVehicle
                     $"could not configure native moo horn source: " +
                     $"{exception.GetBaseException().Message}");
             }
+        }
+
+        private void UpdateMooHorn()
+        {
+            if (physicsVehicle == null || mooHornSource == null || mooHornSource.clip == null)
+                return;
+
+            var pressed = physicsVehicle.input.Horn;
+            if (pressed && !hornPressed && Time.timeScale > 0f && !AudioListener.pause)
+            {
+                mooHornSource.Stop();
+                mooHornSource.volume = Mathf.Clamp01(physicsVehicle.soundManager.masterVolume);
+                mooHornSource.Play();
+
+                if (!hornPlaybackLogged)
+                {
+                    hornPlaybackLogged = true;
+                    LogInfo(
+                        $"moo horn input received; clip='{mooHornSource.clip.name}' " +
+                        $"loadState={mooHornSource.clip.loadState} playing={mooHornSource.isPlaying} " +
+                        $"volume={mooHornSource.volume:F2}.");
+                }
+            }
+
+            hornPressed = pressed;
+        }
+
+        private void ConfigureRideHeight()
+        {
+            if (rideHeightConfigured || vehicle == null)
+                return;
+
+            foreach (var child in vehicle.GetComponentsInChildren<Transform>(true))
+            {
+                if (string.Equals(child.name, CowVisualName, StringComparison.Ordinal))
+                    cowVisual = child;
+                else if (string.Equals(child.name, RiderSeatName, StringComparison.Ordinal))
+                    heightAdjustedSeat = child;
+            }
+
+            if (cowVisual == null || heightAdjustedSeat == null)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle.GetInstanceID()}: " +
+                    "could not configure state-specific ride height; cow visual or rider seat is missing.");
+                return;
+            }
+
+            cowVisualBasePosition = cowVisual.localPosition;
+            riderSeatBasePosition = heightAdjustedSeat.localPosition;
+            rideHeightConfigured = true;
+        }
+
+        private void ApplyRideHeight(bool mounted)
+        {
+            if (!rideHeightConfigured || cowVisual == null || heightAdjustedSeat == null)
+                return;
+
+            var heightOffset = mounted ? MountedVisualHeightOffset : ParkedVisualHeightOffset;
+            cowVisual.localPosition = cowVisualBasePosition + Vector3.up * heightOffset;
+            heightAdjustedSeat.localPosition = riderSeatBasePosition + Vector3.up * heightOffset;
         }
 
         private void LogDrivetrainState(string phase)
@@ -746,6 +826,7 @@ namespace MootorVehicle
 
         private void OnDisable()
         {
+            mooHornSource?.Stop();
             RemoveRider();
             occupied = false;
         }
