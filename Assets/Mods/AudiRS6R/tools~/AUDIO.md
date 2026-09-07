@@ -35,6 +35,14 @@ Run tools~/Test-Audio.ps1 in a fresh PowerShell process for idle/driving calibra
 
 The user confirmed the engine tone, pop frequency and revision 15 pop character in game. Final cleanup changes logging only. Automated audio/event tests and the required external build/install verify the cleanup; they do not independently simulate Unity DSP.
 
+## Horn
+
+The original Audi prefab has an empty native horn clip and a base volume of zero, so the game's H input reaches the vehicle but cannot produce audio. The runtime controller now reads the existing `physics.input.Horn` value and plays a dedicated seamless `Config/Audio/Horn.wav` loop. This respects the game's horn binding rather than checking H directly.
+
+The horn is a one-second, dual-tone 405/510 Hz sound with restrained harmonics and a small periodic diaphragm wobble. Its exact one-second periodic construction and near-zero-slope boundary avoid clicks while held. Playback fades to or from 0.5 times the vehicle master volume over 0.1 seconds. It remains available with the engine stopped, but only while the Audi is player-controlled and gameplay is unpaused. The source copies the vehicle's native "other" source spatial/mixer settings when available, with the engine source as a safe fallback.
+
+Initialization logs the selected horn mixer once, and the first recognized horn input per Audi logs that playback started. Failures continue through the existing audio warning/fallback. Run `python tools~/test_horn_audio.py` to validate PCM format, duration, RMS/headroom, dual tones, high-frequency limit and loop boundary. In-game testing must confirm H press/hold/release, position, loudness and mixer behavior.
+
 ## Exhaust pop option
 
 The native mod options screen includes "Exhaust pop sounds" under "Audi RS6-R audio", enabled by default. The preference uses the game's native per-mod option key and is loaded when the mod starts, before any settings screen is opened. Native Reset to Defaults restores enabled.
