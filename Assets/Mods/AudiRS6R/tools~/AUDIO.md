@@ -34,3 +34,11 @@ Temporary source dumps, driver/pause traces, periodic RPM/mixer samples and per-
 Run tools~/Test-Audio.ps1 in a fresh PowerShell process for idle/driving calibration, 1001 RPM crossfades, nine WAV decodes and event scenarios. Run python tools~/test_pop_audio.py (NumPy required) for encoded pop spectral balance at both playback pitch limits, short tail, restored attack without excessive upper clack, level/headroom, distinct variants and silent boundaries. The tests do not simulate Unity DSP or the in-game mixer.
 
 The user confirmed the engine tone, pop frequency and revision 15 pop character in game. Final cleanup changes logging only. Automated audio/event tests and the required external build/install verify the cleanup; they do not independently simulate Unity DSP.
+
+## Exhaust pop option
+
+The native mod options screen includes "Exhaust pop sounds" under "Audi RS6-R audio", enabled by default. The preference uses the game's native per-mod option key and is loaded when the mod starts, before any settings screen is opened. Native Reset to Defaults restores enabled.
+
+Disabling the option immediately stops existing pop tails and clears queued bursts on every attached Audi controller, including while paused. Disabled playback cannot arm or schedule pop events. Re-enabling starts with fresh event history; it does not replay a previous burst. Engine/idle sources, samples and enabled-state pop calibration are unchanged.
+
+Only option registration and actual value changes are logged; the per-frame and per-pop tuning diagnostics remain removed. Run tools~/Test-Options.ps1 in a fresh PowerShell process for default, persistence/reload, immediate cancellation, disabled suppression, clean re-enable, defaults reset and unload checks. These use API/preferences stubs with the actual option class and event detector; the native menu and audible stop/resume still require an in-game check.

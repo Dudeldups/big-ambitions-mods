@@ -41,6 +41,7 @@ public class AudiRS6RMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
+        AudiRS6ROptions.Initialize(context);
         runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
     }
@@ -49,6 +50,7 @@ public class AudiRS6RMod : IModBigAmbitions
     {
         runtime?.Shutdown();
         runtime = null;
+        AudiRS6ROptions.Shutdown();
 
         if (vehicleType == null)
             return Task.CompletedTask;

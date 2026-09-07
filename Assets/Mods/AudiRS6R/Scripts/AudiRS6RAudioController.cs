@@ -33,6 +33,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     {
         vehicle = controller;
         context = modContext;
+        AudiRS6ROptions.Changed -= ResetExhaustPops;
+        AudiRS6ROptions.Changed += ResetExhaustPops;
     }
 
     private void LateUpdate()
@@ -199,7 +201,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
                 foreach (var source in layers) source.PlayScheduled(start);
                 voicesStarted = true;
             }
-            var pop = popGate.Sample(running && !savedMute, Time.time, rawRpm, driverThrottle, gear, body == null ? 0f : body.velocity.magnitude*3.6f);
+            var pop = popGate.Sample(running && !savedMute && AudiRS6ROptions.ExhaustPopsEnabled,
+                Time.time, rawRpm, driverThrottle, gear, body == null ? 0f : body.velocity.magnitude*3.6f);
             if (pop != AudiRS6RPopEvent.None) PlayPop(master);
         }
     }
@@ -212,6 +215,12 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         popSource.volume = master * AudiRS6RAudioModel.PopVolume * popGate.Intensity * UnityEngine.Random.Range(.8f, 1.1f);
         popSource.mute = savedMute;
         popSource.PlayOneShot(clip);
+    }
+
+    private void ResetExhaustPops()
+    {
+        if (popSource != null) popSource.Stop();
+        popGate.Reset();
     }
 
     private void Info(string message) => context?.Logger.Info($"AudiRS6R audio vehicle={vehicle?.GetInstanceID()}: {message}");
@@ -260,5 +269,9 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         ownedClips.Clear();
     }
 
-    private void OnDestroy() => Cleanup();
+    private void OnDestroy()
+    {
+        AudiRS6ROptions.Changed -= ResetExhaustPops;
+        Cleanup();
+    }
 }
