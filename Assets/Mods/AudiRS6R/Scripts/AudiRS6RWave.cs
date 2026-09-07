@@ -56,23 +56,4 @@ internal sealed class AudiRS6RWave
         return new AudiRS6RWave { Channels = channels, Frequency = frequency, Samples = samples };
     }
 
-    public float[] WithLoopJoin()
-    {
-        var frames = Samples.Length / Channels;
-        var fade = Math.Min(Frequency / 50, frames / 4); // 20 ms; no inserted silence.
-        if (fade < 2) return (float[])Samples.Clone();
-        var outputFrames = frames - fade;
-        var middleFrames = frames - 2 * fade;
-        var result = new float[outputFrames * Channels];
-        Array.Copy(Samples, fade * Channels, result, 0, middleFrames * Channels);
-        for (var frame = 0; frame < fade; frame++)
-        {
-            var mix = (float)frame / (fade - 1);
-            for (var channel = 0; channel < Channels; channel++)
-                result[(middleFrames + frame) * Channels + channel] =
-                    Samples[(outputFrames + frame) * Channels + channel] * (1 - mix) +
-                    Samples[frame * Channels + channel] * mix;
-        }
-        return result;
-    }
 }

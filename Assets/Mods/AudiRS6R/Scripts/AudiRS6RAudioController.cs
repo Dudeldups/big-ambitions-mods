@@ -18,7 +18,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private AudioSource? native;
     private GameObject? audioHost;
     private AudioSource[]? layers;
-    private readonly AudioClip?[] drivingClips = new AudioClip?[2];
+    private AudioClip? drivingClip;
     private float originalDistortion;
     private bool savedMute;
     private bool ownsMute;
@@ -27,13 +27,11 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     private bool paused;
     private bool wasControlled;
     private bool busMutedReported;
-    private int selected;
     private int attempts;
     private int lastState = -1;
     private float nextAttempt;
     private float nextLog;
     private float driveBlend;
-    private float selectionBlend;
     private float envelope;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
@@ -77,26 +75,23 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
             return false;
         originalDistortion = engineSound!.maxDistortion;
-        for (var i = 0; i < 2; i++)
-        {
-            var name = i == 0 ? "Audi2" : "Audi3";
-            var wave = AudiRS6RWave.Read(Path.Combine(context.ModRootPath, "Config", "Audio", name + ".wav"));
-            var pcm = wave.WithLoopJoin();
-            var clip = AudioClip.Create(name, pcm.Length / wave.Channels, wave.Channels, wave.Frequency, false);
-            drivingClips[i] = clip;
-            if (!clip.SetData(pcm, 0)) throw new InvalidDataException($"Cannot create {name} audio clip.");
-            Info($"loaded driving clip='{name}' originalFrames={wave.Samples.Length / wave.Channels} " +
-                 $"loopFrames={clip.samples} length={F(clip.length)}s hz={clip.frequency} channels={clip.channels} joinMs=20.");
-        }
+        var wave = AudiRS6RWave.Read(Path.Combine(context.ModRootPath, "Config", "Audio", "AudiDrivingLoop.wav"));
+        // This asset is already pitch-stabilized and joined; do not crossfade its
+        // seam again or load the audition preview containing a deliberate pause.
+        drivingClip = AudioClip.Create("AudiDrivingLoop", wave.Samples.Length / wave.Channels,
+            wave.Channels, wave.Frequency, false);
+        if (!drivingClip.SetData(wave.Samples, 0)) throw new InvalidDataException("Cannot create driving loop.");
+        Info($"loaded prepared driving loop frames={drivingClip.samples} length={F(drivingClip.length)}s " +
+             $"hz={drivingClip.frequency} channels={drivingClip.channels} additionalProcessing=none.");
         audioHost = new GameObject("AudiRS6R_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
-        layers = new[] { CreateLayer(native.clip), CreateLayer(drivingClips[0]!), CreateLayer(drivingClips[1]!) };
+        layers = new[] { CreateLayer(native.clip), CreateLayer(drivingClip) };
         engineSound.maxDistortion = 0f;
         configured = true;
-        Info($"configured revision=5 idle='{native.clip.name}' idlePitch=1 driving=Audi2/Audi3 " +
+        Info($"configured revision=6 idle='{native.clip.name}' idlePitch=1 idleVolume=0.24 driving=AudiDrivingLoop " +
              $"mixer='{native.outputAudioMixerGroup.audioMixer.name}' group='{native.outputAudioMixerGroup.name}'. " +
-             "Ctrl+Alt+A switches driving recording; Car idle remains unchanged. Old dry modes removed.");
+             "drivingPitch=0.65..2.1; Car idle retained. Clip-switch shortcut removed.");
         return true;
     }
 
@@ -125,19 +120,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         audioHost.transform.position = native.transform.position;
         var controlled = vehicle!.controlledByPlayer;
         if (controlled && !wasControlled)
-        {
-            selected = 0;
-            selectionBlend = 0f;
-            Info("driver entered: driving clip=Audi2; Ctrl+Alt+A selects Audi3, then Audi2.");
-        }
+            Info("driver entered: prepared RPM-driven loop active; idle=Car at original pitch.");
         wasControlled = controlled;
-        if (controlled && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) &&
-            (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)) && Input.GetKeyDown(KeyCode.A))
-        {
-            selected = 1 - selected;
-            Info($"driving clip selected={(selected == 0 ? "Audi2" : "Audi3")}; idle=Car.");
-            nextLog = 0f;
-        }
         var engine = physics.powertrain.engine;
         var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
         var shouldPause = Time.timeScale <= 0f || AudioListener.pause;
@@ -161,17 +145,15 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
             var idle = engine.idleRPM / Mathf.Max(1f, engine.revLimiterRPM);
             var targetBlend = Mathf.InverseLerp(idle + .04f, idle + .22f, rpm);
             driveBlend = Mathf.MoveTowards(driveBlend, targetBlend, Time.deltaTime * 4f);
-            selectionBlend = Mathf.MoveTowards(selectionBlend, selected, Time.deltaTime * 5f);
             envelope = Mathf.MoveTowards(envelope, running ? 1f : 0f, Time.deltaTime * 6f);
             var gain = envelope * Mathf.Clamp01(physics.soundManager.masterVolume);
             var driveVolume = gain * (.26f + .18f * Mathf.Clamp01(engine.ThrottlePosition));
-            // Preserve authored rev patterns; use modest pitch movement in this test.
-            var pitch = Mathf.Lerp(.95f, 1.3f, Mathf.InverseLerp(idle, 1f, rpm));
+            // The steady loop has no complete rev sequence to fight the game RPM.
+            var pitch = DrivingPitch(rpm, idle);
             layers[0].pitch = 1f;
             layers[0].volume = gain * .24f * Mathf.Sqrt(1f - driveBlend);
-            layers[1].pitch = layers[2].pitch = pitch;
-            layers[1].volume = driveVolume * Mathf.Sqrt(driveBlend) * Mathf.Sqrt(1f - selectionBlend);
-            layers[2].volume = driveVolume * Mathf.Sqrt(driveBlend) * Mathf.Sqrt(selectionBlend);
+            layers[1].pitch = pitch;
+            layers[1].volume = driveVolume * Mathf.Sqrt(driveBlend);
             foreach (var source in layers)
             {
                 source.mute = controlled && savedMute;
@@ -187,14 +169,20 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
             var mixer = layers[0].outputAudioMixerGroup?.audioMixer;
             Info($"sample controlled={controlled} running={running} paused={paused} timeScale={F(Time.timeScale)} " +
                  $"rpmEstimate={F(engine.RPMPercent * engine.revLimiterRPM)} throttle={F(engine.ThrottlePosition)} " +
-                 $"driveBlend={F(driveBlend)} selected={(selected == 0 ? "Audi2" : "Audi3")} " +
-                 $"idle[{Status(layers[0])}] audi2[{Status(layers[1])}] audi3[{Status(layers[2])}] " +
+                 $"driveBlend={F(driveBlend)} drivingClip=AudiDrivingLoop " +
+                 $"idle[{Status(layers[0])}] driving[{Status(layers[1])}] " +
                  $"engineDb={ReadMixer(mixer, "engine")} fxDb={ReadMixer(mixer, "fx")} " +
                  $"masterDb={ReadMixer(mixer, "attenuation")} listenerVolume={F(AudioListener.volume)}.");
             var busMuted = running && !paused && mixer != null && mixer.GetFloat("engine", out var db) && db <= -79f;
             if (busMuted && !busMutedReported) Warn("engine mixer bus is muted while running; layers may be inaudible.");
             busMutedReported = busMuted;
         }
+    }
+
+    internal static float DrivingPitch(float rpmPercent, float idlePercent)
+    {
+        var normalized = Math.Max(0d, Math.Min(1d, (rpmPercent - idlePercent) / Math.Max(.01d, 1d - idlePercent)));
+        return (float)(.65d + 1.45d * normalized);
     }
 
     private static string Status(AudioSource source) =>
@@ -215,7 +203,7 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
     {
         if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
         RestoreMute();
-        envelope = driveBlend = selectionBlend = 0f;
+        envelope = driveBlend = 0f;
         paused = wasControlled = false;
         lastState = -1;
     }
@@ -228,11 +216,8 @@ internal sealed class AudiRS6RAudioController : MonoBehaviour
         if (audioHost != null) Destroy(audioHost);
         audioHost = null;
         layers = null;
-        for (var i = 0; i < drivingClips.Length; i++)
-        {
-            if (drivingClips[i] != null) Destroy(drivingClips[i]);
-            drivingClips[i] = null;
-        }
+        if (drivingClip != null) Destroy(drivingClip);
+        drivingClip = null;
     }
 
     private void OnDestroy() => Cleanup();
