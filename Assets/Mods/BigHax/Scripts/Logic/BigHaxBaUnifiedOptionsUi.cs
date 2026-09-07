@@ -223,7 +223,7 @@ namespace BigHax
                 BigHaxSettings.HrManagerCapacityValues.Length - 1,
                 value => { settings.HrManagerCapacityIndex = value; BigHaxOptionPersistence.SaveHrManagerCapacityIndex(context.ModId, value); },
                 value => BigHaxSettings.HrManagerCapacityValues[value].ToString());
-            AddSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings.EmployeeTrainingSkillIncrease, 10, 100, value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
+            AddSteppedSlider(Localize("bighax_employee_training_skill_increase_label"), () => settings.EmployeeTrainingSkillIncrease, BigHaxSettings.EmployeeTrainingSkillIncreaseValues, value => { settings.EmployeeTrainingSkillIncrease = value; BigHaxOptionPersistence.SaveEmployeeTrainingSkillIncrease(context.ModId, value); }, value => value.ToString());
             AddSeparator();
 
             AddCategory(Localize("bighax_category_player"));
@@ -241,7 +241,7 @@ namespace BigHax
             AddToggle(Localize("bighax_enable_instant_furniture_deliveries_label"), () => settings.EnableInstantFurnitureDeliveries, value => { settings.EnableInstantFurnitureDeliveries = value; BigHaxOptionPersistence.SaveEnableInstantFurnitureDeliveries(context.ModId, value); });
             if (arePurchaseLimitsDisabled != null && setPurchaseLimitsDisabled != null)
                 AddToggle(Localize("bighax_disable_purchase_limits_label"), arePurchaseLimitsDisabled, setPurchaseLimitsDisabled);
-            AddSlider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings.InstallationFirmFeePercentage, 0, 100, value => { settings.InstallationFirmFeePercentage = value; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value); }, value => value + "%");
+            AddSteppedSlider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings.InstallationFirmFeePercentage, BigHaxSettings.InstallationFirmFeePercentageValues, value => { settings.InstallationFirmFeePercentage = value; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value); }, value => value + "%");
             AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
             AddSeparator();
 
@@ -250,23 +250,20 @@ namespace BigHax
             AddToggle(Localize("bighax_no_vehicle_damage_label"), () => settings.EnableNoVehicleDamage, value => { settings.EnableNoVehicleDamage = value; BigHaxOptionPersistence.SaveEnableNoVehicleDamage(context.ModId, value); });
             AddToggle(Localize("bighax_infinite_vehicle_fuel_label"), () => settings.EnableInfiniteVehicleFuel, value => { settings.EnableInfiniteVehicleFuel = value; BigHaxOptionPersistence.SaveEnableInfiniteVehicleFuel(context.ModId, value); });
             AddToggle(Localize("bighax_never_dirty_vehicles_label"), () => settings.EnableNeverDirtyVehicles, value => { settings.EnableNeverDirtyVehicles = value; BigHaxOptionPersistence.SaveEnableNeverDirtyVehicles(context.ModId, value); });
-            AddSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings.FreightTruckT1DeliveryPlaces, 8, BigHaxTargetIds.FreightTruckT1MaxDisplayedDeliveryPlaces, value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
+            AddSteppedSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings.FreightTruckT1DeliveryPlaces, BigHaxSettings.FreightTruckT1DeliveryPlacesValues, value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
             AddSeparator();
 
             AddCategory(Localize("bighax_category_capacity"));
             AddToggle(Localize("bighax_active_vehicle_enabled_label"), () => settings.EnableActiveVehicleCapacityOverride, value => { settings.EnableActiveVehicleCapacityOverride = value; BigHaxOptionPersistence.SaveActiveVehicleCapacityEnabled(context.ModId, value); });
-            AddSlider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }),
-                () => settings.StandardFridgeCapacity, 50, 1000,
+            AddSteppedSlider(Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_standardfridge") } }),
+                () => settings.StandardFridgeCapacity, BigHaxSettings.StandardFridgeCapacityValues,
                 value => { settings.StandardFridgeCapacity = value; BigHaxOptionPersistence.SaveStandardFridgeCapacity(context.ModId, value); }, value => value.ToString());
-            AddSlider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }),
-                () => settings.PalletShelfCapacity, 60, 1000,
+            AddSteppedSlider(Localize("bighax_pallet_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_palletshelf") } }),
+                () => settings.PalletShelfCapacity, BigHaxSettings.PalletShelfCapacityValues,
                 value => { settings.PalletShelfCapacity = value; BigHaxOptionPersistence.SavePalletShelfCapacity(context.ModId, value); }, value => value.ToString());
-            AddSlider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }),
-                () => settings.StorageShelfCapacity, 16, 1000,
+            AddSteppedSlider(Localize("bighax_storage_shelf_capacity_label", new Dictionary<string, string> { { "itemName", Localize("ba:itemname_storageshelf") } }),
+                () => settings.StorageShelfCapacity, BigHaxSettings.StorageShelfCapacityValues,
                 value => { settings.StorageShelfCapacity = value; BigHaxOptionPersistence.SaveStorageShelfCapacity(context.ModId, value); }, value => value.ToString());
-            AddSlider(Localize("bighax_active_vehicle_label"),
-                () => settings.ActiveVehicleCapacity, 20, 1000,
-                value => { settings.ActiveVehicleCapacity = value; BigHaxOptionPersistence.SaveActiveVehicleCapacity(context.ModId, value); }, value => value.ToString());
             AddSeparator();
 
             AddCategory(Localize("bighax_category_time"));
@@ -382,7 +379,6 @@ namespace BigHax
                 {
                     { "vehicleName", Localize("ba:vehicletype_freighttruckt1") }
                 }),
-                Localize("bighax_active_vehicle_label"),
                 Localize("bighax_feedback_prompt"),
                 Localize("bighax_ui_close_button")
             });
@@ -448,6 +444,22 @@ namespace BigHax
             {
                 write(value);
             }), "BigHaxSlider");
+        }
+
+        private void AddSteppedSlider(
+            string label,
+            Func<int> read,
+            int[] values,
+            Action<int> write,
+            Func<int, string> format)
+        {
+            AddSlider(
+                label,
+                () => BigHaxSettings.GetStepIndex(values, read()),
+                0,
+                values.Length - 1,
+                index => write(values[index]),
+                index => format(values[index]));
         }
 
         private void AddActionButton(string label, Action? onClick)

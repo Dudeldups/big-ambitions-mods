@@ -5,6 +5,7 @@ namespace BigHax
     {
         public static void LoadIntoSettings(string modId, BigHaxSettings settings)
         {
+            var migratedStepValues = false;
             settings.UiHotkeyIndex = LoadInt(
                 modId,
                 BigHaxOptionIds.UiToggleHotkey,
@@ -24,24 +25,40 @@ namespace BigHax
                 BigHaxOptionIds.EnableVantanderMaxLoanOverride,
                 BigHaxSettings.DefaultEnableVantanderMaxLoanOverride);
 
-            settings.StandardFridgeCapacity = LoadInt(
+            settings.StandardFridgeCapacity = LoadSteppedInt(
                 modId,
                 BigHaxOptionIds.StandardFridgeCapacity,
-                BigHaxSettings.DefaultStandardFridgeCapacity);
+                BigHaxSettings.DefaultStandardFridgeCapacity,
+                BigHaxSettings.StandardFridgeCapacityValues,
+                roundTowardLowerValue: false,
+                "standard fridge capacity",
+                ref migratedStepValues);
 
-            settings.PalletShelfCapacity = LoadInt(
+            settings.PalletShelfCapacity = LoadSteppedInt(
                 modId,
                 BigHaxOptionIds.PalletShelfCapacity,
-                BigHaxSettings.DefaultPalletShelfCapacity);
-            settings.StorageShelfCapacity = LoadInt(
+                BigHaxSettings.DefaultPalletShelfCapacity,
+                BigHaxSettings.PalletShelfCapacityValues,
+                roundTowardLowerValue: false,
+                "pallet shelf capacity",
+                ref migratedStepValues);
+            settings.StorageShelfCapacity = LoadSteppedInt(
                 modId,
                 BigHaxOptionIds.StorageShelfCapacity,
-                BigHaxSettings.DefaultStorageShelfCapacity);
+                BigHaxSettings.DefaultStorageShelfCapacity,
+                BigHaxSettings.StorageShelfCapacityValues,
+                roundTowardLowerValue: false,
+                "storage shelf capacity",
+                ref migratedStepValues);
 
-            settings.EmployeeTrainingSkillIncrease = LoadInt(
+            settings.EmployeeTrainingSkillIncrease = LoadSteppedInt(
                 modId,
                 BigHaxOptionIds.EmployeeTrainingSkillIncrease,
-                BigHaxSettings.DefaultEmployeeTrainingSkillIncrease);
+                BigHaxSettings.DefaultEmployeeTrainingSkillIncrease,
+                BigHaxSettings.EmployeeTrainingSkillIncreaseValues,
+                roundTowardLowerValue: false,
+                "employee training skill increase",
+                ref migratedStepValues);
 
             settings.EnableRecruitmentCandidateMaximumSkill = LoadEnableRecruitmentCandidateMaximumSkill(modId);
             settings.RemoveEmployeeDemands = LoadBool(
@@ -75,10 +92,14 @@ namespace BigHax
             settings.EnableNoVehicleDamage = LoadBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, BigHaxSettings.DefaultEnableNoVehicleDamage);
             settings.EnableInfiniteVehicleFuel = LoadBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, BigHaxSettings.DefaultEnableInfiniteVehicleFuel);
             settings.EnableNeverDirtyVehicles = LoadBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, BigHaxSettings.DefaultEnableNeverDirtyVehicles);
-            settings.InstallationFirmFeePercentage = UnityEngine.Mathf.Clamp(
-                LoadInt(modId, BigHaxOptionIds.InstallationFirmFeePercentage, BigHaxSettings.DefaultInstallationFirmFeePercentage),
-                0,
-                100);
+            settings.InstallationFirmFeePercentage = LoadSteppedInt(
+                modId,
+                BigHaxOptionIds.InstallationFirmFeePercentage,
+                BigHaxSettings.DefaultInstallationFirmFeePercentage,
+                BigHaxSettings.InstallationFirmFeePercentageValues,
+                roundTowardLowerValue: true,
+                "installation firm fee percentage",
+                ref migratedStepValues);
             settings.EnableMaximumHeadhunterRecruitmentPoints = LoadBool(
                 modId,
                 BigHaxOptionIds.EnableMaximumHeadhunterRecruitmentPoints,
@@ -88,20 +109,19 @@ namespace BigHax
                 0,
                 BigHaxSettings.HrManagerCapacityValues.Length - 1);
 
-            settings.FreightTruckT1DeliveryPlaces = LoadInt(
+            settings.FreightTruckT1DeliveryPlaces = LoadSteppedInt(
                 modId,
                 BigHaxOptionIds.FreightTruckT1DeliveryPlaces,
-                BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces);
+                BigHaxSettings.DefaultFreightTruckT1DeliveryPlaces,
+                BigHaxSettings.FreightTruckT1DeliveryPlacesValues,
+                roundTowardLowerValue: false,
+                "freight truck delivery places",
+                ref migratedStepValues);
 
             settings.EnableActiveVehicleCapacityOverride = LoadBool(
                 modId,
                 BigHaxOptionIds.ActiveVehicleCapacityEnabled,
                 false);
-
-            settings.ActiveVehicleCapacity = LoadInt(
-                modId,
-                BigHaxOptionIds.ActiveVehicleCapacity,
-                BigHaxSettings.DefaultActiveVehicleCapacity);
 
             if (settings.CustomerTrafficMultiplierIndex < 0 ||
                 settings.CustomerTrafficMultiplierIndex >= BigHaxSettings.CustomerTrafficMultiplierValues.Length)
@@ -110,6 +130,8 @@ namespace BigHax
             }
 
             settings.UiHotkeyIndex = BigHaxHotkeys.ClampIndex(settings.UiHotkeyIndex);
+            if (migratedStepValues)
+                UnityEngine.PlayerPrefs.Save();
         }
 
         public static void SaveCustomerTrafficMultiplierIndex(string modId, int value)
@@ -222,11 +244,6 @@ namespace BigHax
             SaveBool(modId, BigHaxOptionIds.ActiveVehicleCapacityEnabled, value);
         }
 
-        public static void SaveActiveVehicleCapacity(string modId, int value)
-        {
-            SaveInt(modId, BigHaxOptionIds.ActiveVehicleCapacity, value);
-        }
-
         public static void SaveUiHotkeyIndex(string modId, int value)
         {
             SaveInt(modId, BigHaxOptionIds.UiToggleHotkey, value);
@@ -246,6 +263,56 @@ namespace BigHax
         {
             var key = BuildKey(modId, optionId);
             return UnityEngine.PlayerPrefs.HasKey(key) ? UnityEngine.PlayerPrefs.GetInt(key) : defaultValue;
+        }
+
+        private static int LoadSteppedInt(
+            string modId,
+            string optionId,
+            int defaultValue,
+            int[] values,
+            bool roundTowardLowerValue,
+            string diagnosticName,
+            ref bool migrated)
+        {
+            var key = BuildKey(modId, optionId);
+            if (!UnityEngine.PlayerPrefs.HasKey(key))
+                return defaultValue;
+
+            var storedValue = UnityEngine.PlayerPrefs.GetInt(key);
+            var steppedValue = SnapToStep(storedValue, values, roundTowardLowerValue);
+            if (steppedValue == storedValue)
+                return steppedValue;
+
+            UnityEngine.PlayerPrefs.SetInt(key, steppedValue);
+            migrated = true;
+            BigHaxLogger.StepSliderDiagnostic(
+                "Migrated " + diagnosticName + ": stored=" + storedValue + ", stepped=" + steppedValue + ".");
+            return steppedValue;
+        }
+
+        private static int SnapToStep(int value, int[] values, bool roundTowardLowerValue)
+        {
+            var selected = values[0];
+            if (roundTowardLowerValue)
+            {
+                for (var index = 0; index < values.Length; index++)
+                {
+                    selected = values[index];
+                    if (values[index] <= value)
+                        return values[index];
+                }
+
+                return selected;
+            }
+
+            for (var index = 0; index < values.Length; index++)
+            {
+                selected = values[index];
+                if (values[index] >= value)
+                    return values[index];
+            }
+
+            return selected;
         }
 
         private static int LoadCustomerTrafficMultiplierIndex(string modId)
