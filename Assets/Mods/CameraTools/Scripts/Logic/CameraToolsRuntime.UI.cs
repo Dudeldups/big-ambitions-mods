@@ -855,9 +855,9 @@ namespace CameraTools
             CameraToolsFileLogger.Log(message);
         }
 
-        private bool IsGameplayInputBlockedByUi()
+        private bool IsGameplayInputBlockedByUi(bool forceRefresh = false)
         {
-            if (Time.unscaledTime < nextUiStateRefreshTime)
+            if (!forceRefresh && Time.unscaledTime < nextUiStateRefreshTime)
                 return isGameplayUiBlocked;
 
             nextUiStateRefreshTime = Time.unscaledTime + UiStateRefreshIntervalSeconds;
@@ -881,8 +881,30 @@ namespace CameraTools
             if (IsDialogPanelOpen())
                 return isGameplayUiBlocked = true;
 
+            if (IsStaticUiOpen(placementSystemType, "IsInPlacementMode"))
+                return isGameplayUiBlocked = true;
+
+            if (IsStaticUiOpen(interiorDesignerUiType, "IsOpen"))
+                return isGameplayUiBlocked = true;
+
             isGameplayUiBlocked = false;
             return false;
+        }
+
+        private static bool IsStaticUiOpen(Type? type, string propertyName)
+        {
+            if (type == null)
+                return false;
+
+            try
+            {
+                var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                return property?.GetValue(null, null) is bool isOpen && isOpen;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private bool IsCachedUiOpen(ref MonoBehaviour? cachedController, Type? type, string propertyName)

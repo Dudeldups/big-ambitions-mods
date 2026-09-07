@@ -785,8 +785,8 @@ namespace CameraTools
                 if (zoomComponent == null)
                     continue;
 
-                SetMemberValue(zoomComponent, "minDistance", VehicleMinimumZoom);
-                SetMemberValue(zoomComponent, "maxDistance", maxZoom);
+                SetTrackedMemberValue(zoomComponent, "minDistance", VehicleMinimumZoom);
+                SetTrackedMemberValue(zoomComponent, "maxDistance", maxZoom);
             }
 
             foreach (var pipelineComponent in GetCachedVehiclePipelineComponents(cameraObject))
@@ -807,9 +807,9 @@ namespace CameraTools
                 if (zoomComponent == null)
                     continue;
 
-                SetMemberValue(zoomComponent, "minDistance", VehicleMinimumZoom);
-                SetMemberValue(zoomComponent, "maxDistance", maxZoom);
-                SetMemberValue(zoomComponent, "distance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
+                SetTrackedMemberValue(zoomComponent, "minDistance", VehicleMinimumZoom);
+                SetTrackedMemberValue(zoomComponent, "maxDistance", maxZoom);
+                SetTrackedMemberValue(zoomComponent, "distance", Mathf.Clamp(distance, VehicleMinimumZoom, maxZoom));
             }
 
             foreach (var pipelineComponent in GetCachedVehiclePipelineComponents(cameraObject))
@@ -826,12 +826,12 @@ namespace CameraTools
             var typeName = pipelineComponent.GetType().Name;
             if (typeName == "CinemachineFramingTransposer")
             {
-                SetMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
-                SetMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
+                SetTrackedMemberValue(pipelineComponent, "m_MinimumDistance", VehicleMinimumZoom);
+                SetTrackedMemberValue(pipelineComponent, "m_MaximumDistance", maxZoom);
             }
             else if (typeName == "Cinemachine3rdPersonFollow")
             {
-                SetMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(GetFloatMember(pipelineComponent, "CameraDistance"), VehicleMinimumZoom, maxZoom));
+                SetTrackedMemberValue(pipelineComponent, "CameraDistance", Mathf.Clamp(GetFloatMember(pipelineComponent, "CameraDistance"), VehicleMinimumZoom, maxZoom));
             }
             else if (typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer")
             {
@@ -848,11 +848,11 @@ namespace CameraTools
             var typeName = pipelineComponent.GetType().Name;
             if (typeName == "CinemachineFramingTransposer")
             {
-                SetMemberValue(pipelineComponent, "m_CameraDistance", clampedDistance);
+                SetTrackedMemberValue(pipelineComponent, "m_CameraDistance", clampedDistance);
             }
             else if (typeName == "Cinemachine3rdPersonFollow")
             {
-                SetMemberValue(pipelineComponent, "CameraDistance", clampedDistance);
+                SetTrackedMemberValue(pipelineComponent, "CameraDistance", clampedDistance);
             }
             else if (typeName == "CinemachineTransposer" || typeName == "CinemachineOrbitalTransposer")
             {
@@ -1277,7 +1277,7 @@ namespace CameraTools
             if (mainCamera != null)
             {
                 var diagnosticFov = Mathf.Approximately(mainCamera.fieldOfView, 25f) ? 85f : 25f;
-                mainCamera.fieldOfView = diagnosticFov;
+                SetTrackedMemberValue(mainCamera, "fieldOfView", diagnosticFov);
                 LogVehicleDebug($"F12 camera poke applied to Camera.main: path={GetHierarchyPath(mainCamera.transform)}, fov={diagnosticFov:0.##}");
             }
 
@@ -1433,7 +1433,7 @@ namespace CameraTools
                 typeName == "CinemachinePOV";
         }
 
-        private static float? TryApplyLensFieldOfView(object vcam, float targetFov)
+        private float? TryApplyLensFieldOfView(object vcam, float targetFov)
         {
             try
             {
@@ -1451,8 +1451,7 @@ namespace CameraTools
                     return null;
 
                 fovField.SetValue(lensValue, targetFov);
-                lensField.SetValue(vcam, lensValue);
-                return targetFov;
+                return SetTrackedMemberValue(vcam, "m_Lens", lensValue) ? targetFov : null;
             }
             catch
             {
@@ -1484,7 +1483,7 @@ namespace CameraTools
             }
         }
 
-        private static string ApplyActiveBodyDiagnosticPoke(object vcam)
+        private string ApplyActiveBodyDiagnosticPoke(object vcam)
         {
             var virtualCameraType = cinematachineVirtualCameraType;
             if (virtualCameraType == null)
@@ -1503,14 +1502,14 @@ namespace CameraTools
                 if (typeName == "Cinemachine3rdPersonFollow" &&
                     TryGetFloatMember(pipelineComponent, "CameraDistance", out var beforeDistance))
                 {
-                    SetMemberValue(pipelineComponent, "CameraDistance", 6f);
+                    SetTrackedMemberValue(pipelineComponent, "CameraDistance", 6f);
                     return $"{typeName}.CameraDistance {beforeDistance:0.##}->6";
                 }
 
                 if (typeName == "CinemachineFramingTransposer" &&
                     TryGetFloatMember(pipelineComponent, "m_CameraDistance", out var beforeFramingDistance))
                 {
-                    SetMemberValue(pipelineComponent, "m_CameraDistance", 6f);
+                    SetTrackedMemberValue(pipelineComponent, "m_CameraDistance", 6f);
                     return $"{typeName}.m_CameraDistance {beforeFramingDistance:0.##}->6";
                 }
 
@@ -1595,6 +1594,10 @@ namespace CameraTools
 
         private Vector3 GetOrCacheOriginalFollowOffset(object pipelineComponent, Vector3 currentOffset)
         {
+            if (TryGetTrackedOriginalValue<Vector3>(pipelineComponent, "m_FollowOffset", out var trackedPrivateOffset) ||
+                TryGetTrackedOriginalValue<Vector3>(pipelineComponent, "FollowOffset", out trackedPrivateOffset))
+                return trackedPrivateOffset;
+
             if (pipelineComponent is not Component component)
                 return currentOffset;
 
@@ -1624,10 +1627,10 @@ namespace CameraTools
             return false;
         }
 
-        private static bool SetFollowOffset(object pipelineComponent, Vector3 offset)
+        private bool SetFollowOffset(object pipelineComponent, Vector3 offset)
         {
-            return SetMemberValue(pipelineComponent, "m_FollowOffset", offset) ||
-                SetMemberValue(pipelineComponent, "FollowOffset", offset);
+            return SetTrackedMemberValue(pipelineComponent, "m_FollowOffset", offset) ||
+                SetTrackedMemberValue(pipelineComponent, "FollowOffset", offset);
         }
 
         private static bool IsFollowOffsetComponent(object pipelineComponent)

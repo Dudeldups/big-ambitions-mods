@@ -24,7 +24,7 @@ namespace CameraTools
             {
                 bounds.x = Mathf.Min(bounds.x, MapMinimumZoom);
                 bounds.y = Mathf.Max(bounds.y, settings.MapDistance);
-                SetMemberValue(mapController, "minMaxDistance", bounds);
+                SetTrackedMemberValue(mapController, "minMaxDistance", bounds);
                 lastAppliedMapMaxZoom = settings.MapDistance;
                 lastConfiguredMapControllerId = controllerId;
             }
@@ -40,7 +40,7 @@ namespace CameraTools
             var currentDistance = Mathf.Clamp(GetFloatMember(mapController, "distance"), bounds.x, bounds.y);
             if (currentDistance < desiredDistance)
             {
-                SetMemberValue(mapController, "distance", desiredDistance);
+                SetTrackedMemberValue(mapController, "distance", desiredDistance);
                 currentDistance = desiredDistance;
             }
 
@@ -188,7 +188,7 @@ namespace CameraTools
             var bounds = GetVector2Member(mapController, "minMaxDistance");
             var distance = Mathf.Clamp(desiredMapDistance, bounds.x, bounds.y);
             desiredMapDistance = distance;
-            SetMemberValue(mapController, "distance", distance);
+            SetTrackedMemberValue(mapController, "distance", distance);
             SetSavedMapZoom(distance);
             if (cameraToolsDebugEnabled)
             {
@@ -279,8 +279,15 @@ namespace CameraTools
             if (settings == null)
                 return;
 
-            if (IsCityMapOpen() && activeMapRenderCamera != null && camera == activeMapRenderCamera)
+            var cityMapOpen = IsCityMapOpen();
+            if (cityMapOpen && activeMapRenderCamera != null && camera == activeMapRenderCamera)
+            {
                 ApplyMapCameraState();
+            }
+
+            var mapFogRenderCamera = activeMapRenderCamera ?? GetLiveMainCamera();
+            if (cityMapOpen && settings.DisableCityMapFog && camera == mapFogRenderCamera)
+                UpdateCityMapFogSuppression(cityMapOpen: true);
 
             if (!cameraToolsDebugEnabled ||
                 !needsVehicleDistanceReapply ||
