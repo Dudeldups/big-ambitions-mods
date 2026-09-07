@@ -600,6 +600,7 @@ namespace CameraTools
 
         private void ResetVehicleRuntimeState()
         {
+            isVehicleRuntimeSuspendedForMap = false;
             activeVehicleCameraRoot = null;
             desiredVehicleDistance = float.NaN;
             vehicleTarget = null;
@@ -615,6 +616,28 @@ namespace CameraTools
             vehicleDebug.IsVehicleMode = false;
             vehicleDebug.IsInsideVehicle = false;
             vehicleDebug.CameraObjectFound = false;
+        }
+
+        private void SuspendVehicleRuntimeStateForMap()
+        {
+            ResetVehiclePitchTracking();
+            if (isVehicleRuntimeSuspendedForMap)
+                return;
+
+            isVehicleRuntimeSuspendedForMap = true;
+            needsVehicleDistanceReapply = true;
+            context?.Logger.Info(
+                $"CameraTools: vehicle camera suspended for city map; preserving pitch={hasManualVehiclePitch}, yaw={hasManualVehicleYaw}, yawDegrees={manualVehicleYaw:0.##}.");
+        }
+
+        private void ResumeVehicleRuntimeStateAfterMap()
+        {
+            if (!isVehicleRuntimeSuspendedForMap)
+                return;
+
+            isVehicleRuntimeSuspendedForMap = false;
+            context?.Logger.Info(
+                $"CameraTools: vehicle camera resumed after city map; autoRecenter={hasManualVehicleYaw}, yawDegrees={manualVehicleYaw:0.##}.");
         }
 
         private bool ApplyVehicleDistanceToCameras(float distance, float maxZoom)
