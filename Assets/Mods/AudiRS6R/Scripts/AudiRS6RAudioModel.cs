@@ -5,7 +5,8 @@ using System;
 internal static class AudiRS6RAudioModel
 {
     internal const float IdlePitch = 1f;
-    internal const float PopVolume = .8f;
+    internal const float PopVolume = .48f;
+    internal static float LoadBlend(float throttle) => Clamp01((throttle - .15f) / .65f);
     internal static float IdleVolume(float drivingBlend) => .24f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     // Restore revision 7's idle-to-driving thresholds (1180..2440 RPM with
     // 900 RPM idle / 7000 RPM limiter). Throttle cannot change idle gain/pitch.
@@ -32,21 +33,34 @@ internal static class AudiRS6RAudioModel
     private static float Clamp01(float value) => Math.Max(0f, Math.Min(1f, value));
 }
 
-internal enum AudiRS6RPopEvent { None, ThrottleRelease, Upshift }
+internal enum AudiRS6RPopEvent { None, Overrun }
 
 internal sealed class AudiRS6RPopGate
 {
     private bool previousValid;
-    private int previousGear;
+    private readonly Random random;
     private double previousTime;
-    private double armedUntil;
-    private double nextAllowed;
+    private double lastLoad;
+    private double nextPop;
+    internal bool OverrunActive { get; private set; }
+
+    internal AudiRS6RPopGate(int? seed = null)
+    {
+        random = seed.HasValue ? new Random(seed.Value) : new Random();
+        Reset();
+    }
+
+    internal static float Rate(int gear) => gear == 1 ? 2.8f : gear == 2 ? 2.2f :
+        gear == 3 ? 1.3f : gear == 4 ? .65f : .35f;
+
+    private double Delay(int gear) => .16d - Math.Log(Math.Max(1e-9d, 1d - random.NextDouble())) / Rate(gear);
 
     internal void Reset()
     {
         previousValid = false;
-        armedUntil = double.NegativeInfinity;
-        nextAllowed = 0;
+        lastLoad = double.NegativeInfinity;
+        nextPop = double.PositiveInfinity;
+        OverrunActive = false;
     }
 
     internal AudiRS6RPopEvent Sample(bool active, double time, float rpm, float throttle, int gear)
@@ -56,23 +70,29 @@ internal sealed class AudiRS6RPopGate
             Reset();
             return AudiRS6RPopEvent.None;
         }
-        var result = AudiRS6RPopEvent.None;
         var continuous = previousValid && time >= previousTime && time - previousTime <= .5d;
-        if (!continuous) armedUntil = double.NegativeInfinity;
-        if (continuous && time <= armedUntil && time >= nextAllowed && rpm >= 2200f)
+        if (!continuous) Reset();
+        if (rpm >= 2500f && throttle >= .4f) lastLoad = time;
+        var eligible = continuous && rpm >= 1800f && throttle <= .22f && time - lastLoad <= 2.4d;
+        var result = AudiRS6RPopEvent.None;
+        if (!eligible)
         {
-            if (gear > previousGear) result = AudiRS6RPopEvent.Upshift;
-            else if (throttle <= .18f) result = AudiRS6RPopEvent.ThrottleRelease;
+            OverrunActive = false;
+            nextPop = double.PositiveInfinity;
         }
-        if (result != AudiRS6RPopEvent.None)
+        else if (!OverrunActive)
         {
-            nextAllowed = time + .85d;
-            armedUntil = double.NegativeInfinity;
+            OverrunActive = true;
+            // A shift or throttle edge only opens an opportunity; it never
+            // directly triggers a pop. Sample once, not once per render frame.
+            nextPop = time + Delay(gear);
         }
-        else if (rpm >= 3000f && throttle >= .55f)
-            armedUntil = time + .65d;
+        else if (time >= nextPop)
+        {
+            result = AudiRS6RPopEvent.Overrun;
+            nextPop = time + Delay(gear);
+        }
         previousValid = true;
-        previousGear = gear;
         previousTime = time;
         return result;
     }

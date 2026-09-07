@@ -96,6 +96,22 @@ def make_pop(index):
     return audio*(.72/np.max(abs(audio)))
 
 
+def make_loaded(base, reference):
+    # Add a steady lower firing texture and soft saturation for throttle load.
+    # All partials use exact periodic bins; no slow rev or loudness wobble.
+    t=np.arange(len(base))/RATE
+    phase=2*np.pi*(reference/2)*t
+    body=(np.cos(phase)+.42*np.cos(2*phase+.3)+.28*np.cos(3*phase+.7)
+          +.18*np.cos(5*phase+1.1))
+    driven=.72*unit_rms(base)+.55*unit_rms(body)
+    shaped=np.tanh(1.25*driven)
+    # Tame the generated upper fizz without filtering the separate Car idle.
+    f=np.fft.rfftfreq(len(shaped),1/RATE)
+    shaped=np.fft.irfft(np.fft.rfft(shaped)*np.exp(-(f/(reference*14))**4),len(shaped))
+    shaped-=shaped.mean()
+    return .12*unit_rms(shaped)
+
+
 def main():
     path=Path(sys.argv[1])
     with wave.open(str(path),'rb') as wav:
@@ -109,13 +125,19 @@ def main():
     OUT.mkdir(parents=True,exist_ok=True)
     report={'source':path.name,'source_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
             'method':'stationary harmonic/noise resynthesis; acoustic references are not engine RPM',
-            'layers':[],'pops':[]}
+            'layers':[],'loaded_layers':[],'pops':[]}
     for i,(name,start,end,ref,target) in enumerate(LAYERS):
-        stats=write(name,make_layer(source,sr,start,end,ref,target,100+i))
+        base=make_layer(source,sr,start,end,ref,target,100+i)
+        stats=write(name,base)
         stats.update(section=[start,end],source_harmonic_hz=ref,reference_hz=target)
         if stats['rms_span_db']>1:
             raise ValueError(f'{name} retains excessive loudness motion')
         report['layers'].append(stats)
+        loaded=write(name+'Load',make_loaded(base,target))
+        if loaded['rms_span_db']>1:
+            raise ValueError(f'{name} loaded layer retains excessive loudness motion')
+        loaded.update(reference_hz=target,method='lower partials and soft saturation, same RMS as base')
+        report['loaded_layers'].append(loaded)
     for i in range(3):
         report['pops'].append(write('ExhaustPop'+str(i+1),make_pop(i)))
     (OUT/'generation.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8')

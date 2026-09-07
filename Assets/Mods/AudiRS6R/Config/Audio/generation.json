@@ -46,6 +46,38 @@
       "reference_hz": 320
     }
   ],
+  "loaded_layers": [
+    {
+      "name": "EngineLowLoad",
+      "seconds": 2.0,
+      "peak": 0.1807902724565569,
+      "rms": 0.12000000000000001,
+      "rms_span_db": 0.37366522088472276,
+      "seam_step": 0.00022414462843831084,
+      "reference_hz": 96,
+      "method": "lower partials and soft saturation, same RMS as base"
+    },
+    {
+      "name": "EngineMidLoad",
+      "seconds": 2.0,
+      "peak": 0.18070467127412468,
+      "rms": 0.11999999999999998,
+      "rms_span_db": 0.27828207162709,
+      "seam_step": 0.0002142248549006076,
+      "reference_hz": 176,
+      "method": "lower partials and soft saturation, same RMS as base"
+    },
+    {
+      "name": "EngineHighLoad",
+      "seconds": 2.0,
+      "peak": 0.1801701362039376,
+      "rms": 0.12,
+      "rms_span_db": 0.13181351778417788,
+      "seam_step": 0.00017576273943623044,
+      "reference_hz": 320,
+      "method": "lower partials and soft saturation, same RMS as base"
+    }
+  ],
   "pops": [
     {
       "name": "ExhaustPop1",

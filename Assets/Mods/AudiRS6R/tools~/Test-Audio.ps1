@@ -60,30 +60,29 @@ public static class AudiAudioProbe
         Require(AudiRS6RAudioModel.Weight(0,0)==1 && AudiRS6RAudioModel.Weight(.5f,1)==1 &&
                 AudiRS6RAudioModel.Weight(1,2)==1, "Low/mid/high anchors");
 
-        var gate = new AudiRS6RPopGate();
+        Require(AudiRS6RAudioModel.LoadBlend(0)==0 && AudiRS6RAudioModel.LoadBlend(.15f)==0 &&
+                AudiRS6RAudioModel.LoadBlend(1)==1, "Load sound must follow throttle");
+        var gate = new AudiRS6RPopGate(42);
         for (int i=0;i<100;i++)
             Require(gate.Sample(true,i*.02,900,0,1)==AudiRS6RPopEvent.None,"Idle popped");
         gate.Reset();
         Require(gate.Sample(true,0,4500,.8f,2)==AudiRS6RPopEvent.None,"Entry popped");
-        Require(gate.Sample(true,.1,4400,0,2)==AudiRS6RPopEvent.ThrottleRelease,"Lift did not pop");
-        Require(gate.Sample(true,.2,4300,0,2)==AudiRS6RPopEvent.None,"Steady coasting repeated pop");
-        gate.Sample(true,.3,4500,.9f,2);
-        Require(gate.Sample(true,.4,4200,.8f,3)==AudiRS6RPopEvent.None,"Cooldown ignored");
-        gate.Sample(true,.7,4600,.9f,3);
-        gate.Sample(true,1,4600,.9f,3);
-        Require(gate.Sample(true,1.1,3500,.8f,4)==AudiRS6RPopEvent.Upshift,"Upshift did not pop");
-        gate.Reset();
-        gate.Sample(true,2,4500,.9f,3);
-        Require(gate.Sample(true,2.1,4700,.9f,2)==AudiRS6RPopEvent.None,"Downshift popped");
-        gate.Sample(false,2.2,4500,.9f,2);
-        Require(gate.Sample(true,2.3,4300,0,3)==AudiRS6RPopEvent.None,"Pause/exit left stale pop");
-        gate.Sample(true,2.4,4500,.9f,3);
-        Require(gate.Sample(true,2.5,4500,0,-1)==AudiRS6RPopEvent.None,"Reverse popped");
-        gate.Sample(true,3,4500,.9f,2);
-        Require(gate.Sample(true,5,4000,0,2)==AudiRS6RPopEvent.None,"Long suspension left stale pop");
+        Require(gate.Sample(true,.1,4400,0,2)==AudiRS6RPopEvent.None,"Throttle edge forced a pop");
+        Require(gate.OverrunActive,"Overrun was not armed after load");
+        Require(gate.Sample(true,.15,4300,0,3)==AudiRS6RPopEvent.None,"Shift forced an immediate pop");
+        gate.Sample(false,.2,4500,.9f,2);
+        Require(!gate.OverrunActive,"Pause/exit retained overrun state");
+        Require(gate.Sample(true,.3,4300,0,3)==AudiRS6RPopEvent.None,"Pause/exit left stale pop");
+        gate.Sample(true,.4,4500,.9f,3);
+        Require(gate.Sample(true,.5,4500,0,-1)==AudiRS6RPopEvent.None,"Reverse popped");
+        gate.Sample(true,1,4500,.9f,2);
+        Require(gate.Sample(true,3,4000,0,2)==AudiRS6RPopEvent.None,"Long suspension left stale pop");
         gate.Reset();
         for (int i=0;i<1000;i++)
-            Require(gate.Sample(true,i*.02,5000,1,2)==AudiRS6RPopEvent.None,"Steady acceleration popped repeatedly");
+            Require(gate.Sample(true,i*.02,5000,1,1+i%5)==AudiRS6RPopEvent.None,"Gear changes under load forced pops");
+        int low=CountOverrun(1,.02), high=CountOverrun(5,.02), fast=CountOverrun(1,.01);
+        Require(low>high*2 && high>0,"Lower gears must pop more often, with occasional high-gear pops");
+        Require(Math.Abs(fast-low)<low*.15,"Pop rate depends excessively on render frame rate");
 
         int count=0;
         foreach (var file in Directory.GetFiles(audioPath,"*.wav"))
@@ -100,7 +99,7 @@ public static class AudiAudioProbe
             Require(power/clip.Samples.Length>.001,"WAV is silent or unexpectedly quiet");
             count++;
         }
-        Require(count==6,"Expected three layers and three pop variants");
+        Require(count==9,"Expected three coast, three load, and three pop variants");
         var bad=Path.GetTempFileName();
         try
         {
@@ -110,7 +109,32 @@ public static class AudiAudioProbe
             Require(rejected,"Malformed WAV accepted");
         }
         finally { File.Delete(bad); }
-        Console.WriteLine("PASS: 1001 RPM crossfades/pitch alignment; pop events/cooldown/inactive states; six decoded WAVs and malformed-WAV rejection.");
+        Console.WriteLine("PASS: idle/load calibration, 1001 RPM crossfades, randomized same-gear overrun/gear bias/frame-rate checks, nine WAVs. Overrun counts: gear1="+low+" gear5="+high);
+    }
+
+    private static int CountOverrun(int gear, double step)
+    {
+        int count=0;
+        var intervals=new System.Collections.Generic.HashSet<int>();
+        for(int trial=0;trial<100;trial++)
+        {
+            var gate=new AudiRS6RPopGate(trial);
+            double previous=-10;
+            for(int frame=0;frame<4/step;frame++)
+            {
+                double time=frame*step;
+                var pop=gate.Sample(true,time,4000,time<.5?.8f:0f,gear);
+                if(pop==AudiRS6RPopEvent.None) continue;
+                Require(time>=.66 && time<2.91,"Pop outside recently loaded overrun window");
+                Require(time-previous>=.159,"Random bursts have no minimum spacing");
+                if(previous>=0) intervals.Add((int)((time-previous)*100));
+                previous=time;
+                count++;
+            }
+            Require(!gate.OverrunActive,"Overrun did not expire after prolonged coasting");
+        }
+        Require(intervals.Count>3,"Pop timing follows a fixed cadence");
+        return count;
     }
 }
 '@
