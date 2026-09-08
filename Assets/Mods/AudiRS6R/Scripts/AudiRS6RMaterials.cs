@@ -65,6 +65,8 @@ internal static class AudiRS6RMaterials
         var wheelRenderers = new List<Renderer>();
         foreach (var renderer in vehicleRoot.GetComponentsInChildren<Renderer>(true))
             if (renderer != null && IsWheelVisual(renderer.transform)) wheelRenderers.Add(renderer);
+        var wheelRendererSet = new HashSet<Renderer>(wheelRenderers);
+        var isolatedWheelMaterials = new Dictionary<Material, Material>();
 
         var rendererSet = new HashSet<Renderer>();
         var renderers = new List<Renderer>(bodyRenderers.Length + wheelRenderers.Count);
@@ -94,13 +96,19 @@ internal static class AudiRS6RMaterials
             if (renderer.renderingLayerMask != previousMask)
                 decalMasksCleared++;
 
-            // Wheel visuals can share imported materials with cabin and glass meshes. Their renderer
-            // mask and private no-decal material clones avoid mutating those shared materials.
-            if (!bodyRendererSet.Contains(renderer))
+            // Road-wheel visuals can share imported materials with cabin meshes. Isolate and correct
+            // every wheel material before touching the remaining imported body hierarchy.
+            if (wheelRendererSet.Contains(renderer))
             {
-                wheelMaterialCloneCount += CloneWheelMaterialsWithoutDecals(renderer, ownedWheelMaterials);
+                wheelMaterialCloneCount += CloneWheelMaterialsWithoutDecals(
+                    renderer,
+                    isolatedWheelMaterials,
+                    ownedWheelMaterials);
                 continue;
             }
+
+            if (!bodyRendererSet.Contains(renderer))
+                continue;
 
             var hasSolidMaterial = false;
             foreach (var material in renderer.sharedMaterials)
@@ -187,8 +195,23 @@ internal static class AudiRS6RMaterials
     {
         for (var current = transform; current != null; current = current.parent)
         {
-            if (current.name.IndexOf("wheel", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (current.name.IndexOf("steeringwheel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                current.name.IndexOf("steering wheel", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return false;
+            }
+        }
+
+        for (var current = transform; current != null; current = current.parent)
+        {
+            var name = current.name;
+            if (name.StartsWith("3DWheel ", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("WheelMesh", StringComparison.OrdinalIgnoreCase) ||
+                name.EndsWith("_WheelController", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "Wheels", StringComparison.OrdinalIgnoreCase))
+            {
                 return true;
+            }
         }
 
         return false;
@@ -196,6 +219,7 @@ internal static class AudiRS6RMaterials
 
     private static int CloneWheelMaterialsWithoutDecals(
         Renderer renderer,
+        IDictionary<Material, Material> isolatedWheelMaterials,
         ICollection<Material> ownedWheelMaterials)
     {
         var sourceMaterials = renderer.sharedMaterials;
@@ -210,12 +234,17 @@ internal static class AudiRS6RMaterials
             if (source == null)
                 continue;
 
-            var clone = new Material(source) { name = source.name + " Audi Wheel No Decals" };
-            SetFloat(clone, "_SupportDecals", 0f);
-            clone.EnableKeyword("_DISABLE_DECALS");
+            if (!isolatedWheelMaterials.TryGetValue(source, out var clone))
+            {
+                clone = new Material(source) { name = source.name + " Audi Wheel No Decals" };
+                RebindToHdrpLit(clone);
+                FixSolidHdrpMaterial(clone);
+                isolatedWheelMaterials.Add(source, clone);
+                ownedWheelMaterials.Add(clone);
+                cloneCount++;
+            }
+
             clonedMaterials[index] = clone;
-            ownedWheelMaterials.Add(clone);
-            cloneCount++;
         }
 
         renderer.sharedMaterials = clonedMaterials;
