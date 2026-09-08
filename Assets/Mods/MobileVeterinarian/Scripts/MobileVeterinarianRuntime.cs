@@ -43,6 +43,7 @@ namespace MobileVeterinarian
         private const float ApproachDistance = 3f;
         private const float ApproachTimeoutSeconds = 15f;
         private const float ArrivalDistance = 0.55f;
+        private const float VeterinarianWalkSpeed = 1.4f;
         private const float MonitorIntervalSeconds = 0.1f;
         private const float GestureFallbackSeconds = 2.5f;
 
@@ -364,27 +365,36 @@ namespace MobileVeterinarian
 
             yield return null;
             var character = veterinarian.Root.GetComponentInChildren<ThirdPersonCharacter>(true);
-            if (character == null)
-            {
-                LogWarning("Veterinarian approach failed: the existing humanoid prefab has no ThirdPersonCharacter.");
-                CancelActiveVisit("veterinarian movement component missing", true, "mobileveterinarian:cannot_reach");
-                yield break;
-            }
-
+            var animator = veterinarian.Root.GetComponentsInChildren<Animator>(true)
+                .FirstOrDefault(candidate => candidate != null && candidate.runtimeAnimatorController != null);
             var reached = false;
             UnityAction onReached = () => reached = true;
             try
             {
-                character.WarpSafely(visit.SpawnPosition);
-                movementCoroutine = StartCoroutine(character.MoveToPosition(
-                    visit.TreatmentPosition,
-                    visit.Quote.Controller.transform.position,
-                    ArrivalDistance,
-                    true,
-                    null,
-                    0f,
-                    onReached,
-                    true));
+                if (character != null)
+                {
+                    character.WarpSafely(visit.SpawnPosition);
+                    movementCoroutine = StartCoroutine(character.MoveToPosition(
+                        visit.TreatmentPosition,
+                        visit.Quote.Controller.transform.position,
+                        ArrivalDistance,
+                        true,
+                        null,
+                        0f,
+                        onReached,
+                        true));
+                    LogInfo("Veterinarian approach started movement=native_third_person_character.");
+                }
+                else if (!TryStartNavMeshApproach(
+                             veterinarian.Root,
+                             animator,
+                             visit,
+                             onReached,
+                             out movementCoroutine))
+                {
+                    CancelActiveVisit("veterinarian NavMesh approach failed to start", true, "mobileveterinarian:cannot_reach");
+                    yield break;
+                }
             }
             catch (Exception exception)
             {
@@ -412,13 +422,14 @@ namespace MobileVeterinarian
                 yield break;
             }
 
-            character.RotateTowards(visit.Quote.Controller.transform.position);
+            if (character != null)
+                character.RotateTowards(visit.Quote.Controller.transform.position);
+            else
+                FaceTarget(veterinarian.Root.transform, visit.Quote.Controller.transform.position);
             LogInfo(
                 $"Treatment start vehicleId='{visit.Quote.VehicleId}' animal='{visit.Quote.AnimalName}' " +
                 $"damagePercent={visit.Quote.DamagePercentage:F1}.");
 
-            var animator = veterinarian.Root.GetComponentsInChildren<Animator>(true)
-                .FirstOrDefault(candidate => candidate != null && candidate.runtimeAnimatorController != null);
             var gestureLength = GestureFallbackSeconds;
             if (animator != null)
             {
@@ -537,6 +548,112 @@ namespace MobileVeterinarian
                 $"price={visit.Quote.Price:F0}.");
 
             CompleteVisit("treatment completed");
+        }
+
+        private bool TryStartNavMeshApproach(
+            GameObject veterinarianRoot,
+            Animator? animator,
+            VisitState visit,
+            UnityAction onReached,
+            out Coroutine? coroutine)
+        {
+            coroutine = null;
+            var agent = veterinarianRoot.GetComponent<NavMeshAgent>() ?? veterinarianRoot.AddComponent<NavMeshAgent>();
+            agent.speed = VeterinarianWalkSpeed;
+            agent.angularSpeed = 240f;
+            agent.acceleration = 8f;
+            agent.stoppingDistance = ArrivalDistance;
+            agent.radius = 0.2f;
+            agent.height = 1.8f;
+            agent.baseOffset = 0f;
+            agent.autoBraking = true;
+            agent.updateRotation = true;
+            agent.updateUpAxis = true;
+            agent.enabled = true;
+
+            if (!agent.Warp(visit.SpawnPosition) || !agent.isOnNavMesh ||
+                !agent.SetDestination(visit.TreatmentPosition))
+            {
+                LogWarning(
+                    $"Veterinarian approach failed movement=navmesh_agent isOnNavMesh={agent.isOnNavMesh} " +
+                    $"spawn={FormatVector(visit.SpawnPosition)} treatment={FormatVector(visit.TreatmentPosition)}.");
+                return false;
+            }
+
+            coroutine = StartCoroutine(MoveVeterinarianWithNavMeshAgent(agent, animator, onReached));
+            LogInfo("Veterinarian approach started movement=navmesh_agent_fallback.");
+            return true;
+        }
+
+        private IEnumerator MoveVeterinarianWithNavMeshAgent(
+            NavMeshAgent agent,
+            Animator? animator,
+            UnityAction onReached)
+        {
+            while (agent != null && agent.enabled && agent.isOnNavMesh)
+            {
+                var moving = agent.pathPending ||
+                             agent.remainingDistance > Mathf.Max(agent.stoppingDistance, ArrivalDistance);
+                UpdateMovementAnimation(animator, moving, agent.velocity.magnitude);
+
+                if (!agent.pathPending && !agent.hasPath)
+                {
+                    if (agent.remainingDistance <= Mathf.Max(agent.stoppingDistance, ArrivalDistance))
+                    {
+                        agent.isStopped = true;
+                        UpdateMovementAnimation(animator, false, 0f);
+                        onReached.Invoke();
+                    }
+
+                    yield break;
+                }
+
+                if (!moving)
+                {
+                    agent.isStopped = true;
+                    agent.ResetPath();
+                    UpdateMovementAnimation(animator, false, 0f);
+                    onReached.Invoke();
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            UpdateMovementAnimation(animator, false, 0f);
+        }
+
+        private static void UpdateMovementAnimation(Animator? animator, bool moving, float speed)
+        {
+            if (animator == null)
+                return;
+
+            foreach (var parameter in animator.parameters)
+            {
+                if (parameter.type == AnimatorControllerParameterType.Float &&
+                    (string.Equals(parameter.name, "Speed", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(parameter.name, "MoveSpeed", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(parameter.name, "Velocity", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(parameter.name, "WalkSpeed", StringComparison.OrdinalIgnoreCase)))
+                {
+                    animator.SetFloat(parameter.name, moving ? Mathf.Max(speed, 0.1f) : 0f);
+                }
+                else if (parameter.type == AnimatorControllerParameterType.Bool &&
+                         (string.Equals(parameter.name, "Walking", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(parameter.name, "IsWalking", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(parameter.name, "Moving", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(parameter.name, "IsMoving", StringComparison.OrdinalIgnoreCase)))
+                {
+                    animator.SetBool(parameter.name, moving);
+                }
+            }
+        }
+
+        private static void FaceTarget(Transform source, Vector3 target)
+        {
+            var direction = Flatten(target - source.position);
+            if (direction.sqrMagnitude > 0.001f)
+                source.rotation = Quaternion.LookRotation(direction, Vector3.up);
         }
 
         private bool IsVisitStillValid(VisitState visit, out string reason)
