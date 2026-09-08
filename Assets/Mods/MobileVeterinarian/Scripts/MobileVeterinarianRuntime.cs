@@ -4,7 +4,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using BAModAPI;
-using BigAmbitions.Characters;
 using BigAmbitions.SaveSystem.Legacy;
 using CustomNPCAPI;
 using Dialogs;
@@ -16,7 +15,6 @@ using UI.Smartphone;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 
 namespace MobileVeterinarian
@@ -41,24 +39,26 @@ namespace MobileVeterinarian
         private const float MaxAnimalTravelDistance = 1.5f;
         private const float TreatmentClearance = 0.3f;
         private const float NavMeshProbeRadius = 3f;
-        private const float ApproachDistance = 3f;
-        private const float ApproachTimeoutSeconds = 15f;
-        private const float ArrivalDistance = 0.55f;
-        private const float VeterinarianWalkSpeed = 1.4f;
         private const float MonitorIntervalSeconds = 0.1f;
-        private const float GestureFallbackSeconds = 2.5f;
+        private const float DoctorSettleSeconds = 0.75f;
+        private const float NodAngleDegrees = 18f;
+        private const float NodPhaseSeconds = 0.28f;
+        private const float BetweenNodsSeconds = 0.12f;
+        private const float LookAtAnimalSeconds = 0.75f;
+        private const float FinalPoseSeconds = 0.75f;
+        private const float GestureTimeoutSeconds = 10f;
 
         private ModContext? context;
+        private GameObject? doctorPrefab;
         private VisitState? activeVisit;
         private Coroutine? visitCoroutine;
-        private Coroutine? movementCoroutine;
         private Coroutine? gestureCoroutine;
         private bool sceneCallbackInstalled;
         private bool shuttingDown;
 
         internal static MobileVeterinarianRuntime? Current { get; private set; }
 
-        internal static MobileVeterinarianRuntime Install(ModContext context)
+        internal static MobileVeterinarianRuntime Install(ModContext context, GameObject? doctorPrefab)
         {
             if (Current != null)
                 Current.Shutdown("runtime replaced");
@@ -66,6 +66,7 @@ namespace MobileVeterinarian
             var root = new GameObject("MobileVeterinarian.Runtime");
             var runtime = root.AddComponent<MobileVeterinarianRuntime>();
             runtime.context = context;
+            runtime.doctorPrefab = doctorPrefab;
             Current = runtime;
             runtime.RegisterPhoneContact();
             return runtime;
@@ -177,6 +178,13 @@ namespace MobileVeterinarian
         {
             quote = null!;
             failureData = null;
+
+            if (doctorPrefab == null)
+            {
+                failureKey = ServiceUnavailableKey;
+                LogWarning("Supported-animal validation skipped reason=doctor_prefab_unavailable.");
+                return false;
+            }
 
             if (activeVisit != null)
             {
@@ -345,20 +353,18 @@ namespace MobileVeterinarian
                         Id = VeterinarianNpcId,
                         DisplayName = ContactNameKey.Localize().ToString(),
                         NameKey = ContactNameKey,
-                        PrefabName = "Characters/Homeless",
+                        PrefabName = string.Empty,
                         GameObjectName = "MobileVeterinarian.ActiveVeterinarian",
-                        VisualObjectName = "VeterinarianVisual",
+                        VisualObjectName = "DoctorVisual",
                         Interactable = false,
-                        Gender = "Female",
-                        AgeInDays = 38 * 365,
-                        AppearanceSeed = 72341,
                         Position = visit.SpawnPosition,
                         Forward = towardAnimal.sqrMagnitude > 0.001f ? towardAnimal : Vector3.forward
                     },
                     new CustomNpcSpawnOptions
                     {
                         Visible = true,
-                        BuildFallbackVisual = false
+                        BuildFallbackVisual = false,
+                        VisualFactory = parent => InstantiateDoctorVisual(parent)
                     });
             }
             catch (Exception exception)
@@ -381,114 +387,36 @@ namespace MobileVeterinarian
                 $"position={FormatVector(visit.SpawnPosition)}.");
 
             yield return null;
-            var character = veterinarian.Root.GetComponentInChildren<ThirdPersonCharacter>(true);
-            var animator = veterinarian.Root.GetComponentsInChildren<Animator>(true)
-                .FirstOrDefault(candidate => candidate != null && candidate.runtimeAnimatorController != null);
-            var reached = false;
-            UnityAction onReached = () => reached = true;
-            if (HorizontalDistance(visit.SpawnPosition, visit.TreatmentPosition) <= ArrivalDistance)
+            var doctorHead = FindDoctorHead(veterinarian.Root.transform);
+            if (doctorHead == null)
             {
-                reached = true;
-                LogInfo("Veterinarian approach skipped movement=already_beside_animal.");
-            }
-            else
-            {
-                try
-                {
-                    if (character != null)
-                    {
-                        character.WarpSafely(visit.SpawnPosition);
-                        movementCoroutine = StartCoroutine(character.MoveToPosition(
-                            visit.TreatmentPosition,
-                            visit.Quote.Controller.transform.position,
-                            ArrivalDistance,
-                            true,
-                            null,
-                            0f,
-                            onReached,
-                            true));
-                        LogInfo("Veterinarian approach started movement=native_third_person_character.");
-                    }
-                    else if (!TryStartNavMeshApproach(
-                                 veterinarian.Root,
-                                 animator,
-                                 visit,
-                                 onReached,
-                                 out movementCoroutine))
-                    {
-                        CancelActiveVisit("veterinarian NavMesh approach failed to start", true, "mobileveterinarian:cannot_reach");
-                        yield break;
-                    }
-                }
-                catch (Exception exception)
-                {
-                    LogWarning($"Veterinarian approach could not start: {exception.Message}");
-                    CancelActiveVisit("veterinarian approach failed to start", true, "mobileveterinarian:cannot_reach");
-                    yield break;
-                }
-            }
-
-            var approachDeadline = Time.unscaledTime + ApproachTimeoutSeconds;
-            while (!reached && Time.unscaledTime < approachDeadline)
-            {
-                if (!IsVisitStillValid(visit, out cancellationReason))
-                {
-                    CancelActiveVisit(cancellationReason, true);
-                    yield break;
-                }
-
-                yield return new WaitForSecondsRealtime(MonitorIntervalSeconds);
-            }
-
-            movementCoroutine = null;
-            if (!reached)
-            {
-                CancelActiveVisit("veterinarian approach timed out", true, "mobileveterinarian:cannot_reach");
+                LogWarning("Treatment could not start: bundled doctor head bone was not found.");
+                CancelActiveVisit("doctor head bone missing", true, ServiceUnavailableKey);
                 yield break;
             }
 
-            if (character != null)
-                character.RotateTowards(visit.Quote.Controller.transform.position);
-            else
-                FaceTarget(veterinarian.Root.transform, visit.Quote.Controller.transform.position);
+            // The source model's imported animation is not the treatment choreography. Disable
+            // it so it cannot overwrite the procedural head rotations below.
+            foreach (var animator in veterinarian.Root.GetComponentsInChildren<Animator>(true))
+                if (animator != null) animator.enabled = false;
+
             LogInfo(
                 $"Treatment start vehicleId='{visit.Quote.VehicleId}' animal='{visit.Quote.AnimalName}' " +
                 $"damagePercent={visit.Quote.DamagePercentage:F1}.");
 
-            var gestureLength = GestureFallbackSeconds;
-            if (animator != null)
-            {
-                try
-                {
-                    gestureLength = CharacterAnimations.GetAnimationLength(
-                        animator,
-                        AnimationType.HammerHitting,
-                        1f);
-                    if (gestureLength <= 0.1f || gestureLength > 10f)
-                        gestureLength = GestureFallbackSeconds;
+            var gestureCompleted = false;
+            gestureCoroutine = StartCoroutine(RunDoctorTreatmentGesture(
+                veterinarian.Root.transform,
+                doctorHead,
+                visit.Quote.Controller.transform,
+                () => gestureCompleted = true));
+            LogInfo($"Treatment gesture started head='{doctorHead.name}' sequence=nod2_look_animal_nod2.");
 
-                    gestureCoroutine = StartCoroutine(
-                        CharacterAnimations.RunAnimation(animator, AnimationType.HammerHitting, 1f));
-                    LogInfo($"Treatment gesture started animation=HammerHitting duration={gestureLength:F2}.");
-                }
-                catch (Exception exception)
-                {
-                    gestureCoroutine = null;
-                    LogWarning($"Treatment gesture could not start; using a timed examination pause. {exception.Message}");
-                }
-            }
-            else
-            {
-                LogWarning("Treatment gesture unavailable: veterinarian animator was not found.");
-            }
-
-            var gestureDeadline = Time.unscaledTime + gestureLength;
-            while (Time.unscaledTime < gestureDeadline)
+            var gestureDeadline = Time.unscaledTime + GestureTimeoutSeconds;
+            while (!gestureCompleted && Time.unscaledTime < gestureDeadline)
             {
                 if (!IsVisitStillValid(visit, out cancellationReason))
                 {
-                    if (animator != null && gestureCoroutine != null)
-                        CharacterAnimations.ResetTrigger(animator, AnimationType.HammerHitting);
                     CancelActiveVisit(cancellationReason, true);
                     yield break;
                 }
@@ -497,6 +425,11 @@ namespace MobileVeterinarian
             }
 
             gestureCoroutine = null;
+            if (!gestureCompleted)
+            {
+                CancelActiveVisit("doctor gesture timed out", true);
+                yield break;
+            }
 
             if (!IsVisitStillValid(visit, out cancellationReason))
             {
@@ -576,103 +509,74 @@ namespace MobileVeterinarian
             CompleteVisit("treatment completed");
         }
 
-        private bool TryStartNavMeshApproach(
-            GameObject veterinarianRoot,
-            Animator? animator,
-            VisitState visit,
-            UnityAction onReached,
-            out Coroutine? coroutine)
+        private GameObject InstantiateDoctorVisual(Transform parent)
         {
-            coroutine = null;
-            var agent = veterinarianRoot.GetComponent<NavMeshAgent>() ?? veterinarianRoot.AddComponent<NavMeshAgent>();
-            agent.speed = VeterinarianWalkSpeed;
-            agent.angularSpeed = 240f;
-            agent.acceleration = 8f;
-            agent.stoppingDistance = ArrivalDistance;
-            agent.radius = 0.2f;
-            agent.height = 1.8f;
-            agent.baseOffset = 0f;
-            agent.autoBraking = true;
-            agent.updateRotation = true;
-            agent.updateUpAxis = true;
-            agent.enabled = true;
-
-            if (!agent.Warp(visit.SpawnPosition) || !agent.isOnNavMesh ||
-                !agent.SetDestination(visit.TreatmentPosition))
-            {
-                LogWarning(
-                    $"Veterinarian approach failed movement=navmesh_agent isOnNavMesh={agent.isOnNavMesh} " +
-                    $"spawn={FormatVector(visit.SpawnPosition)} treatment={FormatVector(visit.TreatmentPosition)}.");
-                return false;
-            }
-
-            coroutine = StartCoroutine(MoveVeterinarianWithNavMeshAgent(agent, animator, onReached));
-            LogInfo("Veterinarian approach started movement=navmesh_agent_fallback.");
-            return true;
+            var source = doctorPrefab ?? throw new InvalidOperationException("Doctor prefab is unavailable.");
+            return Instantiate(source, parent, false);
         }
 
-        private IEnumerator MoveVeterinarianWithNavMeshAgent(
-            NavMeshAgent agent,
-            Animator? animator,
-            UnityAction onReached)
+        private IEnumerator RunDoctorTreatmentGesture(
+            Transform doctorRoot,
+            Transform head,
+            Transform animal,
+            Action onCompleted)
         {
-            while (agent != null && agent.enabled && agent.isOnNavMesh)
+            var cameraPosition = Camera.main != null
+                ? Camera.main.transform.position
+                : animal.position;
+            FaceTarget(doctorRoot, cameraPosition);
+            yield return new WaitForSecondsRealtime(DoctorSettleSeconds);
+
+            var restingRotation = head.localRotation;
+            yield return NodTwice(doctorRoot, head);
+            head.localRotation = restingRotation;
+
+            FaceTarget(doctorRoot, animal.position);
+            yield return new WaitForSecondsRealtime(LookAtAnimalSeconds);
+
+            yield return NodTwice(doctorRoot, head);
+            head.localRotation = restingRotation;
+            yield return new WaitForSecondsRealtime(FinalPoseSeconds);
+            onCompleted.Invoke();
+        }
+
+        private static IEnumerator NodTwice(Transform doctorRoot, Transform head)
+        {
+            var restingRotation = head.rotation;
+            var loweredRotation = Quaternion.AngleAxis(NodAngleDegrees, doctorRoot.right) * restingRotation;
+            for (var index = 0; index < 2; index++)
             {
-                var moving = agent.pathPending ||
-                             agent.remainingDistance > Mathf.Max(agent.stoppingDistance, ArrivalDistance);
-                UpdateMovementAnimation(animator, moving, agent.velocity.magnitude);
+                yield return RotateWorld(head, restingRotation, loweredRotation, NodPhaseSeconds);
+                yield return RotateWorld(head, loweredRotation, restingRotation, NodPhaseSeconds);
+                if (index == 0)
+                    yield return new WaitForSecondsRealtime(BetweenNodsSeconds);
+            }
+        }
 
-                if (!agent.pathPending && !agent.hasPath)
-                {
-                    if (agent.remainingDistance <= Mathf.Max(agent.stoppingDistance, ArrivalDistance))
-                    {
-                        agent.isStopped = true;
-                        UpdateMovementAnimation(animator, false, 0f);
-                        onReached.Invoke();
-                    }
-
+        private static IEnumerator RotateWorld(
+            Transform target,
+            Quaternion from,
+            Quaternion to,
+            float duration)
+        {
+            var startedAt = Time.unscaledTime;
+            while (target != null)
+            {
+                var progress = Mathf.Clamp01((Time.unscaledTime - startedAt) / duration);
+                target.rotation = Quaternion.Slerp(from, to, progress);
+                if (progress >= 1f)
                     yield break;
-                }
-
-                if (!moving)
-                {
-                    agent.isStopped = true;
-                    agent.ResetPath();
-                    UpdateMovementAnimation(animator, false, 0f);
-                    onReached.Invoke();
-                    yield break;
-                }
-
                 yield return null;
             }
-
-            UpdateMovementAnimation(animator, false, 0f);
         }
 
-        private static void UpdateMovementAnimation(Animator? animator, bool moving, float speed)
+        private static Transform? FindDoctorHead(Transform root)
         {
-            if (animator == null)
-                return;
-
-            foreach (var parameter in animator.parameters)
-            {
-                if (parameter.type == AnimatorControllerParameterType.Float &&
-                    (string.Equals(parameter.name, "Speed", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(parameter.name, "MoveSpeed", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(parameter.name, "Velocity", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(parameter.name, "WalkSpeed", StringComparison.OrdinalIgnoreCase)))
-                {
-                    animator.SetFloat(parameter.name, moving ? Mathf.Max(speed, 0.1f) : 0f);
-                }
-                else if (parameter.type == AnimatorControllerParameterType.Bool &&
-                         (string.Equals(parameter.name, "Walking", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(parameter.name, "IsWalking", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(parameter.name, "Moving", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(parameter.name, "IsMoving", StringComparison.OrdinalIgnoreCase)))
-                {
-                    animator.SetBool(parameter.name, moving);
-                }
-            }
+            var transforms = root.GetComponentsInChildren<Transform>(true);
+            return transforms.FirstOrDefault(transform =>
+                       string.Equals(transform.name, "Bip001 Head_023_85", StringComparison.OrdinalIgnoreCase))
+                   ?? transforms.FirstOrDefault(transform =>
+                       transform.name.IndexOf("Head", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         private static void FaceTarget(Transform source, Vector3 target)
@@ -758,25 +662,10 @@ namespace MobileVeterinarian
                 if (away.sqrMagnitude < 0.001f)
                     continue;
 
-                // A safe standing point beside the animal is sufficient. Approaching from a
-                // few metres away is optional and must never make an otherwise valid visit fail.
+                // A single safe standing point beside the animal is sufficient. The doctor
+                // faces the animal in place, so route availability cannot reject the visit.
                 treatmentPosition = treatmentHit.position;
                 spawnPosition = treatmentHit.position;
-                var requestedSpawn = treatmentHit.position + away * ApproachDistance;
-                if (!NavMesh.SamplePosition(requestedSpawn, out var spawnHit, NavMeshProbeRadius, NavMesh.AllAreas) ||
-                    !HasVehicleClearance(controller, spawnHit.position))
-                {
-                    return true;
-                }
-
-                var path = new NavMeshPath();
-                if (!NavMesh.CalculatePath(spawnHit.position, treatmentHit.position, NavMesh.AllAreas, path) ||
-                    path.status != NavMeshPathStatus.PathComplete || path.corners == null || path.corners.Length < 2)
-                {
-                    return true;
-                }
-
-                spawnPosition = spawnHit.position;
                 return true;
             }
 
@@ -834,12 +723,6 @@ namespace MobileVeterinarian
                 var coroutine = visitCoroutine;
                 visitCoroutine = null;
                 StopCoroutine(coroutine);
-            }
-
-            if (movementCoroutine != null)
-            {
-                StopCoroutine(movementCoroutine);
-                movementCoroutine = null;
             }
 
             if (gestureCoroutine != null)

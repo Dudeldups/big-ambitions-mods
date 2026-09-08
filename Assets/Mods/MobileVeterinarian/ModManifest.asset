@@ -16,9 +16,10 @@ MonoBehaviour:
   DisplayName: Mobile Veterinarian
   Author: OpenAI Codex
   Version: 0.1.0
-  AssetBundleName:
-  ModAssembly: {fileID: 5897886265953266890, guid: fe0b49eb67e5402c88f3b77b468e92a9, type: 3}
+  AssetBundleName: mobileveterinarian.unity3d
+  ModAssembly: {fileID: 5897886265953266890, guid: fe0b49eb67e5402c88f3b77b468e92a9,
+    type: 3}
   LocalesFolder: {fileID: 102900000, guid: 6bc76b0e6a39450a91003dca1e885055, type: 3}
   DependenciesFolder: {fileID: 0}
   EnumsFile: {fileID: 0}
-  TargetPlatforms: 3
+  TargetPlatforms: 1
