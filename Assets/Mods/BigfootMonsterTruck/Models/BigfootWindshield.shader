@@ -2,7 +2,7 @@ Shader "Bigfoot/TransparentWindshield"
 {
     Properties
     {
-        _Color ("Tint", Color) = (0.12, 0.18, 0.22, 0.58)
+        _Color ("Tint", Color) = (0.78, 0.84, 0.88, 0.2)
     }
 
     SubShader

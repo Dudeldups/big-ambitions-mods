@@ -11,7 +11,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 {
     private const int InitializationRetryCount = 24;
     private const float InitializationRetryDelay = 0.25f;
-    private const float VehicleMass = 4500f;
+    private const float VehicleMass = 6500f;
     private const float WheelRadius = 0.78f;
     private const float WheelWidth = 1.05f;
     private const float SuspensionLength = 0.65f;
@@ -57,6 +57,9 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         foreach (var driver in FindObjectsOfType<BigfootMonsterTruckDriverController>(true))
             if (driver != null)
                 Destroy(driver);
+        foreach (var guard in FindObjectsOfType<BigfootMonsterTruckCollisionGuard>(true))
+            if (guard != null)
+                Destroy(guard);
         Destroy(gameObject);
     }
 
@@ -209,6 +212,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
         var driver = vehicle.gameObject.AddComponent<BigfootMonsterTruckDriverController>();
         driver.Initialize(vehicle, context);
+        var collisionGuard = vehicle.gameObject.AddComponent<BigfootMonsterTruckCollisionGuard>();
+        collisionGuard.Initialize(vehicle, context);
         vehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
         context?.Logger.Info(
             $"BigfootMonsterTruck: configured vehicle id={vehicle.GetInstanceID()}, " +
@@ -216,7 +221,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             $"power={vehicle.vehicleType?.enginePower ?? 0f:F0}, " +
             $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
             $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
-            $"suspensionTravel={SuspensionLength:F2}, vehicleContactLayer=true.");
+            $"suspensionTravel={SuspensionLength:F2}, wheelTrafficContact=false.");
         if (wheelCount != 4)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: expected four wheel controllers but configured {wheelCount}.");
@@ -264,13 +269,9 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(component, "loadRating", 30000f);
                 SetFloat(component, "rollingResistanceTorque", 90f);
                 SetFloat(component, "forceApplicationPointDistance", 0.5f);
-                SetFloat(component, "otherBodyForceScale", 4f);
-                var layerMask = GetMember(component, "layerMask");
-                if (layerMask is LayerMask mask)
-                {
-                    mask.value |= 1 << 12;
-                    SetMember(component, "layerMask", mask);
-                }
+                // Wheel raycasts against traffic vehicles made their rigidbodies latch
+                // together and drag the truck. Body colliders handle vehicle impacts.
+                SetFloat(component, "otherBodyForceScale", 1f);
             }
         }
 
@@ -315,12 +316,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 if (index == 0)
                 {
                     collider.center = new Vector3(0f, 1.35f, -0.1f);
-                    collider.size = new Vector3(3.65f, 0.55f, 4.0f);
+                    collider.size = new Vector3(2.6f, 0.55f, 3.7f);
                 }
                 else
                 {
                     collider.center = new Vector3(0f, 2.05f, 0.1f);
-                    collider.size = new Vector3(2.25f, 1.2f, 3.5f);
+                    collider.size = new Vector3(2.2f, 1.2f, 3.4f);
                 }
                 count++;
             }
@@ -391,6 +392,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(brakes, "maxTorque", BrakeTorque);
                 SetFloat(brakes, "actuationTime", 0.1f);
                 SetMember(component, "brakes", brakes);
+                SetFloat(component, "baseMass", VehicleMass);
 
                 var wheelGroups = GetMember(component, "wheelGroups") as IList;
                 if (wheelGroups != null)

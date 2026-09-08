@@ -14,7 +14,10 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
 {
     private const string SeatAnchorName = "BigfootDriverSeat";
     private const string SittingClipName = "SitDeliveryTruck";
+    private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const float SeatedScale = 0.94f;
+    private const float HandHalfSpacing = 0.19f;
+    private const float HandRaise = 0.14f;
     private const int MaximumAttempts = 20;
 
     private readonly List<UnityEngine.Object> ownedAssets = new();
@@ -23,6 +26,9 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
     private Transform? seatAnchor;
     private GameObject? driverRoot;
     private Transform? hips;
+    private Transform? steeringWheel;
+    private SeatedArm? leftArm;
+    private SeatedArm? rightArm;
     private PlayableGraph poseGraph;
     private AnimationClipPlayable pose;
     private float poseLength;
@@ -78,8 +84,11 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
 
             poseTime = Mathf.Repeat(poseTime + Time.deltaTime, poseLength);
             pose.SetTime(poseTime);
+            leftArm?.RestoreAnimationPose();
+            rightArm?.RestoreAnimationPose();
             poseGraph.Evaluate(0f);
             AlignWithSeat();
+            AlignHandsWithWheel();
         }
         catch (Exception exception)
         {
@@ -121,6 +130,10 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
                 sittingClip = clip;
         if (sittingClip == null || sittingClip.length <= 0f)
             throw new InvalidOperationException($"Native seated animation '{SittingClipName}' is unavailable.");
+
+        steeringWheel = FindTransform(vehicle.transform, SteeringWheelName);
+        if (steeringWheel == null)
+            throw new InvalidOperationException("Monster truck steering-wheel reference is missing.");
 
         var sourceRoot = character.transform;
         driverRoot = new GameObject("BigfootMonsterTruck_SeatedPlayer");
@@ -168,9 +181,15 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
             throw new InvalidOperationException("Seated avatar has no humanoid hips bone.");
 
         AlignWithSeat();
+        leftArm = CreateArm(animator, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm,
+            HumanBodyBones.LeftHand);
+        rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
+            HumanBodyBones.RightHand);
+        AlignHandsWithWheel();
         LogInfo(
             $"created centered driver from current appearance; renderers={rendererCount}, " +
-            $"seat={vehicle.transform.InverseTransformPoint(seatAnchor.position).ToString("F3")}.");
+            $"seat={vehicle.transform.InverseTransformPoint(seatAnchor.position).ToString("F3")}, " +
+            $"handRaise={HandRaise:F2}.");
     }
 
     private void AlignWithSeat()
@@ -179,6 +198,109 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
             return;
         driverRoot.transform.rotation = vehicle.transform.rotation;
         driverRoot.transform.position += seatAnchor.position - hips.position;
+    }
+
+    private SeatedArm? CreateArm(Animator animator, HumanBodyBones upperBone,
+        HumanBodyBones lowerBone, HumanBodyBones handBone)
+    {
+        var upper = animator.GetBoneTransform(upperBone);
+        var lower = animator.GetBoneTransform(lowerBone);
+        var hand = animator.GetBoneTransform(handBone);
+        if (upper != null && lower != null && hand != null)
+            return new SeatedArm(upper, lower, hand);
+        context?.Logger.Warn($"BigfootMonsterTruck driver vehicle={vehicle?.GetInstanceID()}: " +
+                             $"cannot refine {handBone}; arm bones are missing. Keeping native pose.");
+        return null;
+    }
+
+    private void AlignHandsWithWheel()
+    {
+        if (vehicle == null || steeringWheel == null)
+            return;
+        var wheelCenter = vehicle.transform.InverseTransformPoint(steeringWheel.position);
+        AlignHand(leftArm, wheelCenter.x - HandHalfSpacing);
+        AlignHand(rightArm, wheelCenter.x + HandHalfSpacing);
+    }
+
+    private void AlignHand(SeatedArm? arm, float targetX)
+    {
+        if (arm == null || vehicle == null)
+            return;
+        var target = vehicle.transform.InverseTransformPoint(arm.Hand.position);
+        target.x = targetX;
+        target.y += HandRaise;
+        arm.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
+    }
+
+    private sealed class SeatedArm
+    {
+        private readonly Transform upper;
+        private readonly Transform lower;
+        public readonly Transform Hand;
+        private Quaternion upperPose;
+        private Quaternion lowerPose;
+        private Quaternion handPose;
+        private bool hasAdjustment;
+
+        public SeatedArm(Transform upper, Transform lower, Transform hand)
+        {
+            this.upper = upper;
+            this.lower = lower;
+            Hand = hand;
+        }
+
+        public void RestoreAnimationPose()
+        {
+            if (!hasAdjustment)
+                return;
+            upper.localRotation = upperPose;
+            lower.localRotation = lowerPose;
+            Hand.localRotation = handPose;
+            hasAdjustment = false;
+        }
+
+        public void AimAt(Vector3 target, Vector3 fallbackDirection)
+        {
+            if (!TrySolveElbow(upper.position, lower.position, Hand.position, target,
+                    fallbackDirection, out var elbow, out var reachableTarget))
+                return;
+            upperPose = upper.localRotation;
+            lowerPose = lower.localRotation;
+            handPose = Hand.localRotation;
+            hasAdjustment = true;
+            var gripRotation = Hand.rotation;
+            upper.rotation = Quaternion.FromToRotation(lower.position - upper.position,
+                elbow - upper.position) * upper.rotation;
+            lower.rotation = Quaternion.FromToRotation(Hand.position - lower.position,
+                reachableTarget - lower.position) * lower.rotation;
+            Hand.rotation = gripRotation;
+        }
+    }
+
+    private static bool TrySolveElbow(Vector3 shoulder, Vector3 elbow, Vector3 hand,
+        Vector3 target, Vector3 fallbackDirection, out Vector3 solvedElbow, out Vector3 reachableTarget)
+    {
+        solvedElbow = elbow;
+        reachableTarget = hand;
+        var upperLength = Vector3.Distance(shoulder, elbow);
+        var lowerLength = Vector3.Distance(elbow, hand);
+        var reach = target - shoulder;
+        if (upperLength < 0.0001f || lowerLength < 0.0001f || reach.sqrMagnitude < 0.000001f)
+            return false;
+        var direction = reach.normalized;
+        var distance = Mathf.Clamp(reach.magnitude,
+            Mathf.Abs(upperLength - lowerLength) + 0.0001f, upperLength + lowerLength - 0.0001f);
+        var bend = Vector3.ProjectOnPlane(elbow - shoulder, direction);
+        if (bend.sqrMagnitude < 0.000001f)
+            bend = Vector3.ProjectOnPlane(fallbackDirection, direction);
+        if (bend.sqrMagnitude < 0.000001f)
+            return false;
+        var along = (upperLength * upperLength + distance * distance - lowerLength * lowerLength) /
+                    (2f * distance);
+        var across = Mathf.Sqrt(Mathf.Max(0f, upperLength * upperLength - along * along));
+        solvedElbow = shoulder + direction * along + bend.normalized * across;
+        reachableTarget = shoulder + direction * distance;
+        return true;
     }
 
     private void CopyRenderer(
@@ -294,6 +416,9 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
         }
         driverRoot = null;
         hips = null;
+        steeringWheel = null;
+        leftArm = null;
+        rightArm = null;
         foreach (var asset in ownedAssets)
             if (asset != null)
                 Destroy(asset);

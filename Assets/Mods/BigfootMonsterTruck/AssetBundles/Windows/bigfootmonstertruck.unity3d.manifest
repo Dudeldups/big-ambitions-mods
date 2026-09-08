@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1614948770
+CRC: 2322491635
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 87979a28364427f38b02d9e0cdafc6aa
+    Hash: 70af97cd6bd8c01dda5c4e4655f3cec2
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 87979a28364427f38b02d9e0cdafc6aa
+    Hash: 70af97cd6bd8c01dda5c4e4655f3cec2
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -222,6 +222,7 @@ SerializeReferenceClassIdentifiers:
 Assets:
 - Assets/Mods/BigfootMonsterTruck/Models/bigfoot-driveable.glb
 - Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.mat
+- Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.shader
 - Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.asset
 - Assets/Mods/BigfootMonsterTruck/ATTRIBUTION.md
 - Assets/Mods/BigfootMonsterTruck/THIRD_PARTY_NOTICES.md

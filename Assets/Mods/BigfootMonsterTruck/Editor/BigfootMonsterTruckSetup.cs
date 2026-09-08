@@ -89,7 +89,8 @@ public static class BigfootMonsterTruckSetup
                     if (material != null &&
                         material.name.IndexOf("Windshield_Glass", StringComparison.OrdinalIgnoreCase) >= 0 &&
                         material.renderQueue >= 3000 &&
-                        material.color.a >= 0.5f &&
+                        material.color.r >= 0.7f &&
+                        material.color.a >= 0.15f && material.color.a <= 0.3f &&
                         string.Equals(material.shader.name, "Bigfoot/TransparentWindshield",
                             StringComparison.Ordinal))
                         hasTransparentGlass = true;
@@ -227,7 +228,7 @@ public static class BigfootMonsterTruckSetup
         var body = root.GetComponent<Rigidbody>();
         if (body == null)
             throw new InvalidOperationException("Reference prefab has no Rigidbody.");
-        body.mass = 4500f;
+        body.mass = 6500f;
         body.drag = 0.02f;
         body.angularDrag = 0.12f;
         body.centerOfMass = new Vector3(0f, 0.72f, 0f);
@@ -251,9 +252,9 @@ public static class BigfootMonsterTruckSetup
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle needs two body colliders.");
         colliders[0].center = new Vector3(0f, 1.35f, -0.1f);
-        colliders[0].size = new Vector3(3.65f, 0.55f, 4.0f);
+        colliders[0].size = new Vector3(2.6f, 0.55f, 3.7f);
         colliders[1].center = new Vector3(0f, 2.05f, 0.1f);
-        colliders[1].size = new Vector3(2.25f, 1.2f, 3.5f);
+        colliders[1].size = new Vector3(2.2f, 1.2f, 3.4f);
     }
 
     private static void ConfigureExitMarkers(GameObject root)
@@ -419,7 +420,7 @@ public static class BigfootMonsterTruckSetup
         material.shader = Shader.Find("Bigfoot/TransparentWindshield") ??
                           throw new InvalidOperationException("The Bigfoot windshield shader is unavailable.");
         material.name = "Bigfoot_Windshield_Glass";
-        material.color = new Color(0.12f, 0.18f, 0.22f, 0.58f);
+        material.color = new Color(0.78f, 0.84f, 0.88f, 0.2f);
         material.SetFloat("_Mode", 3f);
         material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
         material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
