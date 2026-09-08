@@ -1,0 +1,12 @@
+# Third-party notices
+
+## Free Bugatti Chiron
+
+Copyright remains with the original creator, ALIEEEN.
+
+The model is distributed under the Creative Commons Attribution 4.0 International license (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+
+Original model page: https://skfb.ly/oO9Jx
+
+Changes made for this mod include Unity import setup, orientation and dimension normalization, wheel separation and sizing, HDRP material conversion, and integration with the Big Ambitions vehicle systems.
