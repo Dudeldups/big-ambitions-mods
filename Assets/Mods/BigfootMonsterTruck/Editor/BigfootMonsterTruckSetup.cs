@@ -25,8 +25,6 @@ public static class BigfootMonsterTruckSetup
         "bigfootmonstertruck-vehicle:vehicletype_bigfootmonstertruck";
     private const float AxleHeight = 1.05f;
     private const float WheelPrefabVerticalOffset = -0.23f;
-    private static readonly Quaternion OutwardWheelRotation =
-        Quaternion.AngleAxis(90f, Vector3.right);
 
     [MenuItem("Big Ambitions Mods/Setup Bigfoot Monster Truck")]
     public static void Generate()
@@ -86,9 +84,7 @@ public static class BigfootMonsterTruckSetup
                         alignedWheelVisuals++;
                         wheelVisualVerticalRadiusTotal += bounds.extents.y;
                     }
-                    if (Quaternion.Angle(
-                            transform.localRotation,
-                            OutwardWheelRotation) < 0.1f)
+                    if (transform.localScale.x < 0f)
                         outwardWheelFaces++;
                 }
                 if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
@@ -452,7 +448,7 @@ public static class BigfootMonsterTruckSetup
             wheel.SetPositionAndRotation(
                 controller.position + root.transform.up * WheelPrefabVerticalOffset,
                 wheelRotation * Quaternion.AngleAxis(180f, Vector3.up));
-            wheel.localScale = wheelScale;
+            wheel.localScale = new Vector3(-Mathf.Abs(wheelScale.x), wheelScale.y, wheelScale.z);
             AssignWheelVisual(root, pair.Value, wheel.gameObject);
         }
     }
