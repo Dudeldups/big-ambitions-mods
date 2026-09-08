@@ -298,7 +298,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(wheel, "radius", WheelRadius);
                 SetFloat(wheel, "width", WheelWidth);
                 SetFloat(wheel, "mass", 120f);
-                ConfigureWheelVisual(component, wheel, transform.name, vehicle.transform);
+                ConfigureWheelVisual(wheel, transform.name, vehicle.transform);
                 SetMember(component, "wheel", wheel);
 
                 var sideFriction = GetMember(component, "sideFriction");
@@ -324,7 +324,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     }
 
     private void ConfigureWheelVisual(
-        MonoBehaviour wheelController,
         object? wheel,
         string controllerName,
         Transform vehicleTransform)
@@ -337,30 +336,45 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             return;
         }
 
-        GameObject wrapper;
-        if (visual.name.EndsWith("VisualRoot", StringComparison.Ordinal))
+        GameObject physicsPose;
+        GameObject display;
+        if (visual.name.EndsWith("PhysicsPose", StringComparison.Ordinal))
         {
-            wrapper = visual;
+            physicsPose = visual;
+            var displayName = visual.name.Substring(
+                0,
+                visual.name.Length - "PhysicsPose".Length) + "Display";
+            var displayTransform = visual.transform.parent?.Find(displayName);
+            if (displayTransform == null)
+            {
+                context?.Logger.Warn(
+                    $"BigfootMonsterTruck: wheel display correction skipped controller='{controllerName}' " +
+                    $"because '{displayName}' was not found.");
+                return;
+            }
+            display = displayTransform.gameObject;
         }
         else
         {
-            var wrapperName = $"{visual.name}Root";
-            wrapper = new GameObject(wrapperName);
-            wrapper.transform.SetParent(visual.transform.parent, false);
-            wrapper.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
-            visual.transform.SetParent(wrapper.transform, true);
+            var visualName = visual.name.EndsWith("Visual", StringComparison.Ordinal)
+                ? visual.name.Substring(0, visual.name.Length - "Visual".Length)
+                : controllerName;
+            physicsPose = new GameObject($"{visualName}PhysicsPose");
+            physicsPose.transform.SetParent(visual.transform.parent, false);
+            physicsPose.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
+            display = new GameObject($"{visualName}Display");
+            display.transform.SetParent(visual.transform.parent, false);
+            display.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
+            visual.transform.SetParent(display.transform, true);
             visual.transform.localRotation =
                 Quaternion.AngleAxis(180f, Vector3.up) * visual.transform.localRotation;
         }
 
-        SetMember(wheel, "visual", wrapper);
-        SetMember(wheel, "visualTransform", wrapper.transform);
-        var correction = wrapper.GetComponent<BigfootMonsterTruckWheelVisualCorrection>() ??
-                         wrapper.AddComponent<BigfootMonsterTruckWheelVisualCorrection>();
-        if (!correction.Initialize(wheelController, vehicleTransform, WheelVisualVerticalOffset))
-            context?.Logger.Warn(
-                $"BigfootMonsterTruck: wheel visual height correction unavailable " +
-                $"controller='{controllerName}'.");
+        SetMember(wheel, "visual", physicsPose);
+        SetMember(wheel, "visualTransform", physicsPose.transform);
+        var correction = display.GetComponent<BigfootMonsterTruckWheelVisualCorrection>() ??
+                         display.AddComponent<BigfootMonsterTruckWheelVisualCorrection>();
+        correction.Initialize(physicsPose.transform, vehicleTransform, WheelVisualVerticalOffset);
     }
 
     private static bool TryGetWheelPosition(string name, out Vector3 position)
@@ -713,32 +727,27 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
 internal sealed class BigfootMonsterTruckWheelVisualCorrection : MonoBehaviour
 {
-    private MonoBehaviour? wheelController;
+    private Transform? physicsPose;
     private Transform? vehicleTransform;
-    private PropertyInfo? wheelPositionProperty;
     private float verticalOffset;
 
-    public bool Initialize(
-        MonoBehaviour controller,
+    public void Initialize(
+        Transform configuredPhysicsPose,
         Transform configuredVehicleTransform,
         float configuredVerticalOffset)
     {
-        wheelController = controller;
+        physicsPose = configuredPhysicsPose;
         vehicleTransform = configuredVehicleTransform;
         verticalOffset = configuredVerticalOffset;
-        wheelPositionProperty = controller.GetType().GetProperty(
-            "WheelPosition",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        enabled = wheelPositionProperty?.PropertyType == typeof(Vector3);
-        return enabled;
     }
 
     private void LateUpdate()
     {
-        if (wheelController == null || vehicleTransform == null || wheelPositionProperty == null)
+        if (physicsPose == null || vehicleTransform == null)
             return;
-        if (wheelPositionProperty.GetValue(wheelController) is Vector3 wheelPosition)
-            transform.position = wheelPosition + vehicleTransform.up * verticalOffset;
+        transform.SetPositionAndRotation(
+            physicsPose.position + vehicleTransform.up * verticalOffset,
+            physicsPose.rotation);
     }
 }
 
