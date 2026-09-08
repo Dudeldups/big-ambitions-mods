@@ -22,6 +22,7 @@ namespace MootorVehicle
         private VehicleController? vehicle;
         private ModContext? context;
         private readonly float configuredMaximumFuel = DefaultMaximumFuel;
+        private ItemInstance? fedBoxAwaitingRefresh;
         private bool mounted;
         private bool stationFuelBlocked;
 
@@ -50,6 +51,8 @@ namespace MootorVehicle
         {
             mounted = false;
             RestoreStationFueling();
+            if (fedBoxAwaitingRefresh != null)
+                StartCoroutine(RefreshFedBoxAfterDismount(fedBoxAwaitingRefresh));
         }
 
         private void TryFeedFromHands()
@@ -87,7 +90,11 @@ namespace MootorVehicle
             if (boxedEnergyDrink != null)
             {
                 heldItem.ReduceFromCargo(boxedEnergyDrink, 1);
-                PlayerHelper.OnItemInHandsCargoUpdated();
+                // VehicleController.EnterVehicle is still executing here. Refreshing the held-item
+                // HUD now dereferences the walking item panel after it has switched to vehicle mode,
+                // throwing out of the entry callback and leaving the cow only partially mounted.
+                // Keep the cargo mutation, then refresh once the normal exit path restores that UI.
+                fedBoxAwaitingRefresh = heldItem;
             }
             else
             {
@@ -99,6 +106,28 @@ namespace MootorVehicle
                 $"Moo-tor Vehicle feed vehicle={vehicle.GetInstanceID()} item='{EnergyDrinkItemName}' " +
                 $"source={(boxedEnergyDrink != null ? "box" : "hands")} " +
                 $"fuelBefore={fuelBefore:F2} fuelAfter={fuelAfter:F2}; energy drink consumed.");
+        }
+
+        private IEnumerator RefreshFedBoxAfterDismount(ItemInstance fedBox)
+        {
+            yield return null;
+            if (fedBoxAwaitingRefresh != fedBox)
+                yield break;
+
+            fedBoxAwaitingRefresh = null;
+            if (PlayerHelper.ItemInstanceInHands != fedBox)
+                yield break;
+
+            try
+            {
+                PlayerHelper.OnItemInHandsCargoUpdated();
+            }
+            catch (System.Exception exception)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle feed vehicle={vehicle?.GetInstanceID()} could not refresh " +
+                    $"the fed box after dismount: {exception.GetBaseException().Message}");
+            }
         }
 
         private void OnTriggerEnter(Collider other)
