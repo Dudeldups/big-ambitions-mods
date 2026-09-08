@@ -28,10 +28,10 @@ public static class BugattiChironSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.7945f, 0.51f, 1.3255f) },
-            { "FrontRight_WheelController", new Vector3(0.7945f, 0.51f, 1.3255f) },
-            { "RearLeft_WheelController", new Vector3(-0.7505f, 0.51f, -1.3855f) },
-            { "RearRight_WheelController", new Vector3(0.7505f, 0.51f, -1.3855f) },
+            { "FrontLeft_WheelController", new Vector3(-0.7945f, 0.51f, 1.3155f) },
+            { "FrontRight_WheelController", new Vector3(0.7945f, 0.51f, 1.3155f) },
+            { "RearLeft_WheelController", new Vector3(-0.7505f, 0.51f, -1.3955f) },
+            { "RearRight_WheelController", new Vector3(0.7505f, 0.51f, -1.3955f) },
         };
 
     private static readonly float[] ChironGears =
@@ -192,6 +192,7 @@ public static class BugattiChironSetup
             var interiorSecondaryPaintSlots = 0;
             var interiorDarkPaintSlots = 0;
             var caliperSlots = 0;
+            var rimInnerSlots = 0;
             var seatSlots = 0;
             var paintTexturesReadable = true;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
@@ -219,6 +220,7 @@ public static class BugattiChironSetup
                     if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
                     if (IsInteriorDarkPaintMaterial(material)) interiorDarkPaintSlots++;
                     if (IsCaliperMaterial(material)) caliperSlots++;
+                    if (IsRimInnerPaintMaterial(material)) rimInnerSlots++;
                     if (IsSeatPaintMaterial(material))
                     {
                         seatSlots++;
@@ -327,6 +329,7 @@ public static class BugattiChironSetup
                 interiorSecondaryPaintSlots == 0 ||
                 interiorDarkPaintSlots == 0 ||
                 caliperSlots != 4 ||
+                rimInnerSlots != 4 ||
                 seatSlots != 1 ||
                 !paintTexturesReadable ||
                 !paintReferencesValid)
@@ -350,7 +353,8 @@ public static class BugattiChironSetup
                     $"rimPaintSlots={rimPaintSlots}, " +
                     $"interiorPaintSlots={interiorPrimaryPaintSlots}/" +
                     $"{interiorSecondaryPaintSlots}/{interiorDarkPaintSlots}, " +
-                    $"caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
+                    $"caliperSlots={caliperSlots}, rimInnerSlots={rimInnerSlots}, " +
+                    $"seatSlots={seatSlots}, " +
                     $"paintTexturesReadable={paintTexturesReadable}, " +
                     $"paintReferences={paintReferencesValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
@@ -363,7 +367,8 @@ public static class BugattiChironSetup
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, darkBodyPaintSlots={darkBodyPaintSlots}, " +
-                $"rimPaintSlots={rimPaintSlots}, interiorPaint=true, calipersPainted=true, " +
+                $"rimPaintSlots={rimPaintSlots}, rimInnerSlots={rimInnerSlots}, " +
+                $"interiorPaint=true, calipersPainted=true, " +
                 $"seatsPainted=true, paintTexturesReadable=true, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
@@ -789,6 +794,9 @@ public static class BugattiChironSetup
 
     private static bool IsCaliperMaterial(Material material) =>
         material.name.IndexOf("BugattiOpaque_02_Caliper", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsRimInnerPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_03_Brake_rotor", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static bool IsSeatPaintMaterial(Material material) =>
         material.name.IndexOf("BugattiOpaque_19_seats", StringComparison.OrdinalIgnoreCase) >= 0;

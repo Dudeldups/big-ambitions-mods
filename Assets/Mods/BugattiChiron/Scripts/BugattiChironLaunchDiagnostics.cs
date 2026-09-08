@@ -7,7 +7,10 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
 {
     private const int MaximumSamples = 4;
     private const int MaximumEngineStartAttempts = 6;
+    private const float DormantEngineGracePeriod = 0.08f;
+    private const float EngineRestartDelay = 0.1f;
     private const float EngineStartRetryDelay = 0.4f;
+    private const float MinimumHealthyEngineRpm = 100f;
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
     private Rigidbody? body;
@@ -19,7 +22,10 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
     private int engineStartAttempts;
     private float nextEngineStartAttempt;
     private bool wasControlled;
+    private bool engineRestartPending;
+    private bool engineStartConfirmedLogged;
     private bool engineFailureLogged;
+    private float dormantThrottleDetectedAt = -1f;
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -38,7 +44,10 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
             timing = false;
             wasControlled = false;
             engineStartAttempts = 0;
+            engineRestartPending = false;
+            engineStartConfirmedLogged = false;
             engineFailureLogged = false;
+            dormantThrottleDetectedAt = -1f;
             return;
         }
 
@@ -47,12 +56,14 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
         if (!wasControlled)
         {
             wasControlled = true;
-            TryWakeEngine("vehicle-entry");
+            engineStartAttempts = 0;
+            engineRestartPending = false;
+            engineStartConfirmedLogged = false;
+            engineFailureLogged = false;
+            dormantThrottleDetectedAt = -1f;
+            nextEngineStartAttempt = 0f;
         }
-        else if (!physics.powertrain.engine.IsRunning && throttle >= 0.05f && speed <= 0.5f)
-        {
-            TryWakeEngine("stationary-throttle");
-        }
+        UpdateEngineStart(throttle);
 
         if (samples >= MaximumSamples)
             return;
@@ -94,28 +105,55 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
         }
     }
 
-    private void TryWakeEngine(string reason)
+    private void UpdateEngineStart(float throttle)
     {
         var engine = physics!.powertrain.engine;
-        if (engine.IsRunning)
+        var rpm = CurrentRpm();
+        if (rpm >= MinimumHealthyEngineRpm)
         {
-            engineStartAttempts = 0;
-            engineFailureLogged = false;
-            return;
-        }
-        if (Time.unscaledTime < nextEngineStartAttempt)
-            return;
-        if (!engine.canRun)
-        {
-            if (!engineFailureLogged)
+            if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
             {
-                engineFailureLogged = true;
-                context?.Logger.Warn(
-                    $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: cannot start " +
-                    $"reason='{reason}' ignition={engine.ignition} canRun={engine.canRun}.");
+                engineStartConfirmedLogged = true;
+                context?.Logger.Info(
+                    $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: restart confirmed " +
+                    $"after {engineStartAttempts} request(s), rpm={rpm:F0}.");
             }
+            engineStartAttempts = 0;
+            engineRestartPending = false;
+            engineFailureLogged = false;
+            dormantThrottleDetectedAt = -1f;
             return;
         }
+
+        if (engineRestartPending)
+        {
+            if (Time.unscaledTime < nextEngineStartAttempt)
+                return;
+            engineRestartPending = false;
+            engineStartAttempts++;
+            nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
+            dormantThrottleDetectedAt = Time.unscaledTime;
+            engine.StartEngine();
+            context?.Logger.Info(
+                $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: requested restart " +
+                $"attempt={engineStartAttempts}/{MaximumEngineStartAttempts} " +
+                $"running={engine.IsRunning} ignition={engine.ignition} rpm={rpm:F0}.");
+            return;
+        }
+
+        if (throttle < 0.05f)
+        {
+            dormantThrottleDetectedAt = -1f;
+            return;
+        }
+        if (dormantThrottleDetectedAt < 0f)
+        {
+            dormantThrottleDetectedAt = Time.unscaledTime;
+            return;
+        }
+        if (Time.unscaledTime < nextEngineStartAttempt ||
+            Time.unscaledTime - dormantThrottleDetectedAt < DormantEngineGracePeriod)
+            return;
         if (engineStartAttempts >= MaximumEngineStartAttempts)
         {
             if (!engineFailureLogged)
@@ -123,18 +161,31 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
                 engineFailureLogged = true;
                 context?.Logger.Warn(
                     $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: remained dormant after " +
-                    $"{engineStartAttempts} start requests reason='{reason}'.");
+                    $"{engineStartAttempts} restart requests while throttle={throttle:F2}; " +
+                    $"running={engine.IsRunning} ignition={engine.ignition} canRun={engine.canRun} " +
+                    $"rpm={rpm:F0}.");
+            }
+            return;
+        }
+        if (!engine.canRun)
+        {
+            if (!engineFailureLogged)
+            {
+                engineFailureLogged = true;
+                context?.Logger.Warn(
+                    $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: dormant but cannot restart " +
+                    $"while throttle={throttle:F2}; ignition={engine.ignition} canRun={engine.canRun}.");
             }
             return;
         }
 
-        engineStartAttempts++;
-        nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
-        engine.StartEngine();
+        engine.StopEngine();
+        engineRestartPending = true;
+        nextEngineStartAttempt = Time.unscaledTime + EngineRestartDelay;
         context?.Logger.Info(
-            $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: requested start " +
-            $"attempt={engineStartAttempts}/{MaximumEngineStartAttempts} reason='{reason}' " +
-            $"running={engine.IsRunning} ignition={engine.ignition}.");
+            $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: reset dormant engine before " +
+            $"restart attempt={engineStartAttempts + 1}; throttle={throttle:F2} " +
+            $"running={engine.IsRunning} rpm={rpm:F0}.");
     }
 
     private float CurrentRpm()

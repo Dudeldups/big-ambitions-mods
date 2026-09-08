@@ -16,6 +16,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private const string InteriorDarkMaterialMarker = "BugattiOpaque_12_Interior_1_Darker";
     private const string InteriorPrimaryMaterialMarker = "BugattiOpaque_13_Interior_1";
     private const string CaliperMaterialMarker = "BugattiOpaque_02_Caliper";
+    private const string RimInnerMaterialMarker = "BugattiOpaque_03_Brake_rotor";
     private const string SeatMaterialMarker = "BugattiOpaque_19_seats";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
@@ -59,6 +60,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         var rimSlots = 0;
         var interiorSlots = 0;
         var caliperSlots = 0;
+        var rimInnerSlots = 0;
         var seatSlots = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -76,6 +78,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                 if (category == PaintCategory.DarkBody) darkBodySlots++;
                 if (category == PaintCategory.Rim) rimSlots++;
                 if (category == PaintCategory.Caliper) caliperSlots++;
+                if (category == PaintCategory.RimInner) rimInnerSlots++;
                 if (category == PaintCategory.Seat) seatSlots++;
                 if (category == PaintCategory.InteriorPrimary ||
                     category == PaintCategory.InteriorSecondary ||
@@ -91,14 +94,16 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         context?.Logger.Info(
             $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
             $"mapped bodySlots={bodySlots}, darkBodySlots={darkBodySlots}, " +
-            $"rimSlots={rimSlots}, caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
+            $"rimSlots={rimSlots}, rimInnerSlots={rimInnerSlots}, " +
+            $"caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
             $"interiorSlots={interiorSlots}; chrome/black excluded.");
         if (bodySlots == 0 || darkBodySlots == 0 || rimSlots == 0 ||
-            caliperSlots == 0 || seatSlots == 0 || interiorSlots == 0)
+            rimInnerSlots == 0 || caliperSlots == 0 || seatSlots == 0 || interiorSlots == 0)
             context?.Logger.Warn(
                 $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
                 $"paint mapping incomplete bodySlots={bodySlots}, darkBodySlots={darkBodySlots}, " +
-                $"rimSlots={rimSlots}, caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
+                $"rimSlots={rimSlots}, rimInnerSlots={rimInnerSlots}, " +
+                $"caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
                 $"interiorSlots={interiorSlots}.");
     }
 
@@ -161,6 +166,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             return PaintCategory.Rim;
         if (name.IndexOf(CaliperMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
             return PaintCategory.Caliper;
+        if (name.IndexOf(RimInnerMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
+            return PaintCategory.RimInner;
         if (name.IndexOf(SeatMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
             return PaintCategory.Seat;
         if (name.IndexOf(InteriorDarkMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -186,6 +193,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                 return selectedColor;
             case PaintCategory.Caliper:
                 return mainColor;
+            case PaintCategory.RimInner:
+                return Scale(mainColor, 0.22f);
             case PaintCategory.Seat:
                 return Color.white;
             case PaintCategory.InteriorPrimary:
@@ -353,6 +362,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         MainBody,
         DarkBody,
         Rim,
+        RimInner,
         Caliper,
         Seat,
         InteriorPrimary,
