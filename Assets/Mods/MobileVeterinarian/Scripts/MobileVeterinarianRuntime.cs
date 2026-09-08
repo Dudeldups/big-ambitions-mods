@@ -38,7 +38,9 @@ namespace MobileVeterinarian
         private const float StationarySpeedTolerance = 0.5f;
         private const float MaxAnimalTravelDistance = 1.5f;
         private const float TreatmentClearance = 0.3f;
-        private const float NavMeshProbeRadius = 3f;
+        private const float SideNavMeshProbeRadius = 1f;
+        private const float FallbackNavMeshProbeRadius = 1.25f;
+        private const float MinimumSideSeparation = 0.35f;
         private const float MonitorIntervalSeconds = 0.1f;
         private const float DoctorSettleSeconds = 0.75f;
         private const float NodAngleDegrees = 18f;
@@ -638,32 +640,64 @@ namespace MobileVeterinarian
             {
                 preferred,
                 new Vector3(-preferred.x, preferred.y, preferred.z),
-                new Vector3(1.8f, 0f, 0f),
-                new Vector3(-1.8f, 0f, 0f),
                 new Vector3(0f, 0f, 1.9f),
                 new Vector3(0f, 0f, -1.9f)
             };
+            var candidateResults = new List<string>(candidateOffsets.Length);
 
-            foreach (var offset in candidateOffsets)
+            for (var index = 0; index < candidateOffsets.Length; index++)
             {
+                var offset = candidateOffsets[index];
+                var isSideCandidate = index < 2;
+                var candidateName = index == 0
+                    ? "preferred-side"
+                    : index == 1
+                        ? "opposite-side"
+                        : index == 2
+                            ? "front"
+                            : "rear";
                 var requestedTreatment = controller.transform.TransformPoint(offset);
-                if (!NavMesh.SamplePosition(requestedTreatment, out var treatmentHit, NavMeshProbeRadius, NavMesh.AllAreas) ||
-                    !HasVehicleClearance(controller, treatmentHit.position))
+                var probeRadius = isSideCandidate ? SideNavMeshProbeRadius : FallbackNavMeshProbeRadius;
+                if (!NavMesh.SamplePosition(requestedTreatment, out var treatmentHit, probeRadius, NavMesh.AllAreas))
                 {
+                    candidateResults.Add(candidateName + ":no-navmesh");
+                    continue;
+                }
+
+                if (isSideCandidate)
+                {
+                    var localHit = controller.transform.InverseTransformPoint(treatmentHit.position);
+                    if (Mathf.Sign(localHit.x) != Mathf.Sign(offset.x) ||
+                        Mathf.Abs(localHit.x) < MinimumSideSeparation)
+                    {
+                        candidateResults.Add(candidateName + ":crossed-side");
+                        continue;
+                    }
+                }
+
+                if (!HasVehicleClearance(controller, treatmentHit.position))
+                {
+                    candidateResults.Add(candidateName + ":animal-clearance");
                     continue;
                 }
 
                 var away = Flatten(treatmentHit.position - controller.transform.position);
                 if (away.sqrMagnitude < 0.001f)
+                {
+                    candidateResults.Add(candidateName + ":at-animal-center");
                     continue;
+                }
 
                 // A single safe standing point beside the animal is sufficient. The doctor
                 // faces the animal in place, so route availability cannot reject the visit.
                 treatmentPosition = treatmentHit.position;
                 spawnPosition = treatmentHit.position;
+                candidateResults.Add(candidateName + ":selected");
+                LogInfo("NavMesh placement candidates " + string.Join(", ", candidateResults.ToArray()) + ".");
                 return true;
             }
 
+            LogInfo("NavMesh placement candidates " + string.Join(", ", candidateResults.ToArray()) + ".");
             return false;
         }
 
