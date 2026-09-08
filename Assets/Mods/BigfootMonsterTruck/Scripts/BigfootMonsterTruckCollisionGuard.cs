@@ -149,30 +149,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private static bool IsHeavyTrafficVehicle(GleyTrafficSystem.VehicleComponent trafficVehicle)
     {
         var identity = trafficVehicle.name.ToLowerInvariant();
-        if (identity.Contains("truck") || identity.Contains("lorry") ||
-            identity.Contains("semi") || identity.Contains("delivery"))
-            return true;
-
-        var colliders = trafficVehicle.GetComponentsInChildren<Collider>(true);
-        var bounds = default(Bounds);
-        var hasBounds = false;
-        foreach (var collider in colliders)
-        {
-            if (collider.isTrigger)
-                continue;
-            if (!hasBounds)
-            {
-                bounds = collider.bounds;
-                hasBounds = true;
-            }
-            else
-            {
-                bounds.Encapsulate(collider.bounds);
-            }
-        }
-        if (!hasBounds)
-            return false;
-        return bounds.size.y >= 2.4f || bounds.size.z >= 5.5f || bounds.size.x >= 2.5f;
+        // Vanilla traffic names are stable while world-axis collider bounds change
+        // as a car turns. Bounds-based classification misidentified ordinary cars.
+        return identity.Contains("freighttruck") || identity.Contains("deliverytruck") ||
+               identity.Contains("ambulance") || identity.Contains("vordv150");
     }
 
     private void ClearPendingDeformationQueue()

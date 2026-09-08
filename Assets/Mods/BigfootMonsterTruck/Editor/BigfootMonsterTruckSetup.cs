@@ -73,7 +73,7 @@ public static class BigfootMonsterTruckSetup
                     assignedVisual.name.EndsWith("Visual", StringComparison.Ordinal))
                     animatedWheelVisuals++;
                 if (string.Equals(transform.name, "BigfootWheelContactColliders", StringComparison.Ordinal))
-                    physicalWheelColliders = transform.GetComponents<BoxCollider>().Length;
+                    physicalWheelColliders = transform.GetComponents<SphereCollider>().Length;
                 if (string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
                 {
                     hasSeat = true;
@@ -273,16 +273,16 @@ public static class BigfootMonsterTruckSetup
         holder.transform.SetParent(root.transform, false);
         var centers = new[]
         {
-            new Vector3(-1.35f, 0.27f, 1.60f),
-            new Vector3(1.35f, 0.27f, 1.60f),
-            new Vector3(-1.35f, 0.27f, -1.60f),
-            new Vector3(1.35f, 0.27f, -1.60f),
+            new Vector3(-1.35f, 0.58f, 1.60f),
+            new Vector3(1.35f, 0.58f, 1.60f),
+            new Vector3(-1.35f, 0.58f, -1.60f),
+            new Vector3(1.35f, 0.58f, -1.60f),
         };
         foreach (var center in centers)
         {
-            var collider = holder.AddComponent<BoxCollider>();
+            var collider = holder.AddComponent<SphereCollider>();
             collider.center = center;
-            collider.size = new Vector3(1.05f, 1.482f, 1.482f);
+            collider.radius = 0.58f;
         }
     }
 

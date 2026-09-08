@@ -357,19 +357,25 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             holder.SetParent(vehicle.transform, false);
         }
 
-        var colliders = holder.GetComponents<BoxCollider>();
+        foreach (var box in holder.GetComponents<BoxCollider>())
+        {
+            box.enabled = false;
+            Destroy(box);
+        }
+
+        var colliders = holder.GetComponents<SphereCollider>();
         while (colliders.Length < 4)
         {
-            holder.gameObject.AddComponent<BoxCollider>();
-            colliders = holder.GetComponents<BoxCollider>();
+            holder.gameObject.AddComponent<SphereCollider>();
+            colliders = holder.GetComponents<SphereCollider>();
         }
 
         var centers = new[]
         {
-            new Vector3(-HalfTrack, AxleHeight - SuspensionLength, FrontAxleZ),
-            new Vector3(HalfTrack, AxleHeight - SuspensionLength, FrontAxleZ),
-            new Vector3(-HalfTrack, AxleHeight - SuspensionLength, RearAxleZ),
-            new Vector3(HalfTrack, AxleHeight - SuspensionLength, RearAxleZ),
+            new Vector3(-HalfTrack, 0.58f, FrontAxleZ),
+            new Vector3(HalfTrack, 0.58f, FrontAxleZ),
+            new Vector3(-HalfTrack, 0.58f, RearAxleZ),
+            new Vector3(HalfTrack, 0.58f, RearAxleZ),
         };
         for (var index = 0; index < colliders.Length; index++)
         {
@@ -378,7 +384,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 continue;
             colliders[index].isTrigger = false;
             colliders[index].center = centers[index];
-            colliders[index].size = new Vector3(WheelWidth, WheelRadius * 1.9f, WheelRadius * 1.9f);
+            colliders[index].radius = 0.58f;
             colliders[index].sharedMaterial = contactMaterial;
         }
         return centers.Length;

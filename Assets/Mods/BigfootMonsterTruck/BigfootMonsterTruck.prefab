@@ -91,10 +91,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7972401548085675605}
-  - component: {fileID: 45022639680374234}
-  - component: {fileID: 6874802705488349300}
-  - component: {fileID: 1655415624081007021}
-  - component: {fileID: 6496724712888756013}
+  - component: {fileID: 6687712140215233040}
+  - component: {fileID: 5982320326078728927}
+  - component: {fileID: 3484914868215874474}
+  - component: {fileID: 2361153227009504748}
   m_Layer: 12
   m_Name: BigfootWheelContactColliders
   m_TagString: Wheel
@@ -117,8 +117,8 @@ Transform:
   m_Children: []
   m_Father: {fileID: 465430491354805545}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &45022639680374234
-BoxCollider:
+--- !u!135 &6687712140215233040
+SphereCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -136,10 +136,10 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.05, y: 1.482, z: 1.482}
-  m_Center: {x: -1.35, y: 0.27, z: 1.6}
---- !u!65 &6874802705488349300
-BoxCollider:
+  m_Radius: 0.58
+  m_Center: {x: -1.35, y: 0.58, z: 1.6}
+--- !u!135 &5982320326078728927
+SphereCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -157,10 +157,10 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.05, y: 1.482, z: 1.482}
-  m_Center: {x: 1.35, y: 0.27, z: 1.6}
---- !u!65 &1655415624081007021
-BoxCollider:
+  m_Radius: 0.58
+  m_Center: {x: 1.35, y: 0.58, z: 1.6}
+--- !u!135 &3484914868215874474
+SphereCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -178,10 +178,10 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.05, y: 1.482, z: 1.482}
-  m_Center: {x: -1.35, y: 0.27, z: -1.6}
---- !u!65 &6496724712888756013
-BoxCollider:
+  m_Radius: 0.58
+  m_Center: {x: -1.35, y: 0.58, z: -1.6}
+--- !u!135 &2361153227009504748
+SphereCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -199,8 +199,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.05, y: 1.482, z: 1.482}
-  m_Center: {x: 1.35, y: 0.27, z: -1.6}
+  m_Radius: 0.58
+  m_Center: {x: 1.35, y: 0.58, z: -1.6}
 --- !u!1 &83371916272352677
 GameObject:
   m_ObjectHideFlags: 0
