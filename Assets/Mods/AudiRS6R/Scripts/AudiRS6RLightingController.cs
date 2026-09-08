@@ -71,18 +71,20 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         leftHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
-            position => position.x <= 0f,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
             "LeftHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false,
+            overlayScale: 1.006f,
             additive: true,
             selectHeadlightSignatureComponents: true);
         rightHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
-            position => position.x > 0f,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
             "RightHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false,
+            overlayScale: 1.006f,
             additive: true,
             selectHeadlightSignatureComponents: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
@@ -553,15 +555,29 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetFloatIfPresent(material, "_AlphaSrcBlend", (float)BlendMode.One);
         SetFloatIfPresent(material, "_AlphaDstBlend", (float)BlendMode.One);
         SetFloatIfPresent(material, "_TransparentZWrite", 0f);
+        SetFloatIfPresent(material, "_ZTestTransparent", (float)CompareFunction.LessEqual);
+        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
         SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
+        SetFloatIfPresent(material, "_Cull", (float)CullMode.Off);
+        SetFloatIfPresent(material, "_CullMode", (float)CullMode.Off);
+        SetFloatIfPresent(material, "_CullModeForward", (float)CullMode.Off);
+        SetFloatIfPresent(material, "_TransparentCullMode", (float)CullMode.Off);
+        SetFloatIfPresent(material, "_DoubleSidedEnable", 1f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.EnableKeyword("_DOUBLESIDED_ON");
+        material.doubleSidedGI = true;
         material.SetOverrideTag("RenderType", "Transparent");
         material.renderQueue = (int)RenderQueue.Transparent + 20;
         material.SetShaderPassEnabled("TransparentDepthPrepass", false);
         material.SetShaderPassEnabled("TransparentDepthPostpass", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+        LogInfo($"additive-material name='{material.name}' shader='{material.shader.name}' " +
+                $"cull={ReadFloat(material, "_CullMode")} " +
+                $"forwardCull={ReadFloat(material, "_CullModeForward")} " +
+                $"transparentCull={ReadFloat(material, "_TransparentCullMode")} " +
+                $"zTest={ReadFloat(material, "_ZTestTransparent")} doubleSided=true.");
     }
 
     private static void CopyBaseTexture(Material? source, Material destination)
