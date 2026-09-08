@@ -136,8 +136,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.58
-  m_Center: {x: -1.35, y: 0.58, z: 1.6}
+  m_Radius: 0.68
+  m_Center: {x: -1.35, y: 0.68, z: 1.68}
 --- !u!135 &5982320326078728927
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -157,8 +157,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.58
-  m_Center: {x: 1.35, y: 0.58, z: 1.6}
+  m_Radius: 0.68
+  m_Center: {x: 1.35, y: 0.68, z: 1.68}
 --- !u!135 &3484914868215874474
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -178,8 +178,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.58
-  m_Center: {x: -1.35, y: 0.58, z: -1.6}
+  m_Radius: 0.68
+  m_Center: {x: -1.35, y: 0.68, z: -1.68}
 --- !u!135 &2361153227009504748
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -199,8 +199,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.58
-  m_Center: {x: 1.35, y: 0.58, z: -1.6}
+  m_Radius: 0.68
+  m_Center: {x: 1.35, y: 0.68, z: -1.68}
 --- !u!1 &83371916272352677
 GameObject:
   m_ObjectHideFlags: 0
@@ -4381,8 +4381,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.5, y: 0.55, z: 5.3}
-  m_Center: {x: 0, y: 1.2, z: -0.05}
+  m_Size: {x: 2.5, y: 0.55, z: 4.1}
+  m_Center: {x: 0, y: 1.2, z: -0.12}
 --- !u!65 &7281177023549926665
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -11535,10 +11535,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 6047512305492662631, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: 6aab7bc0a17103440a48ceaa0e0fbaff, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -12580,10 +12580,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -8205024132658386507, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: e52e8a51c45cec84bb2c9df5e659b720, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -16730,10 +16730,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -2317110199934127957, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: 9d030d8f19b01784cbc6ef4a70653614, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -25672,10 +25672,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -8205024132658386507, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: e52e8a51c45cec84bb2c9df5e659b720, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28748,10 +28748,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -8205024132658386507, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: e52e8a51c45cec84bb2c9df5e659b720, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -29886,10 +29886,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -990885199949193719, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: 6719d969820e1a14a9739e5f19aabc42, type: 2}
   - {fileID: 2100000, guid: 4b3bc75ceecf05a46b68f2e68e98f2db, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
@@ -31018,10 +31018,10 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -8205024132658386507, guid: 0af29b304dba1d940a7b32adbe3fdc6c, type: 3}
+  - {fileID: 2100000, guid: e52e8a51c45cec84bb2c9df5e659b720, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

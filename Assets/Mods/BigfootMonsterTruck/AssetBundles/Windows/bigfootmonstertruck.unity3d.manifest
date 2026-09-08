@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 437918431
+CRC: 4011641200
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 1b4470cb1d48b438ae93c580ff4a471b
+    Hash: 74fa846ab5ff49863c14e035578a169a
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 1b4470cb1d48b438ae93c580ff4a471b
+    Hash: 74fa846ab5ff49863c14e035578a169a
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -223,7 +223,11 @@ Assets:
 - Assets/Mods/BigfootMonsterTruck/Models/bigfoot-driveable.glb
 - Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.mat
 - Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.shader
+- Assets/Mods/BigfootMonsterTruck/Models/GeneratedMaterials/BigfootOpaque_00_Material.mat
+- Assets/Mods/BigfootMonsterTruck/Models/GeneratedMaterials/BigfootOpaque_01_Material_2.mat
 - Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.asset
+- Assets/Mods/BigfootMonsterTruck/Models/GeneratedMaterials/BigfootOpaque_02_Material_3.mat
+- Assets/Mods/BigfootMonsterTruck/Models/GeneratedMaterials/BigfootOpaque_03_Material_1.mat
 - Assets/Mods/BigfootMonsterTruck/ATTRIBUTION.md
 - Assets/Mods/BigfootMonsterTruck/THIRD_PARTY_NOTICES.md
 - Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.prefab

@@ -1,6 +1,6 @@
 {
   "name": "BigfootMonsterTruck.Editor",
-  "references": [],
+  "references": ["BigfootMonsterTruck"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

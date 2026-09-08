@@ -18,6 +18,7 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
     private const float SeatedScale = 0.94f;
     private const float HandHalfSpacing = 0.19f;
     private const float HandRaise = 0.14f;
+    private const float HandForward = 0.07f;
     private const int MaximumAttempts = 20;
 
     private readonly List<UnityEngine.Object> ownedAssets = new();
@@ -189,7 +190,7 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
         LogInfo(
             $"created centered driver from current appearance; renderers={rendererCount}, " +
             $"seat={vehicle.transform.InverseTransformPoint(seatAnchor.position).ToString("F3")}, " +
-            $"handRaise={HandRaise:F2}.");
+            $"handRaise={HandRaise:F2}, handForward={HandForward:F2}.");
     }
 
     private void AlignWithSeat()
@@ -230,6 +231,7 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
         var target = vehicle.transform.InverseTransformPoint(arm.Hand.position);
         target.x = targetX;
         target.y += HandRaise;
+        target.z += HandForward;
         arm.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
     }
 

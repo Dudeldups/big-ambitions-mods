@@ -15,6 +15,8 @@ public static class BigfootMonsterTruckSetup
         "Assets/Mods/BigfootMonsterTruck/Models/bigfoot-driveable.glb";
     private const string WindshieldMaterialPath =
         "Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.mat";
+    private const string OpaqueMaterialFolder =
+        "Assets/Mods/BigfootMonsterTruck/Models/GeneratedMaterials";
     private const string TargetAssetPath =
         "Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.asset";
     private const string TargetPrefabPath =
@@ -56,6 +58,8 @@ public static class BigfootMonsterTruckSetup
             var alignedWheelVisuals = 0;
             var animatedWheelVisuals = 0;
             var physicalWheelColliders = 0;
+            var climbContactColliders = 0;
+            var shortenedLowerChassis = false;
             var hasSeat = false;
             var raisedSeat = false;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
@@ -76,7 +80,21 @@ public static class BigfootMonsterTruckSetup
                     assignedVisual.name.EndsWith("Visual", StringComparison.Ordinal))
                     animatedWheelVisuals++;
                 if (string.Equals(transform.name, "BigfootWheelContactColliders", StringComparison.Ordinal))
-                    physicalWheelColliders = transform.GetComponents<SphereCollider>().Length;
+                {
+                    var contacts = transform.GetComponents<SphereCollider>();
+                    physicalWheelColliders = contacts.Length;
+                    foreach (var contact in contacts)
+                        if (Mathf.Abs(contact.radius - 0.68f) < 0.01f &&
+                            Mathf.Abs(contact.center.y - 0.68f) < 0.01f &&
+                            Mathf.Abs(Mathf.Abs(contact.center.z) - 1.68f) < 0.01f)
+                            climbContactColliders++;
+                }
+                if (string.Equals(transform.name, "BodyCollider", StringComparison.Ordinal))
+                {
+                    var bodyColliders = transform.GetComponents<BoxCollider>();
+                    shortenedLowerChassis = bodyColliders.Length >= 2 &&
+                                            bodyColliders[0].size.z <= 4.11f;
+                }
                 if (string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
                 {
                     hasSeat = true;
@@ -87,11 +105,33 @@ public static class BigfootMonsterTruckSetup
 
             var visibleRenderers = 0;
             var hasTransparentGlass = false;
+            var opaqueMaterials = new HashSet<Material>();
+            var decalSafeOpaqueMaterials = 0;
+            var opaqueRendererMasksSafe = true;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer.enabled && renderer.sharedMaterials.Length > 0)
                     visibleRenderers++;
+                var isBigfootRenderer = IsBigfootVisualRenderer(renderer.transform);
+                var hasBigfootOpaqueMaterial = false;
                 foreach (var material in renderer.sharedMaterials)
+                {
+                    if (isBigfootRenderer && material != null &&
+                        !BigfootMonsterTruckMaterials.IsTransparentMaterial(material) &&
+                        opaqueMaterials.Add(material))
+                    {
+                        hasBigfootOpaqueMaterial = true;
+                        if (string.Equals(material.shader.name, "HDRP/Lit", StringComparison.Ordinal) &&
+                            (!material.HasProperty("_SupportDecals") ||
+                             material.GetFloat("_SupportDecals") < 0.5f) &&
+                            material.IsKeywordEnabled("_DISABLE_DECALS") &&
+                            (!material.HasProperty("_ZWrite") || material.GetFloat("_ZWrite") > 0.5f) &&
+                            material.renderQueue == (int)RenderQueue.Geometry)
+                            decalSafeOpaqueMaterials++;
+                    }
+                    else if (isBigfootRenderer && material != null &&
+                             !BigfootMonsterTruckMaterials.IsTransparentMaterial(material))
+                        hasBigfootOpaqueMaterial = true;
                     if (material != null &&
                         material.name.IndexOf("Windshield_Glass", StringComparison.OrdinalIgnoreCase) >= 0 &&
                         material.renderQueue >= 3000 &&
@@ -100,12 +140,18 @@ public static class BigfootMonsterTruckSetup
                         string.Equals(material.shader.name, "Bigfoot/TransparentWindshield",
                             StringComparison.Ordinal))
                         hasTransparentGlass = true;
+                }
+                if (hasBigfootOpaqueMaterial && (renderer.renderingLayerMask & 0x0000FF00u) != 0)
+                    opaqueRendererMasksSafe = false;
             }
 
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
                 animatedWheelVisuals != 4 || physicalWheelColliders != 4 ||
+                climbContactColliders != 4 || !shortenedLowerChassis ||
                 !hasSeat || !raisedSeat ||
                 visibleRenderers == 0 || !hasTransparentGlass ||
+                opaqueMaterials.Count == 0 ||
+                decalSafeOpaqueMaterials != opaqueMaterials.Count || !opaqueRendererMasksSafe ||
                 Mathf.Abs(bundledPrice - 345000f) > 0.5f || bundledMaxSpeed != 140)
             {
                 throw new InvalidOperationException(
@@ -113,9 +159,13 @@ public static class BigfootMonsterTruckSetup
                     $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
                     $"animatedWheelVisuals={animatedWheelVisuals}, " +
                     $"physicalWheelColliders={physicalWheelColliders}, " +
+                    $"climbContacts={climbContactColliders}, " +
+                    $"shortChassis={shortenedLowerChassis}, " +
                     $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
                     $"transparentGlass={hasTransparentGlass}, price={bundledPrice}, " +
-                    $"maxSpeed={bundledMaxSpeed}.");
+                    $"maxSpeed={bundledMaxSpeed}, opaqueMaterials={opaqueMaterials.Count}, " +
+                    $"decalSafe={decalSafeOpaqueMaterials}, " +
+                    $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
 
             Debug.Log(
@@ -123,7 +173,9 @@ public static class BigfootMonsterTruckSetup
                 $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
                 $"animatedWheelVisuals={animatedWheelVisuals}, " +
                 $"physicalWheelColliders={physicalWheelColliders}, " +
-                $"visibleRenderers={visibleRenderers}, raisedCenterSeat=true, transparentGlass=true.");
+                $"climbContacts={climbContactColliders}, " +
+                $"visibleRenderers={visibleRenderers}, decalSafe={decalSafeOpaqueMaterials}, " +
+                $"raisedCenterSeat=true, transparentGlass=true.");
         }
         finally
         {
@@ -203,6 +255,15 @@ public static class BigfootMonsterTruckSetup
                 InteractionMode.AutomatedAction);
             modelInstance.name = "BigfootVisual";
             ConfigureWindshieldMaterial(modelInstance, CreateWindshieldMaterial());
+            AssignPersistentOpaqueMaterials(modelInstance);
+            var materialFix = BigfootMonsterTruckMaterials.FixSolidMaterials(modelInstance);
+            MarkOpaqueMaterialsDirty(modelInstance);
+            Debug.Log(
+                $"BigfootMonsterTruck: prepared decal-safe opaque materials " +
+                $"renderers={materialFix.RendererCount}, " +
+                $"decalMasksCleared={materialFix.DecalMasksCleared}, " +
+                $"opaqueFixed={materialFix.OpaqueMaterialsFixed}, " +
+                $"hdrpValidated={materialFix.MaterialsValidated}.");
             AttachWheelVisuals(root, modelInstance);
             CreateSeatAnchor(root);
             ConfigureRendererReferences(root, modelInstance);
@@ -262,8 +323,8 @@ public static class BigfootMonsterTruckSetup
         var colliders = holder.GetComponents<BoxCollider>();
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle needs two body colliders.");
-        colliders[0].center = new Vector3(0f, 1.2f, -0.05f);
-        colliders[0].size = new Vector3(2.5f, 0.55f, 5.3f);
+        colliders[0].center = new Vector3(0f, 1.2f, -0.12f);
+        colliders[0].size = new Vector3(2.5f, 0.55f, 4.1f);
         colliders[1].center = new Vector3(0f, 2.05f, 0.1f);
         colliders[1].size = new Vector3(2.2f, 1.2f, 3.7f);
     }
@@ -278,16 +339,16 @@ public static class BigfootMonsterTruckSetup
         holder.transform.SetParent(root.transform, false);
         var centers = new[]
         {
-            new Vector3(-1.35f, 0.58f, 1.60f),
-            new Vector3(1.35f, 0.58f, 1.60f),
-            new Vector3(-1.35f, 0.58f, -1.60f),
-            new Vector3(1.35f, 0.58f, -1.60f),
+            new Vector3(-1.35f, 0.68f, 1.68f),
+            new Vector3(1.35f, 0.68f, 1.68f),
+            new Vector3(-1.35f, 0.68f, -1.68f),
+            new Vector3(1.35f, 0.68f, -1.68f),
         };
         foreach (var center in centers)
         {
             var collider = holder.AddComponent<SphereCollider>();
             collider.center = center;
-            collider.radius = 0.58f;
+            collider.radius = 0.68f;
         }
     }
 
@@ -466,6 +527,90 @@ public static class BigfootMonsterTruckSetup
         material.renderQueue = (int)RenderQueue.Transparent;
         EditorUtility.SetDirty(material);
         return material;
+    }
+
+    private static void AssignPersistentOpaqueMaterials(GameObject model)
+    {
+        EnsureAssetFolder(OpaqueMaterialFolder);
+        var replacements = new Dictionary<Material, Material>();
+        var materialIndex = 0;
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+        {
+            var materials = renderer.sharedMaterials;
+            var changed = false;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var source = materials[index];
+                if (source == null || BigfootMonsterTruckMaterials.IsTransparentMaterial(source))
+                    continue;
+                if (!replacements.TryGetValue(source, out var persistent))
+                {
+                    var assetName = $"BigfootOpaque_{materialIndex:D2}_{SanitizeAssetName(source.name)}";
+                    var path = $"{OpaqueMaterialFolder}/{assetName}.mat";
+                    persistent = AssetDatabase.LoadAssetAtPath<Material>(path);
+                    if (persistent == null)
+                    {
+                        persistent = new Material(source) { name = assetName };
+                        AssetDatabase.CreateAsset(persistent, path);
+                    }
+                    else
+                    {
+                        persistent.CopyPropertiesFromMaterial(source);
+                        persistent.shader = source.shader;
+                        persistent.name = assetName;
+                    }
+                    replacements.Add(source, persistent);
+                    materialIndex++;
+                }
+                materials[index] = persistent;
+                changed = true;
+            }
+            if (changed)
+                renderer.sharedMaterials = materials;
+        }
+    }
+
+    private static void MarkOpaqueMaterialsDirty(GameObject model)
+    {
+        var materials = new HashSet<Material>();
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+            foreach (var material in renderer.sharedMaterials)
+                if (material != null &&
+                    !BigfootMonsterTruckMaterials.IsTransparentMaterial(material) &&
+                    materials.Add(material))
+                    EditorUtility.SetDirty(material);
+    }
+
+    private static void EnsureAssetFolder(string folder)
+    {
+        if (AssetDatabase.IsValidFolder(folder))
+            return;
+        var separator = folder.LastIndexOf('/');
+        if (separator <= 0)
+            throw new InvalidOperationException($"Invalid asset folder '{folder}'.");
+        var parent = folder.Substring(0, separator);
+        EnsureAssetFolder(parent);
+        AssetDatabase.CreateFolder(parent, folder.Substring(separator + 1));
+    }
+
+    private static string SanitizeAssetName(string value)
+    {
+        var chars = value.ToCharArray();
+        for (var index = 0; index < chars.Length; index++)
+            if (!char.IsLetterOrDigit(chars[index]) && chars[index] != '-' && chars[index] != '_')
+                chars[index] = '_';
+        return new string(chars);
+    }
+
+    private static bool IsBigfootVisualRenderer(Transform transform)
+    {
+        if (transform.name.StartsWith("Wheel", StringComparison.Ordinal) &&
+            transform.name.EndsWith("Visual", StringComparison.Ordinal))
+            return true;
+        for (var current = transform; current != null; current = current.parent)
+            if (string.Equals(current.name, "BigfootVisual", StringComparison.Ordinal))
+                return true;
+        return false;
     }
 
     private static void ConfigureWindshieldMaterial(GameObject model, Material windshieldMaterial)

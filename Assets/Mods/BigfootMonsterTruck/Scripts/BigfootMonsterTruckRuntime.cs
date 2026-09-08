@@ -233,6 +233,17 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         ConfigureVehicleModules(vehicle);
         ConfigureExitMarkers(vehicle);
         ConfigureDriverSeat(vehicle);
+        var materialFix = BigfootMonsterTruckMaterials.FixSolidMaterials(vehicle.gameObject);
+        context?.Logger.Info(
+            $"BigfootMonsterTruck materials vehicle={vehicle.GetInstanceID()}: " +
+            $"renderers={materialFix.RendererCount}, " +
+            $"decalMasksCleared={materialFix.DecalMasksCleared}, " +
+            $"opaqueFixed={materialFix.OpaqueMaterialsFixed}, " +
+            $"hdrpValidated={materialFix.MaterialsValidated}.");
+        if (materialFix.MaterialsValidated < materialFix.OpaqueMaterialsFixed)
+            context?.Logger.Warn(
+                $"BigfootMonsterTruck materials vehicle={vehicle.GetInstanceID()}: " +
+                "HDRP validation was unavailable for one or more opaque materials.");
 
         var driver = vehicle.gameObject.AddComponent<BigfootMonsterTruckDriverController>();
         driver.Initialize(vehicle, context);
@@ -345,8 +356,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 var collider = colliders[index];
                 if (index == 0)
                 {
-                    collider.center = new Vector3(0f, 1.2f, -0.05f);
-                    collider.size = new Vector3(2.5f, 0.55f, 5.3f);
+                    collider.center = new Vector3(0f, 1.2f, -0.12f);
+                    collider.size = new Vector3(2.5f, 0.55f, 4.1f);
                 }
                 else
                 {
@@ -391,10 +402,10 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
         var centers = new[]
         {
-            new Vector3(-HalfTrack, 0.58f, FrontAxleZ),
-            new Vector3(HalfTrack, 0.58f, FrontAxleZ),
-            new Vector3(-HalfTrack, 0.58f, RearAxleZ),
-            new Vector3(HalfTrack, 0.58f, RearAxleZ),
+            new Vector3(-HalfTrack, 0.68f, FrontAxleZ + 0.08f),
+            new Vector3(HalfTrack, 0.68f, FrontAxleZ + 0.08f),
+            new Vector3(-HalfTrack, 0.68f, RearAxleZ - 0.08f),
+            new Vector3(HalfTrack, 0.68f, RearAxleZ - 0.08f),
         };
         for (var index = 0; index < colliders.Length; index++)
         {
@@ -403,7 +414,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 continue;
             colliders[index].isTrigger = false;
             colliders[index].center = centers[index];
-            colliders[index].radius = 0.58f;
+            colliders[index].radius = 0.68f;
             colliders[index].sharedMaterial = contactMaterial;
         }
         return centers.Length;
@@ -473,6 +484,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                         }
                         SetMember(powertrain, "differentials", differentials);
                     }
+                    ConfigureFourWheelDrive(powertrain);
                     SetMember(component, "powertrain", powertrain);
 
                     var steering = GetMember(component, "steering");
@@ -525,6 +537,76 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         return FindField(type, name)?.GetValue(target) ??
                type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                    ?.GetValue(target);
+    }
+
+    private void ConfigureFourWheelDrive(object? powertrain)
+    {
+        if (powertrain == null ||
+            GetMember(powertrain, "engine") is not object engine ||
+            GetMember(powertrain, "transmission") is not object transmission ||
+            GetMember(powertrain, "differentials") is not IList differentials ||
+            GetMember(powertrain, "wheels") is not IList wheels)
+        {
+            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive components are unavailable.");
+            return;
+        }
+
+        var center = FindNamedComponent(differentials, "Center Differential");
+        var front = FindNamedComponent(differentials, "Front Differential");
+        var rear = FindNamedComponent(differentials, "Rear Differential");
+        var frontLeft = FindNamedComponent(wheels, "WheelFrontLeft_WheelController");
+        var frontRight = FindNamedComponent(wheels, "WheelFrontRight_WheelController");
+        var rearLeft = FindNamedComponent(wheels, "WheelRearLeft_WheelController");
+        var rearRight = FindNamedComponent(wheels, "WheelRearRight_WheelController");
+        if (center == null || front == null || rear == null || frontLeft == null ||
+            frontRight == null || rearLeft == null || rearRight == null)
+        {
+            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive topology is incomplete.");
+            return;
+        }
+
+        ConnectPowertrain(engine, transmission);
+        ConnectPowertrain(transmission, center);
+        ConnectPowertrain(center, front);
+        SetMember(center, "OutputB", rear);
+        SetMember(rear, "Input", center);
+        ConnectPowertrain(front, frontLeft);
+        SetMember(front, "OutputB", frontRight);
+        SetMember(frontRight, "Input", front);
+        ConnectPowertrain(rear, rearLeft);
+        SetMember(rear, "OutputB", rearRight);
+        SetMember(rearRight, "Input", rear);
+
+        var verified = ReferenceEquals(GetMember(engine, "Output"), transmission) &&
+                       ReferenceEquals(GetMember(transmission, "Input"), engine) &&
+                       ReferenceEquals(GetMember(transmission, "Output"), center) &&
+                       ReferenceEquals(GetMember(center, "Output"), front) &&
+                       ReferenceEquals(GetMember(center, "OutputB"), rear) &&
+                       ReferenceEquals(GetMember(front, "Output"), frontLeft) &&
+                       ReferenceEquals(GetMember(front, "OutputB"), frontRight) &&
+                       ReferenceEquals(GetMember(rear, "Output"), rearLeft) &&
+                       ReferenceEquals(GetMember(rear, "OutputB"), rearRight);
+        if (verified)
+            context?.Logger.Info("BigfootMonsterTruck: four-wheel-drive topology connected and verified.");
+        else
+            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive topology did not verify.");
+    }
+
+    private static void ConnectPowertrain(object input, object output)
+    {
+        SetMember(input, "Output", output);
+        SetMember(output, "Input", input);
+    }
+
+    private static object? FindNamedComponent(IList components, string name)
+    {
+        foreach (var component in components)
+            if (component != null && string.Equals(
+                    GetMember(component, "name") as string,
+                    name,
+                    StringComparison.Ordinal))
+                return component;
+        return null;
     }
 
     private static void SetMember(object? target, string name, object? value)
