@@ -52,7 +52,7 @@ namespace MobileVeterinarian
             Register(new AnimalVehicleRegistration(
                 MootorVehicleTypeName,
                 "mobileveterinarian:animal_cow",
-                new Vector3(1.7f, 0f, -0.15f)));
+                new Vector3(1.5f, 0f, -0.15f)));
         }
 
         public static void Register(AnimalVehicleRegistration registration)

@@ -42,9 +42,9 @@ namespace MobileVeterinarian
         private const float MonitorIntervalSeconds = 0.1f;
         private const float DoctorSettleSeconds = 0.75f;
         private const float NodAngleDegrees = 18f;
-        private const float NodPhaseSeconds = 0.28f;
-        private const float BetweenNodsSeconds = 0.12f;
-        private const float LookAtAnimalSeconds = 0.75f;
+        private const float NodPhaseSeconds = 0.23f;
+        private const float BetweenNodsSeconds = 0.10f;
+        private const float LookAtAnimalSeconds = 1.1f;
         private const float FinalPoseSeconds = 0.75f;
         private const float GestureTimeoutSeconds = 10f;
 
