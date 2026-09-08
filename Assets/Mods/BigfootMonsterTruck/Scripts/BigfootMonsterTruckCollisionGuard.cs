@@ -18,13 +18,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float TireContactDriveAcceleration = 8.5f;
     private const float TireContactMinimumStrength = 0.7f;
     private const float TireContactLiftMultiplier = 0.22f;
-    private const float LowSpeedMountThreshold = 2.75f;
-    private const float MountingPhaseDuration = 0.9f;
-    private const float MountingDriveAcceleration = 4.5f;
-    private const float MountingLiftAcceleration = 2.2f;
-    private const float MountingMaximumVerticalSpeed = 0.55f;
-    private const float TractionBridgeDuration = 1.25f;
-    private const float TireContactBreakDuration = 0.2f;
+    private const float LowSpeedClimbThreshold = 2.75f;
+    private const float LowSpeedClimbVerticalSpeed = 0.65f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
@@ -42,10 +37,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private float suppressDamageUntil;
     private int heavyImpactFrame = -1;
     private float nextClimbAssistLogTime;
-    private float lastTireContactTime;
-    private float mountingPhaseUntil;
-    private float tractionBridgeUntil;
-    private int assistedVehicleId;
     private bool initialized;
     private bool failureReported;
 
@@ -190,31 +181,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (forwardSpeed > MaximumClimbAssistSpeed)
                 return;
 
-            var now = Time.unscaledTime;
-            var otherInstanceId = otherPlayerVehicle != null
-                ? otherPlayerVehicle.GetInstanceID()
-                : trafficVehicle!.GetInstanceID();
             var tireContact = IsPhysicalTireContact(collision);
-            if (tireContact)
-            {
-                var isNewMount = assistedVehicleId != otherInstanceId ||
-                                 now > lastTireContactTime + TireContactBreakDuration;
-                if (isNewMount && forwardSpeed < LowSpeedMountThreshold)
-                    mountingPhaseUntil = now + MountingPhaseDuration;
-                assistedVehicleId = otherInstanceId;
-                lastTireContactTime = now;
-                tractionBridgeUntil = now + TractionBridgeDuration;
-            }
-            var bridgedTireContact = !tireContact && assistedVehicleId == otherInstanceId &&
-                                     now <= tractionBridgeUntil;
-            var tractionActive = tireContact || bridgedTireContact;
-            var mounting = tractionActive && now <= mountingPhaseUntil &&
-                           forwardSpeed < LowSpeedMountThreshold;
+            var lowSpeedClimb = tireContact && forwardSpeed < LowSpeedClimbThreshold;
             var otherLocal = vehicle.transform.InverseTransformPoint(collision.collider.bounds.center);
             // Once a tire is on the vehicle, keep pulling even after its center passes
-            // behind the front axle. The bridge covers brief contact loss as it enters
-            // the gap between the axles, where stopping would strand it beneath the truck.
-            if (!tractionActive && otherLocal.z * driveDirection < 0.75f)
+            // behind the front axle. Stopping here was what stranded cars beneath the truck.
+            if (!tireContact && otherLocal.z * driveDirection < 0.75f)
                 return;
             if (forwardSpeed < 0f)
             {
@@ -223,45 +195,41 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             }
 
             var verticalSpeed = Vector3.Dot(vehicleBody.velocity, Vector3.up);
-            var maximumVerticalSpeed = mounting
-                ? MountingMaximumVerticalSpeed
-                : MaximumAssistedVerticalSpeed;
-            if (verticalSpeed > maximumVerticalSpeed)
+            if (lowSpeedClimb && verticalSpeed < LowSpeedClimbVerticalSpeed)
+            {
+                vehicleBody.velocity +=
+                    Vector3.up * (LowSpeedClimbVerticalSpeed - verticalSpeed);
+                verticalSpeed = LowSpeedClimbVerticalSpeed;
+            }
+            if (verticalSpeed > MaximumAssistedVerticalSpeed)
             {
                 vehicleBody.velocity -=
-                    Vector3.up * (verticalSpeed - maximumVerticalSpeed);
-                verticalSpeed = maximumVerticalSpeed;
+                    Vector3.up * (verticalSpeed - MaximumAssistedVerticalSpeed);
+                verticalSpeed = MaximumAssistedVerticalSpeed;
             }
 
             var speedFactor = 1f - Mathf.Clamp01(Mathf.Max(0f, forwardSpeed) /
                                                  MaximumClimbAssistSpeed);
-            var driveStrength = tractionActive
+            var driveStrength = tireContact
                 ? Mathf.Lerp(TireContactMinimumStrength, 1f, speedFactor)
                 : speedFactor;
             var liftFactor = Mathf.Lerp(0.45f, 1f, speedFactor);
-            if (tractionActive)
+            if (tireContact)
                 liftFactor *= TireContactLiftMultiplier;
-            var liftAcceleration = mounting
-                ? MountingLiftAcceleration
-                : ClimbLiftAcceleration * liftFactor;
-            if (verticalSpeed < maximumVerticalSpeed)
+            if (verticalSpeed < MaximumAssistedVerticalSpeed)
                 vehicleBody.AddForce(
-                    Vector3.up * liftAcceleration,
+                    Vector3.up * (ClimbLiftAcceleration * liftFactor),
                     ForceMode.Acceleration);
-            var driveAcceleration = mounting
-                ? MountingDriveAcceleration
-                : tractionActive
-                    ? TireContactDriveAcceleration
-                    : ClimbDriveAcceleration;
             vehicleBody.AddForce(
                 worldDriveDirection *
-                (driveAcceleration * driveStrength * Mathf.Clamp01(throttle)),
+                ((tireContact ? TireContactDriveAcceleration : ClimbDriveAcceleration) *
+                 driveStrength * Mathf.Clamp01(throttle)),
                 ForceMode.Acceleration);
 
             var localAngularVelocity = vehicle.transform.InverseTransformDirection(
                 vehicleBody.angularVelocity);
-            localAngularVelocity.x *= mounting ? 0.72f : 0.9f;
-            localAngularVelocity.z *= mounting ? 0.65f : 0.82f;
+            localAngularVelocity.x *= 0.9f;
+            localAngularVelocity.z *= 0.82f;
             vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
 
             if (Time.unscaledTime >= nextClimbAssistLogTime)
@@ -270,13 +238,11 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 var otherName = otherPlayerVehicle != null
                     ? GetVehicleName(otherPlayerVehicle)
                     : trafficVehicle!.name;
-                var assistMode = mounting
-                    ? "low-speed-mount"
+                var assistMode = lowSpeedClimb
+                    ? "low-speed-step"
                     : tireContact
                         ? "tire-traction"
-                        : bridgedTireContact
-                            ? "traction-bridge"
-                            : "approach-lift";
+                        : "approach-lift";
                 context?.Logger.Info(
                     $"BigfootMonsterTruck: climb assist active other='{otherName}' " +
                     $"mode={assistMode}, " +
