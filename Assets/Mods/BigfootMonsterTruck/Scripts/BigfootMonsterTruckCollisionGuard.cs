@@ -26,6 +26,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float LatchedClimbLateralVelocityRetention = 0.15f;
     private const float LatchedClimbYawRetention = 0.5f;
     private const float LatchedClimbRollRetention = 0.65f;
+    private const float ParkedContactDirectionHoldTime = 0.75f;
+    private const float ParkedContactLateralVelocityRetention = 0.05f;
+    private const float ParkedContactYawRetention = 0.3f;
+    private const float ParkedContactRollRetention = 0.55f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
@@ -47,6 +51,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private Vector3 latchedClimbDirection;
     private int latchedClimbVehicleId;
     private bool latchedClimbApplicationLogged;
+    private float parkedContactDirectionUntil;
+    private float nextParkedStabilizationLogTime;
+    private Vector3 parkedContactDirection;
+    private int parkedContactVehicleId;
     private bool initialized;
     private bool failureReported;
 
@@ -267,6 +275,16 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (forwardSpeed > MaximumClimbAssistSpeed)
                 return;
 
+            if (parkedVehicle != null)
+            {
+                StabilizeParkedContact(
+                    parkedVehicle,
+                    worldDriveDirection,
+                    forwardSpeed);
+                velocity = vehicleBody.velocity;
+                forwardSpeed = Vector3.Dot(velocity, worldDriveDirection);
+            }
+
             var tireContact = IsPhysicalTireContact(collision);
             var leadingEdgeContact = IsLeadingEdgeContact(
                 collision,
@@ -374,11 +392,56 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     {
         latchedClimbUntil = 0f;
         latchedClimbVehicleId = 0;
+        parkedContactDirectionUntil = 0f;
+        parkedContactVehicleId = 0;
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
         physicsVehicle = null;
         vehicleBody = null;
         collisionListener = null;
+    }
+
+    private void StabilizeParkedContact(
+        Transform parkedVehicle,
+        Vector3 worldDriveDirection,
+        float forwardSpeed)
+    {
+        if (vehicle == null || vehicleBody == null)
+            return;
+
+        var now = Time.unscaledTime;
+        var parkedVehicleId = parkedVehicle.GetInstanceID();
+        if (parkedContactVehicleId != parkedVehicleId || now > parkedContactDirectionUntil)
+        {
+            parkedContactVehicleId = parkedVehicleId;
+            parkedContactDirection = Vector3.ProjectOnPlane(
+                worldDriveDirection,
+                Vector3.up).normalized;
+        }
+        parkedContactDirectionUntil = now + ParkedContactDirectionHoldTime;
+        if (parkedContactDirection.sqrMagnitude < 0.9f)
+            return;
+
+        var sideDirection = Vector3.Cross(Vector3.up, parkedContactDirection).normalized;
+        var velocity = vehicleBody.velocity;
+        var lateralSpeed = Vector3.Dot(velocity, sideDirection);
+        velocity -= sideDirection *
+                    (lateralSpeed * (1f - ParkedContactLateralVelocityRetention));
+        vehicleBody.velocity = velocity;
+
+        var localAngularVelocity = vehicle.transform.InverseTransformDirection(
+            vehicleBody.angularVelocity);
+        localAngularVelocity.y *= ParkedContactYawRetention;
+        localAngularVelocity.z *= ParkedContactRollRetention;
+        vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
+
+        if (Mathf.Abs(lateralSpeed) >= 0.1f && now >= nextParkedStabilizationLogTime)
+        {
+            nextParkedStabilizationLogTime = now + ClimbAssistLogCooldown;
+            context?.Logger.Info(
+                $"BigfootMonsterTruck: parked climb stabilized other='{parkedVehicle.name}', " +
+                $"speed={forwardSpeed:F2}m/s, lateralRemoved={lateralSpeed:F2}m/s.");
+        }
     }
 
     private static bool IsPhysicalTireContact(Collision collision)
