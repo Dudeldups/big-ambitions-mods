@@ -14,8 +14,10 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
     private AudioSource? nativeSource;
     private AudioSource? rumbleSource;
     private AudioSource? roarSource;
+    private AudioSource? crackleSource;
     private AudioClip? rumbleClip;
     private AudioClip? roarClip;
+    private AudioClip? crackleClip;
     private GameObject? audioHost;
     private ModContext? context;
     private bool configured;
@@ -80,12 +82,14 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
 
         rumbleClip = BigfootMonsterTruckEngineWave.CreateRumble();
         roarClip = BigfootMonsterTruckEngineWave.CreateRoar();
-        rumbleSource = CreateSource("LowRumble", rumbleClip, 950f, 0.12f);
-        roarSource = CreateSource("SuperchargedRoar", roarClip, 4200f, 0.38f);
+        crackleClip = BigfootMonsterTruckEngineWave.CreateCrackle();
+        rumbleSource = CreateSource("LowRumble", rumbleClip, 1200f, 0.08f);
+        roarSource = CreateSource("SuperchargedRoar", roarClip, 4800f, 0.30f);
+        crackleSource = CreateSource("ExhaustCrackle", crackleClip, 6800f, 0.24f, 520f);
         configured = true;
         context?.Logger.Info(
             $"BigfootMonsterTruck audio configured vehicle={vehicle.GetInstanceID()}, " +
-            "layers=2, source=procedural-v8.");
+            "layers=3, source=procedural-v8.");
         return true;
     }
 
@@ -93,7 +97,8 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         string name,
         AudioClip clip,
         float lowPassCutoff,
-        float distortion)
+        float distortion,
+        float highPassCutoff = 10f)
     {
         var layer = new GameObject(name);
         layer.transform.SetParent(audioHost!.transform, false);
@@ -116,6 +121,9 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         var lowPass = layer.AddComponent<AudioLowPassFilter>();
         lowPass.cutoffFrequency = lowPassCutoff;
         lowPass.lowpassResonanceQ = 1.15f;
+        var highPass = layer.AddComponent<AudioHighPassFilter>();
+        highPass.cutoffFrequency = highPassCutoff;
+        highPass.highpassResonanceQ = 1.05f;
         var distortionFilter = layer.AddComponent<AudioDistortionFilter>();
         distortionFilter.distortionLevel = distortion;
         return source;
@@ -124,7 +132,7 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || nativeSource == null || audioHost == null ||
-            rumbleSource == null || roarSource == null)
+            rumbleSource == null || roarSource == null || crackleSource == null)
             throw new InvalidOperationException("Configured engine audio was removed.");
 
         audioHost.transform.position = nativeSource.transform.position;
@@ -169,12 +177,15 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         var master = Mathf.Clamp01(physics.soundManager.masterVolume);
         var load = Mathf.SmoothStep(0f, 1f, smoothThrottle);
 
-        rumbleSource.pitch = Mathf.Lerp(0.88f, 2.05f, revCurve);
-        roarSource.pitch = Mathf.Lerp(0.92f, 2.75f, revCurve);
-        rumbleSource.volume = envelope * master * Mathf.Lerp(0.40f, 0.58f, load);
-        roarSource.volume = envelope * master * Mathf.Lerp(0.15f, 0.52f, load) *
+        rumbleSource.pitch = Mathf.Lerp(0.96f, 2.15f, revCurve);
+        roarSource.pitch = Mathf.Lerp(1.02f, 2.85f, revCurve);
+        crackleSource.pitch = Mathf.Lerp(0.95f, 1.55f, revCurve);
+        rumbleSource.volume = envelope * master * Mathf.Lerp(0.26f, 0.38f, load);
+        roarSource.volume = envelope * master * Mathf.Lerp(0.08f, 0.30f, load) *
                             Mathf.Lerp(0.78f, 1f, revCurve);
-        rumbleSource.mute = roarSource.mute = controlled && savedMute;
+        crackleSource.volume = envelope * master * Mathf.Lerp(0.025f, 0.14f, load) *
+                               Mathf.Lerp(0.75f, 1f, revCurve);
+        rumbleSource.mute = roarSource.mute = crackleSource.mute = controlled && savedMute;
 
         if (envelope <= 0f)
             StopVoices();
@@ -183,6 +194,7 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
             var startTime = AudioSettings.dspTime + 0.03d;
             rumbleSource.PlayScheduled(startTime);
             roarSource.PlayScheduled(startTime);
+            crackleSource.PlayScheduled(startTime);
             voicesStarted = true;
         }
     }
@@ -193,6 +205,8 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
             rumbleSource.Stop();
         if (roarSource != null)
             roarSource.Stop();
+        if (crackleSource != null)
+            crackleSource.Stop();
         voicesStarted = false;
     }
 
@@ -223,11 +237,15 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
             Destroy(rumbleClip);
         if (roarClip != null)
             Destroy(roarClip);
+        if (crackleClip != null)
+            Destroy(crackleClip);
         audioHost = null;
         rumbleSource = null;
         roarSource = null;
+        crackleSource = null;
         rumbleClip = null;
         roarClip = null;
+        crackleClip = null;
     }
 
     private void OnDestroy() => Cleanup();
