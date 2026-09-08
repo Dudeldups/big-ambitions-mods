@@ -23,6 +23,9 @@ namespace MootorVehicle
         private const float EnergyDrinkSpeedMultiplier = 2f;
         private const float NativeLimiterHeadroom = 1.08f;
         private const float ReverseGearRatio = -2.96f;
+        private const float RegularMaximumSteerAngle = 55f;
+        private const float EnergyMaximumSteerAngle = 24f;
+        private const int EnergyStabilityMountDelayTicks = 3;
         // Calibrated against the in-game speedometer: 1.95 produced 18 km/h, so
         // reducing the reduction ratio proportionally targets 22 km/h (44 boosted).
         private const float RegularForwardGearRatio = 1.595f;
@@ -38,12 +41,11 @@ namespace MootorVehicle
         private Rigidbody? vehicleBody;
         private FuelModuleWrapper? fuelModuleWrapper;
         private SpeedLimiterModuleWrapper? speedLimiterWrapper;
-        private RigidbodyConstraints regularRigidbodyConstraints;
+        private Coroutine? energyStabilityCoroutine;
         private float regularSpeedLimit;
         private float regularEnginePower;
         private string energyBoostPreferenceKey = string.Empty;
         private bool performanceConfigured;
-        private bool energyStabilityConfigured;
         private bool energyBoostActive;
         private bool performanceConfigurationWarningLogged;
         private bool mounted;
@@ -66,12 +68,19 @@ namespace MootorVehicle
             mounted = true;
             heldItemAwaitingRestore = PlayerHelper.ItemInstanceInHands;
             TryFeedFromHands();
+            if (energyBoostActive)
+                ScheduleEnergyModeStability();
             SuppressOverlappingRefuelStations();
         }
 
         internal void NotifyDismounted()
         {
             mounted = false;
+            if (energyStabilityCoroutine != null)
+            {
+                StopCoroutine(energyStabilityCoroutine);
+                energyStabilityCoroutine = null;
+            }
             suppressedRefuelStations.Clear();
             if (heldItemAwaitingRestore != null)
                 StartCoroutine(RestoreHeldItemAfterDismount(heldItemAwaitingRestore));
@@ -157,11 +166,6 @@ namespace MootorVehicle
 
                 regularSpeedLimit = RegularSpeedLimit;
                 regularEnginePower = RegularEnginePower;
-                if (vehicleBody != null && !energyStabilityConfigured)
-                {
-                    regularRigidbodyConstraints = vehicleBody.constraints;
-                    energyStabilityConfigured = true;
-                }
                 speedLimiter.speedLimit = regularSpeedLimit * NativeLimiterHeadroom;
                 engine.maxPower = regularEnginePower;
                 ConfigureCowPowerCurve(engine);
@@ -244,8 +248,8 @@ namespace MootorVehicle
             speedLimiter.speedLimit = regularSpeedLimit * performanceMultiplier * NativeLimiterHeadroom;
             engine.maxPower = regularEnginePower * (active ? EnergyDrinkSpeedMultiplier : 1f);
             ConfigureSingleSpeedTransmission(active);
-            ConfigureEnergyModeStability(active);
             energyBoostActive = active;
+            ConfigureEnergyModeStability(active);
 
             if (persist)
                 PersistEnergyDrinkBoost(active);
@@ -259,19 +263,63 @@ namespace MootorVehicle
 
         private void ConfigureEnergyModeStability(bool active)
         {
-            if (!energyStabilityConfigured || vehicleBody == null)
+            if (physicsVehicle == null)
                 return;
 
-            var targetConstraints = active
-                ? regularRigidbodyConstraints |
-                  RigidbodyConstraints.FreezeRotationX |
-                  RigidbodyConstraints.FreezeRotationZ
-                : regularRigidbodyConstraints;
-            vehicleBody.constraints = targetConstraints;
+            physicsVehicle.steering.maximumSteerAngle = active
+                ? EnergyMaximumSteerAngle
+                : RegularMaximumSteerAngle;
+
+            if (active)
+            {
+                if (mounted)
+                    ScheduleEnergyModeStability();
+            }
+            else if (vehicleBody != null && vehicle != null && vehicle.controlledByPlayer)
+            {
+                vehicleBody.constraints &=
+                    ~(RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ);
+            }
 
             context?.Logger.Info(
                 $"Moo-tor Vehicle energy stability vehicle={vehicle?.GetInstanceID()} " +
-                $"active={active} constraints={targetConstraints}; yaw remains unlocked.");
+                $"active={active} maximumSteerAngle={physicsVehicle.steering.maximumSteerAngle:F1} " +
+                "mountTransitionScheduled=" + (active && mounted) + ".");
+        }
+
+        private void ScheduleEnergyModeStability()
+        {
+            if (vehicleBody == null)
+                return;
+
+            if (energyStabilityCoroutine != null)
+                StopCoroutine(energyStabilityCoroutine);
+            energyStabilityCoroutine = StartCoroutine(ApplyEnergyModeStabilityAfterMount());
+        }
+
+        private IEnumerator ApplyEnergyModeStabilityAfterMount()
+        {
+            for (var tick = 0; tick < EnergyStabilityMountDelayTicks; tick++)
+                yield return new WaitForFixedUpdate();
+
+            energyStabilityCoroutine = null;
+            if (!mounted || !energyBoostActive || vehicleBody == null || vehicle == null ||
+                !vehicle.controlledByPlayer)
+            {
+                yield break;
+            }
+
+            var previousConstraints = vehicleBody.constraints;
+            // The stock vehicle state wakes and unfreezes the Rigidbody during mounting. Apply
+            // this only after that transition, locking pitch/roll while leaving position and yaw
+            // entirely to the established vehicle controller.
+            vehicleBody.constraints =
+                RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+
+            context?.Logger.Info(
+                $"Moo-tor Vehicle energy stability vehicle={vehicle.GetInstanceID()} applied after " +
+                $"mount previousConstraints={previousConstraints} " +
+                $"constraints={vehicleBody.constraints} ticks={EnergyStabilityMountDelayTicks}.");
         }
 
         private static void ConfigureCowPowerCurve(NWH.VehiclePhysics2.Powertrain.EngineComponent engine)
@@ -426,6 +474,11 @@ namespace MootorVehicle
 
         private void OnDisable()
         {
+            if (energyStabilityCoroutine != null)
+            {
+                StopCoroutine(energyStabilityCoroutine);
+                energyStabilityCoroutine = null;
+            }
             suppressedRefuelStations.Clear();
             mounted = false;
         }
@@ -441,6 +494,11 @@ namespace MootorVehicle
                 speedLimiterWrapper.module.speedLimit = regularSpeedLimit;
             if (physicsVehicle?.powertrain?.engine != null)
                 physicsVehicle.powertrain.engine.maxPower = regularEnginePower;
+            if (physicsVehicle != null)
+                physicsVehicle.steering.maximumSteerAngle = RegularMaximumSteerAngle;
+            if (vehicleBody != null && vehicle != null && vehicle.controlledByPlayer)
+                vehicleBody.constraints &=
+                    ~(RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ);
         }
     }
 }
