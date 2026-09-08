@@ -184,7 +184,7 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         rumbleSource.volume = envelope * master * Mathf.Lerp(0.20f, 0.28f, load);
         roarSource.volume = envelope * master * Mathf.Lerp(0.055f, 0.20f, load) *
                             Mathf.Lerp(0.78f, 1f, revCurve);
-        crackleSource.volume = envelope * master * Mathf.Lerp(0.045f, 0.22f, load) *
+        crackleSource.volume = envelope * master * Mathf.Lerp(0.045f, 0.22f, load) * 1.05f *
                                Mathf.Lerp(0.75f, 1f, revCurve);
         rumbleSource.mute = roarSource.mute = crackleSource.mute = controlled && savedMute;
 
