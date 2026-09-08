@@ -124,14 +124,15 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
         try
         {
-            var throttle = physicsVehicle.input.Throttle;
-            if (throttle < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
+            var driveInput = physicsVehicle.input.Vertical;
+            var driveIntensity = Mathf.Abs(driveInput);
+            if (driveIntensity < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
             {
                 latchedClimbUntil = 0f;
                 return;
             }
 
-            var driveDirection = physicsVehicle.powertrain.transmission.Gear < 0 ? -1f : 1f;
+            var driveDirection = Mathf.Sign(driveInput);
             var currentDriveDirection = vehicle.transform.forward * driveDirection;
             var climbDirection = Vector3.ProjectOnPlane(latchedClimbDirection, Vector3.up).normalized;
             if (climbDirection.sqrMagnitude < 0.9f ||
@@ -159,7 +160,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             vehicleBody.velocity = velocity;
             vehicleBody.AddForce(
                 climbDirection *
-                (LatchedClimbDriveAcceleration * Mathf.Clamp01(throttle)),
+                (LatchedClimbDriveAcceleration * Mathf.Clamp01(driveIntensity)),
                 ForceMode.Acceleration);
             var localAngularVelocity = vehicle.transform.InverseTransformDirection(
                 vehicleBody.angularVelocity);
@@ -262,18 +263,18 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
                 return;
             if (otherPlayerVehicle != null
-                    ? IsHeavyVehicle(otherPlayerVehicle)
+                    ? IsTooHeavyToClimb(otherPlayerVehicle)
                     : trafficVehicle != null
-                        ? IsHeavyVehicleIdentity(trafficVehicle.name)
-                        : IsHeavyVehicleIdentity(parkedVehicle!.name))
+                        ? IsTooHeavyToClimbIdentity(trafficVehicle.name)
+                        : IsTooHeavyToClimbIdentity(parkedVehicle!.name))
                 return;
 
-            var throttle = physicsVehicle.input.Throttle;
-            if (throttle < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
+            var driveInput = physicsVehicle.input.Vertical;
+            var driveIntensity = Mathf.Abs(driveInput);
+            if (driveIntensity < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
                 return;
 
-            var transmission = physicsVehicle.powertrain.transmission;
-            var driveDirection = transmission.Gear < 0 ? -1f : 1f;
+            var driveDirection = Mathf.Sign(driveInput);
             var worldDriveDirection = vehicle.transform.forward * driveDirection;
             var velocity = vehicleBody.velocity;
             var forwardSpeed = Vector3.Dot(velocity, worldDriveDirection);
@@ -355,7 +356,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             vehicleBody.AddForce(
                 worldDriveDirection *
                 ((tireContact ? TireContactDriveAcceleration : ClimbDriveAcceleration) *
-                 driveStrength * Mathf.Clamp01(throttle)),
+                 driveStrength * Mathf.Clamp01(driveIntensity)),
                 ForceMode.Acceleration);
 
             var localAngularVelocity = vehicle.transform.InverseTransformDirection(
@@ -383,7 +384,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     $"BigfootMonsterTruck: climb assist active other='{otherName}' " +
                     $"mode={assistMode}, " +
                     $"direction={(driveDirection > 0f ? "forward" : "reverse")}, " +
-                    $"throttle={throttle:F2}, speed={forwardSpeed:F2}m/s, " +
+                    $"input={driveIntensity:F2}, speed={forwardSpeed:F2}m/s, " +
                     $"vertical={verticalSpeed:F2}m/s, strength={driveStrength:F2}.");
             }
         }
@@ -508,6 +509,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                type.maxCargoCapacity >= HeavyCargoCapacity;
     }
 
+    private static bool IsTooHeavyToClimb(VehicleController other)
+    {
+        var identity = GetVehicleName(other);
+        return !IsVordV150(identity) && IsHeavyVehicle(other);
+    }
+
     private static string GetVehicleName(VehicleController other) =>
         other.vehicleType?.vehicleTypeName ?? other.name;
 
@@ -519,6 +526,16 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         return identity.Contains("freighttruck") || identity.Contains("deliverytruck") ||
                identity.Contains("ambulance") || identity.Contains("vordv150");
     }
+
+    private static bool IsTooHeavyToClimbIdentity(string vehicleName)
+    {
+        var identity = vehicleName.ToLowerInvariant();
+        return identity.Contains("freighttruck") || identity.Contains("deliverytruck") ||
+               identity.Contains("ambulance");
+    }
+
+    private static bool IsVordV150(string vehicleName) =>
+        vehicleName.IndexOf("vordv150", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private bool ShouldLogCollision(int otherInstanceId)
     {
