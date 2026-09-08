@@ -15,16 +15,15 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float ClimbAssistLogCooldown = 3f;
     private const float ClimbLiftAcceleration = 3.25f;
     private const float ClimbDriveAcceleration = 4f;
+    private const float TireContactDriveAcceleration = 8.5f;
+    private const float TireContactMinimumStrength = 0.7f;
+    private const float TireContactLiftMultiplier = 0.22f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
-    private const float VehicleSurfaceGripHoldTime = 0.15f;
-    private const float VehicleSurfaceOtherBodyForceScale = 0.2f;
-    private const int TrafficVehicleLayer = 12;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
     private readonly Dictionary<int, float> nextCollisionLogTimes = new();
-    private readonly List<WheelSurfaceGripState> wheelSurfaceGripStates = new();
     private VehicleController? vehicle;
     private VehicleDeformationController? deformationController;
     private FieldInfo? deformationQueueField;
@@ -36,9 +35,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private float suppressDamageUntil;
     private int heavyImpactFrame = -1;
     private float nextClimbAssistLogTime;
-    private float nextSurfaceGripLogTime;
-    private float wheelSurfaceGripUntil;
-    private bool wheelSurfaceGripActive;
     private bool initialized;
     private bool failureReported;
 
@@ -56,7 +52,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         if (controller is CarController car && car.vehicleController != null)
         {
             physicsVehicle = car.vehicleController;
-            CaptureWheelSurfaceGripStates(controller);
             collisionListener = HandleVehicleCollision;
             physicsVehicle.onCollision.AddListener(collisionListener);
             modContext?.Logger.Info(
@@ -77,7 +72,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
         try
         {
-            UpdateWheelSurfaceGrip();
             if (Time.unscaledTime <= suppressDamageUntil)
             {
                 ClearPendingDeformationQueue();
@@ -185,11 +179,11 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (forwardSpeed > MaximumClimbAssistSpeed)
                 return;
 
-            if (IsPhysicalTireContact(collision))
-                EnableWheelSurfaceGrip();
-
+            var tireContact = IsPhysicalTireContact(collision);
             var otherLocal = vehicle.transform.InverseTransformPoint(collision.collider.bounds.center);
-            if (otherLocal.z * driveDirection < 0.75f)
+            // Once a tire is on the vehicle, keep pulling even after its center passes
+            // behind the front axle. Stopping here was what stranded cars beneath the truck.
+            if (!tireContact && otherLocal.z * driveDirection < 0.75f)
                 return;
             if (forwardSpeed < 0f)
             {
@@ -207,14 +201,20 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
             var speedFactor = 1f - Mathf.Clamp01(Mathf.Max(0f, forwardSpeed) /
                                                  MaximumClimbAssistSpeed);
+            var driveStrength = tireContact
+                ? Mathf.Lerp(TireContactMinimumStrength, 1f, speedFactor)
+                : speedFactor;
             var liftFactor = Mathf.Lerp(0.45f, 1f, speedFactor);
+            if (tireContact)
+                liftFactor *= TireContactLiftMultiplier;
             if (verticalSpeed < MaximumAssistedVerticalSpeed)
                 vehicleBody.AddForce(
                     Vector3.up * (ClimbLiftAcceleration * liftFactor),
                     ForceMode.Acceleration);
             vehicleBody.AddForce(
                 worldDriveDirection *
-                (ClimbDriveAcceleration * speedFactor * Mathf.Clamp01(throttle)),
+                ((tireContact ? TireContactDriveAcceleration : ClimbDriveAcceleration) *
+                 driveStrength * Mathf.Clamp01(throttle)),
                 ForceMode.Acceleration);
 
             var localAngularVelocity = vehicle.transform.InverseTransformDirection(
@@ -231,9 +231,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     : trafficVehicle!.name;
                 context?.Logger.Info(
                     $"BigfootMonsterTruck: climb assist active other='{otherName}' " +
+                    $"mode={(tireContact ? "tire-traction" : "approach-lift")}, " +
                     $"direction={(driveDirection > 0f ? "forward" : "reverse")}, " +
                     $"throttle={throttle:F2}, speed={forwardSpeed:F2}m/s, " +
-                    $"vertical={verticalSpeed:F2}m/s, strength={speedFactor:F2}.");
+                    $"vertical={verticalSpeed:F2}m/s, strength={driveStrength:F2}.");
             }
         }
         catch (Exception exception)
@@ -244,85 +245,11 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
     private void OnDestroy()
     {
-        RestoreWheelSurfaceGrip();
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
         physicsVehicle = null;
         vehicleBody = null;
         collisionListener = null;
-    }
-
-    private void CaptureWheelSurfaceGripStates(VehicleController controller)
-    {
-        wheelSurfaceGripStates.Clear();
-        foreach (var transform in controller.GetComponentsInChildren<Transform>(true))
-        {
-            if (!transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
-                continue;
-            foreach (var component in transform.GetComponents<MonoBehaviour>())
-            {
-                if (component == null || !TryGetLayerMask(component, out var layerMask) ||
-                    !TryGetFloat(component, "otherBodyForceScale", out var otherBodyForceScale))
-                    continue;
-                wheelSurfaceGripStates.Add(new WheelSurfaceGripState(
-                    component,
-                    layerMask,
-                    otherBodyForceScale));
-                break;
-            }
-        }
-
-        if (wheelSurfaceGripStates.Count == 4)
-            context?.Logger.Info(
-                "BigfootMonsterTruck: four powered wheels prepared for temporary vehicle-surface grip.");
-        else
-            context?.Logger.Warn(
-                $"BigfootMonsterTruck: expected four vehicle-surface grip wheels but found " +
-                $"{wheelSurfaceGripStates.Count}.");
-    }
-
-    private void EnableWheelSurfaceGrip()
-    {
-        wheelSurfaceGripUntil = Time.unscaledTime + VehicleSurfaceGripHoldTime;
-        if (wheelSurfaceGripActive || wheelSurfaceGripStates.Count == 0)
-            return;
-
-        foreach (var state in wheelSurfaceGripStates)
-        {
-            var layerMask = state.OriginalLayerMask;
-            layerMask.value |= 1 << TrafficVehicleLayer;
-            SetMember(state.Controller, "layerMask", layerMask);
-            SetMember(
-                state.Controller,
-                "otherBodyForceScale",
-                VehicleSurfaceOtherBodyForceScale);
-        }
-        wheelSurfaceGripActive = true;
-        if (Time.unscaledTime >= nextSurfaceGripLogTime)
-        {
-            nextSurfaceGripLogTime = Time.unscaledTime + ClimbAssistLogCooldown;
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: powered tire grip engaged on a small vehicle; " +
-                $"wheels={wheelSurfaceGripStates.Count}.");
-        }
-    }
-
-    private void UpdateWheelSurfaceGrip()
-    {
-        if (wheelSurfaceGripActive && Time.unscaledTime > wheelSurfaceGripUntil)
-            RestoreWheelSurfaceGrip();
-    }
-
-    private void RestoreWheelSurfaceGrip()
-    {
-        if (!wheelSurfaceGripActive)
-            return;
-        foreach (var state in wheelSurfaceGripStates)
-        {
-            SetMember(state.Controller, "layerMask", state.OriginalLayerMask);
-            SetMember(state.Controller, "otherBodyForceScale", state.OriginalOtherBodyForceScale);
-        }
-        wheelSurfaceGripActive = false;
     }
 
     private static bool IsPhysicalTireContact(Collision collision)
@@ -339,86 +266,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     return true;
         }
         return false;
-    }
-
-    private static bool TryGetLayerMask(object target, out LayerMask layerMask)
-    {
-        var value = GetMember(target, "layerMask");
-        if (value is LayerMask mask)
-        {
-            layerMask = mask;
-            return true;
-        }
-        layerMask = default;
-        return false;
-    }
-
-    private static bool TryGetFloat(object target, string name, out float value)
-    {
-        var member = GetMember(target, name);
-        if (member is float number)
-        {
-            value = number;
-            return true;
-        }
-        value = 0f;
-        return false;
-    }
-
-    private static object? GetMember(object target, string name)
-    {
-        var type = target.GetType();
-        return FindField(type, name)?.GetValue(target) ??
-               type.GetProperty(
-                       name,
-                       BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                   ?.GetValue(target);
-    }
-
-    private static void SetMember(object target, string name, object value)
-    {
-        var type = target.GetType();
-        var field = FindField(type, name);
-        if (field != null && field.FieldType.IsInstanceOfType(value))
-        {
-            field.SetValue(target, value);
-            return;
-        }
-        var property = type.GetProperty(
-            name,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (property?.CanWrite == true && property.PropertyType.IsInstanceOfType(value))
-            property.SetValue(target, value);
-    }
-
-    private static FieldInfo? FindField(Type type, string name)
-    {
-        for (var current = type; current != null; current = current.BaseType)
-        {
-            var field = current.GetField(
-                name,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (field != null)
-                return field;
-        }
-        return null;
-    }
-
-    private sealed class WheelSurfaceGripState
-    {
-        public WheelSurfaceGripState(
-            MonoBehaviour controller,
-            LayerMask originalLayerMask,
-            float originalOtherBodyForceScale)
-        {
-            Controller = controller;
-            OriginalLayerMask = originalLayerMask;
-            OriginalOtherBodyForceScale = originalOtherBodyForceScale;
-        }
-
-        public MonoBehaviour Controller { get; }
-        public LayerMask OriginalLayerMask { get; }
-        public float OriginalOtherBodyForceScale { get; }
     }
 
     private static bool IsHeavyVehicle(VehicleController other)
