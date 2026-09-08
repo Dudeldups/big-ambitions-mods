@@ -20,7 +20,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private readonly List<GameObject> generatedObjects = new();
     private readonly List<Material> generatedMaterials = new();
     private readonly List<Mesh> generatedMeshes = new();
-    private readonly List<Texture2D> generatedTextures = new();
 
     private VehicleController? vehicleController;
     private ModContext? context;
@@ -29,7 +28,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? headlightBeam;
     private Light? leftHeadlightBeam;
     private Light? rightHeadlightBeam;
-    private Texture2D? headlightEmissionMask;
     private MeshRenderer? leftHeadlightOverlay;
     private MeshRenderer? rightHeadlightOverlay;
     private MeshRenderer? leftTailLightOverlay;
@@ -73,18 +71,20 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         leftHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
+            position => position.x <= 0f,
             "LeftHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false,
-            useEmissionMask: true);
+            additive: true,
+            selectHeadlightSignatureComponents: true);
         rightHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
+            position => position.x > 0f,
             "RightHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false,
-            useEmissionMask: true);
+            additive: true,
+            selectHeadlightSignatureComponents: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
             "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
@@ -328,7 +328,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         Color activeColor,
         bool copyBaseTexture = true,
         float overlayScale = 1.0015f,
-        bool useEmissionMask = false)
+        bool additive = false,
+        bool selectHeadlightSignatureComponents = false)
     {
         if (sourceRenderer == null)
         {
@@ -345,8 +346,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         try
         {
-            var overlayMesh = CreateFilteredMesh(
-                sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
+            var overlayMesh = selectHeadlightSignatureComponents
+                ? CreateHeadlightSignatureMesh(
+                    sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
+                : CreateFilteredMesh(
+                    sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
             if (overlayMesh == null)
             {
                 LogWarning($"overlay '{suffix}' selected no triangles on '{sourceRenderer.name}'.");
@@ -361,7 +365,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
             overlayRenderer.sharedMaterial = CreateUnlitMaterial(
                 FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture,
-                useEmissionMask);
+                additive);
             overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
@@ -432,12 +436,187 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
+    private readonly struct MeshTriangle
+    {
+        internal MeshTriangle(int a, int b, int c)
+        {
+            A = a;
+            B = b;
+            C = c;
+        }
+
+        internal int A { get; }
+        internal int B { get; }
+        internal int C { get; }
+    }
+
+    private Mesh? CreateHeadlightSignatureMesh(
+        MeshRenderer sourceRenderer,
+        Mesh source,
+        Func<Vector3, bool> includeComponentCenter,
+        string suffix)
+    {
+        var vertices = source.vertices;
+        var uvs = source.uv;
+        if (vertices.Length == 0 || uvs.Length != vertices.Length || vehicleController == null)
+            return null;
+
+        var vehicleTransform = vehicleController.transform;
+        var vehiclePositions = new Vector3[vertices.Length];
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            vehiclePositions[index] = vehicleTransform.InverseTransformPoint(
+                sourceRenderer.transform.TransformPoint(vertices[index]));
+        }
+
+        var parents = new int[vertices.Length];
+        for (var index = 0; index < parents.Length; index++)
+            parents[index] = index;
+
+        var sourceTriangles = new List<MeshTriangle>();
+        for (var subMesh = 0; subMesh < source.subMeshCount; subMesh++)
+        {
+            var subMeshTriangles = source.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < subMeshTriangles.Length; index += 3)
+            {
+                var triangle = new MeshTriangle(
+                    subMeshTriangles[index], subMeshTriangles[index + 1], subMeshTriangles[index + 2]);
+                sourceTriangles.Add(triangle);
+                UnionComponentVertices(parents, triangle.A, triangle.B);
+                UnionComponentVertices(parents, triangle.A, triangle.C);
+            }
+        }
+
+        var components = new Dictionary<int, List<MeshTriangle>>();
+        foreach (var triangle in sourceTriangles)
+        {
+            var root = FindComponentRoot(parents, triangle.A);
+            if (!components.TryGetValue(root, out var component))
+            {
+                component = new List<MeshTriangle>();
+                components.Add(root, component);
+            }
+            component.Add(triangle);
+        }
+
+        var selectedTriangles = new List<int>();
+        var selectedComponents = 0;
+        foreach (var component in components.Values)
+        {
+            var minimum = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+            var maximum = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+            var minimumUv = new Vector2(float.MaxValue, float.MaxValue);
+            var maximumUv = new Vector2(float.MinValue, float.MinValue);
+
+            foreach (var triangle in component)
+            {
+                Encapsulate(ref minimum, ref maximum, vehiclePositions[triangle.A]);
+                Encapsulate(ref minimum, ref maximum, vehiclePositions[triangle.B]);
+                Encapsulate(ref minimum, ref maximum, vehiclePositions[triangle.C]);
+                var uvCenter = (uvs[triangle.A] + uvs[triangle.B] + uvs[triangle.C]) / 3f;
+                minimumUv = Vector2.Min(minimumUv, uvCenter);
+                maximumUv = Vector2.Max(maximumUv, uvCenter);
+            }
+
+            var center = (minimum + maximum) * 0.5f;
+            if (!includeComponentCenter(center) ||
+                !IsHeadlightSignatureComponent(component.Count, minimum, maximum, minimumUv, maximumUv))
+                continue;
+
+            selectedComponents++;
+            foreach (var triangle in component)
+            {
+                selectedTriangles.Add(triangle.A);
+                selectedTriangles.Add(triangle.B);
+                selectedTriangles.Add(triangle.C);
+            }
+        }
+
+        if (selectedTriangles.Count == 0)
+            return null;
+
+        LogInfo($"headlight-signature suffix='{suffix}' components={selectedComponents} " +
+                $"triangles={selectedTriangles.Count / 3}.");
+        var mesh = new Mesh
+        {
+            name = source.name + "_AudiRS6R_" + suffix,
+            indexFormat = source.indexFormat,
+            vertices = vertices,
+            normals = source.normals,
+            tangents = source.tangents,
+            colors32 = source.colors32,
+            uv = uvs,
+            uv2 = source.uv2
+        };
+        mesh.SetTriangles(selectedTriangles, 0, true);
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    private static bool IsHeadlightSignatureComponent(
+        int triangleCount,
+        Vector3 minimum,
+        Vector3 maximum,
+        Vector2 minimumUv,
+        Vector2 maximumUv)
+    {
+        // The source model gives the light guides their own connected geometry. Their front
+        // faces also share this tiny atlas strip, which separates them from nearby trim pieces.
+        var usesLightGuideAtlasStrip = minimumUv.x >= 0f && maximumUv.x <= 0.025f &&
+                                       minimumUv.y >= 0.895f && maximumUv.y <= 0.925f;
+        if (!usesLightGuideAtlasStrip)
+            return false;
+
+        var size = maximum - minimum;
+        var center = (minimum + maximum) * 0.5f;
+        var absoluteX = Mathf.Abs(center.x);
+        var diagonalCenterZ = 2.615f - 0.67f * absoluteX;
+        var diagonalSegment = absoluteX >= 0.50f && absoluteX <= 0.81f &&
+                              center.y >= 0.64f && center.y <= 0.69f &&
+                              Mathf.Abs(center.z - diagonalCenterZ) <= 0.045f &&
+                              size.x <= 0.045f && size.y <= 0.055f &&
+                              size.z >= 0.012f && size.z <= 0.11f &&
+                              triangleCount >= 2 && triangleCount <= 22;
+        var outerLightGuide = absoluteX >= 0.81f && absoluteX <= 0.87f &&
+                              center.y >= 0.67f && center.y <= 0.735f &&
+                              center.z >= 1.90f && center.z <= 2.11f &&
+                              size.x >= 0.015f && size.x <= 0.045f &&
+                              size.y >= 0.035f && size.y <= 0.065f &&
+                              size.z >= 0.11f && size.z <= 0.20f &&
+                              triangleCount >= 8 && triangleCount <= 28;
+        return diagonalSegment || outerLightGuide;
+    }
+
+    private static void Encapsulate(ref Vector3 minimum, ref Vector3 maximum, Vector3 point)
+    {
+        minimum = Vector3.Min(minimum, point);
+        maximum = Vector3.Max(maximum, point);
+    }
+
+    private static int FindComponentRoot(int[] parents, int vertex)
+    {
+        while (parents[vertex] != vertex)
+        {
+            parents[vertex] = parents[parents[vertex]];
+            vertex = parents[vertex];
+        }
+        return vertex;
+    }
+
+    private static void UnionComponentVertices(int[] parents, int first, int second)
+    {
+        var firstRoot = FindComponentRoot(parents, first);
+        var secondRoot = FindComponentRoot(parents, second);
+        if (firstRoot != secondRoot)
+            parents[secondRoot] = firstRoot;
+    }
+
     private Material CreateUnlitMaterial(
         Material? source,
         string materialName,
         Color color,
         bool copyBaseTexture,
-        bool useEmissionMask)
+        bool additive)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
                      Shader.Find("High Definition Render Pipeline/Unlit") ??
@@ -447,17 +626,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         var material = new Material(shader) { name = materialName };
         generatedMaterials.Add(material);
-        if (useEmissionMask)
-        {
-            var mask = CreateHeadlightEmissionMask(source);
-            AssignBaseTexture(material, mask);
-        }
-        else if (copyBaseTexture)
+        if (copyBaseTexture)
         {
             CopyBaseTexture(source, material);
         }
 
-        var hdrColor = color * (useEmissionMask ? 6f : 3.5f);
+        var hdrColor = color * (additive ? 6f : 3.5f);
         hdrColor.a = 1f;
         SetColorIfPresent(material, "_UnlitColor", hdrColor);
         SetColorIfPresent(material, "_BaseColor", hdrColor);
@@ -465,12 +639,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetColorIfPresent(material, "baseColorFactor", hdrColor);
         SetColorIfPresent(material, "_EmissiveColor", hdrColor);
         SetColorIfPresent(material, "_EmissionColor", hdrColor);
-        SetFloatIfPresent(material, "_SurfaceType", useEmissionMask ? 1f : 0f);
-        SetFloatIfPresent(material, "_ZWrite", useEmissionMask ? 0f : 1f);
+        SetFloatIfPresent(material, "_SurfaceType", additive ? 1f : 0f);
+        SetFloatIfPresent(material, "_ZWrite", additive ? 0f : 1f);
         SetFloatIfPresent(material, "_Cull", 0f);
         SetFloatIfPresent(material, "_CullMode", 0f);
         material.EnableKeyword("_EMISSION");
-        if (useEmissionMask)
+        if (additive)
             ConfigureAdditiveTransparency(material);
         else
             material.renderQueue = 2450;
@@ -494,73 +668,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         material.SetShaderPassEnabled("TransparentDepthPostpass", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
-    }
-
-    private Texture2D CreateHeadlightEmissionMask(Material? source)
-    {
-        if (headlightEmissionMask != null)
-            return headlightEmissionMask;
-
-        var sourceTexture = FindBaseTexture(source);
-        if (sourceTexture == null)
-            throw new InvalidOperationException("The Audi headlight source texture is missing.");
-
-        var width = Mathf.Max(2, sourceTexture.width);
-        var height = Mathf.Max(2, sourceTexture.height);
-        var temporary = RenderTexture.GetTemporary(
-            width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
-        var previousActive = RenderTexture.active;
-        try
-        {
-            Graphics.Blit(sourceTexture, temporary);
-            RenderTexture.active = temporary;
-            var mask = new Texture2D(width, height, TextureFormat.RGBA32, false, false)
-            {
-                name = sourceTexture.name + "_AudiRS6R_HeadlightEmissionMask",
-                filterMode = FilterMode.Bilinear,
-                wrapMode = sourceTexture.wrapMode
-            };
-            mask.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
-            mask.Apply(false, false);
-
-            var pixels = mask.GetPixels32();
-            var emissivePixels = 0;
-            for (var index = 0; index < pixels.Length; index++)
-            {
-                var sourcePixel = pixels[index];
-                var red = sourcePixel.r / 255f;
-                var green = sourcePixel.g / 255f;
-                var blue = sourcePixel.b / 255f;
-                var luminance = red * 0.2126f + green * 0.7152f + blue * 0.0722f;
-                var chroma = Mathf.Max(red, Mathf.Max(green, blue)) - Mathf.Min(red, Mathf.Min(green, blue));
-                var brightness = SmoothStep01(Mathf.InverseLerp(0.60f, 0.78f, luminance));
-                var neutral = 1f - SmoothStep01(Mathf.InverseLerp(0.08f, 0.28f, chroma));
-                var intensity = Mathf.Clamp01(brightness * neutral);
-                var value = (byte)Mathf.RoundToInt(intensity * 255f);
-                pixels[index] = new Color32(value, value, value, value);
-                if (value > 8)
-                    emissivePixels++;
-            }
-
-            mask.SetPixels32(pixels);
-            mask.Apply(false, true);
-            headlightEmissionMask = mask;
-            generatedTextures.Add(mask);
-            LogInfo($"headlight-emission-mask source='{sourceTexture.name}' size={width}x{height} " +
-                    $"emissivePixels={emissivePixels}/{pixels.Length}.");
-            return mask;
-        }
-        finally
-        {
-            RenderTexture.active = previousActive;
-            RenderTexture.ReleaseTemporary(temporary);
-        }
-    }
-
-    private static float SmoothStep01(float value)
-    {
-        value = Mathf.Clamp01(value);
-        return value * value * (3f - 2f * value);
     }
 
     private static void CopyBaseTexture(Material? source, Material destination)
@@ -635,7 +742,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             lastHeadlightState = headlightState;
             LogInfo($"headlight-state playerControlled={controlledByPlayer} automaticLights={automaticHeadlights} " +
-                    $"texturedInteriorOverlays={headlights} lensOverlays=false beams={headlights}.");
+                    $"signatureOverlays={headlights} lensOverlays=false beams={headlights}.");
         }
     }
 
@@ -740,7 +847,5 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             if (material != null) Destroy(material);
         foreach (var mesh in generatedMeshes)
             if (mesh != null) Destroy(mesh);
-        foreach (var texture in generatedTextures)
-            if (texture != null) Destroy(texture);
     }
 }
