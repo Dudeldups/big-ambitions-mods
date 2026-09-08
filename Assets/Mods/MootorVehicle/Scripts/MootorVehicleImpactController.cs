@@ -18,9 +18,10 @@ namespace MootorVehicle
     {
         private const float StrongHorizontalDeltaVelocity = 3f;
         private const float MinimumHorizontalImpactSpeed = 3.5f;
-        private const float CrashMooVolume = 0.22f;
+        private const float NormalCrashMooVolume = 0.65f;
+        private const float EjectionCrashMooVolume = 0.06f;
         private const string FaintAnimationName = "Faint";
-        private const float LyingDuration = 1f;
+        private const float LyingDuration = 2f;
         private const float GetUpDuration = 1.5f;
         private const float SafeExitDistance = 2.25f;
         private const float SafeExitProbeRadius = 0.75f;
@@ -70,7 +71,7 @@ namespace MootorVehicle
                 crash.clips ??= new List<AudioClip>();
                 crash.clips.Clear();
                 crash.clips.Add(mooClip);
-                crash.baseVolume = CrashMooVolume;
+                crash.baseVolume = NormalCrashMooVolume;
                 mooClip.LoadAudioData();
 
                 var sourceObject = new GameObject("MootorVehicle_StrongImpactMoo");
@@ -79,7 +80,7 @@ namespace MootorVehicle
                 crashMooSource.playOnAwake = false;
                 crashMooSource.loop = false;
                 crashMooSource.clip = mooClip;
-                crashMooSource.volume = CrashMooVolume;
+                crashMooSource.volume = EjectionCrashMooVolume;
                 crashMooSource.spatialBlend = 1f;
                 crashMooSource.rolloffMode = AudioRolloffMode.Linear;
                 crashMooSource.minDistance = 3f;
@@ -88,7 +89,8 @@ namespace MootorVehicle
 
                 context?.Logger.Info(
                     $"Moo-tor Vehicle impact audio vehicle={vehicle?.GetInstanceID()} configured " +
-                    $"clip='{mooClip.name}' volume={CrashMooVolume:F2}.");
+                    $"clip='{mooClip.name}' normalVolume={NormalCrashMooVolume:F2} " +
+                    $"ejectionVolume={EjectionCrashMooVolume:F2}.");
             }
             catch (Exception exception)
             {

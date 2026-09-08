@@ -35,12 +35,15 @@ namespace MootorVehicle
         private readonly float configuredMaximumFuel = DefaultMaximumFuel;
         private ItemInstance? heldItemAwaitingRestore;
         private PhysicsVehicle? physicsVehicle;
+        private Rigidbody? vehicleBody;
         private FuelModuleWrapper? fuelModuleWrapper;
         private SpeedLimiterModuleWrapper? speedLimiterWrapper;
+        private RigidbodyConstraints regularRigidbodyConstraints;
         private float regularSpeedLimit;
         private float regularEnginePower;
         private string energyBoostPreferenceKey = string.Empty;
         private bool performanceConfigured;
+        private bool energyStabilityConfigured;
         private bool energyBoostActive;
         private bool performanceConfigurationWarningLogged;
         private bool mounted;
@@ -138,6 +141,7 @@ namespace MootorVehicle
             try
             {
                 physicsVehicle = vehicle.GetComponent<PhysicsVehicle>();
+                vehicleBody = vehicle.GetComponent<Rigidbody>();
                 fuelModuleWrapper = vehicle.GetComponent<FuelModuleWrapper>();
                 speedLimiterWrapper = vehicle.GetComponent<SpeedLimiterModuleWrapper>();
                 var fuelModule = fuelModuleWrapper?.module;
@@ -153,6 +157,11 @@ namespace MootorVehicle
 
                 regularSpeedLimit = RegularSpeedLimit;
                 regularEnginePower = RegularEnginePower;
+                if (vehicleBody != null && !energyStabilityConfigured)
+                {
+                    regularRigidbodyConstraints = vehicleBody.constraints;
+                    energyStabilityConfigured = true;
+                }
                 speedLimiter.speedLimit = regularSpeedLimit * NativeLimiterHeadroom;
                 engine.maxPower = regularEnginePower;
                 ConfigureCowPowerCurve(engine);
@@ -235,6 +244,7 @@ namespace MootorVehicle
             speedLimiter.speedLimit = regularSpeedLimit * performanceMultiplier * NativeLimiterHeadroom;
             engine.maxPower = regularEnginePower * (active ? EnergyDrinkSpeedMultiplier : 1f);
             ConfigureSingleSpeedTransmission(active);
+            ConfigureEnergyModeStability(active);
             energyBoostActive = active;
 
             if (persist)
@@ -245,6 +255,23 @@ namespace MootorVehicle
                 $"targetSpeed={regularSpeedLimit * performanceMultiplier:F1} " +
                 $"safetyLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1} " +
                 $"forwardRatio={physicsVehicle?.powertrain?.transmission?.GetGearRatio(1):F3}.");
+        }
+
+        private void ConfigureEnergyModeStability(bool active)
+        {
+            if (!energyStabilityConfigured || vehicleBody == null)
+                return;
+
+            var targetConstraints = active
+                ? regularRigidbodyConstraints |
+                  RigidbodyConstraints.FreezeRotationX |
+                  RigidbodyConstraints.FreezeRotationZ
+                : regularRigidbodyConstraints;
+            vehicleBody.constraints = targetConstraints;
+
+            context?.Logger.Info(
+                $"Moo-tor Vehicle energy stability vehicle={vehicle?.GetInstanceID()} " +
+                $"active={active} constraints={targetConstraints}; yaw remains unlocked.");
         }
 
         private static void ConfigureCowPowerCurve(NWH.VehiclePhysics2.Powertrain.EngineComponent engine)
