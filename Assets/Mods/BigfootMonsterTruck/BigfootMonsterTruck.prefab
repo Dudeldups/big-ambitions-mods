@@ -136,8 +136,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.68
-  m_Center: {x: -1.35, y: 0.68, z: 1.68}
+  m_Radius: 0.58
+  m_Center: {x: -1.35, y: 0.58, z: 1.6}
 --- !u!135 &5982320326078728927
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -157,8 +157,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.68
-  m_Center: {x: 1.35, y: 0.68, z: 1.68}
+  m_Radius: 0.58
+  m_Center: {x: 1.35, y: 0.58, z: 1.6}
 --- !u!135 &3484914868215874474
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -178,8 +178,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.68
-  m_Center: {x: -1.35, y: 0.68, z: -1.68}
+  m_Radius: 0.58
+  m_Center: {x: -1.35, y: 0.58, z: -1.6}
 --- !u!135 &2361153227009504748
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -199,8 +199,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.68
-  m_Center: {x: 1.35, y: 0.68, z: -1.68}
+  m_Radius: 0.58
+  m_Center: {x: 1.35, y: 0.58, z: -1.6}
 --- !u!1 &83371916272352677
 GameObject:
   m_ObjectHideFlags: 0
@@ -4381,8 +4381,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.5, y: 0.55, z: 4.1}
-  m_Center: {x: 0, y: 1.2, z: -0.12}
+  m_Size: {x: 2.5, y: 0.55, z: 5.3}
+  m_Center: {x: 0, y: 1.2, z: -0.05}
 --- !u!65 &7281177023549926665
 BoxCollider:
   m_ObjectHideFlags: 0

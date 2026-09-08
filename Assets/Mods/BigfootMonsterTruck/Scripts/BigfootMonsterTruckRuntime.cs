@@ -262,7 +262,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             $"gearbox=4-speed/{TransmissionFinalDrive:F1}:1, " +
             $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
             $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
-            $"suspensionTravel={SuspensionLength:F2}, wheelTrafficContact=false.");
+            $"suspensionTravel={SuspensionLength:F2}, differentialSlip=1000, " +
+            "climbAssist=small-vehicles, wheelTrafficContact=false.");
         if (wheelCount != 4)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: expected four wheel controllers but configured {wheelCount}.");
@@ -356,8 +357,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 var collider = colliders[index];
                 if (index == 0)
                 {
-                    collider.center = new Vector3(0f, 1.2f, -0.12f);
-                    collider.size = new Vector3(2.5f, 0.55f, 4.1f);
+                    collider.center = new Vector3(0f, 1.2f, -0.05f);
+                    collider.size = new Vector3(2.5f, 0.55f, 5.3f);
                 }
                 else
                 {
@@ -402,10 +403,10 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
         var centers = new[]
         {
-            new Vector3(-HalfTrack, 0.68f, FrontAxleZ + 0.08f),
-            new Vector3(HalfTrack, 0.68f, FrontAxleZ + 0.08f),
-            new Vector3(-HalfTrack, 0.68f, RearAxleZ - 0.08f),
-            new Vector3(HalfTrack, 0.68f, RearAxleZ - 0.08f),
+            new Vector3(-HalfTrack, 0.58f, FrontAxleZ),
+            new Vector3(HalfTrack, 0.58f, FrontAxleZ),
+            new Vector3(-HalfTrack, 0.58f, RearAxleZ),
+            new Vector3(HalfTrack, 0.58f, RearAxleZ),
         };
         for (var index = 0; index < colliders.Length; index++)
         {
@@ -414,7 +415,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 continue;
             colliders[index].isTrigger = false;
             colliders[index].center = centers[index];
-            colliders[index].radius = 0.68f;
+            colliders[index].radius = 0.58f;
             colliders[index].sharedMaterial = contactMaterial;
         }
         return centers.Length;
@@ -478,13 +479,13 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                         for (var index = 0; index < differentials.Count; index++)
                         {
                             var differential = differentials[index];
-                            SetFloat(differential, "slipTorque", 5000f);
+                            SetFloat(differential, "slipTorque", 1000f);
                             if (differential != null)
                                 differentials[index] = differential;
                         }
                         SetMember(powertrain, "differentials", differentials);
                     }
-                    ConfigureFourWheelDrive(powertrain);
+                    VerifyFourWheelDrive(powertrain);
                     SetMember(component, "powertrain", powertrain);
 
                     var steering = GetMember(component, "steering");
@@ -539,7 +540,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                    ?.GetValue(target);
     }
 
-    private void ConfigureFourWheelDrive(object? powertrain)
+    private void VerifyFourWheelDrive(object? powertrain)
     {
         if (powertrain == null ||
             GetMember(powertrain, "engine") is not object engine ||
@@ -565,18 +566,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             return;
         }
 
-        ConnectPowertrain(engine, transmission);
-        ConnectPowertrain(transmission, center);
-        ConnectPowertrain(center, front);
-        SetMember(center, "OutputB", rear);
-        SetMember(rear, "Input", center);
-        ConnectPowertrain(front, frontLeft);
-        SetMember(front, "OutputB", frontRight);
-        SetMember(frontRight, "Input", front);
-        ConnectPowertrain(rear, rearLeft);
-        SetMember(rear, "OutputB", rearRight);
-        SetMember(rearRight, "Input", rear);
-
         var verified = ReferenceEquals(GetMember(engine, "Output"), transmission) &&
                        ReferenceEquals(GetMember(transmission, "Input"), engine) &&
                        ReferenceEquals(GetMember(transmission, "Output"), center) &&
@@ -587,15 +576,10 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                        ReferenceEquals(GetMember(rear, "Output"), rearLeft) &&
                        ReferenceEquals(GetMember(rear, "OutputB"), rearRight);
         if (verified)
-            context?.Logger.Info("BigfootMonsterTruck: four-wheel-drive topology connected and verified.");
+            context?.Logger.Info(
+                "BigfootMonsterTruck: prefab four-wheel-drive topology verified without runtime rewiring.");
         else
             context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive topology did not verify.");
-    }
-
-    private static void ConnectPowertrain(object input, object output)
-    {
-        SetMember(input, "Output", output);
-        SetMember(output, "Input", input);
     }
 
     private static object? FindNamedComponent(IList components, string name)

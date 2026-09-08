@@ -59,7 +59,7 @@ public static class BigfootMonsterTruckSetup
             var animatedWheelVisuals = 0;
             var physicalWheelColliders = 0;
             var climbContactColliders = 0;
-            var shortenedLowerChassis = false;
+            var climbChassisRestored = false;
             var hasSeat = false;
             var raisedSeat = false;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
@@ -84,16 +84,16 @@ public static class BigfootMonsterTruckSetup
                     var contacts = transform.GetComponents<SphereCollider>();
                     physicalWheelColliders = contacts.Length;
                     foreach (var contact in contacts)
-                        if (Mathf.Abs(contact.radius - 0.68f) < 0.01f &&
-                            Mathf.Abs(contact.center.y - 0.68f) < 0.01f &&
-                            Mathf.Abs(Mathf.Abs(contact.center.z) - 1.68f) < 0.01f)
+                        if (Mathf.Abs(contact.radius - 0.58f) < 0.01f &&
+                            Mathf.Abs(contact.center.y - 0.58f) < 0.01f &&
+                            Mathf.Abs(Mathf.Abs(contact.center.z) - 1.60f) < 0.01f)
                             climbContactColliders++;
                 }
                 if (string.Equals(transform.name, "BodyCollider", StringComparison.Ordinal))
                 {
                     var bodyColliders = transform.GetComponents<BoxCollider>();
-                    shortenedLowerChassis = bodyColliders.Length >= 2 &&
-                                            bodyColliders[0].size.z <= 4.11f;
+                    climbChassisRestored = bodyColliders.Length >= 2 &&
+                                           Mathf.Abs(bodyColliders[0].size.z - 5.3f) < 0.01f;
                 }
                 if (string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
                 {
@@ -147,7 +147,7 @@ public static class BigfootMonsterTruckSetup
 
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
                 animatedWheelVisuals != 4 || physicalWheelColliders != 4 ||
-                climbContactColliders != 4 || !shortenedLowerChassis ||
+                climbContactColliders != 4 || !climbChassisRestored ||
                 !hasSeat || !raisedSeat ||
                 visibleRenderers == 0 || !hasTransparentGlass ||
                 opaqueMaterials.Count == 0 ||
@@ -160,7 +160,7 @@ public static class BigfootMonsterTruckSetup
                     $"animatedWheelVisuals={animatedWheelVisuals}, " +
                     $"physicalWheelColliders={physicalWheelColliders}, " +
                     $"climbContacts={climbContactColliders}, " +
-                    $"shortChassis={shortenedLowerChassis}, " +
+                    $"climbChassis={climbChassisRestored}, " +
                     $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
                     $"transparentGlass={hasTransparentGlass}, price={bundledPrice}, " +
                     $"maxSpeed={bundledMaxSpeed}, opaqueMaterials={opaqueMaterials.Count}, " +
@@ -323,8 +323,8 @@ public static class BigfootMonsterTruckSetup
         var colliders = holder.GetComponents<BoxCollider>();
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle needs two body colliders.");
-        colliders[0].center = new Vector3(0f, 1.2f, -0.12f);
-        colliders[0].size = new Vector3(2.5f, 0.55f, 4.1f);
+        colliders[0].center = new Vector3(0f, 1.2f, -0.05f);
+        colliders[0].size = new Vector3(2.5f, 0.55f, 5.3f);
         colliders[1].center = new Vector3(0f, 2.05f, 0.1f);
         colliders[1].size = new Vector3(2.2f, 1.2f, 3.7f);
     }
@@ -339,16 +339,16 @@ public static class BigfootMonsterTruckSetup
         holder.transform.SetParent(root.transform, false);
         var centers = new[]
         {
-            new Vector3(-1.35f, 0.68f, 1.68f),
-            new Vector3(1.35f, 0.68f, 1.68f),
-            new Vector3(-1.35f, 0.68f, -1.68f),
-            new Vector3(1.35f, 0.68f, -1.68f),
+            new Vector3(-1.35f, 0.58f, 1.60f),
+            new Vector3(1.35f, 0.58f, 1.60f),
+            new Vector3(-1.35f, 0.58f, -1.60f),
+            new Vector3(1.35f, 0.58f, -1.60f),
         };
         foreach (var center in centers)
         {
             var collider = holder.AddComponent<SphereCollider>();
             collider.center = center;
-            collider.radius = 0.68f;
+            collider.radius = 0.58f;
         }
     }
 

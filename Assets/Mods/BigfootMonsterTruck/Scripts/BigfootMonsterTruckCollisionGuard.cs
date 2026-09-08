@@ -12,6 +12,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float DamageTolerance = 0.0001f;
     private const float SmallVehicleSuppressionWindow = 0.75f;
     private const float CollisionLogCooldown = 5f;
+    private const float ClimbAssistLogCooldown = 3f;
+    private const float ClimbLiftAcceleration = 5.5f;
+    private const float ClimbDriveAcceleration = 3f;
+    private const float MaximumAssistedVerticalSpeed = 2.25f;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
@@ -21,10 +25,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private FieldInfo? deformationQueueField;
     private ModContext? context;
     private NWH.VehiclePhysics2.VehicleController? physicsVehicle;
+    private Rigidbody? vehicleBody;
     private UnityAction<Collision>? collisionListener;
     private float approvedDamage;
     private float suppressDamageUntil;
     private int heavyImpactFrame = -1;
+    private float nextClimbAssistLogTime;
     private bool initialized;
     private bool failureReported;
 
@@ -37,6 +43,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             "_deformationQueue",
             BindingFlags.Instance | BindingFlags.NonPublic);
         approvedDamage = controller.vehicleInstance?.damage ?? 0f;
+        vehicleBody = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
         SnapshotApprovedDeformations();
         if (controller is CarController car && car.vehicleController != null)
         {
@@ -137,11 +144,80 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         }
     }
 
+    private void OnCollisionStay(Collision collision)
+    {
+        if (!initialized || vehicle?.controlledByPlayer != true || physicsVehicle == null ||
+            vehicleBody == null || collision?.collider == null)
+            return;
+
+        try
+        {
+            var otherPlayerVehicle = collision.collider.GetComponentInParent<VehicleController>();
+            if (otherPlayerVehicle == vehicle)
+                return;
+            var trafficVehicle = collision.collider.GetComponentInParent<GleyTrafficSystem.VehicleComponent>();
+            if (otherPlayerVehicle == null && trafficVehicle == null)
+                return;
+            if (otherPlayerVehicle != null
+                    ? IsHeavyVehicle(otherPlayerVehicle)
+                    : IsHeavyTrafficVehicle(trafficVehicle!))
+                return;
+
+            var throttle = physicsVehicle.input.Throttle;
+            if (throttle < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
+                return;
+
+            var transmission = physicsVehicle.powertrain.transmission;
+            var driveDirection = transmission.Gear < 0 ? -1f : 1f;
+            var otherLocal = vehicle.transform.InverseTransformPoint(collision.collider.bounds.center);
+            if (otherLocal.z * driveDirection < 0.75f)
+                return;
+
+            var worldDriveDirection = vehicle.transform.forward * driveDirection;
+            var velocity = vehicleBody.velocity;
+            var forwardSpeed = Vector3.Dot(velocity, worldDriveDirection);
+            if (forwardSpeed < 0f)
+            {
+                velocity -= worldDriveDirection * forwardSpeed;
+                vehicleBody.velocity = velocity;
+            }
+
+            if (Vector3.Dot(vehicleBody.velocity, Vector3.up) < MaximumAssistedVerticalSpeed)
+                vehicleBody.AddForce(Vector3.up * ClimbLiftAcceleration, ForceMode.Acceleration);
+            vehicleBody.AddForce(
+                worldDriveDirection * (ClimbDriveAcceleration * Mathf.Clamp01(throttle)),
+                ForceMode.Acceleration);
+
+            var localAngularVelocity = vehicle.transform.InverseTransformDirection(
+                vehicleBody.angularVelocity);
+            localAngularVelocity.x *= 0.9f;
+            localAngularVelocity.z *= 0.82f;
+            vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
+
+            if (Time.unscaledTime >= nextClimbAssistLogTime)
+            {
+                nextClimbAssistLogTime = Time.unscaledTime + ClimbAssistLogCooldown;
+                var otherName = otherPlayerVehicle != null
+                    ? GetVehicleName(otherPlayerVehicle)
+                    : trafficVehicle!.name;
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck: climb assist active other='{otherName}' " +
+                    $"direction={(driveDirection > 0f ? "forward" : "reverse")}, " +
+                    $"throttle={throttle:F2}, speed={forwardSpeed:F2}m/s.");
+            }
+        }
+        catch (Exception exception)
+        {
+            ReportFailureOnce(nameof(OnCollisionStay), exception);
+        }
+    }
+
     private void OnDestroy()
     {
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
         physicsVehicle = null;
+        vehicleBody = null;
         collisionListener = null;
     }
 
