@@ -395,11 +395,6 @@ namespace MobileVeterinarian
                 yield break;
             }
 
-            // The source model's imported animation is not the treatment choreography. Disable
-            // it so it cannot overwrite the procedural head rotations below.
-            foreach (var animator in veterinarian.Root.GetComponentsInChildren<Animator>(true))
-                if (animator != null) animator.enabled = false;
-
             LogInfo(
                 $"Treatment start vehicleId='{visit.Quote.VehicleId}' animal='{visit.Quote.AnimalName}' " +
                 $"damagePercent={visit.Quote.DamagePercentage:F1}.");
@@ -521,10 +516,10 @@ namespace MobileVeterinarian
             Transform animal,
             Action onCompleted)
         {
-            var cameraPosition = Camera.main != null
-                ? Camera.main.transform.position
-                : animal.position;
-            FaceTarget(doctorRoot, cameraPosition);
+            // Face the mounted animal from the first visible frame. Using the third-person
+            // camera as the initial target made the doctor appear turned 90 degrees when the
+            // player had orbited the camera to the animal's side.
+            FaceTarget(doctorRoot, animal.position);
             yield return new WaitForSecondsRealtime(DoctorSettleSeconds);
 
             var restingRotation = head.localRotation;

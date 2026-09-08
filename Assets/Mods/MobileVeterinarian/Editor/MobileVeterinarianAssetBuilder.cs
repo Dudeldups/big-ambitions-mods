@@ -59,6 +59,7 @@ namespace MobileVeterinarian.Editor
                 visual.name = "DoctorModel";
                 visual.transform.localPosition = Vector3.zero;
                 visual.transform.localRotation = Quaternion.identity;
+                BakeTreatmentPose(visual);
                 NormalizeVisual(visual);
 
                 foreach (var collider in root.GetComponentsInChildren<Collider>(true))
@@ -69,6 +70,8 @@ namespace MobileVeterinarian.Editor
                     Object.DestroyImmediate(camera);
                 foreach (var light in root.GetComponentsInChildren<Light>(true))
                     Object.DestroyImmediate(light);
+                foreach (var animator in root.GetComponentsInChildren<Animator>(true))
+                    Object.DestroyImmediate(animator);
 
                 var saved = PrefabUtility.SaveAsPrefabAsset(root, DoctorPrefabPath);
                 if (saved == null)
@@ -97,6 +100,52 @@ namespace MobileVeterinarian.Editor
             visual.transform.localScale *= scale;
             bounds = CalculateRendererBounds(visual);
             visual.transform.localPosition += new Vector3(-bounds.center.x, -bounds.min.y, -bounds.center.z);
+        }
+
+        private static void BakeTreatmentPose(GameObject visual)
+        {
+            var poseClip = AssetDatabase.LoadAllAssetsAtPath(ModelPath)
+                .OfType<AnimationClip>()
+                .FirstOrDefault(clip => !clip.name.StartsWith("__preview__", StringComparison.OrdinalIgnoreCase));
+            if (poseClip == null)
+                throw new InvalidOperationException("Doctor model has no animation clip from which to bake its treatment pose.");
+
+            var leftUpperArm = FindBone(visual, "Bip001 L UpperArm");
+            var leftForearm = FindBone(visual, "Bip001 L Forearm");
+            var rightUpperArm = FindBone(visual, "Bip001 R UpperArm");
+            var rightForearm = FindBone(visual, "Bip001 R Forearm");
+            var sampleCount = Mathf.Max(2, Mathf.CeilToInt(poseClip.length * 30f));
+            var bestTime = 0f;
+            var bestScore = float.NegativeInfinity;
+
+            for (var index = 0; index <= sampleCount; index++)
+            {
+                var time = poseClip.length * index / sampleCount;
+                poseClip.SampleAnimation(visual, time);
+
+                // Prefer frames where both elbows are below their shoulders. This rejects
+                // the imported bind/T-pose while preserving the authored notebook pose.
+                var score = (leftUpperArm.position.y - leftForearm.position.y) +
+                            (rightUpperArm.position.y - rightForearm.position.y);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestTime = time;
+                }
+            }
+
+            poseClip.SampleAnimation(visual, bestTime);
+            Debug.Log(
+                $"Mobile Veterinarian: baked doctor treatment pose clip='{poseClip.name}' " +
+                $"time={bestTime:F2}s elbowDropScore={bestScore:F3}.");
+        }
+
+        private static Transform FindBone(GameObject visual, string nameFragment)
+        {
+            return visual.GetComponentsInChildren<Transform>(true)
+                       .FirstOrDefault(transform =>
+                           transform.name.IndexOf(nameFragment, StringComparison.OrdinalIgnoreCase) >= 0)
+                   ?? throw new InvalidOperationException($"Doctor model is missing bone '{nameFragment}'.");
         }
 
         private static Bounds CalculateRendererBounds(GameObject root)
