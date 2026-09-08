@@ -11,6 +11,7 @@ internal readonly struct AudiRS6RMaterialFixResult
     internal AudiRS6RMaterialFixResult(
         int rendererCount,
         int wheelRendererCount,
+        int wheelMaterialCloneCount,
         int solidRendererCount,
         int decalMasksCleared,
         int hdrpMaterialsFixed,
@@ -20,6 +21,7 @@ internal readonly struct AudiRS6RMaterialFixResult
     {
         RendererCount = rendererCount;
         WheelRendererCount = wheelRendererCount;
+        WheelMaterialCloneCount = wheelMaterialCloneCount;
         SolidRendererCount = solidRendererCount;
         DecalMasksCleared = decalMasksCleared;
         HdrpMaterialsFixed = hdrpMaterialsFixed;
@@ -30,6 +32,7 @@ internal readonly struct AudiRS6RMaterialFixResult
 
     internal int RendererCount { get; }
     internal int WheelRendererCount { get; }
+    internal int WheelMaterialCloneCount { get; }
     internal int SolidRendererCount { get; }
     internal int DecalMasksCleared { get; }
     internal int HdrpMaterialsFixed { get; }
@@ -50,7 +53,9 @@ internal static class AudiRS6RMaterials
     private static MethodInfo? validateShaderGraphMaterialMethod;
     private static bool validateShaderGraphMaterialMethodResolved;
 
-    internal static AudiRS6RMaterialFixResult FixSolidVehicleMaterials(GameObject vehicleRoot)
+    internal static AudiRS6RMaterialFixResult FixSolidVehicleMaterials(
+        GameObject vehicleRoot,
+        ICollection<Material> ownedWheelMaterials)
     {
         var visualRoot = FindImportedVisualRoot(vehicleRoot);
         var bodyRenderers = visualRoot != null
@@ -74,6 +79,7 @@ internal static class AudiRS6RMaterials
         var hdrpMaterialsFixed = 0;
         var transparentMaterialsProtected = 0;
         var hdrpMaterialsValidated = 0;
+        var wheelMaterialCloneCount = 0;
 
         foreach (var renderer in renderers)
         {
@@ -89,9 +95,12 @@ internal static class AudiRS6RMaterials
                 decalMasksCleared++;
 
             // Wheel visuals can share imported materials with cabin and glass meshes. Their renderer
-            // mask is sufficient to reject road decals without mutating those shared materials.
+            // mask and private no-decal material clones avoid mutating those shared materials.
             if (!bodyRendererSet.Contains(renderer))
+            {
+                wheelMaterialCloneCount += CloneWheelMaterialsWithoutDecals(renderer, ownedWheelMaterials);
                 continue;
+            }
 
             var hasSolidMaterial = false;
             foreach (var material in renderer.sharedMaterials)
@@ -147,6 +156,7 @@ internal static class AudiRS6RMaterials
         return new AudiRS6RMaterialFixResult(
             renderers.Count,
             wheelRenderers.Count,
+            wheelMaterialCloneCount,
             solidRendererCount,
             decalMasksCleared,
             hdrpMaterialsFixed,
@@ -182,6 +192,34 @@ internal static class AudiRS6RMaterials
         }
 
         return false;
+    }
+
+    private static int CloneWheelMaterialsWithoutDecals(
+        Renderer renderer,
+        ICollection<Material> ownedWheelMaterials)
+    {
+        var sourceMaterials = renderer.sharedMaterials;
+        if (sourceMaterials.Length == 0)
+            return 0;
+
+        var clonedMaterials = new Material[sourceMaterials.Length];
+        var cloneCount = 0;
+        for (var index = 0; index < sourceMaterials.Length; index++)
+        {
+            var source = sourceMaterials[index];
+            if (source == null)
+                continue;
+
+            var clone = new Material(source) { name = source.name + " Audi Wheel No Decals" };
+            SetFloat(clone, "_SupportDecals", 0f);
+            clone.EnableKeyword("_DISABLE_DECALS");
+            clonedMaterials[index] = clone;
+            ownedWheelMaterials.Add(clone);
+            cloneCount++;
+        }
+
+        renderer.sharedMaterials = clonedMaterials;
+        return cloneCount;
     }
 
     private static bool IsTransparentOrCutout(Material material)
@@ -450,28 +488,37 @@ internal static class AudiRS6RMaterials
 internal sealed class AudiRS6RMaterialController : MonoBehaviour
 {
     private bool applied;
+    private readonly List<Material> ownedWheelMaterials = new List<Material>();
 
     internal void Initialize(VehicleController vehicle, ModContext? context)
     {
         if (applied)
             return;
 
-        var result = AudiRS6RMaterials.FixSolidVehicleMaterials(vehicle.gameObject);
+        var result = AudiRS6RMaterials.FixSolidVehicleMaterials(vehicle.gameObject, ownedWheelMaterials);
         applied = true;
         context?.Logger.Info(
             $"AudiRS6R materials vehicle='{vehicle.name}' instance={vehicle.GetInstanceID()}: " +
             $"renderers={result.RendererCount} wheelRenderers={result.WheelRendererCount} " +
+            $"wheelMaterialClones={result.WheelMaterialCloneCount} " +
             $"solidRenderers={result.SolidRendererCount} " +
             $"decalMasksCleared={result.DecalMasksCleared} materialsFixed={result.HdrpMaterialsFixed} " +
             $"transparentMaterialsProtected={result.TransparentMaterialsProtected} " +
             $"materialsValidated={result.HdrpMaterialsValidated} shaders='{result.ShaderNames}'.");
 
-        if (result.WheelRendererCount == 0 || result.SolidRendererCount == 0 || result.HdrpMaterialsFixed == 0 ||
+        if (result.WheelRendererCount == 0 || result.WheelMaterialCloneCount == 0 ||
             result.TransparentMaterialsProtected == 0)
         {
             context?.Logger.Warn(
                 $"AudiRS6R materials vehicle='{vehicle.name}' instance={vehicle.GetInstanceID()}: " +
                 "opaque or transparent HDRP material protection was incomplete; ground decals may still project onto the vehicle.");
         }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var material in ownedWheelMaterials)
+            if (material != null) Destroy(material);
+        ownedWheelMaterials.Clear();
     }
 }
