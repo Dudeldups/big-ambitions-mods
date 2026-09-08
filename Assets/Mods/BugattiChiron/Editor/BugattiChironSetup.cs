@@ -150,6 +150,7 @@ public static class BugattiChironSetup
             }
 
             var transmissionVerified = false;
+            var launchResponseVerified = false;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (component == null ||
@@ -162,10 +163,19 @@ public static class BugattiChironSetup
                 }
 
                 var serialized = new SerializedObject(component);
-                var transmission = serialized.FindProperty("powertrain")?.FindPropertyRelative("transmission");
+                var powertrain = serialized.FindProperty("powertrain");
+                var transmission = powertrain?.FindPropertyRelative("transmission");
                 var gearCount = transmission?.FindPropertyRelative("forwardGearCount")?.intValue ?? 0;
                 var gears = transmission?.FindPropertyRelative("gears");
                 transmissionVerified = gearCount == 7 && gears != null && gears.arraySize == 9;
+                var clutch = powertrain?.FindPropertyRelative("clutch");
+                var engine = powertrain?.FindPropertyRelative("engine");
+                launchResponseVerified =
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRPM")) - 850f) < 0.01f &&
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("throttleEngagementOffsetRPM")) - 100f) < 0.01f &&
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRange")) - 250f) < 0.01f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.075f) < 0.001f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.15f) < 0.001f;
             }
 
             var opaqueMaterials = new HashSet<Material>();
@@ -176,7 +186,12 @@ public static class BugattiChironSetup
             var opaqueRendererMasksSafe = true;
             var paintRenderers = new HashSet<Renderer>();
             var bodyPaintSlots = 0;
+            var darkBodyPaintSlots = 0;
             var rimPaintSlots = 0;
+            var interiorPrimaryPaintSlots = 0;
+            var interiorSecondaryPaintSlots = 0;
+            var interiorDarkPaintSlots = 0;
+            var caliperSlots = 0;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 if (!BugattiChironMaterials.IsBugattiRenderer(renderer.transform))
@@ -192,11 +207,12 @@ public static class BugattiChironSetup
                         paintRenderers.Add(renderer);
                         bodyPaintSlots++;
                     }
-                    if (IsRimPaintMaterial(material))
-                    {
-                        paintRenderers.Add(renderer);
-                        rimPaintSlots++;
-                    }
+                    if (IsDarkBodyPaintMaterial(material)) darkBodyPaintSlots++;
+                    if (IsRimPaintMaterial(material)) rimPaintSlots++;
+                    if (IsInteriorPrimaryPaintMaterial(material)) interiorPrimaryPaintSlots++;
+                    if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
+                    if (IsInteriorDarkPaintMaterial(material)) interiorDarkPaintSlots++;
+                    if (IsCaliperMaterial(material)) caliperSlots++;
                     if (BugattiChironMaterials.IsTransparentMaterial(material))
                     {
                         transparentMaterials++;
@@ -240,7 +256,7 @@ public static class BugattiChironSetup
             }
 
             var paintReferencesValid = false;
-            MonoBehaviour carFeatures = null;
+            MonoBehaviour? carFeatures = null;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (component != null &&
@@ -286,6 +302,7 @@ public static class BugattiChironSetup
                 sideBlinkerMeshes != 2 ||
                 !headlightTemplateValid ||
                 !transmissionVerified ||
+                !launchResponseVerified ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
@@ -293,7 +310,12 @@ public static class BugattiChironSetup
                 !transparentMaterialsDoubleSided ||
                 !cabinGlassTintValid ||
                 bodyPaintSlots == 0 ||
+                darkBodyPaintSlots == 0 ||
                 rimPaintSlots != 4 ||
+                interiorPrimaryPaintSlots == 0 ||
+                interiorSecondaryPaintSlots == 0 ||
+                interiorDarkPaintSlots == 0 ||
+                caliperSlots != 4 ||
                 !paintReferencesValid)
             {
                 throw new InvalidOperationException(
@@ -306,11 +328,16 @@ public static class BugattiChironSetup
                     $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
-                    $"sevenSpeed={transmissionVerified}, opaque={opaqueMaterials.Count}, " +
+                    $"sevenSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
+                    $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
                     $"cabinGlassTint={cabinGlassTintValid}, " +
-                    $"bodyPaintSlots={bodyPaintSlots}, rimPaintSlots={rimPaintSlots}, " +
+                    $"bodyPaintSlots={bodyPaintSlots}, darkBodyPaintSlots={darkBodyPaintSlots}, " +
+                    $"rimPaintSlots={rimPaintSlots}, " +
+                    $"interiorPaintSlots={interiorPrimaryPaintSlots}/" +
+                    $"{interiorSecondaryPaintSlots}/{interiorDarkPaintSlots}, " +
+                    $"caliperSlots={caliperSlots}, " +
                     $"paintReferences={paintReferencesValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
@@ -318,9 +345,11 @@ public static class BugattiChironSetup
             Debug.Log(
                 $"BugattiChiron bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, sevenSpeed=true, " +
+                $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
-                $"bodyPaintSlots={bodyPaintSlots}, rimPaintSlots={rimPaintSlots}, " +
+                $"bodyPaintSlots={bodyPaintSlots}, darkBodyPaintSlots={darkBodyPaintSlots}, " +
+                $"rimPaintSlots={rimPaintSlots}, interiorPaint=true, calipersExcluded=true, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -548,16 +577,24 @@ public static class BugattiChironSetup
                     StringComparison.Ordinal))
             {
                 found = true;
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 850f);
+                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 100f);
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 250f);
+                SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 250f);
+                SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 2f);
+                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.075f);
                 SetRelativeNumber(serialized, "powertrain.engine.maxPower", 1103f);
                 SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 800f);
                 SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6700f);
+                SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.15f);
+                SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", false);
                 SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", true);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.powerGainMultiplier", 1.35f);
-                SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.08f);
+                SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.04f);
                 SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 3.2f);
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 7f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
-                SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.08f);
+                SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.05f);
                 SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2800f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 6500f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
@@ -711,13 +748,11 @@ public static class BugattiChironSetup
                 continue;
             renderers.Add(renderer);
             foreach (var material in renderer.sharedMaterials)
-            {
-                if (material != null && (IsBodyPaintMaterial(material) || IsRimPaintMaterial(material)))
+                if (material != null && IsBodyPaintMaterial(material))
                 {
                     paintRenderers.Add(renderer);
                     break;
                 }
-            }
         }
 
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
@@ -736,6 +771,21 @@ public static class BugattiChironSetup
 
     private static bool IsRimPaintMaterial(Material material) =>
         material.name.IndexOf("BugattiOpaque_01_Rims", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsCaliperMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_02_Caliper", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsDarkBodyPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_06_Darker_Parts", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsInteriorPrimaryPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_13_Interior_1", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsInteriorSecondaryPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_08_Interior_2", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsInteriorDarkPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_12_Interior_1_Darker", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static void AssignPersistentMaterials(GameObject model)
     {

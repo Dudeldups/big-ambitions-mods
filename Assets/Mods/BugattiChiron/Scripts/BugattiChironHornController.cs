@@ -9,7 +9,7 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 internal sealed class BugattiChironHornController : MonoBehaviour
 {
     private const int MaximumAttempts = 20;
-    private const float HornVolume = 0.72f;
+    private const float HornVolume = 1f;
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
     private ModContext? context;

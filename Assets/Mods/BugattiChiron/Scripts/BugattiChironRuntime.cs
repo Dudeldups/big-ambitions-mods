@@ -20,6 +20,12 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
     private const float FinalDriveRatio = 3.2f;
+    private const float EngineInertia = 0.075f;
+    private const float EngineStartDuration = 0.15f;
+    private const float ClutchEngagementRpm = 850f;
+    private const float ClutchThrottleOffsetRpm = 100f;
+    private const float ClutchEngagementRange = 250f;
+    private const float ClutchCreepTorque = 250f;
 
     private static readonly float[] ChironGears =
     {
@@ -271,11 +277,17 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (hornController == null)
                 hornController = vehicle.gameObject.AddComponent<BugattiChironHornController>();
             hornController.Initialize(vehicle, context);
+            var launchDiagnostics = vehicle.GetComponent<BugattiChironLaunchDiagnostics>();
+            if (launchDiagnostics == null)
+                launchDiagnostics = vehicle.gameObject.AddComponent<BugattiChironLaunchDiagnostics>();
+            launchDiagnostics.Initialize(vehicle, context);
 
             context?.Logger.Info(
                 $"BugattiChiron: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=7-speed-DSG, awd=true, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
+                $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
+                $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -356,18 +368,27 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             }
 
             var powertrain = GetMember(component, "powertrain");
+            var clutch = GetMember(powertrain, "clutch");
+            SetFloat(clutch, "engagementRPM", ClutchEngagementRpm);
+            SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
+            SetFloat(clutch, "engagementRange", ClutchEngagementRange);
+            SetFloat(clutch, "creepTorque", ClutchCreepTorque);
+            SetFloat(clutch, "creepSpeedLimit", 2f);
             var engine = GetMember(powertrain, "engine");
+            SetFloat(engine, "inertia", EngineInertia);
             SetFloat(engine, "maxPower", EnginePowerKw);
             SetFloat(engine, "idleRPM", EngineIdleRpm);
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
+            SetFloat(engine, "startDuration", EngineStartDuration);
+            SetBool(engine, "stallingEnabled", false);
             var forcedInduction = GetMember(engine, "forcedInduction");
             SetBool(forcedInduction, "useForcedInduction", true);
             SetFloat(forcedInduction, "powerGainMultiplier", 1.35f);
-            SetFloat(forcedInduction, "spoolUpTime", 0.08f);
+            SetFloat(forcedInduction, "spoolUpTime", 0.04f);
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
-            SetFloat(transmission, "shiftDuration", 0.08f);
+            SetFloat(transmission, "shiftDuration", 0.05f);
             SetFloat(transmission, "_downshiftRPM", 2800f);
             SetFloat(transmission, "_upshiftRPM", 6500f);
             SetInt(transmission, "forwardGearCount", 7);
