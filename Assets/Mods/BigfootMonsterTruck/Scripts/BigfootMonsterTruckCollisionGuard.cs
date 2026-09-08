@@ -18,11 +18,14 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float TireContactDriveAcceleration = 8.5f;
     private const float TireContactMinimumStrength = 0.7f;
     private const float TireContactLiftMultiplier = 0.22f;
-    private const float LatchedClimbTriggerSpeed = 4.5f;
-    private const float LatchedClimbDuration = 1.75f;
-    private const float LatchedClimbMaximumSpeed = 7f;
-    private const float LatchedClimbVerticalSpeed = 0.9f;
-    private const float LatchedClimbDriveAcceleration = 5.5f;
+    private const float LatchedClimbTriggerSpeed = 2.75f;
+    private const float LatchedClimbDuration = 1.5f;
+    private const float LatchedClimbMaximumSpeed = 5f;
+    private const float LatchedClimbVerticalSpeed = 0.8f;
+    private const float LatchedClimbDriveAcceleration = 5f;
+    private const float LatchedClimbLateralVelocityRetention = 0.15f;
+    private const float LatchedClimbYawRetention = 0.5f;
+    private const float LatchedClimbRollRetention = 0.65f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
@@ -42,6 +45,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private float nextClimbAssistLogTime;
     private float latchedClimbUntil;
     private Vector3 latchedClimbDirection;
+    private int latchedClimbVehicleId;
     private bool latchedClimbApplicationLogged;
     private bool initialized;
     private bool failureReported;
@@ -120,33 +124,46 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
             var driveDirection = physicsVehicle.powertrain.transmission.Gear < 0 ? -1f : 1f;
             var currentDriveDirection = vehicle.transform.forward * driveDirection;
-            if (Vector3.Dot(currentDriveDirection, latchedClimbDirection) < 0.75f)
+            var climbDirection = Vector3.ProjectOnPlane(latchedClimbDirection, Vector3.up).normalized;
+            if (climbDirection.sqrMagnitude < 0.9f ||
+                Vector3.Dot(currentDriveDirection, climbDirection) < 0.75f)
             {
                 latchedClimbUntil = 0f;
                 return;
             }
 
-            var forwardSpeed = Vector3.Dot(vehicleBody.velocity, currentDriveDirection);
+            var velocity = vehicleBody.velocity;
+            var forwardSpeed = Vector3.Dot(velocity, climbDirection);
             if (forwardSpeed > LatchedClimbMaximumSpeed)
             {
                 latchedClimbUntil = 0f;
                 return;
             }
 
-            var verticalSpeed = Vector3.Dot(vehicleBody.velocity, Vector3.up);
+            var sideDirection = Vector3.Cross(Vector3.up, climbDirection).normalized;
+            var lateralSpeed = Vector3.Dot(velocity, sideDirection);
+            velocity -= sideDirection *
+                        (lateralSpeed * (1f - LatchedClimbLateralVelocityRetention));
+            var verticalSpeed = Vector3.Dot(velocity, Vector3.up);
             if (verticalSpeed < LatchedClimbVerticalSpeed)
-                vehicleBody.velocity +=
-                    Vector3.up * (LatchedClimbVerticalSpeed - verticalSpeed);
+                velocity += Vector3.up * (LatchedClimbVerticalSpeed - verticalSpeed);
+            vehicleBody.velocity = velocity;
             vehicleBody.AddForce(
-                currentDriveDirection *
+                climbDirection *
                 (LatchedClimbDriveAcceleration * Mathf.Clamp01(throttle)),
                 ForceMode.Acceleration);
+            var localAngularVelocity = vehicle.transform.InverseTransformDirection(
+                vehicleBody.angularVelocity);
+            localAngularVelocity.y *= LatchedClimbYawRetention;
+            localAngularVelocity.z *= LatchedClimbRollRetention;
+            vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
             if (!latchedClimbApplicationLogged)
             {
                 latchedClimbApplicationLogged = true;
                 context?.Logger.Info(
                     $"BigfootMonsterTruck: latched climb applied in physics step " +
-                    $"speed={forwardSpeed:F2}m/s, verticalTarget={LatchedClimbVerticalSpeed:F2}m/s.");
+                    $"speed={forwardSpeed:F2}m/s, lateral={lateralSpeed:F2}m/s, " +
+                    $"verticalTarget={LatchedClimbVerticalSpeed:F2}m/s.");
             }
         }
         catch (Exception exception)
@@ -249,9 +266,19 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                                forwardSpeed < LatchedClimbTriggerSpeed;
             if (latchedClimb)
             {
-                if (Time.unscaledTime > latchedClimbUntil)
+                var otherInstanceId = otherPlayerVehicle != null
+                    ? otherPlayerVehicle.GetInstanceID()
+                    : trafficVehicle!.GetInstanceID();
+                var newLatch = Time.unscaledTime > latchedClimbUntil ||
+                               latchedClimbVehicleId != otherInstanceId;
+                if (newLatch)
+                {
                     latchedClimbApplicationLogged = false;
-                latchedClimbDirection = worldDriveDirection;
+                    latchedClimbDirection = Vector3.ProjectOnPlane(
+                        worldDriveDirection,
+                        Vector3.up).normalized;
+                    latchedClimbVehicleId = otherInstanceId;
+                }
                 latchedClimbUntil = Time.unscaledTime + LatchedClimbDuration;
             }
             var otherPosition = otherPlayerVehicle != null
@@ -330,6 +357,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private void OnDestroy()
     {
         latchedClimbUntil = 0f;
+        latchedClimbVehicleId = 0;
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
         physicsVehicle = null;
