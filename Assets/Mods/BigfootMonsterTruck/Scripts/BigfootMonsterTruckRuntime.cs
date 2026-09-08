@@ -578,7 +578,9 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             context?.Logger.Info(
                 "BigfootMonsterTruck: prefab four-wheel-drive topology verified without runtime rewiring.");
         else
-            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive topology did not verify.");
+            context?.Logger.Info(
+                "BigfootMonsterTruck: runtime AWD references are not exposed for verification; " +
+                "retaining the serialized prefab four-wheel-drive topology.");
     }
 
     private static object? FindNamedComponent(IList components, string name)

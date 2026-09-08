@@ -30,6 +30,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float ParkedContactLateralVelocityRetention = 0.05f;
     private const float ParkedContactYawRetention = 0.3f;
     private const float ParkedContactRollRetention = 0.55f;
+    private const float ParkedContactMaximumDescentSpeed = 0.75f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
@@ -205,7 +206,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     : parkedVehicle!.name;
             var isHeavy = otherPlayerVehicle != null
                 ? IsHeavyVehicle(otherPlayerVehicle)
-                : trafficVehicle != null && IsHeavyTrafficVehicle(trafficVehicle);
+                : trafficVehicle != null
+                    ? IsHeavyVehicleIdentity(trafficVehicle.name)
+                    : IsHeavyVehicleIdentity(parkedVehicle!.name);
             var otherInstanceId = otherPlayerVehicle != null
                 ? otherPlayerVehicle.GetInstanceID()
                 : trafficVehicle != null
@@ -260,7 +263,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 return;
             if (otherPlayerVehicle != null
                     ? IsHeavyVehicle(otherPlayerVehicle)
-                    : trafficVehicle != null && IsHeavyTrafficVehicle(trafficVehicle))
+                    : trafficVehicle != null
+                        ? IsHeavyVehicleIdentity(trafficVehicle.name)
+                        : IsHeavyVehicleIdentity(parkedVehicle!.name))
                 return;
 
             var throttle = physicsVehicle.input.Throttle;
@@ -427,6 +432,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         var lateralSpeed = Vector3.Dot(velocity, sideDirection);
         velocity -= sideDirection *
                     (lateralSpeed * (1f - ParkedContactLateralVelocityRetention));
+        var verticalSpeed = Vector3.Dot(velocity, Vector3.up);
+        var descentCorrection = Mathf.Max(
+            0f,
+            -ParkedContactMaximumDescentSpeed - verticalSpeed);
+        if (descentCorrection > 0f)
+            velocity += Vector3.up * descentCorrection;
         vehicleBody.velocity = velocity;
 
         var localAngularVelocity = vehicle.transform.InverseTransformDirection(
@@ -435,12 +446,14 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         localAngularVelocity.z *= ParkedContactRollRetention;
         vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
 
-        if (Mathf.Abs(lateralSpeed) >= 0.1f && now >= nextParkedStabilizationLogTime)
+        if ((Mathf.Abs(lateralSpeed) >= 0.1f || descentCorrection > 0.1f) &&
+            now >= nextParkedStabilizationLogTime)
         {
             nextParkedStabilizationLogTime = now + ClimbAssistLogCooldown;
             context?.Logger.Info(
                 $"BigfootMonsterTruck: parked climb stabilized other='{parkedVehicle.name}', " +
-                $"speed={forwardSpeed:F2}m/s, lateralRemoved={lateralSpeed:F2}m/s.");
+                $"speed={forwardSpeed:F2}m/s, lateralRemoved={lateralSpeed:F2}m/s, " +
+                $"descentRemoved={descentCorrection:F2}m/s.");
         }
     }
 
@@ -498,9 +511,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private static string GetVehicleName(VehicleController other) =>
         other.vehicleType?.vehicleTypeName ?? other.name;
 
-    private static bool IsHeavyTrafficVehicle(GleyTrafficSystem.VehicleComponent trafficVehicle)
+    private static bool IsHeavyVehicleIdentity(string vehicleName)
     {
-        var identity = trafficVehicle.name.ToLowerInvariant();
+        var identity = vehicleName.ToLowerInvariant();
         // Vanilla traffic names are stable while world-axis collider bounds change
         // as a car turns. Bounds-based classification misidentified ordinary cars.
         return identity.Contains("freighttruck") || identity.Contains("deliverytruck") ||
