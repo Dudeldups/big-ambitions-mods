@@ -18,13 +18,12 @@ namespace MootorVehicle
         private const string EnergyDrinkItemName = "ba:itemname_energydrink";
         private const float DefaultMaximumFuel = 100f;
 
-        private readonly HashSet<GasStationTrigger> nearbyRefuelStations = new();
+        private readonly HashSet<int> suppressedRefuelStations = new();
         private VehicleController? vehicle;
         private ModContext? context;
         private readonly float configuredMaximumFuel = DefaultMaximumFuel;
         private ItemInstance? heldItemAwaitingRestore;
         private bool mounted;
-        private bool stationFuelBlocked;
 
         internal void Initialize(VehicleController controller, ModContext? modContext)
         {
@@ -43,15 +42,13 @@ namespace MootorVehicle
             mounted = true;
             heldItemAwaitingRestore = PlayerHelper.ItemInstanceInHands;
             TryFeedFromHands();
-            FindOverlappingRefuelStations();
-            if (nearbyRefuelStations.Count > 0)
-                BlockStationFueling();
+            SuppressOverlappingRefuelStations();
         }
 
         internal void NotifyDismounted()
         {
             mounted = false;
-            RestoreStationFueling();
+            suppressedRefuelStations.Clear();
             if (heldItemAwaitingRestore != null)
                 StartCoroutine(RestoreHeldItemAfterDismount(heldItemAwaitingRestore));
         }
@@ -140,19 +137,10 @@ namespace MootorVehicle
         private void OnTriggerEnter(Collider other)
         {
             var station = FindRefuelStation(other);
-            if (station == null || !nearbyRefuelStations.Add(station) || !mounted)
+            if (station == null || !mounted)
                 return;
 
-            BlockStationFueling();
-        }
-
-        private void OnTriggerExit(Collider other)
-        {
-            var station = FindRefuelStation(other);
-            if (station == null || !nearbyRefuelStations.Remove(station) || nearbyRefuelStations.Count != 0)
-                return;
-
-            RestoreStationFueling();
+            SuppressRefuelStation(station, "trigger-enter");
         }
 
         private static GasStationTrigger? FindRefuelStation(Collider other)
@@ -162,7 +150,7 @@ namespace MootorVehicle
             return station != null && station.isRefuelStation ? station : null;
         }
 
-        private void FindOverlappingRefuelStations()
+        private void SuppressOverlappingRefuelStations()
         {
             if (vehicle == null)
                 return;
@@ -175,53 +163,40 @@ namespace MootorVehicle
                 if (station != null && station.isRefuelStation && station.stationCollider != null &&
                     station.stationCollider.bounds.Intersects(vehicleCollider.bounds))
                 {
-                    nearbyRefuelStations.Add(station);
+                    SuppressRefuelStation(station, "mount-overlap");
                 }
         }
 
-        private void BlockStationFueling()
+        private void SuppressRefuelStation(GasStationTrigger station, string source)
         {
-            if (vehicle?.vehicleType == null || stationFuelBlocked)
+            if (!mounted)
                 return;
 
-            vehicle.vehicleType.maxFuel = Mathf.Max(0f, vehicle.GetCurrentFuel());
-            stationFuelBlocked = true;
-            context?.Logger.Info(
-                $"Moo-tor Vehicle gas-station fueling blocked vehicle={vehicle.GetInstanceID()} " +
-                $"fuel={vehicle.vehicleType.maxFuel:F2}.");
-
-            foreach (var station in nearbyRefuelStations)
-                if (station != null)
-                    StartCoroutine(RefreshGasStationOverlay(station));
+            // GasStationController can show its overlay from its vehicle-enter callback without
+            // applying GasStationTrigger's normal vehicle eligibility check. Hide it immediately,
+            // then once more after all callbacks from the current frame have completed.
+            GasStationOverlay.Hide();
+            var stationId = station.GetInstanceID();
+            if (suppressedRefuelStations.Add(stationId))
+                StartCoroutine(HideGasStationOverlayAfterCallbacks(stationId, source));
         }
 
-        private IEnumerator RefreshGasStationOverlay(GasStationTrigger station)
+        private IEnumerator HideGasStationOverlayAfterCallbacks(int stationId, string source)
         {
-            // Refresh once after the game's trigger callback has populated its overlay.
             yield return null;
-            if (mounted && stationFuelBlocked && station != null && nearbyRefuelStations.Contains(station))
-                GasStationOverlay.Show(station);
-        }
+            if (!mounted)
+                yield break;
 
-        private void RestoreStationFueling()
-        {
-            if (vehicle?.vehicleType == null || !stationFuelBlocked)
-                return;
-
-            vehicle.vehicleType.maxFuel = configuredMaximumFuel;
-            stationFuelBlocked = false;
+            GasStationOverlay.Hide();
+            context?.Logger.Info(
+                $"Moo-tor Vehicle gas-station overlay suppressed vehicle={vehicle?.GetInstanceID()} " +
+                $"station={stationId} source='{source}'.");
         }
 
         private void OnDisable()
         {
-            RestoreStationFueling();
-            nearbyRefuelStations.Clear();
+            suppressedRefuelStations.Clear();
             mounted = false;
-        }
-
-        private void OnDestroy()
-        {
-            RestoreStationFueling();
         }
     }
 }
