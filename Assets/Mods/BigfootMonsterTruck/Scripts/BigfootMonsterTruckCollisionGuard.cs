@@ -184,18 +184,25 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (otherPlayerVehicle == vehicle)
                 return;
             var trafficVehicle = collision.collider.GetComponentInParent<GleyTrafficSystem.VehicleComponent>();
-            if (otherPlayerVehicle == null && trafficVehicle == null)
+            var parkedVehicle = otherPlayerVehicle == null && trafficVehicle == null
+                ? FindParkedVehicle(collision.collider)
+                : null;
+            if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
                 return;
 
             var otherName = otherPlayerVehicle != null
                 ? GetVehicleName(otherPlayerVehicle)
-                : trafficVehicle!.name;
+                : trafficVehicle != null
+                    ? trafficVehicle.name
+                    : parkedVehicle!.name;
             var isHeavy = otherPlayerVehicle != null
                 ? IsHeavyVehicle(otherPlayerVehicle)
-                : IsHeavyTrafficVehicle(trafficVehicle!);
+                : trafficVehicle != null && IsHeavyTrafficVehicle(trafficVehicle);
             var otherInstanceId = otherPlayerVehicle != null
                 ? otherPlayerVehicle.GetInstanceID()
-                : trafficVehicle!.GetInstanceID();
+                : trafficVehicle != null
+                    ? trafficVehicle.GetInstanceID()
+                    : parkedVehicle!.GetInstanceID();
             if (isHeavy)
             {
                 heavyImpactFrame = Time.frameCount;
@@ -238,11 +245,14 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (otherPlayerVehicle == vehicle)
                 return;
             var trafficVehicle = collision.collider.GetComponentInParent<GleyTrafficSystem.VehicleComponent>();
-            if (otherPlayerVehicle == null && trafficVehicle == null)
+            var parkedVehicle = otherPlayerVehicle == null && trafficVehicle == null
+                ? FindParkedVehicle(collision.collider)
+                : null;
+            if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
                 return;
             if (otherPlayerVehicle != null
                     ? IsHeavyVehicle(otherPlayerVehicle)
-                    : IsHeavyTrafficVehicle(trafficVehicle!))
+                    : trafficVehicle != null && IsHeavyTrafficVehicle(trafficVehicle))
                 return;
 
             var throttle = physicsVehicle.input.Throttle;
@@ -268,7 +278,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             {
                 var otherInstanceId = otherPlayerVehicle != null
                     ? otherPlayerVehicle.GetInstanceID()
-                    : trafficVehicle!.GetInstanceID();
+                    : trafficVehicle != null
+                        ? trafficVehicle.GetInstanceID()
+                        : parkedVehicle!.GetInstanceID();
                 var newLatch = Time.unscaledTime > latchedClimbUntil ||
                                latchedClimbVehicleId != otherInstanceId;
                 if (newLatch)
@@ -283,7 +295,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             }
             var otherPosition = otherPlayerVehicle != null
                 ? otherPlayerVehicle.transform.position
-                : trafficVehicle!.transform.position;
+                : trafficVehicle != null
+                    ? trafficVehicle.transform.position
+                    : parkedVehicle!.position;
             var otherLocal = vehicle.transform.InverseTransformPoint(otherPosition);
             // Once a tire is on the vehicle, keep pulling even after its center passes
             // behind the front axle. Stopping here was what stranded cars beneath the truck.
@@ -332,7 +346,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 nextClimbAssistLogTime = Time.unscaledTime + ClimbAssistLogCooldown;
                 var otherName = otherPlayerVehicle != null
                     ? GetVehicleName(otherPlayerVehicle)
-                    : trafficVehicle!.name;
+                    : trafficVehicle != null
+                        ? trafficVehicle.name
+                        : parkedVehicle!.name;
                 var assistMode = latchedClimb
                     ? tireContact
                         ? "latched-climb-tire"
@@ -394,6 +410,17 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 return true;
         }
         return false;
+    }
+
+    private static Transform? FindParkedVehicle(Collider collider)
+    {
+        var parkedVehiclesLayer = LayerMask.NameToLayer("ParkedVehicles");
+        if (parkedVehiclesLayer < 0)
+            return null;
+        for (var transform = collider.transform; transform != null; transform = transform.parent)
+            if (transform.gameObject.layer == parkedVehiclesLayer)
+                return transform;
+        return null;
     }
 
     private static bool IsHeavyVehicle(VehicleController other)
