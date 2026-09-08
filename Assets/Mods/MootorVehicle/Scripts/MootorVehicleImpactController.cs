@@ -19,7 +19,6 @@ namespace MootorVehicle
         private const float MinimumHorizontalImpactSpeed = 3.5f;
         private const float CrashMooVolume = 0.65f;
         private const string FaintAnimationName = "Faint";
-        private const float FallPlaybackSpeed = 1.6f;
         private const float LyingDuration = 0.6f;
         private const float GetUpDuration = 1.5f;
         private const NavigationBlocker CrashFallNavigationBlocker = (NavigationBlocker)1000;
@@ -127,6 +126,13 @@ namespace MootorVehicle
                             "before forced exit.");
                     }
 
+                    var transmission = physicsVehicle?.powertrain?.transmission;
+                    if (transmission != null)
+                    {
+                        transmission.ShiftInto(0, true);
+                        transmission.currentGearRatio = 0f;
+                    }
+
                     vehicle.ExitVehicle();
                     riderExited = true;
                 }
@@ -142,7 +148,6 @@ namespace MootorVehicle
             {
                 if (riderExited)
                 {
-                    yield return null;
                     yield return PlayPlayerFallAndRecovery();
                 }
             }
@@ -220,28 +225,16 @@ namespace MootorVehicle
                 fallenPlayer.SetNavigationBlocker(CrashFallNavigationBlocker);
                 fallNavigationBlocked = true;
                 fallenPlayerAnimatorSpeed = fallenPlayerAnimator.speed;
-                fallenPlayerAnimator.speed = FallPlaybackSpeed;
-                fallenPlayerAnimator.ResetTrigger(FaintAnimationName);
-                fallenPlayerAnimator.SetTrigger(FaintAnimationName);
+                fallenPlayerAnimator.speed = 0f;
+                fallenPlayerAnimator.Play(faintState, faintLayer, 1f);
+                fallenPlayerAnimator.Update(0f);
 
                 context?.Logger.Info(
-                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} started native " +
-                    $"rider fall clip='{faintClip.name}' layer={faintLayer} " +
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} positioned rider " +
+                    $"prone with native clip='{faintClip.name}' layer={faintLayer} " +
                     $"length={faintClip.length:F2}s.");
 
                 var elapsed = 0f;
-                var fallDuration = faintClip.length / FallPlaybackSpeed;
-                while (elapsed < fallDuration && fallenPlayerAnimator != null)
-                {
-                    elapsed += Time.deltaTime;
-                    yield return null;
-                }
-
-                if (fallenPlayerAnimator == null)
-                    yield break;
-
-                fallenPlayerAnimator.speed = 0f;
-                elapsed = 0f;
                 while (elapsed < LyingDuration && fallenPlayerAnimator != null)
                 {
                     elapsed += Time.deltaTime;

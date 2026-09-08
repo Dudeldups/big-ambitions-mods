@@ -21,8 +21,9 @@ namespace MootorVehicle
         private const string EnergyDrinkItemName = "ba:itemname_energydrink";
         private const float DefaultMaximumFuel = 100f;
         private const float EnergyDrinkSpeedMultiplier = 2f;
+        private const float NativeLimiterHeadroom = 1.08f;
         private const float ReverseGearRatio = -2.96f;
-        private const float RegularForwardGearRatio = 2.108f;
+        private const float RegularForwardGearRatio = 1.95f;
         internal const float RegularSpeedLimit = 22f;
         internal const float RegularEnginePower = 22f;
 
@@ -150,8 +151,9 @@ namespace MootorVehicle
 
                 regularSpeedLimit = RegularSpeedLimit;
                 regularEnginePower = RegularEnginePower;
-                speedLimiter.speedLimit = regularSpeedLimit;
+                speedLimiter.speedLimit = regularSpeedLimit * NativeLimiterHeadroom;
                 engine.maxPower = regularEnginePower;
+                ConfigureCowPowerCurve(engine);
                 ConfigureSingleSpeedTransmission(false);
                 energyBoostPreferenceKey = BuildEnergyBoostPreferenceKey(context?.ModId, vehicle);
                 fuelModule.onOutOfFuel.RemoveListener(HandleOutOfFuel);
@@ -227,7 +229,8 @@ namespace MootorVehicle
             if (!performanceConfigured || speedLimiter == null || engine == null)
                 return;
 
-            speedLimiter.speedLimit = regularSpeedLimit * (active ? EnergyDrinkSpeedMultiplier : 1f);
+            var performanceMultiplier = active ? EnergyDrinkSpeedMultiplier : 1f;
+            speedLimiter.speedLimit = regularSpeedLimit * performanceMultiplier * NativeLimiterHeadroom;
             engine.maxPower = regularEnginePower * (active ? EnergyDrinkSpeedMultiplier : 1f);
             ConfigureSingleSpeedTransmission(active);
             energyBoostActive = active;
@@ -237,8 +240,23 @@ namespace MootorVehicle
 
             context?.Logger.Info(
                 $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} active={active} " +
-                $"speedLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1} " +
+                $"targetSpeed={regularSpeedLimit * performanceMultiplier:F1} " +
+                $"safetyLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1} " +
                 $"forwardRatio={physicsVehicle?.powertrain?.transmission?.GetGearRatio(1):F3}.");
+        }
+
+        private static void ConfigureCowPowerCurve(NWH.VehiclePhysics2.Powertrain.EngineComponent engine)
+        {
+            // The stock curve makes maximum power at the rev limiter, causing a visible
+            // accelerate-cut-decelerate cycle. A cow-shaped curve tapers power near redline so
+            // the single gear approaches its target speed smoothly. The native limiter remains
+            // slightly above the target as a downhill safety cap.
+            engine.powerCurve = new AnimationCurve(
+                new Keyframe(0f, 0f),
+                new Keyframe(0.12f, 0.55f),
+                new Keyframe(0.55f, 1f),
+                new Keyframe(0.8f, 0.8f),
+                new Keyframe(1f, 0f));
         }
 
         private void ConfigureSingleSpeedTransmission(bool energized)

@@ -135,7 +135,7 @@ namespace MootorVehicle
             nextEngineStartAttempt = Time.unscaledTime + 0.15f;
             engineStartConfirmedLogged = false;
             engineStartFailureLogged = false;
-            engineRestartPending = false;
+            engineRestartPending = true;
             engineReady = false;
             dormantThrottleDetectedAt = -1f;
             hornPressed = false;
@@ -144,8 +144,35 @@ namespace MootorVehicle
             ScheduleNextEarFlap(true);
 
             ApplyRideHeight(true);
+            ResetDrivetrainForMount();
             LogInfo("mounted; preparing current player appearance.");
             LogDrivetrainState("mount");
+        }
+
+        private void ResetDrivetrainForMount()
+        {
+            if (physicsVehicle == null)
+                return;
+
+            try
+            {
+                var engine = physicsVehicle.powertrain.engine;
+                var transmission = physicsVehicle.powertrain.transmission;
+                engine.StopEngine();
+                transmission.ShiftInto(0, true);
+                transmission.currentGearRatio = 0f;
+                engineRestartPending = true;
+                nextEngineStartAttempt = Time.unscaledTime + EngineRestartDelay;
+                LogInfo("normalized engine and transmission for mount; scheduled clean restart.");
+            }
+            catch (Exception exception)
+            {
+                engineRestartPending = false;
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: could not normalize " +
+                    $"drivetrain on mount; using fallback recovery: " +
+                    exception.GetBaseException().Message);
+            }
         }
 
         private void LateUpdate()
@@ -446,9 +473,11 @@ namespace MootorVehicle
                     nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
                     dormantThrottleDetectedAt = Time.unscaledTime;
                     engine.StartEngine();
+                    physicsVehicle.powertrain.transmission.ShiftInto(1, true);
                     LogInfo(
-                        $"requested native engine restart attempt={engineStartAttempts}; " +
-                        $"running={engine.IsRunning} rpm={rpm:F0}.");
+                        $"requested native engine restart attempt={engineStartAttempts} in drive; " +
+                        $"running={engine.IsRunning} rpm={rpm:F0} " +
+                        $"gear={physicsVehicle.powertrain.transmission.Gear}.");
                     return;
                 }
 
