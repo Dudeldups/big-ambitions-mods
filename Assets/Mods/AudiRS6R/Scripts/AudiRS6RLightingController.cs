@@ -88,17 +88,25 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             additive: true,
             selectHeadlightSignatureComponents: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
-            "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
+            frontLampRenderer, position => position.x <= 0f,
+            "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f),
+            copyBaseTexture: false,
+            selectRearLampSignatureComponents: true);
         rightTailLightOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
-            "RightTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
+            frontLampRenderer, position => position.x > 0f,
+            "RightTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f),
+            copyBaseTexture: false,
+            selectRearLampSignatureComponents: true);
         leftBrakeLightOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
-            "LeftBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
+            frontLampRenderer, position => position.x <= 0f,
+            "LeftBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f),
+            copyBaseTexture: false,
+            selectRearLampSignatureComponents: true);
         rightBrakeLightOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
-            "RightBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
+            frontLampRenderer, position => position.x > 0f,
+            "RightBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f),
+            copyBaseTexture: false,
+            selectRearLampSignatureComponents: true);
         centerBrakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 1.10f,
             "CenterBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
@@ -331,7 +339,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         bool copyBaseTexture = true,
         float overlayScale = 1.0015f,
         bool additive = false,
-        bool selectHeadlightSignatureComponents = false)
+        bool selectHeadlightSignatureComponents = false,
+        bool selectRearLampSignatureComponents = false)
     {
         if (sourceRenderer == null)
         {
@@ -351,8 +360,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             var overlayMesh = selectHeadlightSignatureComponents
                 ? CreateHeadlightSignatureMesh(
                     sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
-                : CreateFilteredMesh(
-                    sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
+                : selectRearLampSignatureComponents
+                    ? CreateRearLampSignatureMesh(
+                        sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
+                    : CreateFilteredMesh(
+                        sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
             if (overlayMesh == null)
             {
                 LogWarning($"overlay '{suffix}' selected no triangles on '{sourceRenderer.name}'.");
@@ -507,6 +519,166 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
+    private Mesh? CreateRearLampSignatureMesh(
+        MeshRenderer sourceRenderer,
+        Mesh source,
+        Func<Vector3, bool> includeComponentCenter,
+        string suffix)
+    {
+        var vertices = source.vertices;
+        if (vertices.Length == 0 || vehicleController == null)
+            return null;
+
+        var vehicleTransform = vehicleController.transform;
+        var sourceTransform = sourceRenderer.transform;
+        var vehiclePositions = new Vector3[vertices.Length];
+        var vehicleNormals = new Vector3[vertices.Length];
+        var sourceNormals = source.normals;
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            vehiclePositions[index] = vehicleTransform.InverseTransformPoint(
+                sourceTransform.TransformPoint(vertices[index]));
+            if (sourceNormals.Length == vertices.Length)
+            {
+                vehicleNormals[index] = vehicleTransform.InverseTransformDirection(
+                    sourceTransform.TransformDirection(sourceNormals[index])).normalized;
+            }
+        }
+
+        var parents = new int[vertices.Length];
+        for (var index = 0; index < parents.Length; index++)
+            parents[index] = index;
+
+        var allTriangles = new List<int>();
+        for (var subMesh = 0; subMesh < source.subMeshCount; subMesh++)
+        {
+            var subMeshTriangles = source.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < subMeshTriangles.Length; index += 3)
+            {
+                var a = subMeshTriangles[index];
+                var b = subMeshTriangles[index + 1];
+                var c = subMeshTriangles[index + 2];
+                UnionVertices(parents, a, b);
+                UnionVertices(parents, a, c);
+                allTriangles.Add(a);
+                allTriangles.Add(b);
+                allTriangles.Add(c);
+            }
+        }
+
+        var components = new Dictionary<int, List<int>>();
+        for (var index = 0; index + 2 < allTriangles.Count; index += 3)
+        {
+            var root = FindVertexRoot(parents, allTriangles[index]);
+            if (!components.TryGetValue(root, out var componentTriangles))
+            {
+                componentTriangles = new List<int>();
+                components.Add(root, componentTriangles);
+            }
+
+            componentTriangles.Add(allTriangles[index]);
+            componentTriangles.Add(allTriangles[index + 1]);
+            componentTriangles.Add(allTriangles[index + 2]);
+        }
+
+        var selectedTriangles = new List<int>();
+        var selectedBars = 0;
+        var selectedTeeth = 0;
+        foreach (var component in components.Values)
+        {
+            var componentVertices = new HashSet<int>(component);
+            using var vertexEnumerator = componentVertices.GetEnumerator();
+            if (!vertexEnumerator.MoveNext())
+                continue;
+
+            var componentBounds = new Bounds(vehiclePositions[vertexEnumerator.Current], Vector3.zero);
+            var normalSum = Vector3.zero;
+            foreach (var vertexIndex in componentVertices)
+            {
+                componentBounds.Encapsulate(vehiclePositions[vertexIndex]);
+                normalSum += vehicleNormals[vertexIndex];
+            }
+
+            var center = componentBounds.center;
+            var size = componentBounds.size;
+            var absMinX = Mathf.Min(Mathf.Abs(componentBounds.min.x), Mathf.Abs(componentBounds.max.x));
+            var absMaxX = Mathf.Max(Mathf.Abs(componentBounds.min.x), Mathf.Abs(componentBounds.max.x));
+            var averageNormal = normalSum.sqrMagnitude > 0f ? normalSum.normalized : Vector3.zero;
+            var isRearward = averageNormal.z <= -0.60f;
+            var isStraightBar =
+                absMinX >= 0.30f && absMaxX <= 0.77f &&
+                componentBounds.min.z >= -2.40f && componentBounds.max.z <= -2.15f &&
+                componentBounds.min.y >= 0.848f && componentBounds.max.y <= 0.890f &&
+                size.y >= 0.015f && size.y <= 0.035f && size.x >= 0.10f;
+            var isTooth =
+                absMinX >= 0.40f && absMaxX <= 0.76f && componentBounds.max.z < -2.10f &&
+                size.x <= 0.035f && size.y >= 0.018f && size.y <= 0.040f &&
+                componentBounds.min.y >= 0.795f &&
+                componentBounds.max.y <= 0.838f;
+
+            if (!includeComponentCenter(center) || (!isStraightBar && !(isTooth && isRearward)))
+            {
+                continue;
+            }
+
+            selectedTriangles.AddRange(component);
+            if (isStraightBar)
+                selectedBars++;
+            else
+                selectedTeeth++;
+        }
+
+        if (selectedTriangles.Count == 0)
+        {
+            LogWarning($"rear-lamp-signature suffix='{suffix}' selected=0 " +
+                       $"components={components.Count} vertices={vertices.Length}.");
+            return null;
+        }
+
+        LogInfo($"rear-lamp-signature suffix='{suffix}' selectedTriangles={selectedTriangles.Count / 3} " +
+                $"barComponents={selectedBars} toothComponents={selectedTeeth} " +
+                $"components={components.Count}.");
+        if (selectedBars != 2 || selectedTeeth != 50 || selectedTriangles.Count / 3 != 546)
+        {
+            LogWarning($"rear-lamp-signature suffix='{suffix}' expected bars=2 teeth=50 triangles=546 " +
+                       $"but selected bars={selectedBars} teeth={selectedTeeth} " +
+                       $"triangles={selectedTriangles.Count / 3}.");
+        }
+        var mesh = new Mesh
+        {
+            name = source.name + "_AudiRS6R_" + suffix,
+            indexFormat = source.indexFormat,
+            vertices = vertices,
+            normals = source.normals,
+            tangents = source.tangents,
+            colors32 = source.colors32,
+            uv = source.uv,
+            uv2 = source.uv2
+        };
+        mesh.SetTriangles(selectedTriangles, 0, true);
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    private static int FindVertexRoot(int[] parents, int vertex)
+    {
+        while (parents[vertex] != vertex)
+        {
+            parents[vertex] = parents[parents[vertex]];
+            vertex = parents[vertex];
+        }
+
+        return vertex;
+    }
+
+    private static void UnionVertices(int[] parents, int first, int second)
+    {
+        var firstRoot = FindVertexRoot(parents, first);
+        var secondRoot = FindVertexRoot(parents, second);
+        if (firstRoot != secondRoot)
+            parents[secondRoot] = firstRoot;
+    }
+
     private Material CreateUnlitMaterial(
         Material? source,
         string materialName,
@@ -555,8 +727,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetFloatIfPresent(material, "_AlphaSrcBlend", (float)BlendMode.One);
         SetFloatIfPresent(material, "_AlphaDstBlend", (float)BlendMode.One);
         SetFloatIfPresent(material, "_TransparentZWrite", 0f);
-        SetFloatIfPresent(material, "_ZTestTransparent", (float)CompareFunction.LessEqual);
-        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
+        // The imported headlamp shell writes opaque depth in front of the modeled light
+        // guides. Draw the selected guide faces through that shell, then gate the overlay
+        // to front-side cameras in ApplyLightState so it cannot show through the car.
+        SetFloatIfPresent(material, "_ZTestTransparent", (float)CompareFunction.Always);
+        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.Always);
         SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloatIfPresent(material, "_Cull", (float)CullMode.Off);
@@ -631,8 +806,9 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                            Mathf.Repeat(Time.unscaledTime - blinkerPhaseStartedAt, BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = isBlinking;
 
-        SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
-        SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
+        var frontSignatureVisible = headlights && IsCameraOnFrontSide();
+        SetRendererState(leftHeadlightOverlay, frontSignatureVisible && !(leftBlinker && blinkerFlash));
+        SetRendererState(rightHeadlightOverlay, frontSignatureVisible && !(rightBlinker && blinkerFlash));
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
@@ -652,8 +828,21 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             lastHeadlightState = headlightState;
             LogInfo($"headlight-state playerControlled={controlledByPlayer} automaticLights={automaticHeadlights} " +
-                    $"signatureOverlays={headlights} lensOverlays=false beams={headlights}.");
+                    $"signatureOverlays={headlights} frontCameraVisible={frontSignatureVisible} " +
+                    $"lensOverlays=false beams={headlights}.");
         }
+    }
+
+    private bool IsCameraOnFrontSide()
+    {
+        if (vehicleController == null)
+            return false;
+
+        var activeCamera = Camera.main;
+        if (activeCamera == null)
+            return true;
+
+        return vehicleController.transform.InverseTransformPoint(activeCamera.transform.position).z >= 0f;
     }
 
     private void LogSurface(string operation, MeshRenderer? renderer)
