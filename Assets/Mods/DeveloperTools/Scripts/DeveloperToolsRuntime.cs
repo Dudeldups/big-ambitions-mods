@@ -68,7 +68,6 @@ namespace DeveloperTools
         private void LateUpdate()
         {
             mapTeleport?.Update(overlay?.IsPointerInsideWindow ?? false);
-            overlay?.SuppressUnexpectedMiniMenu();
         }
 
         private void OnGUI() => overlay?.OnGui();

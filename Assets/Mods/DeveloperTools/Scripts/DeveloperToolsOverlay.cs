@@ -25,9 +25,12 @@ namespace DeveloperTools
         private readonly List<object> suspendedGameplayActions = new List<object>();
         private readonly FieldInfo? playerActionMapField = typeof(InputActionHelper).GetField("PlayerInputActionMap", BindingFlags.Public | BindingFlags.Static);
         private readonly FieldInfo? designerActionMapField = typeof(InputActionHelper).GetField("InteriorDesignerInputActionMap", BindingFlags.Public | BindingFlags.Static);
+        private readonly Type? graphicRaycasterType = Type.GetType("UnityEngine.UI.GraphicRaycaster, UnityEngine.UI");
+        private readonly Type? imageType = Type.GetType("UnityEngine.UI.Image, UnityEngine.UI");
         private PropertyInfo? actionEnabledProperty;
         private MethodInfo? actionDisableMethod;
         private MethodInfo? actionEnableMethod;
+        private GameObject? uiInputBlocker;
         private GUISkin? customSkin;
         private Rect windowRect = new Rect(40f, 30f, WindowWidth, WindowHeight);
         private Vector2 mainScroll;
@@ -37,9 +40,6 @@ namespace DeveloperTools
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
-        private int miniMenuSuppressionFrames;
-        private bool miniMenuWasOpen;
-        private bool miniMenuSuppressionLogged;
         private bool cursorRestorePending;
         private bool cursorWasVisible;
         private CursorLockMode previousCursorLock;
@@ -93,8 +93,7 @@ namespace DeveloperTools
             }
             cursorRestorePending = false;
             inputReleaseBlockFrames = 0;
-            miniMenuWasOpen = global::UI.MiniMenu.MiniMenu.IsOpen;
-            miniMenuSuppressionLogged = false;
+            SetUiInputBlockerActive(true);
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
             SuspendGameplayActions();
@@ -115,8 +114,6 @@ namespace DeveloperTools
                 return;
             visible = false;
             inputReleaseBlockFrames = Math.Max(inputReleaseBlockFrames, 3);
-            if (!miniMenuWasOpen)
-                miniMenuSuppressionFrames = Math.Max(miniMenuSuppressionFrames, 12);
             cursorRestorePending = true;
             vehicleDropdownOpen = false;
             itemDropdownOpen = false;
@@ -146,26 +143,12 @@ namespace DeveloperTools
             if (customSkin != null)
                 UnityEngine.Object.Destroy(customSkin);
             customSkin = null;
+            if (uiInputBlocker != null)
+                UnityEngine.Object.Destroy(uiInputBlocker);
+            uiInputBlocker = null;
             foreach (var texture in ownedTextures)
                 if (texture != null) UnityEngine.Object.Destroy(texture);
             ownedTextures.Clear();
-        }
-
-        public void SuppressUnexpectedMiniMenu()
-        {
-            if (miniMenuSuppressionFrames <= 0)
-                return;
-
-            miniMenuSuppressionFrames--;
-            if (!global::UI.MiniMenu.MiniMenu.IsOpen)
-                return;
-
-            global::UI.UIs.Instance.miniMenuUI.Toggle(false);
-            if (!miniMenuSuppressionLogged)
-            {
-                miniMenuSuppressionLogged = true;
-                context.Logger.Warn("DeveloperTools: suppressed an unexpected mini-menu open during the overlay close transition.");
-            }
         }
 
         private void RestoreCursor()
@@ -175,8 +158,46 @@ namespace DeveloperTools
 
             cursorRestorePending = false;
             RestoreGameplayActions();
+            SetUiInputBlockerActive(false);
             Cursor.visible = cursorWasVisible;
             Cursor.lockState = previousCursorLock;
+        }
+
+        private void SetUiInputBlockerActive(bool active)
+        {
+            if (uiInputBlocker == null && active)
+            {
+                if (graphicRaycasterType == null || imageType == null)
+                {
+                    context.Logger.Warn("DeveloperTools: could not create the uGUI input blocker because Unity UI types were unavailable.");
+                    return;
+                }
+
+                uiInputBlocker = new GameObject(
+                    "DeveloperToolsUiInputBlocker",
+                    typeof(RectTransform),
+                    typeof(Canvas));
+                UnityEngine.Object.DontDestroyOnLoad(uiInputBlocker);
+                uiInputBlocker.AddComponent(graphicRaycasterType);
+
+                var canvas = uiInputBlocker.GetComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.overrideSorting = true;
+                canvas.sortingOrder = short.MaxValue;
+
+                var image = uiInputBlocker.AddComponent(imageType);
+                imageType.GetProperty("color", BindingFlags.Public | BindingFlags.Instance)?.SetValue(image, Color.clear);
+                imageType.GetProperty("raycastTarget", BindingFlags.Public | BindingFlags.Instance)?.SetValue(image, true);
+
+                var rect = uiInputBlocker.GetComponent<RectTransform>();
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+
+            if (uiInputBlocker != null)
+                uiInputBlocker.SetActive(active);
         }
 
         private void SuspendGameplayActions()
