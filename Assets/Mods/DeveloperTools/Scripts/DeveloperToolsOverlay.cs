@@ -37,6 +37,9 @@ namespace DeveloperTools
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
+        private int miniMenuSuppressionFrames;
+        private bool miniMenuWasOpen;
+        private bool miniMenuSuppressionLogged;
         private bool cursorRestorePending;
         private bool cursorWasVisible;
         private CursorLockMode previousCursorLock;
@@ -90,6 +93,8 @@ namespace DeveloperTools
             }
             cursorRestorePending = false;
             inputReleaseBlockFrames = 0;
+            miniMenuWasOpen = global::UI.MiniMenu.MiniMenu.IsOpen;
+            miniMenuSuppressionLogged = false;
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
             SuspendGameplayActions();
@@ -110,6 +115,8 @@ namespace DeveloperTools
                 return;
             visible = false;
             inputReleaseBlockFrames = Math.Max(inputReleaseBlockFrames, 3);
+            if (!miniMenuWasOpen)
+                miniMenuSuppressionFrames = Math.Max(miniMenuSuppressionFrames, 12);
             cursorRestorePending = true;
             vehicleDropdownOpen = false;
             itemDropdownOpen = false;
@@ -142,6 +149,23 @@ namespace DeveloperTools
             foreach (var texture in ownedTextures)
                 if (texture != null) UnityEngine.Object.Destroy(texture);
             ownedTextures.Clear();
+        }
+
+        public void SuppressUnexpectedMiniMenu()
+        {
+            if (miniMenuSuppressionFrames <= 0)
+                return;
+
+            miniMenuSuppressionFrames--;
+            if (!global::UI.MiniMenu.MiniMenu.IsOpen)
+                return;
+
+            global::UI.UIs.Instance.miniMenuUI.Toggle(false);
+            if (!miniMenuSuppressionLogged)
+            {
+                miniMenuSuppressionLogged = true;
+                context.Logger.Warn("DeveloperTools: suppressed an unexpected mini-menu open during the overlay close transition.");
+            }
         }
 
         private void RestoreCursor()

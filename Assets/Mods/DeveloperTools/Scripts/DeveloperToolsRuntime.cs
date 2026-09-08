@@ -65,7 +65,11 @@ namespace DeveloperTools
                 overlay.ConsumeGameplayInput();
         }
 
-        private void LateUpdate() => mapTeleport?.Update(overlay?.IsPointerInsideWindow ?? false);
+        private void LateUpdate()
+        {
+            mapTeleport?.Update(overlay?.IsPointerInsideWindow ?? false);
+            overlay?.SuppressUnexpectedMiniMenu();
+        }
 
         private void OnGUI() => overlay?.OnGui();
     }
