@@ -95,12 +95,22 @@ public static class BugattiChironSetup
                 throw new InvalidOperationException("Bugatti visual has no renderer bounds.");
 
             var wheelVisuals = 0;
+            var wheelGeometryOriented = true;
             var continuousTailLight = false;
             var remainingLightComponents = prefab.GetComponentsInChildren<Light>(true).Length;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (transform.name.StartsWith("BugattiWheel", StringComparison.Ordinal))
+                {
                     wheelVisuals++;
+                    if (!TryGetRendererBounds(transform, out var wheelBounds) ||
+                        wheelBounds.size.x > 0.40f ||
+                        wheelBounds.size.y < 0.62f || wheelBounds.size.y > 0.76f ||
+                        wheelBounds.size.z < 0.62f || wheelBounds.size.z > 0.76f)
+                    {
+                        wheelGeometryOriented = false;
+                    }
+                }
                 if (string.Equals(
                         transform.name,
                         "Tail-light_Tail-light-LIGHT_0",
@@ -176,6 +186,7 @@ public static class BugattiChironSetup
                 bounds.size.x < 1.90f || bounds.size.x > 2.15f ||
                 bounds.size.y < 1.05f || bounds.size.y > 1.40f ||
                 wheelVisuals != 4 ||
+                !wheelGeometryOriented ||
                 !continuousTailLight ||
                 remainingLightComponents != 0 ||
                 !transmissionVerified ||
@@ -188,6 +199,7 @@ public static class BugattiChironSetup
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
                     $"speed={maxSpeed}, power={enginePower}, luxury={luxury}, " +
                     $"bounds={bounds.size}, wheels={wheelVisuals}, " +
+                    $"wheelGeometryOriented={wheelGeometryOriented}, " +
                     $"continuousTailLight={continuousTailLight}, lights={remainingLightComponents}, " +
                     $"sevenSpeed={transmissionVerified}, opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
@@ -533,9 +545,11 @@ public static class BugattiChironSetup
                     radius,
                     controller.localPosition.z);
 
-            wheel.SetParent(mount.transform, true);
+            wheel.SetParent(mount.transform, false);
             wheel.name = "Geometry";
-            wheel.position = mount.transform.position;
+            wheel.localPosition = Vector3.zero;
+            wheel.localRotation = Quaternion.Euler(0f, 0f, -90f);
+            wheel.localScale = Vector3.one;
             if (!TryGetRendererBounds(mount.transform, out var wheelBounds) ||
                 wheelBounds.size.x <= 0.001f ||
                 wheelBounds.size.y <= 0.001f ||
@@ -549,7 +563,7 @@ public static class BugattiChironSetup
                 (radius * 2f) / wheelBounds.size.y,
                 (radius * 2f) / wheelBounds.size.z);
             if (TryGetRendererBounds(mount.transform, out wheelBounds))
-                mount.transform.position += mount.transform.position - wheelBounds.center;
+                wheel.position += mount.transform.position - wheelBounds.center;
 
             AssignWheelVisual(controller, mount);
         }
