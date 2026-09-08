@@ -93,6 +93,15 @@ public static class BugattiChironSetup
                          throw new InvalidOperationException("Bugatti visual root is missing.");
             if (!TryGetBugattiRendererBounds(prefab.transform, out var bounds))
                 throw new InvalidOperationException("Bugatti visual has no renderer bounds.");
+            var leftDoor = FindTransform(visual, "Door-left");
+            var rightDoor = FindTransform(visual, "Door-right");
+            var bodySidesOriented =
+                leftDoor != null && rightDoor != null &&
+                TryGetRendererBounds(leftDoor, out var leftDoorBounds) &&
+                TryGetRendererBounds(rightDoor, out var rightDoorBounds) &&
+                Math.Abs(leftDoorBounds.center.x - rightDoorBounds.center.x) > 0.5f &&
+                Math.Abs(leftDoorBounds.center.x - rightDoorBounds.center.x) >
+                Math.Abs(leftDoorBounds.center.y - rightDoorBounds.center.y) * 2f;
 
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
@@ -185,6 +194,7 @@ public static class BugattiChironSetup
                 bounds.size.z < 4.45f || bounds.size.z > 4.65f ||
                 bounds.size.x < 1.90f || bounds.size.x > 2.15f ||
                 bounds.size.y < 1.05f || bounds.size.y > 1.40f ||
+                !bodySidesOriented ||
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !continuousTailLight ||
@@ -198,7 +208,8 @@ public static class BugattiChironSetup
                 throw new InvalidOperationException(
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
                     $"speed={maxSpeed}, power={enginePower}, luxury={luxury}, " +
-                    $"bounds={bounds.size}, wheels={wheelVisuals}, " +
+                    $"bounds={bounds.size}, bodySidesOriented={bodySidesOriented}, " +
+                    $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, " +
                     $"continuousTailLight={continuousTailLight}, lights={remainingLightComponents}, " +
                     $"sevenSpeed={transmissionVerified}, opaque={opaqueMaterials.Count}, " +
@@ -476,11 +487,11 @@ public static class BugattiChironSetup
     private static void NormalizeModel(GameObject model)
     {
         model.transform.localPosition = Vector3.zero;
-        // This source GLB uses X-up, Y-forward and Z-right. Rotate that basis to
-        // Unity's Y-up, Z-forward and X-right before sizing it to Chiron dimensions.
-        model.transform.localRotation = Quaternion.AngleAxis(
-            120f,
-            new Vector3(1f, 1f, 1f).normalized);
+        // The imported GLB is longitudinal on Y and upright on Z. The additional
+        // +90-degree roll puts Z on Unity Y and the side windows on Unity X.
+        model.transform.localRotation =
+            Quaternion.AngleAxis(90f, Vector3.forward) *
+            Quaternion.AngleAxis(120f, new Vector3(1f, 1f, 1f).normalized);
         model.transform.localScale = Vector3.one;
 
         if (!TryGetRendererBounds(model.transform, out var bounds))
@@ -500,9 +511,9 @@ public static class BugattiChironSetup
             throw new InvalidOperationException("Bugatti model length could not be measured.");
 
         var scale = new Vector3(
-            1.212f / bounds.size.y,
+            2.038f / bounds.size.x,
             TargetLength / bounds.size.z,
-            2.038f / bounds.size.x);
+            1.212f / bounds.size.y);
         model.transform.localScale = scale;
         if (!TryGetRendererBounds(model.transform, out bounds))
             throw new InvalidOperationException("Scaled Bugatti bounds could not be measured.");
@@ -548,7 +559,9 @@ public static class BugattiChironSetup
             wheel.SetParent(mount.transform, false);
             wheel.name = "Geometry";
             wheel.localPosition = Vector3.zero;
-            wheel.localRotation = Quaternion.Euler(0f, 0f, -90f);
+            // The source rim face is on the opposite side of its local Y axle.
+            // +90 maps the authored outside faces to the outside on both sides.
+            wheel.localRotation = Quaternion.Euler(0f, 0f, 90f);
             wheel.localScale = Vector3.one;
             if (!TryGetRendererBounds(mount.transform, out var wheelBounds) ||
                 wheelBounds.size.x <= 0.001f ||
