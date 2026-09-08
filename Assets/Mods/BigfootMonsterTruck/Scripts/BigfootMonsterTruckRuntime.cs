@@ -12,16 +12,16 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const int InitializationRetryCount = 24;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 4500f;
-    private const float WheelRadius = 0.81f;
-    private const float WheelWidth = 1.0f;
-    private const float SuspensionLength = 0.55f;
+    private const float WheelRadius = 0.78f;
+    private const float WheelWidth = 1.05f;
+    private const float SuspensionLength = 0.65f;
     private const float SuspensionForce = 28000f;
     private const float FrontAxleZ = 1.60f;
     private const float RearAxleZ = -1.60f;
     private const float HalfTrack = 1.35f;
-    private const float AxleHeight = 0.82f;
+    private const float AxleHeight = 0.92f;
     private const float CenterOfMassHeight = 0.72f;
-    private const float DriverSeatHeight = 2.18f;
+    private const float DriverSeatHeight = 2.02f;
     private const float BrakeTorque = 15000f;
     private const float AntiRollForce = 4200f;
 
@@ -213,7 +213,10 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         context?.Logger.Info(
             $"BigfootMonsterTruck: configured vehicle id={vehicle.GetInstanceID()}, " +
             $"mass={VehicleMass:F0}, wheels={wheelCount}, colliders={colliderCount}, " +
-            $"wheelRadius={WheelRadius:F2}, suspensionTravel={SuspensionLength:F2}.");
+            $"power={vehicle.vehicleType?.enginePower ?? 0f:F0}, " +
+            $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
+            $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
+            $"suspensionTravel={SuspensionLength:F2}, vehicleContactLayer=true.");
         if (wheelCount != 4)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: expected four wheel controllers but configured {wheelCount}.");
@@ -258,9 +261,16 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(forwardFriction, "stiffness", 1.15f);
                 SetMember(component, "forwardFriction", forwardFriction);
 
-                SetFloat(component, "loadRating", 20000f);
+                SetFloat(component, "loadRating", 30000f);
                 SetFloat(component, "rollingResistanceTorque", 90f);
                 SetFloat(component, "forceApplicationPointDistance", 0.5f);
+                SetFloat(component, "otherBodyForceScale", 4f);
+                var layerMask = GetMember(component, "layerMask");
+                if (layerMask is LayerMask mask)
+                {
+                    mask.value |= 1 << 12;
+                    SetMember(component, "layerMask", mask);
+                }
             }
         }
 
@@ -269,24 +279,26 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private static bool TryGetWheelPosition(string name, out Vector3 position)
     {
-        switch (name)
+        if (!name.EndsWith("_WheelController", StringComparison.Ordinal))
         {
-            case "FrontLeft_WheelController":
-                position = new Vector3(-HalfTrack, AxleHeight, FrontAxleZ);
-                return true;
-            case "FrontRight_WheelController":
-                position = new Vector3(HalfTrack, AxleHeight, FrontAxleZ);
-                return true;
-            case "RearLeft_WheelController":
-                position = new Vector3(-HalfTrack, AxleHeight, RearAxleZ);
-                return true;
-            case "RearRight_WheelController":
-                position = new Vector3(HalfTrack, AxleHeight, RearAxleZ);
-                return true;
-            default:
-                position = default;
-                return false;
+            position = default;
+            return false;
         }
+
+        if (name.IndexOf("FrontLeft", StringComparison.OrdinalIgnoreCase) >= 0)
+            position = new Vector3(-HalfTrack, AxleHeight, FrontAxleZ);
+        else if (name.IndexOf("FrontRight", StringComparison.OrdinalIgnoreCase) >= 0)
+            position = new Vector3(HalfTrack, AxleHeight, FrontAxleZ);
+        else if (name.IndexOf("RearLeft", StringComparison.OrdinalIgnoreCase) >= 0)
+            position = new Vector3(-HalfTrack, AxleHeight, RearAxleZ);
+        else if (name.IndexOf("RearRight", StringComparison.OrdinalIgnoreCase) >= 0)
+            position = new Vector3(HalfTrack, AxleHeight, RearAxleZ);
+        else
+        {
+            position = default;
+            return false;
+        }
+        return true;
     }
 
     private static int ConfigureBodyColliders(VehicleController vehicle)
@@ -302,13 +314,13 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 var collider = colliders[index];
                 if (index == 0)
                 {
-                    collider.center = new Vector3(0f, 1.05f, 0f);
-                    collider.size = new Vector3(2.45f, 1.0f, 5.3f);
+                    collider.center = new Vector3(0f, 1.35f, -0.1f);
+                    collider.size = new Vector3(3.65f, 0.55f, 4.0f);
                 }
                 else
                 {
-                    collider.center = new Vector3(0f, 2.0f, 0.2f);
-                    collider.size = new Vector3(1.95f, 1.25f, 2.8f);
+                    collider.center = new Vector3(0f, 2.05f, 0.1f);
+                    collider.size = new Vector3(2.25f, 1.2f, 3.5f);
                 }
                 count++;
             }
@@ -351,7 +363,28 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 {
                     var powertrain = GetMember(component, "powertrain");
                     var engine = GetMember(powertrain, "engine");
-                    SetFloat(engine, "maxPower", vehicle.vehicleType?.enginePower ?? 500f);
+                    SetFloat(engine, "maxPower", vehicle.vehicleType?.enginePower ?? 1200f);
+                    SetMember(powertrain, "engine", engine);
+                    var transmission = GetMember(powertrain, "transmission");
+                    SetFloat(transmission, "finalGearRatio", 5.2f);
+                    SetMember(powertrain, "transmission", transmission);
+                    var differentials = GetMember(powertrain, "differentials") as IList;
+                    if (differentials != null)
+                    {
+                        for (var index = 0; index < differentials.Count; index++)
+                        {
+                            var differential = differentials[index];
+                            SetFloat(differential, "slipTorque", 5000f);
+                            if (differential != null)
+                                differentials[index] = differential;
+                        }
+                        SetMember(powertrain, "differentials", differentials);
+                    }
+                    SetMember(component, "powertrain", powertrain);
+
+                    var steering = GetMember(component, "steering");
+                    SetFloat(steering, "maximumSteerAngle", 28f);
+                    SetMember(component, "steering", steering);
                 }
 
                 var brakes = GetMember(component, "brakes");

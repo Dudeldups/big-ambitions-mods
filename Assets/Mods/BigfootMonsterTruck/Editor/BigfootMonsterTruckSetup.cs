@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public static class BigfootMonsterTruckSetup
 {
@@ -12,12 +13,15 @@ public static class BigfootMonsterTruckSetup
     private const string AudiPrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath =
         "Assets/Mods/BigfootMonsterTruck/Models/bigfoot-driveable.glb";
+    private const string WindshieldMaterialPath =
+        "Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.mat";
     private const string TargetAssetPath =
         "Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.asset";
     private const string TargetPrefabPath =
         "Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.prefab";
     private const string VehicleTypeName =
         "bigfootmonstertruck-vehicle:vehicletype_bigfootmonstertruck";
+    private const float SuspensionRestLength = 0.65f;
 
     [MenuItem("Big Ambitions Mods/Setup Bigfoot Monster Truck")]
     public static void Generate()
@@ -47,26 +51,31 @@ public static class BigfootMonsterTruckSetup
             var wheelControllers = 0;
             var wheelVisuals = 0;
             var alignedWheelVisuals = 0;
+            var animatedWheelVisuals = 0;
             var hasSeat = false;
             var raisedSeat = false;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
-                if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
-                    !transform.name.StartsWith("Wheel", StringComparison.Ordinal))
+                if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
                     wheelControllers++;
                 if (transform.name.StartsWith("Wheel", StringComparison.Ordinal) &&
                     transform.name.EndsWith("Visual", StringComparison.Ordinal))
                 {
                     wheelVisuals++;
-                    if (transform.parent != null &&
-                        TryGetRendererBounds(transform, out var bounds) &&
-                        Vector3.Distance(bounds.center, transform.parent.position) < 0.02f)
+                    if (TryGetRendererBounds(transform, out var bounds) &&
+                        Vector3.Distance(bounds.center, transform.position) < 0.02f)
                         alignedWheelVisuals++;
                 }
+                if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
+                    TryGetAssignedWheelVisual(transform, out var assignedVisual) &&
+                    assignedVisual.name.StartsWith("Wheel", StringComparison.Ordinal) &&
+                    assignedVisual.name.EndsWith("Visual", StringComparison.Ordinal))
+                    animatedWheelVisuals++;
                 if (string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
                 {
                     hasSeat = true;
-                    raisedSeat = transform.localPosition.y >= 2.17f;
+                    raisedSeat = transform.localPosition.y >= 2.01f &&
+                                 transform.localPosition.y <= 2.03f;
                 }
             }
 
@@ -79,17 +88,22 @@ public static class BigfootMonsterTruckSetup
                 foreach (var material in renderer.sharedMaterials)
                     if (material != null &&
                         material.name.IndexOf("Windshield_Glass", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                        material.renderQueue >= 3000)
+                        material.renderQueue >= 3000 &&
+                        material.color.a >= 0.5f &&
+                        string.Equals(material.shader.name, "Bigfoot/TransparentWindshield",
+                            StringComparison.Ordinal))
                         hasTransparentGlass = true;
             }
 
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
+                animatedWheelVisuals != 4 ||
                 !hasSeat || !raisedSeat ||
                 visibleRenderers == 0 || !hasTransparentGlass)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: controllers={wheelControllers}, " +
                     $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
+                    $"animatedWheelVisuals={animatedWheelVisuals}, " +
                     $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
                     $"transparentGlass={hasTransparentGlass}.");
             }
@@ -97,6 +111,7 @@ public static class BigfootMonsterTruckSetup
             Debug.Log(
                 $"BigfootMonsterTruck bundle verified: controllers={wheelControllers}, " +
                 $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
+                $"animatedWheelVisuals={animatedWheelVisuals}, " +
                 $"visibleRenderers={visibleRenderers}, raisedCenterSeat=true, transparentGlass=true.");
         }
         finally
@@ -132,9 +147,9 @@ public static class BigfootMonsterTruckSetup
         SetNumber(serialized, "maxFuel", 110f);
         SetNumber(serialized, "maxCargoCapacity", 16f);
         SetNumber(serialized, "maxSpeed", 105f);
-        SetNumber(serialized, "enginePower", 500f);
+        SetNumber(serialized, "enginePower", 1200f);
         SetNumber(serialized, "brakeForce", 15000f);
-        SetNumber(serialized, "turnRadius", 24f);
+        SetNumber(serialized, "turnRadius", 30f);
         SetNumber(serialized, "damageIntensity", 0.38f);
         SetBool(serialized, "isATruck", false);
         SetBool(serialized, "fitsHandTruck", true);
@@ -156,7 +171,6 @@ public static class BigfootMonsterTruckSetup
         if (model == null)
             throw new InvalidOperationException("Processed Bigfoot GLB did not import as a prefab.");
 
-        AssetDatabase.DeleteAsset(TargetPrefabPath);
         var root = UnityEngine.Object.Instantiate(source);
         root.name = "BigfootMonsterTruck";
         try
@@ -176,6 +190,7 @@ public static class BigfootMonsterTruckSetup
                 PrefabUnpackMode.Completely,
                 InteractionMode.AutomatedAction);
             modelInstance.name = "BigfootVisual";
+            ConfigureWindshieldMaterial(modelInstance, CreateWindshieldMaterial());
             AttachWheelVisuals(root, modelInstance);
             CreateSeatAnchor(root);
             ConfigureRendererReferences(root, modelInstance);
@@ -222,10 +237,10 @@ public static class BigfootMonsterTruckSetup
 
     private static void ConfigureWheelControllers(GameObject root)
     {
-        SetLocalPosition(root, "FrontLeft_WheelController", new Vector3(-1.35f, 0.82f, 1.60f));
-        SetLocalPosition(root, "FrontRight_WheelController", new Vector3(1.35f, 0.82f, 1.60f));
-        SetLocalPosition(root, "RearLeft_WheelController", new Vector3(-1.35f, 0.82f, -1.60f));
-        SetLocalPosition(root, "RearRight_WheelController", new Vector3(1.35f, 0.82f, -1.60f));
+        SetLocalPosition(root, "FrontLeft_WheelController", new Vector3(-1.35f, 0.92f, 1.60f));
+        SetLocalPosition(root, "FrontRight_WheelController", new Vector3(1.35f, 0.92f, 1.60f));
+        SetLocalPosition(root, "RearLeft_WheelController", new Vector3(-1.35f, 0.92f, -1.60f));
+        SetLocalPosition(root, "RearRight_WheelController", new Vector3(1.35f, 0.92f, -1.60f));
     }
 
     private static void ConfigureBodyColliders(GameObject root)
@@ -235,10 +250,10 @@ public static class BigfootMonsterTruckSetup
         var colliders = holder.GetComponents<BoxCollider>();
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle needs two body colliders.");
-        colliders[0].center = new Vector3(0f, 1.05f, 0f);
-        colliders[0].size = new Vector3(2.45f, 1.0f, 5.3f);
-        colliders[1].center = new Vector3(0f, 2.0f, 0.2f);
-        colliders[1].size = new Vector3(1.95f, 1.25f, 2.8f);
+        colliders[0].center = new Vector3(0f, 1.35f, -0.1f);
+        colliders[0].size = new Vector3(3.65f, 0.55f, 4.0f);
+        colliders[1].center = new Vector3(0f, 2.05f, 0.1f);
+        colliders[1].size = new Vector3(2.25f, 1.2f, 3.5f);
     }
 
     private static void ConfigureExitMarkers(GameObject root)
@@ -282,11 +297,57 @@ public static class BigfootMonsterTruckSetup
             var target = FindWheelVisualTarget(root, pair.Value) ??
                          throw new InvalidOperationException(
                              $"Wheel visual reference for '{pair.Value}' is missing.");
-            wheel.SetParent(target, true);
-            if (!TryGetRendererBounds(wheel, out var bounds))
-                throw new InvalidOperationException($"Model wheel '{pair.Key}' has no renderer bounds.");
-            wheel.position += target.position - bounds.center;
+            var targetParent = target.parent;
+            var wheelRotation = wheel.rotation;
+            var controller = FindTransform(root.transform, pair.Value) ??
+                             throw new InvalidOperationException(
+                                 $"Wheel controller '{pair.Value}' is missing.");
+            wheel.SetParent(targetParent, true);
+            wheel.position = controller.position - root.transform.up * SuspensionRestLength;
+            wheel.rotation = wheelRotation;
+            AssignWheelVisual(root, pair.Value, wheel.gameObject);
         }
+    }
+
+    private static void AssignWheelVisual(GameObject root, string controllerName, GameObject visualObject)
+    {
+        var controller = FindTransform(root.transform, controllerName) ??
+                         throw new InvalidOperationException($"Wheel controller '{controllerName}' is missing.");
+        foreach (var component in controller.GetComponents<MonoBehaviour>())
+        {
+            if (component == null)
+                continue;
+            var serialized = new SerializedObject(component);
+            var wheel = serialized.FindProperty("wheel");
+            var visual = wheel?.FindPropertyRelative("visual");
+            if (visual?.propertyType != SerializedPropertyType.ObjectReference)
+                continue;
+            visual.objectReferenceValue = visualObject;
+            var visualTransform = wheel?.FindPropertyRelative("visualTransform");
+            if (visualTransform?.propertyType == SerializedPropertyType.ObjectReference)
+                visualTransform.objectReferenceValue = null;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            return;
+        }
+        throw new InvalidOperationException($"Wheel controller '{controllerName}' has no visual property.");
+    }
+
+    private static bool TryGetAssignedWheelVisual(Transform controller, out GameObject visualObject)
+    {
+        foreach (var component in controller.GetComponents<MonoBehaviour>())
+        {
+            if (component == null)
+                continue;
+            var serialized = new SerializedObject(component);
+            var visual = serialized.FindProperty("wheel")?.FindPropertyRelative("visual");
+            if (visual?.objectReferenceValue is GameObject gameObject)
+            {
+                visualObject = gameObject;
+                return true;
+            }
+        }
+        visualObject = null!;
+        return false;
     }
 
     private static bool TryGetRendererBounds(Transform root, out Bounds bounds)
@@ -325,23 +386,13 @@ public static class BigfootMonsterTruckSetup
     {
         var anchor = new GameObject("BigfootDriverSeat");
         anchor.transform.SetParent(root.transform, false);
-        anchor.transform.localPosition = new Vector3(0f, 2.18f, 0.18f);
+        anchor.transform.localPosition = new Vector3(0f, 2.02f, 0.18f);
         anchor.transform.localRotation = Quaternion.identity;
     }
 
     private static void ConfigureRendererReferences(GameObject root, GameObject model)
     {
-        var renderers = new List<Renderer>(model.GetComponentsInChildren<Renderer>(true));
-        foreach (var wheelName in new[]
-                 {
-                     "WheelFrontLeft_WheelController", "WheelFrontRight_WheelController",
-                     "WheelRearLeft_WheelController", "WheelRearRight_WheelController"
-                 })
-        {
-            var wheel = FindTransform(root.transform, wheelName);
-            if (wheel != null)
-                renderers.AddRange(wheel.GetComponentsInChildren<Renderer>(true));
-        }
+        var renderers = new List<Renderer>(root.GetComponentsInChildren<Renderer>(true));
 
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -352,6 +403,57 @@ public static class BigfootMonsterTruckSetup
             AssignRendererArray(serialized.FindProperty("renderers"), renderers);
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
+    }
+
+    private static Material CreateWindshieldMaterial()
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(WindshieldMaterialPath);
+        if (material == null)
+        {
+            var shader = Shader.Find("Bigfoot/TransparentWindshield") ??
+                         throw new InvalidOperationException("The Bigfoot windshield shader is unavailable.");
+            material = new Material(shader) { name = "Bigfoot_Windshield_Glass" };
+            AssetDatabase.CreateAsset(material, WindshieldMaterialPath);
+        }
+
+        material.shader = Shader.Find("Bigfoot/TransparentWindshield") ??
+                          throw new InvalidOperationException("The Bigfoot windshield shader is unavailable.");
+        material.name = "Bigfoot_Windshield_Glass";
+        material.color = new Color(0.12f, 0.18f, 0.22f, 0.58f);
+        material.SetFloat("_Mode", 3f);
+        material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        material.SetInt("_ZWrite", 0);
+        material.SetInt("_Cull", (int)CullMode.Off);
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = (int)RenderQueue.Transparent;
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static void ConfigureWindshieldMaterial(GameObject model, Material windshieldMaterial)
+    {
+        var replacements = 0;
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+        {
+            var materials = renderer.sharedMaterials;
+            var changed = false;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                if (materials[index] == null ||
+                    materials[index].name.IndexOf("Windshield_Glass", StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+                materials[index] = windshieldMaterial;
+                changed = true;
+                replacements++;
+            }
+            if (changed)
+                renderer.sharedMaterials = materials;
+        }
+        if (replacements == 0)
+            throw new InvalidOperationException("No windshield material slots were found on the model.");
     }
 
     private static void AssignRendererArray(SerializedProperty? property, List<Renderer> renderers)

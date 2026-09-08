@@ -11,18 +11,18 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
   m_Name: BigfootMonsterTruck
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   database: {fileID: 0}
   tags: []
   vehicleTypeName: bigfootmonstertruck-vehicle:vehicletype_bigfootmonstertruck
   price: 85000
-  itemVersion: 
+  itemVersion:
   maxFuel: 110
   maxCargoCapacity: 16
   maxSpeed: 105
-  enginePower: 500
+  enginePower: 1200
   brakeForce: 15000
-  turnRadius: 24
+  turnRadius: 30
   damageIntensity: 0.38
   fitsHandTruck: 1
   fitsFlatbed: 0

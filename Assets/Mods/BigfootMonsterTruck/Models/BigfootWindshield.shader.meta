@@ -1,7 +1,9 @@
 fileFormatVersion: 2
-guid: 0b7b611b3ce061c4f9b0ec1f217ebbb4
-PrefabImporter:
+guid: af0ed14ea8057564590a584f9584395f
+ShaderImporter:
   externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
   userData:
   assetBundleName: bigfootmonstertruck
   assetBundleVariant: unity3d

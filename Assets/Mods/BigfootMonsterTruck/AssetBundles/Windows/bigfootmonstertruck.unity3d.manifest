@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1919225931
+CRC: 1614948770
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: a21cf1d5bce990e2356cf97a896df10a
+    Hash: 87979a28364427f38b02d9e0cdafc6aa
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: a21cf1d5bce990e2356cf97a896df10a
+    Hash: 87979a28364427f38b02d9e0cdafc6aa
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -221,6 +221,7 @@ SerializeReferenceClassIdentifiers:
   ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
 Assets:
 - Assets/Mods/BigfootMonsterTruck/Models/bigfoot-driveable.glb
+- Assets/Mods/BigfootMonsterTruck/Models/BigfootWindshield.mat
 - Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.asset
 - Assets/Mods/BigfootMonsterTruck/ATTRIBUTION.md
 - Assets/Mods/BigfootMonsterTruck/THIRD_PARTY_NOTICES.md
