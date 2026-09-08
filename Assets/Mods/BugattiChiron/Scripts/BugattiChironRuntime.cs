@@ -380,7 +380,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             SetFloat(engine, "idleRPM", EngineIdleRpm);
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
             SetFloat(engine, "startDuration", EngineStartDuration);
-            SetBool(engine, "stallingEnabled", true);
+            SetBool(engine, "stallingEnabled", false);
             var forcedInduction = GetMember(engine, "forcedInduction");
             SetBool(forcedInduction, "useForcedInduction", true);
             SetFloat(forcedInduction, "powerGainMultiplier", 1.35f);

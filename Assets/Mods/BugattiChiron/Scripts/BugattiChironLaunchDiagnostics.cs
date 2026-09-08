@@ -16,6 +16,7 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
     private float requestThrottle;
     private int requestGear;
     private int samples;
+    private bool dormantEngineLogged;
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -27,16 +28,20 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
 
     private void Update()
     {
-        if (vehicle == null || physics == null || body == null || samples >= MaximumSamples)
+        if (vehicle == null || physics == null || body == null)
             return;
         if (!vehicle.controlledByPlayer)
         {
             timing = false;
+            dormantEngineLogged = false;
             return;
         }
 
         var throttle = physics.input.Throttle;
         var speed = body.velocity.magnitude;
+        LogDormantEngine(throttle);
+        if (samples >= MaximumSamples)
+            return;
         if (!timing)
         {
             if (Mathf.Abs(throttle) < 0.25f || speed > 0.15f)
@@ -89,4 +94,24 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
 
     private float LongitudinalSpeed() =>
         Vector3.Dot(body!.velocity, vehicle!.transform.forward);
+
+    private void LogDormantEngine(float throttle)
+    {
+        var engine = physics!.powertrain.engine;
+        var rpm = CurrentRpm();
+        if (Mathf.Abs(throttle) >= 0.25f && (!engine.IsRunning || rpm < 200f))
+        {
+            if (dormantEngineLogged)
+                return;
+            dormantEngineLogged = true;
+            context?.Logger.Warn(
+                $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: throttle={throttle:F2} " +
+                $"but engine is dormant rpm={rpm:F0} running={engine.IsRunning} " +
+                $"ignition={engine.ignition} canRun={engine.canRun}.");
+            return;
+        }
+
+        if (Mathf.Abs(throttle) < 0.1f || rpm >= 400f)
+            dormantEngineLogged = false;
+    }
 }

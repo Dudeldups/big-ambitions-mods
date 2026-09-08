@@ -154,9 +154,11 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         appliedVehicleColor = selected;
         appliedTint = tint;
         hasAppliedTint = true;
+        var darkColor = Scale(bodyColor, 0.35f);
         context?.Logger.Info(
             $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
+            $"body={bodyColor} dark={darkColor} " +
             $"to {slots.Count} body/rim/caliper/seat/interior slots.");
     }
 
@@ -220,11 +222,15 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         linear.a = 1f;
 
         // The imported HDRP material has no vanilla vehicle-paint Fresnel pass.
-        // Give only dark palette entries a modest perceptual lift so their hue
+        // Give only dark, saturated palette entries an adaptive perceptual lift so their hue
         // remains visible, while normal and bright paints retain the exact
         // linear response that already matches the game's selected color.
         var brightest = Mathf.Max(selectedColor.r, Mathf.Max(selectedColor.g, selectedColor.b));
-        var darkLift = 0.5f * Mathf.Clamp01((0.45f - brightest) / 0.45f);
+        var darkest = Mathf.Min(selectedColor.r, Mathf.Min(selectedColor.g, selectedColor.b));
+        var saturation = brightest > 0.001f ? (brightest - darkest) / brightest : 0f;
+        var valueLift = Mathf.Clamp01((0.45f - brightest) / 0.215f);
+        var saturationGate = Mathf.Clamp01((saturation - 0.20f) / 0.30f);
+        var darkLift = valueLift * saturationGate;
         var color = Color.Lerp(linear, selectedColor, darkLift);
         color.a = 1f;
         return color;
@@ -269,10 +275,15 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         for (var index = 0; index < pixels.Length; index++)
         {
             var pixel = pixels[index];
-            if (Math.Max(pixel.r, Math.Max(pixel.g, pixel.b)) <= 28)
+            var value = (byte)Math.Max(pixel.r, Math.Max(pixel.g, pixel.b));
+            if (value <= 28)
             {
                 darkMapPixel.a = pixel.a;
                 pixels[index] = darkMapPixel;
+            }
+            else
+            {
+                pixels[index] = new Color32(value, value, value, pixel.a);
             }
         }
 

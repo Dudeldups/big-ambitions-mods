@@ -177,7 +177,7 @@ public static class BugattiChironSetup
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.12f) < 0.001f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.5f) < 0.001f &&
-                    (engine?.FindPropertyRelative("stallingEnabled")?.boolValue ?? false);
+                    !(engine?.FindPropertyRelative("stallingEnabled")?.boolValue ?? true);
             }
 
             var opaqueMaterials = new HashSet<Material>();
@@ -613,7 +613,7 @@ public static class BugattiChironSetup
                 SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 800f);
                 SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6700f);
                 SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.5f);
-                SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", true);
+                SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", false);
                 SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", true);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.powerGainMultiplier", 1.35f);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.08f);
