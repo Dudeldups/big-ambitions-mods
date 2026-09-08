@@ -17,7 +17,7 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
     private const float SeatedScale = 0.94f;
     private const float HandHalfSpacing = 0.19f;
     // Pelvis position relative to the Chiron steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.28f, -0.48f);
+    private static readonly Vector3 SeatOffset = new(0f, -0.50f, -0.48f);
     private const int MaximumAttempts = 20;
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;

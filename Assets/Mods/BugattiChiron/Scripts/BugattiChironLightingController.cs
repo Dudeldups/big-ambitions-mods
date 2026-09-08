@@ -11,14 +11,21 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private const string HeadlampName = "Headlight_Headlights-Lights_0";
     private const string RearStripName = "Tail-light_Tail-light-LIGHT_0";
     private const string ThirdBrakeLightName = "Tail-light_Brake-lights_0";
+    private const string FrontLeftBlinkerName = "Headlight_Turning_lights_left_0";
+    private const string FrontRightBlinkerName = "Headlight_Turning_lights_right_0";
+    private const string SideLeftBlinkerName = "Door-left_Turning_lights_left_0";
+    private const string SideRightBlinkerName = "Door-right_Turning_lights_right_0";
+    private const float BlinkerHalfPeriod = 0.42f;
     private static readonly BindingFlags InstanceMembers =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
     private readonly List<GameObject> generatedObjects = new();
     private readonly List<Material> generatedMaterials = new();
+    private readonly List<Mesh> generatedMeshes = new();
     private VehicleController? vehicle;
     private ModContext? context;
     private object? brakes;
+    private object? blinkers;
     private Light? templateBeam;
     private Light? leftBeam;
     private Light? rightBeam;
@@ -26,8 +33,16 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private MeshRenderer? rearTailOverlay;
     private MeshRenderer? rearBrakeOverlay;
     private MeshRenderer? thirdBrakeOverlay;
+    private MeshRenderer? frontLeftBlinkerOverlay;
+    private MeshRenderer? frontRightBlinkerOverlay;
+    private MeshRenderer? sideLeftBlinkerOverlay;
+    private MeshRenderer? sideRightBlinkerOverlay;
+    private MeshRenderer? rearLeftBlinkerOverlay;
+    private MeshRenderer? rearRightBlinkerOverlay;
     private bool initialized;
     private bool updateFailureReported;
+    private bool wasBlinking;
+    private float blinkerPhaseStartedAt;
     private int lastState = -1;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
@@ -43,27 +58,48 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         var headlamp = FindRenderer(renderers, HeadlampName);
         var rearStrip = FindRenderer(renderers, RearStripName);
         var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
+        var frontLeftBlinker = FindRenderer(renderers, FrontLeftBlinkerName);
+        var frontRightBlinker = FindRenderer(renderers, FrontRightBlinkerName);
+        var sideLeftBlinker = FindRenderer(renderers, SideLeftBlinkerName);
+        var sideRightBlinker = FindRenderer(renderers, SideRightBlinkerName);
 
         headlampOverlay = CreateOverlay(
             headlamp, "BugattiChiron_HeadlampRectangles", new Color(0.78f, 0.87f, 1f, 1f));
         rearTailOverlay = CreateOverlay(
-            rearStrip, "BugattiChiron_RearTailStrip", new Color(0.26f, 0.004f, 0.001f, 1f), 2.4f);
+            rearStrip, "BugattiChiron_RearTailStrip", new Color(0.78f, 0.006f, 0.002f, 1f), 2.7f);
         rearBrakeOverlay = CreateOverlay(
             rearStrip, "BugattiChiron_RearBrakeStrip", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.003f);
         thirdBrakeOverlay = CreateOverlay(
             thirdBrake, "BugattiChiron_ThirdBrakeLight", new Color(1f, 0.008f, 0.001f, 1f), 4.2f);
+        var amber = new Color(1f, 0.20f, 0.002f, 1f);
+        frontLeftBlinkerOverlay = CreateOverlay(
+            frontLeftBlinker, "BugattiChiron_FrontLeftBlinker", amber, 4.2f, 1.004f);
+        frontRightBlinkerOverlay = CreateOverlay(
+            frontRightBlinker, "BugattiChiron_FrontRightBlinker", amber, 4.2f, 1.004f);
+        sideLeftBlinkerOverlay = CreateOverlay(
+            sideLeftBlinker, "BugattiChiron_SideLeftBlinker", amber, 4.2f, 1.004f);
+        sideRightBlinkerOverlay = CreateOverlay(
+            sideRightBlinker, "BugattiChiron_SideRightBlinker", amber, 4.2f, 1.004f);
+        rearLeftBlinkerOverlay = CreateFilteredOverlay(
+            rearStrip, position => position.x <= -0.68f,
+            "BugattiChiron_RearLeftBlinker", amber, 4.4f, 1.006f);
+        rearRightBlinkerOverlay = CreateFilteredOverlay(
+            rearStrip, position => position.x >= 0.68f,
+            "BugattiChiron_RearRightBlinker", amber, 4.4f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
         LogInfo($"initialized headlamp='{headlamp?.name ?? "missing"}' " +
                 $"rearStrip='{rearStrip?.name ?? "missing"}' " +
-                $"thirdBrake='{thirdBrake?.name ?? "missing"}' beams={beamCount}/2 overlays=" +
-                $"{(headlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) + (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0)}/4.");
+                $"thirdBrake='{thirdBrake?.name ?? "missing"}' beams={beamCount}/2 " +
+                $"lampOverlays={CountLampOverlays()}/4 blinkerOverlays={CountBlinkerOverlays()}/6.");
         if (headlampOverlay == null || rearTailOverlay == null || rearBrakeOverlay == null ||
-            thirdBrakeOverlay == null || beamCount != 2)
+            thirdBrakeOverlay == null || beamCount != 2 || CountBlinkerOverlays() != 6)
         {
             LogWarning("lighting setup is incomplete; inspect the named renderer and beam diagnostics.");
         }
+        if (blinkers == null)
+            LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
         ApplyState();
     }
 
@@ -94,6 +130,8 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
                 continue;
             if (brakes == null)
                 brakes = component.GetType().GetField("brakes", InstanceMembers)?.GetValue(component);
+            if (component.GetType().FullName == "Vehicles.Components.VehicleBlinker")
+                blinkers = component;
         }
         foreach (var light in vehicle.GetComponentsInChildren<Light>(true))
         {
@@ -185,6 +223,88 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         return overlay;
     }
 
+    private MeshRenderer? CreateFilteredOverlay(
+        MeshRenderer? source,
+        Func<Vector3, bool> includeTriangleCenter,
+        string objectName,
+        Color color,
+        float intensity,
+        float scale)
+    {
+        if (source == null || vehicle == null)
+        {
+            LogWarning($"filtered overlay '{objectName}' has no source renderer or vehicle.");
+            return null;
+        }
+        var filter = source.GetComponent<MeshFilter>();
+        if (filter?.sharedMesh == null)
+        {
+            LogWarning($"filtered overlay '{objectName}' source '{source.name}' has no mesh.");
+            return null;
+        }
+
+        var sourceMesh = filter.sharedMesh;
+        var vertices = sourceMesh.vertices;
+        var vehiclePositions = new Vector3[vertices.Length];
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            vehiclePositions[index] = vehicle.transform.InverseTransformPoint(
+                source.transform.TransformPoint(vertices[index]));
+        }
+
+        var triangles = new List<int>();
+        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
+        {
+            var sourceTriangles = sourceMesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+            {
+                var a = sourceTriangles[index];
+                var b = sourceTriangles[index + 1];
+                var c = sourceTriangles[index + 2];
+                var center = (vehiclePositions[a] + vehiclePositions[b] + vehiclePositions[c]) / 3f;
+                if (!includeTriangleCenter(center))
+                    continue;
+                triangles.Add(a);
+                triangles.Add(b);
+                triangles.Add(c);
+            }
+        }
+        if (triangles.Count == 0)
+        {
+            LogWarning($"filtered overlay '{objectName}' selected no triangles on '{source.name}'.");
+            return null;
+        }
+
+        var mesh = new Mesh
+        {
+            name = sourceMesh.name + "_" + objectName,
+            indexFormat = sourceMesh.indexFormat,
+            vertices = vertices,
+            normals = sourceMesh.normals,
+            tangents = sourceMesh.tangents,
+            colors32 = sourceMesh.colors32,
+            uv = sourceMesh.uv,
+            uv2 = sourceMesh.uv2
+        };
+        mesh.SetTriangles(triangles, 0, true);
+        mesh.RecalculateBounds();
+
+        var overlayObject = new GameObject(objectName);
+        overlayObject.transform.SetParent(source.transform, false);
+        overlayObject.transform.localScale = Vector3.one * scale;
+        overlayObject.layer = source.gameObject.layer;
+        overlayObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var overlay = overlayObject.AddComponent<MeshRenderer>();
+        overlay.sharedMaterial = CreateUnlitMaterial(objectName + " Material", color, intensity);
+        overlay.renderingLayerMask = source.renderingLayerMask;
+        overlay.shadowCastingMode = ShadowCastingMode.Off;
+        overlay.receiveShadows = false;
+        overlay.enabled = false;
+        generatedMeshes.Add(mesh);
+        generatedObjects.Add(overlayObject);
+        return overlay;
+    }
+
     private Material CreateUnlitMaterial(string materialName, Color color, float intensity)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
@@ -218,24 +338,49 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         var lightsOn = controlled && GetBoolProperty(vehicle, "ShouldLightsBeOn");
         var braking = controlled &&
                       (GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking"));
+        var leftBlinker = controlled && GetBoolField(blinkers, "_isLeftBlinkerOn");
+        var rightBlinker = controlled && GetBoolField(blinkers, "_isRightBlinkerOn");
+        var isBlinking = leftBlinker || rightBlinker;
+        if (isBlinking && !wasBlinking)
+            blinkerPhaseStartedAt = Time.unscaledTime;
+        var blinkerFlash = isBlinking &&
+                           Mathf.Repeat(Time.unscaledTime - blinkerPhaseStartedAt,
+                               BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
+        wasBlinking = isBlinking;
 
         SetEnabled(headlampOverlay, lightsOn);
         SetEnabled(rearTailOverlay, lightsOn && !braking);
         SetEnabled(rearBrakeOverlay, braking);
         SetEnabled(thirdBrakeOverlay, braking);
+        SetEnabled(frontLeftBlinkerOverlay, leftBlinker && blinkerFlash);
+        SetEnabled(frontRightBlinkerOverlay, rightBlinker && blinkerFlash);
+        SetEnabled(sideLeftBlinkerOverlay, leftBlinker && blinkerFlash);
+        SetEnabled(sideRightBlinkerOverlay, rightBlinker && blinkerFlash);
+        SetEnabled(rearLeftBlinkerOverlay, leftBlinker && blinkerFlash);
+        SetEnabled(rearRightBlinkerOverlay, rightBlinker && blinkerFlash);
         SetEnabled(leftBeam, lightsOn);
         SetEnabled(rightBeam, lightsOn);
         if (templateBeam != null)
             templateBeam.enabled = false;
 
-        var state = (controlled ? 1 : 0) | (lightsOn ? 2 : 0) | (braking ? 4 : 0);
+        var state = (controlled ? 1 : 0) | (lightsOn ? 2 : 0) | (braking ? 4 : 0) |
+                    (leftBlinker ? 8 : 0) | (rightBlinker ? 16 : 0);
         if (state == lastState)
             return;
         lastState = state;
         LogInfo($"state playerControlled={controlled} nightLights={lightsOn} braking={braking} " +
                 $"headlampRectangles={lightsOn} roadBeams={lightsOn} rearStripBrake={braking} " +
-                $"thirdBrake={braking}.");
+                $"thirdBrake={braking} leftBlinker={leftBlinker} rightBlinker={rightBlinker}.");
     }
+
+    private int CountLampOverlays() =>
+        (headlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
+        (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0);
+
+    private int CountBlinkerOverlays() =>
+        (frontLeftBlinkerOverlay != null ? 1 : 0) + (frontRightBlinkerOverlay != null ? 1 : 0) +
+        (sideLeftBlinkerOverlay != null ? 1 : 0) + (sideRightBlinkerOverlay != null ? 1 : 0) +
+        (rearLeftBlinkerOverlay != null ? 1 : 0) + (rearRightBlinkerOverlay != null ? 1 : 0);
 
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string name)
     {
@@ -251,6 +396,9 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private static bool GetBoolMethod(object? target, string name) =>
         target != null && target.GetType().GetMethod(name, InstanceMembers, null, Type.EmptyTypes, null)
             ?.Invoke(target, null) is bool value && value;
+
+    private static bool GetBoolField(object? target, string name) =>
+        target != null && target.GetType().GetField(name, InstanceMembers)?.GetValue(target) is bool value && value;
 
     private static void SetEnabled(Renderer? renderer, bool enabled)
     {
@@ -288,5 +436,7 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
             if (generatedObject != null) Destroy(generatedObject);
         foreach (var generatedMaterial in generatedMaterials)
             if (generatedMaterial != null) Destroy(generatedMaterial);
+        foreach (var generatedMesh in generatedMeshes)
+            if (generatedMesh != null) Destroy(generatedMesh);
     }
 }

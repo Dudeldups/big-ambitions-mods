@@ -113,6 +113,9 @@ public static class BugattiChironSetup
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
             var continuousTailLight = false;
+            var thirdBrakeLight = false;
+            var frontBlinkerMeshes = 0;
+            var sideBlinkerMeshes = 0;
             var templateLights = prefab.GetComponentsInChildren<Light>(true);
             var headlightTemplateValid = templateLights.Length == 1 &&
                                          templateLights[0].name == "Spotlights" &&
@@ -137,6 +140,13 @@ public static class BugattiChironSetup
                 {
                     continuousTailLight = true;
                 }
+                if (string.Equals(transform.name, "Tail-light_Brake-lights_0", StringComparison.Ordinal))
+                    thirdBrakeLight = true;
+                if (transform.name.StartsWith("Headlight_Turning_lights_", StringComparison.Ordinal))
+                    frontBlinkerMeshes++;
+                if (transform.name.StartsWith("Door-left_Turning_lights_", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("Door-right_Turning_lights_", StringComparison.Ordinal))
+                    sideBlinkerMeshes++;
             }
 
             var transmissionVerified = false;
@@ -162,6 +172,7 @@ public static class BugattiChironSetup
             var decalSafeMaterials = 0;
             var transparentMaterials = 0;
             var transparentMaterialsDoubleSided = true;
+            var cabinGlassTintValid = true;
             var opaqueRendererMasksSafe = true;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
@@ -181,6 +192,15 @@ public static class BugattiChironSetup
                             (!material.HasProperty("_DoubleSidedEnable") ||
                              material.GetFloat("_DoubleSidedEnable") > 0.5f) &&
                             material.IsKeywordEnabled("_DOUBLESIDED_ON");
+                        if (BugattiChironMaterials.IsCabinGlassMaterial(material))
+                        {
+                            var tint = material.HasProperty("_BaseColor")
+                                ? material.GetColor("_BaseColor")
+                                : material.HasProperty("baseColorFactor")
+                                    ? material.GetColor("baseColorFactor")
+                                    : Color.black;
+                            cabinGlassTintValid &= tint.r >= 0.1f && tint.a >= 0.1f && tint.a <= 0.35f;
+                        }
                         continue;
                     }
 
@@ -215,13 +235,17 @@ public static class BugattiChironSetup
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !continuousTailLight ||
+                !thirdBrakeLight ||
+                frontBlinkerMeshes != 2 ||
+                sideBlinkerMeshes != 2 ||
                 !headlightTemplateValid ||
                 !transmissionVerified ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
                 transparentMaterials == 0 ||
-                !transparentMaterialsDoubleSided)
+                !transparentMaterialsDoubleSided ||
+                !cabinGlassTintValid)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
@@ -230,17 +254,21 @@ public static class BugattiChironSetup
                     $"bodyUpright={bodyUpright}, " +
                     $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, " +
-                    $"continuousTailLight={continuousTailLight}, headlightTemplate={headlightTemplateValid}, " +
+                    $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
+                    $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
+                    $"headlightTemplate={headlightTemplateValid}, " +
                     $"sevenSpeed={transmissionVerified}, opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
+                    $"cabinGlassTint={cabinGlassTintValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
 
             Debug.Log(
                 $"BugattiChiron bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, sevenSpeed=true, " +
-                $"continuousTailLight=true, headlightTemplate=true, transparentDoubleSided=true, " +
+                $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
+                $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally

@@ -207,6 +207,13 @@ public static class BugattiChironMaterials
 
     private static void FixTransparentHdrpMaterial(Material material)
     {
+        if (IsCabinGlassMaterial(material))
+        {
+            var tint = new Color(0.18f, 0.22f, 0.27f, 0.18f);
+            SetColor(material, "_BaseColor", tint);
+            SetColor(material, "_Color", tint);
+            SetColor(material, "baseColorFactor", tint);
+        }
         SetFloat(material, "transmissionFactor", 0f);
         SetFloat(material, "_SurfaceType", 1f);
         SetFloat(material, "_BlendMode", 0f);
@@ -217,6 +224,7 @@ public static class BugattiChironMaterials
         SetFloat(material, "_ZWrite", 0f);
         SetFloat(material, "_TransparentZWrite", 0f);
         SetFloat(material, "_AlphaCutoffEnable", 0f);
+        SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
@@ -235,6 +243,19 @@ public static class BugattiChironMaterials
         material.SetShaderPassEnabled("TransparentBackface", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    public static bool IsCabinGlassMaterial(Material material)
+    {
+        var name = material.name;
+        if (name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Tail-light", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
+
+        return name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string? FirstTextureProperty(Material material, params string[] properties)
