@@ -12,6 +12,7 @@ using Entities;
 using Extensions;
 using Helpers;
 using Localizor;
+using UI.Smartphone;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.AI;
@@ -311,6 +312,22 @@ namespace MobileVeterinarian
         {
             yield return null;
 
+            LogInfo($"Visit queued vehicleId='{visit.Quote.VehicleId}' waitingForPhoneClose={FullMenu.IsOpen}.");
+            while (FullMenu.IsOpen)
+            {
+                if (!IsVisitStillValid(visit, out var queuedCancellationReason))
+                {
+                    CancelActiveVisit(queuedCancellationReason, true);
+                    yield break;
+                }
+
+                yield return new WaitForSecondsRealtime(MonitorIntervalSeconds);
+            }
+
+            // Let the full-menu close transition finish before creating anything the player
+            // is expected to see in the world.
+            yield return new WaitForSecondsRealtime(0.25f);
+
             if (!IsVisitStillValid(visit, out var cancellationReason))
             {
                 CancelActiveVisit(cancellationReason, true);
@@ -369,38 +386,46 @@ namespace MobileVeterinarian
                 .FirstOrDefault(candidate => candidate != null && candidate.runtimeAnimatorController != null);
             var reached = false;
             UnityAction onReached = () => reached = true;
-            try
+            if (HorizontalDistance(visit.SpawnPosition, visit.TreatmentPosition) <= ArrivalDistance)
             {
-                if (character != null)
+                reached = true;
+                LogInfo("Veterinarian approach skipped movement=already_beside_animal.");
+            }
+            else
+            {
+                try
                 {
-                    character.WarpSafely(visit.SpawnPosition);
-                    movementCoroutine = StartCoroutine(character.MoveToPosition(
-                        visit.TreatmentPosition,
-                        visit.Quote.Controller.transform.position,
-                        ArrivalDistance,
-                        true,
-                        null,
-                        0f,
-                        onReached,
-                        true));
-                    LogInfo("Veterinarian approach started movement=native_third_person_character.");
+                    if (character != null)
+                    {
+                        character.WarpSafely(visit.SpawnPosition);
+                        movementCoroutine = StartCoroutine(character.MoveToPosition(
+                            visit.TreatmentPosition,
+                            visit.Quote.Controller.transform.position,
+                            ArrivalDistance,
+                            true,
+                            null,
+                            0f,
+                            onReached,
+                            true));
+                        LogInfo("Veterinarian approach started movement=native_third_person_character.");
+                    }
+                    else if (!TryStartNavMeshApproach(
+                                 veterinarian.Root,
+                                 animator,
+                                 visit,
+                                 onReached,
+                                 out movementCoroutine))
+                    {
+                        CancelActiveVisit("veterinarian NavMesh approach failed to start", true, "mobileveterinarian:cannot_reach");
+                        yield break;
+                    }
                 }
-                else if (!TryStartNavMeshApproach(
-                             veterinarian.Root,
-                             animator,
-                             visit,
-                             onReached,
-                             out movementCoroutine))
+                catch (Exception exception)
                 {
-                    CancelActiveVisit("veterinarian NavMesh approach failed to start", true, "mobileveterinarian:cannot_reach");
+                    LogWarning($"Veterinarian approach could not start: {exception.Message}");
+                    CancelActiveVisit("veterinarian approach failed to start", true, "mobileveterinarian:cannot_reach");
                     yield break;
                 }
-            }
-            catch (Exception exception)
-            {
-                LogWarning($"Veterinarian approach could not start: {exception.Message}");
-                CancelActiveVisit("veterinarian approach failed to start", true, "mobileveterinarian:cannot_reach");
-                yield break;
             }
 
             var approachDeadline = Time.unscaledTime + ApproachTimeoutSeconds;
@@ -444,6 +469,7 @@ namespace MobileVeterinarian
 
                     gestureCoroutine = StartCoroutine(
                         CharacterAnimations.RunAnimation(animator, AnimationType.HammerHitting, 1f));
+                    LogInfo($"Treatment gesture started animation=HammerHitting duration={gestureLength:F2}.");
                 }
                 catch (Exception exception)
                 {
@@ -732,22 +758,25 @@ namespace MobileVeterinarian
                 if (away.sqrMagnitude < 0.001f)
                     continue;
 
+                // A safe standing point beside the animal is sufficient. Approaching from a
+                // few metres away is optional and must never make an otherwise valid visit fail.
+                treatmentPosition = treatmentHit.position;
+                spawnPosition = treatmentHit.position;
                 var requestedSpawn = treatmentHit.position + away * ApproachDistance;
                 if (!NavMesh.SamplePosition(requestedSpawn, out var spawnHit, NavMeshProbeRadius, NavMesh.AllAreas) ||
                     !HasVehicleClearance(controller, spawnHit.position))
                 {
-                    continue;
+                    return true;
                 }
 
                 var path = new NavMeshPath();
                 if (!NavMesh.CalculatePath(spawnHit.position, treatmentHit.position, NavMesh.AllAreas, path) ||
                     path.status != NavMeshPathStatus.PathComplete || path.corners == null || path.corners.Length < 2)
                 {
-                    continue;
+                    return true;
                 }
 
                 spawnPosition = spawnHit.position;
-                treatmentPosition = treatmentHit.position;
                 return true;
             }
 

@@ -12,7 +12,7 @@
   "mobileveterinarian:treatment_completed": "Treatment complete! {animal} is fully restored. You paid {price}.",
   "mobileveterinarian:treatment_price": "{animal} has {damage}% damage. Mobile treatment will cost {price}.",
   "mobileveterinarian:request_treatment": "Treat for {price}",
-  "mobileveterinarian:visit_dispatched": "Stay mounted and keep {animal} still. The veterinarian is on the way.",
+  "mobileveterinarian:visit_dispatched": "Close your phone, stay mounted, and keep {animal} still. The veterinarian is on the way.",
   "mobileveterinarian:transaction": "Mobile veterinarian treatment",
   "mobileveterinarian:animal_cow": "your cow",
   "mobileveterinarian:service_unavailable": "The mobile veterinarian service is currently unavailable."
