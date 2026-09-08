@@ -42,7 +42,6 @@ internal static class AudiRS6RMaterials
 {
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string FrontLampRendererName = "B:Light_Geo_lodA_B:Light_Geo_lodASG1_0";
-    private const string WheelVisualRootName = "Wheels";
     private const string HdMaterialTypeName = "UnityEngine.Rendering.HighDefinition.HDMaterial";
     private const string ShaderGraphApiTypeName = "UnityEngine.Rendering.HighDefinition.ShaderGraphAPI";
 
@@ -57,17 +56,16 @@ internal static class AudiRS6RMaterials
         var bodyRenderers = visualRoot != null
             ? visualRoot.GetComponentsInChildren<Renderer>(true)
             : Array.Empty<Renderer>();
-        var wheelRoot = FindNamedVisualRoot(vehicleRoot, WheelVisualRootName);
-        var wheelRenderers = wheelRoot != null
-            ? wheelRoot.GetComponentsInChildren<Renderer>(true)
-            : Array.Empty<Renderer>();
-        var wheelRendererSet = new HashSet<Renderer>(wheelRenderers);
+        var bodyRendererSet = new HashSet<Renderer>(bodyRenderers);
+        var wheelRenderers = new List<Renderer>();
+        foreach (var renderer in vehicleRoot.GetComponentsInChildren<Renderer>(true))
+            if (renderer != null && IsWheelVisual(renderer.transform)) wheelRenderers.Add(renderer);
+
         var rendererSet = new HashSet<Renderer>();
-        var renderers = new List<Renderer>(wheelRenderers.Length + bodyRenderers.Length);
-        // Process the wheels first so their materials are forced opaque even if a material is shared.
-        foreach (var renderer in wheelRenderers)
-            if (renderer != null && rendererSet.Add(renderer)) renderers.Add(renderer);
+        var renderers = new List<Renderer>(bodyRenderers.Length + wheelRenderers.Count);
         foreach (var renderer in bodyRenderers)
+            if (renderer != null && rendererSet.Add(renderer)) renderers.Add(renderer);
+        foreach (var renderer in wheelRenderers)
             if (renderer != null && rendererSet.Add(renderer)) renderers.Add(renderer);
         var materials = new HashSet<Material>();
         var shaderNames = new HashSet<string>(StringComparer.Ordinal);
@@ -90,14 +88,18 @@ internal static class AudiRS6RMaterials
             if (renderer.renderingLayerMask != previousMask)
                 decalMasksCleared++;
 
+            // Wheel visuals can share imported materials with cabin and glass meshes. Their renderer
+            // mask is sufficient to reject road decals without mutating those shared materials.
+            if (!bodyRendererSet.Contains(renderer))
+                continue;
+
             var hasSolidMaterial = false;
-            var forceOpaque = wheelRendererSet.Contains(renderer);
             foreach (var material in renderer.sharedMaterials)
             {
                 if (material == null)
                     continue;
 
-                if (!forceOpaque && IsTransparentOrCutout(material))
+                if (IsTransparentOrCutout(material))
                 {
                     if (!materials.Add(material))
                         continue;
@@ -144,7 +146,7 @@ internal static class AudiRS6RMaterials
         orderedShaderNames.Sort(StringComparer.Ordinal);
         return new AudiRS6RMaterialFixResult(
             renderers.Count,
-            wheelRenderers.Length,
+            wheelRenderers.Count,
             solidRendererCount,
             decalMasksCleared,
             hdrpMaterialsFixed,
@@ -171,15 +173,15 @@ internal static class AudiRS6RMaterials
         return null;
     }
 
-    private static GameObject? FindNamedVisualRoot(GameObject vehicleRoot, string objectName)
+    private static bool IsWheelVisual(Transform? transform)
     {
-        foreach (var child in vehicleRoot.GetComponentsInChildren<Transform>(true))
+        for (var current = transform; current != null; current = current.parent)
         {
-            if (child != null && string.Equals(child.name, objectName, StringComparison.Ordinal))
-                return child.gameObject;
+            if (current.name.IndexOf("wheel", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
         }
 
-        return null;
+        return false;
     }
 
     private static bool IsTransparentOrCutout(Material material)
