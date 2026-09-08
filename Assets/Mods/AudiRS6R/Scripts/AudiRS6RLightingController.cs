@@ -265,7 +265,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             var tintMaterial = CloneAndConfigureGlass(
                 FirstMaterial(sourceRenderer),
                 "AudiRS6R Rear Window Tint",
-                new Color(0.03f, 0.03f, 0.03f, 0.53f));
+                new Color(0.03f, 0.03f, 0.03f, 0.58f));
             tintMaterial.renderQueue = (int)RenderQueue.Transparent + 10;
             tintRenderer.sharedMaterial = tintMaterial;
             tintRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
