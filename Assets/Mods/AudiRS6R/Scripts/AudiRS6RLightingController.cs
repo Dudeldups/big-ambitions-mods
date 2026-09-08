@@ -188,7 +188,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             outerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
                 FirstMaterial(outerWindowRenderer), "AudiRS6R Corrected Outer Glass",
-                new Color(0f, 0f, 0f, 0.25f));
+                new Color(0.12f, 0.14f, 0.16f, 0.20f));
             outerWindowRenderer.shadowCastingMode = ShadowCastingMode.Off;
             outerWindowRenderer.enabled = true;
             LogSurface("outer-glass-configured", outerWindowRenderer);
@@ -199,7 +199,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             innerWindowRenderer.sharedMaterial = CloneAndConfigureGlass(
                 FirstMaterial(innerWindowRenderer) ?? FirstMaterial(outerWindowRenderer),
-                "AudiRS6R Corrected Inner Glass", new Color(0f, 0f, 0f, 0.12f));
+                "AudiRS6R Corrected Inner Glass", new Color(0.08f, 0.10f, 0.12f, 0.10f));
             innerWindowRenderer.shadowCastingMode = ShadowCastingMode.Off;
             innerWindowRenderer.enabled = true;
             LogSurface("inner-glass-configured", innerWindowRenderer);
@@ -265,7 +265,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             var tintMaterial = CloneAndConfigureGlass(
                 FirstMaterial(sourceRenderer),
                 "AudiRS6R Rear Window Tint",
-                new Color(0.005f, 0.005f, 0.005f, 0.53f));
+                new Color(0.025f, 0.03f, 0.035f, 0.53f));
             tintMaterial.renderQueue = (int)RenderQueue.Transparent + 10;
             tintRenderer.sharedMaterial = tintMaterial;
             tintRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
