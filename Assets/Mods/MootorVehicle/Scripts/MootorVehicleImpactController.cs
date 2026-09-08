@@ -2,7 +2,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using BAModAPI;
+using Helpers;
 using UnityEngine;
 using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
@@ -13,9 +15,14 @@ namespace MootorVehicle
     /// </summary>
     internal sealed class MootorVehicleImpactController : MonoBehaviour
     {
-        private const float StrongHorizontalDeltaVelocity = 3.5f;
-        private const float MinimumHorizontalImpactSpeed = 4f;
+        private const float StrongHorizontalDeltaVelocity = 3f;
+        private const float MinimumHorizontalImpactSpeed = 3.5f;
         private const float CrashMooVolume = 0.65f;
+        private const string FaintAnimationName = "Faint";
+        private const float FallPlaybackSpeed = 1.6f;
+        private const float LyingDuration = 0.6f;
+        private const float GetUpDuration = 1.5f;
+        private const NavigationBlocker CrashFallNavigationBlocker = (NavigationBlocker)1000;
 
         private VehicleController? vehicle;
         private PhysicsVehicle? physicsVehicle;
@@ -24,6 +31,10 @@ namespace MootorVehicle
         private Coroutine? forcedDismountCoroutine;
         private bool crashAudioConfigured;
         private bool crashAudioFailureLogged;
+        private PlayerController? fallenPlayer;
+        private Animator? fallenPlayerAnimator;
+        private float fallenPlayerAnimatorSpeed = 1f;
+        private bool fallNavigationBlocked;
 
         internal void Initialize(VehicleController controller, ModContext? modContext)
         {
@@ -102,6 +113,7 @@ namespace MootorVehicle
             // vehicle-exit path. This preserves the game's normal player and held-item cleanup.
             yield return null;
 
+            var riderExited = false;
             try
             {
                 if (vehicle != null && vehicle.controlledByPlayer)
@@ -116,6 +128,7 @@ namespace MootorVehicle
                     }
 
                     vehicle.ExitVehicle();
+                    riderExited = true;
                 }
             }
             catch (Exception exception)
@@ -124,19 +137,183 @@ namespace MootorVehicle
                     $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} could not dismount rider: " +
                     exception.GetBaseException().Message);
             }
+
+            try
+            {
+                if (riderExited)
+                {
+                    yield return null;
+                    yield return PlayPlayerFallAndRecovery();
+                }
+            }
             finally
             {
                 forcedDismountCoroutine = null;
             }
         }
 
+        private IEnumerator PlayPlayerFallAndRecovery()
+        {
+            fallenPlayer = PlayerHelper.PlayerController;
+            var character = fallenPlayer?.Character;
+            var appearance = character?.appearanceSetter;
+            fallenPlayerAnimator = appearance == null
+                ? null
+                : typeof(AppearanceSetter).GetField(
+                        "animator",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    ?.GetValue(appearance) as Animator;
+
+            if (fallenPlayer == null || character == null || fallenPlayerAnimator == null ||
+                fallenPlayerAnimator.runtimeAnimatorController == null)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} dismounted the rider, " +
+                    "but the native player animator was unavailable for the fall animation.");
+                ClearFallState(false);
+                yield break;
+            }
+
+            AnimationClip? faintClip = null;
+            foreach (var clip in fallenPlayerAnimator.runtimeAnimatorController.animationClips)
+                if (clip != null && string.Equals(clip.name, FaintAnimationName, StringComparison.Ordinal))
+                {
+                    faintClip = clip;
+                    break;
+                }
+
+            var faintLayer = -1;
+            var faintState = 0;
+            for (var layer = 0; layer < fallenPlayerAnimator.layerCount; layer++)
+            {
+                var fullPath = Animator.StringToHash(
+                    $"{fallenPlayerAnimator.GetLayerName(layer)}.{FaintAnimationName}");
+                if (fallenPlayerAnimator.HasState(layer, fullPath))
+                {
+                    faintLayer = layer;
+                    faintState = fullPath;
+                    break;
+                }
+
+                var shortName = Animator.StringToHash(FaintAnimationName);
+                if (fallenPlayerAnimator.HasState(layer, shortName))
+                {
+                    faintLayer = layer;
+                    faintState = shortName;
+                    break;
+                }
+            }
+
+            if (faintClip == null || faintClip.length <= 0f ||
+                faintLayer < 0)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} dismounted the rider, " +
+                    $"but native animation '{FaintAnimationName}' was unavailable.");
+                ClearFallState(false);
+                yield break;
+            }
+
+            try
+            {
+                fallenPlayer.RemoveGoal();
+                fallenPlayer.SetNavigationBlocker(CrashFallNavigationBlocker);
+                fallNavigationBlocked = true;
+                fallenPlayerAnimatorSpeed = fallenPlayerAnimator.speed;
+                fallenPlayerAnimator.speed = FallPlaybackSpeed;
+                fallenPlayerAnimator.ResetTrigger(FaintAnimationName);
+                fallenPlayerAnimator.SetTrigger(FaintAnimationName);
+
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} started native " +
+                    $"rider fall clip='{faintClip.name}' layer={faintLayer} " +
+                    $"length={faintClip.length:F2}s.");
+
+                var elapsed = 0f;
+                var fallDuration = faintClip.length / FallPlaybackSpeed;
+                while (elapsed < fallDuration && fallenPlayerAnimator != null)
+                {
+                    elapsed += Time.deltaTime;
+                    yield return null;
+                }
+
+                if (fallenPlayerAnimator == null)
+                    yield break;
+
+                fallenPlayerAnimator.speed = 0f;
+                elapsed = 0f;
+                while (elapsed < LyingDuration && fallenPlayerAnimator != null)
+                {
+                    elapsed += Time.deltaTime;
+                    yield return null;
+                }
+
+                elapsed = 0f;
+                while (elapsed < GetUpDuration && fallenPlayerAnimator != null)
+                {
+                    elapsed += Time.deltaTime;
+                    var normalizedTime = 1f - Mathf.Clamp01(elapsed / GetUpDuration);
+                    fallenPlayerAnimator.Play(faintState, faintLayer, normalizedTime);
+                    yield return null;
+                }
+
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} completed rider get-up.");
+            }
+            finally
+            {
+                ClearFallState(true);
+            }
+        }
+
+        private void ClearFallState(bool resetAnimation)
+        {
+            try
+            {
+                if (fallenPlayerAnimator != null)
+                {
+                    fallenPlayerAnimator.speed = fallenPlayerAnimatorSpeed;
+                    if (resetAnimation && fallenPlayerAnimator.isActiveAndEnabled)
+                    {
+                        // Faint intentionally has no native exit transition. Rebinding after the
+                        // reversed get-up returns the Base Actions layer to its normal default.
+                        fallenPlayerAnimator.Rebind();
+                        fallenPlayerAnimator.Update(0f);
+                    }
+                }
+
+                if (fallenPlayer != null)
+                {
+                    if (resetAnimation)
+                        fallenPlayer.ResetWalkingAnimation();
+                    if (fallNavigationBlocked)
+                        fallenPlayer.UnsetNavigationBlocker(CrashFallNavigationBlocker);
+                }
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} could not fully " +
+                    $"restore the rider after a fall: {exception.GetBaseException().Message}");
+            }
+            finally
+            {
+                fallenPlayer = null;
+                fallenPlayerAnimator = null;
+                fallenPlayerAnimatorSpeed = 1f;
+                fallNavigationBlocked = false;
+            }
+        }
+
         private void OnDisable()
         {
-            if (forcedDismountCoroutine == null)
-                return;
+            if (forcedDismountCoroutine != null)
+            {
+                StopCoroutine(forcedDismountCoroutine);
+                forcedDismountCoroutine = null;
+            }
 
-            StopCoroutine(forcedDismountCoroutine);
-            forcedDismountCoroutine = null;
+            ClearFallState(true);
         }
     }
 }

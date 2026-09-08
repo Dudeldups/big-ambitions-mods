@@ -21,6 +21,8 @@ namespace MootorVehicle
         private const string EnergyDrinkItemName = "ba:itemname_energydrink";
         private const float DefaultMaximumFuel = 100f;
         private const float EnergyDrinkSpeedMultiplier = 2f;
+        private const float ReverseGearRatio = -2.96f;
+        private const float RegularForwardGearRatio = 2.108f;
         internal const float RegularSpeedLimit = 22f;
         internal const float RegularEnginePower = 22f;
 
@@ -150,6 +152,7 @@ namespace MootorVehicle
                 regularEnginePower = RegularEnginePower;
                 speedLimiter.speedLimit = regularSpeedLimit;
                 engine.maxPower = regularEnginePower;
+                ConfigureSingleSpeedTransmission(false);
                 energyBoostPreferenceKey = BuildEnergyBoostPreferenceKey(context?.ModId, vehicle);
                 fuelModule.onOutOfFuel.RemoveListener(HandleOutOfFuel);
                 fuelModule.onOutOfFuel.AddListener(HandleOutOfFuel);
@@ -226,6 +229,7 @@ namespace MootorVehicle
 
             speedLimiter.speedLimit = regularSpeedLimit * (active ? EnergyDrinkSpeedMultiplier : 1f);
             engine.maxPower = regularEnginePower * (active ? EnergyDrinkSpeedMultiplier : 1f);
+            ConfigureSingleSpeedTransmission(active);
             energyBoostActive = active;
 
             if (persist)
@@ -233,7 +237,37 @@ namespace MootorVehicle
 
             context?.Logger.Info(
                 $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} active={active} " +
-                $"speedLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1}.");
+                $"speedLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1} " +
+                $"forwardRatio={physicsVehicle?.powertrain?.transmission?.GetGearRatio(1):F3}.");
+        }
+
+        private void ConfigureSingleSpeedTransmission(bool energized)
+        {
+            var transmission = physicsVehicle?.powertrain?.transmission;
+            if (transmission == null)
+                return;
+
+            var forwardRatio = RegularForwardGearRatio /
+                               (energized ? EnergyDrinkSpeedMultiplier : 1f);
+            transmission.gears.Clear();
+            transmission.gears.Add(ReverseGearRatio);
+            transmission.gears.Add(0f);
+            transmission.gears.Add(forwardRatio);
+            transmission.reverseGearCount = 1;
+            transmission.forwardGearCount = 1;
+            transmission.allowUpshiftGearSkipping = false;
+            transmission.allowDownshiftGearSkipping = false;
+            transmission.variableShiftPoint = false;
+
+            var currentGear = Mathf.Clamp(transmission.Gear, -1, 1);
+            if (transmission.Gear != currentGear)
+                transmission.Gear = currentGear;
+            transmission.currentGearRatio = transmission.GetGearRatio(currentGear);
+
+            context?.Logger.Info(
+                $"Moo-tor Vehicle transmission vehicle={vehicle?.GetInstanceID()} " +
+                $"singleSpeed=true energized={energized} reverseRatio={ReverseGearRatio:F3} " +
+                $"forwardRatio={forwardRatio:F3} gear={currentGear}.");
         }
 
         private void PersistEnergyDrinkBoost(bool active)
