@@ -7,6 +7,7 @@ using BAModAPI;
 using Helpers;
 using UnityEngine;
 using UnityEngine.AI;
+using PhysicsDamageHandler = NWH.VehiclePhysics2.Damage.DamageHandler;
 using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 namespace MootorVehicle
@@ -30,7 +31,9 @@ namespace MootorVehicle
         private const NavigationBlocker CrashFallNavigationBlocker = (NavigationBlocker)1000;
 
         private VehicleController? vehicle;
+        private CarController? carController;
         private PhysicsVehicle? physicsVehicle;
+        private PhysicsDamageHandler? damageHandler;
         private Rigidbody? vehicleBody;
         private ModContext? context;
         private Coroutine? forcedDismountCoroutine;
@@ -48,7 +51,9 @@ namespace MootorVehicle
         internal void Initialize(VehicleController controller, ModContext? modContext)
         {
             vehicle = controller;
+            carController = controller as CarController ?? controller.GetComponent<CarController>();
             physicsVehicle = controller.GetComponent<PhysicsVehicle>();
+            damageHandler = controller.GetComponent<PhysicsDamageHandler>();
             vehicleBody = controller.GetComponent<Rigidbody>();
             context = modContext;
             ConfigureCrashMoo();
@@ -123,13 +128,55 @@ namespace MootorVehicle
                 return;
             }
 
+            var damageBeforeImpact = GetRuntimeDamage();
+            var ejectionDamage = CalculateNativeEquivalentDamage(collision);
+            var collisionObject = collision.gameObject;
+            var collisionObjectName = collisionObject != null ? collisionObject.name : "<unknown>";
+            var collisionLayerName = collisionObject != null
+                ? LayerMask.LayerToName(collisionObject.layer)
+                : "<unknown>";
+
             context?.Logger.Info(
                 $"Moo-tor Vehicle strong impact vehicle={vehicle.GetInstanceID()} " +
                 $"horizontalDeltaV={horizontalDeltaVelocity:F2}m/s " +
-                $"relativeSpeed={horizontalImpactSpeed:F2}m/s; forcing rider dismount.");
+                $"relativeSpeed={horizontalImpactSpeed:F2}m/s damageBefore={damageBeforeImpact:F4} " +
+                $"expectedDamage={ejectionDamage:F4} collision='{collisionObjectName}' " +
+                $"layer='{collisionLayerName}'; forcing rider dismount.");
             SuppressNativeCrashMooForEjection();
             PlayStrongImpactMoo();
-            forcedDismountCoroutine = StartCoroutine(ForceDismountAfterCollision());
+            forcedDismountCoroutine = StartCoroutine(ForceDismountAfterCollision(
+                damageBeforeImpact,
+                ejectionDamage,
+                collisionObjectName,
+                collisionLayerName));
+        }
+
+        private float GetRuntimeDamage()
+        {
+            var nativeDamage = damageHandler?.Damage ?? 0f;
+            var savedDamage = vehicle?.vehicleInstance?.damage ?? 0f;
+            return Mathf.Max(nativeDamage, savedDamage);
+        }
+
+        private float CalculateNativeEquivalentDamage(Collision collision)
+        {
+            if (vehicleBody == null)
+                return 0f;
+
+            var fixedDeltaTime = Mathf.Max(Time.fixedDeltaTime, 0.001f);
+            var mass = Mathf.Max(vehicleBody.mass, 1f);
+            var damageIntensity = damageHandler != null
+                ? damageHandler.damageIntensity
+                : vehicle?.vehicleType?.damageIntensity ?? 0.2f;
+            damageIntensity = Mathf.Clamp(damageIntensity, 0f, 0.99f);
+
+            // This mirrors NWH DamageHandler's collision damage formula. Its built-in
+            // layer filter rejects roads and ground, but those impacts can still be
+            // strong enough to throw the rider from an exposed animal mount.
+            return collision.impulse.magnitude /
+                   (fixedDeltaTime * mass * 10f) *
+                   damageIntensity *
+                   0.005f;
         }
 
         private void SuppressNativeCrashMooForEjection()
@@ -180,11 +227,21 @@ namespace MootorVehicle
             }
         }
 
-        private IEnumerator ForceDismountAfterCollision()
+        private IEnumerator ForceDismountAfterCollision(
+            float damageBeforeImpact,
+            float ejectionDamage,
+            string collisionObjectName,
+            string collisionLayerName)
         {
             // Let the physics step and native crash handlers finish before running the standard
             // vehicle-exit path. This preserves the game's normal player and held-item cleanup.
             yield return null;
+
+            EnsureEjectionDamage(
+                damageBeforeImpact,
+                ejectionDamage,
+                collisionObjectName,
+                collisionLayerName);
 
             var riderExited = false;
             try
@@ -234,6 +291,44 @@ namespace MootorVehicle
             {
                 forcedDismountCoroutine = null;
             }
+        }
+
+        private void EnsureEjectionDamage(
+            float damageBeforeImpact,
+            float ejectionDamage,
+            string collisionObjectName,
+            string collisionLayerName)
+        {
+            var damageAfterNativeHandlers = GetRuntimeDamage();
+            if (damageAfterNativeHandlers > damageBeforeImpact + 0.0001f)
+            {
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} retained native " +
+                    $"collision damage before={damageBeforeImpact:F4} " +
+                    $"after={damageAfterNativeHandlers:F4}.");
+                return;
+            }
+
+            var targetDamage = Mathf.Clamp01(damageBeforeImpact + ejectionDamage);
+            if (targetDamage <= damageAfterNativeHandlers + 0.0001f || vehicle?.vehicleInstance == null)
+                return;
+
+            if (carController != null)
+            {
+                carController.SetDamage(targetDamage);
+            }
+            else
+            {
+                vehicle.vehicleInstance.damage = targetDamage;
+                damageHandler?.SetDamage(targetDamage);
+            }
+
+            SaveGameManager.MarkChange();
+            GlobalEvents.onVehicleVariablesChanged?.Invoke();
+            context?.Logger.Info(
+                $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} applied ejection " +
+                $"damage before={damageBeforeImpact:F4} after={targetDamage:F4} " +
+                $"collision='{collisionObjectName}' layer='{collisionLayerName}'.");
         }
 
         private void PlaceRiderAtSafeCrashExit()
