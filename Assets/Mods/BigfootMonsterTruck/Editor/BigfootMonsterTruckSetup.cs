@@ -52,6 +52,7 @@ public static class BigfootMonsterTruckSetup
             var wheelVisuals = 0;
             var alignedWheelVisuals = 0;
             var animatedWheelVisuals = 0;
+            var physicalWheelColliders = 0;
             var hasSeat = false;
             var raisedSeat = false;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
@@ -71,6 +72,8 @@ public static class BigfootMonsterTruckSetup
                     assignedVisual.name.StartsWith("Wheel", StringComparison.Ordinal) &&
                     assignedVisual.name.EndsWith("Visual", StringComparison.Ordinal))
                     animatedWheelVisuals++;
+                if (string.Equals(transform.name, "BigfootWheelContactColliders", StringComparison.Ordinal))
+                    physicalWheelColliders = transform.GetComponents<BoxCollider>().Length;
                 if (string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
                 {
                     hasSeat = true;
@@ -97,7 +100,7 @@ public static class BigfootMonsterTruckSetup
             }
 
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
-                animatedWheelVisuals != 4 ||
+                animatedWheelVisuals != 4 || physicalWheelColliders != 4 ||
                 !hasSeat || !raisedSeat ||
                 visibleRenderers == 0 || !hasTransparentGlass)
             {
@@ -105,6 +108,7 @@ public static class BigfootMonsterTruckSetup
                     $"Bundle verification failed: controllers={wheelControllers}, " +
                     $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
                     $"animatedWheelVisuals={animatedWheelVisuals}, " +
+                    $"physicalWheelColliders={physicalWheelColliders}, " +
                     $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
                     $"transparentGlass={hasTransparentGlass}.");
             }
@@ -113,6 +117,7 @@ public static class BigfootMonsterTruckSetup
                 $"BigfootMonsterTruck bundle verified: controllers={wheelControllers}, " +
                 $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
                 $"animatedWheelVisuals={animatedWheelVisuals}, " +
+                $"physicalWheelColliders={physicalWheelColliders}, " +
                 $"visibleRenderers={visibleRenderers}, raisedCenterSeat=true, transparentGlass=true.");
         }
         finally
@@ -149,7 +154,7 @@ public static class BigfootMonsterTruckSetup
         SetNumber(serialized, "maxCargoCapacity", 16f);
         SetNumber(serialized, "maxSpeed", 105f);
         SetNumber(serialized, "enginePower", 1200f);
-        SetNumber(serialized, "brakeForce", 15000f);
+        SetNumber(serialized, "brakeForce", 32000f);
         SetNumber(serialized, "turnRadius", 30f);
         SetNumber(serialized, "damageIntensity", 0.38f);
         SetBool(serialized, "isATruck", false);
@@ -180,6 +185,7 @@ public static class BigfootMonsterTruckSetup
             ConfigureRootPhysics(root);
             ConfigureWheelControllers(root);
             ConfigureBodyColliders(root);
+            ConfigureWheelContactColliders(root);
             ConfigureExitMarkers(root);
             ConfigureVehicleReferences(root, vehicleType);
 
@@ -251,10 +257,33 @@ public static class BigfootMonsterTruckSetup
         var colliders = holder.GetComponents<BoxCollider>();
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle needs two body colliders.");
-        colliders[0].center = new Vector3(0f, 1.35f, -0.1f);
-        colliders[0].size = new Vector3(2.6f, 0.55f, 3.7f);
+        colliders[0].center = new Vector3(0f, 1.2f, -0.05f);
+        colliders[0].size = new Vector3(2.5f, 0.55f, 5.3f);
         colliders[1].center = new Vector3(0f, 2.05f, 0.1f);
-        colliders[1].size = new Vector3(2.2f, 1.2f, 3.4f);
+        colliders[1].size = new Vector3(2.2f, 1.2f, 3.7f);
+    }
+
+    private static void ConfigureWheelContactColliders(GameObject root)
+    {
+        var holder = new GameObject("BigfootWheelContactColliders")
+        {
+            layer = 12,
+            tag = "Wheel",
+        };
+        holder.transform.SetParent(root.transform, false);
+        var centers = new[]
+        {
+            new Vector3(-1.35f, 0.27f, 1.60f),
+            new Vector3(1.35f, 0.27f, 1.60f),
+            new Vector3(-1.35f, 0.27f, -1.60f),
+            new Vector3(1.35f, 0.27f, -1.60f),
+        };
+        foreach (var center in centers)
+        {
+            var collider = holder.AddComponent<BoxCollider>();
+            collider.center = center;
+            collider.size = new Vector3(1.05f, 1.482f, 1.482f);
+        }
     }
 
     private static void ConfigureExitMarkers(GameObject root)

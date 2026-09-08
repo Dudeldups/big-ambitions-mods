@@ -22,7 +22,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float AxleHeight = 0.92f;
     private const float CenterOfMassHeight = 0.72f;
     private const float DriverSeatHeight = 2.02f;
-    private const float BrakeTorque = 15000f;
+    private const float BrakeTorque = 32000f;
     private const float AntiRollForce = 4200f;
 
     private ModContext? context;
@@ -204,8 +204,17 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         }
 
+        var contactMaterial = new PhysicMaterial("Bigfoot low-friction contact")
+        {
+            dynamicFriction = 0.05f,
+            staticFriction = 0.05f,
+            frictionCombine = PhysicMaterialCombine.Minimum,
+            bounciness = 0f,
+            bounceCombine = PhysicMaterialCombine.Minimum,
+        };
         var wheelCount = ConfigureWheels(vehicle);
-        var colliderCount = ConfigureBodyColliders(vehicle);
+        var colliderCount = ConfigureBodyColliders(vehicle, contactMaterial);
+        var wheelColliderCount = ConfigureWheelContactColliders(vehicle, contactMaterial);
         ConfigureVehicleModules(vehicle);
         ConfigureExitMarkers(vehicle);
         ConfigureDriverSeat(vehicle);
@@ -214,10 +223,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         driver.Initialize(vehicle, context);
         var collisionGuard = vehicle.gameObject.AddComponent<BigfootMonsterTruckCollisionGuard>();
         collisionGuard.Initialize(vehicle, context);
-        vehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
+        var marker = vehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
+        marker.Initialize(contactMaterial);
         context?.Logger.Info(
             $"BigfootMonsterTruck: configured vehicle id={vehicle.GetInstanceID()}, " +
             $"mass={VehicleMass:F0}, wheels={wheelCount}, colliders={colliderCount}, " +
+            $"wheelColliders={wheelColliderCount}, " +
             $"power={vehicle.vehicleType?.enginePower ?? 0f:F0}, " +
             $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
             $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
@@ -302,7 +313,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         return true;
     }
 
-    private static int ConfigureBodyColliders(VehicleController vehicle)
+    private static int ConfigureBodyColliders(VehicleController vehicle, PhysicMaterial contactMaterial)
     {
         var count = 0;
         foreach (var transform in vehicle.GetComponentsInChildren<Transform>(true))
@@ -315,18 +326,62 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 var collider = colliders[index];
                 if (index == 0)
                 {
-                    collider.center = new Vector3(0f, 1.35f, -0.1f);
-                    collider.size = new Vector3(2.6f, 0.55f, 3.7f);
+                    collider.center = new Vector3(0f, 1.2f, -0.05f);
+                    collider.size = new Vector3(2.5f, 0.55f, 5.3f);
                 }
                 else
                 {
                     collider.center = new Vector3(0f, 2.05f, 0.1f);
-                    collider.size = new Vector3(2.2f, 1.2f, 3.4f);
+                    collider.size = new Vector3(2.2f, 1.2f, 3.7f);
                 }
+                collider.sharedMaterial = contactMaterial;
                 count++;
             }
         }
         return count;
+    }
+
+    private static int ConfigureWheelContactColliders(
+        VehicleController vehicle,
+        PhysicMaterial contactMaterial)
+    {
+        var holder = vehicle.transform.Find("BigfootWheelContactColliders");
+        if (holder == null)
+        {
+            var holderObject = new GameObject("BigfootWheelContactColliders")
+            {
+                layer = 12,
+                tag = "Wheel",
+            };
+            holder = holderObject.transform;
+            holder.SetParent(vehicle.transform, false);
+        }
+
+        var colliders = holder.GetComponents<BoxCollider>();
+        while (colliders.Length < 4)
+        {
+            holder.gameObject.AddComponent<BoxCollider>();
+            colliders = holder.GetComponents<BoxCollider>();
+        }
+
+        var centers = new[]
+        {
+            new Vector3(-HalfTrack, AxleHeight - SuspensionLength, FrontAxleZ),
+            new Vector3(HalfTrack, AxleHeight - SuspensionLength, FrontAxleZ),
+            new Vector3(-HalfTrack, AxleHeight - SuspensionLength, RearAxleZ),
+            new Vector3(HalfTrack, AxleHeight - SuspensionLength, RearAxleZ),
+        };
+        for (var index = 0; index < colliders.Length; index++)
+        {
+            colliders[index].enabled = index < centers.Length;
+            if (index >= centers.Length)
+                continue;
+            colliders[index].isTrigger = false;
+            colliders[index].center = centers[index];
+            colliders[index].size = new Vector3(WheelWidth, WheelRadius * 1.9f, WheelRadius * 1.9f);
+            colliders[index].sharedMaterial = contactMaterial;
+        }
+        return centers.Length;
     }
 
     private static void ConfigureExitMarkers(VehicleController vehicle)
@@ -401,7 +456,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                     {
                         var group = wheelGroups[index];
                         SetFloat(group, "antiRollBarForce", AntiRollForce);
-                        SetFloat(group, "brakeCoefficient", index == 0 ? 0.72f : 0.55f);
+                        SetFloat(group, "brakeCoefficient", index == 0 ? 1f : 0.85f);
                         if (index > 0)
                             SetFloat(group, "handbrakeCoefficient", 1.8f);
                         if (group != null && group.GetType().IsValueType)
@@ -484,4 +539,14 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
 internal sealed class BigfootMonsterTruckConfigured : MonoBehaviour
 {
+    private PhysicMaterial? ownedContactMaterial;
+
+    public void Initialize(PhysicMaterial contactMaterial) => ownedContactMaterial = contactMaterial;
+
+    private void OnDestroy()
+    {
+        if (ownedContactMaterial != null)
+            Destroy(ownedContactMaterial);
+        ownedContactMaterial = null;
+    }
 }

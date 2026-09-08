@@ -217,9 +217,10 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
     {
         if (vehicle == null || steeringWheel == null)
             return;
-        var wheelCenter = vehicle.transform.InverseTransformPoint(steeringWheel.position);
-        AlignHand(leftArm, wheelCenter.x - HandHalfSpacing);
-        AlignHand(rightArm, wheelCenter.x + HandHalfSpacing);
+        // The imported steering wheel remains left-hand-drive, while this truck's
+        // custom seat is centered. Keep the grip centered with the player.
+        AlignHand(leftArm, -HandHalfSpacing);
+        AlignHand(rightArm, HandHalfSpacing);
     }
 
     private void AlignHand(SeatedArm? arm, float targetX)

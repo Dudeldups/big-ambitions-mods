@@ -5,6 +5,7 @@ using System.Reflection;
 using BAModAPI;
 using BigAmbitions.Tags;
 using UnityEngine;
+using UnityEngine.Events;
 
 internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 {
@@ -17,6 +18,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private VehicleDeformationController? deformationController;
     private FieldInfo? deformationQueueField;
     private ModContext? context;
+    private NWH.VehiclePhysics2.VehicleController? physicsVehicle;
+    private UnityAction<Collision>? collisionListener;
     private float approvedDamage;
     private float suppressDamageUntil;
     private int heavyImpactFrame = -1;
@@ -33,6 +36,19 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             BindingFlags.Instance | BindingFlags.NonPublic);
         approvedDamage = controller.vehicleInstance?.damage ?? 0f;
         SnapshotApprovedDeformations();
+        if (controller is CarController car && car.vehicleController != null)
+        {
+            physicsVehicle = car.vehicleController;
+            collisionListener = HandleVehicleCollision;
+            physicsVehicle.onCollision.AddListener(collisionListener);
+            modContext?.Logger.Info(
+                $"BigfootMonsterTruck collision guard subscribed vehicle={controller.GetInstanceID()}.");
+        }
+        else
+        {
+            modContext?.Logger.Warn(
+                "BigfootMonsterTruck collision guard could not subscribe to the vehicle collision event.");
+        }
         initialized = true;
     }
 
@@ -66,24 +82,33 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter(Collision collision)
+    private void HandleVehicleCollision(Collision collision)
     {
         if (!initialized || vehicle == null || collision?.collider == null)
             return;
 
         try
         {
-            var other = collision.collider.GetComponentInParent<VehicleController>();
-            if (other == null || other == vehicle)
+            var otherPlayerVehicle = collision.collider.GetComponentInParent<VehicleController>();
+            if (otherPlayerVehicle == vehicle)
+                return;
+            var trafficVehicle = collision.collider.GetComponentInParent<GleyTrafficSystem.VehicleComponent>();
+            if (otherPlayerVehicle == null && trafficVehicle == null)
                 return;
 
-            if (IsHeavyVehicle(other))
+            var otherName = otherPlayerVehicle != null
+                ? GetVehicleName(otherPlayerVehicle)
+                : trafficVehicle!.name;
+            var isHeavy = otherPlayerVehicle != null
+                ? IsHeavyVehicle(otherPlayerVehicle)
+                : IsHeavyTrafficVehicle(trafficVehicle!);
+            if (isHeavy)
             {
                 heavyImpactFrame = Time.frameCount;
                 suppressDamageUntil = 0f;
                 context?.Logger.Info(
                     $"BigfootMonsterTruck: heavy vehicle impact kept damage-enabled " +
-                    $"other='{GetVehicleName(other)}'.");
+                    $"other='{otherName}'.");
                 return;
             }
 
@@ -93,12 +118,20 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             ClearPendingDeformationQueue();
             context?.Logger.Info(
                 $"BigfootMonsterTruck: suppressing small-vehicle impact damage " +
-                $"other='{GetVehicleName(other)}' for {SmallVehicleSuppressionWindow:F2}s.");
+                $"other='{otherName}' for {SmallVehicleSuppressionWindow:F2}s.");
         }
         catch (Exception exception)
         {
-            ReportFailureOnce(nameof(OnCollisionEnter), exception);
+            ReportFailureOnce(nameof(HandleVehicleCollision), exception);
         }
+    }
+
+    private void OnDestroy()
+    {
+        if (physicsVehicle != null && collisionListener != null)
+            physicsVehicle.onCollision.RemoveListener(collisionListener);
+        physicsVehicle = null;
+        collisionListener = null;
     }
 
     private static bool IsHeavyVehicle(VehicleController other)
@@ -112,6 +145,35 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
     private static string GetVehicleName(VehicleController other) =>
         other.vehicleType?.vehicleTypeName ?? other.name;
+
+    private static bool IsHeavyTrafficVehicle(GleyTrafficSystem.VehicleComponent trafficVehicle)
+    {
+        var identity = trafficVehicle.name.ToLowerInvariant();
+        if (identity.Contains("truck") || identity.Contains("lorry") ||
+            identity.Contains("semi") || identity.Contains("delivery"))
+            return true;
+
+        var colliders = trafficVehicle.GetComponentsInChildren<Collider>(true);
+        var bounds = default(Bounds);
+        var hasBounds = false;
+        foreach (var collider in colliders)
+        {
+            if (collider.isTrigger)
+                continue;
+            if (!hasBounds)
+            {
+                bounds = collider.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(collider.bounds);
+            }
+        }
+        if (!hasBounds)
+            return false;
+        return bounds.size.y >= 2.4f || bounds.size.z >= 5.5f || bounds.size.x >= 2.5f;
+    }
 
     private void ClearPendingDeformationQueue()
     {
