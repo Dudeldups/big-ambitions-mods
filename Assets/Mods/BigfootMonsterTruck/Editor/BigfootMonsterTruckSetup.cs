@@ -47,6 +47,9 @@ public static class BigfootMonsterTruckSetup
             var prefab = bundle.LoadAsset<GameObject>(TargetPrefabPath);
             if (vehicleType == null || prefab == null)
                 throw new InvalidOperationException("Bundle is missing its VehicleType or vehicle prefab.");
+            var serializedVehicleType = new SerializedObject(vehicleType);
+            var bundledPrice = serializedVehicleType.FindProperty("price")?.floatValue ?? 0f;
+            var bundledMaxSpeed = serializedVehicleType.FindProperty("maxSpeed")?.intValue ?? 0;
 
             var wheelControllers = 0;
             var wheelVisuals = 0;
@@ -102,7 +105,8 @@ public static class BigfootMonsterTruckSetup
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
                 animatedWheelVisuals != 4 || physicalWheelColliders != 4 ||
                 !hasSeat || !raisedSeat ||
-                visibleRenderers == 0 || !hasTransparentGlass)
+                visibleRenderers == 0 || !hasTransparentGlass ||
+                Mathf.Abs(bundledPrice - 345000f) > 0.5f || bundledMaxSpeed != 140)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: controllers={wheelControllers}, " +
@@ -110,7 +114,8 @@ public static class BigfootMonsterTruckSetup
                     $"animatedWheelVisuals={animatedWheelVisuals}, " +
                     $"physicalWheelColliders={physicalWheelColliders}, " +
                     $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
-                    $"transparentGlass={hasTransparentGlass}.");
+                    $"transparentGlass={hasTransparentGlass}, price={bundledPrice}, " +
+                    $"maxSpeed={bundledMaxSpeed}.");
             }
 
             Debug.Log(
@@ -149,10 +154,10 @@ public static class BigfootMonsterTruckSetup
         target.name = "BigfootMonsterTruck";
         var serialized = new SerializedObject(target);
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
-        SetNumber(serialized, "price", 85000f);
+        SetNumber(serialized, "price", 345000f);
         SetNumber(serialized, "maxFuel", 110f);
         SetNumber(serialized, "maxCargoCapacity", 16f);
-        SetNumber(serialized, "maxSpeed", 105f);
+        SetNumber(serialized, "maxSpeed", 140f);
         SetNumber(serialized, "enginePower", 1200f);
         SetNumber(serialized, "brakeForce", 32000f);
         SetNumber(serialized, "turnRadius", 30f);

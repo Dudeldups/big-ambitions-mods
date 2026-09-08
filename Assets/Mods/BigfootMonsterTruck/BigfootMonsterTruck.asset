@@ -15,11 +15,11 @@ MonoBehaviour:
   database: {fileID: 0}
   tags: []
   vehicleTypeName: bigfootmonstertruck-vehicle:vehicletype_bigfootmonstertruck
-  price: 85000
+  price: 345000
   itemVersion:
   maxFuel: 110
   maxCargoCapacity: 16
-  maxSpeed: 105
+  maxSpeed: 140
   enginePower: 1200
   brakeForce: 32000
   turnRadius: 30

@@ -24,6 +24,18 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float DriverSeatHeight = 2.02f;
     private const float BrakeTorque = 32000f;
     private const float AntiRollForce = 4200f;
+    private const float TargetTopSpeed = 140f;
+    private const float EngineRevLimiter = 6500f;
+    private const float TransmissionFinalDrive = 13.6f;
+    private static readonly float[] TransmissionGears =
+    {
+        -3.6f,
+        0f,
+        4.2f,
+        2.5f,
+        1.55f,
+        1f,
+    };
 
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
@@ -235,6 +247,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             $"mass={VehicleMass:F0}, wheels={wheelCount}, colliders={colliderCount}, " +
             $"wheelColliders={wheelColliderCount}, " +
             $"power={vehicle.vehicleType?.enginePower ?? 0f:F0}, " +
+            $"topSpeed={vehicle.vehicleType?.maxSpeed ?? 0}km/h, " +
+            $"gearbox=4-speed/{TransmissionFinalDrive:F1}:1, " +
             $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
             $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
             $"suspensionTravel={SuspensionLength:F2}, wheelTrafficContact=false.");
@@ -431,9 +445,21 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                     var powertrain = GetMember(component, "powertrain");
                     var engine = GetMember(powertrain, "engine");
                     SetFloat(engine, "maxPower", vehicle.vehicleType?.enginePower ?? 1200f);
+                    SetFloat(engine, "revLimiterRPM", EngineRevLimiter);
                     SetMember(powertrain, "engine", engine);
                     var transmission = GetMember(powertrain, "transmission");
-                    SetFloat(transmission, "finalGearRatio", 5.2f);
+                    SetFloat(transmission, "finalGearRatio", TransmissionFinalDrive);
+                    SetFloat(transmission, "_upshiftRPM", 5900f);
+                    SetFloat(transmission, "_downshiftRPM", 2700f);
+                    SetInt(transmission, "forwardGearCount", 4);
+                    SetInt(transmission, "reverseGearCount", 1);
+                    if (GetMember(transmission, "gears") is IList gears)
+                    {
+                        gears.Clear();
+                        foreach (var ratio in TransmissionGears)
+                            gears.Add(ratio);
+                        SetMember(transmission, "gears", gears);
+                    }
                     SetMember(powertrain, "transmission", transmission);
                     var differentials = GetMember(powertrain, "differentials") as IList;
                     if (differentials != null)
@@ -452,6 +478,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                     var steering = GetMember(component, "steering");
                     SetFloat(steering, "maximumSteerAngle", 28f);
                     SetMember(component, "steering", steering);
+                }
+                else if (string.Equals(type.Name, "SpeedLimiterModuleWrapper", StringComparison.Ordinal))
+                {
+                    var speedLimiter = GetMember(component, "module");
+                    SetFloat(speedLimiter, "speedLimit", TargetTopSpeed);
+                    SetMember(component, "module", speedLimiter);
                 }
 
                 var brakes = GetMember(component, "brakes");
@@ -526,6 +558,27 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             name,
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (property?.CanWrite == true && property.PropertyType == typeof(float))
+        {
+            property.SetValue(target, value);
+            return true;
+        }
+        return false;
+    }
+
+    private static bool SetInt(object? target, string name, int value)
+    {
+        if (target == null)
+            return false;
+        var field = FindField(target.GetType(), name);
+        if (field?.FieldType == typeof(int))
+        {
+            field.SetValue(target, value);
+            return true;
+        }
+        var property = target.GetType().GetProperty(
+            name,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (property?.CanWrite == true && property.PropertyType == typeof(int))
         {
             property.SetValue(target, value);
             return true;
