@@ -60,8 +60,9 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var outerWindowRenderer = FindRenderer(renderers, OuterWindowRendererName);
         var innerWindowRenderer = FindRenderer(renderers, InnerWindowRendererName);
         var glassCount = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
-        // Keep the imported housing shader, textures and roughness visible in daylight.
-        LogSurface("front-lamp-preserved", frontLampRenderer);
+        // Keep the imported housing shader, textures and roughness visible in daylight,
+        // but do not let that combined housing mesh hide its own emissive guides.
+        ConfigureFrontLampDepth(frontLampRenderer);
         ConfigureLampSurface(
             rearLampRenderer,
             "AudiRS6R Rear Lamp Housing",
@@ -204,6 +205,24 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
 
         return configuredCount;
+    }
+
+    private void ConfigureFrontLampDepth(MeshRenderer? frontLampRenderer)
+    {
+        LogSurface("front-lamp-source", frontLampRenderer);
+        if (frontLampRenderer == null)
+            return;
+
+        var source = FirstMaterial(frontLampRenderer);
+        if (source == null)
+            return;
+
+        var material = new Material(source) { name = "AudiRS6R Front Lamp Housing" };
+        generatedMaterials.Add(material);
+        SetFloatIfPresent(material, "_ZWrite", 0f);
+        SetFloatIfPresent(material, "_TransparentZWrite", 0f);
+        frontLampRenderer.sharedMaterial = material;
+        LogSurface("front-lamp-depth-configured", frontLampRenderer);
     }
 
     private Material CloneAndConfigureGlass(Material? source, string materialName, Color tint)
@@ -529,21 +548,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (vertices.Length == 0 || vehicleController == null)
             return null;
 
-        var vehicleTransform = vehicleController.transform;
-        var sourceTransform = sourceRenderer.transform;
-        var vehiclePositions = new Vector3[vertices.Length];
-        var vehicleNormals = new Vector3[vertices.Length];
         var sourceNormals = source.normals;
-        for (var index = 0; index < vertices.Length; index++)
-        {
-            vehiclePositions[index] = vehicleTransform.InverseTransformPoint(
-                sourceTransform.TransformPoint(vertices[index]));
-            if (sourceNormals.Length == vertices.Length)
-            {
-                vehicleNormals[index] = vehicleTransform.InverseTransformDirection(
-                    sourceTransform.TransformDirection(sourceNormals[index])).normalized;
-            }
-        }
 
         var parents = new int[vertices.Length];
         for (var index = 0; index < parents.Length; index++)
@@ -591,12 +596,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             if (!vertexEnumerator.MoveNext())
                 continue;
 
-            var componentBounds = new Bounds(vehiclePositions[vertexEnumerator.Current], Vector3.zero);
+            var componentBounds = new Bounds(vertices[vertexEnumerator.Current], Vector3.zero);
             var normalSum = Vector3.zero;
             foreach (var vertexIndex in componentVertices)
             {
-                componentBounds.Encapsulate(vehiclePositions[vertexIndex]);
-                normalSum += vehicleNormals[vertexIndex];
+                componentBounds.Encapsulate(vertices[vertexIndex]);
+                if (sourceNormals.Length == vertices.Length)
+                    normalSum += sourceNormals[vertexIndex];
             }
 
             var center = componentBounds.center;
@@ -715,7 +721,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         if (additive)
             ConfigureAdditiveTransparency(material);
         else
-            material.renderQueue = 2450;
+            material.renderQueue = Mathf.Clamp((source?.renderQueue ?? 2450) + 1, 2001, 2499);
         return material;
     }
 
@@ -727,11 +733,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetFloatIfPresent(material, "_AlphaSrcBlend", (float)BlendMode.One);
         SetFloatIfPresent(material, "_AlphaDstBlend", (float)BlendMode.One);
         SetFloatIfPresent(material, "_TransparentZWrite", 0f);
-        // The imported headlamp shell writes opaque depth in front of the modeled light
-        // guides. Draw the selected guide faces through that shell, then gate the overlay
-        // to front-side cameras in ApplyLightState so it cannot show through the car.
-        SetFloatIfPresent(material, "_ZTestTransparent", (float)CompareFunction.Always);
-        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.Always);
+        SetFloatIfPresent(material, "_ZTestTransparent", (float)CompareFunction.LessEqual);
+        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
         SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloatIfPresent(material, "_Cull", (float)CullMode.Off);
@@ -806,9 +809,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                            Mathf.Repeat(Time.unscaledTime - blinkerPhaseStartedAt, BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = isBlinking;
 
-        var frontSignatureVisible = headlights && IsCameraOnFrontSide();
-        SetRendererState(leftHeadlightOverlay, frontSignatureVisible && !(leftBlinker && blinkerFlash));
-        SetRendererState(rightHeadlightOverlay, frontSignatureVisible && !(rightBlinker && blinkerFlash));
+        SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
+        SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
@@ -828,21 +830,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             lastHeadlightState = headlightState;
             LogInfo($"headlight-state playerControlled={controlledByPlayer} automaticLights={automaticHeadlights} " +
-                    $"signatureOverlays={headlights} frontCameraVisible={frontSignatureVisible} " +
-                    $"lensOverlays=false beams={headlights}.");
+                    $"signatureOverlays={headlights} lensOverlays=false beams={headlights}.");
         }
-    }
-
-    private bool IsCameraOnFrontSide()
-    {
-        if (vehicleController == null)
-            return false;
-
-        var activeCamera = Camera.main;
-        if (activeCamera == null)
-            return true;
-
-        return vehicleController.transform.InverseTransformPoint(activeCamera.transform.position).z >= 0f;
     }
 
     private void LogSurface(string operation, MeshRenderer? renderer)
@@ -866,7 +855,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"zWrite={ReadFloat(material, "_ZWrite")}.");
         if (!material.shader.isSupported)
             LogWarning($"surface operation='{operation}' shader '{material.shader.name}' is unsupported.");
-        if (operation == "front-lamp-preserved" && texture == null)
+        if (operation == "front-lamp-source" && texture == null)
             LogWarning("The imported front lamp material has no base texture; model detail may be missing.");
     }
 
