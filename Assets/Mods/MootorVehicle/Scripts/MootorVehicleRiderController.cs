@@ -29,6 +29,9 @@ namespace MootorVehicle
         private const float MooHornVolume = 0.65f;
         private const float GaitStartSpeed = 0.15f;
         private const float GaitFullSpeed = 1.5f;
+        private const float MinimumStridesPerSecond = 0.8f;
+        private const float RegularMaximumStridesPerSecond = 1.8f;
+        private const float EnergizedMaximumStridesPerSecond = 3.6f;
         private const float EarFlapDuration = 0.55f;
         private const float EarFlapMinimumDelay = 3.5f;
         private const float EarFlapMaximumDelay = 9f;
@@ -701,7 +704,20 @@ namespace MootorVehicle
                 return;
             }
 
-            var stridesPerSecond = Mathf.Lerp(0.8f, 1.8f, Mathf.Clamp01(speed / 4f));
+            var regularCadence = Mathf.Lerp(
+                MinimumStridesPerSecond,
+                RegularMaximumStridesPerSecond,
+                Mathf.Clamp01(speed / 4f));
+            var regularTopSpeed = MootorVehicleFuelController.RegularSpeedLimit / 3.6f;
+            var energizedTopSpeed = regularTopSpeed * 2f;
+            var energizedSpeedFactor = Mathf.InverseLerp(
+                regularTopSpeed,
+                energizedTopSpeed,
+                speed);
+            var stridesPerSecond = Mathf.Lerp(
+                regularCadence,
+                EnergizedMaximumStridesPerSecond,
+                energizedSpeedFactor);
             gaitPhase = Mathf.Repeat(
                 gaitPhase + stridesPerSecond * Mathf.PI * 2f * Time.deltaTime,
                 Mathf.PI * 2f);
