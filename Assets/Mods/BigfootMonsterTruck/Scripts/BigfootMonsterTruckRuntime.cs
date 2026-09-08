@@ -14,6 +14,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float VehicleMass = 6500f;
     private const float WheelRadius = 0.78f;
     private const float WheelWidth = 1.05f;
+    private const float WheelVisualVerticalOffset = 0.10f;
     private const float SuspensionLength = 0.65f;
     private const float SuspensionForce = 28000f;
     private const float FrontAxleZ = 1.60f;
@@ -262,6 +263,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             $"gearbox=4-speed/{TransmissionFinalDrive:F1}:1, " +
             $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
             $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
+            $"wheelVisualRaise={WheelVisualVerticalOffset:F2}, " +
             $"suspensionTravel={SuspensionLength:F2}, differentialSlip=1000, " +
             "climbAssist=small-vehicles, wheelTrafficContact=false.");
         if (wheelCount != 4)
@@ -296,6 +298,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(wheel, "radius", WheelRadius);
                 SetFloat(wheel, "width", WheelWidth);
                 SetFloat(wheel, "mass", 120f);
+                ConfigureWheelVisual(component, wheel, transform.name, vehicle.transform);
                 SetMember(component, "wheel", wheel);
 
                 var sideFriction = GetMember(component, "sideFriction");
@@ -318,6 +321,47 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         }
 
         return count;
+    }
+
+    private void ConfigureWheelVisual(
+        MonoBehaviour wheelController,
+        object? wheel,
+        string controllerName,
+        Transform vehicleTransform)
+    {
+        if (wheel == null || GetMember(wheel, "visual") is not GameObject visual)
+        {
+            context?.Logger.Warn(
+                $"BigfootMonsterTruck: wheel visual correction skipped controller='{controllerName}' " +
+                "because no visual was assigned.");
+            return;
+        }
+
+        GameObject wrapper;
+        if (visual.name.EndsWith("VisualRoot", StringComparison.Ordinal))
+        {
+            wrapper = visual;
+        }
+        else
+        {
+            var wrapperName = $"{visual.name}Root";
+            wrapper = new GameObject(wrapperName);
+            wrapper.transform.SetParent(visual.transform.parent, false);
+            wrapper.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
+            visual.transform.SetParent(wrapper.transform, true);
+            if (controllerName.IndexOf("Left", StringComparison.OrdinalIgnoreCase) >= 0)
+                visual.transform.localRotation =
+                    Quaternion.AngleAxis(180f, Vector3.up) * visual.transform.localRotation;
+        }
+
+        SetMember(wheel, "visual", wrapper);
+        SetMember(wheel, "visualTransform", wrapper.transform);
+        var correction = wrapper.GetComponent<BigfootMonsterTruckWheelVisualCorrection>() ??
+                         wrapper.AddComponent<BigfootMonsterTruckWheelVisualCorrection>();
+        if (!correction.Initialize(wheelController, vehicleTransform, WheelVisualVerticalOffset))
+            context?.Logger.Warn(
+                $"BigfootMonsterTruck: wheel visual height correction unavailable " +
+                $"controller='{controllerName}'.");
     }
 
     private static bool TryGetWheelPosition(string name, out Vector3 position)
@@ -665,6 +709,37 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 return field;
         }
         return null;
+    }
+}
+
+internal sealed class BigfootMonsterTruckWheelVisualCorrection : MonoBehaviour
+{
+    private MonoBehaviour? wheelController;
+    private Transform? vehicleTransform;
+    private PropertyInfo? wheelPositionProperty;
+    private float verticalOffset;
+
+    public bool Initialize(
+        MonoBehaviour controller,
+        Transform configuredVehicleTransform,
+        float configuredVerticalOffset)
+    {
+        wheelController = controller;
+        vehicleTransform = configuredVehicleTransform;
+        verticalOffset = configuredVerticalOffset;
+        wheelPositionProperty = controller.GetType().GetProperty(
+            "WheelPosition",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        enabled = wheelPositionProperty?.PropertyType == typeof(Vector3);
+        return enabled;
+    }
+
+    private void LateUpdate()
+    {
+        if (wheelController == null || vehicleTransform == null || wheelPositionProperty == null)
+            return;
+        if (wheelPositionProperty.GetValue(wheelController) is Vector3 wheelPosition)
+            transform.position = wheelPosition + vehicleTransform.up * verticalOffset;
     }
 }
 
