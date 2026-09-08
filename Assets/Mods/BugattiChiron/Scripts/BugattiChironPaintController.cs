@@ -122,7 +122,9 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
-        var bodyColor = CreateBodyColor(selectedColor);
+        var fresnelColor = (Color)selected.fresnelColor;
+        fresnelColor.a = 1f;
+        var bodyColor = CreateBodyColor(selectedColor, fresnelColor);
         RebuildPaintTextures(tint, bodyColor);
         foreach (var slot in slots)
         {
@@ -158,6 +160,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         context?.Logger.Info(
             $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
+            $"fresnel={(Color32)selected.fresnelColor} " +
             $"body={bodyColor} dark={darkColor} " +
             $"to {slots.Count} body/rim/caliper/seat/interior slots.");
     }
@@ -216,24 +219,26 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         }
     }
 
-    private static Color CreateBodyColor(Color selectedColor)
+    private static Color CreateBodyColor(Color selectedColor, Color fresnelColor)
     {
         var linear = selectedColor.linear;
         linear.a = 1f;
 
         // The imported HDRP material has no vanilla vehicle-paint Fresnel pass.
-        // Give only dark, saturated palette entries an adaptive perceptual lift so their hue
-        // remains visible, while normal and bright paints retain the exact
-        // linear response that already matches the game's selected color.
+        // For dark saturated entries, fold the palette's Fresnel hue into the
+        // static base color. Neutral and bright paints retain their proven tint.
         var brightest = Mathf.Max(selectedColor.r, Mathf.Max(selectedColor.g, selectedColor.b));
         var darkest = Mathf.Min(selectedColor.r, Mathf.Min(selectedColor.g, selectedColor.b));
         var saturation = brightest > 0.001f ? (brightest - darkest) / brightest : 0f;
-        var valueLift = Mathf.Clamp01((0.45f - brightest) / 0.215f);
-        var saturationGate = Mathf.Clamp01((saturation - 0.20f) / 0.30f);
-        var darkLift = valueLift * saturationGate;
-        var color = Color.Lerp(linear, selectedColor, darkLift);
-        color.a = 1f;
-        return color;
+        if (brightest >= 0.45f || saturation <= 0.20f)
+            return linear;
+
+        var fresnelLinear = fresnelColor.linear;
+        return new Color(
+            Mathf.Max(linear.r, fresnelLinear.r),
+            Mathf.Max(linear.g, fresnelLinear.g),
+            Mathf.Max(linear.b, fresnelLinear.b),
+            1f);
     }
 
     private static Color Scale(Color color, float factor) =>
