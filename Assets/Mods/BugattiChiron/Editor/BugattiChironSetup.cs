@@ -28,10 +28,10 @@ public static class BugattiChironSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8245f, 0.51f, 1.3555f) },
-            { "FrontRight_WheelController", new Vector3(0.8245f, 0.51f, 1.3555f) },
-            { "RearLeft_WheelController", new Vector3(-0.7805f, 0.51f, -1.3555f) },
-            { "RearRight_WheelController", new Vector3(0.7805f, 0.51f, -1.3555f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8145f, 0.51f, 1.3555f) },
+            { "FrontRight_WheelController", new Vector3(0.8145f, 0.51f, 1.3555f) },
+            { "RearLeft_WheelController", new Vector3(-0.7705f, 0.51f, -1.3555f) },
+            { "RearRight_WheelController", new Vector3(0.7705f, 0.51f, -1.3555f) },
         };
 
     private static readonly float[] ChironGears =
@@ -199,7 +199,11 @@ public static class BugattiChironSetup
                                 : material.HasProperty("baseColorFactor")
                                     ? material.GetColor("baseColorFactor")
                                     : Color.black;
-                            cabinGlassTintValid &= tint.r >= 0.1f && tint.a >= 0.1f && tint.a <= 0.35f;
+                            var isWindshieldMaterial = material.name.IndexOf(
+                                "Windshield", StringComparison.OrdinalIgnoreCase) >= 0;
+                            cabinGlassTintValid &= tint.r >= 0.1f &&
+                                                   tint.a >= (isWindshieldMaterial ? 0.03f : 0.08f) &&
+                                                   tint.a <= (isWindshieldMaterial ? 0.08f : 0.14f);
                         }
                         continue;
                     }

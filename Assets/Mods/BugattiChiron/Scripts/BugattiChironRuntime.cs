@@ -287,10 +287,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     {
         var positions = new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8245f, 0.51f, 1.3555f) },
-            { "FrontRight_WheelController", new Vector3(0.8245f, 0.51f, 1.3555f) },
-            { "RearLeft_WheelController", new Vector3(-0.7805f, 0.51f, -1.3555f) },
-            { "RearRight_WheelController", new Vector3(0.7805f, 0.51f, -1.3555f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8145f, 0.51f, 1.3555f) },
+            { "FrontRight_WheelController", new Vector3(0.8145f, 0.51f, 1.3555f) },
+            { "RearLeft_WheelController", new Vector3(-0.7705f, 0.51f, -1.3555f) },
+            { "RearRight_WheelController", new Vector3(0.7705f, 0.51f, -1.3555f) },
         };
 
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))

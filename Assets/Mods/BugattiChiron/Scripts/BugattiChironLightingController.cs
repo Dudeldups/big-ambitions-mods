@@ -81,11 +81,11 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         sideRightBlinkerOverlay = CreateOverlay(
             sideRightBlinker, "BugattiChiron_SideRightBlinker", amber, 4.2f, 1.004f);
         rearLeftBlinkerOverlay = CreateFilteredOverlay(
-            rearStrip, position => position.x <= -0.68f,
-            "BugattiChiron_RearLeftBlinker", amber, 4.4f, 1.006f);
+            rearStrip, position => position.x <= -0.38f,
+            "BugattiChiron_RearLeftBlinker", amber, 6.0f, 1.006f);
         rearRightBlinkerOverlay = CreateFilteredOverlay(
-            rearStrip, position => position.x >= 0.68f,
-            "BugattiChiron_RearRightBlinker", amber, 4.4f, 1.006f);
+            rearStrip, position => position.x >= 0.38f,
+            "BugattiChiron_RearRightBlinker", amber, 6.0f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
@@ -288,6 +288,8 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         };
         mesh.SetTriangles(triangles, 0, true);
         mesh.RecalculateBounds();
+        LogInfo($"filtered overlay='{objectName}' triangles={triangles.Count / 3} " +
+                $"vehicleThresholdSectionBounds={mesh.bounds}.");
 
         var overlayObject = new GameObject(objectName);
         overlayObject.transform.SetParent(source.transform, false);

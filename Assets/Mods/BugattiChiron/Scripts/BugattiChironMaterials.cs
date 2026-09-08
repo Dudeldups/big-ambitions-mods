@@ -209,7 +209,9 @@ public static class BugattiChironMaterials
     {
         if (IsCabinGlassMaterial(material))
         {
-            var tint = new Color(0.18f, 0.22f, 0.27f, 0.18f);
+            var tint = material.name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0
+                ? new Color(0.20f, 0.23f, 0.27f, 0.04f)
+                : new Color(0.15f, 0.18f, 0.22f, 0.10f);
             SetColor(material, "_BaseColor", tint);
             SetColor(material, "_Color", tint);
             SetColor(material, "baseColorFactor", tint);
