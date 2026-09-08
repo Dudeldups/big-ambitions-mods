@@ -30,6 +30,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? rightHeadlightBeam;
     private MeshRenderer? leftHeadlightOverlay;
     private MeshRenderer? rightHeadlightOverlay;
+    private MeshRenderer? rearWindowTintOverlay;
     private MeshRenderer? leftTailLightOverlay;
     private MeshRenderer? rightTailLightOverlay;
     private MeshRenderer? leftBrakeLightOverlay;
@@ -60,6 +61,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var outerWindowRenderer = FindRenderer(renderers, OuterWindowRendererName);
         var innerWindowRenderer = FindRenderer(renderers, InnerWindowRendererName);
         var glassCount = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
+        rearWindowTintOverlay = CreateRearWindowTintOverlay(outerWindowRenderer);
         // Keep the imported housing shader, textures and roughness visible in daylight.
         LogSurface("front-lamp-preserved", frontLampRenderer);
         ConfigureRearLampGlass(rearLampRenderer);
@@ -86,13 +88,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         leftTailLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x <= 0f,
             "LeftTailLight", new Color(0.78f, 0.006f, 0.002f, 1f),
-            intensity: 3.0f,
+            intensity: 2.7f,
             copyBaseTexture: false,
             selectRearLampSignatureComponents: true);
         rightTailLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x > 0f,
             "RightTailLight", new Color(0.78f, 0.006f, 0.002f, 1f),
-            intensity: 3.0f,
+            intensity: 2.7f,
             copyBaseTexture: false,
             selectRearLampSignatureComponents: true);
         leftBrakeLightOverlay = CreateFunctionalOverlay(
@@ -124,9 +126,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
 
         initialized = true;
-        LogInfo($"initialized glassRenderers={glassCount}/2 headlightBeams={beamCount}/2 " +
-                $"overlays={generatedMeshes.Count}/11 headlightLensOverlays=0.");
-        if (glassCount != 2 || beamCount != 2 || generatedMeshes.Count != 11)
+        var lightOverlayCount = CountLightOverlays();
+        LogInfo($"initialized glassRenderers={glassCount}/2 rearWindowTint={rearWindowTintOverlay != null} " +
+                $"headlightBeams={beamCount}/2 overlays={lightOverlayCount}/11 headlightLensOverlays=0.");
+        if (glassCount != 2 || rearWindowTintOverlay == null || beamCount != 2 || lightOverlayCount != 11)
             LogWarning("Lighting setup is incomplete; inspect the preceding material/overlay diagnostics.");
         if (controller.GetType().GetProperty("ShouldLightsBeOn", InstanceFields) == null)
             LogWarning("ShouldLightsBeOn is unavailable; automatic headlights cannot be read.");
@@ -221,6 +224,64 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "AudiRS6R Transparent Rear Lamp Glass",
             new Color(0.45f, 0.025f, 0.015f, 0.30f));
         LogSurface("rear-lamp-glass-configured", rearLampRenderer);
+    }
+
+    private MeshRenderer? CreateRearWindowTintOverlay(MeshRenderer? sourceRenderer)
+    {
+        if (sourceRenderer == null)
+        {
+            LogWarning("rear-window tint has no outer-glass source renderer.");
+            return null;
+        }
+
+        var sourceFilter = sourceRenderer.GetComponent<MeshFilter>();
+        if (sourceFilter?.sharedMesh == null)
+        {
+            LogWarning($"rear-window tint source '{sourceRenderer.name}' has no mesh.");
+            return null;
+        }
+
+        try
+        {
+            var tintMesh = CreateFilteredMesh(
+                sourceRenderer,
+                sourceFilter.sharedMesh,
+                position => position.y >= 0.95f && position.y <= 1.36f && position.z <= -0.28f &&
+                            (position.y <= 1.32f || Mathf.Abs(position.x) >= 0.30f),
+                "RearWindowTint");
+            if (tintMesh == null)
+            {
+                LogWarning($"rear-window tint selected no triangles on '{sourceRenderer.name}'.");
+                return null;
+            }
+
+            var tintObject = new GameObject("AudiRS6R_RearWindowTint");
+            tintObject.transform.SetParent(sourceRenderer.transform, false);
+            tintObject.transform.localScale = Vector3.one * 1.0005f;
+            tintObject.layer = sourceRenderer.gameObject.layer;
+            tintObject.AddComponent<MeshFilter>().sharedMesh = tintMesh;
+
+            var tintRenderer = tintObject.AddComponent<MeshRenderer>();
+            var tintMaterial = CloneAndConfigureGlass(
+                FirstMaterial(sourceRenderer),
+                "AudiRS6R Rear Window Tint",
+                new Color(0.005f, 0.005f, 0.005f, 0.48f));
+            tintMaterial.renderQueue = (int)RenderQueue.Transparent + 10;
+            tintRenderer.sharedMaterial = tintMaterial;
+            tintRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+            tintRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            tintRenderer.receiveShadows = false;
+
+            generatedObjects.Add(tintObject);
+            generatedMeshes.Add(tintMesh);
+            LogInfo($"rear-window tint triangles={tintMesh.triangles.Length / 3} bounds={tintMesh.bounds}.");
+            return tintRenderer;
+        }
+        catch (Exception ex)
+        {
+            LogWarning($"could not create rear-window tint: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
     }
 
     private Material CloneAndConfigureGlass(Material? source, string materialName, Color tint)
@@ -767,6 +828,19 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                     $"signatureOverlays={headlights} lensOverlays=false beams={headlights}.");
         }
     }
+
+    private int CountLightOverlays() =>
+        (leftHeadlightOverlay != null ? 1 : 0) +
+        (rightHeadlightOverlay != null ? 1 : 0) +
+        (leftTailLightOverlay != null ? 1 : 0) +
+        (rightTailLightOverlay != null ? 1 : 0) +
+        (leftBrakeLightOverlay != null ? 1 : 0) +
+        (rightBrakeLightOverlay != null ? 1 : 0) +
+        (centerBrakeLightOverlay != null ? 1 : 0) +
+        (leftFrontBlinkerOverlay != null ? 1 : 0) +
+        (rightFrontBlinkerOverlay != null ? 1 : 0) +
+        (leftRearBlinkerOverlay != null ? 1 : 0) +
+        (rightRearBlinkerOverlay != null ? 1 : 0);
 
     private void LogSurface(string operation, MeshRenderer? renderer)
     {
