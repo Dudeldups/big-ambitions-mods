@@ -64,7 +64,7 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         var sideRightBlinker = FindRenderer(renderers, SideRightBlinkerName);
 
         headlampOverlay = CreateOverlay(
-            headlamp, "BugattiChiron_HeadlampRectangles", new Color(0.78f, 0.87f, 1f, 1f));
+            headlamp, "BugattiChiron_HeadlampRectangles", new Color(0.78f, 0.87f, 1f, 1f), 4.5f);
         rearTailOverlay = CreateOverlay(
             rearStrip, "BugattiChiron_RearTailStrip", new Color(0.78f, 0.006f, 0.002f, 1f), 2.7f);
         rearBrakeOverlay = CreateOverlay(
@@ -73,9 +73,9 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
             thirdBrake, "BugattiChiron_ThirdBrakeLight", new Color(1f, 0.008f, 0.001f, 1f), 4.2f);
         var amber = new Color(1f, 0.20f, 0.002f, 1f);
         frontLeftBlinkerOverlay = CreateOverlay(
-            frontLeftBlinker, "BugattiChiron_FrontLeftBlinker", amber, 4.2f, 1.004f);
+            frontLeftBlinker, "BugattiChiron_FrontLeftBlinker", amber, 5.2f, 1.004f);
         frontRightBlinkerOverlay = CreateOverlay(
-            frontRightBlinker, "BugattiChiron_FrontRightBlinker", amber, 4.2f, 1.004f);
+            frontRightBlinker, "BugattiChiron_FrontRightBlinker", amber, 5.2f, 1.004f);
         sideLeftBlinkerOverlay = CreateOverlay(
             sideLeftBlinker, "BugattiChiron_SideLeftBlinker", amber, 4.2f, 1.004f);
         sideRightBlinkerOverlay = CreateOverlay(

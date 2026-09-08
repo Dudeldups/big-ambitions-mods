@@ -28,10 +28,10 @@ public static class BugattiChironSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8145f, 0.51f, 1.3555f) },
-            { "FrontRight_WheelController", new Vector3(0.8145f, 0.51f, 1.3555f) },
-            { "RearLeft_WheelController", new Vector3(-0.7705f, 0.51f, -1.3555f) },
-            { "RearRight_WheelController", new Vector3(0.7705f, 0.51f, -1.3555f) },
+            { "FrontLeft_WheelController", new Vector3(-0.7945f, 0.51f, 1.3555f) },
+            { "FrontRight_WheelController", new Vector3(0.7945f, 0.51f, 1.3555f) },
+            { "RearLeft_WheelController", new Vector3(-0.7505f, 0.51f, -1.3555f) },
+            { "RearRight_WheelController", new Vector3(0.7505f, 0.51f, -1.3555f) },
         };
 
     private static readonly float[] ChironGears =
@@ -203,7 +203,7 @@ public static class BugattiChironSetup
                                 "Windshield", StringComparison.OrdinalIgnoreCase) >= 0;
                             cabinGlassTintValid &= tint.r >= 0.1f &&
                                                    tint.a >= (isWindshieldMaterial ? 0.03f : 0.08f) &&
-                                                   tint.a <= (isWindshieldMaterial ? 0.08f : 0.14f);
+                                                   tint.a <= (isWindshieldMaterial ? 0.08f : 0.24f);
                         }
                         continue;
                     }
