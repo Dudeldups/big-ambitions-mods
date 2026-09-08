@@ -562,8 +562,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     {
         // The source model gives the light guides their own connected geometry. Their front
         // faces also share this tiny atlas strip, which separates them from nearby trim pieces.
+        // Unity flips glTF's V coordinate during import. Accept both orientations so this also
+        // remains correct if the source model is reimported with different importer settings.
+        var usesOriginalGlTfV = minimumUv.y >= 0.895f && maximumUv.y <= 0.925f;
+        var usesUnityImportedV = minimumUv.y >= 0.075f && maximumUv.y <= 0.105f;
         var usesLightGuideAtlasStrip = minimumUv.x >= 0f && maximumUv.x <= 0.025f &&
-                                       minimumUv.y >= 0.895f && maximumUv.y <= 0.925f;
+                                       (usesOriginalGlTfV || usesUnityImportedV);
         if (!usesLightGuideAtlasStrip)
             return false;
 
