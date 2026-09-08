@@ -88,7 +88,8 @@ internal sealed class BugattiChironHornController : MonoBehaviour
         hornSource.priority = template.priority;
         configured = true;
         context.Logger.Info(
-            $"BugattiChiron horn vehicle={vehicle.GetInstanceID()}: configured self-contained Audi horn sample.");
+            $"BugattiChiron horn vehicle={vehicle.GetInstanceID()}: configured self-contained Audi horn sample " +
+            "with additional sample gain; source volume is already at the Unity maximum.");
         return true;
     }
 

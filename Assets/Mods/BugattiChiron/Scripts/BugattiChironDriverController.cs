@@ -19,6 +19,7 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
     private const float HandForwardOffset = 0.075f;
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.22f;
+    private const float FootForwardOffset = 0.18f;
     // Pelvis position relative to the Chiron steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.50f, -0.48f);
     private const int MaximumAttempts = 20;
@@ -220,7 +221,7 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
                 $"height={HandHeightOffset:F3} " +
                 $"leftBefore={originalLeftHand} leftAfter={VehiclePosition(leftHand)} " +
                 $"rightBefore={originalRightHand} rightAfter={VehiclePosition(rightHand)}.");
-        LogInfo($"leg alignment footRaise={FootRaise:F3} " +
+        LogInfo($"leg alignment footRaise={FootRaise:F3} forward={FootForwardOffset:F3} " +
                 $"leftBefore={originalLeftFoot} leftAfter={VehiclePosition(leftFoot)} " +
                 $"rightBefore={originalRightFoot} rightAfter={VehiclePosition(rightFoot)}.");
         LogInfo($"created from current player appearance; renderers={rendererCount} " +
@@ -289,6 +290,7 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
             return;
         var target = vehicle.transform.InverseTransformPoint(leg.End.position);
         target.y += FootRaise;
+        target.z += FootForwardOffset;
         leg.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
     }
 

@@ -28,10 +28,10 @@ public static class BugattiChironSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.7945f, 0.51f, 1.3555f) },
-            { "FrontRight_WheelController", new Vector3(0.7945f, 0.51f, 1.3555f) },
-            { "RearLeft_WheelController", new Vector3(-0.7505f, 0.51f, -1.3555f) },
-            { "RearRight_WheelController", new Vector3(0.7505f, 0.51f, -1.3555f) },
+            { "FrontLeft_WheelController", new Vector3(-0.7945f, 0.51f, 1.3255f) },
+            { "FrontRight_WheelController", new Vector3(0.7945f, 0.51f, 1.3255f) },
+            { "RearLeft_WheelController", new Vector3(-0.7505f, 0.51f, -1.3855f) },
+            { "RearRight_WheelController", new Vector3(0.7505f, 0.51f, -1.3855f) },
         };
 
     private static readonly float[] ChironGears =
@@ -192,6 +192,8 @@ public static class BugattiChironSetup
             var interiorSecondaryPaintSlots = 0;
             var interiorDarkPaintSlots = 0;
             var caliperSlots = 0;
+            var seatSlots = 0;
+            var paintTexturesReadable = true;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 if (!BugattiChironMaterials.IsBugattiRenderer(renderer.transform))
@@ -208,11 +210,20 @@ public static class BugattiChironSetup
                         bodyPaintSlots++;
                     }
                     if (IsDarkBodyPaintMaterial(material)) darkBodyPaintSlots++;
-                    if (IsRimPaintMaterial(material)) rimPaintSlots++;
+                    if (IsRimPaintMaterial(material))
+                    {
+                        rimPaintSlots++;
+                        paintTexturesReadable &= IsBaseTextureReadable(material);
+                    }
                     if (IsInteriorPrimaryPaintMaterial(material)) interiorPrimaryPaintSlots++;
                     if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
                     if (IsInteriorDarkPaintMaterial(material)) interiorDarkPaintSlots++;
                     if (IsCaliperMaterial(material)) caliperSlots++;
+                    if (IsSeatPaintMaterial(material))
+                    {
+                        seatSlots++;
+                        paintTexturesReadable &= IsBaseTextureReadable(material);
+                    }
                     if (BugattiChironMaterials.IsTransparentMaterial(material))
                     {
                         transparentMaterials++;
@@ -316,6 +327,8 @@ public static class BugattiChironSetup
                 interiorSecondaryPaintSlots == 0 ||
                 interiorDarkPaintSlots == 0 ||
                 caliperSlots != 4 ||
+                seatSlots != 1 ||
+                !paintTexturesReadable ||
                 !paintReferencesValid)
             {
                 throw new InvalidOperationException(
@@ -337,7 +350,8 @@ public static class BugattiChironSetup
                     $"rimPaintSlots={rimPaintSlots}, " +
                     $"interiorPaintSlots={interiorPrimaryPaintSlots}/" +
                     $"{interiorSecondaryPaintSlots}/{interiorDarkPaintSlots}, " +
-                    $"caliperSlots={caliperSlots}, " +
+                    $"caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
+                    $"paintTexturesReadable={paintTexturesReadable}, " +
                     $"paintReferences={paintReferencesValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
@@ -349,7 +363,8 @@ public static class BugattiChironSetup
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, darkBodyPaintSlots={darkBodyPaintSlots}, " +
-                $"rimPaintSlots={rimPaintSlots}, interiorPaint=true, calipersExcluded=true, " +
+                $"rimPaintSlots={rimPaintSlots}, interiorPaint=true, calipersPainted=true, " +
+                $"seatsPainted=true, paintTexturesReadable=true, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -774,6 +789,19 @@ public static class BugattiChironSetup
 
     private static bool IsCaliperMaterial(Material material) =>
         material.name.IndexOf("BugattiOpaque_02_Caliper", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsSeatPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_19_seats", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsBaseTextureReadable(Material material)
+    {
+        Texture? texture = null;
+        if (material.HasProperty("_BaseColorMap"))
+            texture = material.GetTexture("_BaseColorMap");
+        if (texture == null && material.HasProperty("_MainTex"))
+            texture = material.GetTexture("_MainTex");
+        return texture is Texture2D texture2D && texture2D.isReadable;
+    }
 
     private static bool IsDarkBodyPaintMaterial(Material material) =>
         material.name.IndexOf("BugattiOpaque_06_Darker_Parts", StringComparison.OrdinalIgnoreCase) >= 0;

@@ -6,6 +6,8 @@ using UnityEngine;
 
 internal static class BugattiChironWave
 {
+    private const float HornSampleGain = 1.75f;
+
     // Config is installed verbatim, keeping the horn self-contained in this mod.
     internal static AudioClip Load(string path)
     {
@@ -52,7 +54,10 @@ internal static class BugattiChironWave
 
         var samples = new float[bytes.Length / 2];
         for (var index = 0; index < samples.Length; index++)
-            samples[index] = (short)(bytes[index * 2] | bytes[index * 2 + 1] << 8) / 32768f;
+            samples[index] = Mathf.Clamp(
+                (short)(bytes[index * 2] | bytes[index * 2 + 1] << 8) / 32768f * HornSampleGain,
+                -1f,
+                1f);
         var clip = AudioClip.Create(Path.GetFileNameWithoutExtension(path), samples.Length, 1, rate, false);
         try
         {
