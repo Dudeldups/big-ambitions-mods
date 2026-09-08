@@ -91,7 +91,6 @@ namespace VehicleRepainter
             originalGasStationOverlay = overlayUi.gasStation;
             extendedGasStationOverlay = new ExtendedGasStationOverlay(this);
             overlayUi.gasStation = extendedGasStationOverlay;
-            context.Logger.Info("Installed the Repaint action in the vanilla gas-station service overlay.");
         }
 
         internal void Uninstall()
@@ -156,10 +155,6 @@ namespace VehicleRepainter
                 if (label != null)
                     label.Key = "vehicle-repainter:confirm";
             }
-
-            context.Logger.Info(
-                $"Opened Repaint for vehicle id '{vehicle.vehicleInstance.id}' with current color " +
-                $"'{vehicle.vehicleInstance.vehicleColorName}' and price {RepaintPrice}.");
         }
 
         private void HandleRepaintUiClosed(RepaintPurchasableAsset repaintAsset)
@@ -257,12 +252,7 @@ namespace VehicleRepainter
             public void ResetColor()
             {
                 if (!purchaseCompleted)
-                {
                     originalPaint.Restore(vehicle.CarFeatures);
-                    context.Logger.Info(
-                        $"Canceled Repaint for vehicle id '{vehicle.vehicleInstance.id}'; restored the exact original " +
-                        $"paint render state and left persisted color '{vehicle.vehicleInstance.vehicleColorName}' unchanged.");
-                }
 
                 RestoreGasStationOverlayIfStillRelevant();
                 onClosed(this);
@@ -307,9 +297,6 @@ namespace VehicleRepainter
                     1f,
                     isPlayerCreatedSound: true);
 
-                context.Logger.Info(
-                    $"Repainted vehicle id '{vehicle.vehicleInstance.id}' to '{selectedColorName}' for {RepaintPrice}; " +
-                    "the color name was stored on its VehicleInstance for save persistence.");
                 return true;
             }
 
