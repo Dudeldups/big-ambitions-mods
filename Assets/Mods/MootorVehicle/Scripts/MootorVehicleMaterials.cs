@@ -13,31 +13,33 @@ namespace MootorVehicle
         internal CowMaterialFixResult(
             int rendererCount,
             int decalMasksCleared,
-            int hdrpLitMaterialsFixed,
-            int hdrpLitMaterialsValidated,
+            int hdrpMaterialsFixed,
+            int hdrpMaterialsValidated,
             string shaderNames)
         {
             RendererCount = rendererCount;
             DecalMasksCleared = decalMasksCleared;
-            HdrpLitMaterialsFixed = hdrpLitMaterialsFixed;
-            HdrpLitMaterialsValidated = hdrpLitMaterialsValidated;
+            HdrpMaterialsFixed = hdrpMaterialsFixed;
+            HdrpMaterialsValidated = hdrpMaterialsValidated;
             ShaderNames = shaderNames;
         }
 
         internal int RendererCount { get; }
         internal int DecalMasksCleared { get; }
-        internal int HdrpLitMaterialsFixed { get; }
-        internal int HdrpLitMaterialsValidated { get; }
+        internal int HdrpMaterialsFixed { get; }
+        internal int HdrpMaterialsValidated { get; }
         internal string ShaderNames { get; }
     }
 
     internal static class MootorVehicleMaterials
     {
         private const uint HdrpDecalLayerMask = 0x0000FF00u;
-        private const string HdrpLitShaderName = "HDRP/Lit";
         private const string HdMaterialTypeName = "UnityEngine.Rendering.HighDefinition.HDMaterial";
+        private const string ShaderGraphApiTypeName = "UnityEngine.Rendering.HighDefinition.ShaderGraphAPI";
         private static MethodInfo? validateMaterialMethod;
         private static bool validateMaterialMethodResolved;
+        private static MethodInfo? validateShaderGraphMaterialMethod;
+        private static bool validateShaderGraphMaterialMethodResolved;
 
         internal static CowMaterialFixResult FixSolidCowMaterials(GameObject cowVisual)
         {
@@ -62,10 +64,10 @@ namespace MootorVehicle
 
                     var shaderName = material.shader != null ? material.shader.name : "<null>";
                     shaderNames.Add(shaderName);
-                    if (!string.Equals(shaderName, HdrpLitShaderName, StringComparison.Ordinal))
+                    if (!IsHdrpMaterial(material, shaderName))
                         continue;
 
-                    if (FixSolidHdrpLitMaterial(material))
+                    if (FixSolidHdrpMaterial(material))
                         hdrpMaterialsValidated++;
 
                     hdrpMaterialsFixed++;
@@ -82,27 +84,56 @@ namespace MootorVehicle
                 string.Join("|", orderedShaderNames));
         }
 
-        private static bool FixSolidHdrpLitMaterial(Material material)
+        private static bool IsHdrpMaterial(Material material, string shaderName)
         {
-            var color = material.GetColor("_BaseColor");
-            color.a = 1f;
-            material.SetColor("_BaseColor", color);
+            if (shaderName.StartsWith("HDRP/", StringComparison.Ordinal))
+                return true;
 
-            material.SetFloat("_SurfaceType", 0f);
-            material.SetFloat("_AlphaCutoffEnable", 0f);
-            material.SetFloat("_SupportDecals", 0f);
-            material.SetFloat("_ReceivesSSR", 0f);
-            material.SetFloat("_ReceivesSSRTransparent", 0f);
-            material.SetFloat("_RefractionModel", 0f);
+            var shaderGraphTarget = material.GetTag("ShaderGraphTargetId", false, string.Empty);
+            return shaderGraphTarget.StartsWith("HD", StringComparison.Ordinal) ||
+                   material.HasProperty("_SupportDecals");
+        }
+
+        private static bool FixSolidHdrpMaterial(Material material)
+        {
+            SetOpaqueColor(material, "_BaseColor");
+            SetOpaqueColor(material, "baseColorFactor");
+
+            SetFloat(material, "_SurfaceType", 0f);
+            SetFloat(material, "_AlphaCutoffEnable", 0f);
+            SetFloat(material, "_SupportDecals", 0f);
+            SetFloat(material, "_ReceivesSSR", 0f);
+            SetFloat(material, "_ReceivesSSRTransparent", 0f);
+            SetFloat(material, "_RefractionModel", 0f);
             material.renderQueue = (int)RenderQueue.Geometry;
             material.SetOverrideTag("RenderType", "Opaque");
 
             var validated = TryValidateHdrpMaterial(material);
 
-            material.SetFloat("_ZWrite", 1f);
-            material.SetFloat("_SrcBlend", (float)BlendMode.One);
-            material.SetFloat("_DstBlend", (float)BlendMode.Zero);
+            // Keep the critical keywords explicit if HDRP validation is unavailable in a future build.
+            material.EnableKeyword("_DISABLE_DECALS");
+            material.EnableKeyword("_DISABLE_SSR");
+            material.EnableKeyword("_DISABLE_SSR_TRANSPARENT");
+            SetFloat(material, "_ZWrite", 1f);
+            SetFloat(material, "_SrcBlend", (float)BlendMode.One);
+            SetFloat(material, "_DstBlend", (float)BlendMode.Zero);
             return validated;
+        }
+
+        private static void SetOpaqueColor(Material material, string property)
+        {
+            if (!material.HasProperty(property))
+                return;
+
+            var color = material.GetColor(property);
+            color.a = 1f;
+            material.SetColor(property, color);
+        }
+
+        private static void SetFloat(Material material, string property, float value)
+        {
+            if (material.HasProperty(property))
+                material.SetFloat(property, value);
         }
 
         private static bool TryValidateHdrpMaterial(Material material)
@@ -110,6 +141,17 @@ namespace MootorVehicle
             try
             {
                 var method = ResolveValidateMaterialMethod();
+                if (method != null)
+                {
+                    var result = method.Invoke(null, new object[] { material });
+                    if (result is not bool validated || validated)
+                        return true;
+                }
+
+                // glTFast's HDRP shader graph does not expose the target tag expected by
+                // HDMaterial.ValidateMaterial. Invoke HDRP's shader-graph validator directly
+                // so its decal keywords, passes, and stencil state are synchronized.
+                method = ResolveValidateShaderGraphMaterialMethod();
                 if (method == null)
                     return false;
 
@@ -145,6 +187,31 @@ namespace MootorVehicle
             }
 
             return validateMaterialMethod;
+        }
+
+        private static MethodInfo? ResolveValidateShaderGraphMaterialMethod()
+        {
+            if (validateShaderGraphMaterialMethodResolved)
+                return validateShaderGraphMaterialMethod;
+
+            validateShaderGraphMaterialMethodResolved = true;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(ShaderGraphApiTypeName, false);
+                if (type == null)
+                    continue;
+
+                validateShaderGraphMaterialMethod = type.GetMethod(
+                    "ValidateLightingMaterial",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                    null,
+                    new[] { typeof(Material) },
+                    null);
+                if (validateShaderGraphMaterialMethod != null)
+                    break;
+            }
+
+            return validateShaderGraphMaterialMethod;
         }
     }
 
@@ -186,13 +253,13 @@ namespace MootorVehicle
             context?.Logger.Info(
                 $"Moo-tor Vehicle materials vehicle={vehicle.GetInstanceID()}: " +
                 $"renderers={result.RendererCount} decalMasksCleared={result.DecalMasksCleared} " +
-                $"hdrpLitFixed={result.HdrpLitMaterialsFixed} " +
-                $"hdrpLitValidated={result.HdrpLitMaterialsValidated} shaders='{result.ShaderNames}'.");
-            if (result.HdrpLitMaterialsValidated < result.HdrpLitMaterialsFixed)
+                $"hdrpFixed={result.HdrpMaterialsFixed} " +
+                $"hdrpValidated={result.HdrpMaterialsValidated} shaders='{result.ShaderNames}'.");
+            if (result.HdrpMaterialsValidated < result.HdrpMaterialsFixed)
                 context?.Logger.Warn(
                     $"Moo-tor Vehicle materials vehicle={vehicle.GetInstanceID()}: " +
                     $"HDRP validation was unavailable for " +
-                    $"{result.HdrpLitMaterialsFixed - result.HdrpLitMaterialsValidated} material(s).");
+                    $"{result.HdrpMaterialsFixed - result.HdrpMaterialsValidated} material(s).");
         }
     }
 }

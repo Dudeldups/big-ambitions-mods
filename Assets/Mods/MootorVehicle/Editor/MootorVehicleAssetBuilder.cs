@@ -186,8 +186,8 @@ namespace MootorVehicle.Editor
                 Debug.Log(
                     $"Moo-tor Vehicle: prepared solid cow materials renderers={materialFix.RendererCount} " +
                     $"decalMasksCleared={materialFix.DecalMasksCleared} " +
-                    $"hdrpLitFixed={materialFix.HdrpLitMaterialsFixed} " +
-                    $"hdrpLitValidated={materialFix.HdrpLitMaterialsValidated} " +
+                    $"hdrpFixed={materialFix.HdrpMaterialsFixed} " +
+                    $"hdrpValidated={materialFix.HdrpMaterialsValidated} " +
                     $"shaders='{materialFix.ShaderNames}'.");
 
                 ReplaceSerializedReferences(root, templateType, vehicleType);
@@ -1226,21 +1226,21 @@ namespace MootorVehicle.Editor
             internal CowMaterialFixResult(
                 int rendererCount,
                 int decalMasksCleared,
-                int hdrpLitMaterialsFixed,
-                int hdrpLitMaterialsValidated,
+                int hdrpMaterialsFixed,
+                int hdrpMaterialsValidated,
                 string shaderNames)
             {
                 RendererCount = rendererCount;
                 DecalMasksCleared = decalMasksCleared;
-                HdrpLitMaterialsFixed = hdrpLitMaterialsFixed;
-                HdrpLitMaterialsValidated = hdrpLitMaterialsValidated;
+                HdrpMaterialsFixed = hdrpMaterialsFixed;
+                HdrpMaterialsValidated = hdrpMaterialsValidated;
                 ShaderNames = shaderNames;
             }
 
             internal int RendererCount { get; }
             internal int DecalMasksCleared { get; }
-            internal int HdrpLitMaterialsFixed { get; }
-            internal int HdrpLitMaterialsValidated { get; }
+            internal int HdrpMaterialsFixed { get; }
+            internal int HdrpMaterialsValidated { get; }
             internal string ShaderNames { get; }
         }
 
@@ -1268,27 +1268,32 @@ namespace MootorVehicle.Editor
 
                     var shaderName = material.shader != null ? material.shader.name : "<null>";
                     shaderNames.Add(shaderName);
-                    if (!string.Equals(shaderName, "HDRP/Lit", StringComparison.Ordinal))
+                    var shaderGraphTarget = material.GetTag("ShaderGraphTargetId", false, string.Empty);
+                    if (!shaderName.StartsWith("HDRP/", StringComparison.Ordinal) &&
+                        !shaderGraphTarget.StartsWith("HD", StringComparison.Ordinal) &&
+                        !material.HasProperty("_SupportDecals"))
                         continue;
 
-                    var color = material.GetColor("_BaseColor");
-                    color.a = 1f;
-                    material.SetColor("_BaseColor", color);
-                    material.SetFloat("_SurfaceType", 0f);
-                    material.SetFloat("_AlphaCutoffEnable", 0f);
-                    material.SetFloat("_SupportDecals", 0f);
-                    material.SetFloat("_ReceivesSSR", 0f);
-                    material.SetFloat("_ReceivesSSRTransparent", 0f);
-                    material.SetFloat("_RefractionModel", 0f);
+                    SetOpaqueMaterialColor(material, "_BaseColor");
+                    SetOpaqueMaterialColor(material, "baseColorFactor");
+                    SetMaterialFloat(material, "_SurfaceType", 0f);
+                    SetMaterialFloat(material, "_AlphaCutoffEnable", 0f);
+                    SetMaterialFloat(material, "_SupportDecals", 0f);
+                    SetMaterialFloat(material, "_ReceivesSSR", 0f);
+                    SetMaterialFloat(material, "_ReceivesSSRTransparent", 0f);
+                    SetMaterialFloat(material, "_RefractionModel", 0f);
                     material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
                     material.SetOverrideTag("RenderType", "Opaque");
 
                     if (TryValidateHdrpMaterialForBundle(material))
                         hdrpMaterialsValidated++;
 
-                    material.SetFloat("_ZWrite", 1f);
-                    material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-                    material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+                    material.EnableKeyword("_DISABLE_DECALS");
+                    material.EnableKeyword("_DISABLE_SSR");
+                    material.EnableKeyword("_DISABLE_SSR_TRANSPARENT");
+                    SetMaterialFloat(material, "_ZWrite", 1f);
+                    SetMaterialFloat(material, "_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                    SetMaterialFloat(material, "_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
                     hdrpMaterialsFixed++;
                 }
             }
@@ -1303,9 +1308,26 @@ namespace MootorVehicle.Editor
                 string.Join("|", orderedShaderNames));
         }
 
+        private static void SetOpaqueMaterialColor(Material material, string property)
+        {
+            if (!material.HasProperty(property))
+                return;
+
+            var color = material.GetColor(property);
+            color.a = 1f;
+            material.SetColor(property, color);
+        }
+
+        private static void SetMaterialFloat(Material material, string property, float value)
+        {
+            if (material.HasProperty(property))
+                material.SetFloat(property, value);
+        }
+
         private static bool TryValidateHdrpMaterialForBundle(Material material)
         {
             const string hdMaterialTypeName = "UnityEngine.Rendering.HighDefinition.HDMaterial";
+            const string shaderGraphApiTypeName = "UnityEngine.Rendering.HighDefinition.ShaderGraphAPI";
             try
             {
                 foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -1316,6 +1338,31 @@ namespace MootorVehicle.Editor
 
                     var method = type.GetMethod(
                         "ValidateMaterial",
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.Static,
+                        null,
+                        new[] { typeof(Material) },
+                        null);
+                    if (method == null)
+                        continue;
+
+                    var result = method.Invoke(null, new object[] { material });
+                    if (result is not bool validated || validated)
+                        return true;
+                    break;
+                }
+
+                // glTFast's HDRP graph can lack the target tag used by HDMaterial's
+                // dispatcher. Validate it through HDRP's graph-specific path instead.
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var type = assembly.GetType(shaderGraphApiTypeName, false);
+                    if (type == null)
+                        continue;
+
+                    var method = type.GetMethod(
+                        "ValidateLightingMaterial",
                         System.Reflection.BindingFlags.Public |
                         System.Reflection.BindingFlags.NonPublic |
                         System.Reflection.BindingFlags.Static,
