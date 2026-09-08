@@ -174,6 +174,9 @@ public static class BugattiChironSetup
             var transparentMaterialsDoubleSided = true;
             var cabinGlassTintValid = true;
             var opaqueRendererMasksSafe = true;
+            var paintRenderers = new HashSet<Renderer>();
+            var bodyPaintSlots = 0;
+            var rimPaintSlots = 0;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 if (!BugattiChironMaterials.IsBugattiRenderer(renderer.transform))
@@ -184,6 +187,16 @@ public static class BugattiChironSetup
                 {
                     if (material == null)
                         continue;
+                    if (IsBodyPaintMaterial(material))
+                    {
+                        paintRenderers.Add(renderer);
+                        bodyPaintSlots++;
+                    }
+                    if (IsRimPaintMaterial(material))
+                    {
+                        paintRenderers.Add(renderer);
+                        rimPaintSlots++;
+                    }
                     if (BugattiChironMaterials.IsTransparentMaterial(material))
                     {
                         transparentMaterials++;
@@ -226,6 +239,35 @@ public static class BugattiChironSetup
                     opaqueRendererMasksSafe = false;
             }
 
+            var paintReferencesValid = false;
+            MonoBehaviour carFeatures = null;
+            foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (component != null &&
+                    string.Equals(component.GetType().Name, "CarFeatures", StringComparison.Ordinal))
+                {
+                    carFeatures = component;
+                    break;
+                }
+            }
+            if (carFeatures != null)
+            {
+                var bodyMeshes = new SerializedObject(carFeatures).FindProperty("bodyMeshes");
+                if (bodyMeshes != null && bodyMeshes.isArray && bodyMeshes.arraySize == paintRenderers.Count)
+                {
+                    paintReferencesValid = true;
+                    for (var index = 0; index < bodyMeshes.arraySize; index++)
+                    {
+                        if (!(bodyMeshes.GetArrayElementAtIndex(index).objectReferenceValue is Renderer renderer) ||
+                            !paintRenderers.Contains(renderer))
+                        {
+                            paintReferencesValid = false;
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (Math.Abs(price - 2400000f) > 0.5f ||
                 Math.Abs(maxFuel - 100f) > 0.5f ||
                 Math.Abs(maxSpeed - 420f) > 0.5f ||
@@ -249,7 +291,10 @@ public static class BugattiChironSetup
                 !opaqueRendererMasksSafe ||
                 transparentMaterials == 0 ||
                 !transparentMaterialsDoubleSided ||
-                !cabinGlassTintValid)
+                !cabinGlassTintValid ||
+                bodyPaintSlots == 0 ||
+                rimPaintSlots != 4 ||
+                !paintReferencesValid)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
@@ -265,6 +310,8 @@ public static class BugattiChironSetup
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
                     $"cabinGlassTint={cabinGlassTintValid}, " +
+                    $"bodyPaintSlots={bodyPaintSlots}, rimPaintSlots={rimPaintSlots}, " +
+                    $"paintReferences={paintReferencesValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
 
@@ -273,6 +320,7 @@ public static class BugattiChironSetup
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, sevenSpeed=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
+                $"bodyPaintSlots={bodyPaintSlots}, rimPaintSlots={rimPaintSlots}, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -656,10 +704,20 @@ public static class BugattiChironSetup
     private static void ConfigureRendererReferences(GameObject root)
     {
         var renderers = new List<Renderer>();
+        var paintRenderers = new List<Renderer>();
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
         {
-            if (renderer.enabled && renderer.sharedMaterials.Length > 0)
-                renderers.Add(renderer);
+            if (!renderer.enabled || renderer.sharedMaterials.Length == 0)
+                continue;
+            renderers.Add(renderer);
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material != null && (IsBodyPaintMaterial(material) || IsRimPaintMaterial(material)))
+                {
+                    paintRenderers.Add(renderer);
+                    break;
+                }
+            }
         }
 
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
@@ -667,11 +725,17 @@ public static class BugattiChironSetup
             if (component == null)
                 continue;
             var serialized = new SerializedObject(component);
-            AssignRendererArray(serialized.FindProperty("bodyMeshes"), renderers);
+            AssignRendererArray(serialized.FindProperty("bodyMeshes"), paintRenderers);
             AssignRendererArray(serialized.FindProperty("renderers"), renderers);
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
     }
+
+    private static bool IsBodyPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_04_Body", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsRimPaintMaterial(Material material) =>
+        material.name.IndexOf("BugattiOpaque_01_Rims", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static void AssignPersistentMaterials(GameObject model)
     {

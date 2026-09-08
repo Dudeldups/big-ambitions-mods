@@ -263,6 +263,14 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (driverController == null)
                 driverController = vehicle.gameObject.AddComponent<BugattiChironDriverController>();
             driverController.Initialize(vehicle, context);
+            var paintController = vehicle.GetComponent<BugattiChironPaintController>();
+            if (paintController == null)
+                paintController = vehicle.gameObject.AddComponent<BugattiChironPaintController>();
+            paintController.Initialize(vehicle, context);
+            var hornController = vehicle.GetComponent<BugattiChironHornController>();
+            if (hornController == null)
+                hornController = vehicle.gameObject.AddComponent<BugattiChironHornController>();
+            hornController.Initialize(vehicle, context);
 
             context?.Logger.Info(
                 $"BugattiChiron: configured vehicle instance={instanceId}, " +

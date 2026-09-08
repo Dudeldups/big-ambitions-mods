@@ -16,6 +16,9 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
     private const float HandHalfSpacing = 0.19f;
+    private const float HandForwardOffset = 0.04f;
+    private const float HandHeightOffset = 0.018f;
+    private const float FootRaise = 0.14f;
     // Pelvis position relative to the Chiron steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.50f, -0.48f);
     private const int MaximumAttempts = 20;
@@ -25,8 +28,10 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
     private GameObject? driverRoot;
     private Transform? hips;
     private Transform? steeringWheel;
-    private SeatedArm? leftArm;
-    private SeatedArm? rightArm;
+    private SeatedLimb? leftArm;
+    private SeatedLimb? rightArm;
+    private SeatedLimb? leftLeg;
+    private SeatedLimb? rightLeg;
     private PlayableGraph poseGraph;
     private AnimationClipPlayable pose;
     private float poseLength;
@@ -85,9 +90,12 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
             pose.SetTime(poseTime);
             leftArm?.RestoreAnimationPose();
             rightArm?.RestoreAnimationPose();
+            leftLeg?.RestoreAnimationPose();
+            rightLeg?.RestoreAnimationPose();
             poseGraph.Evaluate(0f);
             AlignWithSeat();
             AlignHandsWithWheel();
+            RaiseFeetAndKnees();
         }
         catch (Exception ex)
         {
@@ -196,12 +204,25 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
             HumanBodyBones.LeftHand);
         rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
             HumanBodyBones.RightHand);
+        leftLeg = CreateLimb(animator, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg,
+            HumanBodyBones.LeftFoot, "left leg");
+        rightLeg = CreateLimb(animator, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg,
+            HumanBodyBones.RightFoot, "right leg");
+        var leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+        var rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
         var originalLeftHand = VehiclePosition(leftHand);
         var originalRightHand = VehiclePosition(rightHand);
+        var originalLeftFoot = VehiclePosition(leftFoot);
+        var originalRightFoot = VehiclePosition(rightFoot);
         AlignHandsWithWheel();
-        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} " +
+        RaiseFeetAndKnees();
+        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} forward={HandForwardOffset:F3} " +
+                $"height={HandHeightOffset:F3} " +
                 $"leftBefore={originalLeftHand} leftAfter={VehiclePosition(leftHand)} " +
                 $"rightBefore={originalRightHand} rightAfter={VehiclePosition(rightHand)}.");
+        LogInfo($"leg alignment footRaise={FootRaise:F3} " +
+                $"leftBefore={originalLeftFoot} leftAfter={VehiclePosition(leftFoot)} " +
+                $"rightBefore={originalRightFoot} rightAfter={VehiclePosition(rightFoot)}.");
         LogInfo($"created from current player appearance; renderers={rendererCount} " +
                 $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
                 $"transforms={transforms.Count} clip='{sittingClip.name}' " +
@@ -219,16 +240,20 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
         driverRoot.transform.position += seatPosition - hips.position;
     }
 
-    private SeatedArm? CreateArm(Animator animator, HumanBodyBones upperBone,
+    private SeatedLimb? CreateArm(Animator animator, HumanBodyBones upperBone,
         HumanBodyBones lowerBone, HumanBodyBones handBone)
+        => CreateLimb(animator, upperBone, lowerBone, handBone, handBone.ToString());
+
+    private SeatedLimb? CreateLimb(Animator animator, HumanBodyBones upperBone,
+        HumanBodyBones lowerBone, HumanBodyBones endBone, string description)
     {
         var upper = animator.GetBoneTransform(upperBone);
         var lower = animator.GetBoneTransform(lowerBone);
-        var hand = animator.GetBoneTransform(handBone);
-        if (upper != null && lower != null && hand != null)
-            return new SeatedArm(upper, lower, hand);
+        var end = animator.GetBoneTransform(endBone);
+        if (upper != null && lower != null && end != null)
+            return new SeatedLimb(upper, lower, end);
         context?.Logger.Warn($"BugattiChiron driver vehicle={vehicle?.GetInstanceID()}: " +
-                             $"cannot refine {handBone}; arm bones are missing. Keeping native pose.");
+                             $"cannot refine {description}; limb bones are missing. Keeping native pose.");
         return null;
     }
 
@@ -241,30 +266,47 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
         AlignHand(rightArm, centerX + HandHalfSpacing);
     }
 
-    private void AlignHand(SeatedArm? arm, float targetX)
+    private void AlignHand(SeatedLimb? arm, float targetX)
     {
         if (arm == null || vehicle == null)
             return;
-        var target = vehicle.transform.InverseTransformPoint(arm.Hand.position);
+        var target = vehicle.transform.InverseTransformPoint(arm.End.position);
         target.x = targetX;
+        target.y += HandHeightOffset;
+        target.z += HandForwardOffset;
         arm.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
     }
 
-    private sealed class SeatedArm
+    private void RaiseFeetAndKnees()
+    {
+        RaiseFoot(leftLeg);
+        RaiseFoot(rightLeg);
+    }
+
+    private void RaiseFoot(SeatedLimb? leg)
+    {
+        if (leg == null || vehicle == null)
+            return;
+        var target = vehicle.transform.InverseTransformPoint(leg.End.position);
+        target.y += FootRaise;
+        leg.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
+    }
+
+    private sealed class SeatedLimb
     {
         private readonly Transform upper;
         private readonly Transform lower;
-        public readonly Transform Hand;
+        public readonly Transform End;
         private Quaternion upperPose;
         private Quaternion lowerPose;
-        private Quaternion handPose;
+        private Quaternion endPose;
         private bool hasAdjustment;
 
-        public SeatedArm(Transform upper, Transform lower, Transform hand)
+        public SeatedLimb(Transform upper, Transform lower, Transform end)
         {
             this.upper = upper;
             this.lower = lower;
-            Hand = hand;
+            End = end;
         }
 
         public void RestoreAnimationPose()
@@ -273,7 +315,7 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
                 return;
             upper.localRotation = upperPose;
             lower.localRotation = lowerPose;
-            Hand.localRotation = handPose;
+            End.localRotation = endPose;
             hasAdjustment = false;
         }
 
@@ -281,19 +323,19 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
         {
             // Retain the native elbow bend and grip orientation. Only rotate bones;
             // do not stretch the mesh or move the shoulder/torso.
-            if (!TrySolveElbow(upper.position, lower.position, Hand.position, target,
+            if (!TrySolveElbow(upper.position, lower.position, End.position, target,
                     fallbackDirection, out var elbow, out var reachableTarget))
                 return;
             upperPose = upper.localRotation;
             lowerPose = lower.localRotation;
-            handPose = Hand.localRotation;
+            endPose = End.localRotation;
             hasAdjustment = true;
-            var gripRotation = Hand.rotation;
+            var endRotation = End.rotation;
             upper.rotation = Quaternion.FromToRotation(lower.position - upper.position,
                 elbow - upper.position) * upper.rotation;
-            lower.rotation = Quaternion.FromToRotation(Hand.position - lower.position,
+            lower.rotation = Quaternion.FromToRotation(End.position - lower.position,
                 reachableTarget - lower.position) * lower.rotation;
-            Hand.rotation = gripRotation;
+            End.rotation = endRotation;
         }
     }
 
@@ -445,6 +487,8 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
         hips = null;
         leftArm = null;
         rightArm = null;
+        leftLeg = null;
+        rightLeg = null;
         foreach (var asset in ownedAssets)
             if (asset != null) Destroy(asset);
         ownedAssets.Clear();

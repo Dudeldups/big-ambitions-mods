@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1609830508
+CRC: 1674020382
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: f9fba71488941ed54aaca73cdbe8b154
+    Hash: 78ebdf84dba2c8a8b255b9143135569b
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: f9fba71488941ed54aaca73cdbe8b154
+    Hash: 78ebdf84dba2c8a8b255b9143135569b
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -240,6 +240,7 @@ Assets:
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_04_Tail-light-glass.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_13_Interior_1.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_17_Interior-light.mat
+- Assets/Mods/BugattiChiron/Config/Audio/Horn.wav
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_22_Headlights-light.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_04_Body.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_16_Mirror.mat
