@@ -176,11 +176,19 @@ namespace MootorVehicle.Editor
                     .GetComponentsInChildren<Renderer>(true)
                     .Where(renderer => renderer.enabled)
                     .ToArray();
+                var materialFix = FixSolidCowMaterialsForBundle(cowVisual);
                 foreach (var renderer in cowRenderers)
                 {
                     renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                     renderer.receiveShadows = true;
                 }
+
+                Debug.Log(
+                    $"Moo-tor Vehicle: prepared solid cow materials renderers={materialFix.RendererCount} " +
+                    $"decalMasksCleared={materialFix.DecalMasksCleared} " +
+                    $"hdrpLitFixed={materialFix.HdrpLitMaterialsFixed} " +
+                    $"hdrpLitValidated={materialFix.HdrpLitMaterialsValidated} " +
+                    $"shaders='{materialFix.ShaderNames}'.");
 
                 ReplaceSerializedReferences(root, templateType, vehicleType);
                 ReplaceSerializedString(root, OldVehicleTypeName, VehicleTypeName);
@@ -1211,6 +1219,122 @@ namespace MootorVehicle.Editor
                 return false;
             property.stringValue = value;
             return true;
+        }
+
+        private readonly struct CowMaterialFixResult
+        {
+            internal CowMaterialFixResult(
+                int rendererCount,
+                int decalMasksCleared,
+                int hdrpLitMaterialsFixed,
+                int hdrpLitMaterialsValidated,
+                string shaderNames)
+            {
+                RendererCount = rendererCount;
+                DecalMasksCleared = decalMasksCleared;
+                HdrpLitMaterialsFixed = hdrpLitMaterialsFixed;
+                HdrpLitMaterialsValidated = hdrpLitMaterialsValidated;
+                ShaderNames = shaderNames;
+            }
+
+            internal int RendererCount { get; }
+            internal int DecalMasksCleared { get; }
+            internal int HdrpLitMaterialsFixed { get; }
+            internal int HdrpLitMaterialsValidated { get; }
+            internal string ShaderNames { get; }
+        }
+
+        private static CowMaterialFixResult FixSolidCowMaterialsForBundle(GameObject cowVisual)
+        {
+            const uint hdrpDecalLayerMask = 0x0000FF00u;
+            var renderers = cowVisual.GetComponentsInChildren<Renderer>(true);
+            var materials = new HashSet<Material>();
+            var shaderNames = new HashSet<string>(StringComparer.Ordinal);
+            var decalMasksCleared = 0;
+            var hdrpMaterialsFixed = 0;
+            var hdrpMaterialsValidated = 0;
+
+            foreach (var renderer in renderers)
+            {
+                var previousMask = renderer.renderingLayerMask;
+                renderer.renderingLayerMask &= ~hdrpDecalLayerMask;
+                if (renderer.renderingLayerMask != previousMask)
+                    decalMasksCleared++;
+
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    if (material == null || !materials.Add(material))
+                        continue;
+
+                    var shaderName = material.shader != null ? material.shader.name : "<null>";
+                    shaderNames.Add(shaderName);
+                    if (!string.Equals(shaderName, "HDRP/Lit", StringComparison.Ordinal))
+                        continue;
+
+                    var color = material.GetColor("_BaseColor");
+                    color.a = 1f;
+                    material.SetColor("_BaseColor", color);
+                    material.SetFloat("_SurfaceType", 0f);
+                    material.SetFloat("_AlphaCutoffEnable", 0f);
+                    material.SetFloat("_SupportDecals", 0f);
+                    material.SetFloat("_ReceivesSSR", 0f);
+                    material.SetFloat("_ReceivesSSRTransparent", 0f);
+                    material.SetFloat("_RefractionModel", 0f);
+                    material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+                    material.SetOverrideTag("RenderType", "Opaque");
+
+                    if (TryValidateHdrpMaterialForBundle(material))
+                        hdrpMaterialsValidated++;
+
+                    material.SetFloat("_ZWrite", 1f);
+                    material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                    material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+                    hdrpMaterialsFixed++;
+                }
+            }
+
+            var orderedShaderNames = shaderNames.ToList();
+            orderedShaderNames.Sort(StringComparer.Ordinal);
+            return new CowMaterialFixResult(
+                renderers.Length,
+                decalMasksCleared,
+                hdrpMaterialsFixed,
+                hdrpMaterialsValidated,
+                string.Join("|", orderedShaderNames));
+        }
+
+        private static bool TryValidateHdrpMaterialForBundle(Material material)
+        {
+            const string hdMaterialTypeName = "UnityEngine.Rendering.HighDefinition.HDMaterial";
+            try
+            {
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var type = assembly.GetType(hdMaterialTypeName, false);
+                    if (type == null)
+                        continue;
+
+                    var method = type.GetMethod(
+                        "ValidateMaterial",
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.Static,
+                        null,
+                        new[] { typeof(Material) },
+                        null);
+                    if (method == null)
+                        continue;
+
+                    method.Invoke(null, new object[] { material });
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         private static bool SetInt(SerializedObject serialized, string path, int value)
