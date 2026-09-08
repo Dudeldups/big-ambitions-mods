@@ -1,8 +1,10 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using BAModAPI;
 using BigAmbitions.InputSystem;
 using UnityEngine;
@@ -20,6 +22,12 @@ namespace DeveloperTools
         private readonly DeveloperToolsPlayerService player;
         private readonly DeveloperToolsTimeService time;
         private readonly List<Texture2D> ownedTextures = new List<Texture2D>();
+        private readonly List<object> suspendedGameplayActions = new List<object>();
+        private readonly FieldInfo? playerActionMapField = typeof(InputActionHelper).GetField("PlayerInputActionMap", BindingFlags.Public | BindingFlags.Static);
+        private readonly FieldInfo? designerActionMapField = typeof(InputActionHelper).GetField("InteriorDesignerInputActionMap", BindingFlags.Public | BindingFlags.Static);
+        private PropertyInfo? actionEnabledProperty;
+        private MethodInfo? actionDisableMethod;
+        private MethodInfo? actionEnableMethod;
         private GUISkin? customSkin;
         private Rect windowRect = new Rect(40f, 30f, WindowWidth, WindowHeight);
         private Vector2 mainScroll;
@@ -29,6 +37,7 @@ namespace DeveloperTools
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
+        private bool cursorRestorePending;
         private bool cursorWasVisible;
         private CursorLockMode previousCursorLock;
         private string selectedVehicleId = string.Empty;
@@ -74,10 +83,16 @@ namespace DeveloperTools
         private void Show()
         {
             visible = true;
-            cursorWasVisible = Cursor.visible;
-            previousCursorLock = Cursor.lockState;
+            if (!cursorRestorePending)
+            {
+                cursorWasVisible = Cursor.visible;
+                previousCursorLock = Cursor.lockState;
+            }
+            cursorRestorePending = false;
+            inputReleaseBlockFrames = 0;
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
+            SuspendGameplayActions();
             vehicles.Refresh();
             items.EnsurePopulated();
             if (vehicles.Entries.Count > 0 && vehicles.Entries.All(entry => entry.Id != selectedVehicleId))
@@ -95,10 +110,9 @@ namespace DeveloperTools
                 return;
             visible = false;
             inputReleaseBlockFrames = Math.Max(inputReleaseBlockFrames, 3);
+            cursorRestorePending = true;
             vehicleDropdownOpen = false;
             itemDropdownOpen = false;
-            Cursor.visible = cursorWasVisible;
-            Cursor.lockState = previousCursorLock;
             context.Logger.Info("DeveloperTools: testing UI closed.");
         }
 
@@ -107,24 +121,83 @@ namespace DeveloperTools
             if (!ShouldConsumeGameplayInput)
                 return;
 
-            // Big Ambitions reads movement and shortcuts from the newer input
-            // action maps. Reset both those maps and the legacy axes; IMGUI text
-            // entry is event-driven and remains functional.
-            InputActionHelper.ResetAllActions();
+            // The game's action set remains disabled until the close gesture has
+            // drained. IMGUI text entry reads keyboard events independently.
             Input.ResetInputAxes();
             if (!visible)
+            {
                 inputReleaseBlockFrames--;
+                if (inputReleaseBlockFrames <= 0)
+                    RestoreCursor();
+            }
         }
 
         public void Shutdown()
         {
             Hide();
+            RestoreCursor();
             if (customSkin != null)
                 UnityEngine.Object.Destroy(customSkin);
             customSkin = null;
             foreach (var texture in ownedTextures)
                 if (texture != null) UnityEngine.Object.Destroy(texture);
             ownedTextures.Clear();
+        }
+
+        private void RestoreCursor()
+        {
+            if (!cursorRestorePending)
+                return;
+
+            cursorRestorePending = false;
+            RestoreGameplayActions();
+            Cursor.visible = cursorWasVisible;
+            Cursor.lockState = previousCursorLock;
+        }
+
+        private void SuspendGameplayActions()
+        {
+            if (suspendedGameplayActions.Count > 0)
+                return;
+
+            SuspendActionMap(playerActionMapField?.GetValue(null) as IDictionary);
+            SuspendActionMap(designerActionMapField?.GetValue(null) as IDictionary);
+        }
+
+        private void SuspendActionMap(IDictionary? actionMap)
+        {
+            if (actionMap == null)
+                return;
+
+            foreach (DictionaryEntry entry in actionMap)
+                SuspendAction(entry.Value);
+        }
+
+        private void SuspendAction(object? action)
+        {
+            if (action == null || suspendedGameplayActions.Contains(action))
+                return;
+
+            CacheActionMembers(action.GetType());
+            if (actionEnabledProperty?.GetValue(action) is not bool enabled || !enabled)
+                return;
+
+            actionDisableMethod?.Invoke(action, null);
+            suspendedGameplayActions.Add(action);
+        }
+
+        private void RestoreGameplayActions()
+        {
+            foreach (var action in suspendedGameplayActions)
+                actionEnableMethod?.Invoke(action, null);
+            suspendedGameplayActions.Clear();
+        }
+
+        private void CacheActionMembers(Type actionType)
+        {
+            actionEnabledProperty ??= actionType.GetProperty("enabled", BindingFlags.Public | BindingFlags.Instance);
+            actionDisableMethod ??= actionType.GetMethod("Disable", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            actionEnableMethod ??= actionType.GetMethod("Enable", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
         }
 
         public void OnGui()
