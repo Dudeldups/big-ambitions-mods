@@ -30,7 +30,6 @@ namespace DeveloperTools
                     entries.Add(new CatalogEntry(id, Localize(id)));
             }
             entries.Sort((left, right) => string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase));
-            context.Logger.Info("DeveloperTools: refreshed vehicle catalog; count=" + entries.Count + ".");
         }
 
         public bool Spawn(string vehicleTypeName, out string message)
@@ -67,13 +66,11 @@ namespace DeveloperTools
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
                 lastSpawnedVehicleId = instance.id;
                 message = "Spawned " + Localize(vehicleTypeName) + ".";
-                context.Logger.Info("DeveloperTools: vehicle spawned; type=" + vehicleTypeName + ", id=" + instance.id + ", position=" + position + ".");
                 return true;
             }
             catch (Exception exception)
             {
                 message = "Vehicle spawn failed: " + exception.Message;
-                context.Logger.Warn("DeveloperTools: vehicle spawn exception: " + exception.Message);
                 context.Logger.Error(exception);
                 return false;
             }
@@ -93,15 +90,12 @@ namespace DeveloperTools
             {
                 message = "The last spawned vehicle is no longer present.";
                 lastSpawnedVehicleId = string.Empty;
-                context.Logger.Warn("DeveloperTools: despawn skipped because the last spawned controller was not found.");
                 return false;
             }
 
-            var removedId = lastSpawnedVehicleId;
             VehicleHelper.Delete(controller.vehicleInstance, controller);
             lastSpawnedVehicleId = string.Empty;
             message = "Despawned the last test vehicle.";
-            context.Logger.Info("DeveloperTools: vehicle despawned; id=" + removedId + ".");
             return true;
         }
 

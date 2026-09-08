@@ -1,6 +1,5 @@
 #nullable enable
 using System;
-using BAModAPI;
 using Helpers;
 using UnityEngine;
 using UnityEngine.AI;
@@ -10,9 +9,10 @@ namespace DeveloperTools
     internal sealed class DeveloperToolsPlayerService
     {
         private const float GroundOffset = 0.05f;
-        private readonly ModContext context;
 
-        public DeveloperToolsPlayerService(ModContext context) => this.context = context;
+        public DeveloperToolsPlayerService()
+        {
+        }
 
         public Transform? PlayerTransform => PlayerHelper.PlayerController?.transform;
 
@@ -28,7 +28,6 @@ namespace DeveloperTools
             SaveGameManager.Current.hasEverUsedMods = true;
             SaveGameManager.MarkChange();
             message = "Added " + amount.ToString("$#,##0.##") + ".";
-            context.Logger.Info("DeveloperTools: money changed through game cheat transaction; amount=" + amount + ".");
             return true;
         }
 
@@ -41,14 +40,12 @@ namespace DeveloperTools
                 return false;
             }
 
-            var before = "hunger=" + save.Hunger.ToString("0.##") + ", energy=" + save.Energy.ToString("0.##") + ", happiness=" + save.Happiness.ToString("0.##");
             save.Hunger = 100f;
             save.Energy = 100f;
             save.Happiness = 100f;
             save.hasEverUsedMods = true;
             SaveGameManager.MarkChange();
             message = "Hunger, energy and happiness reset to 100.";
-            context.Logger.Info("DeveloperTools: player needs reset; before=" + before + ", after=100/100/100.");
             return true;
         }
 
@@ -103,7 +100,6 @@ namespace DeveloperTools
             }
 
             message = "Teleported player to " + FormatVector(finalPosition) + ".";
-            context.Logger.Info("DeveloperTools: player teleported; requested=" + FormatVector(requested) + ", final=" + FormatVector(finalPosition) + ".");
             return true;
         }
 

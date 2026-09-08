@@ -29,7 +29,6 @@ namespace DeveloperTools
             var open = CityMap.IsOpen;
             if (open != wasOpen)
             {
-                context.Logger.Info("DeveloperTools: city map teleport input " + (open ? "enabled." : "disabled."));
                 lastClickAt = -10f;
                 wasOpen = open;
                 mapCameraController = open ? Object.FindObjectOfType<CityMapCam>() : null;
@@ -61,14 +60,11 @@ namespace DeveloperTools
             }
 
             var requested = ray.GetPoint(distance);
-            if (!playerService.Teleport(requested, true, out var finalPosition, out _))
+            if (!playerService.Teleport(requested, true, out _, out _))
                 return;
 
             var cityMap = Object.FindObjectOfType<CityMap>();
             cityMap?.Close();
-            context.Logger.Info("DeveloperTools: city map double-click teleport completed; map=" +
-                                DeveloperToolsPlayerService.FormatVector(requested) + ", landing=" +
-                                DeveloperToolsPlayerService.FormatVector(finalPosition) + ".");
         }
 
         private bool WasMapUiClicked()

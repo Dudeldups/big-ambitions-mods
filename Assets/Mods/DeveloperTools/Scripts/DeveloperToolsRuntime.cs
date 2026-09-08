@@ -25,7 +25,7 @@ namespace DeveloperTools
             var runtime = gameObject.AddComponent<DeveloperToolsRuntime>();
             runtime.context = context;
             runtime.settings = settings;
-            runtime.playerService = new DeveloperToolsPlayerService(context);
+            runtime.playerService = new DeveloperToolsPlayerService();
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
                 new DeveloperToolsVehicleService(context),

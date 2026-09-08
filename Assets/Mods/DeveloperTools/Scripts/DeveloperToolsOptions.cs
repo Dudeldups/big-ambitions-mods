@@ -32,7 +32,6 @@ namespace DeveloperTools
 
             OptionsService.Register(modContext.ModId, options);
             registeredModId = modContext.ModId;
-            modContext.Logger.Info("DeveloperTools: configurable hotkeys registered in mod options.");
         }
 
         public void Shutdown()

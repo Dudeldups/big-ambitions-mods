@@ -105,7 +105,6 @@ namespace DeveloperTools
                 selectedItemId = items.Entries[0].Id;
             SetCoordinatesFromPlayer();
             status = "Catalogs ready. City-map double-click teleport is active whenever the map is open.";
-            context.Logger.Info("DeveloperTools: testing UI opened; vehicles=" + vehicles.Entries.Count + ", vanillaItems=" + items.Entries.Count + ".");
         }
 
         public void Hide()
@@ -117,7 +116,6 @@ namespace DeveloperTools
             cursorRestorePending = true;
             vehicleDropdownOpen = false;
             itemDropdownOpen = false;
-            context.Logger.Info("DeveloperTools: testing UI closed.");
         }
 
         public void ConsumeGameplayInput()

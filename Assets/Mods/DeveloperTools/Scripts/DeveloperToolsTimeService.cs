@@ -37,7 +37,6 @@ namespace DeveloperTools
             var target = TimeHelper.Now().AddHours(hours);
             machine.StartTimeMachine(target);
             message = "Advancing simulation by " + hours + " hour" + (hours == 1 ? "." : "s.");
-            context.Logger.Info("DeveloperTools: started game TimeMachine; hours=" + hours + ", target=" + target + ".");
             return true;
         }
 

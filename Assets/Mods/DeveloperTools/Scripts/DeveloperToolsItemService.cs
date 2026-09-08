@@ -34,7 +34,6 @@ namespace DeveloperTools
             }
             entries.Sort((left, right) => string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase));
             populated = true;
-            context.Logger.Info("DeveloperTools: cached vanilla item catalog; count=" + entries.Count + ".");
         }
 
         public bool Spawn(string itemName, int amount, out string message)
@@ -77,13 +76,11 @@ namespace DeveloperTools
                 }
 
                 message = "Spawned " + amount + " x " + Localize(itemName) + " into player inventory.";
-                context.Logger.Info("DeveloperTools: item spawned; item=" + itemName + ", amount=" + amount + ".");
                 return true;
             }
             catch (Exception exception)
             {
                 message = "Item spawn failed: " + exception.Message;
-                context.Logger.Warn("DeveloperTools: item spawn exception: " + exception.Message);
                 context.Logger.Error(exception);
                 return false;
             }
