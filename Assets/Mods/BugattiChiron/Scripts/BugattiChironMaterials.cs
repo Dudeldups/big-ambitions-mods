@@ -11,17 +11,20 @@ public readonly struct BugattiChironMaterialFixResult
         int rendererCount,
         int decalMasksCleared,
         int opaqueMaterialsFixed,
+        int transparentMaterialsFixed,
         int materialsValidated)
     {
         RendererCount = rendererCount;
         DecalMasksCleared = decalMasksCleared;
         OpaqueMaterialsFixed = opaqueMaterialsFixed;
+        TransparentMaterialsFixed = transparentMaterialsFixed;
         MaterialsValidated = materialsValidated;
     }
 
     public int RendererCount { get; }
     public int DecalMasksCleared { get; }
     public int OpaqueMaterialsFixed { get; }
+    public int TransparentMaterialsFixed { get; }
     public int MaterialsValidated { get; }
 }
 
@@ -44,6 +47,7 @@ public static class BugattiChironMaterials
         var rendererCount = 0;
         var decalMasksCleared = 0;
         var opaqueMaterialsFixed = 0;
+        var transparentMaterialsFixed = 0;
         var materialsValidated = 0;
 
         foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
@@ -52,30 +56,41 @@ public static class BugattiChironMaterials
                 continue;
 
             rendererCount++;
-            if (!HasOpaqueMaterial(renderer))
-                continue;
-
-            var previousMask = renderer.renderingLayerMask;
-            renderer.renderingLayerMask &= ~HdrpDecalLayerMask;
-            if (previousMask != renderer.renderingLayerMask)
-                decalMasksCleared++;
-
             foreach (var material in renderer.sharedMaterials)
             {
-                if (material == null || IsTransparentMaterial(material) || !materials.Add(material))
+                if (material == null || !materials.Add(material))
                     continue;
+
+                if (IsTransparentMaterial(material))
+                {
+                    FixTransparentHdrpMaterial(material);
+                    transparentMaterialsFixed++;
+                    continue;
+                }
 
                 RebindToHdrpLit(material);
                 if (FixSolidHdrpMaterial(material))
                     materialsValidated++;
                 opaqueMaterialsFixed++;
             }
+
+            if (!HasOpaqueMaterial(renderer))
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                continue;
+            }
+
+            var previousMask = renderer.renderingLayerMask;
+            renderer.renderingLayerMask &= ~HdrpDecalLayerMask;
+            if (previousMask != renderer.renderingLayerMask)
+                decalMasksCleared++;
         }
 
         return new BugattiChironMaterialFixResult(
             rendererCount,
             decalMasksCleared,
             opaqueMaterialsFixed,
+            transparentMaterialsFixed,
             materialsValidated);
     }
 
@@ -188,6 +203,38 @@ public static class BugattiChironMaterials
         SetFloat(material, "_SrcBlend", (float)BlendMode.One);
         SetFloat(material, "_DstBlend", (float)BlendMode.Zero);
         return validated;
+    }
+
+    private static void FixTransparentHdrpMaterial(Material material)
+    {
+        SetFloat(material, "transmissionFactor", 0f);
+        SetFloat(material, "_SurfaceType", 1f);
+        SetFloat(material, "_BlendMode", 0f);
+        SetFloat(material, "_SrcBlend", (float)BlendMode.One);
+        SetFloat(material, "_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        SetFloat(material, "_AlphaSrcBlend", (float)BlendMode.One);
+        SetFloat(material, "_AlphaDstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        SetFloat(material, "_ZWrite", 0f);
+        SetFloat(material, "_TransparentZWrite", 0f);
+        SetFloat(material, "_AlphaCutoffEnable", 0f);
+        SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
+        SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
+        SetFloat(material, "_TransparentBackfaceEnable", 0f);
+        SetFloat(material, "_Cull", 0f);
+        SetFloat(material, "_CullMode", 0f);
+        SetFloat(material, "_CullModeForward", 0f);
+        SetFloat(material, "_TransparentCullMode", 0f);
+        SetFloat(material, "_DoubleSidedEnable", 1f);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.EnableKeyword("_DOUBLESIDED_ON");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.SetOverrideTag("RenderType", "Transparent");
+        material.renderQueue = (int)RenderQueue.Transparent;
+        material.SetShaderPassEnabled("TransparentDepthPrepass", false);
+        material.SetShaderPassEnabled("TransparentDepthPostpass", false);
+        material.SetShaderPassEnabled("TransparentBackface", false);
+        material.SetShaderPassEnabled("DepthOnly", false);
+        material.SetShaderPassEnabled("ShadowCaster", false);
     }
 
     private static string? FirstTextureProperty(Material material, params string[] properties)

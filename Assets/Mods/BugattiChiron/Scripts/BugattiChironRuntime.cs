@@ -255,6 +255,14 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             ConfigureBodyColliders(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var materialResult = BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
+            var lightingController = vehicle.GetComponent<BugattiChironLightingController>();
+            if (lightingController == null)
+                lightingController = vehicle.gameObject.AddComponent<BugattiChironLightingController>();
+            lightingController.Initialize(vehicle, context);
+            var driverController = vehicle.GetComponent<BugattiChironDriverController>();
+            if (driverController == null)
+                driverController = vehicle.gameObject.AddComponent<BugattiChironDriverController>();
+            driverController.Initialize(vehicle, context);
 
             context?.Logger.Info(
                 $"BugattiChiron: configured vehicle instance={instanceId}, " +
@@ -263,6 +271,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
+                $"transparentFixed={materialResult.TransparentMaterialsFixed}, " +
                 $"hdrpValidated={materialResult.MaterialsValidated}.");
         }
         catch (Exception exception)
@@ -278,10 +287,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     {
         var positions = new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8745f, 0.51f, 1.3555f) },
-            { "FrontRight_WheelController", new Vector3(0.8745f, 0.51f, 1.3555f) },
-            { "RearLeft_WheelController", new Vector3(-0.8305f, 0.51f, -1.3555f) },
-            { "RearRight_WheelController", new Vector3(0.8305f, 0.51f, -1.3555f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8245f, 0.51f, 1.3555f) },
+            { "FrontRight_WheelController", new Vector3(0.8245f, 0.51f, 1.3555f) },
+            { "RearLeft_WheelController", new Vector3(-0.7805f, 0.51f, -1.3555f) },
+            { "RearRight_WheelController", new Vector3(0.7805f, 0.51f, -1.3555f) },
         };
 
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))

@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 930093172
+CRC: 1124981673
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: fca9267d8e4e6a857bc39b87285b69fe
+    Hash: 85e711a9c3a811e6d4deb6882ab53c65
   TypeTreeHash:
     serializedVersion: 2
-    Hash: f9240310e782785b1bca04c3bfac0282
+    Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: fca9267d8e4e6a857bc39b87285b69fe
+    Hash: 85e711a9c3a811e6d4deb6882ab53c65
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -38,10 +38,14 @@ ClassTypes:
   Script: {instanceID: 0}
 - Class: 83
   Script: {instanceID: 0}
+- Class: 108
+  Script: {instanceID: 0}
 - Class: 114
   Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
   Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
 - Class: 114
   Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
@@ -201,6 +205,10 @@ SerializeReferenceClassIdentifiers:
   ClassName: SerializableQuaternion
 - AssemblyName: HGExtensions
   ClassName: SerializableVector3
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.BoolScalableSettingValue
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.IntScalableSettingValue
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.PersistentCallGroup
 - AssemblyName: UnityEngine.CoreModule
@@ -212,40 +220,46 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
 Assets:
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_03_Brake_rotor.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_05_Tail-light-glass-turning.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_05_Silver.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_25_Tail-light_holder.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_01_Rims.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_08_Interior_2.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_12_Interior_1_Darker.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_20_Turning_lights_left.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_30_exhaust.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_14_Buttons.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_27_Tail-light-LIGHT.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_21_Headlights.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_28_Brake-lights.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_30_exhaust.mat
 - Assets/Mods/BugattiChiron/Models/free_bugatti_chiron.glb
 - Assets/Mods/BugattiChiron/BugattiChiron.asset
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_06_Darker_Parts.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_02_Caliper.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_19_seats.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_00_Tire.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_29_Reverse-light_001.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_07_Carbon.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_15_Interior_3.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_24_Headlights-Lights.mat
-- Assets/Mods/BugattiChiron/THIRD_PARTY_NOTICES.md
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_10_Logo.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_23_Turning_lights_right.mat
-- Assets/Mods/BugattiChiron/BugattiChiron.prefab
-- Assets/Mods/BugattiChiron/ATTRIBUTION.md
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_11_Steel.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_01_Windshield.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_04_Tail-light-glass.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_13_Interior_1.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_17_Interior-light.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_22_Headlights-light.mat
-- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_31_Headlight-1.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_04_Body.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_16_Mirror.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_00_Vents-texture.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_03_Brake_rotor.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_25_Tail-light_holder.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_28_Brake-lights.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_20_Turning_lights_left.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_21_Headlights.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_03_Headlight_glass.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_02_Caliper.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_07_Carbon.mat
+- Assets/Mods/BugattiChiron/THIRD_PARTY_NOTICES.md
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_10_Logo.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_23_Turning_lights_right.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_02_Glass.mat
+- Assets/Mods/BugattiChiron/BugattiChiron.prefab
+- Assets/Mods/BugattiChiron/ATTRIBUTION.md
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_11_Steel.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_31_Headlight-1.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_09_Plastic.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_18_Speedo.mat
 - Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_26_Tail-light-insides.mat

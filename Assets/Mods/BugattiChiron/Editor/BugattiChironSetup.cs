@@ -28,10 +28,10 @@ public static class BugattiChironSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8745f, 0.51f, 1.3555f) },
-            { "FrontRight_WheelController", new Vector3(0.8745f, 0.51f, 1.3555f) },
-            { "RearLeft_WheelController", new Vector3(-0.8305f, 0.51f, -1.3555f) },
-            { "RearRight_WheelController", new Vector3(0.8305f, 0.51f, -1.3555f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8245f, 0.51f, 1.3555f) },
+            { "FrontRight_WheelController", new Vector3(0.8245f, 0.51f, 1.3555f) },
+            { "RearLeft_WheelController", new Vector3(-0.7805f, 0.51f, -1.3555f) },
+            { "RearRight_WheelController", new Vector3(0.7805f, 0.51f, -1.3555f) },
         };
 
     private static readonly float[] ChironGears =
@@ -113,7 +113,10 @@ public static class BugattiChironSetup
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
             var continuousTailLight = false;
-            var remainingLightComponents = prefab.GetComponentsInChildren<Light>(true).Length;
+            var templateLights = prefab.GetComponentsInChildren<Light>(true);
+            var headlightTemplateValid = templateLights.Length == 1 &&
+                                         templateLights[0].name == "Spotlights" &&
+                                         !templateLights[0].enabled;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (transform.name.StartsWith("BugattiWheel", StringComparison.Ordinal))
@@ -158,6 +161,7 @@ public static class BugattiChironSetup
             var opaqueMaterials = new HashSet<Material>();
             var decalSafeMaterials = 0;
             var transparentMaterials = 0;
+            var transparentMaterialsDoubleSided = true;
             var opaqueRendererMasksSafe = true;
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
@@ -172,6 +176,11 @@ public static class BugattiChironSetup
                     if (BugattiChironMaterials.IsTransparentMaterial(material))
                     {
                         transparentMaterials++;
+                        transparentMaterialsDoubleSided &=
+                            (!material.HasProperty("_Cull") || material.GetFloat("_Cull") < 0.5f) &&
+                            (!material.HasProperty("_DoubleSidedEnable") ||
+                             material.GetFloat("_DoubleSidedEnable") > 0.5f) &&
+                            material.IsKeywordEnabled("_DOUBLESIDED_ON");
                         continue;
                     }
 
@@ -206,12 +215,13 @@ public static class BugattiChironSetup
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !continuousTailLight ||
-                remainingLightComponents != 0 ||
+                !headlightTemplateValid ||
                 !transmissionVerified ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
-                transparentMaterials == 0)
+                transparentMaterials == 0 ||
+                !transparentMaterialsDoubleSided)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
@@ -220,16 +230,17 @@ public static class BugattiChironSetup
                     $"bodyUpright={bodyUpright}, " +
                     $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, " +
-                    $"continuousTailLight={continuousTailLight}, lights={remainingLightComponents}, " +
+                    $"continuousTailLight={continuousTailLight}, headlightTemplate={headlightTemplateValid}, " +
                     $"sevenSpeed={transmissionVerified}, opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
+                    $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
 
             Debug.Log(
                 $"BugattiChiron bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, sevenSpeed=true, " +
-                $"continuousTailLight=true, provisionalLights=true, " +
+                $"continuousTailLight=true, headlightTemplate=true, transparentDoubleSided=true, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -297,7 +308,7 @@ public static class BugattiChironSetup
         try
         {
             StripAudiGeometry(root);
-            RemoveAudiSpecificBehavioursAndLights(root);
+            RemoveAudiSpecificBehaviours(root);
             ConfigureRootPhysics(root);
             ConfigureWheelControllers(root);
             ConfigureBodyColliders(root);
@@ -315,17 +326,17 @@ public static class BugattiChironSetup
             modelInstance.name = "BugattiVisual";
             RemoveModelLights(modelInstance);
             NormalizeModel(modelInstance);
-            AssignPersistentOpaqueMaterials(modelInstance);
+            AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
-            RemoveModelLights(root);
             var fix = BugattiChironMaterials.FixSolidMaterials(root);
-            MarkOpaqueMaterialsDirty(root);
+            MarkMaterialsDirty(root);
             ConfigureRendererReferences(root);
 
             Debug.Log(
                 $"BugattiChiron: prepared decal-safe materials renderers={fix.RendererCount}, " +
                 $"decalMasksCleared={fix.DecalMasksCleared}, " +
                 $"opaqueFixed={fix.OpaqueMaterialsFixed}, " +
+                $"transparentFixed={fix.TransparentMaterialsFixed}, " +
                 $"hdrpValidated={fix.MaterialsValidated}.");
 
             var result = PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
@@ -355,11 +366,8 @@ public static class BugattiChironSetup
             filter.sharedMesh = null;
     }
 
-    private static void RemoveAudiSpecificBehavioursAndLights(GameObject root)
+    private static void RemoveAudiSpecificBehaviours(GameObject root)
     {
-        foreach (var light in root.GetComponentsInChildren<Light>(true))
-            UnityEngine.Object.DestroyImmediate(light);
-
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
             if (component != null &&
@@ -633,11 +641,12 @@ public static class BugattiChironSetup
         }
     }
 
-    private static void AssignPersistentOpaqueMaterials(GameObject model)
+    private static void AssignPersistentMaterials(GameObject model)
     {
         EnsureAssetFolder(MaterialFolder);
         var replacements = new Dictionary<Material, Material>();
-        var materialIndex = 0;
+        var opaqueMaterialIndex = 0;
+        var transparentMaterialIndex = 0;
         foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
         {
             var materials = renderer.sharedMaterials;
@@ -645,13 +654,18 @@ public static class BugattiChironSetup
             for (var index = 0; index < materials.Length; index++)
             {
                 var source = materials[index];
-                if (source == null || BugattiChironMaterials.IsTransparentMaterial(source))
+                if (source == null)
                     continue;
 
                 if (!replacements.TryGetValue(source, out var persistent))
                 {
+                    var transparent = BugattiChironMaterials.IsTransparentMaterial(source);
+                    var kind = transparent ? "Transparent" : "Opaque";
+                    var materialIndex = transparent
+                        ? transparentMaterialIndex++
+                        : opaqueMaterialIndex++;
                     var assetName =
-                        $"BugattiOpaque_{materialIndex:D2}_{SanitizeAssetName(source.name)}";
+                        $"Bugatti{kind}_{materialIndex:D2}_{SanitizeAssetName(source.name)}";
                     var path = $"{MaterialFolder}/{assetName}.mat";
                     persistent = AssetDatabase.LoadAssetAtPath<Material>(path);
                     if (persistent == null)
@@ -667,7 +681,6 @@ public static class BugattiChironSetup
                     }
 
                     replacements.Add(source, persistent);
-                    materialIndex++;
                 }
 
                 materials[index] = persistent;
@@ -679,16 +692,14 @@ public static class BugattiChironSetup
         }
     }
 
-    private static void MarkOpaqueMaterialsDirty(GameObject model)
+    private static void MarkMaterialsDirty(GameObject model)
     {
         var materials = new HashSet<Material>();
         foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
         {
             foreach (var material in renderer.sharedMaterials)
             {
-                if (material != null &&
-                    !BugattiChironMaterials.IsTransparentMaterial(material) &&
-                    materials.Add(material))
+                if (material != null && materials.Add(material))
                 {
                     EditorUtility.SetDirty(material);
                 }
