@@ -46,7 +46,9 @@ public static class BigfootMonsterTruckSetup
 
             var wheelControllers = 0;
             var wheelVisuals = 0;
+            var alignedWheelVisuals = 0;
             var hasSeat = false;
+            var raisedSeat = false;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
@@ -54,8 +56,18 @@ public static class BigfootMonsterTruckSetup
                     wheelControllers++;
                 if (transform.name.StartsWith("Wheel", StringComparison.Ordinal) &&
                     transform.name.EndsWith("Visual", StringComparison.Ordinal))
+                {
                     wheelVisuals++;
-                hasSeat |= string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal);
+                    if (transform.parent != null &&
+                        TryGetRendererBounds(transform, out var bounds) &&
+                        Vector3.Distance(bounds.center, transform.parent.position) < 0.02f)
+                        alignedWheelVisuals++;
+                }
+                if (string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
+                {
+                    hasSeat = true;
+                    raisedSeat = transform.localPosition.y >= 2.17f;
+                }
             }
 
             var visibleRenderers = 0;
@@ -71,19 +83,21 @@ public static class BigfootMonsterTruckSetup
                         hasTransparentGlass = true;
             }
 
-            if (wheelControllers != 4 || wheelVisuals != 4 || !hasSeat ||
+            if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
+                !hasSeat || !raisedSeat ||
                 visibleRenderers == 0 || !hasTransparentGlass)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: controllers={wheelControllers}, " +
-                    $"wheelVisuals={wheelVisuals}, seat={hasSeat}, visibleRenderers={visibleRenderers}, " +
+                    $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
+                    $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
                     $"transparentGlass={hasTransparentGlass}.");
             }
 
             Debug.Log(
                 $"BigfootMonsterTruck bundle verified: controllers={wheelControllers}, " +
-                $"wheelVisuals={wheelVisuals}, visibleRenderers={visibleRenderers}, " +
-                "centerSeat=true, transparentGlass=true.");
+                $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
+                $"visibleRenderers={visibleRenderers}, raisedCenterSeat=true, transparentGlass=true.");
         }
         finally
         {
@@ -97,17 +111,31 @@ public static class BigfootMonsterTruckSetup
         if (source == null)
             throw new InvalidOperationException("Audi RS6R VehicleType reference asset was not found.");
 
-        AssetDatabase.DeleteAsset(TargetAssetPath);
-        if (!AssetDatabase.CopyAsset(AudiAssetPath, TargetAssetPath))
-            throw new InvalidOperationException("Could not create the Bigfoot VehicleType asset.");
-
         var target = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(TargetAssetPath);
+        if (target == null)
+        {
+            if (!AssetDatabase.CopyAsset(AudiAssetPath, TargetAssetPath))
+                throw new InvalidOperationException("Could not create the Bigfoot VehicleType asset.");
+            target = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(TargetAssetPath);
+        }
+        else
+        {
+            EditorUtility.CopySerialized(source, target);
+        }
         if (target == null)
             throw new InvalidOperationException("Generated Bigfoot VehicleType asset did not load.");
 
         target.name = "BigfootMonsterTruck";
         var serialized = new SerializedObject(target);
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
+        SetNumber(serialized, "price", 85000f);
+        SetNumber(serialized, "maxFuel", 110f);
+        SetNumber(serialized, "maxCargoCapacity", 16f);
+        SetNumber(serialized, "maxSpeed", 105f);
+        SetNumber(serialized, "enginePower", 500f);
+        SetNumber(serialized, "brakeForce", 15000f);
+        SetNumber(serialized, "turnRadius", 24f);
+        SetNumber(serialized, "damageIntensity", 0.38f);
         SetBool(serialized, "isATruck", false);
         SetBool(serialized, "fitsHandTruck", true);
         SetBool(serialized, "fitsFlatbed", false);
@@ -143,6 +171,10 @@ public static class BigfootMonsterTruckSetup
             var modelInstance = PrefabUtility.InstantiatePrefab(model, root.transform) as GameObject;
             if (modelInstance == null)
                 throw new InvalidOperationException("Could not instantiate the processed Bigfoot model.");
+            PrefabUtility.UnpackPrefabInstance(
+                modelInstance,
+                PrefabUnpackMode.Completely,
+                InteractionMode.AutomatedAction);
             modelInstance.name = "BigfootVisual";
             AttachWheelVisuals(root, modelInstance);
             CreateSeatAnchor(root);
@@ -251,8 +283,25 @@ public static class BigfootMonsterTruckSetup
                          throw new InvalidOperationException(
                              $"Wheel visual reference for '{pair.Value}' is missing.");
             wheel.SetParent(target, true);
-            wheel.localPosition = Vector3.zero;
+            if (!TryGetRendererBounds(wheel, out var bounds))
+                throw new InvalidOperationException($"Model wheel '{pair.Key}' has no renderer bounds.");
+            wheel.position += target.position - bounds.center;
         }
+    }
+
+    private static bool TryGetRendererBounds(Transform root, out Bounds bounds)
+    {
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = renderers[0].bounds;
+        for (var index = 1; index < renderers.Length; index++)
+            bounds.Encapsulate(renderers[index].bounds);
+        return true;
     }
 
     private static Transform? FindWheelVisualTarget(GameObject root, string controllerName)
@@ -276,7 +325,7 @@ public static class BigfootMonsterTruckSetup
     {
         var anchor = new GameObject("BigfootDriverSeat");
         anchor.transform.SetParent(root.transform, false);
-        anchor.transform.localPosition = new Vector3(0f, 1.72f, 0.18f);
+        anchor.transform.localPosition = new Vector3(0f, 2.18f, 0.18f);
         anchor.transform.localRotation = Quaternion.identity;
     }
 
@@ -344,6 +393,17 @@ public static class BigfootMonsterTruckSetup
     {
         var property = target.FindProperty(name);
         if (property != null)
-            property.boolValue = value;
+        property.boolValue = value;
+    }
+
+    private static void SetNumber(SerializedObject target, string name, float value)
+    {
+        var property = target.FindProperty(name);
+        if (property == null)
+            return;
+        if (property.propertyType == SerializedPropertyType.Integer)
+            property.intValue = Mathf.RoundToInt(value);
+        else if (property.propertyType == SerializedPropertyType.Float)
+            property.floatValue = value;
     }
 }

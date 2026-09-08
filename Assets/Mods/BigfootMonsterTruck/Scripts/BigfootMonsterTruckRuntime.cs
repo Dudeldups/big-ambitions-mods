@@ -21,6 +21,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float HalfTrack = 1.35f;
     private const float AxleHeight = 0.82f;
     private const float CenterOfMassHeight = 0.72f;
+    private const float DriverSeatHeight = 2.18f;
     private const float BrakeTorque = 15000f;
     private const float AntiRollForce = 4200f;
 
@@ -204,6 +205,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         var colliderCount = ConfigureBodyColliders(vehicle);
         ConfigureVehicleModules(vehicle);
         ConfigureExitMarkers(vehicle);
+        ConfigureDriverSeat(vehicle);
 
         var driver = vehicle.gameObject.AddComponent<BigfootMonsterTruckDriverController>();
         driver.Initialize(vehicle, context);
@@ -322,6 +324,17 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 transform.localPosition = new Vector3(-2.05f, 0.1f, 0.1f);
             else if (string.Equals(transform.name, "Passengerside", StringComparison.Ordinal))
                 transform.localPosition = new Vector3(2.05f, 0.1f, 0.1f);
+        }
+    }
+
+    private static void ConfigureDriverSeat(VehicleController vehicle)
+    {
+        foreach (var transform in vehicle.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(transform.name, "BigfootDriverSeat", StringComparison.Ordinal))
+                continue;
+            transform.localPosition = new Vector3(0f, DriverSeatHeight, 0.18f);
+            return;
         }
     }
 
