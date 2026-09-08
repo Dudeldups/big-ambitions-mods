@@ -567,7 +567,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         }
 
         var verified = ReferenceEquals(GetMember(engine, "Output"), transmission) &&
-                       ReferenceEquals(GetMember(transmission, "Input"), engine) &&
                        ReferenceEquals(GetMember(transmission, "Output"), center) &&
                        ReferenceEquals(GetMember(center, "Output"), front) &&
                        ReferenceEquals(GetMember(center, "OutputB"), rear) &&

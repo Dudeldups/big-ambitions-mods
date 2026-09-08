@@ -13,9 +13,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float SmallVehicleSuppressionWindow = 0.75f;
     private const float CollisionLogCooldown = 5f;
     private const float ClimbAssistLogCooldown = 3f;
-    private const float ClimbLiftAcceleration = 5.5f;
-    private const float ClimbDriveAcceleration = 3f;
-    private const float MaximumAssistedVerticalSpeed = 2.25f;
+    private const float ClimbLiftAcceleration = 3.25f;
+    private const float ClimbDriveAcceleration = 4f;
+    private const float MaximumClimbAssistSpeed = 12f;
+    private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
@@ -176,16 +177,32 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             var worldDriveDirection = vehicle.transform.forward * driveDirection;
             var velocity = vehicleBody.velocity;
             var forwardSpeed = Vector3.Dot(velocity, worldDriveDirection);
+            if (forwardSpeed > MaximumClimbAssistSpeed)
+                return;
             if (forwardSpeed < 0f)
             {
                 velocity -= worldDriveDirection * forwardSpeed;
                 vehicleBody.velocity = velocity;
             }
 
-            if (Vector3.Dot(vehicleBody.velocity, Vector3.up) < MaximumAssistedVerticalSpeed)
-                vehicleBody.AddForce(Vector3.up * ClimbLiftAcceleration, ForceMode.Acceleration);
+            var verticalSpeed = Vector3.Dot(vehicleBody.velocity, Vector3.up);
+            if (verticalSpeed > MaximumAssistedVerticalSpeed)
+            {
+                vehicleBody.velocity -=
+                    Vector3.up * (verticalSpeed - MaximumAssistedVerticalSpeed);
+                verticalSpeed = MaximumAssistedVerticalSpeed;
+            }
+
+            var speedFactor = 1f - Mathf.Clamp01(Mathf.Max(0f, forwardSpeed) /
+                                                 MaximumClimbAssistSpeed);
+            var liftFactor = Mathf.Lerp(0.45f, 1f, speedFactor);
+            if (verticalSpeed < MaximumAssistedVerticalSpeed)
+                vehicleBody.AddForce(
+                    Vector3.up * (ClimbLiftAcceleration * liftFactor),
+                    ForceMode.Acceleration);
             vehicleBody.AddForce(
-                worldDriveDirection * (ClimbDriveAcceleration * Mathf.Clamp01(throttle)),
+                worldDriveDirection *
+                (ClimbDriveAcceleration * speedFactor * Mathf.Clamp01(throttle)),
                 ForceMode.Acceleration);
 
             var localAngularVelocity = vehicle.transform.InverseTransformDirection(
@@ -203,7 +220,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 context?.Logger.Info(
                     $"BigfootMonsterTruck: climb assist active other='{otherName}' " +
                     $"direction={(driveDirection > 0f ? "forward" : "reverse")}, " +
-                    $"throttle={throttle:F2}, speed={forwardSpeed:F2}m/s.");
+                    $"throttle={throttle:F2}, speed={forwardSpeed:F2}m/s, " +
+                    $"vertical={verticalSpeed:F2}m/s, strength={speedFactor:F2}.");
             }
         }
         catch (Exception exception)
