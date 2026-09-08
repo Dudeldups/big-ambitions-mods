@@ -298,7 +298,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(wheel, "radius", WheelRadius);
                 SetFloat(wheel, "width", WheelWidth);
                 SetFloat(wheel, "mass", 120f);
-                ConfigureWheelVisual(wheel, transform.name, vehicle.transform);
+                ConfigureWheelVisual(component, wheel, transform.name, vehicle.transform);
                 SetMember(component, "wheel", wheel);
 
                 var sideFriction = GetMember(component, "sideFriction");
@@ -324,6 +324,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     }
 
     private void ConfigureWheelVisual(
+        MonoBehaviour wheelController,
         object? wheel,
         string controllerName,
         Transform vehicleTransform)
@@ -374,7 +375,14 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         SetMember(wheel, "visualTransform", physicsPose.transform);
         var correction = display.GetComponent<BigfootMonsterTruckWheelVisualCorrection>() ??
                          display.AddComponent<BigfootMonsterTruckWheelVisualCorrection>();
-        correction.Initialize(physicsPose.transform, vehicleTransform, WheelVisualVerticalOffset);
+        if (!correction.Initialize(
+                wheelController,
+                physicsPose.transform,
+                vehicleTransform,
+                WheelVisualVerticalOffset))
+            context?.Logger.Warn(
+                $"BigfootMonsterTruck: wheel position correction unavailable " +
+                $"controller='{controllerName}'.");
     }
 
     private static bool TryGetWheelPosition(string name, out Vector3 position)
@@ -727,26 +735,38 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
 internal sealed class BigfootMonsterTruckWheelVisualCorrection : MonoBehaviour
 {
+    private MonoBehaviour? wheelController;
     private Transform? physicsPose;
     private Transform? vehicleTransform;
+    private PropertyInfo? wheelPositionProperty;
     private float verticalOffset;
 
-    public void Initialize(
+    public bool Initialize(
+        MonoBehaviour configuredWheelController,
         Transform configuredPhysicsPose,
         Transform configuredVehicleTransform,
         float configuredVerticalOffset)
     {
+        wheelController = configuredWheelController;
         physicsPose = configuredPhysicsPose;
         vehicleTransform = configuredVehicleTransform;
         verticalOffset = configuredVerticalOffset;
+        wheelPositionProperty = configuredWheelController.GetType().GetProperty(
+            "WheelPosition",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        enabled = wheelPositionProperty?.PropertyType == typeof(Vector3);
+        return enabled;
     }
 
     private void LateUpdate()
     {
-        if (physicsPose == null || vehicleTransform == null)
+        if (wheelController == null || physicsPose == null || vehicleTransform == null ||
+            wheelPositionProperty == null)
+            return;
+        if (wheelPositionProperty.GetValue(wheelController) is not Vector3 wheelPosition)
             return;
         transform.SetPositionAndRotation(
-            physicsPose.position + vehicleTransform.up * verticalOffset,
+            wheelPosition + vehicleTransform.up * verticalOffset,
             physicsPose.rotation);
     }
 }

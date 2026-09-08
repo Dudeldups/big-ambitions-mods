@@ -23,7 +23,6 @@ public static class BigfootMonsterTruckSetup
         "Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.prefab";
     private const string VehicleTypeName =
         "bigfootmonstertruck-vehicle:vehicletype_bigfootmonstertruck";
-    private const float SuspensionRestLength = 0.65f;
     private const float WheelVisualVerticalOffset = 0.15f;
 
     [MenuItem("Big Ambitions Mods/Setup Bigfoot Monster Truck")]
@@ -60,8 +59,10 @@ public static class BigfootMonsterTruckSetup
             var wheelVisuals = 0;
             var alignedWheelVisuals = 0;
             var animatedWheelVisuals = 0;
+            var authoredWheelAxes = 0;
             var outwardWheelFaces = 0;
             var raisedWheelDisplays = 0;
+            var axleAlignedWheelDisplays = 0;
             var physicalWheelColliders = 0;
             var climbContactColliders = 0;
             var climbChassisRestored = false;
@@ -88,7 +89,13 @@ public static class BigfootMonsterTruckSetup
                     TryGetAssignedWheelVisual(transform, out var assignedVisual) &&
                     assignedVisual.name.StartsWith("Wheel", StringComparison.Ordinal) &&
                     assignedVisual.name.EndsWith("PhysicsPose", StringComparison.Ordinal))
+                {
                     animatedWheelVisuals++;
+                    if (Quaternion.Angle(
+                            assignedVisual.transform.localRotation,
+                            Quaternion.identity) > 1f)
+                        authoredWheelAxes++;
+                }
                 if (transform.name.StartsWith("Wheel", StringComparison.Ordinal) &&
                     transform.name.EndsWith("Display", StringComparison.Ordinal))
                 {
@@ -101,6 +108,13 @@ public static class BigfootMonsterTruckSetup
                             Vector3.Dot(transform.position - pose.position, prefab.transform.up) -
                             WheelVisualVerticalOffset) < 0.01f)
                         raisedWheelDisplays++;
+                    var axleName = transform.name.Substring(
+                        "Wheel".Length,
+                        transform.name.Length - "Wheel".Length - "Display".Length) +
+                        "_WheelController";
+                    var axle = FindTransform(prefab.transform, axleName);
+                    if (axle != null && Vector3.Distance(transform.position, axle.position) < 0.01f)
+                        axleAlignedWheelDisplays++;
                 }
                 if (string.Equals(transform.name, "BigfootWheelContactColliders", StringComparison.Ordinal))
                 {
@@ -176,8 +190,9 @@ public static class BigfootMonsterTruckSetup
             }
 
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
-                animatedWheelVisuals != 4 || outwardWheelFaces != 4 ||
-                raisedWheelDisplays != 4 || physicalWheelColliders != 4 ||
+                animatedWheelVisuals != 4 || authoredWheelAxes != 4 ||
+                outwardWheelFaces != 4 || raisedWheelDisplays != 4 ||
+                axleAlignedWheelDisplays != 4 || physicalWheelColliders != 4 ||
                 climbContactColliders != 4 || !climbChassisRestored ||
                 !hasSeat || !raisedSeat ||
                 !loadingAtDriverDoor || visibleRenderers == 0 || !hasTransparentGlass ||
@@ -191,8 +206,10 @@ public static class BigfootMonsterTruckSetup
                     $"Bundle verification failed: controllers={wheelControllers}, " +
                     $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
                     $"animatedWheelVisuals={animatedWheelVisuals}, " +
+                    $"authoredWheelAxes={authoredWheelAxes}, " +
                     $"outwardWheelFaces={outwardWheelFaces}, " +
                     $"raisedWheelDisplays={raisedWheelDisplays}, " +
+                    $"axleAlignedWheelDisplays={axleAlignedWheelDisplays}, " +
                     $"physicalWheelColliders={physicalWheelColliders}, " +
                     $"climbContacts={climbContactColliders}, " +
                     $"climbChassis={climbChassisRestored}, " +
@@ -210,8 +227,10 @@ public static class BigfootMonsterTruckSetup
                 $"BigfootMonsterTruck bundle verified: controllers={wheelControllers}, " +
                 $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
                 $"animatedWheelVisuals={animatedWheelVisuals}, " +
+                $"authoredWheelAxes={authoredWheelAxes}, " +
                 $"outwardWheelFaces={outwardWheelFaces}, " +
                 $"raisedWheelDisplays={raisedWheelDisplays}, " +
+                $"axleAlignedWheelDisplays={axleAlignedWheelDisplays}, " +
                 $"physicalWheelColliders={physicalWheelColliders}, " +
                 $"climbContacts={climbContactColliders}, " +
                 $"visibleRenderers={visibleRenderers}, decalSafe={decalSafeOpaqueMaterials}, " +
@@ -436,6 +455,7 @@ public static class BigfootMonsterTruckSetup
                          throw new InvalidOperationException(
                              $"Wheel visual reference for '{pair.Value}' is missing.");
             var targetParent = target.parent;
+            var wheelRotation = wheel.rotation;
             var wheelScale = wheel.lossyScale;
             var controller = FindTransform(root.transform, pair.Value) ??
                              throw new InvalidOperationException(
@@ -444,8 +464,8 @@ public static class BigfootMonsterTruckSetup
             var physicsPose = new GameObject($"{visualName}PhysicsPose");
             physicsPose.transform.SetParent(targetParent, false);
             physicsPose.transform.SetPositionAndRotation(
-                controller.position - root.transform.up * SuspensionRestLength,
-                controller.rotation);
+                controller.position - root.transform.up * WheelVisualVerticalOffset,
+                wheelRotation);
 
             var display = new GameObject($"{visualName}Display");
             display.transform.SetParent(targetParent, false);
@@ -455,6 +475,9 @@ public static class BigfootMonsterTruckSetup
 
             wheel.SetParent(display.transform, false);
             wheel.localPosition = Vector3.zero;
+            // Preserve the model's authored wheel-axis basis on the controller-owned
+            // pose. The child rotation only turns the red face outward; replacing the
+            // authored basis here prevents NWH from animating the correct rolling axis.
             wheel.localRotation = Quaternion.AngleAxis(180f, Vector3.up);
             wheel.localScale = wheelScale;
             AssignWheelVisual(root, pair.Value, physicsPose);
