@@ -70,6 +70,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
             "LeftHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
+            intensity: 5.0f,
             copyBaseTexture: false,
             overlayScale: 1.0015f,
             selectHeadlightSignatureComponents: true);
@@ -78,32 +79,37 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
             "RightHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
+            intensity: 5.0f,
             copyBaseTexture: false,
             overlayScale: 1.0015f,
             selectHeadlightSignatureComponents: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x <= 0f,
-            "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f),
+            "LeftTailLight", new Color(0.78f, 0.006f, 0.002f, 1f),
+            intensity: 3.0f,
             copyBaseTexture: false,
             selectRearLampSignatureComponents: true);
         rightTailLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x > 0f,
-            "RightTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f),
+            "RightTailLight", new Color(0.78f, 0.006f, 0.002f, 1f),
+            intensity: 3.0f,
             copyBaseTexture: false,
             selectRearLampSignatureComponents: true);
         leftBrakeLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x <= 0f,
-            "LeftBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f),
+            "LeftBrakeLight", new Color(1f, 0.008f, 0.001f, 1f),
+            intensity: 5.0f,
             copyBaseTexture: false,
             selectRearLampSignatureComponents: true);
         rightBrakeLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x > 0f,
-            "RightBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f),
+            "RightBrakeLight", new Color(1f, 0.008f, 0.001f, 1f),
+            intensity: 5.0f,
             copyBaseTexture: false,
             selectRearLampSignatureComponents: true);
         centerBrakeLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 1.10f,
-            "CenterBrakeLight", new Color(0.78f, 0.012f, 0.0025f, 1f));
+            "CenterBrakeLight", new Color(1f, 0.008f, 0.001f, 1f), intensity: 5.0f);
         leftFrontBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z >= 0f && position.x <= 0f,
             "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
@@ -319,6 +325,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         Func<Vector3, bool> includeTriangleCenter,
         string suffix,
         Color activeColor,
+        float intensity = 3.5f,
         bool copyBaseTexture = true,
         float overlayScale = 1.0015f,
         bool selectHeadlightSignatureComponents = false,
@@ -360,7 +367,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             overlayObject.AddComponent<MeshFilter>().sharedMesh = overlayMesh;
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
             overlayRenderer.sharedMaterial = CreateUnlitMaterial(
-                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture);
+                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, intensity,
+                copyBaseTexture);
             overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
@@ -651,6 +659,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         Material? source,
         string materialName,
         Color color,
+        float intensity,
         bool copyBaseTexture)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
@@ -666,7 +675,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             CopyBaseTexture(source, material);
         }
 
-        var hdrColor = color * 3.5f;
+        var hdrColor = color * intensity;
         hdrColor.a = 1f;
         SetColorIfPresent(material, "_UnlitColor", hdrColor);
         SetColorIfPresent(material, "_BaseColor", hdrColor);
