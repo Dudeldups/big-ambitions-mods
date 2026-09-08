@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 
 namespace DeveloperTools
 {
-    [DefaultExecutionOrder(9000)]
+    [DefaultExecutionOrder(-10000)]
     internal sealed class DeveloperToolsRuntime : MonoBehaviour
     {
         private ModContext? context;
@@ -38,7 +38,7 @@ namespace DeveloperTools
 
         public void Shutdown()
         {
-            overlay?.Hide();
+            overlay?.Shutdown();
             Destroy(gameObject);
         }
 
@@ -52,6 +52,7 @@ namespace DeveloperTools
             if (settings == null || overlay == null || playerService == null)
                 return;
 
+            var wasVisible = overlay.IsVisible;
             if (settings.UiHotkey != KeyCode.None && Input.GetKeyDown(settings.UiHotkey))
                 overlay.Toggle();
             if (settings.MoneyHotkey != KeyCode.None && Input.GetKeyDown(settings.MoneyHotkey))
@@ -61,8 +62,11 @@ namespace DeveloperTools
             if (overlay.IsVisible && Input.GetKeyDown(KeyCode.Escape))
                 overlay.Hide();
 
-            mapTeleport?.Update(overlay.IsPointerInsideWindow);
+            if (wasVisible || overlay.IsVisible)
+                overlay.ConsumeGameplayInput();
         }
+
+        private void LateUpdate() => mapTeleport?.Update(overlay?.IsPointerInsideWindow ?? false);
 
         private void OnGUI() => overlay?.OnGui();
     }

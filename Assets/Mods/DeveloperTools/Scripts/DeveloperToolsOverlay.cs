@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 using System.Linq;
 using BAModAPI;
 using UnityEngine;
@@ -17,6 +18,8 @@ namespace DeveloperTools
         private readonly DeveloperToolsItemService items;
         private readonly DeveloperToolsPlayerService player;
         private readonly DeveloperToolsTimeService time;
+        private readonly List<Texture2D> ownedTextures = new List<Texture2D>();
+        private GUISkin? customSkin;
         private Rect windowRect = new Rect(40f, 30f, WindowWidth, WindowHeight);
         private Vector2 mainScroll;
         private Vector2 vehicleScroll;
@@ -95,16 +98,51 @@ namespace DeveloperTools
             context.Logger.Info("DeveloperTools: testing UI closed.");
         }
 
+        public void ConsumeGameplayInput()
+        {
+            if (visible)
+                Input.ResetInputAxes();
+        }
+
+        public void Shutdown()
+        {
+            Hide();
+            if (customSkin != null)
+                UnityEngine.Object.Destroy(customSkin);
+            customSkin = null;
+            foreach (var texture in ownedTextures)
+                if (texture != null) UnityEngine.Object.Destroy(texture);
+            ownedTextures.Clear();
+        }
+
         public void OnGui()
         {
             if (!visible)
                 return;
 
+            EnsureSkin();
+
             windowRect.width = Mathf.Min(WindowWidth, Screen.width - 20f);
             windowRect.height = Mathf.Min(WindowHeight, Screen.height - 20f);
             windowRect.x = Mathf.Clamp(windowRect.x, 0f, Mathf.Max(0f, Screen.width - windowRect.width));
             windowRect.y = Mathf.Clamp(windowRect.y, 0f, Mathf.Max(0f, Screen.height - windowRect.height));
-            windowRect = GUILayout.Window(WindowId, windowRect, DrawWindow, "Developer Tools", GUILayout.Width(windowRect.width), GUILayout.Height(windowRect.height));
+            var previousSkin = GUI.skin;
+            try
+            {
+                GUI.skin = customSkin!;
+                windowRect = GUILayout.Window(
+                    WindowId,
+                    windowRect,
+                    DrawWindow,
+                    "Developer Tools",
+                    customSkin!.window,
+                    GUILayout.Width(windowRect.width),
+                    GUILayout.Height(windowRect.height));
+            }
+            finally
+            {
+                GUI.skin = previousSkin;
+            }
         }
 
         private void DrawWindow(int id)
@@ -326,6 +364,117 @@ namespace DeveloperTools
             var rect = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
             GUILayout.Space(5f);
+        }
+
+        private void EnsureSkin()
+        {
+            if (customSkin != null)
+                return;
+
+            customSkin = UnityEngine.Object.Instantiate(GUI.skin);
+            customSkin.name = "DeveloperToolsOpaqueSkin";
+            customSkin.window = CreateStyle(
+                GUI.skin.window,
+                new Color(0.075f, 0.09f, 0.12f, 1f),
+                new Color(0.96f, 0.97f, 0.99f, 1f),
+                14,
+                FontStyle.Bold);
+            customSkin.window.padding = new RectOffset(18, 18, 24, 16);
+            customSkin.window.border = new RectOffset(0, 0, 0, 0);
+            customSkin.label = CreateTextStyle(GUI.skin.label, new Color(0.94f, 0.95f, 0.97f, 1f), 14);
+            customSkin.box = CreateStyle(
+                GUI.skin.box,
+                new Color(0.14f, 0.17f, 0.22f, 1f),
+                new Color(0.96f, 0.97f, 0.99f, 1f),
+                15,
+                FontStyle.Bold);
+            customSkin.box.padding = new RectOffset(8, 8, 6, 6);
+            customSkin.button = CreateInteractiveStyle(
+                GUI.skin.button,
+                new Color(0.20f, 0.47f, 0.78f, 1f),
+                new Color(0.25f, 0.56f, 0.90f, 1f),
+                new Color(0.14f, 0.36f, 0.64f, 1f));
+            customSkin.button.fixedHeight = 30f;
+            customSkin.textField = CreateInteractiveStyle(
+                GUI.skin.textField,
+                new Color(0.055f, 0.065f, 0.085f, 1f),
+                new Color(0.08f, 0.10f, 0.14f, 1f),
+                new Color(0.04f, 0.05f, 0.07f, 1f));
+            customSkin.textField.fixedHeight = 28f;
+            customSkin.textField.padding = new RectOffset(7, 7, 4, 4);
+            customSkin.scrollView = new GUIStyle(GUI.skin.scrollView)
+            {
+                normal = { background = MakeSolidTexture(new Color(0.095f, 0.115f, 0.15f, 1f)) }
+            };
+        }
+
+        private GUIStyle CreateStyle(GUIStyle source, Color background, Color text, int fontSize, FontStyle fontStyle)
+        {
+            var texture = MakeSolidTexture(background);
+            var style = new GUIStyle(source)
+            {
+                fontSize = fontSize,
+                fontStyle = fontStyle,
+                normal = { background = texture, textColor = text },
+                hover = { background = texture, textColor = text },
+                active = { background = texture, textColor = text },
+                focused = { background = texture, textColor = text },
+                onNormal = { background = texture, textColor = text },
+                onHover = { background = texture, textColor = text },
+                onActive = { background = texture, textColor = text },
+                onFocused = { background = texture, textColor = text }
+            };
+            return style;
+        }
+
+        private static GUIStyle CreateTextStyle(GUIStyle source, Color text, int fontSize)
+        {
+            return new GUIStyle(source)
+            {
+                fontSize = fontSize,
+                normal = { textColor = text },
+                hover = { textColor = text },
+                active = { textColor = text },
+                focused = { textColor = text },
+                onNormal = { textColor = text },
+                onHover = { textColor = text },
+                onActive = { textColor = text },
+                onFocused = { textColor = text }
+            };
+        }
+
+        private GUIStyle CreateInteractiveStyle(GUIStyle source, Color normal, Color hover, Color active)
+        {
+            var normalTexture = MakeSolidTexture(normal);
+            var hoverTexture = MakeSolidTexture(hover);
+            var activeTexture = MakeSolidTexture(active);
+            var text = new Color(0.98f, 0.99f, 1f, 1f);
+            return new GUIStyle(source)
+            {
+                fontSize = 14,
+                fontStyle = FontStyle.Bold,
+                normal = { background = normalTexture, textColor = text },
+                hover = { background = hoverTexture, textColor = text },
+                active = { background = activeTexture, textColor = text },
+                focused = { background = hoverTexture, textColor = text },
+                onNormal = { background = activeTexture, textColor = text },
+                onHover = { background = hoverTexture, textColor = text },
+                onActive = { background = activeTexture, textColor = text },
+                onFocused = { background = hoverTexture, textColor = text }
+            };
+        }
+
+        private Texture2D MakeSolidTexture(Color color)
+        {
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            {
+                name = "DeveloperToolsUiColor",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            texture.SetPixel(0, 0, color);
+            texture.Apply();
+            ownedTextures.Add(texture);
+            return texture;
         }
     }
 }
