@@ -19,7 +19,7 @@ namespace MootorVehicle
         private const float MinimumHorizontalImpactSpeed = 3.5f;
         private const float CrashMooVolume = 0.65f;
         private const string FaintAnimationName = "Faint";
-        private const float LyingDuration = 0.6f;
+        private const float LyingDuration = 1f;
         private const float GetUpDuration = 1.5f;
         private const NavigationBlocker CrashFallNavigationBlocker = (NavigationBlocker)1000;
 
@@ -30,6 +30,9 @@ namespace MootorVehicle
         private Coroutine? forcedDismountCoroutine;
         private bool crashAudioConfigured;
         private bool crashAudioFailureLogged;
+        private bool crashMooPlaybackFailureLogged;
+        private AudioClip? crashMooClip;
+        private AudioSource? crashMooSource;
         private PlayerController? fallenPlayer;
         private Animator? fallenPlayerAnimator;
         private float fallenPlayerAnimatorSpeed = 1f;
@@ -59,11 +62,24 @@ namespace MootorVehicle
                     throw new InvalidOperationException("native crash sound component is unavailable");
 
                 var mooClip = horn.clips[0];
+                crashMooClip = mooClip;
                 crash.clips ??= new List<AudioClip>();
                 crash.clips.Clear();
                 crash.clips.Add(mooClip);
                 crash.baseVolume = CrashMooVolume;
                 mooClip.LoadAudioData();
+
+                var sourceObject = new GameObject("MootorVehicle_StrongImpactMoo");
+                sourceObject.transform.SetParent(transform, false);
+                crashMooSource = sourceObject.AddComponent<AudioSource>();
+                crashMooSource.playOnAwake = false;
+                crashMooSource.loop = false;
+                crashMooSource.clip = mooClip;
+                crashMooSource.volume = CrashMooVolume;
+                crashMooSource.spatialBlend = 1f;
+                crashMooSource.rolloffMode = AudioRolloffMode.Linear;
+                crashMooSource.minDistance = 3f;
+                crashMooSource.maxDistance = 35f;
                 crashAudioConfigured = true;
 
                 context?.Logger.Info(
@@ -103,7 +119,33 @@ namespace MootorVehicle
                 $"Moo-tor Vehicle strong impact vehicle={vehicle.GetInstanceID()} " +
                 $"horizontalDeltaV={horizontalDeltaVelocity:F2}m/s " +
                 $"relativeSpeed={horizontalImpactSpeed:F2}m/s; forcing rider dismount.");
+            PlayStrongImpactMoo();
             forcedDismountCoroutine = StartCoroutine(ForceDismountAfterCollision());
+        }
+
+        private void PlayStrongImpactMoo()
+        {
+            try
+            {
+                if (crashMooSource == null || crashMooClip == null)
+                    throw new InvalidOperationException("dedicated strong-impact moo source is unavailable");
+
+                crashMooSource.Stop();
+                crashMooSource.PlayOneShot(crashMooClip);
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} played explicit " +
+                    $"strong-impact moo clip='{crashMooClip.name}'.");
+            }
+            catch (Exception exception)
+            {
+                if (crashMooPlaybackFailureLogged)
+                    return;
+
+                crashMooPlaybackFailureLogged = true;
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} could not play " +
+                    $"the strong-impact moo: {exception.GetBaseException().Message}");
+            }
         }
 
         private IEnumerator ForceDismountAfterCollision()

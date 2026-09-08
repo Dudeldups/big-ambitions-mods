@@ -23,7 +23,9 @@ namespace MootorVehicle
         private const float EnergyDrinkSpeedMultiplier = 2f;
         private const float NativeLimiterHeadroom = 1.08f;
         private const float ReverseGearRatio = -2.96f;
-        private const float RegularForwardGearRatio = 1.95f;
+        // Calibrated against the in-game speedometer: 1.95 produced 18 km/h, so
+        // reducing the reduction ratio proportionally targets 22 km/h (44 boosted).
+        private const float RegularForwardGearRatio = 1.595f;
         internal const float RegularSpeedLimit = 22f;
         internal const float RegularEnginePower = 22f;
 
