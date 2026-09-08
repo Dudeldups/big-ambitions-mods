@@ -60,14 +60,9 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         var outerWindowRenderer = FindRenderer(renderers, OuterWindowRendererName);
         var innerWindowRenderer = FindRenderer(renderers, InnerWindowRendererName);
         var glassCount = ConfigureGlass(outerWindowRenderer, innerWindowRenderer);
-        // Keep the imported housing shader, textures and roughness visible in daylight,
-        // but do not let that combined housing mesh hide its own emissive guides.
-        ConfigureFrontLampDepth(frontLampRenderer);
-        ConfigureLampSurface(
-            rearLampRenderer,
-            "AudiRS6R Rear Lamp Housing",
-            new Color(0.45f, 0.025f, 0.015f, 1f),
-            preserveSourceShader: true);
+        // Keep the imported housing shader, textures and roughness visible in daylight.
+        LogSurface("front-lamp-preserved", frontLampRenderer);
+        ConfigureRearLampGlass(rearLampRenderer);
         var beamCount = ConfigureHeadlightBeams();
 
         leftHeadlightOverlay = CreateFunctionalOverlay(
@@ -76,8 +71,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "LeftHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false,
-            overlayScale: 1.006f,
-            additive: true,
+            overlayScale: 1.0015f,
             selectHeadlightSignatureComponents: true);
         rightHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
@@ -85,8 +79,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             "RightHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
             copyBaseTexture: false,
-            overlayScale: 1.006f,
-            additive: true,
+            overlayScale: 1.0015f,
             selectHeadlightSignatureComponents: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x <= 0f,
@@ -207,22 +200,21 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return configuredCount;
     }
 
-    private void ConfigureFrontLampDepth(MeshRenderer? frontLampRenderer)
+    private void ConfigureRearLampGlass(MeshRenderer? rearLampRenderer)
     {
-        LogSurface("front-lamp-source", frontLampRenderer);
-        if (frontLampRenderer == null)
+        LogSurface("rear-lamp-glass-source", rearLampRenderer);
+        if (rearLampRenderer == null)
             return;
 
-        var source = FirstMaterial(frontLampRenderer);
+        var source = FirstMaterial(rearLampRenderer);
         if (source == null)
             return;
 
-        var material = new Material(source) { name = "AudiRS6R Front Lamp Housing" };
-        generatedMaterials.Add(material);
-        SetFloatIfPresent(material, "_ZWrite", 0f);
-        SetFloatIfPresent(material, "_TransparentZWrite", 0f);
-        frontLampRenderer.sharedMaterial = material;
-        LogSurface("front-lamp-depth-configured", frontLampRenderer);
+        rearLampRenderer.sharedMaterial = CloneAndConfigureGlass(
+            source,
+            "AudiRS6R Transparent Rear Lamp Glass",
+            new Color(0.45f, 0.025f, 0.015f, 0.30f));
+        LogSurface("rear-lamp-glass-configured", rearLampRenderer);
     }
 
     private Material CloneAndConfigureGlass(Material? source, string materialName, Color tint)
@@ -322,34 +314,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         }
     }
 
-    private void ConfigureLampSurface(
-        MeshRenderer? renderer,
-        string materialName,
-        Color baseColor,
-        bool preserveSourceShader)
-    {
-        if (renderer == null)
-            return;
-
-        var source = FirstMaterial(renderer);
-        if (source == null)
-            return;
-
-        var shader = preserveSourceShader
-            ? source.shader
-            : Shader.Find("HDRP/Lit") ?? Shader.Find("High Definition Render Pipeline/Lit") ?? source.shader;
-        var material = new Material(shader) { name = materialName };
-        generatedMaterials.Add(material);
-        if (preserveSourceShader)
-            CopyBaseTexture(source, material);
-        SetColorIfPresent(material, "baseColorFactor", baseColor);
-        SetColorIfPresent(material, "_BaseColor", baseColor);
-        SetColorIfPresent(material, "_Color", baseColor);
-        SetFloatIfPresent(material, "_SupportDecals", 0f);
-        material.EnableKeyword("_DISABLE_DECALS");
-        renderer.sharedMaterial = material;
-    }
-
     private MeshRenderer? CreateFunctionalOverlay(
         MeshRenderer? sourceRenderer,
         Func<Vector3, bool> includeTriangleCenter,
@@ -357,7 +321,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         Color activeColor,
         bool copyBaseTexture = true,
         float overlayScale = 1.0015f,
-        bool additive = false,
         bool selectHeadlightSignatureComponents = false,
         bool selectRearLampSignatureComponents = false)
     {
@@ -397,8 +360,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             overlayObject.AddComponent<MeshFilter>().sharedMesh = overlayMesh;
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
             overlayRenderer.sharedMaterial = CreateUnlitMaterial(
-                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture,
-                additive);
+                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture);
             overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
@@ -689,8 +651,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         Material? source,
         string materialName,
         Color color,
-        bool copyBaseTexture,
-        bool additive)
+        bool copyBaseTexture)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
                      Shader.Find("High Definition Render Pipeline/Unlit") ??
@@ -705,7 +666,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             CopyBaseTexture(source, material);
         }
 
-        var hdrColor = color * (additive ? 6f : 3.5f);
+        var hdrColor = color * 3.5f;
         hdrColor.a = 1f;
         SetColorIfPresent(material, "_UnlitColor", hdrColor);
         SetColorIfPresent(material, "_BaseColor", hdrColor);
@@ -713,49 +674,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetColorIfPresent(material, "baseColorFactor", hdrColor);
         SetColorIfPresent(material, "_EmissiveColor", hdrColor);
         SetColorIfPresent(material, "_EmissionColor", hdrColor);
-        SetFloatIfPresent(material, "_SurfaceType", additive ? 1f : 0f);
-        SetFloatIfPresent(material, "_ZWrite", additive ? 0f : 1f);
+        SetFloatIfPresent(material, "_SurfaceType", 0f);
+        SetFloatIfPresent(material, "_ZWrite", 1f);
         SetFloatIfPresent(material, "_Cull", 0f);
         SetFloatIfPresent(material, "_CullMode", 0f);
         material.EnableKeyword("_EMISSION");
-        if (additive)
-            ConfigureAdditiveTransparency(material);
-        else
-            material.renderQueue = Mathf.Clamp((source?.renderQueue ?? 2450) + 1, 2001, 2499);
+        material.renderQueue = Mathf.Clamp((source?.renderQueue ?? 2450) + 1, 2001, 2499);
         return material;
-    }
-
-    private void ConfigureAdditiveTransparency(Material material)
-    {
-        SetFloatIfPresent(material, "_BlendMode", 1f);
-        SetFloatIfPresent(material, "_SrcBlend", (float)BlendMode.One);
-        SetFloatIfPresent(material, "_DstBlend", (float)BlendMode.One);
-        SetFloatIfPresent(material, "_AlphaSrcBlend", (float)BlendMode.One);
-        SetFloatIfPresent(material, "_AlphaDstBlend", (float)BlendMode.One);
-        SetFloatIfPresent(material, "_TransparentZWrite", 0f);
-        SetFloatIfPresent(material, "_ZTestTransparent", (float)CompareFunction.LessEqual);
-        SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
-        SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
-        SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
-        SetFloatIfPresent(material, "_Cull", (float)CullMode.Off);
-        SetFloatIfPresent(material, "_CullMode", (float)CullMode.Off);
-        SetFloatIfPresent(material, "_CullModeForward", (float)CullMode.Off);
-        SetFloatIfPresent(material, "_TransparentCullMode", (float)CullMode.Off);
-        SetFloatIfPresent(material, "_DoubleSidedEnable", 1f);
-        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.EnableKeyword("_DOUBLESIDED_ON");
-        material.doubleSidedGI = true;
-        material.SetOverrideTag("RenderType", "Transparent");
-        material.renderQueue = (int)RenderQueue.Transparent + 20;
-        material.SetShaderPassEnabled("TransparentDepthPrepass", false);
-        material.SetShaderPassEnabled("TransparentDepthPostpass", false);
-        material.SetShaderPassEnabled("DepthOnly", false);
-        material.SetShaderPassEnabled("ShadowCaster", false);
-        LogInfo($"additive-material name='{material.name}' shader='{material.shader.name}' " +
-                $"cull={ReadFloat(material, "_CullMode")} " +
-                $"forwardCull={ReadFloat(material, "_CullModeForward")} " +
-                $"transparentCull={ReadFloat(material, "_TransparentCullMode")} " +
-                $"zTest={ReadFloat(material, "_ZTestTransparent")} doubleSided=true.");
     }
 
     private static void CopyBaseTexture(Material? source, Material destination)
@@ -855,7 +780,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 $"zWrite={ReadFloat(material, "_ZWrite")}.");
         if (!material.shader.isSupported)
             LogWarning($"surface operation='{operation}' shader '{material.shader.name}' is unsupported.");
-        if (operation == "front-lamp-source" && texture == null)
+        if (operation == "front-lamp-preserved" && texture == null)
             LogWarning("The imported front lamp material has no base texture; model detail may be missing.");
     }
 
