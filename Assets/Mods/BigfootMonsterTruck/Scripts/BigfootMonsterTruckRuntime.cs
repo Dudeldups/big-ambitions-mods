@@ -60,6 +60,9 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         foreach (var guard in FindObjectsOfType<BigfootMonsterTruckCollisionGuard>(true))
             if (guard != null)
                 Destroy(guard);
+        foreach (var audioController in FindObjectsOfType<BigfootMonsterTruckAudioController>(true))
+            if (audioController != null)
+                Destroy(audioController);
         Destroy(gameObject);
     }
 
@@ -223,6 +226,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         driver.Initialize(vehicle, context);
         var collisionGuard = vehicle.gameObject.AddComponent<BigfootMonsterTruckCollisionGuard>();
         collisionGuard.Initialize(vehicle, context);
+        var audioController = vehicle.gameObject.AddComponent<BigfootMonsterTruckAudioController>();
+        audioController.Initialize(vehicle, context);
         var marker = vehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
         marker.Initialize(contactMaterial);
         context?.Logger.Info(
