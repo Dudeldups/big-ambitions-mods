@@ -26,10 +26,14 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float LatchedClimbLateralVelocityRetention = 0.15f;
     private const float LatchedClimbYawRetention = 0.5f;
     private const float LatchedClimbRollRetention = 0.65f;
+    private const float LatchedClimbSteeringRate = 12f;
+    private const float LatchedClimbSteeringYawAcceleration = 1.6f;
     private const float ParkedContactDirectionHoldTime = 0.75f;
     private const float ParkedContactLateralVelocityRetention = 0.05f;
     private const float ParkedContactYawRetention = 0.3f;
     private const float ParkedContactRollRetention = 0.55f;
+    private const float ParkedContactSteeringLateralRetention = 0.4f;
+    private const float ParkedContactSteeringYawRetention = 0.78f;
     private const float ParkedContactMaximumDescentSpeed = 0.75f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
@@ -52,6 +56,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private Vector3 latchedClimbDirection;
     private int latchedClimbVehicleId;
     private bool latchedClimbApplicationLogged;
+    private float nextClimbSteeringLogTime;
     private float parkedContactDirectionUntil;
     private float nextParkedStabilizationLogTime;
     private Vector3 parkedContactDirection;
@@ -134,6 +139,16 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
             var driveDirection = Mathf.Sign(driveInput);
             var currentDriveDirection = vehicle.transform.forward * driveDirection;
+            var steeringInput = physicsVehicle.input.Steering;
+            var steeringAmount = Mathf.Clamp01(Mathf.Abs(steeringInput));
+            if (steeringAmount > 0.05f)
+            {
+                var steeringAngle = steeringInput * driveDirection *
+                                    LatchedClimbSteeringRate * Time.fixedDeltaTime;
+                latchedClimbDirection = Quaternion.AngleAxis(
+                    steeringAngle,
+                    Vector3.up) * latchedClimbDirection;
+            }
             var climbDirection = Vector3.ProjectOnPlane(latchedClimbDirection, Vector3.up).normalized;
             if (climbDirection.sqrMagnitude < 0.9f ||
                 Vector3.Dot(currentDriveDirection, climbDirection) < 0.75f)
@@ -164,9 +179,17 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 ForceMode.Acceleration);
             var localAngularVelocity = vehicle.transform.InverseTransformDirection(
                 vehicleBody.angularVelocity);
-            localAngularVelocity.y *= LatchedClimbYawRetention;
+            localAngularVelocity.y *= Mathf.Lerp(
+                LatchedClimbYawRetention,
+                0.82f,
+                steeringAmount);
             localAngularVelocity.z *= LatchedClimbRollRetention;
             vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
+            if (steeringAmount > 0.05f)
+                vehicleBody.AddTorque(
+                    Vector3.up *
+                    (steeringInput * driveDirection * LatchedClimbSteeringYawAcceleration),
+                    ForceMode.Acceleration);
             if (!latchedClimbApplicationLogged)
             {
                 latchedClimbApplicationLogged = true;
@@ -174,6 +197,13 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     $"BigfootMonsterTruck: latched climb applied in physics step " +
                     $"speed={forwardSpeed:F2}m/s, lateral={lateralSpeed:F2}m/s, " +
                     $"verticalTarget={LatchedClimbVerticalSpeed:F2}m/s.");
+            }
+            if (steeringAmount >= 0.15f && Time.unscaledTime >= nextClimbSteeringLogTime)
+            {
+                nextClimbSteeringLogTime = Time.unscaledTime + ClimbAssistLogCooldown;
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck: climb steering assist active " +
+                    $"input={steeringInput:F2}, rate={LatchedClimbSteeringRate:F0}deg/s.");
             }
         }
         catch (Exception exception)
@@ -286,7 +316,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 StabilizeParkedContact(
                     parkedVehicle,
                     worldDriveDirection,
-                    forwardSpeed);
+                    forwardSpeed,
+                    physicsVehicle.input.Steering);
                 velocity = vehicleBody.velocity;
                 forwardSpeed = Vector3.Dot(velocity, worldDriveDirection);
             }
@@ -410,7 +441,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private void StabilizeParkedContact(
         Transform parkedVehicle,
         Vector3 worldDriveDirection,
-        float forwardSpeed)
+        float forwardSpeed,
+        float steeringInput)
     {
         if (vehicle == null || vehicleBody == null)
             return;
@@ -431,8 +463,13 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         var sideDirection = Vector3.Cross(Vector3.up, parkedContactDirection).normalized;
         var velocity = vehicleBody.velocity;
         var lateralSpeed = Vector3.Dot(velocity, sideDirection);
+        var steeringAmount = Mathf.Clamp01(Mathf.Abs(steeringInput));
+        var lateralRetention = Mathf.Lerp(
+            ParkedContactLateralVelocityRetention,
+            ParkedContactSteeringLateralRetention,
+            steeringAmount);
         velocity -= sideDirection *
-                    (lateralSpeed * (1f - ParkedContactLateralVelocityRetention));
+                    (lateralSpeed * (1f - lateralRetention));
         var verticalSpeed = Vector3.Dot(velocity, Vector3.up);
         var descentCorrection = Mathf.Max(
             0f,
@@ -443,7 +480,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
         var localAngularVelocity = vehicle.transform.InverseTransformDirection(
             vehicleBody.angularVelocity);
-        localAngularVelocity.y *= ParkedContactYawRetention;
+        localAngularVelocity.y *= Mathf.Lerp(
+            ParkedContactYawRetention,
+            ParkedContactSteeringYawRetention,
+            steeringAmount);
         localAngularVelocity.z *= ParkedContactRollRetention;
         vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
 
