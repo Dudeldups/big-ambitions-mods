@@ -102,6 +102,13 @@ public static class BugattiChironSetup
                 Math.Abs(leftDoorBounds.center.x - rightDoorBounds.center.x) > 0.5f &&
                 Math.Abs(leftDoorBounds.center.x - rightDoorBounds.center.x) >
                 Math.Abs(leftDoorBounds.center.y - rightDoorBounds.center.y) * 2f;
+            var windshield = FindTransform(visual, "Windshields");
+            var exhaust = FindTransform(visual, "Plastic-parts_exhaust_0");
+            var bodyUpright =
+                windshield != null && exhaust != null &&
+                TryGetRendererBounds(windshield, out var windshieldBounds) &&
+                TryGetRendererBounds(exhaust, out var exhaustBounds) &&
+                windshieldBounds.center.y > exhaustBounds.center.y + 0.25f;
 
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
@@ -195,6 +202,7 @@ public static class BugattiChironSetup
                 bounds.size.x < 1.90f || bounds.size.x > 2.15f ||
                 bounds.size.y < 1.05f || bounds.size.y > 1.40f ||
                 !bodySidesOriented ||
+                !bodyUpright ||
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !continuousTailLight ||
@@ -209,6 +217,7 @@ public static class BugattiChironSetup
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
                     $"speed={maxSpeed}, power={enginePower}, luxury={luxury}, " +
                     $"bounds={bounds.size}, bodySidesOriented={bodySidesOriented}, " +
+                    $"bodyUpright={bodyUpright}, " +
                     $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, " +
                     $"continuousTailLight={continuousTailLight}, lights={remainingLightComponents}, " +
@@ -487,10 +496,10 @@ public static class BugattiChironSetup
     private static void NormalizeModel(GameObject model)
     {
         model.transform.localPosition = Vector3.zero;
-        // The imported GLB is longitudinal on Y and upright on Z. The additional
-        // +90-degree roll puts Z on Unity Y and the side windows on Unity X.
+        // The imported GLB is longitudinal on Y with its authored roof toward -Z.
+        // The additional -90-degree roll puts the roof on Unity Y and side windows on X.
         model.transform.localRotation =
-            Quaternion.AngleAxis(90f, Vector3.forward) *
+            Quaternion.AngleAxis(-90f, Vector3.forward) *
             Quaternion.AngleAxis(120f, new Vector3(1f, 1f, 1f).normalized);
         model.transform.localScale = Vector3.one;
 
