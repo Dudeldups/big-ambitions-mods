@@ -4,8 +4,11 @@ using System.Collections.Generic;
 using BAModAPI;
 using BigAmbitions.Items;
 using Helpers;
+using NWH.VehiclePhysics2.Modules.Fuel;
+using NWH.VehiclePhysics2.Modules.SpeedLimiter;
 using UI.Overlays;
 using UnityEngine;
+using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 namespace MootorVehicle
 {
@@ -17,18 +20,29 @@ namespace MootorVehicle
     {
         private const string EnergyDrinkItemName = "ba:itemname_energydrink";
         private const float DefaultMaximumFuel = 100f;
+        private const float EnergyDrinkSpeedMultiplier = 2f;
 
         private readonly HashSet<int> suppressedRefuelStations = new();
         private VehicleController? vehicle;
         private ModContext? context;
         private readonly float configuredMaximumFuel = DefaultMaximumFuel;
         private ItemInstance? heldItemAwaitingRestore;
+        private PhysicsVehicle? physicsVehicle;
+        private FuelModuleWrapper? fuelModuleWrapper;
+        private SpeedLimiterModuleWrapper? speedLimiterWrapper;
+        private float regularSpeedLimit;
+        private float regularEnginePower;
+        private string energyBoostPreferenceKey = string.Empty;
+        private bool performanceConfigured;
+        private bool energyBoostActive;
+        private bool performanceConfigurationWarningLogged;
         private bool mounted;
 
         internal void Initialize(VehicleController controller, ModContext? modContext)
         {
             vehicle = controller;
             context = modContext;
+            ConfigureEnergyDrinkPerformance();
 
             if (controller.controlledByPlayer)
                 NotifyMounted();
@@ -100,10 +114,142 @@ namespace MootorVehicle
                 PlayerHelper.ItemInstanceInHands = null;
             }
 
+            ActivateEnergyDrinkBoost();
+
             context?.Logger.Info(
                 $"Moo-tor Vehicle feed vehicle={vehicle.GetInstanceID()} item='{EnergyDrinkItemName}' " +
                 $"source={(boxedEnergyDrink != null ? "box" : "hands")} " +
-                $"fuelBefore={fuelBefore:F2} fuelAfter={fuelAfter:F2}; energy drink consumed.");
+                $"fuelBefore={fuelBefore:F2} fuelAfter={fuelAfter:F2} " +
+                $"speedMultiplier={EnergyDrinkSpeedMultiplier:F1}; energy drink consumed.");
+        }
+
+        private void ConfigureEnergyDrinkPerformance()
+        {
+            if (performanceConfigured || vehicle == null)
+                return;
+
+            try
+            {
+                physicsVehicle = vehicle.GetComponent<PhysicsVehicle>();
+                fuelModuleWrapper = vehicle.GetComponent<FuelModuleWrapper>();
+                speedLimiterWrapper = vehicle.GetComponent<SpeedLimiterModuleWrapper>();
+                var fuelModule = fuelModuleWrapper?.module;
+                var speedLimiter = speedLimiterWrapper?.module;
+                var engine = physicsVehicle?.powertrain?.engine;
+                if (fuelModule == null || speedLimiter == null || engine == null)
+                {
+                    WarnPerformanceConfigurationOnce(
+                        $"could not bind fuelModule={fuelModule != null} " +
+                        $"speedLimiter={speedLimiter != null} engine={engine != null}");
+                    return;
+                }
+
+                regularSpeedLimit = speedLimiter.speedLimit;
+                regularEnginePower = engine.maxPower;
+                energyBoostPreferenceKey = BuildEnergyBoostPreferenceKey(context?.ModId, vehicle);
+                fuelModule.onOutOfFuel.RemoveListener(HandleOutOfFuel);
+                fuelModule.onOutOfFuel.AddListener(HandleOutOfFuel);
+                performanceConfigured = true;
+
+                var persistedBoost = !string.IsNullOrEmpty(energyBoostPreferenceKey) &&
+                                     UnityEngine.PlayerPrefs.GetInt(energyBoostPreferenceKey, 0) != 0;
+                if (persistedBoost && vehicle.GetCurrentFuel() > 0.01f)
+                    SetEnergyDrinkBoost(true, false);
+                else if (persistedBoost)
+                    PersistEnergyDrinkBoost(false);
+
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle energy boost configured vehicle={vehicle.GetInstanceID()} " +
+                    $"regularSpeed={regularSpeedLimit:F1} regularPower={regularEnginePower:F1} " +
+                    $"restored={energyBoostActive}.");
+            }
+            catch (System.Exception exception)
+            {
+                WarnPerformanceConfigurationOnce(
+                    $"configuration failed: {exception.GetBaseException().Message}");
+            }
+        }
+
+        private void WarnPerformanceConfigurationOnce(string reason)
+        {
+            if (performanceConfigurationWarningLogged)
+                return;
+
+            performanceConfigurationWarningLogged = true;
+            context?.Logger.Warn(
+                $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} {reason}.");
+        }
+
+        private void ActivateEnergyDrinkBoost()
+        {
+            ConfigureEnergyDrinkPerformance();
+            if (!performanceConfigured)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle feed vehicle={vehicle?.GetInstanceID()} refueled, but its " +
+                    "energy-drink speed boost could not be applied.");
+                return;
+            }
+
+            try
+            {
+                SetEnergyDrinkBoost(true, true);
+            }
+            catch (System.Exception exception)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle feed vehicle={vehicle?.GetInstanceID()} refueled, but applying " +
+                    $"the energy-drink speed boost failed: {exception.GetBaseException().Message}");
+            }
+        }
+
+        private void HandleOutOfFuel()
+        {
+            if (!energyBoostActive)
+                return;
+
+            SetEnergyDrinkBoost(false, true);
+            context?.Logger.Info(
+                $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} ended: cow is out of fuel.");
+        }
+
+        private void SetEnergyDrinkBoost(bool active, bool persist)
+        {
+            var speedLimiter = speedLimiterWrapper?.module;
+            var engine = physicsVehicle?.powertrain?.engine;
+            if (!performanceConfigured || speedLimiter == null || engine == null)
+                return;
+
+            speedLimiter.speedLimit = regularSpeedLimit * (active ? EnergyDrinkSpeedMultiplier : 1f);
+            engine.maxPower = regularEnginePower * (active ? EnergyDrinkSpeedMultiplier : 1f);
+            energyBoostActive = active;
+
+            if (persist)
+                PersistEnergyDrinkBoost(active);
+
+            context?.Logger.Info(
+                $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} active={active} " +
+                $"speedLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1}.");
+        }
+
+        private void PersistEnergyDrinkBoost(bool active)
+        {
+            if (string.IsNullOrEmpty(energyBoostPreferenceKey))
+                return;
+
+            if (active)
+                UnityEngine.PlayerPrefs.SetInt(energyBoostPreferenceKey, 1);
+            else
+                UnityEngine.PlayerPrefs.DeleteKey(energyBoostPreferenceKey);
+            UnityEngine.PlayerPrefs.Save();
+        }
+
+        private static string BuildEnergyBoostPreferenceKey(string? modId, VehicleController controller)
+        {
+            var vehicleId = controller.vehicleInstance?.id;
+            return string.IsNullOrWhiteSpace(vehicleId)
+                ? string.Empty
+                : $"m:{(string.IsNullOrWhiteSpace(modId) ? "MootorVehicle" : modId)}:energy-boost:{vehicleId}";
         }
 
         private IEnumerator RestoreHeldItemAfterDismount(ItemInstance heldItem)
@@ -197,6 +343,19 @@ namespace MootorVehicle
         {
             suppressedRefuelStations.Clear();
             mounted = false;
+        }
+
+        private void OnDestroy()
+        {
+            fuelModuleWrapper?.module?.onOutOfFuel.RemoveListener(HandleOutOfFuel);
+
+            if (!performanceConfigured)
+                return;
+
+            if (speedLimiterWrapper?.module != null)
+                speedLimiterWrapper.module.speedLimit = regularSpeedLimit;
+            if (physicsVehicle?.powertrain?.engine != null)
+                physicsVehicle.powertrain.engine.maxPower = regularEnginePower;
         }
     }
 }
