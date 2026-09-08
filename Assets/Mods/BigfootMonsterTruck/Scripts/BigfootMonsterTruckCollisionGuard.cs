@@ -26,7 +26,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float LatchedClimbLateralVelocityRetention = 0.15f;
     private const float LatchedClimbYawRetention = 0.5f;
     private const float LatchedClimbRollRetention = 0.65f;
-    private const float LatchedClimbSteeringRate = 12f;
+    private const float LatchedClimbSteeringRate = 15f;
     private const float LatchedClimbSteeringYawAcceleration = 1.6f;
     private const float ParkedContactDirectionHoldTime = 0.75f;
     private const float ParkedContactLateralVelocityRetention = 0.05f;

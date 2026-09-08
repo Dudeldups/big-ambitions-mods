@@ -52,6 +52,8 @@ public static class BigfootMonsterTruckSetup
             var serializedVehicleType = new SerializedObject(vehicleType);
             var bundledPrice = serializedVehicleType.FindProperty("price")?.floatValue ?? 0f;
             var bundledMaxSpeed = serializedVehicleType.FindProperty("maxSpeed")?.intValue ?? 0;
+            var bundledCargoCapacity =
+                serializedVehicleType.FindProperty("maxCargoCapacity")?.intValue ?? 0;
 
             var wheelControllers = 0;
             var wheelVisuals = 0;
@@ -62,6 +64,7 @@ public static class BigfootMonsterTruckSetup
             var climbChassisRestored = false;
             var hasSeat = false;
             var raisedSeat = false;
+            var loadingAtDriverDoor = false;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
@@ -101,10 +104,14 @@ public static class BigfootMonsterTruckSetup
                     raisedSeat = transform.localPosition.y >= 2.01f &&
                                  transform.localPosition.y <= 2.03f;
                 }
+                if (string.Equals(transform.name, "LoadingPosition", StringComparison.Ordinal))
+                    loadingAtDriverDoor =
+                        Vector3.Distance(transform.localPosition, new Vector3(-2.05f, 0.1f, 0.1f)) < 0.01f;
             }
 
             var visibleRenderers = 0;
             var hasTransparentGlass = false;
+            var hasWindshieldDecalAtlas = false;
             var opaqueMaterials = new HashSet<Material>();
             var decalSafeOpaqueMaterials = 0;
             var opaqueRendererMasksSafe = true;
@@ -139,7 +146,10 @@ public static class BigfootMonsterTruckSetup
                         material.color.a >= 0.15f && material.color.a <= 0.3f &&
                         string.Equals(material.shader.name, "Bigfoot/TransparentWindshield",
                             StringComparison.Ordinal))
+                    {
                         hasTransparentGlass = true;
+                        hasWindshieldDecalAtlas = material.mainTexture != null;
+                    }
                 }
                 if (hasBigfootOpaqueMaterial && (renderer.renderingLayerMask & 0x0000FF00u) != 0)
                     opaqueRendererMasksSafe = false;
@@ -149,10 +159,12 @@ public static class BigfootMonsterTruckSetup
                 animatedWheelVisuals != 4 || physicalWheelColliders != 4 ||
                 climbContactColliders != 4 || !climbChassisRestored ||
                 !hasSeat || !raisedSeat ||
-                visibleRenderers == 0 || !hasTransparentGlass ||
+                !loadingAtDriverDoor || visibleRenderers == 0 || !hasTransparentGlass ||
+                !hasWindshieldDecalAtlas ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeOpaqueMaterials != opaqueMaterials.Count || !opaqueRendererMasksSafe ||
-                Mathf.Abs(bundledPrice - 345000f) > 0.5f || bundledMaxSpeed != 140)
+                Mathf.Abs(bundledPrice - 345000f) > 0.5f || bundledMaxSpeed != 140 ||
+                bundledCargoCapacity != 4)
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: controllers={wheelControllers}, " +
@@ -162,8 +174,11 @@ public static class BigfootMonsterTruckSetup
                     $"climbContacts={climbContactColliders}, " +
                     $"climbChassis={climbChassisRestored}, " +
                     $"seat={hasSeat}, raisedSeat={raisedSeat}, visibleRenderers={visibleRenderers}, " +
-                    $"transparentGlass={hasTransparentGlass}, price={bundledPrice}, " +
-                    $"maxSpeed={bundledMaxSpeed}, opaqueMaterials={opaqueMaterials.Count}, " +
+                    $"loadingAtDriverDoor={loadingAtDriverDoor}, " +
+                    $"transparentGlass={hasTransparentGlass}, " +
+                    $"windshieldDecalAtlas={hasWindshieldDecalAtlas}, price={bundledPrice}, " +
+                    $"maxSpeed={bundledMaxSpeed}, cargoCapacity={bundledCargoCapacity}, " +
+                    $"opaqueMaterials={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeOpaqueMaterials}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
@@ -175,7 +190,8 @@ public static class BigfootMonsterTruckSetup
                 $"physicalWheelColliders={physicalWheelColliders}, " +
                 $"climbContacts={climbContactColliders}, " +
                 $"visibleRenderers={visibleRenderers}, decalSafe={decalSafeOpaqueMaterials}, " +
-                $"raisedCenterSeat=true, transparentGlass=true.");
+                $"raisedCenterSeat=true, loadingAtDriverDoor=true, " +
+                $"transparentGlass=true, windshieldDecalAtlas=true, cargoCapacity=4.");
         }
         finally
         {
@@ -208,7 +224,7 @@ public static class BigfootMonsterTruckSetup
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
         SetNumber(serialized, "price", 345000f);
         SetNumber(serialized, "maxFuel", 110f);
-        SetNumber(serialized, "maxCargoCapacity", 16f);
+        SetNumber(serialized, "maxCargoCapacity", 4f);
         SetNumber(serialized, "maxSpeed", 140f);
         SetNumber(serialized, "enginePower", 1200f);
         SetNumber(serialized, "brakeForce", 32000f);
@@ -356,6 +372,7 @@ public static class BigfootMonsterTruckSetup
     {
         SetLocalPosition(root, "Driverside", new Vector3(-2.05f, 0.1f, 0.1f));
         SetLocalPosition(root, "Passengerside", new Vector3(2.05f, 0.1f, 0.1f));
+        SetLocalPosition(root, "LoadingPosition", new Vector3(-2.05f, 0.1f, 0.1f));
     }
 
     private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)
@@ -615,6 +632,26 @@ public static class BigfootMonsterTruckSetup
 
     private static void ConfigureWindshieldMaterial(GameObject model, Material windshieldMaterial)
     {
+        Texture? decalAtlas = null;
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+        {
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material == null ||
+                    !string.Equals(material.name, "Material_3", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                decalAtlas = material.mainTexture;
+                if (decalAtlas != null)
+                    break;
+            }
+            if (decalAtlas != null)
+                break;
+        }
+
+        if (decalAtlas == null)
+            throw new InvalidOperationException("The body decal atlas required by the windshield was not found.");
+        windshieldMaterial.SetTexture("_MainTex", decalAtlas);
+
         var replacements = 0;
         foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
         {
