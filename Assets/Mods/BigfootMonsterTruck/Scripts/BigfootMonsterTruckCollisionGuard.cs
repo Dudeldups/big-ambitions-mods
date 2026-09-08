@@ -11,9 +11,11 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 {
     private const float DamageTolerance = 0.0001f;
     private const float SmallVehicleSuppressionWindow = 0.75f;
+    private const float CollisionLogCooldown = 5f;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
+    private readonly Dictionary<int, float> nextCollisionLogTimes = new();
     private VehicleController? vehicle;
     private VehicleDeformationController? deformationController;
     private FieldInfo? deformationQueueField;
@@ -102,13 +104,19 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             var isHeavy = otherPlayerVehicle != null
                 ? IsHeavyVehicle(otherPlayerVehicle)
                 : IsHeavyTrafficVehicle(trafficVehicle!);
+            var otherInstanceId = otherPlayerVehicle != null
+                ? otherPlayerVehicle.GetInstanceID()
+                : trafficVehicle!.GetInstanceID();
             if (isHeavy)
             {
                 heavyImpactFrame = Time.frameCount;
                 suppressDamageUntil = 0f;
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: heavy vehicle impact kept damage-enabled " +
-                    $"other='{otherName}'.");
+                if (ShouldLogCollision(otherInstanceId))
+                {
+                    context?.Logger.Info(
+                        $"BigfootMonsterTruck: heavy vehicle impact kept damage-enabled " +
+                        $"other='{otherName}'.");
+                }
                 return;
             }
 
@@ -116,9 +124,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 return;
             suppressDamageUntil = Time.unscaledTime + SmallVehicleSuppressionWindow;
             ClearPendingDeformationQueue();
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: suppressing small-vehicle impact damage " +
-                $"other='{otherName}' for {SmallVehicleSuppressionWindow:F2}s.");
+            if (ShouldLogCollision(otherInstanceId))
+            {
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck: suppressing small-vehicle impact damage " +
+                    $"other='{otherName}' for {SmallVehicleSuppressionWindow:F2}s.");
+            }
         }
         catch (Exception exception)
         {
@@ -153,6 +164,16 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         // as a car turns. Bounds-based classification misidentified ordinary cars.
         return identity.Contains("freighttruck") || identity.Contains("deliverytruck") ||
                identity.Contains("ambulance") || identity.Contains("vordv150");
+    }
+
+    private bool ShouldLogCollision(int otherInstanceId)
+    {
+        var now = Time.unscaledTime;
+        if (nextCollisionLogTimes.TryGetValue(otherInstanceId, out var nextLogTime) &&
+            now < nextLogTime)
+            return false;
+        nextCollisionLogTimes[otherInstanceId] = now + CollisionLogCooldown;
+        return true;
     }
 
     private void ClearPendingDeformationQueue()
