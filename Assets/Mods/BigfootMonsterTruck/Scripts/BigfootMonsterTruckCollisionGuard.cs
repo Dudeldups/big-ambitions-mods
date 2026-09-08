@@ -18,11 +18,11 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float TireContactDriveAcceleration = 8.5f;
     private const float TireContactMinimumStrength = 0.7f;
     private const float TireContactLiftMultiplier = 0.22f;
-    private const float LowSpeedClimbTriggerSpeed = 2.75f;
-    private const float LatchedClimbDuration = 1.5f;
-    private const float LatchedClimbMaximumSpeed = 5f;
-    private const float LatchedClimbVerticalSpeed = 0.8f;
-    private const float LatchedClimbDriveAcceleration = 5f;
+    private const float LatchedClimbTriggerSpeed = 4.5f;
+    private const float LatchedClimbDuration = 1.75f;
+    private const float LatchedClimbMaximumSpeed = 7f;
+    private const float LatchedClimbVerticalSpeed = 0.9f;
+    private const float LatchedClimbDriveAcceleration = 5.5f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
@@ -245,9 +245,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 collision,
                 vehicle.transform,
                 driveDirection);
-            var lowSpeedClimb = (tireContact || leadingEdgeContact) &&
-                                forwardSpeed < LowSpeedClimbTriggerSpeed;
-            if (lowSpeedClimb)
+            var latchedClimb = (tireContact || leadingEdgeContact) &&
+                               forwardSpeed < LatchedClimbTriggerSpeed;
+            if (latchedClimb)
             {
                 if (Time.unscaledTime > latchedClimbUntil)
                     latchedClimbApplicationLogged = false;
@@ -306,10 +306,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 var otherName = otherPlayerVehicle != null
                     ? GetVehicleName(otherPlayerVehicle)
                     : trafficVehicle!.name;
-                var assistMode = lowSpeedClimb
+                var assistMode = latchedClimb
                     ? tireContact
-                        ? "latched-low-speed-climb-tire"
-                        : "latched-low-speed-climb-front"
+                        ? "latched-climb-tire"
+                        : "latched-climb-front"
                     : tireContact
                         ? "tire-traction"
                         : "approach-lift";
