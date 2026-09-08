@@ -284,9 +284,9 @@ namespace MootorVehicle.Editor
                 changed |= SetBool(serialized, "module.useFuel", true);
                 changed |= SetFloat(serialized, "module.amount", 100f);
                 changed |= SetFloat(serialized, "module.capacity", 100f);
-                changed |= SetFloat(serialized, "module.consumptionMultiplier", 1500f);
-                changed |= SetFloat(serialized, "module.idleConsumption", 0.25f);
-                changed |= SetFloat(serialized, "module.maxConsumptionPerHour", 300f);
+                changed |= SetFloat(serialized, "module.consumptionMultiplier", 1200f);
+                changed |= SetFloat(serialized, "module.idleConsumption", 0.2f);
+                changed |= SetFloat(serialized, "module.maxConsumptionPerHour", 240f);
 
                 changed |= SetBool(serialized, "useDefaultMass", false);
                 changed |= SetFloat(serialized, "baseMass", 700f);
