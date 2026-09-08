@@ -23,7 +23,8 @@ public static class BigfootMonsterTruckSetup
         "Assets/Mods/BigfootMonsterTruck/BigfootMonsterTruck.prefab";
     private const string VehicleTypeName =
         "bigfootmonstertruck-vehicle:vehicletype_bigfootmonstertruck";
-    private const float WheelPrefabVerticalOffset = -0.15f;
+    private const float AxleHeight = 1.02f;
+    private const float WheelPrefabVerticalOffset = -0.20f;
 
     [MenuItem("Big Ambitions Mods/Setup Bigfoot Monster Truck")]
     public static void Generate()
@@ -57,12 +58,12 @@ public static class BigfootMonsterTruckSetup
 
             var wheelControllers = 0;
             var wheelVisuals = 0;
+            var wheelVisualVerticalRadiusTotal = 0f;
             var alignedWheelVisuals = 0;
             var animatedWheelVisuals = 0;
             var authoredWheelAxes = 0;
             var outwardWheelFaces = 0;
-            var raisedWheelDisplays = 0;
-            var axleAlignedWheelDisplays = 0;
+            var axleAlignedWheelVisuals = 0;
             var physicalWheelColliders = 0;
             var climbContactColliders = 0;
             var climbChassisRestored = false;
@@ -79,45 +80,29 @@ public static class BigfootMonsterTruckSetup
                     wheelVisuals++;
                     if (TryGetRendererBounds(transform, out var bounds) &&
                         Vector3.Distance(bounds.center, transform.position) < 0.02f)
+                    {
                         alignedWheelVisuals++;
+                        wheelVisualVerticalRadiusTotal += bounds.extents.y;
+                    }
                     if (Quaternion.Angle(
                             transform.localRotation,
-                            Quaternion.identity) < 0.1f)
+                            Quaternion.identity) > 1f)
                         outwardWheelFaces++;
                 }
                 if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
                     TryGetAssignedWheelVisual(transform, out var assignedVisual) &&
                     assignedVisual.name.StartsWith("Wheel", StringComparison.Ordinal) &&
-                    assignedVisual.name.EndsWith("PhysicsPose", StringComparison.Ordinal))
+                    assignedVisual.name.EndsWith("Visual", StringComparison.Ordinal))
                 {
                     animatedWheelVisuals++;
                     if (Quaternion.Angle(
                             assignedVisual.transform.localRotation,
                             Quaternion.identity) > 1f)
                         authoredWheelAxes++;
-                }
-                if (transform.name.StartsWith("Wheel", StringComparison.Ordinal) &&
-                    transform.name.EndsWith("Display", StringComparison.Ordinal))
-                {
-                    var poseName = transform.name.Substring(
-                        0,
-                        transform.name.Length - "Display".Length) + "PhysicsPose";
-                    var pose = transform.parent?.Find(poseName);
-                    if (pose != null &&
-                        Mathf.Abs(
-                            Vector3.Dot(transform.position - pose.position, prefab.transform.up) -
-                            WheelPrefabVerticalOffset) < 0.01f)
-                        raisedWheelDisplays++;
-                    var axleName = transform.name.Substring(
-                        "Wheel".Length,
-                        transform.name.Length - "Wheel".Length - "Display".Length) +
-                        "_WheelController";
-                    var axle = FindTransform(prefab.transform, axleName);
-                    if (axle != null &&
-                        Vector3.Distance(
-                            transform.position,
-                            axle.position + prefab.transform.up * WheelPrefabVerticalOffset) < 0.01f)
-                        axleAlignedWheelDisplays++;
+                    if (Vector3.Distance(
+                            assignedVisual.transform.position,
+                            transform.position + prefab.transform.up * WheelPrefabVerticalOffset) < 0.01f)
+                        axleAlignedWheelVisuals++;
                 }
                 if (string.Equals(transform.name, "BigfootWheelContactColliders", StringComparison.Ordinal))
                 {
@@ -194,8 +179,8 @@ public static class BigfootMonsterTruckSetup
 
             if (wheelControllers != 4 || wheelVisuals != 4 || alignedWheelVisuals != 4 ||
                 animatedWheelVisuals != 4 || authoredWheelAxes != 4 ||
-                outwardWheelFaces != 4 || raisedWheelDisplays != 4 ||
-                axleAlignedWheelDisplays != 4 || physicalWheelColliders != 4 ||
+                outwardWheelFaces != 4 || axleAlignedWheelVisuals != 4 ||
+                physicalWheelColliders != 4 ||
                 climbContactColliders != 4 || !climbChassisRestored ||
                 !hasSeat || !raisedSeat ||
                 !loadingAtDriverDoor || visibleRenderers == 0 || !hasTransparentGlass ||
@@ -211,8 +196,7 @@ public static class BigfootMonsterTruckSetup
                     $"animatedWheelVisuals={animatedWheelVisuals}, " +
                     $"authoredWheelAxes={authoredWheelAxes}, " +
                     $"outwardWheelFaces={outwardWheelFaces}, " +
-                    $"raisedWheelDisplays={raisedWheelDisplays}, " +
-                    $"axleAlignedWheelDisplays={axleAlignedWheelDisplays}, " +
+                    $"axleAlignedWheelVisuals={axleAlignedWheelVisuals}, " +
                     $"physicalWheelColliders={physicalWheelColliders}, " +
                     $"climbContacts={climbContactColliders}, " +
                     $"climbChassis={climbChassisRestored}, " +
@@ -229,11 +213,11 @@ public static class BigfootMonsterTruckSetup
             Debug.Log(
                 $"BigfootMonsterTruck bundle verified: controllers={wheelControllers}, " +
                 $"wheelVisuals={wheelVisuals}, alignedWheelVisuals={alignedWheelVisuals}, " +
+                $"averageWheelVisualRadius={wheelVisualVerticalRadiusTotal / wheelVisuals:F3}, " +
                 $"animatedWheelVisuals={animatedWheelVisuals}, " +
                 $"authoredWheelAxes={authoredWheelAxes}, " +
                 $"outwardWheelFaces={outwardWheelFaces}, " +
-                $"raisedWheelDisplays={raisedWheelDisplays}, " +
-                $"axleAlignedWheelDisplays={axleAlignedWheelDisplays}, " +
+                $"axleAlignedWheelVisuals={axleAlignedWheelVisuals}, " +
                 $"physicalWheelColliders={physicalWheelColliders}, " +
                 $"climbContacts={climbContactColliders}, " +
                 $"visibleRenderers={visibleRenderers}, decalSafe={decalSafeOpaqueMaterials}, " +
@@ -373,10 +357,10 @@ public static class BigfootMonsterTruckSetup
 
     private static void ConfigureWheelControllers(GameObject root)
     {
-        SetLocalPosition(root, "FrontLeft_WheelController", new Vector3(-1.35f, 0.92f, 1.60f));
-        SetLocalPosition(root, "FrontRight_WheelController", new Vector3(1.35f, 0.92f, 1.60f));
-        SetLocalPosition(root, "RearLeft_WheelController", new Vector3(-1.35f, 0.92f, -1.60f));
-        SetLocalPosition(root, "RearRight_WheelController", new Vector3(1.35f, 0.92f, -1.60f));
+        SetLocalPosition(root, "FrontLeft_WheelController", new Vector3(-1.35f, AxleHeight, 1.60f));
+        SetLocalPosition(root, "FrontRight_WheelController", new Vector3(1.35f, AxleHeight, 1.60f));
+        SetLocalPosition(root, "RearLeft_WheelController", new Vector3(-1.35f, AxleHeight, -1.60f));
+        SetLocalPosition(root, "RearRight_WheelController", new Vector3(1.35f, AxleHeight, -1.60f));
     }
 
     private static void ConfigureBodyColliders(GameObject root)
@@ -457,32 +441,17 @@ public static class BigfootMonsterTruckSetup
             var target = FindWheelVisualTarget(root, pair.Value) ??
                          throw new InvalidOperationException(
                              $"Wheel visual reference for '{pair.Value}' is missing.");
-            var targetParent = target.parent;
             var wheelRotation = wheel.rotation;
             var wheelScale = wheel.lossyScale;
             var controller = FindTransform(root.transform, pair.Value) ??
                              throw new InvalidOperationException(
                                  $"Wheel controller '{pair.Value}' is missing.");
-            var visualName = pair.Key.Substring(0, pair.Key.Length - "Visual".Length);
-            var physicsPose = new GameObject($"{visualName}PhysicsPose");
-            physicsPose.transform.SetParent(targetParent, false);
-            physicsPose.transform.SetPositionAndRotation(
-                controller.position,
+            wheel.SetParent(target.parent, false);
+            wheel.SetPositionAndRotation(
+                controller.position + root.transform.up * WheelPrefabVerticalOffset,
                 wheelRotation);
-
-            var display = new GameObject($"{visualName}Display");
-            display.transform.SetParent(targetParent, false);
-            display.transform.SetPositionAndRotation(
-                physicsPose.transform.position + root.transform.up * WheelPrefabVerticalOffset,
-                physicsPose.transform.rotation);
-
-            wheel.SetParent(display.transform, false);
-            wheel.localPosition = Vector3.zero;
-            // Preserve the model's authored wheel-axis basis on the controller-owned
-            // pose. The imported mesh already has its red face pointing outward.
-            wheel.localRotation = Quaternion.identity;
             wheel.localScale = wheelScale;
-            AssignWheelVisual(root, pair.Value, physicsPose);
+            AssignWheelVisual(root, pair.Value, wheel.gameObject);
         }
     }
 

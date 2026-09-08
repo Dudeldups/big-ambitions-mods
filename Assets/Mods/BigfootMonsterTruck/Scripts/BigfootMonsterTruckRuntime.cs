@@ -14,13 +14,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float VehicleMass = 6500f;
     private const float WheelRadius = 0.78f;
     private const float WheelWidth = 1.05f;
-    private const float WheelVisualVerticalOffset = 0f;
     private const float SuspensionLength = 0.65f;
     private const float SuspensionForce = 28000f;
     private const float FrontAxleZ = 1.60f;
     private const float RearAxleZ = -1.60f;
     private const float HalfTrack = 1.35f;
-    private const float AxleHeight = 0.92f;
+    private const float AxleHeight = 1.02f;
     private const float CenterOfMassHeight = 0.72f;
     private const float DriverSeatHeight = 2.02f;
     private const float BrakeTorque = 32000f;
@@ -263,7 +262,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             $"gearbox=4-speed/{TransmissionFinalDrive:F1}:1, " +
             $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
             $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
-            $"wheelVisualRaise={WheelVisualVerticalOffset:F2}, " +
+            "wheelVisual=native-direct, " +
             $"suspensionTravel={SuspensionLength:F2}, differentialSlip=1000, " +
             "climbAssist=small-vehicles, wheelTrafficContact=false.");
         if (wheelCount != 4)
@@ -298,7 +297,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 SetFloat(wheel, "radius", WheelRadius);
                 SetFloat(wheel, "width", WheelWidth);
                 SetFloat(wheel, "mass", 120f);
-                ConfigureWheelVisual(component, wheel, transform.name, vehicle.transform);
                 SetMember(component, "wheel", wheel);
 
                 var sideFriction = GetMember(component, "sideFriction");
@@ -321,66 +319,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         }
 
         return count;
-    }
-
-    private void ConfigureWheelVisual(
-        MonoBehaviour wheelController,
-        object? wheel,
-        string controllerName,
-        Transform vehicleTransform)
-    {
-        if (wheel == null || GetMember(wheel, "visual") is not GameObject visual)
-        {
-            context?.Logger.Warn(
-                $"BigfootMonsterTruck: wheel visual correction skipped controller='{controllerName}' " +
-                "because no visual was assigned.");
-            return;
-        }
-
-        GameObject physicsPose;
-        GameObject display;
-        if (visual.name.EndsWith("PhysicsPose", StringComparison.Ordinal))
-        {
-            physicsPose = visual;
-            var displayName = visual.name.Substring(
-                0,
-                visual.name.Length - "PhysicsPose".Length) + "Display";
-            var displayTransform = visual.transform.parent?.Find(displayName);
-            if (displayTransform == null)
-            {
-                context?.Logger.Warn(
-                    $"BigfootMonsterTruck: wheel display correction skipped controller='{controllerName}' " +
-                    $"because '{displayName}' was not found.");
-                return;
-            }
-            display = displayTransform.gameObject;
-        }
-        else
-        {
-            var visualName = visual.name.EndsWith("Visual", StringComparison.Ordinal)
-                ? visual.name.Substring(0, visual.name.Length - "Visual".Length)
-                : controllerName;
-            physicsPose = new GameObject($"{visualName}PhysicsPose");
-            physicsPose.transform.SetParent(visual.transform.parent, false);
-            physicsPose.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
-            display = new GameObject($"{visualName}Display");
-            display.transform.SetParent(visual.transform.parent, false);
-            display.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
-            visual.transform.SetParent(display.transform, true);
-        }
-
-        SetMember(wheel, "visual", physicsPose);
-        SetMember(wheel, "visualTransform", physicsPose.transform);
-        var correction = display.GetComponent<BigfootMonsterTruckWheelVisualCorrection>() ??
-                         display.AddComponent<BigfootMonsterTruckWheelVisualCorrection>();
-        if (!correction.Initialize(
-                wheelController,
-                physicsPose.transform,
-                vehicleTransform,
-                WheelVisualVerticalOffset))
-            context?.Logger.Warn(
-                $"BigfootMonsterTruck: wheel position correction unavailable " +
-                $"controller='{controllerName}'.");
     }
 
     private static bool TryGetWheelPosition(string name, out Vector3 position)
@@ -728,44 +666,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                 return field;
         }
         return null;
-    }
-}
-
-internal sealed class BigfootMonsterTruckWheelVisualCorrection : MonoBehaviour
-{
-    private MonoBehaviour? wheelController;
-    private Transform? physicsPose;
-    private Transform? vehicleTransform;
-    private PropertyInfo? wheelPositionProperty;
-    private float verticalOffset;
-
-    public bool Initialize(
-        MonoBehaviour configuredWheelController,
-        Transform configuredPhysicsPose,
-        Transform configuredVehicleTransform,
-        float configuredVerticalOffset)
-    {
-        wheelController = configuredWheelController;
-        physicsPose = configuredPhysicsPose;
-        vehicleTransform = configuredVehicleTransform;
-        verticalOffset = configuredVerticalOffset;
-        wheelPositionProperty = configuredWheelController.GetType().GetProperty(
-            "WheelPosition",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        enabled = wheelPositionProperty?.PropertyType == typeof(Vector3);
-        return enabled;
-    }
-
-    private void LateUpdate()
-    {
-        if (wheelController == null || physicsPose == null || vehicleTransform == null ||
-            wheelPositionProperty == null)
-            return;
-        if (wheelPositionProperty.GetValue(wheelController) is not Vector3 wheelPosition)
-            return;
-        transform.SetPositionAndRotation(
-            wheelPosition + vehicleTransform.up * verticalOffset,
-            physicsPose.rotation);
     }
 }
 
