@@ -83,8 +83,8 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         rumbleClip = BigfootMonsterTruckEngineWave.CreateRumble();
         roarClip = BigfootMonsterTruckEngineWave.CreateRoar();
         crackleClip = BigfootMonsterTruckEngineWave.CreateCrackle();
-        rumbleSource = CreateSource("LowRumble", rumbleClip, 1200f, 0.08f);
-        roarSource = CreateSource("SuperchargedRoar", roarClip, 4800f, 0.30f);
+        rumbleSource = CreateSource("LowRumble", rumbleClip, 1500f, 0.05f);
+        roarSource = CreateSource("SuperchargedRoar", roarClip, 5200f, 0.18f, 90f);
         crackleSource = CreateSource("ExhaustCrackle", crackleClip, 6800f, 0.24f, 520f);
         configured = true;
         context?.Logger.Info(
@@ -177,13 +177,14 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         var master = Mathf.Clamp01(physics.soundManager.masterVolume);
         var load = Mathf.SmoothStep(0f, 1f, smoothThrottle);
 
-        rumbleSource.pitch = Mathf.Lerp(0.96f, 2.15f, revCurve);
-        roarSource.pitch = Mathf.Lerp(1.02f, 2.85f, revCurve);
+        var combustionPitch = Mathf.Lerp(0.94f, 2.35f, revCurve);
+        rumbleSource.pitch = combustionPitch;
+        roarSource.pitch = combustionPitch;
         crackleSource.pitch = Mathf.Lerp(0.95f, 1.55f, revCurve);
-        rumbleSource.volume = envelope * master * Mathf.Lerp(0.26f, 0.38f, load);
-        roarSource.volume = envelope * master * Mathf.Lerp(0.08f, 0.30f, load) *
+        rumbleSource.volume = envelope * master * Mathf.Lerp(0.20f, 0.28f, load);
+        roarSource.volume = envelope * master * Mathf.Lerp(0.055f, 0.20f, load) *
                             Mathf.Lerp(0.78f, 1f, revCurve);
-        crackleSource.volume = envelope * master * Mathf.Lerp(0.025f, 0.14f, load) *
+        crackleSource.volume = envelope * master * Mathf.Lerp(0.045f, 0.22f, load) *
                                Mathf.Lerp(0.75f, 1f, revCurve);
         rumbleSource.mute = roarSource.mute = crackleSource.mute = controlled && savedMute;
 

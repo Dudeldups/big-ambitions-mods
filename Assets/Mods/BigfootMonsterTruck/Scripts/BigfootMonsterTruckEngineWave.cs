@@ -7,17 +7,17 @@ internal static class BigfootMonsterTruckEngineWave
     private const int SampleRate = 44100;
     private const float Duration = 2f;
 
-    internal static AudioClip CreateRumble() => Create(
+    internal static AudioClip CreateRumble() => CreateCombustionLoop(
         "Bigfoot V8 low rumble",
-        52f,
-        new[] { 1f, 0.62f, 0.38f, 0.24f, 0.14f },
-        0.22f);
+        78f,
+        164f,
+        0.12f);
 
-    internal static AudioClip CreateRoar() => Create(
+    internal static AudioClip CreateRoar() => CreateCombustionLoop(
         "Bigfoot V8 supercharged roar",
-        62f,
-        new[] { 0.72f, 1f, 0.68f, 0.46f, 0.31f, 0.20f, 0.13f },
-        0.34f);
+        126f,
+        348f,
+        0.38f);
 
     internal static AudioClip CreateCrackle()
     {
@@ -53,33 +53,50 @@ internal static class BigfootMonsterTruckEngineWave
         return clip;
     }
 
-    private static AudioClip Create(
+    private static AudioClip CreateCombustionLoop(
         string name,
-        float fundamental,
-        float[] harmonics,
-        float roughness)
+        float primaryResonance,
+        float secondaryResonance,
+        float gritMix)
     {
+        const int pulseCount = 104;
         var sampleCount = (int)(SampleRate * Duration);
         var samples = new float[sampleCount];
-        var peak = 0f;
-        for (var index = 0; index < sampleCount; index++)
-        {
-            var time = index / (float)SampleRate;
-            var phase = 2f * Mathf.PI * fundamental * time;
-            var value = 0f;
-            for (var harmonic = 0; harmonic < harmonics.Length; harmonic++)
-                value += harmonics[harmonic] * Mathf.Sin(phase * (harmonic + 1));
+        var pulseSpacing = sampleCount / (float)pulseCount;
+        var tailSamples = (int)(SampleRate * 0.045f);
+        uint random = 0xB16B00B5u;
 
-            // Integer-cycle modulation gives the idle a loping mechanical pulse
-            // while retaining a seamless two-second loop.
-            var pulse = 1f - roughness + roughness *
-                        (0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * 4f * time));
-            value = (float)Math.Tanh(value * 0.82f) * pulse;
-            samples[index] = value;
-            peak = Mathf.Max(peak, Mathf.Abs(value));
+        for (var pulse = 0; pulse < pulseCount; pulse++)
+        {
+            var jitter = (NextSigned(ref random) * 0.075f) * pulseSpacing;
+            var start = Mathf.RoundToInt(pulse * pulseSpacing + jitter);
+            var pulseGain = 0.72f + 0.28f * (NextSigned(ref random) * 0.5f + 0.5f);
+            var filteredNoise = 0f;
+            for (var offset = 0; offset < tailSamples; offset++)
+            {
+                var time = offset / (float)SampleRate;
+                var attack = 1f - Mathf.Exp(-time * 1800f);
+                var decay = Mathf.Exp(-time * 92f);
+                var envelope = attack * decay;
+                var noise = NextSigned(ref random);
+                filteredNoise = Mathf.Lerp(filteredNoise, noise, 0.28f);
+                var resonance = 0.72f * Mathf.Sin(2f * Mathf.PI * primaryResonance * time) +
+                                0.28f * Mathf.Sin(2f * Mathf.PI * secondaryResonance * time);
+                var grit = 0.65f * filteredNoise + 0.35f * noise;
+                var value = pulseGain * envelope *
+                            ((1f - gritMix) * resonance + gritMix * grit);
+                var sampleIndex = (start + offset) % sampleCount;
+                if (sampleIndex < 0)
+                    sampleIndex += sampleCount;
+                samples[sampleIndex] += value;
+            }
         }
 
-        var scale = peak > 0f ? 0.72f / peak : 1f;
+        var peak = 0f;
+        for (var index = 0; index < sampleCount; index++)
+            peak = Mathf.Max(peak, Mathf.Abs(samples[index]));
+
+        var scale = peak > 0f ? 0.68f / peak : 1f;
         for (var index = 0; index < samples.Length; index++)
             samples[index] *= scale;
 
@@ -90,5 +107,11 @@ internal static class BigfootMonsterTruckEngineWave
             throw new InvalidOperationException("Could not initialize procedural engine audio.");
         }
         return clip;
+    }
+
+    private static float NextSigned(ref uint state)
+    {
+        state = state * 1664525u + 1013904223u;
+        return ((state >> 8) / 8388607.5f) - 1f;
     }
 }
