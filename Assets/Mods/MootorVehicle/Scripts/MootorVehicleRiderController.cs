@@ -963,7 +963,8 @@ namespace MootorVehicle
             var copied = 0;
             foreach (var source in handContent.GetComponentsInChildren<Renderer>(true))
             {
-                if (!source.enabled || source.forceRenderingOff || source.transform == null ||
+                if (!source.enabled || source.forceRenderingOff ||
+                    source.shadowCastingMode == ShadowCastingMode.ShadowsOnly || source.transform == null ||
                     !IsActiveWithinCharacter(source.transform, sourceRoot) ||
                     !transforms.TryGetValue(source.transform, out var destinationTransform) ||
                     destinationTransform.GetComponent<Renderer>() != null)
@@ -990,7 +991,7 @@ namespace MootorVehicle
                 var destination = destinationTransform.gameObject.AddComponent<MeshRenderer>();
                 destination.sharedMaterials = meshRenderer.sharedMaterials;
                 destination.renderingLayerMask = meshRenderer.renderingLayerMask;
-                destination.shadowCastingMode = ShadowCastingMode.On;
+                destination.shadowCastingMode = meshRenderer.shadowCastingMode;
                 destination.receiveShadows = meshRenderer.receiveShadows;
 
                 var properties = new MaterialPropertyBlock();

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using BAModAPI;
+using BigAmbitions.Items;
 using Helpers;
 using UI.Overlays;
 using UnityEngine;
@@ -54,8 +55,22 @@ namespace MootorVehicle
         private void TryFeedFromHands()
         {
             var heldItem = PlayerHelper.ItemInstanceInHands;
-            if (vehicle == null || heldItem == null || heldItem.itemName != EnergyDrinkItemName)
+            if (vehicle == null || heldItem == null)
                 return;
+
+            CargoInstance? boxedEnergyDrink = null;
+            if (heldItem.itemName != EnergyDrinkItemName)
+            {
+                foreach (var cargo in heldItem.GetCargoInstances())
+                    if (cargo != null && cargo.itemName == EnergyDrinkItemName && cargo.amount > 0)
+                    {
+                        boxedEnergyDrink = cargo;
+                        break;
+                    }
+
+                if (boxedEnergyDrink == null)
+                    return;
+            }
 
             var fuelBefore = vehicle.GetCurrentFuel();
             vehicle.SetFuel(configuredMaximumFuel);
@@ -69,10 +84,20 @@ namespace MootorVehicle
                 return;
             }
 
-            // The PlayerHelper setter performs the normal held-item cleanup and HUD refresh.
-            PlayerHelper.ItemInstanceInHands = null;
+            if (boxedEnergyDrink != null)
+            {
+                heldItem.ReduceFromCargo(boxedEnergyDrink, 1);
+                PlayerHelper.OnItemInHandsCargoUpdated();
+            }
+            else
+            {
+                // The PlayerHelper setter performs the normal held-item cleanup and HUD refresh.
+                PlayerHelper.ItemInstanceInHands = null;
+            }
+
             context?.Logger.Info(
                 $"Moo-tor Vehicle feed vehicle={vehicle.GetInstanceID()} item='{EnergyDrinkItemName}' " +
+                $"source={(boxedEnergyDrink != null ? "box" : "hands")} " +
                 $"fuelBefore={fuelBefore:F2} fuelAfter={fuelAfter:F2}; energy drink consumed.");
         }
 
