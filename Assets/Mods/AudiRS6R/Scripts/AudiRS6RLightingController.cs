@@ -436,24 +436,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
-    private readonly struct MeshTriangle
-    {
-        internal MeshTriangle(int a, int b, int c)
-        {
-            A = a;
-            B = b;
-            C = c;
-        }
-
-        internal int A { get; }
-        internal int B { get; }
-        internal int C { get; }
-    }
-
     private Mesh? CreateHeadlightSignatureMesh(
         MeshRenderer sourceRenderer,
         Mesh source,
-        Func<Vector3, bool> includeComponentCenter,
+        Func<Vector3, bool> includeTriangleCenter,
         string suffix)
     {
         var vertices = source.vertices;
@@ -462,81 +448,47 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             return null;
 
         var vehicleTransform = vehicleController.transform;
-        var vehiclePositions = new Vector3[vertices.Length];
-        for (var index = 0; index < vertices.Length; index++)
-        {
-            vehiclePositions[index] = vehicleTransform.InverseTransformPoint(
-                sourceRenderer.transform.TransformPoint(vertices[index]));
-        }
-
-        var parents = new int[vertices.Length];
-        for (var index = 0; index < parents.Length; index++)
-            parents[index] = index;
-
-        var sourceTriangles = new List<MeshTriangle>();
+        var bounds = source.bounds;
+        var selectedTriangles = new List<int>();
+        var atlasBandTriangles = 0;
         for (var subMesh = 0; subMesh < source.subMeshCount; subMesh++)
         {
             var subMeshTriangles = source.GetTriangles(subMesh);
             for (var index = 0; index + 2 < subMeshTriangles.Length; index += 3)
             {
-                var triangle = new MeshTriangle(
-                    subMeshTriangles[index], subMeshTriangles[index + 1], subMeshTriangles[index + 2]);
-                sourceTriangles.Add(triangle);
-                UnionComponentVertices(parents, triangle.A, triangle.B);
-                UnionComponentVertices(parents, triangle.A, triangle.C);
-            }
-        }
+                var a = subMeshTriangles[index];
+                var b = subMeshTriangles[index + 1];
+                var c = subMeshTriangles[index + 2];
+                var uvCenter = (uvs[a] + uvs[b] + uvs[c]) / 3f;
+                if (uvCenter.x < 0.50f || uvCenter.x > 0.60f)
+                    continue;
 
-        var components = new Dictionary<int, List<MeshTriangle>>();
-        foreach (var triangle in sourceTriangles)
-        {
-            var root = FindComponentRoot(parents, triangle.A);
-            if (!components.TryGetValue(root, out var component))
-            {
-                component = new List<MeshTriangle>();
-                components.Add(root, component);
-            }
-            component.Add(triangle);
-        }
+                atlasBandTriangles++;
+                var localCenter = (vertices[a] + vertices[b] + vertices[c]) / 3f;
+                var normalizedHeight = Mathf.InverseLerp(bounds.min.y, bounds.max.y, localCenter.y);
+                if (normalizedHeight < 0.25f)
+                    continue;
 
-        var selectedTriangles = new List<int>();
-        var selectedComponents = 0;
-        foreach (var component in components.Values)
-        {
-            var minimum = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-            var maximum = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-            var minimumUv = new Vector2(float.MaxValue, float.MaxValue);
-            var maximumUv = new Vector2(float.MinValue, float.MinValue);
+                var vehicleCenter = vehicleTransform.InverseTransformPoint(
+                    sourceRenderer.transform.TransformPoint(localCenter));
+                if (!includeTriangleCenter(vehicleCenter))
+                    continue;
 
-            foreach (var triangle in component)
-            {
-                Encapsulate(ref minimum, ref maximum, vehiclePositions[triangle.A]);
-                Encapsulate(ref minimum, ref maximum, vehiclePositions[triangle.B]);
-                Encapsulate(ref minimum, ref maximum, vehiclePositions[triangle.C]);
-                var uvCenter = (uvs[triangle.A] + uvs[triangle.B] + uvs[triangle.C]) / 3f;
-                minimumUv = Vector2.Min(minimumUv, uvCenter);
-                maximumUv = Vector2.Max(maximumUv, uvCenter);
-            }
-
-            var center = (minimum + maximum) * 0.5f;
-            if (!includeComponentCenter(center) ||
-                !IsHeadlightSignatureComponent(component.Count, minimum, maximum, minimumUv, maximumUv))
-                continue;
-
-            selectedComponents++;
-            foreach (var triangle in component)
-            {
-                selectedTriangles.Add(triangle.A);
-                selectedTriangles.Add(triangle.B);
-                selectedTriangles.Add(triangle.C);
+                selectedTriangles.Add(a);
+                selectedTriangles.Add(b);
+                selectedTriangles.Add(c);
             }
         }
 
         if (selectedTriangles.Count == 0)
+        {
+            LogWarning($"headlight-signature suffix='{suffix}' selected=0 atlasBand={atlasBandTriangles} " +
+                       $"vertices={vertices.Length} bounds={bounds}.");
             return null;
+        }
 
-        LogInfo($"headlight-signature suffix='{suffix}' components={selectedComponents} " +
-                $"triangles={selectedTriangles.Count / 3}.");
+        LogInfo($"headlight-signature suffix='{suffix}' selectedTriangles={selectedTriangles.Count / 3} " +
+                $"atlasBandTriangles={atlasBandTriangles} bounds={bounds}.");
         var mesh = new Mesh
         {
             name = source.name + "_AudiRS6R_" + suffix,
@@ -551,68 +503,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         mesh.SetTriangles(selectedTriangles, 0, true);
         mesh.RecalculateBounds();
         return mesh;
-    }
-
-    private static bool IsHeadlightSignatureComponent(
-        int triangleCount,
-        Vector3 minimum,
-        Vector3 maximum,
-        Vector2 minimumUv,
-        Vector2 maximumUv)
-    {
-        // The source model gives the light guides their own connected geometry. Their front
-        // faces also share this tiny atlas strip, which separates them from nearby trim pieces.
-        // Unity flips glTF's V coordinate during import. Accept both orientations so this also
-        // remains correct if the source model is reimported with different importer settings.
-        var usesOriginalGlTfV = minimumUv.y >= 0.895f && maximumUv.y <= 0.925f;
-        var usesUnityImportedV = minimumUv.y >= 0.075f && maximumUv.y <= 0.105f;
-        var usesLightGuideAtlasStrip = minimumUv.x >= 0f && maximumUv.x <= 0.025f &&
-                                       (usesOriginalGlTfV || usesUnityImportedV);
-        if (!usesLightGuideAtlasStrip)
-            return false;
-
-        var size = maximum - minimum;
-        var center = (minimum + maximum) * 0.5f;
-        var absoluteX = Mathf.Abs(center.x);
-        var diagonalCenterZ = 2.615f - 0.67f * absoluteX;
-        var diagonalSegment = absoluteX >= 0.50f && absoluteX <= 0.81f &&
-                              center.y >= 0.64f && center.y <= 0.69f &&
-                              Mathf.Abs(center.z - diagonalCenterZ) <= 0.045f &&
-                              size.x <= 0.045f && size.y <= 0.055f &&
-                              size.z >= 0.012f && size.z <= 0.11f &&
-                              triangleCount >= 2 && triangleCount <= 22;
-        var outerLightGuide = absoluteX >= 0.81f && absoluteX <= 0.87f &&
-                              center.y >= 0.67f && center.y <= 0.735f &&
-                              center.z >= 1.90f && center.z <= 2.11f &&
-                              size.x >= 0.015f && size.x <= 0.045f &&
-                              size.y >= 0.035f && size.y <= 0.065f &&
-                              size.z >= 0.11f && size.z <= 0.20f &&
-                              triangleCount >= 8 && triangleCount <= 28;
-        return diagonalSegment || outerLightGuide;
-    }
-
-    private static void Encapsulate(ref Vector3 minimum, ref Vector3 maximum, Vector3 point)
-    {
-        minimum = Vector3.Min(minimum, point);
-        maximum = Vector3.Max(maximum, point);
-    }
-
-    private static int FindComponentRoot(int[] parents, int vertex)
-    {
-        while (parents[vertex] != vertex)
-        {
-            parents[vertex] = parents[parents[vertex]];
-            vertex = parents[vertex];
-        }
-        return vertex;
-    }
-
-    private static void UnionComponentVertices(int[] parents, int first, int second)
-    {
-        var firstRoot = FindComponentRoot(parents, first);
-        var secondRoot = FindComponentRoot(parents, second);
-        if (firstRoot != secondRoot)
-            parents[secondRoot] = firstRoot;
     }
 
     private Material CreateUnlitMaterial(
