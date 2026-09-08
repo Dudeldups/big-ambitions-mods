@@ -42,6 +42,9 @@ namespace MootorVehicle
                 return Task.CompletedTask;
             }
 
+            vehicleType.maxSpeed = Mathf.RoundToInt(MootorVehicleFuelController.RegularSpeedLimit);
+            vehicleType.enginePower = MootorVehicleFuelController.RegularEnginePower;
+
             ModdingAPI.RegisterModVehicleType(vehicleType);
             runtime = MootorVehicleRuntime.Initialize(context, vehicleType.vehicleTypeName);
             context.Logger.Info(

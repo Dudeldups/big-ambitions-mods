@@ -21,6 +21,8 @@ namespace MootorVehicle
         private const string EnergyDrinkItemName = "ba:itemname_energydrink";
         private const float DefaultMaximumFuel = 100f;
         private const float EnergyDrinkSpeedMultiplier = 2f;
+        internal const float RegularSpeedLimit = 22f;
+        internal const float RegularEnginePower = 22f;
 
         private readonly HashSet<int> suppressedRefuelStations = new();
         private VehicleController? vehicle;
@@ -144,8 +146,10 @@ namespace MootorVehicle
                     return;
                 }
 
-                regularSpeedLimit = speedLimiter.speedLimit;
-                regularEnginePower = engine.maxPower;
+                regularSpeedLimit = RegularSpeedLimit;
+                regularEnginePower = RegularEnginePower;
+                speedLimiter.speedLimit = regularSpeedLimit;
+                engine.maxPower = regularEnginePower;
                 energyBoostPreferenceKey = BuildEnergyBoostPreferenceKey(context?.ModId, vehicle);
                 fuelModule.onOutOfFuel.RemoveListener(HandleOutOfFuel);
                 fuelModule.onOutOfFuel.AddListener(HandleOutOfFuel);

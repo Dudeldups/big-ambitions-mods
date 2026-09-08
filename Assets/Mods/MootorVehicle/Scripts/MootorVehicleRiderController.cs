@@ -407,7 +407,10 @@ namespace MootorVehicle
             {
                 var engine = physicsVehicle.powertrain.engine;
                 var rpm = engine.RPMPercent * engine.revLimiterRPM;
-                if (rpm >= MinimumHealthyEngineRpm)
+                var speedKmh = vehicleBody != null ? vehicleBody.velocity.magnitude * 3.6f : 0f;
+                var stationaryAtRevLimiter = speedKmh < 0.5f &&
+                                             rpm >= engine.revLimiterRPM * 0.95f;
+                if (engine.IsRunning && rpm >= MinimumHealthyEngineRpm && !stationaryAtRevLimiter)
                 {
                     engineReady = true;
                     if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
@@ -419,6 +422,17 @@ namespace MootorVehicle
                     }
                     engineRestartPending = false;
                     dormantThrottleDetectedAt = -1f;
+                    return;
+                }
+
+                if (stationaryAtRevLimiter && !engineRestartPending)
+                {
+                    engine.StopEngine();
+                    engineRestartPending = true;
+                    nextEngineStartAttempt = Time.unscaledTime + EngineRestartDelay;
+                    LogInfo(
+                        $"reset stationary rev-limiter drivetrain before restart; " +
+                        $"rpm={rpm:F0} speed={speedKmh:F2}kmh.");
                     return;
                 }
 

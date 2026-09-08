@@ -105,7 +105,18 @@ namespace MootorVehicle
             try
             {
                 if (vehicle != null && vehicle.controlledByPlayer)
+                {
+                    var engine = physicsVehicle?.powertrain?.engine;
+                    if (engine != null)
+                    {
+                        engine.StopEngine();
+                        context?.Logger.Info(
+                            $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} reset drivetrain " +
+                            "before forced exit.");
+                    }
+
                     vehicle.ExitVehicle();
+                }
             }
             catch (Exception exception)
             {
