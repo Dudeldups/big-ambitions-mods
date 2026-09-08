@@ -22,7 +22,7 @@ namespace MootorVehicle
         private VehicleController? vehicle;
         private ModContext? context;
         private readonly float configuredMaximumFuel = DefaultMaximumFuel;
-        private ItemInstance? fedBoxAwaitingRefresh;
+        private ItemInstance? heldItemAwaitingRestore;
         private bool mounted;
         private bool stationFuelBlocked;
 
@@ -41,6 +41,7 @@ namespace MootorVehicle
                 return;
 
             mounted = true;
+            heldItemAwaitingRestore = PlayerHelper.ItemInstanceInHands;
             TryFeedFromHands();
             FindOverlappingRefuelStations();
             if (nearbyRefuelStations.Count > 0)
@@ -51,8 +52,8 @@ namespace MootorVehicle
         {
             mounted = false;
             RestoreStationFueling();
-            if (fedBoxAwaitingRefresh != null)
-                StartCoroutine(RefreshFedBoxAfterDismount(fedBoxAwaitingRefresh));
+            if (heldItemAwaitingRestore != null)
+                StartCoroutine(RestoreHeldItemAfterDismount(heldItemAwaitingRestore));
         }
 
         private void TryFeedFromHands()
@@ -93,8 +94,8 @@ namespace MootorVehicle
                 // VehicleController.EnterVehicle is still executing here. Refreshing the held-item
                 // HUD now dereferences the walking item panel after it has switched to vehicle mode,
                 // throwing out of the entry callback and leaving the cow only partially mounted.
-                // Keep the cargo mutation, then refresh once the normal exit path restores that UI.
-                fedBoxAwaitingRefresh = heldItem;
+                // Keep the cargo mutation; re-adding the same held instance after the normal exit path
+                // restores both the updated cargo display and the walking item interactions.
             }
             else
             {
@@ -108,25 +109,31 @@ namespace MootorVehicle
                 $"fuelBefore={fuelBefore:F2} fuelAfter={fuelAfter:F2}; energy drink consumed.");
         }
 
-        private IEnumerator RefreshFedBoxAfterDismount(ItemInstance fedBox)
+        private IEnumerator RestoreHeldItemAfterDismount(ItemInstance heldItem)
         {
             yield return null;
-            if (fedBoxAwaitingRefresh != fedBox)
+            if (heldItemAwaitingRestore != heldItem)
                 yield break;
 
-            fedBoxAwaitingRefresh = null;
-            if (PlayerHelper.ItemInstanceInHands != fedBox)
+            heldItemAwaitingRestore = null;
+            if (PlayerHelper.ItemInstanceInHands != heldItem)
                 yield break;
 
             try
             {
-                PlayerHelper.OnItemInHandsCargoUpdated();
+                // Reassigning uses PlayerHelper's standard remove/add lifecycle. The ItemInstance is
+                // unchanged, so this recreates the hand object and item panel without moving inventory.
+                PlayerHelper.ItemInstanceInHands = heldItem;
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: restored held item " +
+                    $"'{heldItem.itemName}' after dismount.");
             }
             catch (System.Exception exception)
             {
                 context?.Logger.Warn(
-                    $"Moo-tor Vehicle feed vehicle={vehicle?.GetInstanceID()} could not refresh " +
-                    $"the fed box after dismount: {exception.GetBaseException().Message}");
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()} could not restore " +
+                    $"held item '{heldItem.itemName}' after dismount: " +
+                    exception.GetBaseException().Message);
             }
         }
 
