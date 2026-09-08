@@ -30,8 +30,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? rightHeadlightBeam;
     private MeshRenderer? leftHeadlightOverlay;
     private MeshRenderer? rightHeadlightOverlay;
-    private MeshRenderer? leftHeadlightLensOverlay;
-    private MeshRenderer? rightHeadlightLensOverlay;
     private MeshRenderer? leftTailLightOverlay;
     private MeshRenderer? rightTailLightOverlay;
     private MeshRenderer? leftBrakeLightOverlay;
@@ -76,25 +74,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
             "LeftHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
-            copyBaseTexture: false);
+            copyBaseTexture: true);
         rightHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
             position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
             "RightHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
-            copyBaseTexture: false);
-        leftHeadlightLensOverlay = CreateFunctionalOverlay(
-            outerWindowRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x <= 0f,
-            "LeftHeadlightLens",
-            new Color(0.27f, 0.34f, 0.47f, 1f),
-            copyBaseTexture: false);
-        rightHeadlightLensOverlay = CreateFunctionalOverlay(
-            outerWindowRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x > 0f,
-            "RightHeadlightLens",
-            new Color(0.27f, 0.34f, 0.47f, 1f),
-            copyBaseTexture: false);
+            copyBaseTexture: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
             "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
@@ -125,8 +111,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         initialized = true;
         LogInfo($"initialized glassRenderers={glassCount}/2 headlightBeams={beamCount}/2 " +
-                $"overlays={generatedMeshes.Count}/13.");
-        if (glassCount != 2 || beamCount != 2 || generatedMeshes.Count != 13)
+                $"overlays={generatedMeshes.Count}/11 headlightLensOverlays=0.");
+        if (glassCount != 2 || beamCount != 2 || generatedMeshes.Count != 11)
             LogWarning("Lighting setup is incomplete; inspect the preceding material/overlay diagnostics.");
         if (controller.GetType().GetProperty("ShouldLightsBeOn", InstanceFields) == null)
             LogWarning("ShouldLightsBeOn is unavailable; automatic headlights cannot be read.");
@@ -509,8 +495,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
         SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
-        SetRendererState(leftHeadlightLensOverlay, headlights);
-        SetRendererState(rightHeadlightLensOverlay, headlights);
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
@@ -530,7 +514,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         {
             lastHeadlightState = headlightState;
             LogInfo($"headlight-state playerControlled={controlledByPlayer} automaticLights={automaticHeadlights} " +
-                    $"housingOverlays={headlights} lensOverlays={headlights} beams={headlights}.");
+                    $"texturedInteriorOverlays={headlights} lensOverlays=false beams={headlights}.");
         }
     }
 
