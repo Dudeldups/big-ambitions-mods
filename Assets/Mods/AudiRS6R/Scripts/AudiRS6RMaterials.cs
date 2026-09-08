@@ -13,6 +13,7 @@ internal readonly struct AudiRS6RMaterialFixResult
         int solidRendererCount,
         int decalMasksCleared,
         int hdrpMaterialsFixed,
+        int transparentMaterialsProtected,
         int hdrpMaterialsValidated,
         string shaderNames)
     {
@@ -20,6 +21,7 @@ internal readonly struct AudiRS6RMaterialFixResult
         SolidRendererCount = solidRendererCount;
         DecalMasksCleared = decalMasksCleared;
         HdrpMaterialsFixed = hdrpMaterialsFixed;
+        TransparentMaterialsProtected = transparentMaterialsProtected;
         HdrpMaterialsValidated = hdrpMaterialsValidated;
         ShaderNames = shaderNames;
     }
@@ -28,6 +30,7 @@ internal readonly struct AudiRS6RMaterialFixResult
     internal int SolidRendererCount { get; }
     internal int DecalMasksCleared { get; }
     internal int HdrpMaterialsFixed { get; }
+    internal int TransparentMaterialsProtected { get; }
     internal int HdrpMaterialsValidated { get; }
     internal string ShaderNames { get; }
 }
@@ -55,6 +58,7 @@ internal static class AudiRS6RMaterials
         var solidRendererCount = 0;
         var decalMasksCleared = 0;
         var hdrpMaterialsFixed = 0;
+        var transparentMaterialsProtected = 0;
         var hdrpMaterialsValidated = 0;
 
         foreach (var renderer in renderers)
@@ -65,8 +69,12 @@ internal static class AudiRS6RMaterials
                 continue;
             }
 
+            var previousMask = renderer.renderingLayerMask;
+            renderer.renderingLayerMask &= ~HdrpDecalLayerMask;
+            if (renderer.renderingLayerMask != previousMask)
+                decalMasksCleared++;
+
             var hasSolidMaterial = false;
-            var hasTransparentOrCutoutMaterial = false;
             foreach (var material in renderer.sharedMaterials)
             {
                 if (material == null)
@@ -74,7 +82,18 @@ internal static class AudiRS6RMaterials
 
                 if (IsTransparentOrCutout(material))
                 {
-                    hasTransparentOrCutoutMaterial = true;
+                    if (!materials.Add(material))
+                        continue;
+
+                    var transparentShaderName = material.shader != null ? material.shader.name : "<null>";
+                    if (IsHdrpMaterial(material, transparentShaderName))
+                    {
+                        if (ProtectTransparentMaterialFromDecals(material))
+                            hdrpMaterialsValidated++;
+                        transparentMaterialsProtected++;
+                    }
+
+                    shaderNames.Add(transparentShaderName);
                     continue;
                 }
 
@@ -100,16 +119,8 @@ internal static class AudiRS6RMaterials
                     : originalShaderName + "->" + finalShaderName);
             }
 
-            // A mixed transparent/opaque renderer must retain its original layer mask. The Audi
-            // import currently uses one material per renderer, but this keeps future imports safe.
-            if (!hasSolidMaterial || hasTransparentOrCutoutMaterial)
-                continue;
-
-            solidRendererCount++;
-            var previousMask = renderer.renderingLayerMask;
-            renderer.renderingLayerMask &= ~HdrpDecalLayerMask;
-            if (renderer.renderingLayerMask != previousMask)
-                decalMasksCleared++;
+            if (hasSolidMaterial)
+                solidRendererCount++;
         }
 
         var orderedShaderNames = new List<string>(shaderNames);
@@ -119,6 +130,7 @@ internal static class AudiRS6RMaterials
             solidRendererCount,
             decalMasksCleared,
             hdrpMaterialsFixed,
+            transparentMaterialsProtected,
             hdrpMaterialsValidated,
             string.Join("|", orderedShaderNames));
     }
@@ -207,6 +219,17 @@ internal static class AudiRS6RMaterials
         SetFloat(material, "_ZWrite", 1f);
         SetFloat(material, "_SrcBlend", (float)BlendMode.One);
         SetFloat(material, "_DstBlend", (float)BlendMode.Zero);
+        return validated;
+    }
+
+    private static bool ProtectTransparentMaterialFromDecals(Material material)
+    {
+        SetFloat(material, "_SupportDecals", 0f);
+        var validated = TryValidateHdrpMaterial(material);
+
+        // Keep the glass/cutout rendering state intact; only suppress decal projection.
+        SetFloat(material, "_SupportDecals", 0f);
+        material.EnableKeyword("_DISABLE_DECALS");
         return validated;
     }
 
@@ -408,13 +431,15 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
             $"AudiRS6R materials vehicle='{vehicle.name}' instance={vehicle.GetInstanceID()}: " +
             $"renderers={result.RendererCount} solidRenderers={result.SolidRendererCount} " +
             $"decalMasksCleared={result.DecalMasksCleared} materialsFixed={result.HdrpMaterialsFixed} " +
+            $"transparentMaterialsProtected={result.TransparentMaterialsProtected} " +
             $"materialsValidated={result.HdrpMaterialsValidated} shaders='{result.ShaderNames}'.");
 
-        if (result.SolidRendererCount == 0 || result.HdrpMaterialsFixed == 0)
+        if (result.SolidRendererCount == 0 || result.HdrpMaterialsFixed == 0 ||
+            result.TransparentMaterialsProtected == 0)
         {
             context?.Logger.Warn(
                 $"AudiRS6R materials vehicle='{vehicle.name}' instance={vehicle.GetInstanceID()}: " +
-                "no opaque HDRP vehicle materials were corrected; ground decals may still project onto the body.");
+                "opaque or transparent HDRP material protection was incomplete; ground decals may still project onto the vehicle.");
         }
     }
 }

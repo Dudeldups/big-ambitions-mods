@@ -20,6 +20,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private readonly List<GameObject> generatedObjects = new();
     private readonly List<Material> generatedMaterials = new();
     private readonly List<Mesh> generatedMeshes = new();
+    private readonly List<Texture2D> generatedTextures = new();
 
     private VehicleController? vehicleController;
     private ModContext? context;
@@ -28,6 +29,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? headlightBeam;
     private Light? leftHeadlightBeam;
     private Light? rightHeadlightBeam;
+    private Texture2D? headlightEmissionMask;
     private MeshRenderer? leftHeadlightOverlay;
     private MeshRenderer? rightHeadlightOverlay;
     private MeshRenderer? leftTailLightOverlay;
@@ -74,13 +76,15 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
             "LeftHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
-            copyBaseTexture: true);
+            copyBaseTexture: false,
+            useEmissionMask: true);
         rightHeadlightOverlay = CreateFunctionalOverlay(
             frontLampRenderer,
             position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
             "RightHeadlight",
             new Color(0.78f, 0.82f, 0.90f, 1f),
-            copyBaseTexture: true);
+            copyBaseTexture: false,
+            useEmissionMask: true);
         leftTailLightOverlay = CreateFunctionalOverlay(
             rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
             "LeftTailLight", new Color(0.20f, 0.0035f, 0.001f, 1f));
@@ -216,6 +220,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetFloatIfPresent(material, "_TransparentZWrite", 0f);
         SetFloatIfPresent(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
         SetFloatIfPresent(material, "_AlphaCutoffEnable", 0f);
+        SetFloatIfPresent(material, "_SupportDecals", 0f);
         SetFloatIfPresent(material, "_EnableBlendModePreserveSpecularLighting", 0f);
         SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
@@ -235,6 +240,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetFloatIfPresent(material, "_TransparentCullMode", 0f);
         SetFloatIfPresent(material, "_DoubleSidedEnable", 1f);
         material.EnableKeyword("_DOUBLESIDED_ON");
+        material.EnableKeyword("_DISABLE_DECALS");
         if (!material.HasProperty("_SurfaceType") || !material.HasProperty("_SrcBlend") ||
             !material.HasProperty("_DstBlend") || !material.HasProperty("_ZWrite"))
             LogWarning($"Glass material '{materialName}' uses unexpected shader '{material.shader.name}'; " +
@@ -310,6 +316,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetColorIfPresent(material, "baseColorFactor", baseColor);
         SetColorIfPresent(material, "_BaseColor", baseColor);
         SetColorIfPresent(material, "_Color", baseColor);
+        SetFloatIfPresent(material, "_SupportDecals", 0f);
+        material.EnableKeyword("_DISABLE_DECALS");
         renderer.sharedMaterial = material;
     }
 
@@ -319,7 +327,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         string suffix,
         Color activeColor,
         bool copyBaseTexture = true,
-        float overlayScale = 1.0015f)
+        float overlayScale = 1.0015f,
+        bool useEmissionMask = false)
     {
         if (sourceRenderer == null)
         {
@@ -351,7 +360,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             overlayObject.AddComponent<MeshFilter>().sharedMesh = overlayMesh;
             var overlayRenderer = overlayObject.AddComponent<MeshRenderer>();
             overlayRenderer.sharedMaterial = CreateUnlitMaterial(
-                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture);
+                FirstMaterial(sourceRenderer), "AudiRS6R " + suffix, activeColor, copyBaseTexture,
+                useEmissionMask);
             overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
@@ -422,7 +432,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         return mesh;
     }
 
-    private Material CreateUnlitMaterial(Material? source, string materialName, Color color, bool copyBaseTexture)
+    private Material CreateUnlitMaterial(
+        Material? source,
+        string materialName,
+        Color color,
+        bool copyBaseTexture,
+        bool useEmissionMask)
     {
         var shader = Shader.Find("HDRP/Unlit") ??
                      Shader.Find("High Definition Render Pipeline/Unlit") ??
@@ -432,9 +447,17 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         var material = new Material(shader) { name = materialName };
         generatedMaterials.Add(material);
-        if (copyBaseTexture)
+        if (useEmissionMask)
+        {
+            var mask = CreateHeadlightEmissionMask(source);
+            AssignBaseTexture(material, mask);
+        }
+        else if (copyBaseTexture)
+        {
             CopyBaseTexture(source, material);
-        var hdrColor = color * 3.5f;
+        }
+
+        var hdrColor = color * (useEmissionMask ? 6f : 3.5f);
         hdrColor.a = 1f;
         SetColorIfPresent(material, "_UnlitColor", hdrColor);
         SetColorIfPresent(material, "_BaseColor", hdrColor);
@@ -442,19 +465,113 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetColorIfPresent(material, "baseColorFactor", hdrColor);
         SetColorIfPresent(material, "_EmissiveColor", hdrColor);
         SetColorIfPresent(material, "_EmissionColor", hdrColor);
-        SetFloatIfPresent(material, "_SurfaceType", 0f);
-        SetFloatIfPresent(material, "_ZWrite", 1f);
+        SetFloatIfPresent(material, "_SurfaceType", useEmissionMask ? 1f : 0f);
+        SetFloatIfPresent(material, "_ZWrite", useEmissionMask ? 0f : 1f);
         SetFloatIfPresent(material, "_Cull", 0f);
         SetFloatIfPresent(material, "_CullMode", 0f);
         material.EnableKeyword("_EMISSION");
-        material.renderQueue = 2450;
+        if (useEmissionMask)
+            ConfigureAdditiveTransparency(material);
+        else
+            material.renderQueue = 2450;
         return material;
+    }
+
+    private void ConfigureAdditiveTransparency(Material material)
+    {
+        SetFloatIfPresent(material, "_BlendMode", 1f);
+        SetFloatIfPresent(material, "_SrcBlend", (float)BlendMode.One);
+        SetFloatIfPresent(material, "_DstBlend", (float)BlendMode.One);
+        SetFloatIfPresent(material, "_AlphaSrcBlend", (float)BlendMode.One);
+        SetFloatIfPresent(material, "_AlphaDstBlend", (float)BlendMode.One);
+        SetFloatIfPresent(material, "_TransparentZWrite", 0f);
+        SetFloatIfPresent(material, "_TransparentDepthPrepassEnable", 0f);
+        SetFloatIfPresent(material, "_TransparentDepthPostpassEnable", 0f);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.SetOverrideTag("RenderType", "Transparent");
+        material.renderQueue = (int)RenderQueue.Transparent + 20;
+        material.SetShaderPassEnabled("TransparentDepthPrepass", false);
+        material.SetShaderPassEnabled("TransparentDepthPostpass", false);
+        material.SetShaderPassEnabled("DepthOnly", false);
+        material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    private Texture2D CreateHeadlightEmissionMask(Material? source)
+    {
+        if (headlightEmissionMask != null)
+            return headlightEmissionMask;
+
+        var sourceTexture = FindBaseTexture(source);
+        if (sourceTexture == null)
+            throw new InvalidOperationException("The Audi headlight source texture is missing.");
+
+        var width = Mathf.Max(2, sourceTexture.width);
+        var height = Mathf.Max(2, sourceTexture.height);
+        var temporary = RenderTexture.GetTemporary(
+            width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        var previousActive = RenderTexture.active;
+        try
+        {
+            Graphics.Blit(sourceTexture, temporary);
+            RenderTexture.active = temporary;
+            var mask = new Texture2D(width, height, TextureFormat.RGBA32, false, false)
+            {
+                name = sourceTexture.name + "_AudiRS6R_HeadlightEmissionMask",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = sourceTexture.wrapMode
+            };
+            mask.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
+            mask.Apply(false, false);
+
+            var pixels = mask.GetPixels32();
+            var emissivePixels = 0;
+            for (var index = 0; index < pixels.Length; index++)
+            {
+                var sourcePixel = pixels[index];
+                var red = sourcePixel.r / 255f;
+                var green = sourcePixel.g / 255f;
+                var blue = sourcePixel.b / 255f;
+                var luminance = red * 0.2126f + green * 0.7152f + blue * 0.0722f;
+                var chroma = Mathf.Max(red, Mathf.Max(green, blue)) - Mathf.Min(red, Mathf.Min(green, blue));
+                var brightness = SmoothStep01(Mathf.InverseLerp(0.60f, 0.78f, luminance));
+                var neutral = 1f - SmoothStep01(Mathf.InverseLerp(0.08f, 0.28f, chroma));
+                var intensity = Mathf.Clamp01(brightness * neutral);
+                var value = (byte)Mathf.RoundToInt(intensity * 255f);
+                pixels[index] = new Color32(value, value, value, value);
+                if (value > 8)
+                    emissivePixels++;
+            }
+
+            mask.SetPixels32(pixels);
+            mask.Apply(false, true);
+            headlightEmissionMask = mask;
+            generatedTextures.Add(mask);
+            LogInfo($"headlight-emission-mask source='{sourceTexture.name}' size={width}x{height} " +
+                    $"emissivePixels={emissivePixels}/{pixels.Length}.");
+            return mask;
+        }
+        finally
+        {
+            RenderTexture.active = previousActive;
+            RenderTexture.ReleaseTemporary(temporary);
+        }
+    }
+
+    private static float SmoothStep01(float value)
+    {
+        value = Mathf.Clamp01(value);
+        return value * value * (3f - 2f * value);
     }
 
     private static void CopyBaseTexture(Material? source, Material destination)
     {
+        AssignBaseTexture(destination, FindBaseTexture(source));
+    }
+
+    private static Texture? FindBaseTexture(Material? source)
+    {
         if (source == null)
-            return;
+            return null;
 
         Texture? baseTexture = null;
         if (source.HasProperty("_BaseColorMap"))
@@ -465,7 +582,11 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             baseTexture = source.GetTexture("_MainTex");
         if (baseTexture == null && source.HasProperty("baseColorTexture"))
             baseTexture = source.GetTexture("baseColorTexture");
+        return baseTexture;
+    }
 
+    private static void AssignBaseTexture(Material destination, Texture? baseTexture)
+    {
         SetTextureIfPresent(destination, "_UnlitColorMap", baseTexture);
         SetTextureIfPresent(destination, "_BaseColorMap", baseTexture);
         SetTextureIfPresent(destination, "_BaseMap", baseTexture);
@@ -619,5 +740,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             if (material != null) Destroy(material);
         foreach (var mesh in generatedMeshes)
             if (mesh != null) Destroy(mesh);
+        foreach (var texture in generatedTextures)
+            if (texture != null) Destroy(texture);
     }
 }
