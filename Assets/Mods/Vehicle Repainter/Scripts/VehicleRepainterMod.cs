@@ -57,6 +57,10 @@ namespace VehicleRepainter
             "purchaseButton",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
+        private static readonly FieldInfo? VehicleColorBackingField = typeof(CarFeatures).GetField(
+            "<VehicleColor>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
         private readonly ModContext context;
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
@@ -77,7 +81,7 @@ namespace VehicleRepainter
                 return;
             }
 
-            if (CurrentStationTriggerField == null || PurchaseButtonField == null)
+            if (CurrentStationTriggerField == null || PurchaseButtonField == null || VehicleColorBackingField == null)
             {
                 context.Logger.Error("Could not install: required cached vanilla UI fields were not found.");
                 return;
@@ -96,11 +100,12 @@ namespace VehicleRepainter
                 InstanceBehavior<UIs>.Instance?.playerHUD?.purchaseVehicleUI?.Close();
 
             activeRepaintAsset = null;
-            if (overlayUi != null && extendedGasStationOverlay != null &&
-                ReferenceEquals(overlayUi.gasStation, extendedGasStationOverlay))
+            var uis = InstanceBehavior<UIs>.Instance;
+            if (uis != null && uis.overlayUI != null && extendedGasStationOverlay != null &&
+                ReferenceEquals(uis.overlayUI.gasStation, extendedGasStationOverlay))
             {
                 GasStationOverlay.Hide();
-                overlayUi.gasStation = originalGasStationOverlay ?? new GasStationOverlay();
+                uis.overlayUI.gasStation = originalGasStationOverlay ?? new GasStationOverlay();
             }
 
             overlayUi = null;
@@ -205,6 +210,7 @@ namespace VehicleRepainter
             private readonly VehicleController vehicle;
             private readonly GasStationTrigger stationTrigger;
             private readonly Action<RepaintPurchasableAsset> onClosed;
+            private readonly VehiclePaintSnapshot originalPaint;
             private string committedColorName;
             private string selectedColorName;
             private bool purchaseCompleted;
@@ -219,6 +225,7 @@ namespace VehicleRepainter
                 this.vehicle = vehicle;
                 this.stationTrigger = stationTrigger;
                 this.onClosed = onClosed;
+                originalPaint = new VehiclePaintSnapshot(vehicle.CarFeatures);
                 committedColorName = ResolveInitialColorName(vehicle);
                 selectedColorName = committedColorName;
             }
@@ -251,9 +258,10 @@ namespace VehicleRepainter
             {
                 if (!purchaseCompleted)
                 {
-                    SetColor(committedColorName);
+                    originalPaint.Restore(vehicle.CarFeatures);
                     context.Logger.Info(
-                        $"Canceled Repaint for vehicle id '{vehicle.vehicleInstance.id}'; money and color were unchanged.");
+                        $"Canceled Repaint for vehicle id '{vehicle.vehicleInstance.id}'; restored the exact original " +
+                        $"paint render state and left persisted color '{vehicle.vehicleInstance.vehicleColorName}' unchanged.");
                 }
 
                 RestoreGasStationOverlayIfStillRelevant();
@@ -346,6 +354,53 @@ namespace VehicleRepainter
 
                 VehicleColor[] colors = InstanceBehavior<GlobalReferences>.Instance.vehicleColors;
                 return colors.Length > 0 ? ((UnityEngine.Object)colors[0]).name : string.Empty;
+            }
+
+            private sealed class VehiclePaintSnapshot
+            {
+                private readonly VehicleColor? vehicleColor;
+                private readonly List<RendererPaintSnapshot> rendererSnapshots = new List<RendererPaintSnapshot>();
+
+                internal VehiclePaintSnapshot(CarFeatures carFeatures)
+                {
+                    vehicleColor = carFeatures.VehicleColor;
+                    var bodyMeshes = carFeatures.bodyMeshes;
+                    if (bodyMeshes == null)
+                        return;
+
+                    foreach (var renderer in bodyMeshes)
+                    {
+                        if (renderer == null)
+                            continue;
+
+                        var propertyBlock = new MaterialPropertyBlock();
+                        renderer.GetPropertyBlock(propertyBlock);
+                        rendererSnapshots.Add(new RendererPaintSnapshot(renderer, propertyBlock));
+                    }
+                }
+
+                internal void Restore(CarFeatures carFeatures)
+                {
+                    foreach (var snapshot in rendererSnapshots)
+                    {
+                        if (snapshot.Renderer != null)
+                            snapshot.Renderer.SetPropertyBlock(snapshot.PropertyBlock);
+                    }
+
+                    VehicleColorBackingField!.SetValue(carFeatures, vehicleColor);
+                }
+            }
+
+            private readonly struct RendererPaintSnapshot
+            {
+                internal readonly Renderer Renderer;
+                internal readonly MaterialPropertyBlock PropertyBlock;
+
+                internal RendererPaintSnapshot(Renderer renderer, MaterialPropertyBlock propertyBlock)
+                {
+                    Renderer = renderer;
+                    PropertyBlock = propertyBlock;
+                }
             }
         }
     }
