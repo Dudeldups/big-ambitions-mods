@@ -14,6 +14,7 @@ namespace MootorVehicle
     /// <summary>
     /// Handles cow impacts through Unity collision callbacks. There is no Update or FixedUpdate loop.
     /// </summary>
+    [DefaultExecutionOrder(-1000)]
     internal sealed class MootorVehicleImpactController : MonoBehaviour
     {
         private const float StrongHorizontalDeltaVelocity = 3f;
@@ -33,6 +34,7 @@ namespace MootorVehicle
         private Rigidbody? vehicleBody;
         private ModContext? context;
         private Coroutine? forcedDismountCoroutine;
+        private Coroutine? crashVolumeRestoreCoroutine;
         private bool crashAudioConfigured;
         private bool crashAudioFailureLogged;
         private bool crashMooPlaybackFailureLogged;
@@ -125,8 +127,32 @@ namespace MootorVehicle
                 $"Moo-tor Vehicle strong impact vehicle={vehicle.GetInstanceID()} " +
                 $"horizontalDeltaV={horizontalDeltaVelocity:F2}m/s " +
                 $"relativeSpeed={horizontalImpactSpeed:F2}m/s; forcing rider dismount.");
+            SuppressNativeCrashMooForEjection();
             PlayStrongImpactMoo();
             forcedDismountCoroutine = StartCoroutine(ForceDismountAfterCollision());
+        }
+
+        private void SuppressNativeCrashMooForEjection()
+        {
+            var crash = physicsVehicle?.soundManager?.crashComponent;
+            if (crash == null)
+                return;
+
+            crash.baseVolume = 0f;
+            if (crashVolumeRestoreCoroutine != null)
+                StopCoroutine(crashVolumeRestoreCoroutine);
+            crashVolumeRestoreCoroutine = StartCoroutine(RestoreNativeCrashMooVolume());
+        }
+
+        private IEnumerator RestoreNativeCrashMooVolume()
+        {
+            // Keep the native component silent through its collision callback and immediate
+            // scheduling window. Ordinary later impacts return to the established volume.
+            yield return new WaitForSecondsRealtime(0.15f);
+            crashVolumeRestoreCoroutine = null;
+            var crash = physicsVehicle?.soundManager?.crashComponent;
+            if (crash != null)
+                crash.baseVolume = NormalCrashMooVolume;
         }
 
         private void PlayStrongImpactMoo()
@@ -462,6 +488,15 @@ namespace MootorVehicle
 
         private void OnDisable()
         {
+            if (crashVolumeRestoreCoroutine != null)
+            {
+                StopCoroutine(crashVolumeRestoreCoroutine);
+                crashVolumeRestoreCoroutine = null;
+            }
+            var crash = physicsVehicle?.soundManager?.crashComponent;
+            if (crash != null)
+                crash.baseVolume = NormalCrashMooVolume;
+
             if (forcedDismountCoroutine != null)
             {
                 StopCoroutine(forcedDismountCoroutine);
