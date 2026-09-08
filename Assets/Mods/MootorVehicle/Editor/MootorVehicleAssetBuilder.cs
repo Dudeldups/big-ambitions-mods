@@ -1267,12 +1267,16 @@ namespace MootorVehicle.Editor
                         continue;
 
                     var shaderName = material.shader != null ? material.shader.name : "<null>";
-                    shaderNames.Add(shaderName);
                     var shaderGraphTarget = material.GetTag("ShaderGraphTargetId", false, string.Empty);
                     if (!shaderName.StartsWith("HDRP/", StringComparison.Ordinal) &&
                         !shaderGraphTarget.StartsWith("HD", StringComparison.Ordinal) &&
                         !material.HasProperty("_SupportDecals"))
+                    {
+                        shaderNames.Add(shaderName);
                         continue;
+                    }
+
+                    RebindMaterialToHdrpLit(material);
 
                     SetOpaqueMaterialColor(material, "_BaseColor");
                     SetOpaqueMaterialColor(material, "baseColorFactor");
@@ -1295,6 +1299,10 @@ namespace MootorVehicle.Editor
                     SetMaterialFloat(material, "_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
                     SetMaterialFloat(material, "_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
                     hdrpMaterialsFixed++;
+                    var finalShaderName = material.shader != null ? material.shader.name : "<null>";
+                    shaderNames.Add(string.Equals(shaderName, finalShaderName, StringComparison.Ordinal)
+                        ? finalShaderName
+                        : shaderName + "->" + finalShaderName);
                 }
             }
 
@@ -1316,6 +1324,95 @@ namespace MootorVehicle.Editor
             var color = material.GetColor(property);
             color.a = 1f;
             material.SetColor(property, color);
+        }
+
+        private static void RebindMaterialToHdrpLit(Material material)
+        {
+            var hdrpLit = Shader.Find("HDRP/Lit") ??
+                          Shader.Find("High Definition Render Pipeline/Lit");
+            if (hdrpLit == null || material.shader == hdrpLit)
+                return;
+
+            var baseColor = GetMaterialColor(material, "baseColorFactor", "_BaseColor", Color.white);
+            baseColor.a = 1f;
+            var baseTextureProperty = FirstMaterialTextureProperty(
+                material, "baseColorTexture", "_BaseColorMap", "_MainTex");
+            var baseTexture = baseTextureProperty != null ? material.GetTexture(baseTextureProperty) : null;
+            var baseScale = baseTextureProperty != null ? material.GetTextureScale(baseTextureProperty) : Vector2.one;
+            var baseOffset = baseTextureProperty != null ? material.GetTextureOffset(baseTextureProperty) : Vector2.zero;
+
+            var normalTextureProperty = FirstMaterialTextureProperty(material, "normalTexture", "_NormalMap");
+            var normalTexture = normalTextureProperty != null ? material.GetTexture(normalTextureProperty) : null;
+            var normalScale = GetMaterialFloat(
+                material, "normalTexture_scale", "normalScale", "_NormalScale", 1f);
+            var metallic = GetMaterialFloat(material, "metallicFactor", "_Metallic", null, 0f);
+            var roughness = GetMaterialFloat(material, "roughnessFactor", null, null, 1f);
+
+            material.shader = hdrpLit;
+            SetMaterialColor(material, "_BaseColor", baseColor);
+            SetMaterialTexture(material, "_BaseColorMap", baseTexture, baseScale, baseOffset);
+            SetMaterialTexture(material, "_NormalMap", normalTexture, Vector2.one, Vector2.zero);
+            SetMaterialFloat(material, "_NormalScale", normalScale);
+            SetMaterialFloat(material, "_Metallic", metallic);
+            SetMaterialFloat(material, "_Smoothness", 1f - Mathf.Clamp01(roughness));
+        }
+
+        private static string? FirstMaterialTextureProperty(Material material, params string[] properties)
+        {
+            foreach (var property in properties)
+                if (material.HasProperty(property) && material.GetTexture(property) != null)
+                    return property;
+            return null;
+        }
+
+        private static Color GetMaterialColor(
+            Material material,
+            string firstProperty,
+            string secondProperty,
+            Color fallback)
+        {
+            if (material.HasProperty(firstProperty))
+                return material.GetColor(firstProperty);
+            if (material.HasProperty(secondProperty))
+                return material.GetColor(secondProperty);
+            return fallback;
+        }
+
+        private static float GetMaterialFloat(
+            Material material,
+            string firstProperty,
+            string? secondProperty,
+            string? thirdProperty,
+            float fallback)
+        {
+            if (material.HasProperty(firstProperty))
+                return material.GetFloat(firstProperty);
+            if (secondProperty != null && material.HasProperty(secondProperty))
+                return material.GetFloat(secondProperty);
+            if (thirdProperty != null && material.HasProperty(thirdProperty))
+                return material.GetFloat(thirdProperty);
+            return fallback;
+        }
+
+        private static void SetMaterialColor(Material material, string property, Color value)
+        {
+            if (material.HasProperty(property))
+                material.SetColor(property, value);
+        }
+
+        private static void SetMaterialTexture(
+            Material material,
+            string property,
+            Texture? texture,
+            Vector2 scale,
+            Vector2 offset)
+        {
+            if (!material.HasProperty(property))
+                return;
+
+            material.SetTexture(property, texture);
+            material.SetTextureScale(property, scale);
+            material.SetTextureOffset(property, offset);
         }
 
         private static void SetMaterialFloat(Material material, string property, float value)
