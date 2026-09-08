@@ -20,12 +20,12 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
     private const float FinalDriveRatio = 3.2f;
-    private const float EngineInertia = 0.075f;
-    private const float EngineStartDuration = 0.15f;
-    private const float ClutchEngagementRpm = 850f;
-    private const float ClutchThrottleOffsetRpm = 100f;
-    private const float ClutchEngagementRange = 250f;
-    private const float ClutchCreepTorque = 250f;
+    private const float EngineInertia = 0.12f;
+    private const float EngineStartDuration = 0.5f;
+    private const float ClutchEngagementRpm = 1200f;
+    private const float ClutchThrottleOffsetRpm = 500f;
+    private const float ClutchEngagementRange = 500f;
+    private const float ClutchCreepTorque = 0f;
 
     private static readonly float[] ChironGears =
     {
@@ -373,22 +373,22 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
             SetFloat(clutch, "engagementRange", ClutchEngagementRange);
             SetFloat(clutch, "creepTorque", ClutchCreepTorque);
-            SetFloat(clutch, "creepSpeedLimit", 2f);
+            SetFloat(clutch, "creepSpeedLimit", 1f);
             var engine = GetMember(powertrain, "engine");
             SetFloat(engine, "inertia", EngineInertia);
             SetFloat(engine, "maxPower", EnginePowerKw);
             SetFloat(engine, "idleRPM", EngineIdleRpm);
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
             SetFloat(engine, "startDuration", EngineStartDuration);
-            SetBool(engine, "stallingEnabled", false);
+            SetBool(engine, "stallingEnabled", true);
             var forcedInduction = GetMember(engine, "forcedInduction");
             SetBool(forcedInduction, "useForcedInduction", true);
             SetFloat(forcedInduction, "powerGainMultiplier", 1.35f);
-            SetFloat(forcedInduction, "spoolUpTime", 0.04f);
+            SetFloat(forcedInduction, "spoolUpTime", 0.08f);
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
-            SetFloat(transmission, "shiftDuration", 0.05f);
+            SetFloat(transmission, "shiftDuration", 0.08f);
             SetFloat(transmission, "_downshiftRPM", 2800f);
             SetFloat(transmission, "_upshiftRPM", 6500f);
             SetInt(transmission, "forwardGearCount", 7);

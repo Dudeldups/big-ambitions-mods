@@ -171,11 +171,13 @@ public static class BugattiChironSetup
                 var clutch = powertrain?.FindPropertyRelative("clutch");
                 var engine = powertrain?.FindPropertyRelative("engine");
                 launchResponseVerified =
-                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRPM")) - 850f) < 0.01f &&
-                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("throttleEngagementOffsetRPM")) - 100f) < 0.01f &&
-                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRange")) - 250f) < 0.01f &&
-                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.075f) < 0.001f &&
-                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.15f) < 0.001f;
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRPM")) - 1200f) < 0.01f &&
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("throttleEngagementOffsetRPM")) - 500f) < 0.01f &&
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRange")) - 500f) < 0.01f &&
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.12f) < 0.001f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.5f) < 0.001f &&
+                    (engine?.FindPropertyRelative("stallingEnabled")?.boolValue ?? false);
             }
 
             var opaqueMaterials = new HashSet<Material>();
@@ -220,7 +222,11 @@ public static class BugattiChironSetup
                     if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
                     if (IsInteriorDarkPaintMaterial(material)) interiorDarkPaintSlots++;
                     if (IsCaliperMaterial(material)) caliperSlots++;
-                    if (IsRimInnerPaintMaterial(material)) rimInnerSlots++;
+                    if (IsRimInnerPaintMaterial(material))
+                    {
+                        rimInnerSlots++;
+                        paintTexturesReadable &= IsBaseTextureReadable(material);
+                    }
                     if (IsSeatPaintMaterial(material))
                     {
                         seatSlots++;
@@ -597,24 +603,24 @@ public static class BugattiChironSetup
                     StringComparison.Ordinal))
             {
                 found = true;
-                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 850f);
-                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 100f);
-                SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 250f);
-                SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 250f);
-                SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 2f);
-                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.075f);
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 1200f);
+                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 500f);
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 500f);
+                SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
+                SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
+                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.12f);
                 SetRelativeNumber(serialized, "powertrain.engine.maxPower", 1103f);
                 SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 800f);
                 SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6700f);
-                SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.15f);
-                SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", false);
+                SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.5f);
+                SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", true);
                 SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", true);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.powerGainMultiplier", 1.35f);
-                SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.04f);
+                SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.08f);
                 SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 3.2f);
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 7f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
-                SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.05f);
+                SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.08f);
                 SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2800f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 6500f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);

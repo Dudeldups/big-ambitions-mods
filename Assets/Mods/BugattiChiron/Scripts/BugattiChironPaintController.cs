@@ -33,8 +33,10 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private Color32 appliedTint;
     private bool hasAppliedTint;
     private Texture2D? rimSourceTexture;
+    private Texture2D? rimInnerSourceTexture;
     private Texture2D? seatSourceTexture;
     private Texture2D? rimPaintTexture;
+    private Texture2D? rimInnerPaintTexture;
     private Texture2D? seatPaintTexture;
     private bool textureFailureLogged;
 
@@ -86,6 +88,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                     interiorSlots++;
                 if (category == PaintCategory.Rim && rimSourceTexture == null)
                     rimSourceTexture = FindBaseTexture(material);
+                if (category == PaintCategory.RimInner && rimInnerSourceTexture == null)
+                    rimInnerSourceTexture = FindBaseTexture(material);
                 if (category == PaintCategory.Seat && seatSourceTexture == null)
                     seatSourceTexture = FindBaseTexture(material);
             }
@@ -118,14 +122,13 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
-        var mainColor = selectedColor.linear;
-        mainColor.a = 1f;
-        RebuildPaintTextures(tint, selectedColor, mainColor);
+        var bodyColor = CreateBodyColor(selectedColor);
+        RebuildPaintTextures(tint, bodyColor);
         foreach (var slot in slots)
         {
-            var color = ColorForCategory(slot.Category, selectedColor, mainColor);
+            var color = ColorForCategory(slot.Category, selectedColor, bodyColor);
             if (slot.Category == PaintCategory.Seat && seatPaintTexture == null)
-                color = mainColor;
+                color = bodyColor;
             properties.Clear();
             slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
             if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
@@ -133,9 +136,11 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
             var texture = slot.Category == PaintCategory.Rim
                 ? rimPaintTexture
-                : slot.Category == PaintCategory.Seat
-                    ? seatPaintTexture
-                    : null;
+                : slot.Category == PaintCategory.RimInner
+                    ? rimInnerPaintTexture
+                    : slot.Category == PaintCategory.Seat
+                        ? seatPaintTexture
+                        : null;
             if (texture != null)
             {
                 if (slot.Material.HasProperty(BaseColorMap)) properties.SetTexture(BaseColorMap, texture);
@@ -179,47 +184,68 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         return PaintCategory.None;
     }
 
-    private static Color ColorForCategory(PaintCategory category, Color selectedColor, Color mainColor)
+    private static Color ColorForCategory(
+        PaintCategory category,
+        Color selectedColor,
+        Color bodyColor)
     {
         switch (category)
         {
-            // VehicleColor stores sRGB bytes. HDRP Lit expects a linear base color,
-            // while the textured rim material already produced the intended in-game shade.
             case PaintCategory.MainBody:
-                return mainColor;
+                return bodyColor;
             case PaintCategory.DarkBody:
-                return Scale(mainColor, 0.22f);
+                return Scale(bodyColor, 0.35f);
             case PaintCategory.Rim:
                 return selectedColor;
             case PaintCategory.Caliper:
-                return mainColor;
+                return bodyColor;
             case PaintCategory.RimInner:
-                return Scale(mainColor, 0.22f);
+                return Scale(bodyColor, 0.35f);
             case PaintCategory.Seat:
                 return Color.white;
             case PaintCategory.InteriorPrimary:
-                return Color.Lerp(mainColor, Color.white, 0.12f);
+                return Color.Lerp(bodyColor, Color.white, 0.12f);
             case PaintCategory.InteriorSecondary:
-                return Scale(mainColor, 0.55f);
+                return Scale(bodyColor, 0.55f);
             case PaintCategory.InteriorDark:
-                return Scale(mainColor, 0.28f);
+                return Scale(bodyColor, 0.28f);
             default:
-                return mainColor;
+                return bodyColor;
         }
+    }
+
+    private static Color CreateBodyColor(Color selectedColor)
+    {
+        var linear = selectedColor.linear;
+        linear.a = 1f;
+
+        // The imported HDRP material has no vanilla vehicle-paint Fresnel pass.
+        // Give only dark palette entries a modest perceptual lift so their hue
+        // remains visible, while normal and bright paints retain the exact
+        // linear response that already matches the game's selected color.
+        var brightest = Mathf.Max(selectedColor.r, Mathf.Max(selectedColor.g, selectedColor.b));
+        var darkLift = 0.5f * Mathf.Clamp01((0.45f - brightest) / 0.45f);
+        var color = Color.Lerp(linear, selectedColor, darkLift);
+        color.a = 1f;
+        return color;
     }
 
     private static Color Scale(Color color, float factor) =>
         new Color(color.r * factor, color.g * factor, color.b * factor, 1f);
 
-    private void RebuildPaintTextures(Color32 tint, Color selectedColor, Color mainColor)
+    private void RebuildPaintTextures(Color32 tint, Color bodyColor)
     {
         DestroyPaintTextures();
         try
         {
             if (rimSourceTexture != null)
-                rimPaintTexture = CreateRimPaintTexture(rimSourceTexture, selectedColor, mainColor);
+                rimPaintTexture = CreateRimPaintTexture(rimSourceTexture);
+            if (rimInnerSourceTexture != null)
+                rimInnerPaintTexture = CreateNeutralPaintTexture(
+                    rimInnerSourceTexture,
+                    "BugattiChiron_RimInnerPaint");
             if (seatSourceTexture != null)
-                seatPaintTexture = CreateSeatPaintTexture(seatSourceTexture, mainColor);
+                seatPaintTexture = CreateSeatPaintTexture(seatSourceTexture, bodyColor);
             textureFailureLogged = false;
         }
         catch (Exception exception)
@@ -236,22 +262,10 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         }
     }
 
-    private static Texture2D CreateRimPaintTexture(
-        Texture2D source,
-        Color selectedColor,
-        Color mainColor)
+    private static Texture2D CreateRimPaintTexture(Texture2D source)
     {
         var pixels = source.GetPixels32();
-        var desiredDark = Scale(mainColor, 0.22f);
-        var darkFactorLinear = new Color(
-            selectedColor.r > 0.001f ? desiredDark.r / selectedColor.r : 0.22f,
-            selectedColor.g > 0.001f ? desiredDark.g / selectedColor.g : 0.22f,
-            selectedColor.b > 0.001f ? desiredDark.b / selectedColor.b : 0.22f,
-            1f);
-        darkFactorLinear.r = Mathf.Clamp01(darkFactorLinear.r);
-        darkFactorLinear.g = Mathf.Clamp01(darkFactorLinear.g);
-        darkFactorLinear.b = Mathf.Clamp01(darkFactorLinear.b);
-        var darkMapPixel = (Color32)darkFactorLinear.gamma;
+        var darkMapPixel = (Color32)new Color(0.22f, 0.22f, 0.22f, 1f).gamma;
         for (var index = 0; index < pixels.Length; index++)
         {
             var pixel = pixels[index];
@@ -263,6 +277,18 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         }
 
         return CreateRuntimeTexture(source, pixels, "BugattiChiron_RimPaint");
+    }
+
+    private static Texture2D CreateNeutralPaintTexture(Texture2D source, string name)
+    {
+        var pixels = source.GetPixels32();
+        for (var index = 0; index < pixels.Length; index++)
+        {
+            var pixel = pixels[index];
+            var value = (byte)Math.Max(pixel.r, Math.Max(pixel.g, pixel.b));
+            pixels[index] = new Color32(value, value, value, pixel.a);
+        }
+        return CreateRuntimeTexture(source, pixels, name);
     }
 
     private static Texture2D CreateSeatPaintTexture(Texture2D source, Color mainColor)
@@ -317,9 +343,12 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     {
         if (rimPaintTexture != null)
             Destroy(rimPaintTexture);
+        if (rimInnerPaintTexture != null)
+            Destroy(rimInnerPaintTexture);
         if (seatPaintTexture != null)
             Destroy(seatPaintTexture);
         rimPaintTexture = null;
+        rimInnerPaintTexture = null;
         seatPaintTexture = null;
     }
 
