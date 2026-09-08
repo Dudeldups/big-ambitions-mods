@@ -18,8 +18,11 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float TireContactDriveAcceleration = 8.5f;
     private const float TireContactMinimumStrength = 0.7f;
     private const float TireContactLiftMultiplier = 0.22f;
-    private const float LowSpeedClimbThreshold = 2.75f;
-    private const float LowSpeedClimbVerticalSpeed = 0.65f;
+    private const float LowSpeedClimbTriggerSpeed = 2.75f;
+    private const float LatchedClimbDuration = 1.1f;
+    private const float LatchedClimbMaximumSpeed = 5f;
+    private const float LatchedClimbVerticalSpeed = 0.8f;
+    private const float LatchedClimbDriveAcceleration = 5f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
     private const int HeavyCargoCapacity = 32;
@@ -37,6 +40,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private float suppressDamageUntil;
     private int heavyImpactFrame = -1;
     private float nextClimbAssistLogTime;
+    private float latchedClimbUntil;
+    private Vector3 latchedClimbDirection;
+    private bool latchedClimbApplicationLogged;
     private bool initialized;
     private bool failureReported;
 
@@ -94,6 +100,59 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         catch (Exception exception)
         {
             ReportFailureOnce(nameof(Update), exception);
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (!initialized || vehicle?.controlledByPlayer != true || physicsVehicle == null ||
+            vehicleBody == null || Time.unscaledTime > latchedClimbUntil)
+            return;
+
+        try
+        {
+            var throttle = physicsVehicle.input.Throttle;
+            if (throttle < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
+            {
+                latchedClimbUntil = 0f;
+                return;
+            }
+
+            var driveDirection = physicsVehicle.powertrain.transmission.Gear < 0 ? -1f : 1f;
+            var currentDriveDirection = vehicle.transform.forward * driveDirection;
+            if (Vector3.Dot(currentDriveDirection, latchedClimbDirection) < 0.75f)
+            {
+                latchedClimbUntil = 0f;
+                return;
+            }
+
+            var forwardSpeed = Vector3.Dot(vehicleBody.velocity, currentDriveDirection);
+            if (forwardSpeed > LatchedClimbMaximumSpeed)
+            {
+                latchedClimbUntil = 0f;
+                return;
+            }
+
+            var verticalSpeed = Vector3.Dot(vehicleBody.velocity, Vector3.up);
+            if (verticalSpeed < LatchedClimbVerticalSpeed)
+                vehicleBody.velocity +=
+                    Vector3.up * (LatchedClimbVerticalSpeed - verticalSpeed);
+            vehicleBody.AddForce(
+                currentDriveDirection *
+                (LatchedClimbDriveAcceleration * Mathf.Clamp01(throttle)),
+                ForceMode.Acceleration);
+            if (!latchedClimbApplicationLogged)
+            {
+                latchedClimbApplicationLogged = true;
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck: latched climb applied in physics step " +
+                    $"speed={forwardSpeed:F2}m/s, verticalTarget={LatchedClimbVerticalSpeed:F2}m/s.");
+            }
+        }
+        catch (Exception exception)
+        {
+            latchedClimbUntil = 0f;
+            ReportFailureOnce(nameof(FixedUpdate), exception);
         }
     }
 
@@ -182,7 +241,14 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 return;
 
             var tireContact = IsPhysicalTireContact(collision);
-            var lowSpeedClimb = tireContact && forwardSpeed < LowSpeedClimbThreshold;
+            var lowSpeedClimb = tireContact && forwardSpeed < LowSpeedClimbTriggerSpeed;
+            if (lowSpeedClimb)
+            {
+                if (Time.unscaledTime > latchedClimbUntil)
+                    latchedClimbApplicationLogged = false;
+                latchedClimbDirection = worldDriveDirection;
+                latchedClimbUntil = Time.unscaledTime + LatchedClimbDuration;
+            }
             var otherLocal = vehicle.transform.InverseTransformPoint(collision.collider.bounds.center);
             // Once a tire is on the vehicle, keep pulling even after its center passes
             // behind the front axle. Stopping here was what stranded cars beneath the truck.
@@ -195,12 +261,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             }
 
             var verticalSpeed = Vector3.Dot(vehicleBody.velocity, Vector3.up);
-            if (lowSpeedClimb && verticalSpeed < LowSpeedClimbVerticalSpeed)
-            {
-                vehicleBody.velocity +=
-                    Vector3.up * (LowSpeedClimbVerticalSpeed - verticalSpeed);
-                verticalSpeed = LowSpeedClimbVerticalSpeed;
-            }
             if (verticalSpeed > MaximumAssistedVerticalSpeed)
             {
                 vehicleBody.velocity -=
@@ -239,7 +299,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     ? GetVehicleName(otherPlayerVehicle)
                     : trafficVehicle!.name;
                 var assistMode = lowSpeedClimb
-                    ? "low-speed-step"
+                    ? "latched-low-speed-climb"
                     : tireContact
                         ? "tire-traction"
                         : "approach-lift";
@@ -259,6 +319,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
     private void OnDestroy()
     {
+        latchedClimbUntil = 0f;
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
         physicsVehicle = null;
