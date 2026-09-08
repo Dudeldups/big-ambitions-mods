@@ -14,7 +14,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float VehicleMass = 6500f;
     private const float WheelRadius = 0.78f;
     private const float WheelWidth = 1.05f;
-    private const float WheelVisualVerticalOffset = 0.10f;
+    private const float WheelVisualVerticalOffset = 0.15f;
     private const float SuspensionLength = 0.65f;
     private const float SuspensionForce = 28000f;
     private const float FrontAxleZ = 1.60f;
@@ -349,9 +349,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             wrapper.transform.SetParent(visual.transform.parent, false);
             wrapper.transform.SetPositionAndRotation(visual.transform.position, visual.transform.rotation);
             visual.transform.SetParent(wrapper.transform, true);
-            if (controllerName.IndexOf("Left", StringComparison.OrdinalIgnoreCase) >= 0)
-                visual.transform.localRotation =
-                    Quaternion.AngleAxis(180f, Vector3.up) * visual.transform.localRotation;
+            visual.transform.localRotation =
+                Quaternion.AngleAxis(180f, Vector3.up) * visual.transform.localRotation;
         }
 
         SetMember(wheel, "visual", wrapper);
