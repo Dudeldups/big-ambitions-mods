@@ -10,6 +10,7 @@ internal readonly struct AudiRS6RMaterialFixResult
 {
     internal AudiRS6RMaterialFixResult(
         int rendererCount,
+        int wheelRendererCount,
         int solidRendererCount,
         int decalMasksCleared,
         int hdrpMaterialsFixed,
@@ -18,6 +19,7 @@ internal readonly struct AudiRS6RMaterialFixResult
         string shaderNames)
     {
         RendererCount = rendererCount;
+        WheelRendererCount = wheelRendererCount;
         SolidRendererCount = solidRendererCount;
         DecalMasksCleared = decalMasksCleared;
         HdrpMaterialsFixed = hdrpMaterialsFixed;
@@ -27,6 +29,7 @@ internal readonly struct AudiRS6RMaterialFixResult
     }
 
     internal int RendererCount { get; }
+    internal int WheelRendererCount { get; }
     internal int SolidRendererCount { get; }
     internal int DecalMasksCleared { get; }
     internal int HdrpMaterialsFixed { get; }
@@ -39,6 +42,7 @@ internal static class AudiRS6RMaterials
 {
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string FrontLampRendererName = "B:Light_Geo_lodA_B:Light_Geo_lodASG1_0";
+    private const string WheelVisualRootName = "Wheels";
     private const string HdMaterialTypeName = "UnityEngine.Rendering.HighDefinition.HDMaterial";
     private const string ShaderGraphApiTypeName = "UnityEngine.Rendering.HighDefinition.ShaderGraphAPI";
 
@@ -50,9 +54,21 @@ internal static class AudiRS6RMaterials
     internal static AudiRS6RMaterialFixResult FixSolidVehicleMaterials(GameObject vehicleRoot)
     {
         var visualRoot = FindImportedVisualRoot(vehicleRoot);
-        var renderers = visualRoot != null
+        var bodyRenderers = visualRoot != null
             ? visualRoot.GetComponentsInChildren<Renderer>(true)
             : Array.Empty<Renderer>();
+        var wheelRoot = FindNamedVisualRoot(vehicleRoot, WheelVisualRootName);
+        var wheelRenderers = wheelRoot != null
+            ? wheelRoot.GetComponentsInChildren<Renderer>(true)
+            : Array.Empty<Renderer>();
+        var wheelRendererSet = new HashSet<Renderer>(wheelRenderers);
+        var rendererSet = new HashSet<Renderer>();
+        var renderers = new List<Renderer>(wheelRenderers.Length + bodyRenderers.Length);
+        // Process the wheels first so their materials are forced opaque even if a material is shared.
+        foreach (var renderer in wheelRenderers)
+            if (renderer != null && rendererSet.Add(renderer)) renderers.Add(renderer);
+        foreach (var renderer in bodyRenderers)
+            if (renderer != null && rendererSet.Add(renderer)) renderers.Add(renderer);
         var materials = new HashSet<Material>();
         var shaderNames = new HashSet<string>(StringComparer.Ordinal);
         var solidRendererCount = 0;
@@ -75,12 +91,13 @@ internal static class AudiRS6RMaterials
                 decalMasksCleared++;
 
             var hasSolidMaterial = false;
+            var forceOpaque = wheelRendererSet.Contains(renderer);
             foreach (var material in renderer.sharedMaterials)
             {
                 if (material == null)
                     continue;
 
-                if (IsTransparentOrCutout(material))
+                if (!forceOpaque && IsTransparentOrCutout(material))
                 {
                     if (!materials.Add(material))
                         continue;
@@ -126,7 +143,8 @@ internal static class AudiRS6RMaterials
         var orderedShaderNames = new List<string>(shaderNames);
         orderedShaderNames.Sort(StringComparer.Ordinal);
         return new AudiRS6RMaterialFixResult(
-            renderers.Length,
+            renderers.Count,
+            wheelRenderers.Length,
             solidRendererCount,
             decalMasksCleared,
             hdrpMaterialsFixed,
@@ -148,6 +166,17 @@ internal static class AudiRS6RMaterials
             // The imported renderer is nested as Object_3/B:Light_Geo_lodA/<renderer>.
             // Scope material mutation to Object_3 so shared stock vehicle/effect materials are untouched.
             return renderer.transform.parent?.parent?.gameObject;
+        }
+
+        return null;
+    }
+
+    private static GameObject? FindNamedVisualRoot(GameObject vehicleRoot, string objectName)
+    {
+        foreach (var child in vehicleRoot.GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && string.Equals(child.name, objectName, StringComparison.Ordinal))
+                return child.gameObject;
         }
 
         return null;
@@ -429,12 +458,13 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
         applied = true;
         context?.Logger.Info(
             $"AudiRS6R materials vehicle='{vehicle.name}' instance={vehicle.GetInstanceID()}: " +
-            $"renderers={result.RendererCount} solidRenderers={result.SolidRendererCount} " +
+            $"renderers={result.RendererCount} wheelRenderers={result.WheelRendererCount} " +
+            $"solidRenderers={result.SolidRendererCount} " +
             $"decalMasksCleared={result.DecalMasksCleared} materialsFixed={result.HdrpMaterialsFixed} " +
             $"transparentMaterialsProtected={result.TransparentMaterialsProtected} " +
             $"materialsValidated={result.HdrpMaterialsValidated} shaders='{result.ShaderNames}'.");
 
-        if (result.SolidRendererCount == 0 || result.HdrpMaterialsFixed == 0 ||
+        if (result.WheelRendererCount == 0 || result.SolidRendererCount == 0 || result.HdrpMaterialsFixed == 0 ||
             result.TransparentMaterialsProtected == 0)
         {
             context?.Logger.Warn(
