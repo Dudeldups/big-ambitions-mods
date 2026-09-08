@@ -19,7 +19,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private const float FrontAxleZ = 1.60f;
     private const float RearAxleZ = -1.60f;
     private const float HalfTrack = 1.35f;
-    private const float AxleHeight = 1.02f;
+    private const float AxleHeight = 1.05f;
     private const float CenterOfMassHeight = 0.72f;
     private const float DriverSeatHeight = 2.02f;
     private const float BrakeTorque = 32000f;
