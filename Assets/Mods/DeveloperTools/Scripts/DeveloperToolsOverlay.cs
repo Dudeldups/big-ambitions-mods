@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using BAModAPI;
+using BigAmbitions.InputSystem;
 using UnityEngine;
 
 namespace DeveloperTools
@@ -100,8 +101,14 @@ namespace DeveloperTools
 
         public void ConsumeGameplayInput()
         {
-            if (visible)
-                Input.ResetInputAxes();
+            if (!visible)
+                return;
+
+            // Big Ambitions reads movement and shortcuts from the newer input
+            // action maps. Reset both those maps and the legacy axes; IMGUI text
+            // entry is event-driven and remains functional.
+            InputActionHelper.ResetAllActions();
+            Input.ResetInputAxes();
         }
 
         public void Shutdown()
