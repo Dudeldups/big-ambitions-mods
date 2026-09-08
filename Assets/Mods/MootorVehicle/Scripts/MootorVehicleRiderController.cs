@@ -124,6 +124,7 @@ namespace MootorVehicle
                 return;
 
             occupied = true;
+            GetComponent<MootorVehicleAmbientMooController>()?.NotifyMounted();
             GetComponent<MootorVehicleFuelController>()?.NotifyMounted();
             attempts = 0;
             nextAttempt = 0f;
@@ -155,6 +156,7 @@ namespace MootorVehicle
             if (!vehicle.controlledByPlayer && Time.unscaledTime >= mountControlGraceUntil)
             {
                 occupied = false;
+                GetComponent<MootorVehicleAmbientMooController>()?.NotifyDismounted();
                 GetComponent<MootorVehicleFuelController>()?.NotifyDismounted();
                 ApplyRideHeight(false);
                 ResetCowGait();
