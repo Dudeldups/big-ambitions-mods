@@ -6,6 +6,7 @@ using System.Reflection;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 namespace MootorVehicle
@@ -17,10 +18,13 @@ namespace MootorVehicle
     {
         private const float StrongHorizontalDeltaVelocity = 3f;
         private const float MinimumHorizontalImpactSpeed = 3.5f;
-        private const float CrashMooVolume = 0.65f;
+        private const float CrashMooVolume = 0.22f;
         private const string FaintAnimationName = "Faint";
         private const float LyingDuration = 1f;
         private const float GetUpDuration = 1.5f;
+        private const float SafeExitDistance = 2.25f;
+        private const float SafeExitProbeRadius = 0.75f;
+        private const float SafeExitGroundOffset = 0.05f;
         private const NavigationBlocker CrashFallNavigationBlocker = (NavigationBlocker)1000;
 
         private VehicleController? vehicle;
@@ -190,6 +194,11 @@ namespace MootorVehicle
             {
                 if (riderExited)
                 {
+                    // ExitVehicle can leave the player inside the cow's carved NavMesh hole when
+                    // a crash happens beside another obstacle. Give the game's exit setup one
+                    // frame, then move the on-foot player to a nearby valid point before falling.
+                    yield return null;
+                    PlaceRiderAtSafeCrashExit();
                     yield return PlayPlayerFallAndRecovery();
                 }
             }
@@ -197,6 +206,115 @@ namespace MootorVehicle
             {
                 forcedDismountCoroutine = null;
             }
+        }
+
+        private void PlaceRiderAtSafeCrashExit()
+        {
+            var player = PlayerHelper.PlayerController;
+            if (player == null || vehicle == null)
+                return;
+
+            var root = player.transform;
+            var vehiclePosition = vehicle.transform.position;
+            var right = Vector3.ProjectOnPlane(vehicle.transform.right, Vector3.up).normalized;
+            var forward = Vector3.ProjectOnPlane(vehicle.transform.forward, Vector3.up).normalized;
+            var currentDirection = Vector3.ProjectOnPlane(root.position - vehiclePosition, Vector3.up);
+            if (currentDirection.sqrMagnitude < 0.01f)
+                currentDirection = right;
+            else
+                currentDirection.Normalize();
+
+            var directions = new[]
+            {
+                currentDirection,
+                right,
+                -right,
+                forward,
+                -forward,
+                (right + forward).normalized,
+                (right - forward).normalized,
+                (-right + forward).normalized,
+                (-right - forward).normalized
+            };
+
+            var found = false;
+            var safePosition = root.position;
+            var bestDistance = float.PositiveInfinity;
+            foreach (var direction in directions)
+            {
+                var requested = vehiclePosition + direction * SafeExitDistance;
+                requested.y = root.position.y;
+                if (!NavMesh.SamplePosition(
+                        requested,
+                        out var hit,
+                        SafeExitProbeRadius,
+                        NavMesh.AllAreas))
+                {
+                    continue;
+                }
+
+                var distance = (hit.position - root.position).sqrMagnitude;
+                if (distance >= bestDistance)
+                    continue;
+
+                found = true;
+                bestDistance = distance;
+                safePosition = hit.position + Vector3.up * SafeExitGroundOffset;
+            }
+
+            if (!found)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} could not find " +
+                    $"a safe NavMesh crash exit near={root.position:F3}.");
+                return;
+            }
+
+            var previousPosition = root.position;
+            var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
+            var controllerStates = Array.ConvertAll(
+                characterControllers,
+                controller => controller != null && controller.enabled);
+            var agents = root.GetComponentsInChildren<NavMeshAgent>(true);
+
+            try
+            {
+                foreach (var controller in characterControllers)
+                    if (controller != null)
+                        controller.enabled = false;
+                foreach (var agent in agents)
+                    if (agent != null)
+                        agent.enabled = false;
+
+                root.position = safePosition;
+                Physics.SyncTransforms();
+            }
+            finally
+            {
+                foreach (var agent in agents)
+                {
+                    if (agent == null)
+                        continue;
+
+                    // The rider is definitively on foot now. Re-enable even if the game's failed
+                    // exit setup left the agent disabled, then anchor it to the sampled point.
+                    agent.enabled = true;
+                    if (agent.isOnNavMesh)
+                    {
+                        agent.Warp(safePosition);
+                        agent.ResetPath();
+                    }
+                }
+
+                for (var index = 0; index < characterControllers.Length; index++)
+                    if (characterControllers[index] != null)
+                        characterControllers[index].enabled = controllerStates[index];
+                Physics.SyncTransforms();
+            }
+
+            context?.Logger.Info(
+                $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} placed rider on safe " +
+                $"NavMesh crash exit from={previousPosition:F3} to={safePosition:F3} agents={agents.Length}.");
         }
 
         private IEnumerator PlayPlayerFallAndRecovery()
