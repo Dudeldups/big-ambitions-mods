@@ -19,7 +19,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float TireContactMinimumStrength = 0.7f;
     private const float TireContactLiftMultiplier = 0.22f;
     private const float LowSpeedClimbTriggerSpeed = 2.75f;
-    private const float LatchedClimbDuration = 1.1f;
+    private const float LatchedClimbDuration = 1.5f;
     private const float LatchedClimbMaximumSpeed = 5f;
     private const float LatchedClimbVerticalSpeed = 0.8f;
     private const float LatchedClimbDriveAcceleration = 5f;
@@ -241,7 +241,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 return;
 
             var tireContact = IsPhysicalTireContact(collision);
-            var lowSpeedClimb = tireContact && forwardSpeed < LowSpeedClimbTriggerSpeed;
+            var leadingEdgeContact = IsLeadingEdgeContact(
+                collision,
+                vehicle.transform,
+                driveDirection);
+            var lowSpeedClimb = (tireContact || leadingEdgeContact) &&
+                                forwardSpeed < LowSpeedClimbTriggerSpeed;
             if (lowSpeedClimb)
             {
                 if (Time.unscaledTime > latchedClimbUntil)
@@ -249,7 +254,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 latchedClimbDirection = worldDriveDirection;
                 latchedClimbUntil = Time.unscaledTime + LatchedClimbDuration;
             }
-            var otherLocal = vehicle.transform.InverseTransformPoint(collision.collider.bounds.center);
+            var otherPosition = otherPlayerVehicle != null
+                ? otherPlayerVehicle.transform.position
+                : trafficVehicle!.transform.position;
+            var otherLocal = vehicle.transform.InverseTransformPoint(otherPosition);
             // Once a tire is on the vehicle, keep pulling even after its center passes
             // behind the front axle. Stopping here was what stranded cars beneath the truck.
             if (!tireContact && otherLocal.z * driveDirection < 0.75f)
@@ -299,7 +307,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     ? GetVehicleName(otherPlayerVehicle)
                     : trafficVehicle!.name;
                 var assistMode = lowSpeedClimb
-                    ? "latched-low-speed-climb"
+                    ? tireContact
+                        ? "latched-low-speed-climb-tire"
+                        : "latched-low-speed-climb-front"
                     : tireContact
                         ? "tire-traction"
                         : "approach-lift";
@@ -339,6 +349,21 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                         "BigfootWheelContactColliders",
                         StringComparison.Ordinal))
                     return true;
+        }
+        return false;
+    }
+
+    private static bool IsLeadingEdgeContact(
+        Collision collision,
+        Transform vehicleTransform,
+        float driveDirection)
+    {
+        for (var contactIndex = 0; contactIndex < collision.contactCount; contactIndex++)
+        {
+            var localPoint = vehicleTransform.InverseTransformPoint(
+                collision.GetContact(contactIndex).point);
+            if (localPoint.z * driveDirection >= 0.8f && localPoint.y <= 1.55f)
+                return true;
         }
         return false;
     }
