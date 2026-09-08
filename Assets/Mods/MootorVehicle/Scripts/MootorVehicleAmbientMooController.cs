@@ -12,9 +12,9 @@ namespace MootorVehicle
     {
         private const string AudioHostName = "MootorVehicle_AmbientMoo";
         private const string TriggerHostName = "MootorVehicle_AmbientMooTrigger";
-        private const float ProximityRadius = 14f;
-        private const float MinimumAudibleDistance = 1.5f;
-        private const float AmbientVolume = 0.45f;
+        private const float ProximityRadius = 25f;
+        private const float MinimumAudibleDistance = 6f;
+        private const float AmbientVolume = 0.55f;
         private const float InitialDelayMinimum = 2.5f;
         private const float InitialDelayMaximum = 6.5f;
         private const float RepeatDelayMinimum = 9f;

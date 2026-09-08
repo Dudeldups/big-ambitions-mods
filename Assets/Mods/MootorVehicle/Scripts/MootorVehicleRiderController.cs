@@ -23,7 +23,8 @@ namespace MootorVehicle
         private const string LeftEarFlapName = "MootorEarLeft";
         private const string RightEarFlapName = "MootorEarRight";
         private const float RiderScale = 0.94f;
-        private const float ParkedVisualHeightOffset = 0f;
+        private const float InitialParkedVisualHeightOffset = 0f;
+        private const float PostRideParkedVisualHeightOffset = -0.18f;
         private const float MountedVisualHeightOffset = -0.18f;
         private const float MooHornVolume = 0.65f;
         private const float GaitStartSpeed = 0.15f;
@@ -60,6 +61,7 @@ namespace MootorVehicle
         private Vector3 cowVisualBasePosition;
         private Vector3 riderSeatBasePosition;
         private bool rideHeightConfigured;
+        private bool hasBeenMounted;
         private SkinnedMeshRenderer? cowGaitRenderer;
         private int gaitPoseAIndex = -1;
         private int gaitPoseBIndex = -1;
@@ -124,6 +126,7 @@ namespace MootorVehicle
                 return;
 
             occupied = true;
+            hasBeenMounted = true;
             GetComponent<MootorVehicleAmbientMooController>()?.NotifyMounted();
             GetComponent<MootorVehicleFuelController>()?.NotifyMounted();
             attempts = 0;
@@ -626,9 +629,16 @@ namespace MootorVehicle
             if (!rideHeightConfigured || cowVisual == null || heightAdjustedSeat == null)
                 return;
 
-            var heightOffset = mounted ? MountedVisualHeightOffset : ParkedVisualHeightOffset;
+            var heightOffset = mounted
+                ? MountedVisualHeightOffset
+                : hasBeenMounted
+                    ? PostRideParkedVisualHeightOffset
+                    : InitialParkedVisualHeightOffset;
             cowVisual.localPosition = cowVisualBasePosition + Vector3.up * heightOffset;
             heightAdjustedSeat.localPosition = riderSeatBasePosition + Vector3.up * heightOffset;
+            LogInfo(
+                $"ride height state='{(mounted ? "mounted" : hasBeenMounted ? "parked-after-ride" : "initial-parked")}' " +
+                $"offset={heightOffset:F2}m.");
         }
 
         private void UpdateCowGait()
