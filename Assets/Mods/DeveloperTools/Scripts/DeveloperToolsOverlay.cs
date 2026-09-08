@@ -28,6 +28,7 @@ namespace DeveloperTools
         private bool vehicleDropdownOpen;
         private bool itemDropdownOpen;
         private bool visible;
+        private int inputReleaseBlockFrames;
         private bool cursorWasVisible;
         private CursorLockMode previousCursorLock;
         private string selectedVehicleId = string.Empty;
@@ -55,6 +56,7 @@ namespace DeveloperTools
         }
 
         public bool IsVisible => visible;
+        public bool ShouldConsumeGameplayInput => visible || inputReleaseBlockFrames > 0;
         public bool IsPointerInsideWindow
         {
             get
@@ -92,6 +94,7 @@ namespace DeveloperTools
             if (!visible)
                 return;
             visible = false;
+            inputReleaseBlockFrames = Math.Max(inputReleaseBlockFrames, 3);
             vehicleDropdownOpen = false;
             itemDropdownOpen = false;
             Cursor.visible = cursorWasVisible;
@@ -101,7 +104,7 @@ namespace DeveloperTools
 
         public void ConsumeGameplayInput()
         {
-            if (!visible)
+            if (!ShouldConsumeGameplayInput)
                 return;
 
             // Big Ambitions reads movement and shortcuts from the newer input
@@ -109,6 +112,8 @@ namespace DeveloperTools
             // entry is event-driven and remains functional.
             InputActionHelper.ResetAllActions();
             Input.ResetInputAxes();
+            if (!visible)
+                inputReleaseBlockFrames--;
         }
 
         public void Shutdown()

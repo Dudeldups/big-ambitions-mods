@@ -52,7 +52,6 @@ namespace DeveloperTools
             if (settings == null || overlay == null || playerService == null)
                 return;
 
-            var wasVisible = overlay.IsVisible;
             if (settings.UiHotkey != KeyCode.None && Input.GetKeyDown(settings.UiHotkey))
                 overlay.Toggle();
             if (settings.MoneyHotkey != KeyCode.None && Input.GetKeyDown(settings.MoneyHotkey))
@@ -62,7 +61,7 @@ namespace DeveloperTools
             if (overlay.IsVisible && Input.GetKeyDown(KeyCode.Escape))
                 overlay.Hide();
 
-            if (wasVisible || overlay.IsVisible)
+            if (overlay.ShouldConsumeGameplayInput)
                 overlay.ConsumeGameplayInput();
         }
 
