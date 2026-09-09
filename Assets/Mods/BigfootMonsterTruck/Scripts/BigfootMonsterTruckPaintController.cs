@@ -20,6 +20,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private Texture2D? sourceTexture;
     private Color32[]? sourcePixels;
     private Texture2D? paintedTexture;
+    private Texture2D? paintedWindowTexture;
     private MeshRenderer? structureRenderer;
     private MeshFilter? structureFilter;
     private Mesh? originalStructureMesh;
@@ -131,6 +132,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             return;
 
         Texture2D? replacement = null;
+        Texture2D? windowReplacement = null;
         try
         {
             replacement = CreatePaintedTexture(
@@ -142,12 +144,23 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 out var flameColor);
             SetBaseTexture(paintMaterial, replacement);
             if (paintWindowMaterial != null)
-                SetBaseTexture(paintWindowMaterial, replacement);
+            {
+                windowReplacement = CreateWindshieldTexture(replacement);
+                SetBaseTexture(paintWindowMaterial, windowReplacement);
+                SetColor(
+                    paintWindowMaterial,
+                    "_Color",
+                    new Color(0.78f, 0.84f, 0.88f, 0.11f));
+            }
             SetPillarColor(tint);
             if (paintedTexture != null)
                 Destroy(paintedTexture);
+            if (paintedWindowTexture != null)
+                Destroy(paintedWindowTexture);
             paintedTexture = replacement;
+            paintedWindowTexture = windowReplacement;
             replacement = null;
+            windowReplacement = null;
             lastTint = tint;
             if (!loggedReady)
             {
@@ -171,6 +184,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         {
             if (replacement != null)
                 Destroy(replacement);
+            if (windowReplacement != null)
+                Destroy(windowReplacement);
             failed = true;
             Warn($"paint update failed: {exception.GetType().Name}: {exception.Message}");
         }
@@ -301,6 +316,43 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             filterMode = source.filterMode,
             wrapMode = source.wrapMode,
             anisoLevel = source.anisoLevel,
+        };
+        texture.SetPixels32(pixels);
+        texture.Apply(true, false);
+        return texture;
+    }
+
+    private static Texture2D CreateWindshieldTexture(Texture2D paintedBodyTexture)
+    {
+        var pixels = paintedBodyTexture.GetPixels32();
+        for (var index = 0; index < pixels.Length; index++)
+        {
+            var color = pixels[index];
+            var red = color.r / 255f;
+            var green = color.g / 255f;
+            var blue = color.b / 255f;
+            var maximum = Mathf.Max(red, Mathf.Max(green, blue));
+            var minimum = Mathf.Min(red, Mathf.Min(green, blue));
+
+            // The bundled glass shader derives opacity from atlas brightness.
+            // Suppress only its neutral light-grey glass field. Bright white
+            // lettering and saturated repaint trim retain their authored color
+            // and remain opaque.
+            if (maximum >= 0.32f && maximum < 0.86f && maximum - minimum < 0.10f)
+                pixels[index] = new Color32(32, 38, 42, color.a);
+        }
+
+        var texture = new Texture2D(
+            paintedBodyTexture.width,
+            paintedBodyTexture.height,
+            TextureFormat.RGBA32,
+            true,
+            false)
+        {
+            name = paintedBodyTexture.name + " windshield",
+            filterMode = paintedBodyTexture.filterMode,
+            wrapMode = paintedBodyTexture.wrapMode,
+            anisoLevel = paintedBodyTexture.anisoLevel,
         };
         texture.SetPixels32(pixels);
         texture.Apply(true, false);
@@ -474,6 +526,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         }
         if (paintedTexture != null)
             Destroy(paintedTexture);
+        if (paintedWindowTexture != null)
+            Destroy(paintedWindowTexture);
         if (paintMaterial != null)
             Destroy(paintMaterial);
         if (paintWindowMaterial != null)
@@ -487,6 +541,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         if (pillarMaterial != null)
             Destroy(pillarMaterial);
         paintedTexture = null;
+        paintedWindowTexture = null;
         paintMaterial = null;
         originalWindowMaterial = null;
         paintWindowMaterial = null;
