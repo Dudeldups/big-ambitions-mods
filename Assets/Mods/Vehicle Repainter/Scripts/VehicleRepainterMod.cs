@@ -57,16 +57,32 @@ namespace VehicleRepainter
             "purchaseButton",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
+        private static readonly FieldInfo? ColorsGridLayoutGroupField = typeof(PurchaseVehicleUI).GetField(
+            "colorsGridLayoutGroup",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
         private static readonly FieldInfo? VehicleColorBackingField = typeof(CarFeatures).GetField(
             "<VehicleColor>k__BackingField",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly CustomColorDefinition[] AdditionalColors =
         {
+            new CustomColorDefinition("VehicleRepainter_Charcoal", new Color32(43, 47, 54, 255), new Color32(105, 112, 125, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_White", new Color32(238, 238, 232, 255), new Color32(255, 255, 255, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Burgundy", new Color32(105, 16, 38, 255), new Color32(185, 65, 90, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Coral", new Color32(238, 83, 74, 255), new Color32(255, 160, 140, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Orange", new Color32(255, 106, 0, 255), new Color32(255, 175, 85, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Copper", new Color32(166, 79, 45, 255), new Color32(235, 145, 95, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Brown", new Color32(83, 43, 27, 255), new Color32(160, 95, 60, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Emerald", new Color32(0, 120, 72, 255), new Color32(70, 220, 145, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Turquoise", new Color32(0, 157, 154, 255), new Color32(80, 240, 230, 255), 1f),
-            new CustomColorDefinition("VehicleRepainter_Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f)
+            new CustomColorDefinition("VehicleRepainter_Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Azure", new Color32(0, 112, 221, 255), new Color32(90, 185, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Violet", new Color32(105, 66, 180, 255), new Color32(175, 135, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Rose", new Color32(230, 70, 125, 255), new Color32(255, 150, 190, 255), 1f)
         };
 
         private readonly ModContext context;
@@ -93,7 +109,8 @@ namespace VehicleRepainter
                 return;
             }
 
-            if (CurrentStationTriggerField == null || PurchaseButtonField == null || VehicleColorBackingField == null)
+            if (CurrentStationTriggerField == null || PurchaseButtonField == null ||
+                ColorsGridLayoutGroupField == null || VehicleColorBackingField == null)
             {
                 context.Logger.Error("Could not install: required cached vanilla UI fields were not found.");
                 return;
@@ -168,6 +185,7 @@ namespace VehicleRepainter
             activeRepaintAsset = repaintAsset;
             GasStationOverlay.Hide(stationTrigger);
             purchaseUi.SetAsset(repaintAsset);
+            repaintAsset.ApplyColorGridLayout(purchaseUi);
             repaintAsset.BeginSession();
 
             if (PurchaseButtonField!.GetValue(purchaseUi) is Button purchaseButton)
@@ -307,6 +325,8 @@ namespace VehicleRepainter
             private bool closed;
             private bool movementLocked;
             private bool purchaseCompleted;
+            private GridLayoutGroup? colorGridLayout;
+            private ColorGridLayoutSnapshot? originalColorGridLayout;
 
             internal RepaintPurchasableAsset(
                 ModContext context,
@@ -334,6 +354,24 @@ namespace VehicleRepainter
                 movementLocked = true;
             }
 
+            internal void ApplyColorGridLayout(PurchaseVehicleUI purchaseUi)
+            {
+                if (ColorsGridLayoutGroupField!.GetValue(purchaseUi) is not GridLayoutGroup gridLayout)
+                {
+                    context.Logger.Warn("Could not resize the repaint color grid because the vanilla layout is unavailable.");
+                    return;
+                }
+
+                colorGridLayout = gridLayout;
+                originalColorGridLayout = new ColorGridLayoutSnapshot(gridLayout);
+                gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                gridLayout.constraintCount = 6;
+                gridLayout.cellSize = new Vector2(62f, 62f);
+                gridLayout.spacing = new Vector2(8f, 8f);
+                gridLayout.padding = new RectOffset(30, 30, 20, 20);
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)gridLayout.transform);
+            }
+
             public string GetLocalizeKey() => "vehicle-repainter:title";
 
             public float GetPurchasePrice() => RepaintPrice;
@@ -345,7 +383,16 @@ namespace VehicleRepainter
             public List<(string, Color32)> GetColors()
             {
                 var colors = InstanceBehavior<GlobalReferences>.Instance.vehicleColors;
-                return colors.Select(color => (((UnityEngine.Object)color).name, color.tint)).ToList();
+                return colors
+                    .Where(color => color != null)
+                    .Select((color, index) => new SortableVehicleColor(color, index))
+                    .OrderBy(color => color.Group)
+                    .ThenBy(color => color.Hue)
+                    .ThenBy(color => color.Value)
+                    .ThenByDescending(color => color.Saturation)
+                    .ThenBy(color => color.OriginalIndex)
+                    .Select(color => (color.Name, color.Tint))
+                    .ToList();
             }
 
             public void SetColor(string colorName, bool updateVisuals = true)
@@ -372,6 +419,8 @@ namespace VehicleRepainter
 
                 if (movementLocked && vehicle != null)
                     vehicle.SetFreeze(false);
+
+                RestoreColorGridLayout();
 
                 RestoreGasStationOverlayIfStillRelevant();
                 onClosed(this);
@@ -472,6 +521,71 @@ namespace VehicleRepainter
                 }
 
                 GasStationOverlay.Show(stationTrigger);
+            }
+
+            private void RestoreColorGridLayout()
+            {
+                if (colorGridLayout == null || originalColorGridLayout == null)
+                    return;
+
+                originalColorGridLayout.Restore(colorGridLayout);
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)colorGridLayout.transform);
+                colorGridLayout = null;
+                originalColorGridLayout = null;
+            }
+
+            private readonly struct SortableVehicleColor
+            {
+                internal readonly string Name;
+                internal readonly Color32 Tint;
+                internal readonly int Group;
+                internal readonly float Hue;
+                internal readonly float Saturation;
+                internal readonly float Value;
+                internal readonly int OriginalIndex;
+
+                internal SortableVehicleColor(VehicleColor vehicleColor, int originalIndex)
+                {
+                    Name = ((UnityEngine.Object)vehicleColor).name;
+                    Tint = vehicleColor.tint;
+                    OriginalIndex = originalIndex;
+                    Color.RGBToHSV(Tint, out var hue, out var saturation, out var value);
+                    Group = saturation < 0.14f ? 0 : 1;
+                    Hue = Group == 0 ? 0f : hue >= 0.95f ? hue - 1f : hue;
+                    Saturation = saturation;
+                    Value = value;
+                }
+            }
+
+            private sealed class ColorGridLayoutSnapshot
+            {
+                private readonly GridLayoutGroup.Constraint constraint;
+                private readonly int constraintCount;
+                private readonly Vector2 cellSize;
+                private readonly Vector2 spacing;
+                private readonly RectOffset padding;
+
+                internal ColorGridLayoutSnapshot(GridLayoutGroup gridLayout)
+                {
+                    constraint = gridLayout.constraint;
+                    constraintCount = gridLayout.constraintCount;
+                    cellSize = gridLayout.cellSize;
+                    spacing = gridLayout.spacing;
+                    padding = new RectOffset(
+                        gridLayout.padding.left,
+                        gridLayout.padding.right,
+                        gridLayout.padding.top,
+                        gridLayout.padding.bottom);
+                }
+
+                internal void Restore(GridLayoutGroup gridLayout)
+                {
+                    gridLayout.constraint = constraint;
+                    gridLayout.constraintCount = constraintCount;
+                    gridLayout.cellSize = cellSize;
+                    gridLayout.spacing = spacing;
+                    gridLayout.padding = padding;
+                }
             }
 
             private static string ResolveInitialColorName(VehicleController vehicle)
