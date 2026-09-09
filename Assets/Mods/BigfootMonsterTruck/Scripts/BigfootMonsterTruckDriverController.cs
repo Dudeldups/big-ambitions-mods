@@ -61,11 +61,6 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
             if (!occupied)
             {
                 RemoveDriver();
-                LogInfo("exited; centered seated-player model removed.");
-            }
-            else
-            {
-                LogInfo("occupied; preparing centered seated-player model.");
             }
         }
 
@@ -187,10 +182,6 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
         rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
             HumanBodyBones.RightHand);
         AlignHandsWithWheel();
-        LogInfo(
-            $"created centered driver from current appearance; renderers={rendererCount}, " +
-            $"seat={vehicle.transform.InverseTransformPoint(seatAnchor.position).ToString("F3")}, " +
-            $"handRaise={HandRaise:F2}, handForward={HandForward:F2}.");
     }
 
     private void AlignWithSeat()
@@ -403,10 +394,6 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
         }
         return result;
     }
-
-    private void LogInfo(string message) =>
-        context?.Logger.Info(
-            $"BigfootMonsterTruck driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {
