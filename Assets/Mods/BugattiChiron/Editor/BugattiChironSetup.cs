@@ -295,11 +295,9 @@ public static class BugattiChironSetup
                                 : material.HasProperty("baseColorFactor")
                                     ? material.GetColor("baseColorFactor")
                                     : Color.black;
-                            var isWindshieldMaterial = material.name.IndexOf(
-                                "Windshield", StringComparison.OrdinalIgnoreCase) >= 0;
-                            cabinGlassTintValid &= tint.r >= 0.1f &&
-                                                   tint.a >= (isWindshieldMaterial ? 0.03f : 0.08f) &&
-                                                   tint.a <= (isWindshieldMaterial ? 0.08f : 0.24f);
+                            cabinGlassTintValid &= tint.r >= 0.08f &&
+                                                   tint.a >= 0.26f &&
+                                                   tint.a <= 0.30f;
                         }
                         continue;
                     }

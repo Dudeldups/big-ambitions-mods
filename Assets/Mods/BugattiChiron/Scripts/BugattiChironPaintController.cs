@@ -126,7 +126,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         selectedColor.a = 1f;
         var useDarkPaintCompensation = IsDarkSaturated(selectedColor);
         var bodyColor = CreateBodyColor(selectedColor);
-        RebuildPaintTextures(tint, bodyColor);
+        RebuildPaintTextures(tint, selectedColor, bodyColor);
         foreach (var slot in slots)
         {
             var color = ColorForCategory(
@@ -136,6 +136,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                 useDarkPaintCompensation);
             if (slot.Category == PaintCategory.Seat && seatPaintTexture == null)
                 color = bodyColor;
+            if (slot.Category == PaintCategory.Rim && rimPaintTexture == null)
+                color = selectedColor;
             properties.Clear();
             slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
             if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
@@ -161,6 +163,16 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                                 ? Mathf.Max(0.55f, slot.Material.GetFloat(Metallic))
                                 : 0.35f
                             : slot.Material.GetFloat(Metallic));
+            }
+            if (slot.Category == PaintCategory.Rim)
+            {
+                // One source material contains both blue-painted recesses and
+                // polished faces. The generated texture preserves that split;
+                // white material tint keeps the chrome areas neutral.
+                if (slot.Material.HasProperty(Smoothness))
+                    properties.SetFloat(Smoothness, 0.86f);
+                if (slot.Material.HasProperty(Metallic))
+                    properties.SetFloat(Metallic, 1f);
             }
             var texture = slot.Category == PaintCategory.Rim
                 ? rimPaintTexture
@@ -229,7 +241,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             case PaintCategory.DarkBody:
                 return Scale(bodyColor, useDarkPaintCompensation ? 0.55f : 0.35f);
             case PaintCategory.Rim:
-                return selectedColor;
+                return Color.white;
             case PaintCategory.Caliper:
                 return bodyColor;
             case PaintCategory.RimInner:
@@ -272,13 +284,13 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private static Color Scale(Color color, float factor) =>
         new Color(color.r * factor, color.g * factor, color.b * factor, 1f);
 
-    private void RebuildPaintTextures(Color32 tint, Color bodyColor)
+    private void RebuildPaintTextures(Color32 tint, Color selectedColor, Color bodyColor)
     {
         DestroyPaintTextures();
         try
         {
             if (rimSourceTexture != null)
-                rimPaintTexture = CreateRimPaintTexture(rimSourceTexture);
+                rimPaintTexture = CreateRimPaintTexture(rimSourceTexture, selectedColor);
             if (rimInnerSourceTexture != null)
                 rimInnerPaintTexture = CreateNeutralPaintTexture(
                     rimInnerSourceTexture,
@@ -301,23 +313,31 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         }
     }
 
-    private static Texture2D CreateRimPaintTexture(Texture2D source)
+    private static Texture2D CreateRimPaintTexture(Texture2D source, Color selectedColor)
     {
         var pixels = source.GetPixels32();
-        var darkMapPixel = (Color32)new Color(0.22f, 0.22f, 0.22f, 1f).gamma;
+        var darkPaint = Color.Lerp(Color.black, selectedColor, 0.46f);
         for (var index = 0; index < pixels.Length; index++)
         {
             var pixel = pixels[index];
-            var value = (byte)Math.Max(pixel.r, Math.Max(pixel.g, pixel.b));
-            if (value <= 28)
-            {
-                darkMapPixel.a = pixel.a;
-                pixels[index] = darkMapPixel;
-            }
-            else
-            {
-                pixels[index] = new Color32(value, value, value, pixel.a);
-            }
+            var brightest = Math.Max(pixel.r, Math.Max(pixel.g, pixel.b));
+            var darkest = Math.Min(pixel.r, Math.Min(pixel.g, pixel.b));
+            var saturation = brightest > 0
+                ? (brightest - darkest) / (float)brightest
+                : 0f;
+            var authoredBluePaint = saturation >= 0.18f &&
+                                    pixel.b > pixel.r * 1.08f &&
+                                    pixel.b > pixel.g * 1.04f;
+            if (!authoredBluePaint)
+                continue;
+
+            var sourceShade = Mathf.InverseLerp(30f, 180f, brightest);
+            var shade = Mathf.Lerp(0.58f, 1.08f, sourceShade);
+            pixels[index] = (Color32)new Color(
+                darkPaint.r * shade,
+                darkPaint.g * shade,
+                darkPaint.b * shade,
+                pixel.a / 255f);
         }
 
         return CreateRuntimeTexture(source, pixels, "BugattiChiron_RimPaint");

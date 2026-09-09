@@ -214,9 +214,7 @@ public static class BugattiChironMaterials
             // properties while disappearing in the game's HDRP build. Use the
             // stock Lit shader so every spawned vehicle gets a known state.
             RebindToHdrpLit(material);
-            var tint = material.name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0
-                ? new Color(0.20f, 0.23f, 0.27f, 0.04f)
-                : new Color(0.15f, 0.18f, 0.22f, 0.20f);
+            var tint = new Color(0.10f, 0.14f, 0.18f, 0.28f);
             SetColor(material, "_BaseColor", tint);
             SetColor(material, "_Color", tint);
             SetColor(material, "baseColorFactor", tint);
