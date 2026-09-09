@@ -499,6 +499,7 @@ namespace VehicleRepainter
             private readonly GasStationTrigger stationTrigger;
             private readonly Action<RepaintPurchasableAsset> onClosed;
             private readonly VehiclePaintSnapshot originalPaint;
+            private readonly string originalSavedColorName;
             private string committedColorName;
             private string selectedColorName;
             private bool closed;
@@ -521,9 +522,15 @@ namespace VehicleRepainter
                 this.vehicle = vehicle;
                 this.stationTrigger = stationTrigger;
                 this.onClosed = onClosed;
-                originalPaint = new VehiclePaintSnapshot(vehicle.CarFeatures);
+                originalSavedColorName = vehicle.vehicleInstance.vehicleColorName;
                 committedColorName = ResolveInitialColorName(vehicle);
                 selectedColorName = committedColorName;
+
+                VehicleColor originalColor;
+                if (!runtime.TryResolveVehicleColor(committedColorName, out originalColor))
+                    originalColor = vehicle.CarFeatures.VehicleColor;
+
+                originalPaint = new VehiclePaintSnapshot(vehicle.CarFeatures, originalColor);
             }
 
             internal void BeginSession()
@@ -613,7 +620,10 @@ namespace VehicleRepainter
             public void SetColor(string colorName, bool updateVisuals = true)
             {
                 if (!runtime.TryResolveVehicleColor(colorName, out var vehicleColor))
+                {
+                    context.Logger.Warn($"Could not preview unresolved vehicle color '{colorName}'.");
                     return;
+                }
 
                 selectedColorName = colorName;
                 if (updateVisuals && vehicle.CarFeatures != null)
@@ -630,7 +640,11 @@ namespace VehicleRepainter
                 GlobalEvents.onExitVehicle -= HandleVehicleExited;
 
                 if (!purchaseCompleted && vehicle != null && vehicle.CarFeatures != null)
+                {
                     originalPaint.Restore(vehicle.CarFeatures);
+                    if (vehicle.vehicleInstance != null)
+                        vehicle.vehicleInstance.vehicleColorName = originalSavedColorName;
+                }
 
                 if (movementLocked && vehicle != null)
                     vehicle.SetFreeze(false);
@@ -878,9 +892,9 @@ namespace VehicleRepainter
                 private readonly VehicleColor? vehicleColor;
                 private readonly List<RendererPaintSnapshot> rendererSnapshots = new List<RendererPaintSnapshot>();
 
-                internal VehiclePaintSnapshot(CarFeatures carFeatures)
+                internal VehiclePaintSnapshot(CarFeatures carFeatures, VehicleColor? vehicleColor)
                 {
-                    vehicleColor = carFeatures.VehicleColor;
+                    this.vehicleColor = vehicleColor;
                     var bodyMeshes = carFeatures.bodyMeshes;
                     if (bodyMeshes == null)
                         return;
@@ -898,6 +912,9 @@ namespace VehicleRepainter
 
                 internal void Restore(CarFeatures carFeatures)
                 {
+                    if (vehicleColor != null)
+                        carFeatures.SetColor(vehicleColor);
+
                     foreach (var snapshot in rendererSnapshots)
                     {
                         if (snapshot.Renderer != null)
