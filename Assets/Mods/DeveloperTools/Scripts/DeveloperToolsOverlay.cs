@@ -163,9 +163,13 @@ namespace DeveloperTools
                 return;
 
             cursorRestorePending = false;
-            RestoreGameplayActions();
             SetUiInputBlockerActive(false);
             pause.ResumeAfterOverlay();
+            // Resume the game's UI/game-speed state before restoring the exact
+            // actions we suspended. Otherwise the pause reset can overwrite the
+            // vehicle action state and the active car stays non-drivable until
+            // EnterVehicle configures it again.
+            RestoreGameplayActions();
             Cursor.visible = cursorWasVisible;
             Cursor.lockState = previousCursorLock;
         }

@@ -32,7 +32,7 @@ namespace DeveloperTools
                 if (VehicleTypeHelper.GetVehicleType(id) != null)
                 {
                     var entry = new CatalogEntry(id, Localize(id));
-                    (VehicleTypeHelper.IsModVehicleType(id) ? moddedEntries : vanillaEntries).Add(entry);
+                    (IsModdedVehicleType(id) ? moddedEntries : vanillaEntries).Add(entry);
                 }
             }
             vanillaEntries.Sort(CompareEntries);
@@ -117,6 +117,21 @@ namespace DeveloperTools
             {
                 return id;
             }
+        }
+
+        private static bool IsModdedVehicleType(string id)
+        {
+            if (VehicleTypeHelper.IsModVehicleType(id))
+                return true;
+
+            // Big Ambitions' own ids use the "ba" namespace. Some compatible
+            // vehicle registrars add a namespaced type to the shared catalog
+            // without also adding it to the API's separate mod-type index.
+            // Classify every non-game namespace as modded instead of maintaining
+            // a list of particular mods or vehicle ids.
+            var separatorIndex = id.IndexOf(':');
+            return separatorIndex > 0 &&
+                   !string.Equals(id.Substring(0, separatorIndex), "ba", StringComparison.OrdinalIgnoreCase);
         }
 
         private static int CompareEntries(CatalogEntry left, CatalogEntry right) =>
