@@ -919,9 +919,9 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.72f;
-    private const float MaximumDentDepth = 0.46f;
-    private const float DepthPerExcessMps = 0.015f;
+    private const float DentRadius = 0.64f;
+    private const float MaximumDentDepth = 0.34f;
+    private const float DepthPerExcessMps = 0.011f;
     private const float FrontDentLateralRadius = 0.82f;
     private const float FrontDentVerticalRadius = 0.68f;
     private const float FrontDentLongitudinalRadius = 0.95f;
