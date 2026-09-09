@@ -3,6 +3,7 @@
 - Exiting the serviced vehicle now closes and cancels the repaint picker.
 - Added eighty-four additional paint colors with save persistence.
 - Expanded the repaint palette into a full sixteen-by-six grid sorted by shade.
+- Corrected the hue ordering for pale pink and deep red shades.
 - Removed the vanilla color-grid background from the repaint view.
 - Removed the unused Specs section from the repaint view.
 - Prioritized the repair cabin UI when gas-station interaction zones overlap.

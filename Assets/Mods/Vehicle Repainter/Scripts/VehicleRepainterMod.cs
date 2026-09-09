@@ -729,7 +729,11 @@ namespace VehicleRepainter
                     OriginalIndex = originalIndex;
                     Color.RGBToHSV(Tint, out var hue, out var saturation, out var value);
                     Group = saturation < 0.14f ? 0 : 1;
-                    Hue = Group == 0 ? 0f : hue >= 0.95f ? hue - 1f : hue;
+                    Hue = Group == 0
+                        ? 0f
+                        : hue >= 0.95f && saturation >= 0.5f
+                            ? hue - 1f
+                            : hue;
                     Saturation = saturation;
                     Value = value;
                 }
