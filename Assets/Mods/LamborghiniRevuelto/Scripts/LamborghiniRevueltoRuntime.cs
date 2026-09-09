@@ -913,6 +913,8 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
     {
         var restored = 0;
         var activeRenderers = 0;
+        var propertyBlocksCleared = 0;
+        var materialStates = new List<string>();
         foreach (var renderer in cabinGlass)
         {
             if (renderer == null)
@@ -923,12 +925,21 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
                 restored++;
             renderer.enabled = true;
             renderer.forceRenderingOff = false;
-            foreach (var material in renderer.sharedMaterials)
+            if (renderer.HasPropertyBlock())
             {
+                renderer.SetPropertyBlock(null);
+                propertyBlocksCleared++;
+            }
+            var materials = renderer.sharedMaterials;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var material = materials[index];
                 if (material != null &&
                     LamborghiniRevueltoMaterials.IsCabinGlassMaterial(material))
                 {
+                    renderer.SetPropertyBlock(null, index);
                     LamborghiniRevueltoMaterials.RestoreCabinGlassMaterial(material);
+                    materialStates.Add(DescribeMaterial(renderer, material));
                 }
             }
         }
@@ -936,7 +947,22 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
             $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: source='{source}' " +
             $"renderers={cabinGlass.Count}, active={activeRenderers}, " +
             $"runtimeMaterials={runtimeMaterials.Count}, restored={restored}, " +
-            "deferredPolling=false.");
+            $"propertyBlocksCleared={propertyBlocksCleared}, " +
+            $"states=[{string.Join("; ", materialStates)}], deferredPolling=false.");
+    }
+
+    private static string DescribeMaterial(Renderer renderer, Material material)
+    {
+        var color = material.HasProperty("_BaseColor")
+            ? material.GetColor("_BaseColor")
+            : material.HasProperty("baseColorFactor")
+                ? material.GetColor("baseColorFactor")
+                : Color.clear;
+        var size = renderer.bounds.size;
+        return $"{renderer.name}:shader='{material.shader?.name ?? "missing"}' " +
+               $"supported={material.shader?.isSupported ?? false} queue={material.renderQueue} " +
+               $"rgba=({color.r:0.00},{color.g:0.00},{color.b:0.00},{color.a:0.00}) " +
+               $"bounds=({size.x:0.00},{size.y:0.00},{size.z:0.00})";
     }
 
     private void OnDestroy()

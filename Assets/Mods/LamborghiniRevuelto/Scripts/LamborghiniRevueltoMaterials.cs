@@ -310,6 +310,14 @@ public static class LamborghiniRevueltoMaterials
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
+        if (cabinGlass)
+        {
+            // The imported glTF glass shader can retain a valid-looking
+            // transparent state while producing no visible pixels in the
+            // game's HDRP build. Cabin glass uses the stock game Lit shader so
+            // its blend state is deterministic on every vehicle instance.
+            RebindToHdrpLit(material);
+        }
         var tint = cabinGlass
             ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
@@ -330,15 +338,18 @@ public static class LamborghiniRevueltoMaterials
         SetFloat(material, "_AlphaDstBlend", (float)BlendMode.OneMinusSrcAlpha);
         SetFloat(material, "_ZWrite", 0f);
         SetFloat(material, "_TransparentZWrite", 0f);
+        SetFloat(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
+        SetFloat(material, "_ZTestTransparent", (float)CompareFunction.LessEqual);
         SetFloat(material, "_AlphaCutoffEnable", 0f);
+        SetFloat(material, "_SupportDecals", 0f);
+        SetFloat(material, "_ReceivesSSR", 0f);
+        SetFloat(material, "_ReceivesSSRTransparent", 0f);
         SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
         if (cabinGlass)
         {
-            // Match the working Bugatti glass response: the reflective metallic
-            // surface is what keeps the otherwise low-alpha glazing readable.
-            SetFloat(material, "_Metallic", 1f);
-            SetFloat(material, "metallicFactor", 1f);
-            SetFloat(material, "_Smoothness", 1f);
+            SetFloat(material, "_Metallic", 0.15f);
+            SetFloat(material, "metallicFactor", 0.15f);
+            SetFloat(material, "_Smoothness", 0.95f);
             SetFloat(material, "roughnessFactor", 0f);
         }
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
@@ -351,6 +362,7 @@ public static class LamborghiniRevueltoMaterials
         SetFloat(material, "_DoubleSidedEnable", 1f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         material.EnableKeyword("_DOUBLESIDED_ON");
+        material.EnableKeyword("_DISABLE_DECALS");
         material.DisableKeyword("_ALPHATEST_ON");
         material.SetOverrideTag("RenderType", "Transparent");
         material.renderQueue = (int)RenderQueue.Transparent;
