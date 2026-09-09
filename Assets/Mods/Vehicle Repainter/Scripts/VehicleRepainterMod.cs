@@ -70,30 +70,46 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_Charcoal", new Color32(43, 47, 54, 255), new Color32(105, 112, 125, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_White", new Color32(238, 238, 232, 255), new Color32(255, 255, 255, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Ivory", new Color32(245, 235, 210, 255), new Color32(255, 250, 225, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Champagne", new Color32(224, 202, 160, 255), new Color32(255, 235, 195, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Slate", new Color32(80, 95, 110, 255), new Color32(150, 170, 190, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_DeepRed", new Color32(120, 0, 0, 255), new Color32(205, 55, 45, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Burgundy", new Color32(105, 16, 38, 255), new Color32(185, 65, 90, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Scarlet", new Color32(220, 30, 20, 255), new Color32(255, 105, 80, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Coral", new Color32(238, 83, 74, 255), new Color32(255, 160, 140, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Peach", new Color32(255, 160, 105, 255), new Color32(255, 215, 175, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Sand", new Color32(194, 155, 105, 255), new Color32(245, 210, 165, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Orange", new Color32(255, 106, 0, 255), new Color32(255, 175, 85, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Copper", new Color32(166, 79, 45, 255), new Color32(235, 145, 95, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Bronze", new Color32(140, 90, 40, 255), new Color32(220, 160, 90, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Brown", new Color32(83, 43, 27, 255), new Color32(160, 95, 60, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Amber", new Color32(255, 170, 0, 255), new Color32(255, 225, 95, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Mustard", new Color32(170, 135, 25, 255), new Color32(235, 205, 85, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Lemon", new Color32(240, 225, 35, 255), new Color32(255, 250, 120, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Olive", new Color32(110, 110, 20, 255), new Color32(190, 190, 75, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Forest", new Color32(25, 85, 40, 255), new Color32(80, 170, 100, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Emerald", new Color32(0, 120, 72, 255), new Color32(70, 220, 145, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Jade", new Color32(35, 155, 105, 255), new Color32(105, 235, 175, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Mint", new Color32(85, 210, 150, 255), new Color32(160, 255, 210, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Seafoam", new Color32(120, 220, 185, 255), new Color32(195, 255, 230, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Turquoise", new Color32(0, 157, 154, 255), new Color32(80, 240, 230, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Teal", new Color32(0, 105, 110, 255), new Color32(65, 195, 195, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Aqua", new Color32(45, 220, 220, 255), new Color32(140, 255, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_SkyBlue", new Color32(85, 180, 240, 255), new Color32(165, 225, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_SteelBlue", new Color32(65, 105, 145, 255), new Color32(130, 185, 230, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Azure", new Color32(0, 112, 221, 255), new Color32(90, 185, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_RoyalBlue", new Color32(35, 65, 190, 255), new Color32(100, 135, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Cobalt", new Color32(30, 55, 125, 255), new Color32(85, 120, 220, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Indigo", new Color32(55, 45, 145, 255), new Color32(120, 105, 225, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Violet", new Color32(105, 66, 180, 255), new Color32(175, 135, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Lilac", new Color32(145, 105, 190, 255), new Color32(210, 170, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Lavender", new Color32(170, 125, 215, 255), new Color32(225, 190, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Plum", new Color32(105, 40, 115, 255), new Color32(180, 100, 195, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Fuchsia", new Color32(235, 30, 190, 255), new Color32(255, 125, 225, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_HotPink", new Color32(255, 80, 165, 255), new Color32(255, 170, 215, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Rose", new Color32(230, 70, 125, 255), new Color32(255, 150, 190, 255), 1f)
         };
 
@@ -101,11 +117,13 @@ namespace VehicleRepainter
         private readonly Dictionary<string, VehicleColor> customVehicleColors =
             new Dictionary<string, VehicleColor>(StringComparer.Ordinal);
         private readonly List<VehicleColor> ownedCustomVehicleColors = new List<VehicleColor>();
+        private readonly List<GasStationTrigger> observedStationTriggers = new List<GasStationTrigger>();
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
         private RepaintPurchasableAsset? activeRepaintAsset;
         private GlobalReferences? registeredGlobalReferences;
+        private Coroutine? pendingRepairOverlayRefresh;
 
         internal VehicleRepainterRuntime(ModContext context)
         {
@@ -135,6 +153,7 @@ namespace VehicleRepainter
             originalGasStationOverlay = overlayUi.gasStation;
             extendedGasStationOverlay = new ExtendedGasStationOverlay(this);
             overlayUi.gasStation = extendedGasStationOverlay;
+            ObserveStationTriggers();
         }
 
         internal void Uninstall()
@@ -143,6 +162,7 @@ namespace VehicleRepainter
                 InstanceBehavior<UIs>.Instance?.playerHUD?.purchaseVehicleUI?.Close();
 
             activeRepaintAsset = null;
+            StopObservingStationTriggers();
             var uis = InstanceBehavior<UIs>.Instance;
             if (uis != null && uis.overlayUI != null && extendedGasStationOverlay != null &&
                 ReferenceEquals(uis.overlayUI.gasStation, extendedGasStationOverlay))
@@ -155,6 +175,72 @@ namespace VehicleRepainter
             originalGasStationOverlay = null;
             extendedGasStationOverlay = null;
             UnregisterCustomVehicleColors();
+        }
+
+        private void ObserveStationTriggers()
+        {
+            foreach (var trigger in Resources.FindObjectsOfTypeAll<GasStationTrigger>())
+            {
+                if (trigger == null || !trigger.gameObject.scene.IsValid())
+                    continue;
+
+                trigger.onEntered += HandleStationEntered;
+                observedStationTriggers.Add(trigger);
+            }
+        }
+
+        private void StopObservingStationTriggers()
+        {
+            if (pendingRepairOverlayRefresh != null && overlayUi != null)
+                overlayUi.StopCoroutine(pendingRepairOverlayRefresh);
+
+            pendingRepairOverlayRefresh = null;
+            foreach (var trigger in observedStationTriggers)
+            {
+                if (trigger != null)
+                    trigger.onEntered -= HandleStationEntered;
+            }
+
+            observedStationTriggers.Clear();
+        }
+
+        private void HandleStationEntered(GasStationTrigger enteredTrigger)
+        {
+            var vehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+            if (vehicle == null || vehicle.vehicleCollider == null)
+                return;
+
+            var repairTrigger = enteredTrigger.isRepairStation
+                ? enteredTrigger
+                : observedStationTriggers.FirstOrDefault(trigger =>
+                    trigger != null && trigger.isActiveAndEnabled && trigger.isRepairStation &&
+                    trigger.stationCollider != null && trigger.IntersectsBounds(vehicle.vehicleCollider.bounds));
+            if (repairTrigger == null)
+                return;
+
+            GasStationOverlay.Show(repairTrigger);
+            if (overlayUi == null)
+                return;
+
+            if (pendingRepairOverlayRefresh != null)
+                overlayUi.StopCoroutine(pendingRepairOverlayRefresh);
+
+            pendingRepairOverlayRefresh = overlayUi.StartCoroutine(
+                ReassertRepairOverlayNextFrame(vehicle, repairTrigger));
+        }
+
+        private IEnumerator ReassertRepairOverlayNextFrame(
+            VehicleController vehicle,
+            GasStationTrigger repairTrigger)
+        {
+            yield return null;
+            pendingRepairOverlayRefresh = null;
+
+            if (vehicle != null && vehicle.vehicleCollider != null && repairTrigger != null &&
+                repairTrigger.isActiveAndEnabled && repairTrigger.IntersectsBounds(vehicle.vehicleCollider.bounds))
+            {
+                GasStationOverlay.Show(repairTrigger);
+            }
         }
 
         internal GasStationTrigger? GetCurrentStationTrigger(GasStationOverlay overlay)
@@ -376,8 +462,27 @@ namespace VehicleRepainter
                     return;
                 }
 
+                var gridRect = gridLayout.transform as RectTransform;
+                var panelRect = gridRect?.parent as RectTransform;
+                var colorsSectionRect = panelRect?.parent as RectTransform;
+                var sectionsContainer = colorsSectionRect?.parent;
+                var colorsLabelRect = colorsSectionRect?.Find("Label") as RectTransform;
+                var specsSection = sectionsContainer?.Find("Specs")?.gameObject;
+                if (gridRect == null || panelRect == null || colorsSectionRect == null ||
+                    colorsLabelRect == null || specsSection == null)
+                {
+                    context.Logger.Warn("Could not expand the repaint color section because the vanilla UI hierarchy is unavailable.");
+                    return;
+                }
+
                 colorGridLayout = gridLayout;
-                originalColorGridLayout = new ColorGridLayoutSnapshot(gridLayout);
+                originalColorGridLayout = new ColorGridLayoutSnapshot(
+                    gridLayout,
+                    gridRect,
+                    panelRect,
+                    colorsSectionRect,
+                    colorsLabelRect,
+                    specsSection);
                 colorGridBackground = gridLayout.GetComponent<Image>();
                 if (colorGridBackground != null)
                 {
@@ -386,10 +491,18 @@ namespace VehicleRepainter
                 }
 
                 gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-                gridLayout.constraintCount = 7;
-                gridLayout.cellSize = new Vector2(50f, 50f);
+                specsSection.SetActive(false);
+                colorsSectionRect.anchoredPosition = new Vector2(0f, colorsSectionRect.anchoredPosition.y);
+                colorsSectionRect.sizeDelta = new Vector2(1050f, colorsSectionRect.sizeDelta.y);
+                panelRect.sizeDelta = new Vector2(990f, panelRect.sizeDelta.y);
+                gridRect.sizeDelta = new Vector2(990f, gridRect.sizeDelta.y);
+                colorsLabelRect.anchoredPosition = new Vector2(30f, colorsLabelRect.anchoredPosition.y);
+                colorsLabelRect.sizeDelta = new Vector2(990f, colorsLabelRect.sizeDelta.y);
+
+                gridLayout.constraintCount = 12;
+                gridLayout.cellSize = new Vector2(52f, 52f);
                 gridLayout.spacing = new Vector2(7f, 7f);
-                gridLayout.padding = new RectOffset(22, 22, 16, 16);
+                gridLayout.padding = new RectOffset(30, 30, 16, 16);
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)gridLayout.transform);
             }
 
@@ -589,8 +702,20 @@ namespace VehicleRepainter
                 private readonly Vector2 cellSize;
                 private readonly Vector2 spacing;
                 private readonly RectOffset padding;
+                private readonly RectTransformSnapshot gridRect;
+                private readonly RectTransformSnapshot panelRect;
+                private readonly RectTransformSnapshot colorsSectionRect;
+                private readonly RectTransformSnapshot colorsLabelRect;
+                private readonly GameObject specsSection;
+                private readonly bool specsSectionWasActive;
 
-                internal ColorGridLayoutSnapshot(GridLayoutGroup gridLayout)
+                internal ColorGridLayoutSnapshot(
+                    GridLayoutGroup gridLayout,
+                    RectTransform gridRect,
+                    RectTransform panelRect,
+                    RectTransform colorsSectionRect,
+                    RectTransform colorsLabelRect,
+                    GameObject specsSection)
                 {
                     constraint = gridLayout.constraint;
                     constraintCount = gridLayout.constraintCount;
@@ -601,6 +726,12 @@ namespace VehicleRepainter
                         gridLayout.padding.right,
                         gridLayout.padding.top,
                         gridLayout.padding.bottom);
+                    this.gridRect = new RectTransformSnapshot(gridRect);
+                    this.panelRect = new RectTransformSnapshot(panelRect);
+                    this.colorsSectionRect = new RectTransformSnapshot(colorsSectionRect);
+                    this.colorsLabelRect = new RectTransformSnapshot(colorsLabelRect);
+                    this.specsSection = specsSection;
+                    specsSectionWasActive = specsSection.activeSelf;
                 }
 
                 internal void Restore(GridLayoutGroup gridLayout)
@@ -610,6 +741,34 @@ namespace VehicleRepainter
                     gridLayout.cellSize = cellSize;
                     gridLayout.spacing = spacing;
                     gridLayout.padding = padding;
+                    gridRect.Restore();
+                    panelRect.Restore();
+                    colorsSectionRect.Restore();
+                    colorsLabelRect.Restore();
+                    specsSection.SetActive(specsSectionWasActive);
+                }
+            }
+
+            private sealed class RectTransformSnapshot
+            {
+                private readonly RectTransform target;
+                private readonly Vector2 anchoredPosition;
+                private readonly Vector2 sizeDelta;
+
+                internal RectTransformSnapshot(RectTransform target)
+                {
+                    this.target = target;
+                    anchoredPosition = target.anchoredPosition;
+                    sizeDelta = target.sizeDelta;
+                }
+
+                internal void Restore()
+                {
+                    if (target == null)
+                        return;
+
+                    target.anchoredPosition = anchoredPosition;
+                    target.sizeDelta = sizeDelta;
                 }
             }
 
