@@ -109,13 +109,15 @@ public static class LamborghiniRevueltoMaterials
 
     public static bool IsLamborghiniRenderer(Transform transform)
     {
-        if (transform.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal))
+        if (transform.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal) ||
+            transform.name.StartsWith("LamborghiniFixedCaliper", StringComparison.Ordinal))
             return true;
 
         for (var current = transform; current != null; current = current.parent)
         {
             if (string.Equals(current.name, "LamborghiniVisual", StringComparison.Ordinal) ||
-                current.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal))
+                current.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal) ||
+                current.name.StartsWith("LamborghiniFixedCaliper", StringComparison.Ordinal))
                 return true;
         }
 

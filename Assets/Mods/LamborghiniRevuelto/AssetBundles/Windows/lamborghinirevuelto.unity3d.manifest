@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 873048784
+CRC: 284400285
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 8087954dd6871684372b3c7371014dc6
+    Hash: ca6ce78c47de48b4b102746aa0af3e7e
   TypeTreeHash:
     serializedVersion: 2
     Hash: d3a3e7138e89d02ba237c51b3a56f38a
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 8087954dd6871684372b3c7371014dc6
+    Hash: ca6ce78c47de48b4b102746aa0af3e7e
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -229,7 +229,6 @@ Assets:
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_25_Steering_wheel.mat
 - Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineMidLoad.wav
 - Assets/Mods/LamborghiniRevuelto/LamborghiniRevuelto.asset
-- Assets/Mods/LamborghiniRevuelto/Config/Audio/ExhaustPop1.wav
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_22_Body.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_18_Brake_rotor.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_03_Windows.mat
@@ -254,7 +253,6 @@ Assets:
 - Assets/Mods/LamborghiniRevuelto/ATTRIBUTION.md
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_02_Light.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_06_Vents.mat
-- Assets/Mods/LamborghiniRevuelto/Config/Audio/ExhaustPop3.wav
 - Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineMid.wav
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_26_Start_button_lol.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_01_Inside_Headlight.mat
@@ -267,9 +265,8 @@ Assets:
 - Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineHigh.wav
 - Assets/Mods/LamborghiniRevuelto/Config/THIRD_PARTY_NOTICES.txt
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_11_Headlight_ligh_second.mat
-- Assets/Mods/LamborghiniRevuelto/Config/Audio/ExhaustPop2.wav
-- Assets/Mods/LamborghiniRevuelto/THIRD_PARTY_NOTICES.md
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_17_Caliper.mat
+- Assets/Mods/LamborghiniRevuelto/THIRD_PARTY_NOTICES.md
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_02_Headlight_glass.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_12_Headlight_light.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_10_Headlight.mat

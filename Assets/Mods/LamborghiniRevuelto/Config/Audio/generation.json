@@ -46,27 +46,8 @@
       "method": "deterministic additive V12 synthesis"
     }
   ],
-  "transients": [
-    {
-      "name": "ExhaustPop1.wav",
-      "samples": 7938,
-      "seconds": 0.18,
-      "peak": 0.4116100269899953,
-      "method": "deterministic additive V12 synthesis"
-    },
-    {
-      "name": "ExhaustPop2.wav",
-      "samples": 9040,
-      "seconds": 0.20498866213151928,
-      "peak": 0.40745085347296434,
-      "method": "deterministic additive V12 synthesis"
-    },
-    {
-      "name": "ExhaustPop3.wav",
-      "samples": 10143,
-      "seconds": 0.23,
-      "peak": 0.46252286686178073,
-      "method": "deterministic additive V12 synthesis"
-    }
+  "transients": [],
+  "runtime_layers": [
+    "very-low-gain procedural continuous exhaust crackle"
   ]
 }

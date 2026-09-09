@@ -53,27 +53,6 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     return normalize(output, 0.115)
 
 
-def exhaust_pop(index: int) -> list[float]:
-    rng = random.Random(8_120 + index)
-    duration = 0.18 + index * 0.025
-    count = round(duration * RATE)
-    samples: list[float] = []
-    previous_noise = 0.0
-    for sample_index in range(count):
-        time = sample_index / RATE
-        noise = rng.uniform(-1.0, 1.0)
-        smoothed = noise * 0.65 + previous_noise * 0.35
-        previous_noise = noise
-        attack = min(1.0, time / 0.001)
-        decay = math.exp(-time / (0.032 + index * 0.004))
-        body = math.sin(math.tau * (105.0 + index * 18.0) * time)
-        samples.append(attack * decay * (0.72 * smoothed + 0.52 * body))
-    fade = min(round(0.015 * RATE), len(samples))
-    for offset in range(fade):
-        samples[-1 - offset] *= offset / fade
-    return normalize(samples, 0.058)
-
-
 def write_wav(path: Path, samples: list[float]) -> dict[str, float | int | str]:
     peak = max(abs(sample) for sample in samples)
     scale = min(0.92 / max(peak, 1e-12), 1.0)
@@ -101,6 +80,9 @@ def main() -> None:
         "recorded_samples": False,
         "layers": [],
         "transients": [],
+        "runtime_layers": [
+            "very-low-gain procedural continuous exhaust crackle"
+        ],
     }
     for layer_index, (name, frequency) in enumerate(LAYERS):
         report["layers"].append(
@@ -111,10 +93,6 @@ def main() -> None:
                 OUTPUT / f"{name}Load.wav",
                 layer(frequency, True, 500 + layer_index),
             )
-        )
-    for pop_index in range(3):
-        report["transients"].append(
-            write_wav(OUTPUT / f"ExhaustPop{pop_index + 1}.wav", exhaust_pop(pop_index))
         )
     (OUTPUT / "generation.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8"

@@ -6,9 +6,8 @@ internal static class LamborghiniRevueltoAudioModel
 {
     internal const float IdlePitch = 1f;
     internal const float HornVolume = .64f;
-    internal const float PopVolume = .34f;
-    internal const float PopPitchMin = .98f;
-    internal const float PopPitchMax = 1.04f;
+    internal const float CrackleIdleVolume = .009f;
+    internal const float CrackleLoadVolume = .024f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
     internal static float IdleVolume(float drivingBlend) => .12f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     // Fade the inherited low-speed idle bed out quickly; the synthesized

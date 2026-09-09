@@ -121,6 +121,8 @@ public static class LamborghiniRevueltoSetup
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
             var wheelSideMappingCorrect = true;
+            var fixedCalipers = 0;
+            var calipersDetachedFromWheels = true;
             var continuousTailLight = false;
             var thirdBrakeLight = false;
             var frontBlinkerMeshes = 0;
@@ -134,13 +136,22 @@ public static class LamborghiniRevueltoSetup
                 if (transform.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal))
                 {
                     wheelVisuals++;
-                    if (!TryGetRendererBounds(transform, out var wheelBounds) ||
-                        wheelBounds.size.x > 0.40f ||
-                        wheelBounds.size.y < 0.62f || wheelBounds.size.y > 0.76f ||
-                        wheelBounds.size.z < 0.62f || wheelBounds.size.z > 0.76f)
+                    var tire = FindTransformWithNameFragment(transform, "_Tire_");
+                    var isFrontWheel = transform.name.IndexOf("Front", StringComparison.Ordinal) >= 0;
+                    var expectedWidth = isFrontWheel ? 0.265f : 0.345f;
+                    var expectedDiameter = isFrontWheel ? 0.696f : 0.740f;
+                    if (tire == null ||
+                        !TryGetRendererBounds(tire, out var tireBounds) ||
+                        Math.Abs(tireBounds.size.x - expectedWidth) > 0.012f ||
+                        Math.Abs(tireBounds.size.y - expectedDiameter) > 0.012f ||
+                        Math.Abs(tireBounds.size.z - expectedDiameter) > 0.012f ||
+                        Vector3.Distance(tireBounds.center, transform.position) > 0.012f)
                     {
                         wheelGeometryOriented = false;
                     }
+
+                    if (FindTransformWithNameFragment(transform, "_Caliper_") != null)
+                        calipersDetachedFromWheels = false;
 
                     var expectedGeometry = transform.name switch
                     {
@@ -155,6 +166,12 @@ public static class LamborghiniRevueltoSetup
                     {
                         wheelSideMappingCorrect = false;
                     }
+                }
+                if (transform.name.StartsWith("LamborghiniFixedCaliper", StringComparison.Ordinal))
+                {
+                    fixedCalipers++;
+                    if (FindTransformWithNameFragment(transform, "_Caliper_") == null)
+                        calipersDetachedFromWheels = false;
                 }
                 if (string.Equals(
                         transform.name,
@@ -341,6 +358,8 @@ public static class LamborghiniRevueltoSetup
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !wheelSideMappingCorrect ||
+                fixedCalipers != 4 ||
+                !calipersDetachedFromWheels ||
                 !continuousTailLight ||
                 !thirdBrakeLight ||
                 frontBlinkerMeshes != 2 ||
@@ -365,6 +384,7 @@ public static class LamborghiniRevueltoSetup
                     $"windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
                     $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, wheelSides={wheelSideMappingCorrect}, " +
+                    $"fixedCalipers={fixedCalipers}, calipersDetached={calipersDetachedFromWheels}, " +
                     $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
@@ -381,6 +401,7 @@ public static class LamborghiniRevueltoSetup
             Debug.Log(
                 $"LamborghiniRevuelto bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, eightSpeed=true, " +
+                $"fixedCalipers=4, tireBoundsCentered=true, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
@@ -737,20 +758,39 @@ public static class LamborghiniRevueltoSetup
             // both sides to one rotation turns the authored inner rim faces out.
             wheel.SetParent(mount.transform, true);
             wheel.name = "Geometry_" + pair.Key;
-            if (!TryGetRendererBounds(mount.transform, out var wheelBounds) ||
-                wheelBounds.size.x <= 0.001f ||
-                wheelBounds.size.y <= 0.001f ||
-                wheelBounds.size.z <= 0.001f)
+            var tire = FindTransformWithNameFragment(wheel, "_Tire_") ??
+                       throw new InvalidOperationException(
+                           $"Model wheel '{pair.Key}' has no dedicated tire renderer.");
+            if (!TryGetRendererBounds(tire, out var tireBounds) ||
+                tireBounds.size.x <= 0.001f ||
+                tireBounds.size.y <= 0.001f ||
+                tireBounds.size.z <= 0.001f)
             {
-                throw new InvalidOperationException($"Model wheel '{pair.Key}' has invalid bounds.");
+                throw new InvalidOperationException($"Model wheel '{pair.Key}' has invalid tire bounds.");
             }
 
+            // Fit and center from the tire alone. The authored brake caliper is
+            // deliberately off-axis, so including it in the aggregate bounds
+            // shifts and distorts the complete rotating assembly.
             mount.transform.localScale = new Vector3(
-                width / wheelBounds.size.x,
-                (radius * 2f) / wheelBounds.size.y,
-                (radius * 2f) / wheelBounds.size.z);
-            if (TryGetRendererBounds(mount.transform, out wheelBounds))
-                wheel.position += mount.transform.position - wheelBounds.center;
+                width / tireBounds.size.x,
+                (radius * 2f) / tireBounds.size.y,
+                (radius * 2f) / tireBounds.size.z);
+            if (!TryGetRendererBounds(tire, out tireBounds))
+                throw new InvalidOperationException($"Model wheel '{pair.Key}' tire could not be fitted.");
+            wheel.position += mount.transform.position - tireBounds.center;
+
+            // The rotor remains part of the rolling visual, while the caliper
+            // keeps its fitted world pose under a chassis-owned mount and can no
+            // longer inherit wheel spin from NWH's visual transform.
+            var caliper = FindTransformWithNameFragment(wheel, "_Caliper_") ??
+                          throw new InvalidOperationException(
+                              $"Model wheel '{pair.Key}' has no brake caliper renderer.");
+            var fixedCaliper = new GameObject(
+                "LamborghiniFixedCaliper" +
+                pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
+            fixedCaliper.transform.SetParent(root.transform, false);
+            caliper.SetParent(fixedCaliper.transform, true);
 
             AssignWheelVisual(controller, mount);
         }
@@ -1011,6 +1051,17 @@ public static class LamborghiniRevueltoSetup
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))
         {
             if (string.Equals(transform.name, name, StringComparison.Ordinal))
+                return transform;
+        }
+
+        return null;
+    }
+
+    private static Transform? FindTransformWithNameFragment(Transform root, string fragment)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
                 return transform;
         }
 

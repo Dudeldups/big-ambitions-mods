@@ -12,19 +12,17 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
 {
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new List<AudioClip>();
-    private readonly LamborghiniRevueltoPopGate popGate = new LamborghiniRevueltoPopGate();
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
-    private Rigidbody? body;
     private ModContext? context;
     private EngineRunningComponent? engineSound;
     private AudioSource? native;
     private GameObject? audioHost;
     private AudioSource[]? layers;
     private AudioSource? idleSource;
-    private AudioSource? popSource;
+    private AudioSource? crackleSource;
     private AudioSource? hornSource;
-    private AudioClip[]? popClips;
+    private AudioClip? crackleClip;
     private float originalDistortion;
     private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
     private int attempts;
@@ -71,8 +69,6 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
             return false;
         originalDistortion = engineSound!.maxDistortion;
-        body = vehicle.GetComponent<Rigidbody>();
-        if (body == null) Warn("vehicle Rigidbody unavailable; speed-dependent downshift pops will remain silent.");
         audioHost = new GameObject("LamborghiniRevuelto_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
@@ -86,10 +82,11 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
             var loaded = LoadClip(EngineNames[i]+"Load");
             layers[i + 3] = CreateSource(audioHost, loaded, true);
         }
-        popClips = new[] { LoadClip("ExhaustPop1"), LoadClip("ExhaustPop2"), LoadClip("ExhaustPop3") };
-        var exhaustHost = new GameObject("ExhaustPops");
+        crackleClip = LamborghiniRevueltoCrackleWave.Create();
+        var exhaustHost = new GameObject("LamborghiniRevuelto_ExhaustCrackle");
         exhaustHost.transform.SetParent(audioHost.transform, false);
-        popSource = CreateSource(exhaustHost, popClips[0], false);
+        crackleSource = CreateSource(exhaustHost, crackleClip, true);
+        ConfigureCrackleFilters(exhaustHost);
         var hornHost = new GameObject("LamborghiniRevuelto_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
         var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
@@ -97,7 +94,22 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         hornSource = CreateSource(hornHost, LoadClip("Horn"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
+        context.Logger.Info(
+            $"LamborghiniRevuelto audio configured vehicle={vehicle.GetInstanceID()}, " +
+            "engineLayers=7, exhaust=continuous-subtle-crackle.");
         return true;
+    }
+
+    private static void ConfigureCrackleFilters(GameObject host)
+    {
+        var lowPass = host.AddComponent<AudioLowPassFilter>();
+        lowPass.cutoffFrequency = 4800f;
+        lowPass.lowpassResonanceQ = 1.05f;
+        var highPass = host.AddComponent<AudioHighPassFilter>();
+        highPass.cutoffFrequency = 420f;
+        highPass.highpassResonanceQ = 1.02f;
+        var distortion = host.AddComponent<AudioDistortionFilter>();
+        distortion.distortionLevel = .015f;
     }
 
     private AudioClip LoadClip(string name)
@@ -128,12 +140,12 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
 
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null || popSource == null ||
+        if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
             hornSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
-        popSource.transform.position = exhaust != null ? exhaust.transform.position :
+        crackleSource.transform.position = exhaust != null ? exhaust.transform.position :
             vehicle!.transform.TransformPoint(new Vector3(0f, .4f, -2f));
         var controlled = vehicle!.controlledByPlayer;
         var engine = physics.powertrain.engine;
@@ -150,9 +162,6 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
             // Cancel any scheduled start too; resume schedules all held loops
             // together again instead of leaving a pre-start source paused.
             if (shouldPause) StopLayers();
-            // Transients are discarded on pause; never replay a stale pop on resume.
-            popSource.Stop();
-            popGate.Reset();
             paused = shouldPause;
         }
         if (controlled)
@@ -161,15 +170,8 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
             native.mute = true;
         }
         else RestoreMute();
-        if (!running)
-        {
-            popSource.Stop();
-            popGate.Reset();
-        }
 
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
-        var gear = physics.powertrain.transmission.Gear;
-        var driverThrottle = Mathf.Clamp01(physics.input.Throttle);
         UpdateHorn(controlled && !paused && physics.input.Horn, Mathf.Clamp01(physics.soundManager.masterVolume));
         if (!paused)
         {
@@ -197,6 +199,13 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
                 layers[i + 3].volume = bandGain * loadBlend;
                 layers[i].mute = layers[i + 3].mute = controlled && savedMute;
             }
+            var crackleLoad = Mathf.SmoothStep(0f, 1f, smoothThrottle);
+            crackleSource.pitch = Mathf.Lerp(.90f, 1.22f, normalized);
+            crackleSource.volume = envelope * master * Mathf.Lerp(
+                LamborghiniRevueltoAudioModel.CrackleIdleVolume,
+                LamborghiniRevueltoAudioModel.CrackleLoadVolume,
+                crackleLoad);
+            crackleSource.mute = controlled && savedMute;
             if (envelope <= 0f) StopLayers();
             else if (!voicesStarted)
             {
@@ -205,22 +214,10 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
                 var start = AudioSettings.dspTime + .03d;
                 idleSource.PlayScheduled(start);
                 foreach (var source in layers) source.PlayScheduled(start);
+                crackleSource.PlayScheduled(start);
                 voicesStarted = true;
             }
-            var pop = popGate.Sample(running && !savedMute,
-                Time.time, rawRpm, driverThrottle, gear, body == null ? 0f : body.velocity.magnitude*3.6f);
-            if (pop != LamborghiniRevueltoPopEvent.None) PlayPop(master);
         }
-    }
-
-    private void PlayPop(float master)
-    {
-        var clip = popClips![UnityEngine.Random.Range(0, popClips.Length)];
-        popSource!.clip = clip;
-        popSource.pitch = UnityEngine.Random.Range(LamborghiniRevueltoAudioModel.PopPitchMin, LamborghiniRevueltoAudioModel.PopPitchMax);
-        popSource.volume = master * LamborghiniRevueltoAudioModel.PopVolume * popGate.Intensity * UnityEngine.Random.Range(.8f, 1.1f);
-        popSource.mute = savedMute;
-        popSource.PlayOneShot(clip);
     }
 
     private void UpdateHorn(bool pressed, float master)
@@ -238,12 +235,6 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         }
     }
 
-    private void ResetExhaustPops()
-    {
-        if (popSource != null) popSource.Stop();
-        popGate.Reset();
-    }
-
     private void Warn(string message) => context?.Logger.Warn($"LamborghiniRevuelto audio vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RestoreMute()
@@ -256,19 +247,18 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
     {
         if (idleSource != null) idleSource.Stop();
         if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
+        if (crackleSource != null) crackleSource.Stop();
         voicesStarted = false;
     }
 
     private void OnDisable()
     {
         StopLayers();
-        if (popSource != null) popSource.Stop();
         if (hornSource != null)
         {
             hornSource.Stop();
             hornSource.volume = 0f;
         }
-        popGate.Reset();
         RestoreMute();
         if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
         envelope = smoothRpm = smoothThrottle = driveBlend = loadBlend = 0f;
@@ -288,9 +278,10 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         audioHost = null;
         layers = null;
         idleSource = null;
-        popSource = null;
+        crackleSource = null;
         hornSource = null;
-        popClips = null;
+        if (crackleClip != null) Destroy(crackleClip);
+        crackleClip = null;
         foreach (var clip in ownedClips) if (clip != null) Destroy(clip);
         ownedClips.Clear();
     }

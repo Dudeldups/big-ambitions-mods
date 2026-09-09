@@ -21,7 +21,7 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
     // Pelvis position relative to the Revuelto steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.50f);
+    private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.65f);
     private const int MaximumAttempts = 20;
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;
