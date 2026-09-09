@@ -19,6 +19,37 @@ internal static class BigfootMonsterTruckEngineWave
         348f,
         0.38f);
 
+    internal static AudioClip CreateHorn()
+    {
+        var sampleCount = (int)(SampleRate * Duration);
+        var samples = new float[sampleCount];
+        for (var index = 0; index < sampleCount; index++)
+        {
+            var time = index / (float)SampleRate;
+            var lowTone = 0.54f * Mathf.Sin(2f * Mathf.PI * 147f * time);
+            var highTone = 0.42f * Mathf.Sin(2f * Mathf.PI * 196f * time);
+            var brassHarmonics =
+                0.15f * Mathf.Sin(2f * Mathf.PI * 294f * time) +
+                0.09f * Mathf.Sin(2f * Mathf.PI * 392f * time) +
+                0.035f * Mathf.Sin(2f * Mathf.PI * 588f * time);
+            var compressor = (float)Math.Tanh((lowTone + highTone + brassHarmonics) * 1.35f);
+            samples[index] = compressor * 0.62f;
+        }
+
+        var clip = AudioClip.Create(
+            "Bigfoot dual-tone truck horn",
+            sampleCount,
+            1,
+            SampleRate,
+            false);
+        if (!clip.SetData(samples, 0))
+        {
+            UnityEngine.Object.Destroy(clip);
+            throw new InvalidOperationException("Could not initialize procedural truck horn.");
+        }
+        return clip;
+    }
+
     internal static AudioClip CreateCrackle()
     {
         const int pulseCount = 40;
