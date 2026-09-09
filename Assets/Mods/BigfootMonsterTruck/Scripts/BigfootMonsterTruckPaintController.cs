@@ -15,6 +15,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private MeshRenderer? bodyRenderer;
     private Material? originalMaterial;
     private Material? paintMaterial;
+    private Material? originalWindowMaterial;
+    private Material? paintWindowMaterial;
     private Texture2D? sourceTexture;
     private Color32[]? sourcePixels;
     private Texture2D? paintedTexture;
@@ -98,6 +100,15 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             name = "Bigfoot Repaintable Body"
         };
         materials[0] = paintMaterial;
+        if (materials.Length > 1 && materials[1] != null)
+        {
+            originalWindowMaterial = materials[1];
+            paintWindowMaterial = new Material(originalWindowMaterial)
+            {
+                name = "Bigfoot Repaintable Windshield Trim"
+            };
+            materials[1] = paintWindowMaterial;
+        }
         bodyRenderer.sharedMaterials = materials;
         var pillarTriangleCount = ConfigurePaintedPillars();
         configured = true;
@@ -130,6 +141,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 out var flamePixelCount,
                 out var flameColor);
             SetBaseTexture(paintMaterial, replacement);
+            if (paintWindowMaterial != null)
+                SetBaseTexture(paintWindowMaterial, replacement);
             SetPillarColor(tint);
             if (paintedTexture != null)
                 Destroy(paintedTexture);
@@ -145,6 +158,12 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     $"maskedPixels={paintedPixelCount}/{sourcePixels.Length} " +
                     $"flamePixels={flamePixelCount}/{sourcePixels.Length} " +
                     $"pillarTriangles={Mathf.Max(0, pillarTriangleCount)} " +
+                    $"tint={tint} contrast={flameColor}.");
+            }
+            else
+            {
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck paint changed vehicle={vehicle?.GetInstanceID()} " +
                     $"tint={tint} contrast={flameColor}.");
             }
         }
@@ -239,6 +258,13 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     0f,
                     1f,
                     Mathf.InverseLerp(0.16f, 0.42f, maximum));
+            var u = ((index % source.width) + 0.5f) / source.width;
+            var v = ((index / source.width) + 0.5f) / source.height;
+            if (IsProtectedDetailUv(u, v))
+            {
+                paintMask = 0f;
+                flameMask = 0f;
+            }
             if (paintMask <= 0f && flameMask <= 0f)
                 continue;
 
@@ -279,6 +305,19 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         texture.SetPixels32(pixels);
         texture.Apply(true, false);
         return texture;
+    }
+
+    private static bool IsProtectedDetailUv(float u, float v)
+    {
+        // These atlas islands contain the complete painted headlamp assemblies
+        // and the small Bigfoot grille badge. Their dark and blue pixels are
+        // product artwork, not either layer of the two-tone body livery.
+        var headlamp = v >= 0.535f && v <= 0.655f &&
+                       ((u >= 0.045f && u <= 0.165f) ||
+                        (u >= 0.385f && u <= 0.525f));
+        var grilleBadge = u >= 0.018f && u <= 0.155f &&
+                          v >= 0.795f && v <= 0.895f;
+        return headlamp || grilleBadge;
     }
 
     private static Color GetContrastingFlameColor(Color tint)
@@ -424,14 +463,21 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         {
             var materials = bodyRenderer.sharedMaterials;
             for (var index = 0; index < materials.Length; index++)
+            {
                 if (materials[index] == paintMaterial)
                     materials[index] = originalMaterial;
+                else if (paintWindowMaterial != null && originalWindowMaterial != null &&
+                         materials[index] == paintWindowMaterial)
+                    materials[index] = originalWindowMaterial;
+            }
             bodyRenderer.sharedMaterials = materials;
         }
         if (paintedTexture != null)
             Destroy(paintedTexture);
         if (paintMaterial != null)
             Destroy(paintMaterial);
+        if (paintWindowMaterial != null)
+            Destroy(paintWindowMaterial);
         if (structureFilter != null && originalStructureMesh != null)
             structureFilter.sharedMesh = originalStructureMesh;
         if (structureRenderer != null && originalStructureMaterials != null)
@@ -442,6 +488,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             Destroy(pillarMaterial);
         paintedTexture = null;
         paintMaterial = null;
+        originalWindowMaterial = null;
+        paintWindowMaterial = null;
         sourceTexture = null;
         sourcePixels = null;
         bodyRenderer = null;
