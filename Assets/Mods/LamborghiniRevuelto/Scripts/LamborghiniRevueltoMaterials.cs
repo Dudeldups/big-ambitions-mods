@@ -332,6 +332,15 @@ public static class LamborghiniRevueltoMaterials
         SetFloat(material, "_TransparentZWrite", 0f);
         SetFloat(material, "_AlphaCutoffEnable", 0f);
         SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
+        if (cabinGlass)
+        {
+            // Match the working Bugatti glass response: the reflective metallic
+            // surface is what keeps the otherwise low-alpha glazing readable.
+            SetFloat(material, "_Metallic", 1f);
+            SetFloat(material, "metallicFactor", 1f);
+            SetFloat(material, "_Smoothness", 1f);
+            SetFloat(material, "roughnessFactor", 0f);
+        }
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
