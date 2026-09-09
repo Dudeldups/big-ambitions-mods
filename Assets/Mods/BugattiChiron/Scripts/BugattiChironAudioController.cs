@@ -226,7 +226,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         if (paused)
             return;
 
-        var follow = 1f - Mathf.Exp(-Time.deltaTime / 0.1f);
+        var follow = 1f - Mathf.Exp(-Time.deltaTime / 0.06f);
         smoothRpm = Mathf.Lerp(smoothRpm, rawRpm, follow);
         smoothThrottle = Mathf.Lerp(
             smoothThrottle,
@@ -241,7 +241,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         driveBlend = Mathf.MoveTowards(
             driveBlend,
             BugattiChironAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM),
-            Time.deltaTime * 4f);
+            Time.deltaTime * 6f);
 
         idleSource.pitch = BugattiChironAudioModel.IdlePitch;
         idleSource.volume =

@@ -33,7 +33,7 @@ def engine_layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     rng = random.Random(seed)
     phases = [rng.random() * math.tau for _ in range(12)]
     amplitudes = (
-        (1.0, 0.58, 0.36, 0.25, 0.18, 0.13, 0.095, 0.068, 0.049, 0.036)
+        (1.0, 0.78, 0.55, 0.42, 0.30, 0.22, 0.16, 0.12, 0.09, 0.07)
         if loaded
         else (1.0, 0.44, 0.27, 0.18, 0.125, 0.09, 0.065, 0.047, 0.034, 0.025)
     )
@@ -57,9 +57,13 @@ def engine_layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
             math.tau * (reference_hz * 1.5) * time + phases[11]
         )
         if loaded:
-            value = math.tanh(value * 1.25)
+            exhaust_pulse = math.tanh(
+                2.4 * math.sin(math.tau * (reference_hz / 2.0) * time + phases[10])
+            )
+            value += 0.24 * exhaust_pulse
+            value = math.tanh(value * 1.65)
         output.append(value)
-    return normalize(output, 0.12)
+    return normalize(output, 0.135 if loaded else 0.12)
 
 
 def horn() -> list[float]:
