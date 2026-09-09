@@ -10,18 +10,21 @@ using UnityEngine.Playables;
 using UnityEngine.Rendering;
 
 [DefaultExecutionOrder(100)]
-internal sealed class AudiRS6RDriverController : MonoBehaviour
+internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
 {
-    private const string SteeringWheelName = "Animate_SteeringWheel_033";
+    private const string SeatAnchorName = "BigfootDriverSeat";
     private const string SittingClipName = "SitDeliveryTruck";
+    private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const float SeatedScale = 0.94f;
     private const float HandHalfSpacing = 0.19f;
-    // Pelvis position relative to the Audi's steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.28f, -0.48f);
+    private const float HandRaise = 0.14f;
+    private const float HandForward = 0.07f;
     private const int MaximumAttempts = 20;
+
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;
     private ModContext? context;
+    private Transform? seatAnchor;
     private GameObject? driverRoot;
     private Transform? hips;
     private Transform? steeringWheel;
@@ -40,6 +43,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
     {
         vehicle = controller;
         context = modContext;
+        seatAnchor = FindTransform(controller.transform, SeatAnchorName);
     }
 
     private void LateUpdate()
@@ -57,6 +61,11 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             if (!occupied)
             {
                 RemoveDriver();
+                LogInfo("exited; centered seated-player model removed.");
+            }
+            else
+            {
+                LogInfo("occupied; preparing centered seated-player model.");
             }
         }
 
@@ -74,8 +83,6 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
                 CreateDriver();
             }
 
-            // Evaluate only the native sitting clip, without player controller scripts,
-            // animation events, navigation, colliders or animator state behaviours.
             poseTime = Mathf.Repeat(poseTime + Time.deltaTime, poseLength);
             pose.SetTime(poseTime);
             leftArm?.RestoreAnimationPose();
@@ -84,27 +91,35 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             AlignWithSeat();
             AlignHandsWithWheel();
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
             RemoveDriver();
-            var reason = ex.GetBaseException().Message;
-            if (reason != lastFailure || attempts >= MaximumAttempts)
+            var reason = exception.GetBaseException().Message;
+            if (!string.Equals(reason, lastFailure, StringComparison.Ordinal) || attempts >= MaximumAttempts)
             {
                 lastFailure = reason;
-                context?.Logger.Warn($"AudiRS6R driver vehicle={vehicle.GetInstanceID()} " +
-                                     $"attempt={attempts}/{MaximumAttempts}: {reason}");
+                context?.Logger.Warn(
+                    $"BigfootMonsterTruck driver vehicle={vehicle.GetInstanceID()} " +
+                    $"attempt={attempts}/{MaximumAttempts}: {reason}");
             }
         }
     }
 
     private void CreateDriver()
     {
+        if (vehicle == null)
+            throw new InvalidOperationException("Vehicle is unavailable.");
+        seatAnchor ??= FindTransform(vehicle.transform, SeatAnchorName);
+        if (seatAnchor == null)
+            throw new InvalidOperationException("Centered driver-seat anchor is missing.");
+
         var character = PlayerHelper.PlayerController?.Character;
         var appearance = character?.appearanceSetter;
         if (character == null || appearance == null)
             throw new InvalidOperationException("Player appearance is not ready.");
 
-        var sourceAnimator = typeof(AppearanceSetter).GetField("animator",
+        var sourceAnimator = typeof(AppearanceSetter).GetField(
+            "animator",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(appearance) as Animator;
         if (sourceAnimator == null || sourceAnimator.avatar == null || !sourceAnimator.avatar.isHuman ||
             sourceAnimator.runtimeAnimatorController == null)
@@ -117,42 +132,28 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         if (sittingClip == null || sittingClip.length <= 0f)
             throw new InvalidOperationException($"Native seated animation '{SittingClipName}' is unavailable.");
 
-        steeringWheel = null;
-        foreach (var child in vehicle!.GetComponentsInChildren<Transform>(true))
-            if (child.name == SteeringWheelName)
-                steeringWheel = child;
+        steeringWheel = FindTransform(vehicle.transform, SteeringWheelName);
         if (steeringWheel == null)
-            throw new InvalidOperationException("Audi steering-wheel seat reference is missing.");
+            throw new InvalidOperationException("Monster truck steering-wheel reference is missing.");
 
         var sourceRoot = character.transform;
-        if (!sourceAnimator.transform.IsChildOf(sourceRoot) && sourceAnimator.transform != sourceRoot)
-            throw new InvalidOperationException("Player animator is outside the character hierarchy.");
-
-        driverRoot = new GameObject("AudiRS6R_SeatedPlayer");
+        driverRoot = new GameObject("BigfootMonsterTruck_SeatedPlayer");
         driverRoot.SetActive(false);
         driverRoot.layer = sourceRoot.gameObject.layer;
         driverRoot.transform.SetParent(vehicle.transform, false);
+        driverRoot.transform.localScale = Vector3.one * SeatedScale;
+
         var transforms = new Dictionary<Transform, Transform>();
         CopyTransforms(sourceRoot, driverRoot.transform, transforms);
-        // EnterVehicle hides the real character by setting its root scale to zero.
-        // Scale around the anchored hips, preserving the tested seat height.
-        driverRoot.transform.localScale = Vector3.one * SeatedScale;
-        driverRoot.transform.localRotation = Quaternion.identity;
-        driverRoot.transform.localPosition = Vector3.zero;
-
-        var rendererCount = 0;
         var lowerDetailRenderers = GetLowerDetailRenderers(appearance.transform);
+        var rendererCount = 0;
         foreach (var source in appearance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
-            if (!source.enabled || source.sharedMesh == null || !IsActiveWithinCharacter(source.transform, sourceRoot))
+            if (!source.enabled || source.sharedMesh == null || source.forceRenderingOff ||
+                source.shadowCastingMode == ShadowCastingMode.ShadowsOnly ||
+                lowerDetailRenderers.Contains(source) ||
+                !IsActiveWithinCharacter(source.transform, sourceRoot))
                 continue;
-            // enabled/activeSelf do not include shadow-only, forced-hidden or LOD
-            // visibility. Drawing those as ordinary meshes can overlap the body.
-            if (source.forceRenderingOff || source.shadowCastingMode == ShadowCastingMode.ShadowsOnly ||
-                lowerDetailRenderers.Contains(source))
-            {
-                continue;
-            }
             CopyRenderer(source, transforms);
             rendererCount++;
         }
@@ -164,8 +165,9 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         animator.applyRootMotion = false;
         animator.fireEvents = false;
         animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
         driverRoot.SetActive(true);
-        poseGraph = PlayableGraph.Create("AudiRS6R seated player");
+        poseGraph = PlayableGraph.Create("Bigfoot Monster Truck seated player");
         poseGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
         pose = AnimationClipPlayable.Create(poseGraph, sittingClip);
         pose.SetApplyFootIK(false);
@@ -185,15 +187,18 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
             HumanBodyBones.RightHand);
         AlignHandsWithWheel();
+        LogInfo(
+            $"created centered driver from current appearance; renderers={rendererCount}, " +
+            $"seat={vehicle.transform.InverseTransformPoint(seatAnchor.position).ToString("F3")}, " +
+            $"handRaise={HandRaise:F2}, handForward={HandForward:F2}.");
     }
 
     private void AlignWithSeat()
     {
-        if (driverRoot == null || hips == null || steeringWheel == null || vehicle == null)
+        if (driverRoot == null || hips == null || seatAnchor == null || vehicle == null)
             return;
         driverRoot.transform.rotation = vehicle.transform.rotation;
-        var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
-        driverRoot.transform.position += seatPosition - hips.position;
+        driverRoot.transform.position += seatAnchor.position - hips.position;
     }
 
     private SeatedArm? CreateArm(Animator animator, HumanBodyBones upperBone,
@@ -204,7 +209,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         var hand = animator.GetBoneTransform(handBone);
         if (upper != null && lower != null && hand != null)
             return new SeatedArm(upper, lower, hand);
-        context?.Logger.Warn($"AudiRS6R driver vehicle={vehicle?.GetInstanceID()}: " +
+        context?.Logger.Warn($"BigfootMonsterTruck driver vehicle={vehicle?.GetInstanceID()}: " +
                              $"cannot refine {handBone}; arm bones are missing. Keeping native pose.");
         return null;
     }
@@ -213,9 +218,10 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
     {
         if (vehicle == null || steeringWheel == null)
             return;
-        var centerX = vehicle.transform.InverseTransformPoint(steeringWheel.position).x;
-        AlignHand(leftArm, centerX - HandHalfSpacing);
-        AlignHand(rightArm, centerX + HandHalfSpacing);
+        // The imported steering wheel remains left-hand-drive, while this truck's
+        // custom seat is centered. Keep the grip centered with the player.
+        AlignHand(leftArm, -HandHalfSpacing);
+        AlignHand(rightArm, HandHalfSpacing);
     }
 
     private void AlignHand(SeatedArm? arm, float targetX)
@@ -224,6 +230,8 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             return;
         var target = vehicle.transform.InverseTransformPoint(arm.Hand.position);
         target.x = targetX;
+        target.y += HandRaise;
+        target.z += HandForward;
         arm.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
     }
 
@@ -256,8 +264,6 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
 
         public void AimAt(Vector3 target, Vector3 fallbackDirection)
         {
-            // Retain the native elbow bend and grip orientation. Only rotate bones;
-            // do not stretch the mesh or move the shoulder/torso.
             if (!TrySolveElbow(upper.position, lower.position, Hand.position, target,
                     fallbackDirection, out var elbow, out var reachableTarget))
                 return;
@@ -300,39 +306,53 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         return true;
     }
 
-    private static bool IsActiveWithinCharacter(Transform child, Transform root)
+    private void CopyRenderer(
+        SkinnedMeshRenderer source,
+        Dictionary<Transform, Transform> transforms)
     {
-        // Ignore the hidden character root, but retain clothing/gender selection beneath it.
-        for (var current = child; current != root; current = current.parent)
+        var destination = transforms[source.transform].gameObject.AddComponent<SkinnedMeshRenderer>();
+        var mesh = Instantiate(source.sharedMesh);
+        ownedAssets.Add(mesh);
+        destination.sharedMesh = mesh;
+        var bones = new Transform[source.bones.Length];
+        for (var index = 0; index < bones.Length; index++)
         {
-            if (current == null || !current.gameObject.activeSelf)
-                return false;
+            if (source.bones[index] == null || !transforms.TryGetValue(source.bones[index], out bones[index]))
+                throw new InvalidOperationException(
+                    $"Appearance mesh '{source.name}' has an unmapped bone at {index}.");
         }
-        return true;
+        destination.bones = bones;
+        if (source.rootBone != null)
+        {
+            if (!transforms.TryGetValue(source.rootBone, out var rootBone))
+                throw new InvalidOperationException(
+                    $"Appearance mesh '{source.name}' has an unmapped root bone.");
+            destination.rootBone = rootBone;
+        }
+
+        var materials = new Material[source.sharedMaterials.Length];
+        for (var index = 0; index < materials.Length; index++)
+        {
+            if (source.sharedMaterials[index] == null)
+                throw new InvalidOperationException(
+                    $"Appearance mesh '{source.name}' has a missing material.");
+            materials[index] = new Material(source.sharedMaterials[index]);
+            ownedAssets.Add(materials[index]);
+        }
+        destination.sharedMaterials = materials;
+        for (var index = 0; index < mesh.blendShapeCount; index++)
+            destination.SetBlendShapeWeight(index, source.GetBlendShapeWeight(index));
+        destination.localBounds = source.localBounds;
+        destination.updateWhenOffscreen = true;
+        destination.quality = source.quality;
+        destination.renderingLayerMask = source.renderingLayerMask;
+        destination.shadowCastingMode = ShadowCastingMode.Off;
+        destination.receiveShadows = source.receiveShadows;
     }
 
-    private static HashSet<Renderer> GetLowerDetailRenderers(Transform root)
-    {
-        var result = new HashSet<Renderer>();
-        // The visual copy has no LODGroup. Retain one complete, highest-detail
-        // representation instead of drawing all of its LODs at the same time.
-        foreach (var group in root.GetComponentsInChildren<LODGroup>(true))
-        {
-            if (!group.enabled)
-                continue;
-            var lods = group.GetLODs();
-            if (lods.Length == 0)
-                continue;
-            var highestDetail = new HashSet<Renderer>(lods[0].renderers);
-            for (var level = 1; level < lods.Length; level++)
-                foreach (var renderer in lods[level].renderers)
-                    if (renderer != null && !highestDetail.Contains(renderer))
-                        result.Add(renderer);
-        }
-        return result;
-    }
-
-    private static void CopyTransforms(Transform source, Transform destination,
+    private static void CopyTransforms(
+        Transform source,
+        Transform destination,
         Dictionary<Transform, Transform> transforms)
     {
         transforms.Add(source, destination);
@@ -349,55 +369,44 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         }
     }
 
-    private void CopyRenderer(SkinnedMeshRenderer source, Dictionary<Transform, Transform> transforms)
+    private static Transform? FindTransform(Transform root, string name)
     {
-        var destination = transforms[source.transform].gameObject.AddComponent<SkinnedMeshRenderer>();
-        var mesh = Instantiate(source.sharedMesh);
-        ownedAssets.Add(mesh);
-        destination.sharedMesh = mesh;
-        var sourceBones = source.bones;
-        var bones = new Transform[sourceBones.Length];
-        for (var index = 0; index < sourceBones.Length; index++)
-        {
-            if (sourceBones[index] == null || !transforms.TryGetValue(sourceBones[index], out bones[index]))
-                throw new InvalidOperationException($"Appearance mesh '{source.name}' has an unmapped bone at {index}.");
-        }
-        destination.bones = bones;
-        if (source.rootBone != null)
-        {
-            if (!transforms.TryGetValue(source.rootBone, out var rootBone))
-                throw new InvalidOperationException($"Appearance mesh '{source.name}' has an unmapped root bone.");
-            destination.rootBone = rootBone;
-        }
-        var sourceMaterials = source.sharedMaterials;
-        var materials = new Material[sourceMaterials.Length];
-        for (var index = 0; index < sourceMaterials.Length; index++)
-        {
-            if (sourceMaterials[index] == null)
-                throw new InvalidOperationException($"Appearance mesh '{source.name}' has a missing material.");
-            materials[index] = new Material(sourceMaterials[index]);
-            ownedAssets.Add(materials[index]);
-        }
-        destination.sharedMaterials = materials;
-        for (var index = 0; index < mesh.blendShapeCount; index++)
-            destination.SetBlendShapeWeight(index, source.GetBlendShapeWeight(index));
-        var properties = new MaterialPropertyBlock();
-        source.GetPropertyBlock(properties);
-        destination.SetPropertyBlock(properties);
-        for (var index = 0; index < materials.Length; index++)
-        {
-            properties.Clear();
-            source.GetPropertyBlock(properties, index);
-            if (!properties.isEmpty)
-                destination.SetPropertyBlock(properties, index);
-        }
-        destination.localBounds = source.localBounds;
-        destination.updateWhenOffscreen = true;
-        destination.quality = source.quality;
-        destination.renderingLayerMask = source.renderingLayerMask;
-        destination.shadowCastingMode = ShadowCastingMode.Off;
-        destination.receiveShadows = source.receiveShadows;
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+            if (string.Equals(transform.name, name, StringComparison.Ordinal))
+                return transform;
+        return null;
     }
+
+    private static bool IsActiveWithinCharacter(Transform child, Transform root)
+    {
+        for (var current = child; current != root; current = current.parent)
+            if (current == null || !current.gameObject.activeSelf)
+                return false;
+        return true;
+    }
+
+    private static HashSet<Renderer> GetLowerDetailRenderers(Transform root)
+    {
+        var result = new HashSet<Renderer>();
+        foreach (var group in root.GetComponentsInChildren<LODGroup>(true))
+        {
+            if (!group.enabled)
+                continue;
+            var lods = group.GetLODs();
+            if (lods.Length == 0)
+                continue;
+            var highest = new HashSet<Renderer>(lods[0].renderers);
+            for (var level = 1; level < lods.Length; level++)
+                foreach (var renderer in lods[level].renderers)
+                    if (renderer != null && !highest.Contains(renderer))
+                        result.Add(renderer);
+        }
+        return result;
+    }
+
+    private void LogInfo(string message) =>
+        context?.Logger.Info(
+            $"BigfootMonsterTruck driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {
@@ -410,10 +419,12 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         }
         driverRoot = null;
         hips = null;
+        steeringWheel = null;
         leftArm = null;
         rightArm = null;
         foreach (var asset in ownedAssets)
-            if (asset != null) Destroy(asset);
+            if (asset != null)
+                Destroy(asset);
         ownedAssets.Clear();
     }
 
