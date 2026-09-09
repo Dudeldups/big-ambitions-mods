@@ -96,7 +96,11 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         configured = true;
         context.Logger.Info(
             $"LamborghiniRevuelto audio configured vehicle={vehicle.GetInstanceID()}, " +
-            "engineLayers=7, exhaust=continuous-subtle-crackle.");
+            $"engineLayers=7, engineGain={LamborghiniRevueltoAudioModel.EngineBaseVolume:0.00}.." +
+            $"{LamborghiniRevueltoAudioModel.EngineBaseVolume + LamborghiniRevueltoAudioModel.EngineThrottleVolume:0.00}, " +
+            $"hornGain={LamborghiniRevueltoAudioModel.HornVolume:0.00}, " +
+            $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
+            "exhaust=continuous-subtle-crackle.");
         return true;
     }
 
@@ -186,7 +190,8 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
             idleSource.pitch = LamborghiniRevueltoAudioModel.IdlePitch;
             idleSource.volume = envelope * master * LamborghiniRevueltoAudioModel.IdleVolume(driveBlend);
             idleSource.mute = controlled && savedMute;
-            var gain = envelope * master * (.20f + .24f * smoothThrottle) * Mathf.Sqrt(driveBlend);
+            var gain = envelope * master * LamborghiniRevueltoAudioModel.EngineVolume(smoothThrottle) *
+                       Mathf.Sqrt(driveBlend);
             loadBlend = LamborghiniRevueltoAudioModel.LoadBlend(smoothThrottle);
             for (var i = 0; i < EngineNames.Length; i++)
             {

@@ -28,7 +28,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.92f;
     private const float AntiRollBarForce = 7800f;
-    private const float SuspensionTravel = 0.10f;
+    private const float SuspensionTravel = 0.06f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] RevueltoGears =

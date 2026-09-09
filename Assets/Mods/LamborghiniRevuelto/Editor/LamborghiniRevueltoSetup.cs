@@ -28,7 +28,7 @@ public static class LamborghiniRevueltoSetup
     private const float TargetHeight = 1.160f;
     private const float TireFrictionCircleStrength = 0.92f;
     private const float AntiRollBarForce = 7800f;
-    private const float SuspensionTravel = 0.10f;
+    private const float SuspensionTravel = 0.06f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
     private const float RimMetallic = 0.35f;
