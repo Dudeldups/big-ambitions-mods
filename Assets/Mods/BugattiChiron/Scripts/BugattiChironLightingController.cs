@@ -45,7 +45,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private bool overlayDeformationLogged;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
-    private int lastState = -1;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -318,8 +317,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         };
         mesh.SetTriangles(triangles, 0, true);
         mesh.RecalculateBounds();
-        LogInfo($"filtered overlay='{objectName}' triangles={triangles.Count / 3} " +
-                $"vehicleThresholdSectionBounds={mesh.bounds}.");
 
         var overlayObject = new GameObject(objectName);
         overlayObject.transform.SetParent(source.transform, false);
@@ -394,15 +391,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         SetEnabled(rightBeam, lightsOn);
         if (templateBeam != null)
             templateBeam.enabled = false;
-
-        var state = (controlled ? 1 : 0) | (lightsOn ? 2 : 0) | (braking ? 4 : 0) |
-                    (leftBlinker ? 8 : 0) | (rightBlinker ? 16 : 0);
-        if (state == lastState)
-            return;
-        lastState = state;
-        LogInfo($"state playerControlled={controlled} nightLights={lightsOn} braking={braking} " +
-                $"headlampRectangles={lightsOn} roadBeams={lightsOn} rearStripBrake={braking} " +
-                $"thirdBrake={braking} leftBlinker={leftBlinker} rightBlinker={rightBlinker}.");
     }
 
     private int CountLampOverlays() =>

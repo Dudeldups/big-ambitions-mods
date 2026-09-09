@@ -5,7 +5,6 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
 {
-    private const int MaximumSamples = 12;
     private const int MaximumBenchmarkRuns = 3;
     private static readonly float[] BenchmarkSpeedsKph = { 100f, 200f, 300f, 400f, 420f };
     private static readonly float[] PublishedTimes = { 2.4f, 6.1f, 13.1f, 32.6f, 0f };
@@ -13,12 +12,6 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
     private PhysicsVehicle? physics;
     private Rigidbody? body;
     private ModContext? context;
-    private bool timing;
-    private float requestTime;
-    private float requestRpm;
-    private float requestThrottle;
-    private int requestGear;
-    private int samples;
     private bool dormantEngineLogged;
     private bool benchmarkRunning;
     private float benchmarkStartedAt;
@@ -41,7 +34,6 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
             return;
         if (!vehicle.controlledByPlayer)
         {
-            timing = false;
             dormantEngineLogged = false;
             return;
         }
@@ -50,50 +42,6 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
         var speed = body.velocity.magnitude;
         LogDormantEngine(throttle);
         UpdateAccelerationBenchmark(throttle, speed);
-        if (samples >= MaximumSamples)
-            return;
-        if (!timing)
-        {
-            if (Mathf.Abs(throttle) < 0.25f || speed > 0.15f)
-                return;
-            timing = true;
-            requestTime = Time.unscaledTime;
-            requestRpm = CurrentRpm();
-            requestThrottle = throttle;
-            requestGear = physics.powertrain.transmission.Gear;
-            return;
-        }
-
-        var elapsed = Time.unscaledTime - requestTime;
-        if (speed >= 0.5f)
-        {
-            samples++;
-            timing = false;
-            context?.Logger.Info(
-                $"BugattiChiron launch vehicle={vehicle.GetInstanceID()}: " +
-                $"sample={samples}/{MaximumSamples} requestTo0.5mps={elapsed:F3}s " +
-                $"throttle={requestThrottle:F2}->{throttle:F2} gear={requestGear}->" +
-                $"{physics.powertrain.transmission.Gear} rpm={requestRpm:F0}->{CurrentRpm():F0} " +
-                $"longitudinalSpeed={LongitudinalSpeed():F2}mps running=" +
-                $"{physics.powertrain.engine.IsRunning}.");
-        }
-        else if (Mathf.Abs(throttle) < 0.1f)
-        {
-            timing = false;
-        }
-        else if (elapsed >= 2f)
-        {
-            samples++;
-            timing = false;
-            context?.Logger.Warn(
-                $"BugattiChiron launch vehicle={vehicle.GetInstanceID()}: " +
-                $"sample={samples}/{MaximumSamples} no movement after {elapsed:F1}s " +
-                $"throttle={requestThrottle:F2}->{throttle:F2} gear={requestGear}->" +
-                $"{physics.powertrain.transmission.Gear} rpm={requestRpm:F0}->{CurrentRpm():F0} " +
-                $"longitudinalSpeed={LongitudinalSpeed():F2}mps running=" +
-                $"{physics.powertrain.engine.IsRunning} ignition={physics.powertrain.engine.ignition} " +
-                $"canRun={physics.powertrain.engine.canRun}.");
-        }
     }
 
     private float CurrentRpm()

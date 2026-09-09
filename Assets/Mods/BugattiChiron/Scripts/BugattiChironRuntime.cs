@@ -318,8 +318,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             damageDiagnostics.Initialize(
                 vehicle,
                 context,
-                DamageDecelerationThreshold / 100f,
-                deformableMeshCount);
+                DamageDecelerationThreshold / 100f);
             var bridgeSeamGuard = vehicle.GetComponent<BugattiChironBridgeSeamGuard>();
             if (bridgeSeamGuard == null)
                 bridgeSeamGuard = vehicle.gameObject.AddComponent<BugattiChironBridgeSeamGuard>();
@@ -732,26 +731,21 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 [DefaultExecutionOrder(100)]
 internal sealed class BugattiChironDamageDiagnostics : MonoBehaviour
 {
-    private const int MaximumAcceptedLogs = 6;
     private const int MaximumRoadSuppressionLogs = 3;
     private VehicleController? vehicle;
     private ModContext? context;
     private float impactThreshold;
     private float nextLogTime;
-    private int deformableMeshCount;
-    private int acceptedLogs;
     private int roadSuppressionLogs;
 
     internal void Initialize(
         VehicleController controller,
         ModContext? modContext,
-        float threshold,
-        int bodyMeshCount)
+        float threshold)
     {
         vehicle = controller;
         context = modContext;
         impactThreshold = threshold;
-        deformableMeshCount = bodyMeshCount;
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -776,14 +770,6 @@ internal sealed class BugattiChironDamageDiagnostics : MonoBehaviour
                     $"contact='{otherName}' layer='{layerName}' relativeSpeed={speedKph:0.0}kph.");
             }
             return;
-        }
-
-        if (acceptedLogs++ < MaximumAcceptedLogs)
-        {
-            context?.Logger.Info(
-                $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: accepted impact " +
-                $"contact='{otherName}' layer='{layerName}' relativeSpeed={speedKph:0.0}kph " +
-                $"bodyMeshes={deformableMeshCount}.");
         }
     }
 }
@@ -1161,10 +1147,6 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
         contactedVehicleRoot = contactRoot;
         contactStartedAt = Time.unscaledTime;
         throttleStartedAt = 0f;
-        context?.Logger.Info(
-            $"BugattiChiron pin recovery vehicle={vehicle?.GetInstanceID()}: tracking " +
-            $"other='{contactRoot.name}' rigidbody={collision.rigidbody != null} " +
-            $"vehicleComponent={otherVehicle != null} layer='{otherLayer}'.");
     }
 
     private void BeginRecovery()
