@@ -10,6 +10,7 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
 {
     private const string BodyMaterialMarker = "_Body";
     private const string CaliperMaterialMarker = "_Caliper";
+    private const string InteriorAccentMaterialMarker = "_Interior_color";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
@@ -43,6 +44,7 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         slots.Clear();
         var bodySlots = 0;
         var caliperSlots = 0;
+        var interiorAccentSlots = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
             var materials = renderer.sharedMaterials;
@@ -53,25 +55,33 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
                     continue;
                 if (material.name.IndexOf(BodyMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index));
+                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Body));
                     bodySlots++;
                 }
                 else if (material.name.IndexOf(CaliperMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index));
+                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Caliper));
                     caliperSlots++;
+                }
+                else if (material.name.IndexOf(
+                             InteriorAccentMaterialMarker,
+                             StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.InteriorAccent));
+                    interiorAccentSlots++;
                 }
             }
         }
 
         context?.Logger.Info(
             $"LamborghiniRevuelto paint vehicle={vehicle?.GetInstanceID()}: " +
-            $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}; " +
-            "wheels, carbon, trim, glass, and interior remain factory materials.");
-        if (bodySlots == 0 || caliperSlots != 4)
+            $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
+            $"interiorAccentSlots={interiorAccentSlots}; " +
+            "rims, tires, carbon, black trim, and glass remain factory materials.");
+        if (bodySlots == 0 || caliperSlots != 4 || interiorAccentSlots == 0)
             context?.Logger.Warn(
                 $"LamborghiniRevuelto paint mapping incomplete bodySlots={bodySlots}, " +
-                $"caliperSlots={caliperSlots}.");
+                $"caliperSlots={caliperSlots}, interiorAccentSlots={interiorAccentSlots}.");
     }
 
     private void ApplyCurrentColor()
@@ -87,11 +97,18 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         selectedColor.a = 1f;
         foreach (var slot in slots)
         {
+            // Match the Bugatti's interior hierarchy: accent upholstery and trim
+            // follow the selected paint while staying slightly lighter than the
+            // body. Rims are intentionally not registered as paint slots.
+            var color = slot.Category == PaintCategory.InteriorAccent
+                ? Color.Lerp(selectedColor, Color.white, 0.12f)
+                : selectedColor;
+            color.a = 1f;
             properties.Clear();
             slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
-            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, selectedColor);
-            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, selectedColor);
-            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, selectedColor);
+            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
+            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
+            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
             slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
         }
 
@@ -117,15 +134,28 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
 
     private readonly struct PaintSlot
     {
-        internal PaintSlot(Renderer renderer, Material material, int materialIndex)
+        internal PaintSlot(
+            Renderer renderer,
+            Material material,
+            int materialIndex,
+            PaintCategory category)
         {
             Renderer = renderer;
             Material = material;
             MaterialIndex = materialIndex;
+            Category = category;
         }
 
         internal readonly Renderer Renderer;
         internal readonly Material Material;
         internal readonly int MaterialIndex;
+        internal readonly PaintCategory Category;
+    }
+
+    private enum PaintCategory
+    {
+        Body,
+        Caliper,
+        InteriorAccent,
     }
 }
