@@ -21,6 +21,7 @@ namespace DeveloperTools
         private readonly DeveloperToolsItemService items;
         private readonly DeveloperToolsPlayerService player;
         private readonly DeveloperToolsTimeService time;
+        private readonly DeveloperToolsPauseService pause;
         private readonly List<Texture2D> ownedTextures = new List<Texture2D>();
         private readonly List<object> suspendedGameplayActions = new List<object>();
         private readonly FieldInfo? playerActionMapField = typeof(InputActionHelper).GetField("PlayerInputActionMap", BindingFlags.Public | BindingFlags.Static);
@@ -34,16 +35,19 @@ namespace DeveloperTools
         private GUISkin? customSkin;
         private Rect windowRect = new Rect(40f, 30f, WindowWidth, WindowHeight);
         private Vector2 mainScroll;
-        private Vector2 vehicleScroll;
+        private Vector2 vanillaVehicleScroll;
+        private Vector2 moddedVehicleScroll;
         private Vector2 itemScroll;
-        private bool vehicleDropdownOpen;
+        private bool vanillaVehicleDropdownOpen;
+        private bool moddedVehicleDropdownOpen;
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
         private bool cursorRestorePending;
         private bool cursorWasVisible;
         private CursorLockMode previousCursorLock;
-        private string selectedVehicleId = string.Empty;
+        private string selectedVanillaVehicleId = string.Empty;
+        private string selectedModdedVehicleId = string.Empty;
         private string selectedItemId = string.Empty;
         private string itemSearch = string.Empty;
         private string itemAmount = "1";
@@ -58,13 +62,15 @@ namespace DeveloperTools
             DeveloperToolsVehicleService vehicles,
             DeveloperToolsItemService items,
             DeveloperToolsPlayerService player,
-            DeveloperToolsTimeService time)
+            DeveloperToolsTimeService time,
+            DeveloperToolsPauseService pause)
         {
             this.context = context;
             this.vehicles = vehicles;
             this.items = items;
             this.player = player;
             this.time = time;
+            this.pause = pause;
         }
 
         public bool IsVisible => visible;
@@ -97,10 +103,11 @@ namespace DeveloperTools
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
             SuspendGameplayActions();
+            pause.PauseForOverlay();
             vehicles.Refresh();
             items.EnsurePopulated();
-            if (vehicles.Entries.Count > 0 && vehicles.Entries.All(entry => entry.Id != selectedVehicleId))
-                selectedVehicleId = vehicles.Entries[0].Id;
+            SelectFirstAvailable(vehicles.VanillaEntries, ref selectedVanillaVehicleId);
+            SelectFirstAvailable(vehicles.ModdedEntries, ref selectedModdedVehicleId);
             if (items.Entries.Count > 0 && items.Entries.All(entry => entry.Id != selectedItemId))
                 selectedItemId = items.Entries[0].Id;
             SetCoordinatesFromPlayer();
@@ -114,7 +121,8 @@ namespace DeveloperTools
             visible = false;
             inputReleaseBlockFrames = Math.Max(inputReleaseBlockFrames, 3);
             cursorRestorePending = true;
-            vehicleDropdownOpen = false;
+            vanillaVehicleDropdownOpen = false;
+            moddedVehicleDropdownOpen = false;
             itemDropdownOpen = false;
         }
 
@@ -157,6 +165,7 @@ namespace DeveloperTools
             cursorRestorePending = false;
             RestoreGameplayActions();
             SetUiInputBlockerActive(false);
+            pause.ResumeAfterOverlay();
             Cursor.visible = cursorWasVisible;
             Cursor.lockState = previousCursorLock;
         }
@@ -308,24 +317,60 @@ namespace DeveloperTools
         private void DrawVehicleSpawner()
         {
             GUILayout.Label("Vehicle Spawner", GUI.skin.box);
-            var selected = vehicles.Entries.FirstOrDefault(entry => entry.Id == selectedVehicleId);
-            if (GUILayout.Button(selected == null ? "Select vehicle..." : selected.DisplayName + "  ▼"))
-                vehicleDropdownOpen = !vehicleDropdownOpen;
-            if (vehicleDropdownOpen)
+            DrawVehicleCatalog(
+                "Vanilla Vehicles",
+                vehicles.VanillaEntries,
+                ref selectedVanillaVehicleId,
+                ref vanillaVehicleDropdownOpen,
+                ref vanillaVehicleScroll);
+            GUILayout.Space(5f);
+            DrawVehicleCatalog(
+                "Modded Vehicles",
+                vehicles.ModdedEntries,
+                ref selectedModdedVehicleId,
+                ref moddedVehicleDropdownOpen,
+                ref moddedVehicleScroll);
+            if (GUILayout.Button("Despawn Last Spawned Vehicle"))
+                vehicles.DespawnLast(out status);
+        }
+
+        private void DrawVehicleCatalog(
+            string label,
+            IReadOnlyList<CatalogEntry> entries,
+            ref string selectedId,
+            ref bool dropdownOpen,
+            ref Vector2 scroll)
+        {
+            GUILayout.Label(label);
+            if (entries.Count == 0)
             {
-                vehicleScroll = GUILayout.BeginScrollView(vehicleScroll, GUI.skin.box, GUILayout.Height(150f));
-                foreach (var entry in vehicles.Entries)
+                GUILayout.Label("No vehicles available in this category.", GUI.skin.box);
+                return;
+            }
+
+            CatalogEntry? selected = null;
+            for (var index = 0; index < entries.Count; index++)
+            {
+                if (entries[index].Id != selectedId) continue;
+                selected = entries[index];
+                break;
+            }
+            if (GUILayout.Button(selected == null ? "Select vehicle..." : selected.DisplayName + "  ▼"))
+                dropdownOpen = !dropdownOpen;
+            if (dropdownOpen)
+            {
+                scroll = GUILayout.BeginScrollView(scroll, GUI.skin.box, GUILayout.Height(135f));
+                foreach (var entry in entries)
                 {
                     if (!GUILayout.Button(entry.DisplayName + "  [" + entry.Id + "]")) continue;
-                    selectedVehicleId = entry.Id;
-                    vehicleDropdownOpen = false;
+                    selectedId = entry.Id;
+                    dropdownOpen = false;
                 }
                 GUILayout.EndScrollView();
             }
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Spawn")) vehicles.Spawn(selectedVehicleId, out status);
-            if (GUILayout.Button("Despawn Last Spawned Vehicle")) vehicles.DespawnLast(out status);
-            GUILayout.EndHorizontal();
+
+            if (GUILayout.Button("Spawn " + label.TrimEnd('s')))
+                vehicles.Spawn(selectedId, out status);
         }
 
         private void DrawMoney()
@@ -345,15 +390,18 @@ namespace DeveloperTools
 
         private void DrawTimeAdvancer()
         {
-            GUILayout.Label("Time Advancer (game simulation)", GUI.skin.box);
+            GUILayout.Label("Time Advancer (6x game simulation)", GUI.skin.box);
             GUILayout.BeginHorizontal();
             TimeButton("1 Hour", 1);
+            TimeButton("6 Hours", 6);
             TimeButton("12 Hours", 12);
-            TimeButton("1 Day", 24);
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
+            TimeButton("1 Day", 24);
             TimeButton("2 Days", 48);
             TimeButton("3 Days", 72);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
             TimeButton("7 Days", 168);
             GUILayout.EndHorizontal();
         }
@@ -486,6 +534,19 @@ namespace DeveloperTools
             float.TryParse(value, NumberStyles.Float, CultureInfo.CurrentCulture, out result);
 
         private static string FormatFloat(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+        private static void SelectFirstAvailable(IReadOnlyList<CatalogEntry> entries, ref string selectedId)
+        {
+            if (entries.Count == 0)
+            {
+                selectedId = string.Empty;
+                return;
+            }
+
+            for (var index = 0; index < entries.Count; index++)
+                if (entries[index].Id == selectedId) return;
+            selectedId = entries[0].Id;
+        }
 
         private static void Divider()
         {

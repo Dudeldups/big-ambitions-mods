@@ -14,22 +14,29 @@ namespace DeveloperTools
     internal sealed class DeveloperToolsVehicleService
     {
         private const float SpawnDistance = 7f;
-        private readonly List<CatalogEntry> entries = new List<CatalogEntry>();
+        private readonly List<CatalogEntry> vanillaEntries = new List<CatalogEntry>();
+        private readonly List<CatalogEntry> moddedEntries = new List<CatalogEntry>();
         private readonly ModContext context;
         private string lastSpawnedVehicleId = string.Empty;
 
         public DeveloperToolsVehicleService(ModContext context) => this.context = context;
-        public IReadOnlyList<CatalogEntry> Entries => entries;
+        public IReadOnlyList<CatalogEntry> VanillaEntries => vanillaEntries;
+        public IReadOnlyList<CatalogEntry> ModdedEntries => moddedEntries;
 
         public void Refresh()
         {
-            entries.Clear();
+            vanillaEntries.Clear();
+            moddedEntries.Clear();
             foreach (var id in VehicleTypeHelper.GetVehicleTypeNames().Where(value => !string.IsNullOrWhiteSpace(value)).Distinct())
             {
                 if (VehicleTypeHelper.GetVehicleType(id) != null)
-                    entries.Add(new CatalogEntry(id, Localize(id)));
+                {
+                    var entry = new CatalogEntry(id, Localize(id));
+                    (VehicleTypeHelper.IsModVehicleType(id) ? moddedEntries : vanillaEntries).Add(entry);
+                }
             }
-            entries.Sort((left, right) => string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase));
+            vanillaEntries.Sort(CompareEntries);
+            moddedEntries.Sort(CompareEntries);
         }
 
         public bool Spawn(string vehicleTypeName, out string message)
@@ -111,6 +118,9 @@ namespace DeveloperTools
                 return id;
             }
         }
+
+        private static int CompareEntries(CatalogEntry left, CatalogEntry right) =>
+            string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase);
     }
 
     internal sealed class CatalogEntry

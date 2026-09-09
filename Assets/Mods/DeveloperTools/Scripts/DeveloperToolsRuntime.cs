@@ -13,6 +13,7 @@ namespace DeveloperTools
         private DeveloperToolsOverlay? overlay;
         private DeveloperToolsPlayerService? playerService;
         private DeveloperToolsMapTeleport? mapTeleport;
+        private DeveloperToolsTimeService? timeService;
 
         public static DeveloperToolsRuntime Initialize(ModContext context, DeveloperToolsSettings settings)
         {
@@ -26,12 +27,14 @@ namespace DeveloperTools
             runtime.context = context;
             runtime.settings = settings;
             runtime.playerService = new DeveloperToolsPlayerService();
+            runtime.timeService = new DeveloperToolsTimeService(context);
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
                 new DeveloperToolsVehicleService(context),
                 new DeveloperToolsItemService(context),
                 runtime.playerService,
-                new DeveloperToolsTimeService(context));
+                runtime.timeService,
+                new DeveloperToolsPauseService(context));
             runtime.mapTeleport = new DeveloperToolsMapTeleport(context, runtime.playerService);
             return runtime;
         }
@@ -39,6 +42,7 @@ namespace DeveloperTools
         public void Shutdown()
         {
             overlay?.Shutdown();
+            timeService?.Shutdown();
             Destroy(gameObject);
         }
 
