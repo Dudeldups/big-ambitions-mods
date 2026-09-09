@@ -262,7 +262,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
             layers[index].mute = layers[index + 3].mute = controlled && savedMute;
         }
 
-        turboSource.pitch = Mathf.Lerp(0.72f, 1.18f, normalized);
+        turboSource.pitch = Mathf.Lerp(0.65f, 0.95f, normalized);
         turboSource.volume = envelope * master *
                              BugattiChironAudioModel.TurboVolume(normalized, smoothThrottle);
         turboSource.mute = controlled && savedMute;
