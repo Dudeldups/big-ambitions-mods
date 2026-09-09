@@ -6,7 +6,7 @@ Gib deinem Fahrzeug einen frischen Look, ohne ein neues kaufen zu müssen. Vehic
 [list]
 [*] Fahre mit einem Fahrzeug in die normale Reparatur- und Waschbucht einer Tankstelle.
 [*] Wähle [b]Neu lackieren (800 $)[/b].
-[*] Nutze die vertraute Farbauswahl, um jede verfügbare Farbe direkt am Fahrzeug anzusehen.
+[*] Wähle aus einer erweiterten Palette mit 96 nach Farbton sortierten Farben und sieh dir jede davon direkt am Fahrzeug an.
 [/list]
 
 [h2]Kompatibilität[/h2]

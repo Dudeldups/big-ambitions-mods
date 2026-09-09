@@ -6,7 +6,7 @@ Dê um novo visual ao seu veículo sem precisar comprar outro. Vehicle Repainter
 [list]
 [*] Leve um veículo até à área normal de reparação e lavagem de um posto de combustível.
 [*] Selecione [b]Repintar (800 $)[/b].
-[*] Use o seletor de cores de veículos habitual para pré-visualizar ao vivo todas as cores disponíveis no seu veículo.
+[*] Escolha entre uma paleta alargada de 96 cores, ordenadas por tonalidade, e pré-visualize cada uma diretamente no seu veículo.
 [/list]
 
 [h2]Compatibilidade[/h2]

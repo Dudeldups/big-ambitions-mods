@@ -15,9 +15,11 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
     private AudioSource? rumbleSource;
     private AudioSource? roarSource;
     private AudioSource? crackleSource;
+    private AudioSource? hornSource;
     private AudioClip? rumbleClip;
     private AudioClip? roarClip;
     private AudioClip? crackleClip;
+    private AudioClip? hornClip;
     private GameObject? audioHost;
     private ModContext? context;
     private bool configured;
@@ -83,13 +85,16 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         rumbleClip = BigfootMonsterTruckEngineWave.CreateRumble();
         roarClip = BigfootMonsterTruckEngineWave.CreateRoar();
         crackleClip = BigfootMonsterTruckEngineWave.CreateCrackle();
+        hornClip = BigfootMonsterTruckEngineWave.CreateHorn();
         rumbleSource = CreateSource("LowRumble", rumbleClip, 1500f, 0.05f);
         roarSource = CreateSource("SuperchargedRoar", roarClip, 5200f, 0.18f, 90f);
         crackleSource = CreateSource("ExhaustCrackle", crackleClip, 6800f, 0.24f, 520f);
+        hornSource = CreateSource("DualToneTruckHorn", hornClip, 7200f, 0.06f, 85f);
+        var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
+        if (otherSource?.outputAudioMixerGroup != null)
+            hornSource.outputAudioMixerGroup = otherSource.outputAudioMixerGroup;
+        hornSource.maxDistance = Mathf.Max(60f, nativeSource.maxDistance * 1.4f);
         configured = true;
-        context?.Logger.Info(
-            $"BigfootMonsterTruck audio configured vehicle={vehicle.GetInstanceID()}, " +
-            "layers=3, source=procedural-v8.");
         return true;
     }
 
@@ -132,7 +137,8 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || nativeSource == null || audioHost == null ||
-            rumbleSource == null || roarSource == null || crackleSource == null)
+            rumbleSource == null || roarSource == null || crackleSource == null ||
+            hornSource == null)
             throw new InvalidOperationException("Configured engine audio was removed.");
 
         audioHost.transform.position = nativeSource.transform.position;
@@ -140,6 +146,9 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         var engine = physics.powertrain.engine;
         var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
         var paused = Time.timeScale <= 0f || AudioListener.pause;
+        var master = Mathf.Clamp01(physics.soundManager.masterVolume);
+        hornSource.transform.position = vehicle.transform.TransformPoint(new Vector3(0f, 1.55f, 2.1f));
+        UpdateHorn(controlled && !paused && physics.input.Horn, master);
 
         if (controlled)
         {
@@ -174,7 +183,6 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
             (smoothRpm - engine.idleRPM) /
             Mathf.Max(1f, engine.revLimiterRPM - engine.idleRPM));
         var revCurve = Mathf.Pow(normalizedRpm, 0.68f);
-        var master = Mathf.Clamp01(physics.soundManager.masterVolume);
         var load = Mathf.SmoothStep(0f, 1f, smoothThrottle);
 
         var combustionPitch = Mathf.Lerp(0.94f, 2.35f, revCurve);
@@ -198,6 +206,24 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
             crackleSource.PlayScheduled(startTime);
             voicesStarted = true;
         }
+    }
+
+    private void UpdateHorn(bool pressed, float masterVolume)
+    {
+        if (hornSource == null)
+            return;
+        var targetVolume = pressed ? masterVolume * 0.74f : 0f;
+        if (pressed && !hornSource.isPlaying)
+        {
+            hornSource.volume = targetVolume * 0.38f;
+            hornSource.Play();
+        }
+        hornSource.volume = Mathf.MoveTowards(
+            hornSource.volume,
+            targetVolume,
+            Time.unscaledDeltaTime * (pressed ? 24f : 8f));
+        if (!pressed && hornSource.volume <= 0f && hornSource.isPlaying)
+            hornSource.Stop();
     }
 
     private void StopVoices()
@@ -224,6 +250,11 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
     private void OnDisable()
     {
         StopVoices();
+        if (hornSource != null)
+        {
+            hornSource.Stop();
+            hornSource.volume = 0f;
+        }
         RestoreNativeMute();
         envelope = smoothRpm = smoothThrottle = 0f;
     }
@@ -240,13 +271,17 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
             Destroy(roarClip);
         if (crackleClip != null)
             Destroy(crackleClip);
+        if (hornClip != null)
+            Destroy(hornClip);
         audioHost = null;
         rumbleSource = null;
         roarSource = null;
         crackleSource = null;
+        hornSource = null;
         rumbleClip = null;
         roarClip = null;
         crackleClip = null;
+        hornClip = null;
     }
 
     private void OnDestroy() => Cleanup();

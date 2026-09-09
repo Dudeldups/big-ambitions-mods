@@ -6,7 +6,7 @@ Dopřejte svému vozidlu nový vzhled, aniž byste museli kupovat nové. Vehicle
 [list]
 [*] Zajeďte vozidlem do běžného servisního stání pro opravy a mytí na čerpací stanici.
 [*] Vyberte [b]Přelakovat (800 $)[/b].
-[*] Pomocí známého výběru barvy vozidla si přímo na vozidle prohlédněte všechny dostupné barvy.
+[*] Vyberte si z rozšířené palety 96 barev seřazených podle odstínu a každou si prohlédněte přímo na vozidle.
 [/list]
 
 [h2]Kompatibilita[/h2]

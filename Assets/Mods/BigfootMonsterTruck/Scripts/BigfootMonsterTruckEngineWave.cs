@@ -19,6 +19,48 @@ internal static class BigfootMonsterTruckEngineWave
         348f,
         0.38f);
 
+    internal static AudioClip CreateHorn()
+    {
+        var sampleCount = (int)(SampleRate * Duration);
+        var samples = new float[sampleCount];
+        for (var index = 0; index < sampleCount; index++)
+        {
+            var time = index / (float)SampleRate;
+            var flutter = 0.012f * Mathf.Sin(2f * Mathf.PI * 5f * time);
+            var lowPhase = 2f * Mathf.PI * (138f * time + flutter);
+            var highPhase = 2f * Mathf.PI * (174f * time + flutter * 1.08f);
+            var lowPipe =
+                Mathf.Sin(lowPhase) +
+                0.48f * Mathf.Sin(2f * lowPhase + 0.12f) +
+                0.35f * Mathf.Sin(3f * lowPhase + 0.31f) +
+                0.22f * Mathf.Sin(4f * lowPhase + 0.48f) +
+                0.12f * Mathf.Sin(5f * lowPhase + 0.67f) +
+                0.06f * Mathf.Sin(6f * lowPhase + 0.83f);
+            var highPipe =
+                Mathf.Sin(highPhase + 0.18f) +
+                0.46f * Mathf.Sin(2f * highPhase + 0.36f) +
+                0.33f * Mathf.Sin(3f * highPhase + 0.54f) +
+                0.21f * Mathf.Sin(4f * highPhase + 0.73f) +
+                0.11f * Mathf.Sin(5f * highPhase + 0.91f);
+            var brass = 0.56f * lowPipe + 0.58f * highPipe;
+            var compressor = (float)Math.Tanh(brass * 1.85f);
+            samples[index] = compressor * 0.70f;
+        }
+
+        var clip = AudioClip.Create(
+            "Bigfoot continuous truck air horn",
+            sampleCount,
+            1,
+            SampleRate,
+            false);
+        if (!clip.SetData(samples, 0))
+        {
+            UnityEngine.Object.Destroy(clip);
+            throw new InvalidOperationException("Could not initialize procedural truck horn.");
+        }
+        return clip;
+    }
+
     internal static AudioClip CreateCrackle()
     {
         const int pulseCount = 40;

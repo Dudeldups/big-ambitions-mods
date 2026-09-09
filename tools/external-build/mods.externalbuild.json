@@ -43,6 +43,16 @@
       "enabled": true
     },
     {
+      "modName": "MobileVeterinarian",
+      "sourceDir": "Assets/Mods/MobileVeterinarian",
+      "assemblyName": "MobileVeterinarian",
+      "modsLocalFolder": "MobileVeterinarian",
+      "dependencies": [
+        "Custom NPC API"
+      ],
+      "enabled": true
+    },
+    {
       "modName": "StreetQuestRPG",
       "sourceDir": "Assets/Mods/StreetQuestRPG",
       "assemblyName": "StreetQuestRPG",
