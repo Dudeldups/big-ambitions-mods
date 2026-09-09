@@ -838,14 +838,17 @@ namespace MobileVeterinarian
             try
             {
                 var localized = vehicleTypeName.GetLocalization()?.ToString();
-                if (!string.IsNullOrWhiteSpace(localized))
+                if (!string.IsNullOrWhiteSpace(localized) &&
+                    !string.Equals(localized, vehicleTypeName, StringComparison.Ordinal))
+                {
                     return localized!;
+                }
             }
             catch
             {
             }
 
-            return vehicleTypeName;
+            return "mobileveterinarian:animal_generic".Localize().ToString();
         }
 
         private static float ResolveCurrentSpeed(VehicleController controller)
