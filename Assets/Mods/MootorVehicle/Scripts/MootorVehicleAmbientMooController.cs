@@ -13,8 +13,8 @@ namespace MootorVehicle
         private const string AudioHostName = "MootorVehicle_AmbientMoo";
         private const string TriggerHostName = "MootorVehicle_AmbientMooTrigger";
         private const float ProximityRadius = 25f;
-        private const float MinimumAudibleDistance = 10f;
-        private const float AmbientVolume = 0.22f;
+        private const float FullVolumeRadius = 10f;
+        private const float AmbientVolume = 0.12f;
         private const float InitialDelayMinimum = 2.5f;
         private const float InitialDelayMaximum = 6.5f;
         private const float RepeatDelayMinimum = 9f;
@@ -115,9 +115,12 @@ namespace MootorVehicle
             audioSource.clip = horn.clips[0];
             audioSource.volume = AmbientVolume;
             audioSource.spatialBlend = 1f;
-            audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
-            audioSource.minDistance = MinimumAudibleDistance;
+            audioSource.rolloffMode = AudioRolloffMode.Custom;
+            audioSource.minDistance = 1f;
             audioSource.maxDistance = ProximityRadius;
+            audioSource.SetCustomCurve(
+                AudioSourceCurveType.CustomRolloff,
+                AnimationCurve.Linear(0f, 1f, 1f, 1f));
             audioSource.dopplerLevel = 0f;
             audioSource.outputAudioMixerGroup = physicsVehicle.soundManager.otherMixerGroup;
             audioSource.clip.LoadAudioData();
@@ -147,18 +150,26 @@ namespace MootorVehicle
             {
                 if (audioSource != null && !audioSource.isPlaying && !AudioListener.pause)
                 {
-                    var masterVolume = physicsVehicle != null
-                        ? physicsVehicle.soundManager.masterVolume
-                        : 1f;
-                    audioSource.volume = Mathf.Clamp01(masterVolume * AmbientVolume);
+                    audioSource.volume = GetAmbientVolumeForPlayerDistance();
                     audioSource.pitch = Random.Range(0.97f, 1.03f);
-                    audioSource.Play();
+                    if (audioSource.volume > 0f)
+                        audioSource.Play();
                 }
 
                 yield return new WaitForSeconds(Random.Range(RepeatDelayMinimum, RepeatDelayMaximum));
             }
 
             mooCoroutine = null;
+        }
+
+        private float GetAmbientVolumeForPlayerDistance()
+        {
+            var distance = Vector3.Distance(PlayerHelper.GetPosition(), transform.position);
+            if (distance <= FullVolumeRadius)
+                return AmbientVolume;
+
+            var fade = Mathf.InverseLerp(ProximityRadius, FullVolumeRadius, distance);
+            return AmbientVolume * fade;
         }
 
         private IEnumerator RearmAfterDismount()
