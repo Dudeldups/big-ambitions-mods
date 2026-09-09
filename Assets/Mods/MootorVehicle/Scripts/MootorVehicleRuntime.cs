@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections;
+using System.Reflection;
 using BAModAPI;
 using Helpers;
 using UI.Notification;
@@ -19,11 +20,24 @@ namespace MootorVehicle
             "mootorvehicle:missing_mobile_veterinarian";
         private const string MissingVeterinarianNotificationId =
             "MootorVehicleMissingMobileVeterinarian";
+        private const string TextMeshProEventManagerTypeName =
+            "TMPro.TMPro_EventManager, Unity.TextMeshPro";
+        private const string VanillaLegalParkingLocalizationKey =
+            "itempanelui_parkingzone_legal";
 
         private Coroutine? initializationCoroutine;
+        private Coroutine? parkingHudCorrectionCoroutine;
         private ModContext? context;
         private string vehicleTypeName = string.Empty;
         private bool missingVeterinarianNoticeShown;
+        private bool correctingParkingHud;
+        private object? textChangedEvent;
+        private MethodInfo? removeTextChangedHandlerMethod;
+        private Action<UnityEngine.Object>? textChangedHandler;
+        private FieldInfo? parkingZoneValueField;
+        private PropertyInfo? localizationKeyProperty;
+        private UnityEngine.Object? parkingTextContainer;
+        private UI.ItemPanel.VehicleInfoPanel? activeVehicleInfoPanel;
 
         public static MootorVehicleRuntime Initialize(ModContext context, string vehicleTypeName)
         {
@@ -45,6 +59,8 @@ namespace MootorVehicle
 
         public void Shutdown()
         {
+            EndFreeParkingHudOverride();
+
             if (initializationCoroutine != null)
             {
                 StopCoroutine(initializationCoroutine);
@@ -85,6 +101,7 @@ namespace MootorVehicle
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
             UnsubscribeGlobalEvents();
+            EndFreeParkingHudOverride();
         }
 
         private void SubscribeGlobalEvents()
@@ -121,6 +138,8 @@ namespace MootorVehicle
 
         private void HandleGameUnloaded()
         {
+            EndFreeParkingHudOverride();
+
             if (initializationCoroutine == null)
                 return;
 
@@ -130,7 +149,14 @@ namespace MootorVehicle
 
         private void HandleVehicleEntered(VehicleController vehicleController)
         {
+            if (!IsMootorVehicle(vehicleController))
+            {
+                EndFreeParkingHudOverride();
+                return;
+            }
+
             TryConfigureVehicle(vehicleController, "vehicle-entered");
+            BeginFreeParkingHudOverride();
         }
 
         private void HandleVehicleExited(VehicleController vehicleController)
@@ -138,6 +164,7 @@ namespace MootorVehicle
             if (!IsMootorVehicle(vehicleController))
                 return;
 
+            EndFreeParkingHudOverride();
             ApplyFreeParking(vehicleController);
         }
 
@@ -320,6 +347,175 @@ namespace MootorVehicle
             MootorVehicleDiagnostics.Info(
                 context,
                 $"Moo-tor Vehicle: applied free sidewalk parking to vehicle={vehicleController.GetInstanceID()}.");
+        }
+
+        private void BeginFreeParkingHudOverride()
+        {
+            EndFreeParkingHudOverride();
+
+            activeVehicleInfoPanel = UI.UIs.Instance?.playerHUD?.itemPanelUI?.vehicleInfo;
+            if (activeVehicleInfoPanel == null || !TrySubscribeToTextChanges())
+                return;
+
+            parkingHudCorrectionCoroutine = StartCoroutine(CorrectParkingHudAfterEnter());
+        }
+
+        private IEnumerator CorrectParkingHudAfterEnter()
+        {
+            // CarController writes the initial parking result after the global enter event.
+            yield return null;
+            parkingHudCorrectionCoroutine = null;
+            CorrectFreeParkingHud();
+        }
+
+        private bool TrySubscribeToTextChanges()
+        {
+            try
+            {
+                var eventManagerType = Type.GetType(TextMeshProEventManagerTypeName, false);
+                var eventField = eventManagerType?.GetField(
+                    "TEXT_CHANGED_EVENT",
+                    BindingFlags.Public | BindingFlags.Static);
+                var eventInstance = eventField?.GetValue(null);
+                if (eventInstance == null)
+                    throw new MissingMemberException(TextMeshProEventManagerTypeName, "TEXT_CHANGED_EVENT");
+
+                var handlerParameterType = typeof(Action<UnityEngine.Object>);
+                var eventType = eventInstance.GetType();
+                var addMethod = eventType.GetMethod(
+                    "Add",
+                    BindingFlags.Public | BindingFlags.Instance,
+                    null,
+                    new[] { handlerParameterType },
+                    null);
+                var removeMethod = eventType.GetMethod(
+                    "Remove",
+                    BindingFlags.Public | BindingFlags.Instance,
+                    null,
+                    new[] { handlerParameterType },
+                    null);
+
+                var parkingValueField = typeof(UI.ItemPanel.VehicleInfoPanel).GetField(
+                    "parkingZoneValue",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                var keyProperty = parkingValueField?.FieldType.GetProperty(
+                    "Key",
+                    BindingFlags.Public | BindingFlags.Instance);
+                var textContainerProperty = parkingValueField?.FieldType.GetProperty(
+                    "TextContainer",
+                    BindingFlags.Public | BindingFlags.Instance);
+                var localizationComponent = parkingValueField?.GetValue(activeVehicleInfoPanel);
+                var textContainer = textContainerProperty?.GetValue(localizationComponent, null) as UnityEngine.Object;
+                if (addMethod == null ||
+                    removeMethod == null ||
+                    parkingValueField == null ||
+                    keyProperty == null ||
+                    textContainer == null)
+                {
+                    throw new MissingMemberException("The parking HUD localization API was not available.");
+                }
+
+                var handler = new Action<UnityEngine.Object>(HandleTextChanged);
+                addMethod.Invoke(eventInstance, new object[] { handler });
+
+                textChangedEvent = eventInstance;
+                removeTextChangedHandlerMethod = removeMethod;
+                textChangedHandler = handler;
+                parkingZoneValueField = parkingValueField;
+                localizationKeyProperty = keyProperty;
+                parkingTextContainer = textContainer;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    "Moo-tor Vehicle: could not enable the free-parking HUD label: " +
+                    exception.GetBaseException().Message);
+                EndFreeParkingHudOverride();
+                return false;
+            }
+        }
+
+        private void HandleTextChanged(UnityEngine.Object changedObject)
+        {
+            if (changedObject == null || changedObject != parkingTextContainer || correctingParkingHud)
+                return;
+
+            CorrectFreeParkingHud();
+        }
+
+        private void CorrectFreeParkingHud()
+        {
+            var selectedVehicle = GameManager.Instance?.selectedVehicle;
+            var vehicleInfo = activeVehicleInfoPanel;
+            if (!IsMootorVehicle(selectedVehicle) ||
+                selectedVehicle == null ||
+                !selectedVehicle.controlledByPlayer ||
+                vehicleInfo == null ||
+                (vehicleInfo.currentParkingState == ParkingState.NotAvailable &&
+                 string.IsNullOrEmpty(vehicleInfo.currentParkingNeighbourhood)))
+            {
+                return;
+            }
+
+            correctingParkingHud = true;
+            try
+            {
+                // NotAvailable is the non-billable scooter-style state. Keep that state while
+                // presenting the clearer vanilla "Legal" label to the player.
+                vehicleInfo.SetParkingZone(ParkingState.NotAvailable, string.Empty);
+                var localizationComponent = parkingZoneValueField?.GetValue(vehicleInfo);
+                localizationKeyProperty?.SetValue(
+                    localizationComponent,
+                    VanillaLegalParkingLocalizationKey,
+                    null);
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    "Moo-tor Vehicle: could not update the free-parking HUD label: " +
+                    exception.GetBaseException().Message);
+            }
+            finally
+            {
+                correctingParkingHud = false;
+            }
+        }
+
+        private void EndFreeParkingHudOverride()
+        {
+            if (parkingHudCorrectionCoroutine != null)
+            {
+                StopCoroutine(parkingHudCorrectionCoroutine);
+                parkingHudCorrectionCoroutine = null;
+            }
+
+            if (textChangedEvent != null &&
+                removeTextChangedHandlerMethod != null &&
+                textChangedHandler != null)
+            {
+                try
+                {
+                    removeTextChangedHandlerMethod.Invoke(
+                        textChangedEvent,
+                        new object[] { textChangedHandler });
+                }
+                catch (Exception exception)
+                {
+                    context?.Logger.Warn(
+                        "Moo-tor Vehicle: could not remove the free-parking HUD listener: " +
+                        exception.GetBaseException().Message);
+                }
+            }
+
+            textChangedEvent = null;
+            removeTextChangedHandlerMethod = null;
+            textChangedHandler = null;
+            parkingZoneValueField = null;
+            localizationKeyProperty = null;
+            parkingTextContainer = null;
+            activeVehicleInfoPanel = null;
+            correctingParkingHud = false;
         }
     }
 }
