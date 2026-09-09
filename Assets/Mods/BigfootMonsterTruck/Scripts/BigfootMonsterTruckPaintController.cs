@@ -429,7 +429,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         factoryBadgeObject.transform.SetParent(bodyRenderer.transform, false);
         // Pull the copied surface a hair toward the front to avoid z-fighting
         // with the recolored copy underneath it.
-        factoryBadgeObject.transform.localPosition = new Vector3(0f, 0.0015f, 0f);
+        factoryBadgeObject.transform.localPosition = new Vector3(0f, 0.009f, 0f);
         factoryBadgeObject.layer = bodyRenderer.gameObject.layer;
         factoryBadgeObject.AddComponent<MeshFilter>().sharedMesh = factoryBadgeMesh;
         var badgeRenderer = factoryBadgeObject.AddComponent<MeshRenderer>();
@@ -493,7 +493,11 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         grilleBackingMesh.SetTriangles(grilleTriangles, 0, true);
         grilleBackingMesh.RecalculateBounds();
 
-        grilleBackingMaterial = new Material(originalMaterial)
+        var grilleShader = Shader.Find("HDRP/Unlit") ??
+                           Shader.Find("High Definition Render Pipeline/Unlit") ??
+                           Shader.Find("Unlit/Color") ??
+                           originalMaterial.shader;
+        grilleBackingMaterial = new Material(grilleShader)
         {
             name = "Bigfoot Repaintable Grille Backing"
         };
@@ -507,10 +511,15 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         ClearTexture(grilleBackingMaterial, "_DetailMap");
         SetFloat(grilleBackingMaterial, "_Metallic", 0.15f);
         SetFloat(grilleBackingMaterial, "_Smoothness", 0.40f);
+        SetFloat(grilleBackingMaterial, "_SurfaceType", 0f);
+        SetFloat(grilleBackingMaterial, "_ZWrite", 1f);
+        SetFloat(grilleBackingMaterial, "_Cull", 0f);
+        SetFloat(grilleBackingMaterial, "_CullMode", 0f);
+        grilleBackingMaterial.renderQueue = 2450;
 
         grilleBackingObject = new GameObject("BigfootMonsterTruck_PaintedGrilleBacking");
         grilleBackingObject.transform.SetParent(bodyRenderer.transform, false);
-        grilleBackingObject.transform.localPosition = new Vector3(0f, 0.0015f, 0f);
+        grilleBackingObject.transform.localPosition = new Vector3(0f, 0.006f, 0f);
         grilleBackingObject.layer = bodyRenderer.gameObject.layer;
         grilleBackingObject.AddComponent<MeshFilter>().sharedMesh = grilleBackingMesh;
         var backingRenderer = grilleBackingObject.AddComponent<MeshRenderer>();
@@ -724,6 +733,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             Mathf.Max(0.025f, tint.b * 0.72f),
             1f);
         SetColor(grilleBackingMaterial, "_BaseColor", color);
+        SetColor(grilleBackingMaterial, "_UnlitColor", color);
         SetColor(grilleBackingMaterial, "_Color", color);
         SetColor(grilleBackingMaterial, "baseColorFactor", color);
     }
