@@ -11,8 +11,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 {
     private const float DamageTolerance = 0.0001f;
     private const float SmallVehicleSuppressionWindow = 0.75f;
-    private const float CollisionLogCooldown = 5f;
-    private const float ClimbAssistLogCooldown = 3f;
     private const float ClimbLiftAcceleration = 3.25f;
     private const float ClimbDriveAcceleration = 4f;
     private const float TireContactDriveAcceleration = 8.5f;
@@ -40,7 +38,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
-    private readonly Dictionary<int, float> nextCollisionLogTimes = new();
     private VehicleController? vehicle;
     private VehicleDeformationController? deformationController;
     private FieldInfo? deformationQueueField;
@@ -51,14 +48,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private float approvedDamage;
     private float suppressDamageUntil;
     private int heavyImpactFrame = -1;
-    private float nextClimbAssistLogTime;
     private float latchedClimbUntil;
     private Vector3 latchedClimbDirection;
     private int latchedClimbVehicleId;
-    private bool latchedClimbApplicationLogged;
-    private float nextClimbSteeringLogTime;
     private float parkedContactDirectionUntil;
-    private float nextParkedStabilizationLogTime;
     private Vector3 parkedContactDirection;
     private int parkedContactVehicleId;
     private bool initialized;
@@ -80,8 +73,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             physicsVehicle = car.vehicleController;
             collisionListener = HandleVehicleCollision;
             physicsVehicle.onCollision.AddListener(collisionListener);
-            modContext?.Logger.Info(
-                $"BigfootMonsterTruck collision guard subscribed vehicle={controller.GetInstanceID()}.");
         }
         else
         {
@@ -190,21 +181,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     Vector3.up *
                     (steeringInput * driveDirection * LatchedClimbSteeringYawAcceleration),
                     ForceMode.Acceleration);
-            if (!latchedClimbApplicationLogged)
-            {
-                latchedClimbApplicationLogged = true;
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: latched climb applied in physics step " +
-                    $"speed={forwardSpeed:F2}m/s, lateral={lateralSpeed:F2}m/s, " +
-                    $"verticalTarget={LatchedClimbVerticalSpeed:F2}m/s.");
-            }
-            if (steeringAmount >= 0.15f && Time.unscaledTime >= nextClimbSteeringLogTime)
-            {
-                nextClimbSteeringLogTime = Time.unscaledTime + ClimbAssistLogCooldown;
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: climb steering assist active " +
-                    $"input={steeringInput:F2}, rate={LatchedClimbSteeringRate:F0}deg/s.");
-            }
         }
         catch (Exception exception)
         {
@@ -230,31 +206,15 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
                 return;
 
-            var otherName = otherPlayerVehicle != null
-                ? GetVehicleName(otherPlayerVehicle)
-                : trafficVehicle != null
-                    ? trafficVehicle.name
-                    : parkedVehicle!.name;
             var isHeavy = otherPlayerVehicle != null
                 ? IsHeavyVehicle(otherPlayerVehicle)
                 : trafficVehicle != null
                     ? IsHeavyVehicleIdentity(trafficVehicle.name)
                     : IsHeavyVehicleIdentity(parkedVehicle!.name);
-            var otherInstanceId = otherPlayerVehicle != null
-                ? otherPlayerVehicle.GetInstanceID()
-                : trafficVehicle != null
-                    ? trafficVehicle.GetInstanceID()
-                    : parkedVehicle!.GetInstanceID();
             if (isHeavy)
             {
                 heavyImpactFrame = Time.frameCount;
                 suppressDamageUntil = 0f;
-                if (ShouldLogCollision(otherInstanceId))
-                {
-                    context?.Logger.Info(
-                        $"BigfootMonsterTruck: heavy vehicle impact kept damage-enabled " +
-                        $"other='{otherName}'.");
-                }
                 return;
             }
 
@@ -262,12 +222,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 return;
             suppressDamageUntil = Time.unscaledTime + SmallVehicleSuppressionWindow;
             ClearPendingDeformationQueue();
-            if (ShouldLogCollision(otherInstanceId))
-            {
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: suppressing small-vehicle impact damage " +
-                    $"other='{otherName}' for {SmallVehicleSuppressionWindow:F2}s.");
-            }
         }
         catch (Exception exception)
         {
@@ -316,7 +270,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 StabilizeParkedContact(
                     parkedVehicle,
                     worldDriveDirection,
-                    forwardSpeed,
                     physicsVehicle.input.Steering);
                 velocity = vehicleBody.velocity;
                 forwardSpeed = Vector3.Dot(velocity, worldDriveDirection);
@@ -340,7 +293,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                                latchedClimbVehicleId != otherInstanceId;
                 if (newLatch)
                 {
-                    latchedClimbApplicationLogged = false;
                     latchedClimbDirection = Vector3.ProjectOnPlane(
                         worldDriveDirection,
                         Vector3.up).normalized;
@@ -396,28 +348,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             localAngularVelocity.z *= 0.82f;
             vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
 
-            if (Time.unscaledTime >= nextClimbAssistLogTime)
-            {
-                nextClimbAssistLogTime = Time.unscaledTime + ClimbAssistLogCooldown;
-                var otherName = otherPlayerVehicle != null
-                    ? GetVehicleName(otherPlayerVehicle)
-                    : trafficVehicle != null
-                        ? trafficVehicle.name
-                        : parkedVehicle!.name;
-                var assistMode = latchedClimb
-                    ? tireContact
-                        ? "latched-climb-tire"
-                        : "latched-climb-front"
-                    : tireContact
-                        ? "tire-traction"
-                        : "approach-lift";
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: climb assist active other='{otherName}' " +
-                    $"mode={assistMode}, " +
-                    $"direction={(driveDirection > 0f ? "forward" : "reverse")}, " +
-                    $"input={driveIntensity:F2}, speed={forwardSpeed:F2}m/s, " +
-                    $"vertical={verticalSpeed:F2}m/s, strength={driveStrength:F2}.");
-            }
         }
         catch (Exception exception)
         {
@@ -441,7 +371,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private void StabilizeParkedContact(
         Transform parkedVehicle,
         Vector3 worldDriveDirection,
-        float forwardSpeed,
         float steeringInput)
     {
         if (vehicle == null || vehicleBody == null)
@@ -487,15 +416,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         localAngularVelocity.z *= ParkedContactRollRetention;
         vehicleBody.angularVelocity = vehicle.transform.TransformDirection(localAngularVelocity);
 
-        if ((Mathf.Abs(lateralSpeed) >= 0.1f || descentCorrection > 0.1f) &&
-            now >= nextParkedStabilizationLogTime)
-        {
-            nextParkedStabilizationLogTime = now + ClimbAssistLogCooldown;
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: parked climb stabilized other='{parkedVehicle.name}', " +
-                $"speed={forwardSpeed:F2}m/s, lateralRemoved={lateralSpeed:F2}m/s, " +
-                $"descentRemoved={descentCorrection:F2}m/s.");
-        }
     }
 
     private static bool IsPhysicalTireContact(Collision collision)
@@ -576,16 +496,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
     private static bool IsVordV150(string vehicleName) =>
         vehicleName.IndexOf("vordv150", StringComparison.OrdinalIgnoreCase) >= 0;
-
-    private bool ShouldLogCollision(int otherInstanceId)
-    {
-        var now = Time.unscaledTime;
-        if (nextCollisionLogTimes.TryGetValue(otherInstanceId, out var nextLogTime) &&
-            now < nextLogTime)
-            return false;
-        nextCollisionLogTimes[otherInstanceId] = now + CollisionLogCooldown;
-        return true;
-    }
 
     private void ClearPendingDeformationQueue()
     {

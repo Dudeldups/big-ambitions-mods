@@ -6,7 +6,7 @@ Adj új külsőt járművednek anélkül, hogy újat vennél. A Vehicle Repainte
 [list]
 [*] Hajts be egy járművel egy benzinkút szokásos javító- és mosóállásába.
 [*] Válaszd az [b]Újrafestés (800 $)[/b] lehetőséget.
-[*] Az ismerős járműszín-választóval élőben megtekintheted az összes elérhető színt a járművön.
+[*] Válassz a kibővített, árnyalat szerint rendezett 96 színből, és mindegyiket élőben megtekintheted a járművön.
 [/list]
 
 [h2]Kompatibilitás[/h2]

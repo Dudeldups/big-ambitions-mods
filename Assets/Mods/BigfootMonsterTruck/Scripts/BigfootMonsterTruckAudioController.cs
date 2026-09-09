@@ -87,9 +87,6 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         roarSource = CreateSource("SuperchargedRoar", roarClip, 5200f, 0.18f, 90f);
         crackleSource = CreateSource("ExhaustCrackle", crackleClip, 6800f, 0.24f, 520f);
         configured = true;
-        context?.Logger.Info(
-            $"BigfootMonsterTruck audio configured vehicle={vehicle.GetInstanceID()}, " +
-            "layers=3, source=procedural-v8.");
         return true;
     }
 

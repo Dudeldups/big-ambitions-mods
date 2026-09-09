@@ -6,7 +6,7 @@ Yeni bir araç satın almadan aracınıza yepyeni bir görünüm kazandırın. V
 [list]
 [*] Bir aracı benzin istasyonunun normal tamir ve yıkama alanına sürün.
 [*] [b]Yeniden Boya (800 $)[/b] seçeneğini seçin.
-[*] Tanıdık araç renk seçicisini kullanarak mevcut tüm renkleri doğrudan aracınızın üzerinde önizleyin.
+[*] Tonlarına göre sıralanmış 96 renkten oluşan genişletilmiş paletten seçim yapın ve her rengi doğrudan aracınızın üzerinde önizleyin.
 [/list]
 
 [h2]Uyumluluk[/h2]

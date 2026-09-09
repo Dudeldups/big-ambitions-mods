@@ -6,7 +6,7 @@ Anna ajoneuvollesi uusi ilme ostamatta kokonaan uutta. Vehicle Repainter lisää
 [list]
 [*] Aja ajoneuvo huoltoaseman tavalliseen korjaus- ja pesupaikkaan.
 [*] Valitse [b]Uudelleenmaalaus (800 $)[/b].
-[*] Esikatsele kaikkia saatavilla olevia värejä suoraan ajoneuvossa tutulla ajoneuvon värivalitsimella.
+[*] Valitse laajennetusta 96 värin sävyittäin järjestetystä paletista ja esikatsele jokaista väriä suoraan ajoneuvossa.
 [/list]
 
 [h2]Yhteensopivuus[/h2]

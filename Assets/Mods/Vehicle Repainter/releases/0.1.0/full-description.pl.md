@@ -6,7 +6,7 @@ Odśwież wygląd swojego pojazdu bez kupowania nowego. Vehicle Repainter dodaje
 [list]
 [*] Wjedź pojazdem na standardowe stanowisko naprawy i mycia na stacji benzynowej.
 [*] Wybierz [b]Przemaluj (800 $)[/b].
-[*] Użyj znanego selektora koloru pojazdu, aby podejrzeć na żywo wszystkie dostępne kolory.
+[*] Wybierz z rozszerzonej palety 96 kolorów uporządkowanych według odcienia i podejrzyj każdy z nich bezpośrednio na pojeździe.
 [/list]
 
 [h2]Zgodność[/h2]
