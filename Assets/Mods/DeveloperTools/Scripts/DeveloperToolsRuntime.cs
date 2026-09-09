@@ -14,6 +14,7 @@ namespace DeveloperTools
         private DeveloperToolsPlayerService? playerService;
         private DeveloperToolsMapTeleport? mapTeleport;
         private DeveloperToolsTimeService? timeService;
+        private DeveloperToolsTrafficService? trafficService;
 
         public static DeveloperToolsRuntime Initialize(ModContext context, DeveloperToolsSettings settings)
         {
@@ -28,12 +29,14 @@ namespace DeveloperTools
             runtime.settings = settings;
             runtime.playerService = new DeveloperToolsPlayerService();
             runtime.timeService = new DeveloperToolsTimeService(context);
+            runtime.trafficService = new DeveloperToolsTrafficService(context);
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
                 new DeveloperToolsVehicleService(context),
                 new DeveloperToolsItemService(context),
                 runtime.playerService,
                 runtime.timeService,
+                runtime.trafficService,
                 new DeveloperToolsPauseService(context));
             runtime.mapTeleport = new DeveloperToolsMapTeleport(context, runtime.playerService);
             return runtime;
@@ -43,11 +46,19 @@ namespace DeveloperTools
         {
             overlay?.Shutdown();
             timeService?.Shutdown();
+            trafficService?.Shutdown();
             Destroy(gameObject);
         }
 
-        private void OnEnable() => SceneManager.sceneLoaded += HandleSceneLoaded;
-        private void OnDisable() => SceneManager.sceneLoaded -= HandleSceneLoaded;
+        private void OnEnable()
+        {
+            SceneManager.sceneLoaded += HandleSceneLoaded;
+        }
+
+        private void OnDisable()
+        {
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+        }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode) => overlay?.Hide();
 
@@ -67,6 +78,8 @@ namespace DeveloperTools
 
             if (overlay.ShouldConsumeGameplayInput)
                 overlay.ConsumeGameplayInput();
+
+            trafficService?.Update();
         }
 
         private void LateUpdate()

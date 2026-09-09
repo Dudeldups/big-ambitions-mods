@@ -21,6 +21,7 @@ namespace DeveloperTools
         private readonly DeveloperToolsItemService items;
         private readonly DeveloperToolsPlayerService player;
         private readonly DeveloperToolsTimeService time;
+        private readonly DeveloperToolsTrafficService traffic;
         private readonly DeveloperToolsPauseService pause;
         private readonly List<Texture2D> ownedTextures = new List<Texture2D>();
         private readonly List<object> suspendedGameplayActions = new List<object>();
@@ -63,6 +64,7 @@ namespace DeveloperTools
             DeveloperToolsItemService items,
             DeveloperToolsPlayerService player,
             DeveloperToolsTimeService time,
+            DeveloperToolsTrafficService traffic,
             DeveloperToolsPauseService pause)
         {
             this.context = context;
@@ -70,6 +72,7 @@ namespace DeveloperTools
             this.items = items;
             this.player = player;
             this.time = time;
+            this.traffic = traffic;
             this.pause = pause;
         }
 
@@ -293,6 +296,8 @@ namespace DeveloperTools
             mainScroll = GUILayout.BeginScrollView(mainScroll);
             DrawVehicleSpawner();
             Divider();
+            DrawTraffic();
+            Divider();
             DrawMoney();
             Divider();
             DrawTimeAdvancer();
@@ -337,6 +342,34 @@ namespace DeveloperTools
             GUI.backgroundColor = previousBackgroundColor;
             if (GUILayout.Button("Despawn Last Spawned Vehicle"))
                 vehicles.DespawnLast(out status);
+        }
+
+        private void DrawTraffic()
+        {
+            GUILayout.Label("Traffic", GUI.skin.box);
+            GUILayout.Label("NPC Vehicle Traffic");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Vanilla (1x)"))
+                traffic.SetTrafficMultiplier(1f, out status);
+            if (GUILayout.Button("NPC Traffic 2x"))
+                traffic.SetTrafficMultiplier(2f, out status);
+            if (GUILayout.Button("NPC Traffic 5x"))
+                traffic.SetTrafficMultiplier(5f, out status);
+            GUILayout.EndHorizontal();
+
+            var previousBackgroundColor = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.82f, 0.38f, 0.32f, 1f);
+            if (GUILayout.Button("Disable Traffic"))
+                traffic.DisableTraffic(out status);
+
+            GUILayout.Space(5f);
+            GUILayout.Label("Parked Cars");
+            GUI.backgroundColor = traffic.ParkedCarsEnabled
+                ? new Color(0.86f, 0.55f, 0.24f, 1f)
+                : new Color(0.38f, 0.72f, 0.42f, 1f);
+            if (GUILayout.Button(traffic.ParkedCarsEnabled ? "Disable Parked Cars" : "Enable Parked Cars"))
+                traffic.ToggleParkedCars(out status);
+            GUI.backgroundColor = previousBackgroundColor;
         }
 
         private void DrawVehicleCatalog(
