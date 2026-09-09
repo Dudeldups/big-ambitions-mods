@@ -531,10 +531,6 @@ namespace VehicleRepainter
                     originalColor = vehicle.CarFeatures.VehicleColor;
 
                 originalPaint = new VehiclePaintSnapshot(vehicle.CarFeatures, originalColor);
-                context.Logger.Info(
-                    $"Opened repaint session for vehicle id '{vehicle.vehicleInstance.id}': " +
-                    $"saved='{originalSavedColorName}', initial='{committedColorName}', " +
-                    $"live='{GetColorName(vehicle.CarFeatures.VehicleColor)}', renderers={originalPaint.RendererCount}.");
             }
 
             internal void BeginSession()
@@ -631,11 +627,7 @@ namespace VehicleRepainter
 
                 selectedColorName = colorName;
                 if (updateVisuals && vehicle.CarFeatures != null)
-                {
                     vehicle.CarFeatures.SetColor(vehicleColor);
-                    context.Logger.Info(
-                        $"Previewed repaint color '{colorName}' for vehicle id '{vehicle.vehicleInstance?.id}'.");
-                }
             }
 
             public void ResetColor()
@@ -649,18 +641,9 @@ namespace VehicleRepainter
 
                 if (!purchaseCompleted && vehicle != null && vehicle.CarFeatures != null)
                 {
-                    var savedColorBeforeRollback = vehicle.vehicleInstance?.vehicleColorName ?? string.Empty;
-                    var liveColorBeforeRollback = GetColorName(vehicle.CarFeatures.VehicleColor);
                     originalPaint.Restore(vehicle.CarFeatures);
                     if (vehicle.vehicleInstance != null)
                         vehicle.vehicleInstance.vehicleColorName = originalSavedColorName;
-
-                    context.Logger.Info(
-                        $"Cancelled repaint for vehicle id '{vehicle.vehicleInstance?.id}': " +
-                        $"selected='{selectedColorName}', savedBefore='{savedColorBeforeRollback}', " +
-                        $"savedAfter='{vehicle.vehicleInstance?.vehicleColorName}', " +
-                        $"liveBefore='{liveColorBeforeRollback}', liveAfter='{GetColorName(vehicle.CarFeatures.VehicleColor)}', " +
-                        $"renderers={originalPaint.RendererCount}.");
                 }
 
                 if (movementLocked && vehicle != null)
@@ -706,8 +689,6 @@ namespace VehicleRepainter
                 SetColor(selectedColorName);
                 committedColorName = selectedColorName;
                 purchaseCompleted = true;
-                context.Logger.Info(
-                    $"Completed repaint purchase for vehicle id '{vehicle.vehicleInstance.id}' with color '{selectedColorName}'.");
                 SaveGameManager.MarkChange();
                 GameEvent.Invoke(string.Empty);
                 InstanceBehavior<SfxManager>.Instance.PlayAudio(
@@ -906,17 +887,10 @@ namespace VehicleRepainter
                 return colors.Count > 0 ? ((UnityEngine.Object)colors[0]).name : string.Empty;
             }
 
-            private static string GetColorName(VehicleColor? color)
-            {
-                return color == null ? "<none>" : ((UnityEngine.Object)color).name;
-            }
-
             private sealed class VehiclePaintSnapshot
             {
                 private readonly VehicleColor? vehicleColor;
                 private readonly List<RendererPaintSnapshot> rendererSnapshots = new List<RendererPaintSnapshot>();
-
-                internal int RendererCount => rendererSnapshots.Count;
 
                 internal VehiclePaintSnapshot(CarFeatures carFeatures, VehicleColor? vehicleColor)
                 {
