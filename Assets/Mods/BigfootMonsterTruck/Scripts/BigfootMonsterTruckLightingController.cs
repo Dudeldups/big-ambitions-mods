@@ -103,13 +103,12 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
                 var a = triangles[index];
                 var b = triangles[index + 1];
                 var c = triangles[index + 2];
-                var centerUv = (uv[a] + uv[b] + uv[c]) / 3f;
                 var center = (vehiclePositions[a] + vehiclePositions[b] + vehiclePositions[c]) / 3f;
-                var inHeadlightAtlas =
-                    centerUv.y >= 0.50f && centerUv.y <= 0.63f &&
-                    ((centerUv.x >= 0.015f && centerUv.x <= 0.275f) ||
-                     (centerUv.x >= 0.295f && centerUv.x <= 0.52f));
-                if (!inHeadlightAtlas || center.z < 1.65f || center.y < 0.7f || center.y > 2.1f)
+                var touchesHeadlightAtlas = IsPaintedHeadlightUv(uv[a]) ||
+                                            IsPaintedHeadlightUv(uv[b]) ||
+                                            IsPaintedHeadlightUv(uv[c]);
+                if (!touchesHeadlightAtlas || Mathf.Abs(center.x) < 0.85f ||
+                    center.z < 1.9f || center.y < 1.35f || center.y > 1.95f)
                     continue;
                 selected.Add(a);
                 selected.Add(b);
@@ -153,6 +152,11 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
             return null;
         }
     }
+
+    private static bool IsPaintedHeadlightUv(Vector2 uv) =>
+        uv.y >= 0.55f && uv.y <= 0.64f &&
+        ((uv.x >= 0.06f && uv.x <= 0.15f) ||
+         (uv.x >= 0.40f && uv.x <= 0.51f));
 
     private Material CreateEmissiveMaterial(Material? source)
     {
