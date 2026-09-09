@@ -91,6 +91,8 @@ namespace MootorVehicle
         {
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
             GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+            GlobalEvents.onExitVehicle -= HandleVehicleExited;
+            GlobalEvents.onExitVehicle += HandleVehicleExited;
             GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
             GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
             GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -100,6 +102,7 @@ namespace MootorVehicle
         private void UnsubscribeGlobalEvents()
         {
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+            GlobalEvents.onExitVehicle -= HandleVehicleExited;
             GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
             GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
         }
@@ -128,6 +131,14 @@ namespace MootorVehicle
         private void HandleVehicleEntered(VehicleController vehicleController)
         {
             TryConfigureVehicle(vehicleController, "vehicle-entered");
+        }
+
+        private void HandleVehicleExited(VehicleController vehicleController)
+        {
+            if (!IsMootorVehicle(vehicleController))
+                return;
+
+            ApplyFreeParking(vehicleController);
         }
 
         private void HandleFullMenuToggle(bool isOpen)
@@ -240,44 +251,75 @@ namespace MootorVehicle
 
         private bool TryConfigureVehicle(VehicleController? vehicleController, string source)
         {
-            if (vehicleController?.vehicleInstance == null ||
-                !string.Equals(
-                    vehicleController.vehicleInstance.vehicleTypeName,
-                    vehicleTypeName,
-                    StringComparison.Ordinal))
-            {
+            if (!IsMootorVehicle(vehicleController))
                 return false;
-            }
 
-            var riderController = vehicleController.GetComponent<MootorVehicleRiderController>();
+            var configuredVehicle = vehicleController!;
+            ApplyFreeParking(configuredVehicle);
+
+            var riderController = configuredVehicle.GetComponent<MootorVehicleRiderController>();
             var added = riderController == null;
             if (added)
-                riderController = vehicleController.gameObject.AddComponent<MootorVehicleRiderController>();
+                riderController = configuredVehicle.gameObject.AddComponent<MootorVehicleRiderController>();
 
-            var fuelController = vehicleController.GetComponent<MootorVehicleFuelController>();
+            var fuelController = configuredVehicle.GetComponent<MootorVehicleFuelController>();
             if (fuelController == null)
-                fuelController = vehicleController.gameObject.AddComponent<MootorVehicleFuelController>();
+                fuelController = configuredVehicle.gameObject.AddComponent<MootorVehicleFuelController>();
 
-            var materialController = vehicleController.GetComponent<MootorVehicleMaterialController>();
+            var materialController = configuredVehicle.GetComponent<MootorVehicleMaterialController>();
             if (materialController == null)
-                materialController = vehicleController.gameObject.AddComponent<MootorVehicleMaterialController>();
+                materialController = configuredVehicle.gameObject.AddComponent<MootorVehicleMaterialController>();
 
-            var ambientController = vehicleController.GetComponent<MootorVehicleAmbientMooController>();
+            var ambientController = configuredVehicle.GetComponent<MootorVehicleAmbientMooController>();
             if (ambientController == null)
-                ambientController = vehicleController.gameObject.AddComponent<MootorVehicleAmbientMooController>();
+                ambientController = configuredVehicle.gameObject.AddComponent<MootorVehicleAmbientMooController>();
 
-            var impactController = vehicleController.GetComponent<MootorVehicleImpactController>();
+            var impactController = configuredVehicle.GetComponent<MootorVehicleImpactController>();
             if (impactController == null)
-                impactController = vehicleController.gameObject.AddComponent<MootorVehicleImpactController>();
+                impactController = configuredVehicle.gameObject.AddComponent<MootorVehicleImpactController>();
 
-            materialController.Initialize(vehicleController, context);
-            fuelController.Initialize(vehicleController, context);
-            ambientController.Initialize(vehicleController, context);
-            impactController.Initialize(vehicleController, context);
-            riderController!.Initialize(vehicleController, context);
+            materialController.Initialize(configuredVehicle, context);
+            fuelController.Initialize(configuredVehicle, context);
+            ambientController.Initialize(configuredVehicle, context);
+            impactController.Initialize(configuredVehicle, context);
+            riderController!.Initialize(configuredVehicle, context);
             if (source == "vehicle-entered")
                 riderController.NotifyMounted();
             return added;
+        }
+
+        private bool IsMootorVehicle(VehicleController? vehicleController)
+        {
+            return vehicleController?.vehicleInstance != null &&
+                   string.Equals(
+                       vehicleController.vehicleInstance.vehicleTypeName,
+                       vehicleTypeName,
+                       StringComparison.Ordinal);
+        }
+
+        private void ApplyFreeParking(VehicleController vehicleController)
+        {
+            var instance = vehicleController.vehicleInstance;
+            if (instance == null)
+                return;
+
+            var changed = instance.parkingState != ParkingState.NotAvailable ||
+                          !string.IsNullOrEmpty(instance.parkingNeighbourhood) ||
+                          instance.unpaidParkingAmount > 0f;
+            if (!changed)
+                return;
+
+            // Native scooters never run CarController.UpdateParkingZone(), so their saved parking
+            // state does not become Illegal or accrue meter fees. Apply that same exemption at the
+            // standard vehicle-exit event while keeping the cow on the proven car controller.
+            instance.parkingState = ParkingState.NotAvailable;
+            instance.parkingNeighbourhood = string.Empty;
+            instance.unpaidParkingAmount = 0f;
+            SaveGameManager.MarkChange();
+            GlobalEvents.onVehicleVariablesChanged?.Invoke();
+            MootorVehicleDiagnostics.Info(
+                context,
+                $"Moo-tor Vehicle: applied free sidewalk parking to vehicle={vehicleController.GetInstanceID()}.");
         }
     }
 }

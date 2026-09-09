@@ -6,6 +6,7 @@ Trade horsepower for cow power and ride through the city on a fully driveable co
 [list]
 [*] Purchase and own the cow from City Cars.
 [*] Mount, steer, brake, dismount, park, and save it through the standard vehicle system.
+[*] Park on the sidewalk without parking fees or tickets.
 [*] Keep your character visible while riding, with a cow-riding pose and visible carried packages.
 [*] Animated walking legs and occasional ear flaps.
 [*] Moo horn, crash moo, and spatial ambient moos while the cow is parked nearby.
