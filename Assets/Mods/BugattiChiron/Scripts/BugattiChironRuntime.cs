@@ -300,6 +300,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (bridgeSeamGuard == null)
                 bridgeSeamGuard = vehicle.gameObject.AddComponent<BugattiChironBridgeSeamGuard>();
             bridgeSeamGuard.Initialize(vehicle, context);
+            var pinRecovery = vehicle.GetComponent<BugattiChironAiVehiclePinRecovery>();
+            if (pinRecovery == null)
+                pinRecovery = vehicle.gameObject.AddComponent<BugattiChironAiVehiclePinRecovery>();
+            pinRecovery.Initialize(vehicle, context);
 
             context?.Logger.Info(
                 $"BugattiChiron: configured vehicle instance={instanceId}, " +
@@ -924,6 +928,202 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                 $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
                 $"with {ex.GetType().Name}: {ex.Message}");
         }
+    }
+}
+
+[AddComponentMenu("")]
+internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
+{
+    private const float MaximumStuckSpeedMps = 0.75f;
+    private const float RequiredThrottle = 0.35f;
+    private const float RequiredContactSeconds = 0.65f;
+    private const float RequiredThrottleSeconds = 0.8f;
+    private const float RecoveryCollisionIgnoreSeconds = 1.15f;
+    private const float RecoveryEscapeSpeedMps = 2.5f;
+    private const float RecoveryLiftSpeedMps = 0.25f;
+    private const float RecoveryCooldownSeconds = 3f;
+
+    private readonly List<Collider> ownBodyColliders = new();
+    private readonly List<Collider> ignoredOtherColliders = new();
+    private VehicleController? vehicle;
+    private NWH.VehiclePhysics2.VehicleController? physicsVehicle;
+    private Rigidbody? body;
+    private Rigidbody? contactedBody;
+    private ModContext? context;
+    private float contactStartedAt;
+    private float throttleStartedAt;
+    private float recoveryEndsAt;
+    private float nextRecoveryAt;
+    private bool recoveryActive;
+
+    internal void Initialize(VehicleController controller, ModContext? modContext)
+    {
+        vehicle = controller;
+        context = modContext;
+        physicsVehicle = controller.GetComponent<NWH.VehiclePhysics2.VehicleController>();
+        body = controller.GetComponent<Rigidbody>();
+        ownBodyColliders.Clear();
+        foreach (var child in controller.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+            ownBodyColliders.AddRange(child.GetComponents<Collider>());
+        }
+
+        context?.Logger.Info(
+            $"BugattiChiron pin recovery vehicle={controller.GetInstanceID()}: " +
+            $"bodyColliders={ownBodyColliders.Count} enabled=true.");
+    }
+
+    private void FixedUpdate()
+    {
+        if (recoveryActive)
+        {
+            if (Time.unscaledTime >= recoveryEndsAt)
+                RestoreCollisions();
+            return;
+        }
+
+        if (vehicle == null || physicsVehicle == null || body == null ||
+            !vehicle.controlledByPlayer || contactedBody == null ||
+            Time.unscaledTime < nextRecoveryAt)
+        {
+            throttleStartedAt = 0f;
+            return;
+        }
+
+        var throttle = Mathf.Abs(physicsVehicle.input.Throttle);
+        if (throttle < RequiredThrottle || body.velocity.magnitude > MaximumStuckSpeedMps)
+        {
+            throttleStartedAt = 0f;
+            return;
+        }
+
+        if (throttleStartedAt <= 0f)
+            throttleStartedAt = Time.unscaledTime;
+        if (Time.unscaledTime - contactStartedAt < RequiredContactSeconds ||
+            Time.unscaledTime - throttleStartedAt < RequiredThrottleSeconds)
+        {
+            return;
+        }
+
+        BeginRecovery();
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        TrackAiVehicleContact(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        TrackAiVehicleContact(collision);
+    }
+
+    private void OnCollisionExit(Collision collision)
+    {
+        if (!recoveryActive && collision?.rigidbody == contactedBody)
+            ClearContact();
+    }
+
+    private void OnDisable()
+    {
+        RestoreCollisions();
+    }
+
+    private void TrackAiVehicleContact(Collision collision)
+    {
+        if (recoveryActive || collision == null || collision.rigidbody == null ||
+            collision.rigidbody == body)
+        {
+            return;
+        }
+
+        var otherVehicle = collision.rigidbody.GetComponent<NWH.VehiclePhysics2.VehicleController>() ??
+                           collision.rigidbody.GetComponentInParent<NWH.VehiclePhysics2.VehicleController>();
+        var otherLayer = collision.collider != null
+            ? LayerMask.LayerToName(collision.collider.gameObject.layer)
+            : string.Empty;
+        if (otherVehicle == null &&
+            !string.Equals(otherLayer, "AiVehicles", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (contactedBody == collision.rigidbody)
+            return;
+        contactedBody = collision.rigidbody;
+        contactStartedAt = Time.unscaledTime;
+        throttleStartedAt = 0f;
+    }
+
+    private void BeginRecovery()
+    {
+        if (vehicle == null || physicsVehicle == null || body == null || contactedBody == null)
+            return;
+
+        ignoredOtherColliders.Clear();
+        var otherColliders = contactedBody.GetComponentsInChildren<Collider>(true);
+        var ignoredPairs = 0;
+        foreach (var other in otherColliders)
+        {
+            if (other == null)
+                continue;
+            ignoredOtherColliders.Add(other);
+            foreach (var own in ownBodyColliders)
+            {
+                if (own == null || own == other)
+                    continue;
+                Physics.IgnoreCollision(own, other, true);
+                ignoredPairs++;
+            }
+        }
+
+        var gear = physicsVehicle.powertrain.transmission.Gear;
+        var escapeDirection = gear < 0 ? -vehicle.transform.forward : vehicle.transform.forward;
+        var longitudinalSpeed = Vector3.Dot(body.velocity, escapeDirection);
+        if (longitudinalSpeed < RecoveryEscapeSpeedMps)
+            body.velocity += escapeDirection * (RecoveryEscapeSpeedMps - longitudinalSpeed);
+        body.velocity += Vector3.up * RecoveryLiftSpeedMps;
+        body.WakeUp();
+
+        recoveryActive = true;
+        recoveryEndsAt = Time.unscaledTime + RecoveryCollisionIgnoreSeconds;
+        nextRecoveryAt = recoveryEndsAt + RecoveryCooldownSeconds;
+        context?.Logger.Warn(
+            $"BugattiChiron pin recovery vehicle={vehicle.GetInstanceID()}: released AI vehicle overlap " +
+            $"other='{contactedBody.name}' gear={gear} ignoredPairs={ignoredPairs} " +
+            $"escapeSpeed={RecoveryEscapeSpeedMps:0.0}mps ignoreFor=" +
+            $"{RecoveryCollisionIgnoreSeconds:0.00}s.");
+    }
+
+    private void RestoreCollisions()
+    {
+        if (!recoveryActive)
+            return;
+        foreach (var other in ignoredOtherColliders)
+        {
+            if (other == null)
+                continue;
+            foreach (var own in ownBodyColliders)
+            {
+                if (own != null && own != other)
+                    Physics.IgnoreCollision(own, other, false);
+            }
+        }
+
+        recoveryActive = false;
+        ignoredOtherColliders.Clear();
+        ClearContact();
+        context?.Logger.Info(
+            $"BugattiChiron pin recovery vehicle={vehicle?.GetInstanceID()}: collisions restored.");
+    }
+
+    private void ClearContact()
+    {
+        contactedBody = null;
+        contactStartedAt = 0f;
+        throttleStartedAt = 0f;
     }
 }
 
