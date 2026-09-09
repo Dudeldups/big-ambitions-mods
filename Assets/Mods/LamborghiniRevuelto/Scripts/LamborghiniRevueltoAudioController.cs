@@ -22,6 +22,7 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
     private AudioSource? idleSource;
     private AudioSource? crackleSource;
     private AudioSource? hornSource;
+    private AudioSource? hornSupportSource;
     private AudioClip? crackleClip;
     private float originalDistortion;
     private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
@@ -91,14 +92,16 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         hornHost.transform.SetParent(audioHost.transform, false);
         var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
         if (otherSource == null || otherSource.outputAudioMixerGroup == null) otherSource = native;
-        hornSource = CreateSource(hornHost, LoadClip("Horn"), true, otherSource);
+        var hornClip = LoadClip("Horn");
+        hornSource = CreateSource(hornHost, hornClip, true, otherSource);
+        hornSupportSource = CreateSource(hornHost, hornClip, true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
         context.Logger.Info(
             $"LamborghiniRevuelto audio configured vehicle={vehicle.GetInstanceID()}, " +
             $"engineLayers=7, engineGain={LamborghiniRevueltoAudioModel.EngineBaseVolume:0.00}.." +
             $"{LamborghiniRevueltoAudioModel.EngineBaseVolume + LamborghiniRevueltoAudioModel.EngineThrottleVolume:0.00}, " +
-            $"hornGain={LamborghiniRevueltoAudioModel.HornVolume:0.00}, " +
+            $"hornVoices=2x{LamborghiniRevueltoAudioModel.HornVolumePerVoice:0.00}, " +
             $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
             "exhaust=continuous-subtle-crackle.");
         return true;
@@ -145,7 +148,7 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
-            hornSource == null || idleSource == null)
+            hornSource == null || hornSupportSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
@@ -227,17 +230,19 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
 
     private void UpdateHorn(bool pressed, float master)
     {
-        if (hornSource == null) return;
-        var target = pressed ? master * LamborghiniRevueltoAudioModel.HornVolume : 0f;
-        hornSource.volume = Mathf.MoveTowards(hornSource.volume, target, Time.unscaledDeltaTime * 5f);
-        if (pressed && !hornSource.isPlaying)
-        {
-            hornSource.Play();
-        }
-        else if (!pressed && hornSource.volume <= 0f && hornSource.isPlaying)
-        {
-            hornSource.Stop();
-        }
+        if (hornSource == null || hornSupportSource == null) return;
+        var target = pressed ? master * LamborghiniRevueltoAudioModel.HornVolumePerVoice : 0f;
+        UpdateHornVoice(hornSource, pressed, target);
+        UpdateHornVoice(hornSupportSource, pressed, target);
+    }
+
+    private static void UpdateHornVoice(AudioSource source, bool pressed, float target)
+    {
+        source.volume = Mathf.MoveTowards(source.volume, target, Time.unscaledDeltaTime * 5f);
+        if (pressed && !source.isPlaying)
+            source.Play();
+        else if (!pressed && source.volume <= 0f && source.isPlaying)
+            source.Stop();
     }
 
     private void Warn(string message) => context?.Logger.Warn($"LamborghiniRevuelto audio vehicle={vehicle?.GetInstanceID()}: {message}");
@@ -264,6 +269,11 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
             hornSource.Stop();
             hornSource.volume = 0f;
         }
+        if (hornSupportSource != null)
+        {
+            hornSupportSource.Stop();
+            hornSupportSource.volume = 0f;
+        }
         RestoreMute();
         if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
         envelope = smoothRpm = smoothThrottle = driveBlend = loadBlend = 0f;
@@ -285,6 +295,7 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         idleSource = null;
         crackleSource = null;
         hornSource = null;
+        hornSupportSource = null;
         if (crackleClip != null) Destroy(crackleClip);
         crackleClip = null;
         foreach (var clip in ownedClips) if (clip != null) Destroy(clip);

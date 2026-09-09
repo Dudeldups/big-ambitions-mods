@@ -14,6 +14,8 @@ public static class LamborghiniRevueltoSetup
     private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath = ModRoot + "/Models/free_lamborghini_revuelto.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
+    private const string RightRimMaterialPath =
+        MaterialFolder + "/LamborghiniOpaque_19_material_Right.mat";
     private const string VehicleAssetPath = ModRoot + "/LamborghiniRevuelto.asset";
     private const string VehiclePrefabPath = ModRoot + "/LamborghiniRevuelto.prefab";
     private const string ManifestPath = ModRoot + "/ModManifest.asset";
@@ -346,6 +348,10 @@ public static class LamborghiniRevueltoSetup
                     {
                         rimSlots++;
                         rimMaterials.Add(material);
+                        var expectedRimColor =
+                            LamborghiniRevueltoMaterials.IsRightRimRenderer(renderer.transform)
+                                ? LamborghiniRevueltoMaterials.RimRightBaseColor
+                                : LamborghiniRevueltoMaterials.RimBaseColor;
                         var rimColor = material.HasProperty("_BaseColor")
                             ? material.GetColor("_BaseColor")
                             : Color.clear;
@@ -354,9 +360,9 @@ public static class LamborghiniRevueltoSetup
                             Math.Abs(material.GetFloat("_Metallic") - LamborghiniRevueltoMaterials.RimMetallic) < 0.01f &&
                             material.HasProperty("_Smoothness") &&
                             Math.Abs(material.GetFloat("_Smoothness") - LamborghiniRevueltoMaterials.RimSmoothness) < 0.01f &&
-                            Math.Abs(rimColor.r - LamborghiniRevueltoMaterials.RimBaseColor.r) < 0.01f &&
-                            Math.Abs(rimColor.g - LamborghiniRevueltoMaterials.RimBaseColor.g) < 0.01f &&
-                            Math.Abs(rimColor.b - LamborghiniRevueltoMaterials.RimBaseColor.b) < 0.01f;
+                            Math.Abs(rimColor.r - expectedRimColor.r) < 0.01f &&
+                            Math.Abs(rimColor.g - expectedRimColor.g) < 0.01f &&
+                            Math.Abs(rimColor.b - expectedRimColor.b) < 0.01f;
                     }
                     if (IsInteriorPrimaryPaintMaterial(material)) interiorPrimaryPaintSlots++;
                     if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
@@ -480,7 +486,7 @@ public static class LamborghiniRevueltoSetup
                 interiorAccentPaintSlots == 0 ||
                 caliperSlots != 4 ||
                 rimSlots != 4 ||
-                rimMaterials.Count != 1 ||
+                rimMaterials.Count != 2 ||
                 !rimFinishValid ||
                 !paintReferencesValid)
             {
@@ -524,7 +530,7 @@ public static class LamborghiniRevueltoSetup
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
-                $"calipersPainted=true, rimsFactoryColor=true, rimFinish=matte-graphite, " +
+                $"calipersPainted=true, rimsFactoryColor=true, rimFinish=balanced-matte-graphite, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -1032,33 +1038,81 @@ public static class LamborghiniRevueltoSetup
 
     private static int ConfigureRimFinish(GameObject root)
     {
-        var configured = new HashSet<Material>();
+        Material? leftMaterial = null;
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
         {
             if (!LamborghiniRevueltoMaterials.IsLamborghiniRenderer(renderer.transform))
                 continue;
             foreach (var material in renderer.sharedMaterials)
             {
-                if (material == null || !IsRimMaterial(material) || !configured.Add(material))
-                    continue;
-                if (material.HasProperty("_BaseColor"))
-                    material.SetColor("_BaseColor", LamborghiniRevueltoMaterials.RimBaseColor);
-                if (material.HasProperty("_Color"))
-                    material.SetColor("_Color", LamborghiniRevueltoMaterials.RimBaseColor);
-                if (material.HasProperty("baseColorFactor"))
-                    material.SetColor("baseColorFactor", LamborghiniRevueltoMaterials.RimBaseColor);
-                if (material.HasProperty("_Metallic"))
-                    material.SetFloat("_Metallic", LamborghiniRevueltoMaterials.RimMetallic);
-                if (material.HasProperty("_Smoothness"))
-                    material.SetFloat("_Smoothness", LamborghiniRevueltoMaterials.RimSmoothness);
-                EditorUtility.SetDirty(material);
+                if (material != null && IsRimMaterial(material) &&
+                    material.name.IndexOf("_Right", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    leftMaterial = material;
+                    break;
+                }
             }
+            if (leftMaterial != null)
+                break;
         }
 
-        if (configured.Count != 1)
+        if (leftMaterial == null)
+            throw new InvalidOperationException("The shared Lamborghini rim material is missing.");
+
+        ApplyRimFinish(leftMaterial, LamborghiniRevueltoMaterials.RimBaseColor);
+        var rightMaterial = AssetDatabase.LoadAssetAtPath<Material>(RightRimMaterialPath);
+        if (rightMaterial == null)
+        {
+            rightMaterial = new Material(leftMaterial)
+            {
+                name = "LamborghiniOpaque_19_material_Right",
+            };
+            AssetDatabase.CreateAsset(rightMaterial, RightRimMaterialPath);
+        }
+        else
+        {
+            rightMaterial.CopyPropertiesFromMaterial(leftMaterial);
+            rightMaterial.shader = leftMaterial.shader;
+        }
+        ApplyRimFinish(rightMaterial, LamborghiniRevueltoMaterials.RimRightBaseColor);
+
+        var configuredSlots = 0;
+        foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!LamborghiniRevueltoMaterials.IsLamborghiniRenderer(renderer.transform))
+                continue;
+            var materials = renderer.sharedMaterials;
+            var changed = false;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                if (materials[index] == null || !IsRimMaterial(materials[index]))
+                    continue;
+                materials[index] = LamborghiniRevueltoMaterials.IsRightRimRenderer(renderer.transform)
+                    ? rightMaterial
+                    : leftMaterial;
+                configuredSlots++;
+                changed = true;
+            }
+            if (changed)
+                renderer.sharedMaterials = materials;
+        }
+
+        if (configuredSlots != 4)
             throw new InvalidOperationException(
-                $"Expected one shared Lamborghini rim material, found {configured.Count}.");
-        return configured.Count;
+                $"Expected four Lamborghini rim slots, found {configuredSlots}.");
+        return configuredSlots;
+    }
+
+    private static void ApplyRimFinish(Material material, Color baseColor)
+    {
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", baseColor);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", baseColor);
+        if (material.HasProperty("baseColorFactor")) material.SetColor("baseColorFactor", baseColor);
+        if (material.HasProperty("_Metallic"))
+            material.SetFloat("_Metallic", LamborghiniRevueltoMaterials.RimMetallic);
+        if (material.HasProperty("_Smoothness"))
+            material.SetFloat("_Smoothness", LamborghiniRevueltoMaterials.RimSmoothness);
+        EditorUtility.SetDirty(material);
     }
 
     private static bool IsCaliperMaterial(Material material) =>

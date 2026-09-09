@@ -284,6 +284,14 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             if (audioController == null)
                 audioController = vehicle.gameObject.AddComponent<LamborghiniRevueltoAudioController>();
             audioController.Initialize(vehicle, context);
+            var accelerationTelemetry =
+                vehicle.GetComponent<LamborghiniRevueltoAccelerationTelemetry>();
+            if (accelerationTelemetry == null)
+            {
+                accelerationTelemetry = vehicle.gameObject
+                    .AddComponent<LamborghiniRevueltoAccelerationTelemetry>();
+            }
+            accelerationTelemetry.Initialize(vehicle, context);
 
             context?.Logger.Info(
                 $"LamborghiniRevuelto: configured vehicle instance={instanceId}, " +

@@ -36,6 +36,7 @@ public static class LamborghiniRevueltoMaterials
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
     public static readonly Color RimBaseColor = new Color(0.16f, 0.16f, 0.16f, 1f);
+    public static readonly Color RimRightBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string RimMaterialMarker = "LamborghiniOpaque_19_material";
@@ -119,15 +120,18 @@ public static class LamborghiniRevueltoMaterials
                 continue;
             }
 
-            // All four rims share one asset. A per-renderer override prevents
-            // pooled property blocks or vehicle paint state from making one
-            // side appear to use a different finish. This runs once when the
-            // vehicle instance is configured; no frame polling is required.
+            // The imported right-side mesh shades materially darker under the
+            // game's vehicle lighting. Its calibrated base value compensates
+            // that response while keeping the same graphite finish. This runs
+            // once during initialization; no frame polling is required.
+            var baseColor = IsRightRimRenderer(renderer.transform)
+                ? RimRightBaseColor
+                : RimBaseColor;
             var properties = new MaterialPropertyBlock();
             renderer.GetPropertyBlock(properties, index);
-            properties.SetColor("_BaseColor", RimBaseColor);
-            properties.SetColor("_Color", RimBaseColor);
-            properties.SetColor("baseColorFactor", RimBaseColor);
+            properties.SetColor("_BaseColor", baseColor);
+            properties.SetColor("_Color", baseColor);
+            properties.SetColor("baseColorFactor", baseColor);
             properties.SetFloat("_Metallic", RimMetallic);
             properties.SetFloat("_Smoothness", RimSmoothness);
             renderer.SetPropertyBlock(properties, index);
@@ -135,6 +139,18 @@ public static class LamborghiniRevueltoMaterials
         }
 
         return normalized;
+    }
+
+    public static bool IsRightRimRenderer(Transform transform)
+    {
+        for (var current = transform; current != null; current = current.parent)
+        {
+            if (!current.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal))
+                continue;
+            return current.name.EndsWith("Right", StringComparison.Ordinal);
+        }
+
+        return false;
     }
 
     public static bool IsTransparentMaterial(Material material)

@@ -5,13 +5,13 @@ using System;
 internal static class LamborghiniRevueltoAudioModel
 {
     internal const float IdlePitch = 1f;
-    internal const float HornVolume = 1f;
-    internal const float EngineBaseVolume = .32f;
-    internal const float EngineThrottleVolume = .34f;
+    internal const float HornVolumePerVoice = .85f;
+    internal const float EngineBaseVolume = .48f;
+    internal const float EngineThrottleVolume = .47f;
     internal const float CrackleIdleVolume = .009f;
     internal const float CrackleLoadVolume = .024f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
-    internal static float IdleVolume(float drivingBlend) => .24f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) => .36f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the inherited low-speed idle bed out quickly; the synthesized
