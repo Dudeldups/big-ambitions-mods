@@ -13,7 +13,6 @@ namespace CameraTools
         private readonly List<CityFogState> cityFogStates = new List<CityFogState>();
         private readonly HashSet<int> trackedCityFogIds = new HashSet<int>();
         private bool cityFogSuppressionApplied;
-        private bool hasWarnedAboutMissingCityFogProfiles;
         private float nextCityFogProfileScanTime;
 
         private void UpdateCityFogSuppression()
@@ -43,12 +42,10 @@ namespace CameraTools
                 return;
 
             cityFogSuppressionApplied = true;
-            context?.Logger.Info($"CameraTools: outdoor city fog disabled; trackedProfiles={cityFogStates.Count}.");
         }
 
         private void CaptureNewCityFogProfiles()
         {
-            var addedProfiles = 0;
             foreach (var volume in Resources.FindObjectsOfTypeAll<Volume>())
             {
                 if (volume == null)
@@ -63,22 +60,7 @@ namespace CameraTools
                     continue;
 
                 cityFogStates.Add(new CityFogState(fog));
-                addedProfiles++;
             }
-
-            if (addedProfiles > 0)
-            {
-                hasWarnedAboutMissingCityFogProfiles = false;
-                context?.Logger.Info(
-                    $"CameraTools: captured {addedProfiles} new HDRP fog profile(s); trackedProfiles={cityFogStates.Count}.");
-                return;
-            }
-
-            if (cityFogStates.Count != 0 || hasWarnedAboutMissingCityFogProfiles)
-                return;
-
-            hasWarnedAboutMissingCityFogProfiles = true;
-            context?.Logger.Warn("CameraTools: no HDRP fog profiles were found while disabling outdoor city fog.");
         }
 
         private static bool IsPlayerInFogPreservingInterior()
@@ -105,7 +87,6 @@ namespace CameraTools
         private void RestoreCityFogState()
         {
             RestoreCityFogEnabledValues(clearTrackedProfiles: true);
-            hasWarnedAboutMissingCityFogProfiles = false;
             nextCityFogProfileScanTime = 0f;
         }
 
@@ -115,9 +96,6 @@ namespace CameraTools
             {
                 foreach (var state in cityFogStates)
                     state.RestoreFog();
-
-                context?.Logger.Info(
-                    $"CameraTools: outdoor city fog restored; trackedProfiles={cityFogStates.Count}, clearTrackedProfiles={clearTrackedProfiles}.");
             }
 
             cityFogSuppressionApplied = false;
