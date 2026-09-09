@@ -143,7 +143,11 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         dealerReadyLogged = false;
     }
 
-    private void HandleVehicleEntered(VehicleController vehicle) => TryConfigureVehicle(vehicle);
+    private void HandleVehicleEntered(VehicleController vehicle)
+    {
+        TryConfigureVehicle(vehicle);
+        vehicle?.GetComponent<BugattiChironGlassController>()?.RestoreAfterVehicleEntered();
+    }
 
     private void HandleBuildingEntered(Address address)
     {
@@ -277,6 +281,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             ConfigureBodyColliders(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var materialResult = BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
+            var glassController = vehicle.GetComponent<BugattiChironGlassController>();
+            if (glassController == null)
+                glassController = vehicle.gameObject.AddComponent<BugattiChironGlassController>();
+            glassController.Initialize(context);
             var deformableMeshCount = ConfigureVisualDamage(vehicle);
             var lightingController = vehicle.GetComponent<BugattiChironLightingController>();
             if (lightingController == null)
@@ -725,6 +733,121 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[AddComponentMenu("")]
+internal sealed class BugattiChironGlassController : MonoBehaviour
+{
+    private readonly List<Renderer> cabinGlass = new List<Renderer>();
+    private readonly Dictionary<Material, Material> runtimeMaterials =
+        new Dictionary<Material, Material>();
+    private ModContext? context;
+    private Coroutine? restoreCoroutine;
+    private bool initialized;
+
+    internal void Initialize(ModContext? modContext)
+    {
+        context = modContext;
+        if (initialized)
+        {
+            EnsureVisible("reinitialize");
+            return;
+        }
+
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            var materials = renderer.sharedMaterials;
+            var containsCabinGlass = false;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var source = materials[index];
+                if (source == null || !BugattiChironMaterials.IsCabinGlassMaterial(source))
+                    continue;
+
+                containsCabinGlass = true;
+                if (!runtimeMaterials.TryGetValue(source, out var runtimeMaterial))
+                {
+                    runtimeMaterial = Instantiate(source);
+                    runtimeMaterial.name = source.name + "_RuntimeCabinGlass";
+                    BugattiChironMaterials.RestoreCabinGlassMaterial(runtimeMaterial);
+                    runtimeMaterials.Add(source, runtimeMaterial);
+                }
+                materials[index] = runtimeMaterial;
+            }
+            if (!containsCabinGlass)
+                continue;
+            renderer.sharedMaterials = materials;
+            cabinGlass.Add(renderer);
+        }
+
+        initialized = true;
+        EnsureVisible("initialize");
+    }
+
+    internal void RestoreAfterVehicleEntered()
+    {
+        if (!initialized)
+            return;
+        if (restoreCoroutine != null)
+            StopCoroutine(restoreCoroutine);
+        restoreCoroutine = StartCoroutine(RestoreAfterEntryLifecycle());
+    }
+
+    private IEnumerator RestoreAfterEntryLifecycle()
+    {
+        yield return null;
+        yield return new WaitForEndOfFrame();
+        EnsureVisible("vehicle-entered");
+        restoreCoroutine = null;
+    }
+
+    private void EnsureVisible(string source)
+    {
+        var renderersRestored = 0;
+        var propertyBlocksCleared = 0;
+        foreach (var renderer in cabinGlass)
+        {
+            if (renderer == null)
+                continue;
+            if (!renderer.enabled || renderer.forceRenderingOff)
+                renderersRestored++;
+            renderer.enabled = true;
+            renderer.forceRenderingOff = false;
+            if (renderer.HasPropertyBlock())
+            {
+                renderer.SetPropertyBlock(null);
+                propertyBlocksCleared++;
+            }
+
+            var materials = renderer.sharedMaterials;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var material = materials[index];
+                if (material == null || !BugattiChironMaterials.IsCabinGlassMaterial(material))
+                    continue;
+                renderer.SetPropertyBlock(null, index);
+                BugattiChironMaterials.RestoreCabinGlassMaterial(material);
+            }
+        }
+
+        context?.Logger.Info(
+            $"BugattiChiron glass vehicle={GetInstanceID()}: source='{source}' " +
+            $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
+            $"renderersRestored={renderersRestored}, propertyBlocksCleared={propertyBlocksCleared}.");
+    }
+
+    private void OnDestroy()
+    {
+        if (restoreCoroutine != null)
+            StopCoroutine(restoreCoroutine);
+        restoreCoroutine = null;
+        foreach (var material in runtimeMaterials.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        runtimeMaterials.Clear();
     }
 }
 

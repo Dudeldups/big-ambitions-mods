@@ -207,14 +207,23 @@ public static class BugattiChironMaterials
 
     private static void FixTransparentHdrpMaterial(Material material)
     {
-        if (IsCabinGlassMaterial(material))
+        var cabinGlass = IsCabinGlassMaterial(material);
+        if (cabinGlass)
         {
+            // Imported glTF glass shaders can retain plausible transparent
+            // properties while disappearing in the game's HDRP build. Use the
+            // stock Lit shader so every spawned vehicle gets a known state.
+            RebindToHdrpLit(material);
             var tint = material.name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.20f, 0.23f, 0.27f, 0.04f)
                 : new Color(0.15f, 0.18f, 0.22f, 0.20f);
             SetColor(material, "_BaseColor", tint);
             SetColor(material, "_Color", tint);
             SetColor(material, "baseColorFactor", tint);
+            SetFloat(material, "_Metallic", 0.15f);
+            SetFloat(material, "metallicFactor", 0.15f);
+            SetFloat(material, "_Smoothness", 0.95f);
+            SetFloat(material, "roughnessFactor", 0f);
         }
         SetFloat(material, "transmissionFactor", 0f);
         SetFloat(material, "_SurfaceType", 1f);
@@ -225,7 +234,12 @@ public static class BugattiChironMaterials
         SetFloat(material, "_AlphaDstBlend", (float)BlendMode.OneMinusSrcAlpha);
         SetFloat(material, "_ZWrite", 0f);
         SetFloat(material, "_TransparentZWrite", 0f);
+        SetFloat(material, "_ZTestDepthEqualForOpaque", (float)CompareFunction.LessEqual);
+        SetFloat(material, "_ZTestTransparent", (float)CompareFunction.LessEqual);
         SetFloat(material, "_AlphaCutoffEnable", 0f);
+        SetFloat(material, "_SupportDecals", 0f);
+        SetFloat(material, "_ReceivesSSR", 0f);
+        SetFloat(material, "_ReceivesSSRTransparent", 0f);
         SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
@@ -237,6 +251,7 @@ public static class BugattiChironMaterials
         SetFloat(material, "_DoubleSidedEnable", 1f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         material.EnableKeyword("_DOUBLESIDED_ON");
+        material.EnableKeyword("_DISABLE_DECALS");
         material.DisableKeyword("_ALPHATEST_ON");
         material.SetOverrideTag("RenderType", "Transparent");
         material.renderQueue = (int)RenderQueue.Transparent;
@@ -245,6 +260,12 @@ public static class BugattiChironMaterials
         material.SetShaderPassEnabled("TransparentBackface", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    public static void RestoreCabinGlassMaterial(Material material)
+    {
+        if (material != null && IsCabinGlassMaterial(material))
+            FixTransparentHdrpMaterial(material);
     }
 
     public static bool IsCabinGlassMaterial(Material material)
