@@ -41,7 +41,7 @@ public static class LamborghiniRevueltoMaterials
 {
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
-    public static readonly Color RimBaseColor = new Color(0.16f, 0.16f, 0.16f, 1f);
+    public static readonly Color RimBaseColor = new Color(0.10f, 0.10f, 0.10f, 1f);
     public static readonly Color RimRightBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
@@ -142,10 +142,10 @@ public static class LamborghiniRevueltoMaterials
                 continue;
             }
 
-            // The imported right-side mesh shades materially darker under the
-            // game's vehicle lighting. Its calibrated base value compensates
-            // that response while keeping the same graphite finish. This runs
-            // once during initialization; no frame polling is required.
+            // The mirrored left mesh shades materially brighter under the
+            // game's vehicle lighting. Side-specific calibrated base values
+            // make both sides read as the darker factory graphite finish. This
+            // runs once during initialization; no frame polling is required.
             var baseColor = IsRightRimRenderer(renderer.transform)
                 ? RimRightBaseColor
                 : RimBaseColor;

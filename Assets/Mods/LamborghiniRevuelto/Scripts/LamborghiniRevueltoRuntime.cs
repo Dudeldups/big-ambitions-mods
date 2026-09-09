@@ -431,7 +431,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         foreach (var filter in vehicle.GetComponentsInChildren<MeshFilter>(true))
         {
             if (filter == null || filter.sharedMesh == null ||
-                !filter.name.StartsWith("LamborghiniDamageBody", StringComparison.Ordinal))
+                !IsDeformableExterior(filter))
                 continue;
             var renderer = filter.GetComponent<MeshRenderer>();
             if (renderer != null && renderer.enabled)
@@ -476,6 +476,34 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             $"filters=[{string.Join(", ", filters.ConvertAll(filter => filter.name))}]; " +
             "legacy deformation disabled.");
         return filters.Count;
+    }
+
+    private static bool IsDeformableExterior(MeshFilter filter)
+    {
+        var name = filter.name;
+        if (name.IndexOf("_Interior_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Inside_Headlight", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Taillight_rear", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("_Sphere_", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
+
+        return name.StartsWith("LamborghiniDamageBody", StringComparison.Ordinal) ||
+               name.StartsWith("Front_part_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Front_vents", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Headlight_carbon", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Daylight_Part_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Mid_part_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Mid_parts_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Rear_part_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Rear_plastic", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Rear_vent", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Rear_engine_carbon", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Tail_light_Plastic", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Vents_", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, "Mirrors_Body_0", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, "Mirrors_Carbon_0", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ClearCollection(object target, string fieldName)
@@ -766,6 +794,7 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                 0.04f,
                 MaximumEndDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
+            var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
             var changedMeshes = 0;
             var changedVertices = 0;
             var endImpact = false;
@@ -852,6 +881,8 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                     $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
+                    $"localContact=({primaryLocalContact.x:0.00}," +
+                    $"{primaryLocalContact.y:0.00},{primaryLocalContact.z:0.00}) " +
                     $"region={(endImpact ? "front/rear" : "side")} " +
                     $"depth={(endImpact ? endDentDepth : dentDepth):0.000}m " +
                     $"meshes={changedMeshes} vertices={changedVertices} " +
