@@ -315,8 +315,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         var headlamp = v >= 0.535f && v <= 0.655f &&
                        ((u >= 0.045f && u <= 0.165f) ||
                         (u >= 0.385f && u <= 0.525f));
-        var grilleBadge = u >= 0.018f && u <= 0.155f &&
-                          v >= 0.795f && v <= 0.895f;
+        var grilleBadge = u >= 0.235f && u <= 0.335f &&
+                          v >= 0.355f && v <= 0.435f;
         return headlamp || grilleBadge;
     }
 
@@ -332,7 +332,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             if (luminance < 0.20f)
                 return new Color(0.02f, 0.41f, 0.97f, 1f);
             if (luminance > 0.68f)
-                return new Color(0.04f, 0.22f, 0.68f, 1f);
+                return new Color(0.04f, 0.30f, 0.95f, 1f);
             return new Color(1f, 0.38f, 0.03f, 1f);
         }
 
@@ -341,8 +341,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         var contrastValue = luminance < 0.42f
             ? 1f
             : luminance > 0.72f
-                ? 0.58f
-                : Mathf.Clamp(1.08f - value * 0.22f, 0.76f, 0.96f);
+                ? 0.86f
+                : Mathf.Clamp(1.08f - value * 0.22f, 0.82f, 0.96f);
         return Color.HSVToRGB(contrastHue, contrastSaturation, contrastValue);
     }
 
