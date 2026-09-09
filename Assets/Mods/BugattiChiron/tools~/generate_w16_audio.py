@@ -31,11 +31,11 @@ def normalize(samples: list[float], target_rms: float) -> list[float]:
 def engine_layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     """Build a low, broad W16 texture without narrow machine-like pulses."""
     rng = random.Random(seed)
-    phases = [rng.random() * math.tau for _ in range(12)]
+    phases = [rng.random() * math.tau for _ in range(11)]
     amplitudes = (
-        (1.0, 0.52, 0.34, 0.23, 0.16, 0.11, 0.078, 0.055, 0.039, 0.028)
+        (1.0, 0.44, 0.28, 0.19, 0.135, 0.095, 0.065, 0.045, 0.032, 0.022)
         if loaded
-        else (1.0, 0.32, 0.19, 0.12, 0.08, 0.055, 0.039, 0.028, 0.020, 0.014)
+        else (1.0, 0.30, 0.18, 0.11, 0.075, 0.050, 0.034, 0.024, 0.017, 0.012)
     )
     output: list[float] = []
     for index in range(COUNT):
@@ -44,23 +44,16 @@ def engine_layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
         for harmonic, amplitude in enumerate(amplitudes, 1):
             rolloff = math.exp(-((reference_hz * harmonic) / 3600.0) ** 2)
             phase = math.tau * reference_hz * harmonic * time
-            # Slightly unequal banks create density without the hard, perfectly
-            # periodic edge that reads as a clipper or electric motor.
-            bank = math.sin(phase + phases[harmonic - 1])
-            paired_bank = math.sin(phase + phases[harmonic - 1] + 0.43)
-            value += amplitude * rolloff * (0.68 * bank + 0.32 * paired_bank)
-        # Strong half- and quarter-order intake body distinguishes the
-        # quad-turbo W16 from the brighter Lamborghini V12 synthesis.
-        value += (0.30 if loaded else 0.17) * math.sin(
+            value += amplitude * rolloff * math.sin(
+                phase + phases[harmonic - 1]
+            )
+        # A strong half-order intake component gives the quad-turbo W16 its
+        # lower mass without the beating created by several subharmonics.
+        value += (0.26 if loaded else 0.14) * math.sin(
             math.tau * (reference_hz / 2.0) * time + phases[10]
         )
-        value += (0.17 if loaded else 0.08) * math.sin(
-            math.tau * (reference_hz / 4.0) * time + phases[11]
-        )
         if loaded:
-            # Broad saturation supplies a sporting exhaust edge without the
-            # short impulse train that previously sounded like a drone.
-            value = math.tanh(value * 1.28)
+            value = math.tanh(value * 1.12)
         output.append(value)
     return normalize(output, 0.135 if loaded else 0.12)
 

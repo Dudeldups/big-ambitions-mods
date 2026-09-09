@@ -33,7 +33,7 @@ internal static class BugattiChironAudioModel
     // mapping substantially below the naturally aspirated V12 range: the
     // Chiron should build a dense, forceful growl rather than an electric buzz.
     internal static float TargetHz(float normalized) =>
-        (float)(60d * Math.Pow(205d / 60d, Clamp01(normalized)));
+        (float)(42d * Math.Pow(145d / 42d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) =>
         TargetHz(normalized) / ReferenceHz(layer);
 

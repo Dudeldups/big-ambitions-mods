@@ -539,7 +539,11 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             filterName.StartsWith("Door-right_", StringComparison.OrdinalIgnoreCase);
         var exteriorPlastic =
             string.Equals(filterName, "Plastic-parts_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(filterName, "Plastic-parts_Carbon_0", StringComparison.OrdinalIgnoreCase);
+            string.Equals(filterName, "Plastic-parts_Carbon_0", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(filterName, "Plastic-parts_Headlight-1_0", StringComparison.OrdinalIgnoreCase);
+        var frontDetails =
+            filterName.StartsWith("Headlight_", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(filterName, "Engine_Carbon_0", StringComparison.OrdinalIgnoreCase);
         var frontGrille =
             filterName.StartsWith("B:Grille", StringComparison.OrdinalIgnoreCase) ||
             filterName.StartsWith("B:Kit2_Grille", StringComparison.OrdinalIgnoreCase);
@@ -550,9 +554,18 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             string.Equals(filterName, "Engine_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(filterName, "Engine_Silver_0", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(filterName, "Engine_Logo_0", StringComparison.OrdinalIgnoreCase);
-        if (!bodyPanel && !frontCenterAssembly && !exteriorPlastic && !frontGrille)
+        if (!bodyPanel && !frontCenterAssembly && !exteriorPlastic &&
+            !frontDetails && !frontGrille)
         {
             return false;
+        }
+
+        // Headlamp lenses, housings, and their small internal pieces otherwise
+        // remain rigid over a dented bumper and visually hide the deformation.
+        if (frontDetails ||
+            string.Equals(filterName, "Plastic-parts_Headlight-1_0", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
         }
 
         foreach (var material in renderer.sharedMaterials)
