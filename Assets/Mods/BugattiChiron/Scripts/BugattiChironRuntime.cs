@@ -560,6 +560,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 filterName,
                 "Plastic-parts_Vents-texture_0",
                 StringComparison.OrdinalIgnoreCase);
+        var rearExhaust = string.Equals(
+            filterName,
+            "Plastic-parts_exhaust_0",
+            StringComparison.OrdinalIgnoreCase);
         var frontGrille =
             filterName.StartsWith("B:Grille", StringComparison.OrdinalIgnoreCase) ||
             filterName.StartsWith("B:Kit2_Grille", StringComparison.OrdinalIgnoreCase);
@@ -571,14 +575,15 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             string.Equals(filterName, "Engine_Silver_0", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(filterName, "Engine_Logo_0", StringComparison.OrdinalIgnoreCase);
         if (!bodyPanel && !frontCenterAssembly && !exteriorPlastic &&
-            !frontDetails && !frontGrille)
+            !frontDetails && !frontGrille && !rearExhaust)
         {
             return false;
         }
 
-        // Headlamp lenses, housings, and their small internal pieces otherwise
-        // remain rigid over a dented bumper and visually hide the deformation.
+        // Small lamp and exhaust pieces otherwise remain rigid over a dented
+        // bumper and visually float at their original positions.
         if (frontDetails ||
+            rearExhaust ||
             string.Equals(filterName, "Plastic-parts_Headlight-1_0", StringComparison.OrdinalIgnoreCase))
         {
             return true;
@@ -794,7 +799,7 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
     private const float EndDentLongitudinalRadius = 1.15f;
     private const float MaximumFrontEndDentDepth = 0.30f;
     private const float MaximumRearEndDentDepth = 0.45f;
-    private const float MaximumSideCumulativeDentDepth = 0.22f;
+    private const float MaximumSideCumulativeDentDepth = 0.20f;
     private const float EndDepthPerExcessMps = 0.012f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
