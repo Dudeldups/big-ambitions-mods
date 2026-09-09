@@ -14,7 +14,7 @@
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.1918944186292399,
+      "peak": 0.18899297472618296,
       "method": "deterministic additive loaded-W16 synthesis"
     },
     {
@@ -28,7 +28,7 @@
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.1799643863397971,
+      "peak": 0.18378623914710304,
       "method": "deterministic additive loaded-W16 synthesis"
     },
     {
@@ -42,7 +42,7 @@
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.18654761573860057,
+      "peak": 0.18547428075701106,
       "method": "deterministic additive loaded-W16 synthesis"
     }
   ],

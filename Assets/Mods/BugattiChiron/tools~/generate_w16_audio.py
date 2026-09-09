@@ -57,11 +57,18 @@ def engine_layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
             math.tau * (reference_hz * 1.5) * time + phases[11]
         )
         if loaded:
-            exhaust_pulse = math.tanh(
-                2.4 * math.sin(math.tau * (reference_hz / 2.0) * time + phases[10])
+            # Two short, phase-offset exhaust-pressure releases create a
+            # broadband bark without raising the fundamental into a drone.
+            pulse_phase_a = (reference_hz * time + phases[10] / math.tau) % 1.0
+            pulse_phase_b = (reference_hz * time + phases[11] / math.tau + 0.43) % 1.0
+            pulse_a = math.exp(-pulse_phase_a * 24.0) - 0.30 * math.exp(
+                -pulse_phase_a * 5.0
             )
-            value += 0.24 * exhaust_pulse
-            value = math.tanh(value * 1.65)
+            pulse_b = math.exp(-pulse_phase_b * 20.0) - 0.26 * math.exp(
+                -pulse_phase_b * 4.5
+            )
+            value += 0.48 * pulse_a + 0.36 * pulse_b
+            value = math.tanh(value * 1.85)
         output.append(value)
     return normalize(output, 0.135 if loaded else 0.12)
 
