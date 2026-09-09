@@ -27,7 +27,6 @@ internal static class AudiRS6ROptions
                 // Keep the actual default true so native Reset to Defaults works.
                 .AddToggle(PopsKey, "audirs6r_exhaust_pops_label", true, SetExhaustPops));
             registered = true;
-            context.Logger.Info($"AudiRS6R: exhaust pop option registered; enabled={ExhaustPopsEnabled}.");
         }
         catch (Exception ex)
         {
@@ -44,7 +43,6 @@ internal static class AudiRS6ROptions
         Changed?.Invoke();
         UnityEngine.PlayerPrefs.SetInt(SavedKey, enabled ? 1 : 0);
         UnityEngine.PlayerPrefs.Save();
-        context.Logger.Info($"AudiRS6R: exhaust pop sounds enabled={enabled}; applied and saved.");
     }
 
     internal static void Shutdown()
