@@ -429,7 +429,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         factoryBadgeObject.transform.SetParent(bodyRenderer.transform, false);
         // Pull the copied surface a hair toward the front to avoid z-fighting
         // with the recolored copy underneath it.
-        factoryBadgeObject.transform.localPosition = new Vector3(0f, 0.009f, 0f);
+        factoryBadgeObject.transform.localPosition = new Vector3(0f, 0.025f, 0f);
         factoryBadgeObject.layer = bodyRenderer.gameObject.layer;
         factoryBadgeObject.AddComponent<MeshFilter>().sharedMesh = factoryBadgeMesh;
         var badgeRenderer = factoryBadgeObject.AddComponent<MeshRenderer>();
@@ -441,63 +441,53 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
 
     private int ConfigurePaintedGrilleBacking()
     {
-        var sourceFilter = bodyRenderer?.GetComponent<MeshFilter>();
-        var sourceMesh = sourceFilter?.sharedMesh;
-        if (bodyRenderer == null || sourceMesh == null || originalMaterial == null ||
-            sourceTexture == null || sourcePixels == null || sourceMesh.subMeshCount == 0)
+        if (bodyRenderer == null || originalMaterial == null)
             return 0;
 
-        var vertices = sourceMesh.vertices;
-        var uv = sourceMesh.uv;
-        if (uv.Length != vertices.Length)
-            return 0;
-        var sourceTriangles = sourceMesh.GetTriangles(0);
-        var candidates = new List<Vector3Int>();
-        var paintableCandidates = new List<bool>();
-        for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+        // The grille openings are physically open in the source model, so the
+        // diagonal chassis behind them can otherwise appear as black triangles.
+        // Use three conservative inserts that sit inside the openings without
+        // overlapping the authored white bars around them.
+        var vertices = new List<Vector3>();
+        var triangles = new List<int>();
+        foreach (var range in new[]
         {
-            var a = sourceTriangles[index];
-            var b = sourceTriangles[index + 1];
-            var c = sourceTriangles[index + 2];
-            var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
-            var insideGrille =
-                Mathf.Abs(center.x) <= 0.78f &&
-                center.y >= 3.50f && center.y <= 3.78f &&
-                center.z >= -0.53f && center.z <= -0.04f;
-            var insideBadge =
-                Mathf.Abs(center.x) <= 0.18f &&
-                center.y >= 3.68f && center.y <= 3.78f &&
-                center.z >= -0.36f && center.z <= -0.20f;
-            if (!insideGrille || insideBadge)
-                continue;
-
-            candidates.Add(new Vector3Int(a, b, c));
-            var triangleUv = (uv[a] + uv[b] + uv[c]) / 3f;
-            var sourceColor = SampleSourceColor(triangleUv);
-            var red = sourceColor.r / 255f;
-            var green = sourceColor.g / 255f;
-            var blue = sourceColor.b / 255f;
-            var maximum = Mathf.Max(red, Mathf.Max(green, blue));
-            var blueDominance = blue - Mathf.Max(red, green);
-            paintableCandidates.Add(maximum <= 0.48f || blueDominance >= 0.06f);
+            new Vector2(-0.19f, -0.04f),
+            new Vector2(-0.35f, -0.23f),
+            new Vector2(-0.50f, -0.39f),
+        })
+        {
+            var first = vertices.Count;
+            vertices.Add(new Vector3(-0.66f, 3.775f, range.x));
+            vertices.Add(new Vector3(0.62f, 3.775f, range.x));
+            vertices.Add(new Vector3(0.62f, 3.775f, range.y));
+            vertices.Add(new Vector3(-0.66f, 3.775f, range.y));
+            triangles.Add(first);
+            triangles.Add(first + 2);
+            triangles.Add(first + 1);
+            triangles.Add(first);
+            triangles.Add(first + 3);
+            triangles.Add(first + 2);
         }
-        var grilleTriangles = SelectPaintableConnectedSurfaces(
-            candidates,
-            paintableCandidates);
-        if (grilleTriangles.Count == 0)
-            return 0;
 
-        grilleBackingMesh = Instantiate(sourceMesh);
-        grilleBackingMesh.name = sourceMesh.name + "_PaintedInnerGrille";
-        grilleBackingMesh.subMeshCount = 1;
-        grilleBackingMesh.SetTriangles(grilleTriangles, 0, true);
+        grilleBackingMesh = new Mesh
+        {
+            name = "Bigfoot painted grille inserts",
+            vertices = vertices.ToArray(),
+        };
+        var normals = new Vector3[vertices.Count];
+        var uv = new Vector2[vertices.Count];
+        for (var index = 0; index < vertices.Count; index++)
+        {
+            normals[index] = Vector3.up;
+            uv[index] = new Vector2(index % 2, index % 4 >= 2 ? 1f : 0f);
+        }
+        grilleBackingMesh.normals = normals;
+        grilleBackingMesh.uv = uv;
+        grilleBackingMesh.SetTriangles(triangles, 0, true);
         grilleBackingMesh.RecalculateBounds();
 
-        var grilleShader = Shader.Find("HDRP/Unlit") ??
-                           Shader.Find("High Definition Render Pipeline/Unlit") ??
-                           Shader.Find("Unlit/Color") ??
-                           originalMaterial.shader;
-        grilleBackingMaterial = new Material(grilleShader)
+        grilleBackingMaterial = new Material(originalMaterial)
         {
             name = "Bigfoot Repaintable Grille Backing"
         };
@@ -511,114 +501,16 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         ClearTexture(grilleBackingMaterial, "_DetailMap");
         SetFloat(grilleBackingMaterial, "_Metallic", 0.15f);
         SetFloat(grilleBackingMaterial, "_Smoothness", 0.40f);
-        SetFloat(grilleBackingMaterial, "_SurfaceType", 0f);
-        SetFloat(grilleBackingMaterial, "_ZWrite", 1f);
-        SetFloat(grilleBackingMaterial, "_Cull", 0f);
-        SetFloat(grilleBackingMaterial, "_CullMode", 0f);
-        grilleBackingMaterial.renderQueue = 2450;
 
         grilleBackingObject = new GameObject("BigfootMonsterTruck_PaintedGrilleBacking");
         grilleBackingObject.transform.SetParent(bodyRenderer.transform, false);
-        grilleBackingObject.transform.localPosition = new Vector3(0f, 0.006f, 0f);
         grilleBackingObject.layer = bodyRenderer.gameObject.layer;
         grilleBackingObject.AddComponent<MeshFilter>().sharedMesh = grilleBackingMesh;
         var backingRenderer = grilleBackingObject.AddComponent<MeshRenderer>();
         backingRenderer.sharedMaterial = grilleBackingMaterial;
         backingRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         backingRenderer.receiveShadows = false;
-        return grilleTriangles.Count / 3;
-    }
-
-    private static List<int> SelectPaintableConnectedSurfaces(
-        List<Vector3Int> triangles,
-        List<bool> paintable)
-    {
-        var parents = new int[triangles.Count];
-        var vertexOwner = new Dictionary<int, int>();
-        for (var index = 0; index < triangles.Count; index++)
-        {
-            parents[index] = index;
-            ConnectGrilleVertex(triangles[index].x, index, parents, vertexOwner);
-            ConnectGrilleVertex(triangles[index].y, index, parents, vertexOwner);
-            ConnectGrilleVertex(triangles[index].z, index, parents, vertexOwner);
-        }
-
-        var groups = new Dictionary<int, List<int>>();
-        for (var index = 0; index < triangles.Count; index++)
-        {
-            var root = FindGrilleRoot(index, parents);
-            if (!groups.TryGetValue(root, out var group))
-            {
-                group = new List<int>();
-                groups[root] = group;
-            }
-            group.Add(index);
-        }
-
-        var selected = new List<int>();
-        foreach (var group in groups.Values)
-        {
-            var paintableCount = 0;
-            foreach (var triangleIndex in group)
-                if (paintable[triangleIndex])
-                    paintableCount++;
-            // Work at connected-surface granularity. Sampling individual atlas
-            // pixels left isolated unpainted triangles inside otherwise valid
-            // grille panels.
-            if (paintableCount == 0 || paintableCount < group.Count * 0.45f)
-                continue;
-            foreach (var triangleIndex in group)
-            {
-                var triangle = triangles[triangleIndex];
-                selected.Add(triangle.x);
-                selected.Add(triangle.y);
-                selected.Add(triangle.z);
-            }
-        }
-        return selected;
-    }
-
-    private static void ConnectGrilleVertex(
-        int vertex,
-        int triangle,
-        int[] parents,
-        Dictionary<int, int> vertexOwner)
-    {
-        if (vertexOwner.TryGetValue(vertex, out var owner))
-            UnionGrilleGroups(triangle, owner, parents);
-        else
-            vertexOwner[vertex] = triangle;
-    }
-
-    private static int FindGrilleRoot(int value, int[] parents)
-    {
-        while (parents[value] != value)
-        {
-            parents[value] = parents[parents[value]];
-            value = parents[value];
-        }
-        return value;
-    }
-
-    private static void UnionGrilleGroups(int left, int right, int[] parents)
-    {
-        var leftRoot = FindGrilleRoot(left, parents);
-        var rightRoot = FindGrilleRoot(right, parents);
-        if (leftRoot != rightRoot)
-            parents[rightRoot] = leftRoot;
-    }
-
-    private Color32 SampleSourceColor(Vector2 uv)
-    {
-        var x = Mathf.Clamp(
-            Mathf.FloorToInt(Mathf.Repeat(uv.x, 1f) * sourceTexture!.width),
-            0,
-            sourceTexture.width - 1);
-        var y = Mathf.Clamp(
-            Mathf.FloorToInt(Mathf.Repeat(uv.y, 1f) * sourceTexture.height),
-            0,
-            sourceTexture.height - 1);
-        return sourcePixels![y * sourceTexture.width + x];
+        return triangles.Count / 3;
     }
 
     private static Color GetContrastingFlameColor(Color tint)
@@ -728,12 +620,11 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         if (grilleBackingMaterial == null)
             return;
         var color = new Color(
-            Mathf.Max(0.025f, tint.r * 0.72f),
-            Mathf.Max(0.025f, tint.g * 0.72f),
-            Mathf.Max(0.025f, tint.b * 0.72f),
+            Mathf.Max(0.025f, tint.r),
+            Mathf.Max(0.025f, tint.g),
+            Mathf.Max(0.025f, tint.b),
             1f);
         SetColor(grilleBackingMaterial, "_BaseColor", color);
-        SetColor(grilleBackingMaterial, "_UnlitColor", color);
         SetColor(grilleBackingMaterial, "_Color", color);
         SetColor(grilleBackingMaterial, "baseColorFactor", color);
     }
