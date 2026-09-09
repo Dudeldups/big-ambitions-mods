@@ -72,6 +72,7 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_Graphite", new Color32(65, 68, 72, 255), new Color32(125, 130, 138, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Gunmetal", new Color32(70, 82, 90, 255), new Color32(135, 155, 170, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Smoke", new Color32(105, 110, 115, 255), new Color32(170, 178, 185, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Ash", new Color32(135, 140, 145, 255), new Color32(195, 202, 210, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Platinum", new Color32(185, 190, 195, 255), new Color32(240, 245, 250, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Pearl", new Color32(215, 220, 225, 255), new Color32(255, 255, 255, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_White", new Color32(238, 238, 232, 255), new Color32(255, 255, 255, 255), 2f),
@@ -84,6 +85,7 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_DeepRed", new Color32(120, 0, 0, 255), new Color32(205, 55, 45, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Burgundy", new Color32(105, 16, 38, 255), new Color32(185, 65, 90, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Cherry", new Color32(170, 10, 45, 255), new Color32(245, 75, 105, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_BrickRed", new Color32(145, 45, 35, 255), new Color32(220, 105, 85, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Scarlet", new Color32(220, 30, 20, 255), new Color32(255, 105, 80, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Coral", new Color32(238, 83, 74, 255), new Color32(255, 160, 140, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Salmon", new Color32(245, 125, 115, 255), new Color32(255, 195, 180, 255), 1f),
@@ -101,6 +103,7 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_Amber", new Color32(255, 170, 0, 255), new Color32(255, 225, 95, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Ochre", new Color32(185, 120, 30, 255), new Color32(245, 185, 90, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Honey", new Color32(215, 160, 55, 255), new Color32(255, 220, 125, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Mustard", new Color32(170, 135, 25, 255), new Color32(235, 205, 85, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Lemon", new Color32(240, 225, 35, 255), new Color32(255, 250, 120, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Khaki", new Color32(160, 150, 95, 255), new Color32(225, 215, 150, 255), 2f),
@@ -110,6 +113,7 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_SpringGreen", new Color32(35, 200, 80, 255), new Color32(115, 255, 150, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Moss", new Color32(85, 110, 45, 255), new Color32(155, 190, 100, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Sage", new Color32(120, 150, 105, 255), new Color32(185, 215, 165, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Forest", new Color32(25, 85, 40, 255), new Color32(80, 170, 100, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Pine", new Color32(10, 70, 55, 255), new Color32(70, 155, 125, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Emerald", new Color32(0, 120, 72, 255), new Color32(70, 220, 145, 255), 1f),
@@ -124,6 +128,7 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_Aqua", new Color32(45, 220, 220, 255), new Color32(140, 255, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_IceBlue", new Color32(155, 215, 235, 255), new Color32(220, 250, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Cerulean", new Color32(25, 145, 205, 255), new Color32(100, 210, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_SkyBlue", new Color32(85, 180, 240, 255), new Color32(165, 225, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_SteelBlue", new Color32(65, 105, 145, 255), new Color32(130, 185, 230, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Denim", new Color32(45, 90, 145, 255), new Color32(105, 165, 225, 255), 2f),
@@ -135,6 +140,7 @@ namespace VehicleRepainter
             new CustomColorDefinition("VehicleRepainter_Indigo", new Color32(55, 45, 145, 255), new Color32(120, 105, 225, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Violet", new Color32(105, 66, 180, 255), new Color32(175, 135, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Amethyst", new Color32(140, 75, 180, 255), new Color32(210, 145, 245, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Grape", new Color32(80, 35, 120, 255), new Color32(150, 95, 205, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Lilac", new Color32(145, 105, 190, 255), new Color32(210, 170, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Lavender", new Color32(170, 125, 215, 255), new Color32(225, 190, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Plum", new Color32(105, 40, 115, 255), new Color32(180, 100, 195, 255), 2f),
@@ -533,10 +539,10 @@ namespace VehicleRepainter
                 colorsLabelRect.anchoredPosition = new Vector2(30f, colorsLabelRect.anchoredPosition.y);
                 colorsLabelRect.sizeDelta = new Vector2(990f, colorsLabelRect.sizeDelta.y);
 
-                gridLayout.constraintCount = 15;
+                gridLayout.constraintCount = 16;
                 gridLayout.cellSize = new Vector2(52f, 52f);
                 gridLayout.spacing = new Vector2(7f, 7f);
-                gridLayout.padding = new RectOffset(30, 30, 16, 16);
+                gridLayout.padding = new RectOffset(25, 25, 16, 16);
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)gridLayout.transform);
             }
 

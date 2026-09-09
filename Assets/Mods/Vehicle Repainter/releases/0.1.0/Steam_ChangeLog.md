@@ -1,8 +1,8 @@
 - Prevented vehicles from moving while the repaint picker is open.
 - Repainting now cancels safely if the vehicle leaves the service bay.
 - Exiting the serviced vehicle now closes and cancels the repaint picker.
-- Added seventy-eight additional paint colors with save persistence.
-- Expanded the repaint palette into a full fifteen-by-six grid sorted by shade.
+- Added eighty-four additional paint colors with save persistence.
+- Expanded the repaint palette into a full sixteen-by-six grid sorted by shade.
 - Removed the vanilla color-grid background from the repaint view.
 - Removed the unused Specs section from the repaint view.
 - Prioritized the repair cabin UI when gas-station interaction zones overlap.
