@@ -1,1 +1,1 @@
-- Fixed the extended repaint palette appearing in regular vehicle dealerships. Dealer color selectors now retain their intended palette and layout, while all 96 colors remain available in Vehicle Repainter.
+- Fixed cancelling a repaint preview so the vehicle reliably returns to its original color without changing its saved paint.
