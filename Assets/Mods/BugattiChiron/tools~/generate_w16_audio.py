@@ -75,7 +75,7 @@ def horn() -> list[float]:
             + 0.07 * math.sin(math.tau * 185.0 * time)
         )
         output.append(math.tanh(value * 0.92))
-    return normalize(output, 0.19)
+    return normalize(output, 0.28)
 
 
 def write_wav(

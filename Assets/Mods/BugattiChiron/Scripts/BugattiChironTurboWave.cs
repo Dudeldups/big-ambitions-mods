@@ -20,10 +20,10 @@ internal static class BugattiChironTurboWave
             filteredNoise = Mathf.Lerp(filteredNoise, noise, 0.025f);
             var time = index / (float)SampleRate;
             var compressorTone =
-                0.55f * Mathf.Sin(2f * Mathf.PI * 1320f * time) +
-                0.28f * Mathf.Sin(2f * Mathf.PI * 1980f * time + 0.7f) +
-                0.17f * Mathf.Sin(2f * Mathf.PI * 2640f * time + 1.4f);
-            samples[index] = (compressorTone * 0.16f + filteredNoise * 0.19f) * 0.38f;
+                0.25f * Mathf.Sin(2f * Mathf.PI * 660f * time) +
+                0.12f * Mathf.Sin(2f * Mathf.PI * 990f * time + 0.7f) +
+                0.08f * Mathf.Sin(2f * Mathf.PI * 1320f * time + 1.4f);
+            samples[index] = (compressorTone * 0.10f + filteredNoise * 0.30f) * 0.32f;
         }
 
         var clip = AudioClip.Create(

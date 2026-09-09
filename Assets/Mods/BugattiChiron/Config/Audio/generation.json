@@ -50,7 +50,7 @@
     "name": "Horn.wav",
     "samples": 88200,
     "seconds": 2.0,
-    "peak": 0.328631522777528,
+    "peak": 0.4842990861984623,
     "method": "deterministic dual-tone horn synthesis"
   },
   "runtime_layers": [

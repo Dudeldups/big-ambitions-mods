@@ -8,12 +8,12 @@ internal static class BugattiChironAudioModel
     internal const float HornVolume = 1f;
     internal const float EngineBaseVolume = 0.34f;
     internal const float EngineThrottleVolume = 0.36f;
-    internal const float TurboIdleVolume = 0.004f;
-    internal const float TurboLoadVolume = 0.055f;
+    internal const float TurboIdleVolume = 0.002f;
+    internal const float TurboLoadVolume = 0.022f;
 
     internal static float LoadBlend(float throttle) => Clamp01((throttle - 0.08f) / 0.76f);
     internal static float IdleVolume(float drivingBlend) =>
-        0.21f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+        0.29f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     internal static float DrivingBlend(float rpm, float idle, float limiter) =>
@@ -33,7 +33,7 @@ internal static class BugattiChironAudioModel
     // is deliberately compressed to keep the quad-turbo engine deep and smooth
     // at the Chiron's comparatively low 6,700 rpm limit.
     internal static float TargetHz(float normalized) =>
-        (float)(105d * Math.Pow(720d / 105d, Clamp01(normalized)));
+        (float)(78d * Math.Pow(360d / 78d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) =>
         TargetHz(normalized) / ReferenceHz(layer);
 

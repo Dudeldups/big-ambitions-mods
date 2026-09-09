@@ -131,10 +131,10 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
     private static void ConfigureTurboFilters(GameObject host)
     {
         var lowPass = host.AddComponent<AudioLowPassFilter>();
-        lowPass.cutoffFrequency = 6000f;
+        lowPass.cutoffFrequency = 3200f;
         lowPass.lowpassResonanceQ = 1.05f;
         var highPass = host.AddComponent<AudioHighPassFilter>();
-        highPass.cutoffFrequency = 850f;
+        highPass.cutoffFrequency = 350f;
         highPass.highpassResonanceQ = 1.08f;
         var distortion = host.AddComponent<AudioDistortionFilter>();
         distortion.distortionLevel = 0.006f;
@@ -262,7 +262,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
             layers[index].mute = layers[index + 3].mute = controlled && savedMute;
         }
 
-        turboSource.pitch = Mathf.Lerp(0.78f, 1.48f, normalized);
+        turboSource.pitch = Mathf.Lerp(0.72f, 1.18f, normalized);
         turboSource.volume = envelope * master *
                              BugattiChironAudioModel.TurboVolume(normalized, smoothThrottle);
         turboSource.mute = controlled && savedMute;
