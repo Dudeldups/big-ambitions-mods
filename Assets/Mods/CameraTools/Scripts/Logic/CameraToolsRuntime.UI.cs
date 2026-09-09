@@ -407,7 +407,7 @@ namespace CameraTools
 
         private static bool IsSpeedometerHudBackgroundPath(string lowerPath)
         {
-            return lowerPath.IndexOf("analoghudstripbackground", StringComparison.Ordinal) >= 0;
+            return lowerPath.IndexOf("speedometer_analogstripbg_", StringComparison.Ordinal) >= 0;
         }
 
         private static void AddKnownMapMarkerRoots(List<GameObject> targets, HashSet<int> seen, bool logDiagnostics)
