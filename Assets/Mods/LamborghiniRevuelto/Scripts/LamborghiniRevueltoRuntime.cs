@@ -279,6 +279,14 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
+            var rimGeometryController =
+                vehicle.GetComponent<LamborghiniRevueltoRimGeometryController>();
+            if (rimGeometryController == null)
+            {
+                rimGeometryController = vehicle.gameObject
+                    .AddComponent<LamborghiniRevueltoRimGeometryController>();
+            }
+            var mirroredRims = rimGeometryController.Initialize(context);
             ConfigureBodyColliders(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
@@ -323,7 +331,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
-                "powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
+                $"powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
+                $"mirroredRightRimGeometry={mirroredRims}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -481,13 +490,15 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private static bool IsDeformableExterior(MeshFilter filter)
     {
         var name = filter.name;
-        if (name.IndexOf("_Interior_", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("_Sphere_", StringComparison.OrdinalIgnoreCase) >= 0)
+        if (name.IndexOf("_Interior_", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return false;
         }
 
         return name.StartsWith("LamborghiniDamageBody", StringComparison.Ordinal) ||
+               string.Equals(name, "Hood.075_Body_0", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, "Hood.075_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, "Logo_Logo_0", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Front_part_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Front_vents", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Headlight_carbon", StringComparison.OrdinalIgnoreCase) ||
@@ -500,6 +511,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                name.StartsWith("Rear_plastic", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Rear_vent", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Rear_engine_carbon", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Exhaust_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Tail_light_Plastic", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Tail_light_", StringComparison.OrdinalIgnoreCase) ||
                name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -702,11 +714,98 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 }
 
 [AddComponentMenu("")]
+public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
+{
+    private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
+    private bool initialized;
+
+    internal int Initialize(ModContext? context)
+    {
+        if (initialized)
+            return runtimeMeshes.Count;
+
+        initialized = true;
+        var mirrored = 0;
+        mirrored += MirrorRightRim("Wheel_FR_Rim_0", "Wheel_FL_Rim_0");
+        mirrored += MirrorRightRim("Wheel_BR_Rim_0", "Wheel_BL_Rim_0");
+        if (mirrored != 2)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto rims vehicle={GetInstanceID()}: mirrored {mirrored}/2 left rims; " +
+                "a wheel mesh pair is missing.");
+        }
+        else
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto rims vehicle={GetInstanceID()}: left rims rebuilt as exact " +
+                "mirrors of the preferred right-side geometry.");
+        }
+        return mirrored;
+    }
+
+    private int MirrorRightRim(string rightName, string leftName)
+    {
+        MeshFilter? right = null;
+        MeshFilter? left = null;
+        foreach (var filter in GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (string.Equals(filter.name, rightName, StringComparison.Ordinal))
+                right = filter;
+            else if (string.Equals(filter.name, leftName, StringComparison.Ordinal))
+                left = filter;
+        }
+        if (right?.sharedMesh == null || left == null)
+            return 0;
+
+        var mirroredMesh = Instantiate(right.sharedMesh);
+        mirroredMesh.name = leftName + "_MirroredFromRight";
+        var rightToRoot = transform.worldToLocalMatrix * right.transform.localToWorldMatrix;
+        var rootToLeft = left.transform.worldToLocalMatrix * transform.localToWorldMatrix;
+        var rightToMirroredLeft =
+            rootToLeft * Matrix4x4.Scale(new Vector3(-1f, 1f, 1f)) * rightToRoot;
+        var vertices = mirroredMesh.vertices;
+        for (var index = 0; index < vertices.Length; index++)
+            vertices[index] = rightToMirroredLeft.MultiplyPoint3x4(vertices[index]);
+        mirroredMesh.vertices = vertices;
+
+        // Mirroring reverses handedness. Restore outward-facing triangle winding
+        // before deriving normals so both sides respond identically to lighting.
+        for (var subMesh = 0; subMesh < mirroredMesh.subMeshCount; subMesh++)
+        {
+            var triangles = mirroredMesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < triangles.Length; index += 3)
+            {
+                var second = triangles[index + 1];
+                triangles[index + 1] = triangles[index + 2];
+                triangles[index + 2] = second;
+            }
+            mirroredMesh.SetTriangles(triangles, subMesh, false);
+        }
+        mirroredMesh.RecalculateNormals();
+        mirroredMesh.RecalculateTangents();
+        mirroredMesh.RecalculateBounds();
+        left.sharedMesh = mirroredMesh;
+        runtimeMeshes.Add(mirroredMesh);
+        return 1;
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var mesh in runtimeMeshes)
+        {
+            if (mesh != null)
+                Destroy(mesh);
+        }
+        runtimeMeshes.Clear();
+    }
+}
+
+[AddComponentMenu("")]
 public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.66f;
-    private const float MaximumDentDepth = 0.40f;
-    private const float DepthPerExcessMps = 0.013f;
+    private const float DentRadius = 0.72f;
+    private const float MaximumDentDepth = 0.46f;
+    private const float DepthPerExcessMps = 0.015f;
     private const float EndDentLateralRadius = 0.96f;
     private const float EndDentVerticalRadius = 0.82f;
     private const float EndDentLongitudinalRadius = 1.18f;
