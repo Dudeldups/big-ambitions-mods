@@ -61,7 +61,9 @@ namespace DeveloperTools
                 {
                     id = Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
                     fuel = vehicleType.maxFuel * 0.98f,
-                    vehicleColorName = GetDefaultVehicleColorName()
+                    // Preserve the prefab's authored paint while satisfying
+                    // consumers that require a non-null color identifier.
+                    vehicleColorName = string.Empty
                 };
                 var controller = VehicleHelper.CreateAndSpawnVehicle(instance, position, rotation);
                 if (controller == null)
@@ -72,6 +74,7 @@ namespace DeveloperTools
                 }
 
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
+                NotifyModVehicleCreated(controller, vehicleTypeName);
                 lastSpawnedVehicleId = instance.id;
                 message = "Spawned " + Localize(vehicleTypeName) + ".";
                 return true;
@@ -107,6 +110,36 @@ namespace DeveloperTools
             return true;
         }
 
+        private void NotifyModVehicleCreated(VehicleController controller, string vehicleTypeName)
+        {
+            if (!IsModdedVehicleType(vehicleTypeName) || GlobalEvents.onEnterVehicle == null)
+                return;
+
+            // The game exposes no vehicle-created event. Vehicle mods therefore
+            // commonly use their enter callback to configure newly discovered
+            // controllers. Notify external listeners individually before the
+            // first real entry, but never run the game's own enter listeners or
+            // mutate player/vehicle occupancy state.
+            var gameAssembly = typeof(VehicleController).Assembly;
+            foreach (var callback in GlobalEvents.onEnterVehicle.GetInvocationList())
+            {
+                if (callback.Method.DeclaringType?.Assembly == gameAssembly)
+                    continue;
+
+                try
+                {
+                    if (callback is Action<VehicleController> vehicleCallback)
+                        vehicleCallback(controller);
+                }
+                catch (Exception exception)
+                {
+                    context.Logger.Warn(
+                        "DeveloperTools: an external vehicle initializer failed for type=" +
+                        vehicleTypeName + ": " + exception.GetBaseException().Message);
+                }
+            }
+        }
+
         private static string Localize(string id)
         {
             try
@@ -118,19 +151,6 @@ namespace DeveloperTools
             {
                 return id;
             }
-        }
-
-        private static string GetDefaultVehicleColorName()
-        {
-            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors;
-            if (colors == null)
-                return string.Empty;
-
-            foreach (var color in colors)
-                if (color != null && !string.IsNullOrEmpty(color.name))
-                    return color.name;
-
-            return string.Empty;
         }
 
         private static bool IsModdedVehicleType(string id)
