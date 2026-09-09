@@ -23,11 +23,15 @@ namespace MootorVehicle
         private const string LeftEarFlapName = "MootorEarLeft";
         private const string RightEarFlapName = "MootorEarRight";
         private const float RiderScale = 0.94f;
-        private const float ParkedVisualHeightOffset = 0f;
+        private const float InitialParkedVisualHeightOffset = 0f;
+        private const float PostRideParkedVisualHeightOffset = -0.18f;
         private const float MountedVisualHeightOffset = -0.18f;
         private const float MooHornVolume = 0.65f;
         private const float GaitStartSpeed = 0.15f;
         private const float GaitFullSpeed = 1.5f;
+        private const float MinimumStridesPerSecond = 0.8f;
+        private const float RegularMaximumStridesPerSecond = 1.8f;
+        private const float EnergizedMaximumStridesPerSecond = 3.6f;
         private const float EarFlapDuration = 0.55f;
         private const float EarFlapMinimumDelay = 3.5f;
         private const float EarFlapMaximumDelay = 9f;
@@ -60,6 +64,7 @@ namespace MootorVehicle
         private Vector3 cowVisualBasePosition;
         private Vector3 riderSeatBasePosition;
         private bool rideHeightConfigured;
+        private bool hasBeenMounted;
         private SkinnedMeshRenderer? cowGaitRenderer;
         private int gaitPoseAIndex = -1;
         private int gaitPoseBIndex = -1;
@@ -124,6 +129,8 @@ namespace MootorVehicle
                 return;
 
             occupied = true;
+            hasBeenMounted = true;
+            GetComponent<MootorVehicleAmbientMooController>()?.NotifyMounted();
             GetComponent<MootorVehicleFuelController>()?.NotifyMounted();
             attempts = 0;
             nextAttempt = 0f;
@@ -131,7 +138,7 @@ namespace MootorVehicle
             nextEngineStartAttempt = Time.unscaledTime + 0.15f;
             engineStartConfirmedLogged = false;
             engineStartFailureLogged = false;
-            engineRestartPending = false;
+            engineRestartPending = true;
             engineReady = false;
             dormantThrottleDetectedAt = -1f;
             hornPressed = false;
@@ -140,8 +147,35 @@ namespace MootorVehicle
             ScheduleNextEarFlap(true);
 
             ApplyRideHeight(true);
+            ResetDrivetrainForMount();
             LogInfo("mounted; preparing current player appearance.");
             LogDrivetrainState("mount");
+        }
+
+        private void ResetDrivetrainForMount()
+        {
+            if (physicsVehicle == null)
+                return;
+
+            try
+            {
+                var engine = physicsVehicle.powertrain.engine;
+                var transmission = physicsVehicle.powertrain.transmission;
+                engine.StopEngine();
+                transmission.ShiftInto(0, true);
+                transmission.currentGearRatio = 0f;
+                engineRestartPending = true;
+                nextEngineStartAttempt = Time.unscaledTime + EngineRestartDelay;
+                LogInfo("normalized engine and transmission for mount; scheduled clean restart.");
+            }
+            catch (Exception exception)
+            {
+                engineRestartPending = false;
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: could not normalize " +
+                    $"drivetrain on mount; using fallback recovery: " +
+                    exception.GetBaseException().Message);
+            }
         }
 
         private void LateUpdate()
@@ -155,6 +189,7 @@ namespace MootorVehicle
             if (!vehicle.controlledByPlayer && Time.unscaledTime >= mountControlGraceUntil)
             {
                 occupied = false;
+                GetComponent<MootorVehicleAmbientMooController>()?.NotifyDismounted();
                 GetComponent<MootorVehicleFuelController>()?.NotifyDismounted();
                 ApplyRideHeight(false);
                 ResetCowGait();
@@ -402,7 +437,10 @@ namespace MootorVehicle
             {
                 var engine = physicsVehicle.powertrain.engine;
                 var rpm = engine.RPMPercent * engine.revLimiterRPM;
-                if (rpm >= MinimumHealthyEngineRpm)
+                var speedKmh = vehicleBody != null ? vehicleBody.velocity.magnitude * 3.6f : 0f;
+                var stationaryAtRevLimiter = speedKmh < 0.5f &&
+                                             rpm >= engine.revLimiterRPM * 0.95f;
+                if (engine.IsRunning && rpm >= MinimumHealthyEngineRpm && !stationaryAtRevLimiter)
                 {
                     engineReady = true;
                     if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
@@ -417,6 +455,17 @@ namespace MootorVehicle
                     return;
                 }
 
+                if (stationaryAtRevLimiter && !engineRestartPending)
+                {
+                    engine.StopEngine();
+                    engineRestartPending = true;
+                    nextEngineStartAttempt = Time.unscaledTime + EngineRestartDelay;
+                    LogInfo(
+                        $"reset stationary rev-limiter drivetrain before restart; " +
+                        $"rpm={rpm:F0} speed={speedKmh:F2}kmh.");
+                    return;
+                }
+
                 if (engineRestartPending)
                 {
                     if (Time.unscaledTime < nextEngineStartAttempt)
@@ -427,9 +476,11 @@ namespace MootorVehicle
                     nextEngineStartAttempt = Time.unscaledTime + EngineStartRetryDelay;
                     dormantThrottleDetectedAt = Time.unscaledTime;
                     engine.StartEngine();
+                    physicsVehicle.powertrain.transmission.ShiftInto(1, true);
                     LogInfo(
-                        $"requested native engine restart attempt={engineStartAttempts}; " +
-                        $"running={engine.IsRunning} rpm={rpm:F0}.");
+                        $"requested native engine restart attempt={engineStartAttempts} in drive; " +
+                        $"running={engine.IsRunning} rpm={rpm:F0} " +
+                        $"gear={physicsVehicle.powertrain.transmission.Gear}.");
                     return;
                 }
 
@@ -624,9 +675,16 @@ namespace MootorVehicle
             if (!rideHeightConfigured || cowVisual == null || heightAdjustedSeat == null)
                 return;
 
-            var heightOffset = mounted ? MountedVisualHeightOffset : ParkedVisualHeightOffset;
+            var heightOffset = mounted
+                ? MountedVisualHeightOffset
+                : hasBeenMounted
+                    ? PostRideParkedVisualHeightOffset
+                    : InitialParkedVisualHeightOffset;
             cowVisual.localPosition = cowVisualBasePosition + Vector3.up * heightOffset;
             heightAdjustedSeat.localPosition = riderSeatBasePosition + Vector3.up * heightOffset;
+            LogInfo(
+                $"ride height state='{(mounted ? "mounted" : hasBeenMounted ? "parked-after-ride" : "initial-parked")}' " +
+                $"offset={heightOffset:F2}m.");
         }
 
         private void UpdateCowGait()
@@ -646,7 +704,20 @@ namespace MootorVehicle
                 return;
             }
 
-            var stridesPerSecond = Mathf.Lerp(0.8f, 1.8f, Mathf.Clamp01(speed / 4f));
+            var regularCadence = Mathf.Lerp(
+                MinimumStridesPerSecond,
+                RegularMaximumStridesPerSecond,
+                Mathf.Clamp01(speed / 4f));
+            var regularTopSpeed = MootorVehicleFuelController.RegularSpeedLimit / 3.6f;
+            var energizedTopSpeed = regularTopSpeed * 2f;
+            var energizedSpeedFactor = Mathf.InverseLerp(
+                regularTopSpeed,
+                energizedTopSpeed,
+                speed);
+            var stridesPerSecond = Mathf.Lerp(
+                regularCadence,
+                EnergizedMaximumStridesPerSecond,
+                energizedSpeedFactor);
             gaitPhase = Mathf.Repeat(
                 gaitPhase + stridesPerSecond * Mathf.PI * 2f * Time.deltaTime,
                 Mathf.PI * 2f);

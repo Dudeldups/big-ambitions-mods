@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using BAModAPI;
 using Helpers;
+using UI.Notification;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -15,11 +16,17 @@ namespace MootorVehicle
         private const int RequiredStablePasses = 5;
         private const float InitializationRetryDelay = 0.25f;
         private const string RiderSeatName = "MootorVehicle_RiderSeat";
+        private const string VeterinarianAssemblyName = "MobileVeterinarian";
+        private const string MissingVeterinarianNotificationKey =
+            "mootorvehicle:missing_mobile_veterinarian";
+        private const string MissingVeterinarianNotificationId =
+            "MootorVehicleMissingMobileVeterinarian";
 
         private readonly HashSet<int> loggedVehicleIds = new();
         private Coroutine? initializationCoroutine;
         private ModContext? context;
         private string vehicleTypeName = string.Empty;
+        private bool missingVeterinarianNoticeShown;
 
         public static MootorVehicleRuntime Initialize(ModContext context, string vehicleTypeName)
         {
@@ -58,6 +65,14 @@ namespace MootorVehicle
             foreach (var materialController in FindObjectsOfType<MootorVehicleMaterialController>(true))
                 if (materialController != null)
                     Destroy(materialController);
+
+            foreach (var ambientController in FindObjectsOfType<MootorVehicleAmbientMooController>(true))
+                if (ambientController != null)
+                    Destroy(ambientController);
+
+            foreach (var impactController in FindObjectsOfType<MootorVehicleImpactController>(true))
+                if (impactController != null)
+                    Destroy(impactController);
 
             Destroy(gameObject);
         }
@@ -169,6 +184,44 @@ namespace MootorVehicle
             context?.Logger.Info(
                 $"Moo-tor Vehicle: initialization source='{source}' attempts={attempts} " +
                 $"dealerReady={dealerReady} matched={maximumMatchedCount} configured={configuredCount}.");
+            TryShowMissingVeterinarianNotice();
+        }
+
+        private void TryShowMissingVeterinarianNotice()
+        {
+            if (missingVeterinarianNoticeShown || SaveGameManager.Current == null)
+                return;
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                if (string.Equals(
+                        assembly.GetName().Name,
+                        VeterinarianAssemblyName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+            try
+            {
+                Notifications.Show(
+                    NotificationType.Info,
+                    MissingVeterinarianNotificationKey,
+                    null,
+                    7f,
+                    MissingVeterinarianNotificationId,
+                    null,
+                    true,
+                    false);
+                missingVeterinarianNoticeShown = true;
+                context?.Logger.Info(
+                    "Moo-tor Vehicle: Mobile Veterinarian was not loaded; displayed optional-mod notice.");
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    "Moo-tor Vehicle: could not display the missing Mobile Veterinarian notice: " +
+                    exception.GetBaseException().Message);
+            }
         }
 
         private void EnsureVehiclesConfigured(out int matchedCount, out int configuredCount)
@@ -221,8 +274,18 @@ namespace MootorVehicle
             if (materialController == null)
                 materialController = vehicleController.gameObject.AddComponent<MootorVehicleMaterialController>();
 
+            var ambientController = vehicleController.GetComponent<MootorVehicleAmbientMooController>();
+            if (ambientController == null)
+                ambientController = vehicleController.gameObject.AddComponent<MootorVehicleAmbientMooController>();
+
+            var impactController = vehicleController.GetComponent<MootorVehicleImpactController>();
+            if (impactController == null)
+                impactController = vehicleController.gameObject.AddComponent<MootorVehicleImpactController>();
+
             materialController.Initialize(vehicleController, context);
             fuelController.Initialize(vehicleController, context);
+            ambientController.Initialize(vehicleController, context);
+            impactController.Initialize(vehicleController, context);
             riderController!.Initialize(vehicleController, context);
             if (source == "vehicle-entered")
                 riderController.NotifyMounted();
