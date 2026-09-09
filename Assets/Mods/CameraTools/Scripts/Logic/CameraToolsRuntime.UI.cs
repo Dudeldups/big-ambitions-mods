@@ -343,6 +343,12 @@ namespace CameraTools
                 if (hideMapMarkers && IsUnderKnownMapMarkerRootPath(path))
                     continue;
 
+                if (IsSpeedometerHudBackgroundPath(path))
+                {
+                    TryAddHiddenUiTarget(targets, seen, gameObject);
+                    continue;
+                }
+
                 if (cityMapOpen && IsCityMapControlPath(path))
                 {
                     TryAddHiddenUiTarget(targets, seen, gameObject);
@@ -397,6 +403,11 @@ namespace CameraTools
             }
 
             return FilterNestedUiTargets(targets);
+        }
+
+        private static bool IsSpeedometerHudBackgroundPath(string lowerPath)
+        {
+            return lowerPath.IndexOf("analoghudstripbackground", StringComparison.Ordinal) >= 0;
         }
 
         private static void AddKnownMapMarkerRoots(List<GameObject> targets, HashSet<int> seen, bool logDiagnostics)
