@@ -126,7 +126,9 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 sourceTexture,
                 sourcePixels,
                 tint,
-                out var paintedPixelCount);
+                out var paintedPixelCount,
+                out var flamePixelCount,
+                out var flameColor);
             SetBaseTexture(paintMaterial, replacement);
             SetPillarColor(tint);
             if (paintedTexture != null)
@@ -141,8 +143,9 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     $"BigfootMonsterTruck paint ready vehicle={vehicle?.GetInstanceID()} " +
                     $"texture={sourceTexture.width}x{sourceTexture.height} " +
                     $"maskedPixels={paintedPixelCount}/{sourcePixels.Length} " +
+                    $"flamePixels={flamePixelCount}/{sourcePixels.Length} " +
                     $"pillarTriangles={Mathf.Max(0, pillarTriangleCount)} " +
-                    $"tint={tint}.");
+                    $"tint={tint} contrast={flameColor}.");
             }
         }
         catch (Exception exception)
@@ -194,10 +197,14 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         Texture2D source,
         Color32[] originalPixels,
         Color tint,
-        out int paintedPixelCount)
+        out int paintedPixelCount,
+        out int flamePixelCount,
+        out Color flameColor)
     {
         var pixels = (Color32[])originalPixels.Clone();
         paintedPixelCount = 0;
+        flamePixelCount = 0;
+        flameColor = GetContrastingFlameColor(tint);
         for (var index = 0; index < pixels.Length; index++)
         {
             var sourceColor = pixels[index];
@@ -220,14 +227,41 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 1f,
                 Mathf.InverseLerp(0.028f, 0.085f, chroma));
             var paintMask = darkMask * neutralMask;
-            if (paintMask <= 0f)
+            // Blue is the atlas' complete secondary paint layer: both the light
+            // flames and their darker edging. Recolor it from the selected base
+            // color instead of relying on the finite vanilla paint palette.
+            var blueDominance = blue - Mathf.Max(red, green);
+            var flameMask = Mathf.SmoothStep(
+                0f,
+                1f,
+                Mathf.InverseLerp(0.07f, 0.20f, blueDominance)) *
+                Mathf.SmoothStep(
+                    0f,
+                    1f,
+                    Mathf.InverseLerp(0.16f, 0.42f, maximum));
+            if (paintMask <= 0f && flameMask <= 0f)
                 continue;
-            paintedPixelCount++;
 
-            var shade = Mathf.Lerp(0.58f, 1f, Mathf.Clamp01(maximum / 0.24f));
-            var target = new Color(tint.r * shade, tint.g * shade, tint.b * shade, 1f);
             var original = new Color(red, green, blue, 1f);
-            var painted = Color.Lerp(original, target, paintMask);
+            var painted = original;
+            if (paintMask > 0f)
+            {
+                paintedPixelCount++;
+                var shade = Mathf.Lerp(0.58f, 1f, Mathf.Clamp01(maximum / 0.24f));
+                var target = new Color(tint.r * shade, tint.g * shade, tint.b * shade, 1f);
+                painted = Color.Lerp(painted, target, paintMask);
+            }
+            if (flameMask > 0f)
+            {
+                flamePixelCount++;
+                var flameShade = Mathf.Lerp(0.62f, 1f, Mathf.InverseLerp(0.25f, 0.98f, maximum));
+                var target = new Color(
+                    flameColor.r * flameShade,
+                    flameColor.g * flameShade,
+                    flameColor.b * flameShade,
+                    1f);
+                painted = Color.Lerp(painted, target, flameMask);
+            }
             pixels[index] = new Color32(
                 (byte)Mathf.RoundToInt(painted.r * 255f),
                 (byte)Mathf.RoundToInt(painted.g * 255f),
@@ -245,6 +279,32 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         texture.SetPixels32(pixels);
         texture.Apply(true, false);
         return texture;
+    }
+
+    private static Color GetContrastingFlameColor(Color tint)
+    {
+        Color.RGBToHSV(tint, out var hue, out var saturation, out var value);
+        var luminance = 0.2126f * tint.r + 0.7152f * tint.g + 0.0722f * tint.b;
+
+        // Preserve the familiar blue-on-black stock livery. Neutral colors need
+        // an intentional accent because hue rotation is undefined for greys.
+        if (saturation < 0.16f)
+        {
+            if (luminance < 0.20f)
+                return new Color(0.02f, 0.41f, 0.97f, 1f);
+            if (luminance > 0.68f)
+                return new Color(0.04f, 0.22f, 0.68f, 1f);
+            return new Color(1f, 0.38f, 0.03f, 1f);
+        }
+
+        var contrastHue = Mathf.Repeat(hue + 0.5f, 1f);
+        var contrastSaturation = Mathf.Max(0.78f, saturation);
+        var contrastValue = luminance < 0.42f
+            ? 1f
+            : luminance > 0.72f
+                ? 0.58f
+                : Mathf.Clamp(1.08f - value * 0.22f, 0.76f, 0.96f);
+        return Color.HSVToRGB(contrastHue, contrastSaturation, contrastValue);
     }
 
     private int ConfigurePaintedPillars()
@@ -273,9 +333,9 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
             var absX = Mathf.Abs(center.x);
             var isCabinPillar =
-                absX >= 0.95f && absX <= 1.40f &&
-                center.y >= 0.80f && center.y <= 2.00f &&
-                center.z >= 0.10f && center.z <= 1.10f;
+                absX >= 0.82f && absX <= 1.45f &&
+                center.y >= 0.65f && center.y <= 2.15f &&
+                center.z >= -0.05f && center.z <= 1.10f;
             var destination = isCabinPillar ? pillarTriangles : regularTriangles;
             destination.Add(a);
             destination.Add(b);

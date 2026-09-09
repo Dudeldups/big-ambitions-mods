@@ -89,7 +89,7 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         rumbleSource = CreateSource("LowRumble", rumbleClip, 1500f, 0.05f);
         roarSource = CreateSource("SuperchargedRoar", roarClip, 5200f, 0.18f, 90f);
         crackleSource = CreateSource("ExhaustCrackle", crackleClip, 6800f, 0.24f, 520f);
-        hornSource = CreateSource("DualToneTruckHorn", hornClip, 6000f, 0.08f, 35f);
+        hornSource = CreateSource("DualToneTruckHorn", hornClip, 7200f, 0.06f, 85f);
         var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
         if (otherSource?.outputAudioMixerGroup != null)
             hornSource.outputAudioMixerGroup = otherSource.outputAudioMixerGroup;
