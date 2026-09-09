@@ -537,6 +537,12 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             filterName.StartsWith("Body_", StringComparison.OrdinalIgnoreCase) ||
             filterName.StartsWith("Door-left_", StringComparison.OrdinalIgnoreCase) ||
             filterName.StartsWith("Door-right_", StringComparison.OrdinalIgnoreCase);
+        var exteriorPlastic =
+            string.Equals(filterName, "Plastic-parts_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(filterName, "Plastic-parts_Carbon_0", StringComparison.OrdinalIgnoreCase);
+        var frontGrille =
+            filterName.StartsWith("B:Grille", StringComparison.OrdinalIgnoreCase) ||
+            filterName.StartsWith("B:Kit2_Grille", StringComparison.OrdinalIgnoreCase);
         // The FBX groups the visible horseshoe grille, surround, and badge under
         // Engine even though they are exterior nose pieces. Keep the actual engine
         // and its carbon geometry rigid by admitting only these named submeshes.
@@ -544,7 +550,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             string.Equals(filterName, "Engine_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(filterName, "Engine_Silver_0", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(filterName, "Engine_Logo_0", StringComparison.OrdinalIgnoreCase);
-        if (!bodyPanel && !frontCenterAssembly)
+        if (!bodyPanel && !frontCenterAssembly && !exteriorPlastic && !frontGrille)
         {
             return false;
         }

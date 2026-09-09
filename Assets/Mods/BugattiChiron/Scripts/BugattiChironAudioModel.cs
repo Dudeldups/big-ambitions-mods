@@ -29,11 +29,11 @@ internal static class BugattiChironAudioModel
 
     internal static float ReferenceHz(int layer) => layer == 0 ? 110f : layer == 1 ? 360f : 720f;
 
-    // The W16 fires eight times per crankshaft revolution. The audible mapping
-    // is deliberately compressed to keep the quad-turbo engine deep and smooth
-    // at the Chiron's comparatively low 6,700 rpm limit.
+    // The W16 fires eight times per crankshaft revolution. Keep the audible
+    // mapping substantially below the naturally aspirated V12 range: the
+    // Chiron should build a dense, forceful growl rather than an electric buzz.
     internal static float TargetHz(float normalized) =>
-        (float)(72d * Math.Pow(255d / 72d, Clamp01(normalized)));
+        (float)(60d * Math.Pow(205d / 60d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) =>
         TargetHz(normalized) / ReferenceHz(layer);
 

@@ -28,6 +28,7 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
         warnedAboutInvalidSteering = false;
 
         var availableCalipers = new List<Transform>(4);
+        var attachedBrakeDiscs = 0;
         foreach (var candidate in controller.GetComponentsInChildren<Transform>(true))
         {
             if (candidate.name.IndexOf("_Caliper_", StringComparison.OrdinalIgnoreCase) >= 0 &&
@@ -52,11 +53,22 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
                                   $"No unassigned brake caliper renderer was found for '{wheelName}' " +
                                   $"(candidates={availableCalipers.Count}).");
                 availableCalipers.Remove(caliper);
+                var brakeDiscRoot = caliper.parent;
                 var pivotObject = new GameObject(pivotName);
                 pivot = pivotObject.transform;
                 pivot.SetParent(controller.transform, false);
                 pivot.SetPositionAndRotation(wheel.position, controller.transform.rotation);
                 caliper.SetParent(pivot, true);
+
+                // The imported rotor parent contains the disc and caliper as
+                // siblings. The disc must inherit the complete wheel pose so
+                // it steers and rolls; only the caliper belongs on the
+                // steering-only pivot above.
+                if (brakeDiscRoot != null && brakeDiscRoot != controller.transform)
+                {
+                    brakeDiscRoot.SetParent(wheel, true);
+                    attachedBrakeDiscs++;
+                }
             }
 
             CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
@@ -66,8 +78,9 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
         ApplyBindings();
         context?.Logger.Info(
             $"BugattiChiron steering calipers ready vehicle={controller.GetInstanceID()}, " +
-            $"bindings={bindings.Count}, followsSteeringAndSuspension=true, " +
-            "inheritsWheelSpin=false.");
+            $"bindings={bindings.Count}, brakeDiscsAttached={attachedBrakeDiscs}, " +
+            "calipersFollowSteeringAndSuspension=true, calipersInheritWheelSpin=false, " +
+            "brakeDiscsInheritFullWheelPose=true.");
     }
 
     private void LateUpdate()
