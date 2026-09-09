@@ -6,7 +6,7 @@ Donnez un nouveau look à votre véhicule sans en acheter un autre. Vehicle Repa
 [list]
 [*] Conduisez un véhicule dans la zone habituelle de réparation et de lavage d'une station-service.
 [*] Sélectionnez [b]Repeindre (800 $)[/b].
-[*] Utilisez le sélecteur de couleur familier pour prévisualiser en direct toutes les couleurs disponibles sur votre véhicule.
+[*] Choisissez parmi une palette étendue de 96 couleurs, classées par teinte, et prévisualisez chacune directement sur votre véhicule.
 [/list]
 
 [h2]Compatibilité[/h2]

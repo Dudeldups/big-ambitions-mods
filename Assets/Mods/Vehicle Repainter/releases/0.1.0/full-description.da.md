@@ -6,7 +6,7 @@ Giv dit køretøj et nyt udseende uden at købe et nyt. Vehicle Repainter tilfø
 [list]
 [*] Kør et køretøj ind i en tankstations normale serviceområde til reparation og vask.
 [*] Vælg [b]Omlakering (800 $)[/b].
-[*] Brug den velkendte farvevælger til at se alle tilgængelige farver direkte på køretøjet.
+[*] Vælg mellem en udvidet palet med 96 farver, sorteret efter nuance, og se hver farve direkte på køretøjet.
 [/list]
 
 [h2]Kompatibilitet[/h2]

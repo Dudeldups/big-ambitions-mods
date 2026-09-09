@@ -6,7 +6,7 @@ Oferă-i vehiculului tău un aspect nou fără să cumperi altul. Vehicle Repain
 [list]
 [*] Condu un vehicul în zona obișnuită de reparații și spălare a unei benzinării.
 [*] Selectează [b]Revopsire (800 $)[/b].
-[*] Folosește selectorul familiar de culori pentru vehicule ca să previzualizezi direct pe vehicul toate culorile disponibile.
+[*] Alege dintr-o paletă extinsă de 96 de culori, ordonate după nuanță, și previzualizează fiecare culoare direct pe vehicul.
 [/list]
 
 [h2]Compatibilitate[/h2]
