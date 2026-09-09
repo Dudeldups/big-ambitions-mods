@@ -24,6 +24,12 @@ public static class BugattiChironSetup
     private const string VehicleTypeName =
         "bugattichiron-vehicle:vehicletype_bugattichiron";
     private const float TargetLength = 4.544f;
+    private const float VehicleLinearDrag = 0.027f;
+    private const float ForcedInductionPowerMultiplier = 1f;
+    private const float DamageDecelerationThreshold = 500f;
+    private const float DamageIntensity = 0.45f;
+    private const float DeformationRadius = 0.32f;
+    private const float DeformationStrength = 0.22f;
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
@@ -170,6 +176,7 @@ public static class BugattiChironSetup
                 transmissionVerified = gearCount == 7 && gears != null && gears.arraySize == 9;
                 var clutch = powertrain?.FindPropertyRelative("clutch");
                 var engine = powertrain?.FindPropertyRelative("engine");
+                var forcedInduction = engine?.FindPropertyRelative("forcedInduction");
                 launchResponseVerified =
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRPM")) - 1200f) < 0.01f &&
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("throttleEngagementOffsetRPM")) - 500f) < 0.01f &&
@@ -177,7 +184,48 @@ public static class BugattiChironSetup
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.12f) < 0.001f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.5f) < 0.001f &&
+                    Math.Abs(ReadNumber(
+                        forcedInduction?.FindPropertyRelative("powerGainMultiplier")) -
+                        ForcedInductionPowerMultiplier) < 0.001f &&
                     !(engine?.FindPropertyRelative("stallingEnabled")?.boolValue ?? true);
+            }
+
+            var rigidbody = prefab.GetComponent<Rigidbody>();
+            var accelerationDragVerified = rigidbody != null &&
+                                           Math.Abs(rigidbody.drag - VehicleLinearDrag) < 0.0001f;
+            var visualDamageHandlerVerified = false;
+            var legacyDeformationDisabled = false;
+            foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (component == null)
+                    continue;
+                if (string.Equals(
+                        component.GetType().Name,
+                        "VehicleDeformationController",
+                        StringComparison.Ordinal))
+                {
+                    var legacy = new SerializedObject(component);
+                    legacyDeformationDisabled = !component.enabled &&
+                                                (legacy.FindProperty("meshFilters")?.arraySize ?? -1) == 0;
+                    continue;
+                }
+                if (!string.Equals(
+                        component.GetType().FullName,
+                        "NWH.VehiclePhysics2.Damage.DamageHandler",
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var damage = new SerializedObject(component);
+                visualDamageHandlerVerified =
+                    (damage.FindProperty("meshDeform")?.boolValue ?? false) &&
+                    Math.Abs(ReadNumber(damage.FindProperty("decelerationThreshold")) -
+                             DamageDecelerationThreshold) < 0.01f &&
+                    Math.Abs(ReadNumber(damage.FindProperty("deformationRadius")) -
+                             DeformationRadius) < 0.001f &&
+                    Math.Abs(ReadNumber(damage.FindProperty("deformationStrength")) -
+                             DeformationStrength) < 0.001f;
             }
 
             var opaqueMaterials = new HashSet<Material>();
@@ -322,6 +370,9 @@ public static class BugattiChironSetup
                 !headlightTemplateValid ||
                 !transmissionVerified ||
                 !launchResponseVerified ||
+                !accelerationDragVerified ||
+                !visualDamageHandlerVerified ||
+                !legacyDeformationDisabled ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
@@ -351,6 +402,9 @@ public static class BugattiChironSetup
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
                     $"sevenSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
+                    $"accelerationDrag={accelerationDragVerified}, " +
+                    $"visualDamage={visualDamageHandlerVerified}, " +
+                    $"legacyDeformationDisabled={legacyDeformationDisabled}, " +
                     $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
@@ -369,7 +423,7 @@ public static class BugattiChironSetup
             Debug.Log(
                 $"BugattiChiron bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, sevenSpeed=true, " +
-                $"launchResponse=true, " +
+                $"launchResponse=true, accelerationDrag=true, visualDamage=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, darkBodyPaintSlots={darkBodyPaintSlots}, " +
@@ -463,6 +517,7 @@ public static class BugattiChironSetup
             NormalizeModel(modelInstance);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
+            ConfigureVisualDamage(root);
             var fix = BugattiChironMaterials.FixSolidMaterials(root);
             MarkMaterialsDirty(root);
             ConfigureRendererReferences(root);
@@ -524,7 +579,7 @@ public static class BugattiChironSetup
         var body = root.GetComponent<Rigidbody>() ??
                    throw new InvalidOperationException("Reference prefab has no Rigidbody.");
         body.mass = 1995f;
-        body.drag = 0f;
+        body.drag = VehicleLinearDrag;
         body.angularDrag = 1.35f;
         body.centerOfMass = new Vector3(0f, 0.26f, 0f);
         body.interpolation = RigidbodyInterpolation.Interpolate;
@@ -615,7 +670,10 @@ public static class BugattiChironSetup
                 SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.5f);
                 SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", false);
                 SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", true);
-                SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.powerGainMultiplier", 1.35f);
+                SetRelativeNumber(
+                    serialized,
+                    "powertrain.engine.forcedInduction.powerGainMultiplier",
+                    ForcedInductionPowerMultiplier);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.08f);
                 SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 3.2f);
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 7f);
@@ -642,6 +700,57 @@ public static class BugattiChironSetup
 
         if (!found)
             throw new InvalidOperationException("NWH vehicle controller was not found on the reference prefab.");
+    }
+
+    private static void ConfigureVisualDamage(GameObject root)
+    {
+        var damageHandlerFound = false;
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null)
+                continue;
+
+            if (string.Equals(
+                    component.GetType().Name,
+                    "VehicleDeformationController",
+                    StringComparison.Ordinal))
+            {
+                component.enabled = false;
+                var legacy = new SerializedObject(component);
+                var meshFilters = legacy.FindProperty("meshFilters");
+                var originalMeshes = legacy.FindProperty("originalMeshes");
+                if (meshFilters != null)
+                    meshFilters.arraySize = 0;
+                if (originalMeshes != null)
+                    originalMeshes.arraySize = 0;
+                legacy.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(component);
+                continue;
+            }
+
+            if (!string.Equals(
+                    component.GetType().FullName,
+                    "NWH.VehiclePhysics2.Damage.DamageHandler",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            damageHandlerFound = true;
+            var serialized = new SerializedObject(component);
+            SetRelativeBool(serialized, "meshDeform", true);
+            SetRelativeNumber(serialized, "collisionTimeout", 0.8f);
+            SetRelativeNumber(serialized, "damageIntensity", DamageIntensity);
+            SetRelativeNumber(serialized, "decelerationThreshold", DamageDecelerationThreshold);
+            SetRelativeNumber(serialized, "deformationRadius", DeformationRadius);
+            SetRelativeNumber(serialized, "deformationRandomness", 0.01f);
+            SetRelativeNumber(serialized, "deformationStrength", DeformationStrength);
+            SetRelativeNumber(serialized, "deformationVerticesPerFrame", 8000f);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        if (!damageHandlerFound)
+            throw new InvalidOperationException("NWH damage handler was not found on the reference prefab.");
     }
 
     private static void NormalizeModel(GameObject model)

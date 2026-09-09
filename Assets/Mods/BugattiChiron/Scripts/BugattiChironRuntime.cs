@@ -26,6 +26,12 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 500f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
+    private const float VehicleLinearDrag = 0.027f;
+    private const float ForcedInductionPowerMultiplier = 1f;
+    private const float DamageDecelerationThreshold = 500f;
+    private const float DamageIntensity = 0.45f;
+    private const float DeformationRadius = 0.32f;
+    private const float DeformationStrength = 0.22f;
 
     private static readonly float[] ChironGears =
     {
@@ -253,7 +259,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             {
                 rigidbody.mass = VehicleMass;
                 rigidbody.centerOfMass = new Vector3(0f, 0.26f, 0f);
-                rigidbody.drag = 0f;
+                rigidbody.drag = VehicleLinearDrag;
                 rigidbody.angularDrag = 1.35f;
             }
 
@@ -261,6 +267,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             ConfigureBodyColliders(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var materialResult = BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
+            var deformableMeshCount = ConfigureVisualDamage(vehicle);
             var lightingController = vehicle.GetComponent<BugattiChironLightingController>();
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<BugattiChironLightingController>();
@@ -281,13 +288,25 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (launchDiagnostics == null)
                 launchDiagnostics = vehicle.gameObject.AddComponent<BugattiChironLaunchDiagnostics>();
             launchDiagnostics.Initialize(vehicle, context);
+            var damageDiagnostics = vehicle.GetComponent<BugattiChironDamageDiagnostics>();
+            if (damageDiagnostics == null)
+                damageDiagnostics = vehicle.gameObject.AddComponent<BugattiChironDamageDiagnostics>();
+            damageDiagnostics.Initialize(
+                vehicle,
+                context,
+                DamageDecelerationThreshold / 100f,
+                deformableMeshCount);
 
             context?.Logger.Info(
                 $"BugattiChiron: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=7-speed-DSG, awd=true, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
+                $"linearDrag={VehicleLinearDrag:0.000}, boostMultiplier=" +
+                $"{ForcedInductionPowerMultiplier:0.00}, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
+                $"deformableBodyMeshes={deformableMeshCount}, " +
+                $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -383,7 +402,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             SetBool(engine, "stallingEnabled", false);
             var forcedInduction = GetMember(engine, "forcedInduction");
             SetBool(forcedInduction, "useForcedInduction", true);
-            SetFloat(forcedInduction, "powerGainMultiplier", 1.35f);
+            SetFloat(forcedInduction, "powerGainMultiplier", ForcedInductionPowerMultiplier);
             SetFloat(forcedInduction, "spoolUpTime", 0.08f);
 
             var transmission = GetMember(powertrain, "transmission");
@@ -410,6 +429,103 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         }
 
         return false;
+    }
+
+    private int ConfigureVisualDamage(VehicleController vehicle)
+    {
+        var legacyDeformation = vehicle.GetComponentInChildren<VehicleDeformationController>(true);
+        if (legacyDeformation != null)
+        {
+            legacyDeformation.enabled = false;
+            ClearCollection(legacyDeformation, "_deformationQueue");
+        }
+
+        var damageHandler =
+            vehicle.GetComponentInChildren<NWH.VehiclePhysics2.Damage.DamageHandler>(true);
+        if (damageHandler == null)
+        {
+            context?.Logger.Warn(
+                $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: " +
+                "NWH damage handler is missing; visual damage remains disabled.");
+            return 0;
+        }
+
+        var deformableFilters = new List<MeshFilter>();
+        foreach (var filter in vehicle.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null ||
+                !BugattiChironMaterials.IsBugattiRenderer(filter.transform))
+            {
+                continue;
+            }
+
+            var renderer = filter.GetComponent<MeshRenderer>();
+            if (renderer == null || !renderer.enabled || !HasDeformablePaint(renderer))
+                continue;
+            deformableFilters.Add(filter);
+        }
+
+        var filtersField = FindField(damageHandler.GetType(), "_deformableMeshFilters");
+        var originalsField = FindField(damageHandler.GetType(), "_originalMeshes");
+        if (!(filtersField?.GetValue(damageHandler) is IList runtimeFilters) ||
+            !(originalsField?.GetValue(damageHandler) is IList originalMeshes) ||
+            deformableFilters.Count == 0)
+        {
+            damageHandler.meshDeform = false;
+            context?.Logger.Warn(
+                $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: " +
+                $"could not bind visible body meshes count={deformableFilters.Count}; " +
+                "visual damage remains disabled.");
+            return 0;
+        }
+
+        runtimeFilters.Clear();
+        originalMeshes.Clear();
+        foreach (var filter in deformableFilters)
+        {
+            runtimeFilters.Add(filter);
+            originalMeshes.Add(filter.sharedMesh);
+        }
+        ClearCollection(damageHandler, "_collisionEvents");
+
+        damageHandler.collisionTimeout = 0.8f;
+        damageHandler.damageIntensity = DamageIntensity;
+        damageHandler.decelerationThreshold = DamageDecelerationThreshold;
+        damageHandler.deformationRadius = DeformationRadius;
+        damageHandler.deformationRandomness = 0.01f;
+        damageHandler.deformationStrength = DeformationStrength;
+        damageHandler.deformationVerticesPerFrame = 8000;
+        damageHandler.meshDeform = true;
+
+        context?.Logger.Info(
+            $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: enabled " +
+            $"bodyMeshes={deformableFilters.Count} threshold=" +
+            $"{DamageDecelerationThreshold / 100f:0.0}mps radius={DeformationRadius:0.00} " +
+            $"strength={DeformationStrength:0.00}; legacy unfiltered deformation disabled.");
+        return deformableFilters.Count;
+    }
+
+    private static bool HasDeformablePaint(Renderer renderer)
+    {
+        foreach (var material in renderer.sharedMaterials)
+        {
+            if (material == null)
+                continue;
+            var name = material.name;
+            if (name.IndexOf("BugattiOpaque_04_Body", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("BugattiOpaque_06_Darker_Parts", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void ClearCollection(object target, string fieldName)
+    {
+        var collection = FindField(target.GetType(), fieldName)?.GetValue(target);
+        collection?.GetType().GetMethod("Clear", BindingFlags.Instance | BindingFlags.Public)
+            ?.Invoke(collection, null);
     }
 
     private static object? GetMember(object? target, string name)
@@ -523,5 +639,64 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[DefaultExecutionOrder(100)]
+internal sealed class BugattiChironDamageDiagnostics : MonoBehaviour
+{
+    private const int MaximumAcceptedLogs = 6;
+    private const int MaximumRoadSuppressionLogs = 3;
+    private VehicleController? vehicle;
+    private ModContext? context;
+    private float impactThreshold;
+    private float nextLogTime;
+    private int deformableMeshCount;
+    private int acceptedLogs;
+    private int roadSuppressionLogs;
+
+    internal void Initialize(
+        VehicleController controller,
+        ModContext? modContext,
+        float threshold,
+        int bodyMeshCount)
+    {
+        vehicle = controller;
+        context = modContext;
+        impactThreshold = threshold;
+        deformableMeshCount = bodyMeshCount;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (vehicle == null || collision == null || collision.relativeVelocity.magnitude < impactThreshold ||
+            Time.unscaledTime < nextLogTime)
+        {
+            return;
+        }
+
+        nextLogTime = Time.unscaledTime + 0.8f;
+        var other = collision.collider;
+        var otherName = other != null ? other.name : "unknown";
+        var layerName = other != null ? LayerMask.LayerToName(other.gameObject.layer) : "unknown";
+        var speedKph = collision.relativeVelocity.magnitude * 3.6f;
+        if (!NWH.VehiclePhysics2.Damage.DamageHandler.IsCollisionValid(collision))
+        {
+            if (roadSuppressionLogs++ < MaximumRoadSuppressionLogs)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: suppressed road/ground " +
+                    $"contact='{otherName}' layer='{layerName}' relativeSpeed={speedKph:0.0}kph.");
+            }
+            return;
+        }
+
+        if (acceptedLogs++ < MaximumAcceptedLogs)
+        {
+            context?.Logger.Info(
+                $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: accepted impact " +
+                $"contact='{otherName}' layer='{layerName}' relativeSpeed={speedKph:0.0}kph " +
+                $"bodyMeshes={deformableMeshCount}.");
+        }
     }
 }
