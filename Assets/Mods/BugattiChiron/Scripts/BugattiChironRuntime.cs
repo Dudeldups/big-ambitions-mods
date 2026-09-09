@@ -61,7 +61,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
-    private bool dealerReadyLogged;
 
     public static BugattiChironRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -141,7 +140,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
-        dealerReadyLogged = false;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -210,15 +208,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     {
         try
         {
-            var ready = BugattiChironLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
-            if (ready && !dealerReadyLogged)
-            {
-                dealerReadyLogged = true;
-                context?.Logger.Info(
-                    $"BugattiChiron: available at The Hamptons Axis and Manhattan Luxury Cars " +
-                    $"source='{source}'.");
-            }
-            return ready;
+            return BugattiChironLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
         }
         catch (Exception exception)
         {
@@ -317,10 +307,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                     $"remaining vehicle systems stay active: {exception.GetType().Name}: " +
                     exception.Message);
             }
-            var engineRecovery = vehicle.GetComponent<BugattiChironEngineRecovery>();
-            if (engineRecovery == null)
-                engineRecovery = vehicle.gameObject.AddComponent<BugattiChironEngineRecovery>();
-            engineRecovery.Initialize(vehicle, context);
             var bridgeSeamGuard = vehicle.GetComponent<BugattiChironBridgeSeamGuard>();
             if (bridgeSeamGuard == null)
                 bridgeSeamGuard = vehicle.gameObject.AddComponent<BugattiChironBridgeSeamGuard>();

@@ -45,10 +45,6 @@ public sealed class BugattiChironMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        context.Logger.Info(
-            $"BugattiChiron: registered '{vehicleType.vehicleTypeName}' " +
-            $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
-            $"enginePower={vehicleType.enginePower:0}.");
         runtime = BugattiChironRuntime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
     }
