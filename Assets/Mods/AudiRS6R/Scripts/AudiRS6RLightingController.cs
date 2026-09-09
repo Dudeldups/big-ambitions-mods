@@ -44,8 +44,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private bool updateFailureReported;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
-    private int lastHeadlightState = -1;
-
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         if (initialized && vehicleController == controller)
@@ -127,8 +125,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         initialized = true;
         var lightOverlayCount = CountLightOverlays();
-        LogInfo($"initialized glassRenderers={glassCount}/2 rearWindowTint={rearWindowTintOverlay != null} " +
-                $"headlightBeams={beamCount}/2 overlays={lightOverlayCount}/11 headlightLensOverlays=0.");
         if (glassCount != 2 || rearWindowTintOverlay == null || beamCount != 2 || lightOverlayCount != 11)
             LogWarning("Lighting setup is incomplete; inspect the preceding material/overlay diagnostics.");
         if (controller.GetType().GetProperty("ShouldLightsBeOn", InstanceFields) == null)
@@ -274,7 +270,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
             generatedObjects.Add(tintObject);
             generatedMeshes.Add(tintMesh);
-            LogInfo($"rear-window tint triangles={tintMesh.triangles.Length / 3} bounds={tintMesh.bounds}.");
             return tintRenderer;
         }
         catch (Exception ex)
@@ -551,8 +546,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             return null;
         }
 
-        LogInfo($"headlight-signature suffix='{suffix}' selectedTriangles={selectedTriangles.Count / 3} " +
-                $"atlasBandTriangles={atlasBandTriangles} bounds={bounds}.");
         var mesh = new Mesh
         {
             name = source.name + "_AudiRS6R_" + suffix,
@@ -672,9 +665,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             return null;
         }
 
-        LogInfo($"rear-lamp-signature suffix='{suffix}' selectedTriangles={selectedTriangles.Count / 3} " +
-                $"barComponents={selectedBars} toothComponents={selectedTeeth} " +
-                $"components={components.Count}.");
         if (selectedBars != 2 || selectedTeeth != 50 || selectedTriangles.Count / 3 != 546)
         {
             LogWarning($"rear-lamp-signature suffix='{suffix}' expected bars=2 teeth=50 triangles=546 " +
@@ -820,13 +810,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         SetRendererState(rightFrontBlinkerOverlay, rightBlinker && blinkerFlash);
         SetRendererState(rightRearBlinkerOverlay, rightBlinker && blinkerFlash);
 
-        var headlightState = (controlledByPlayer ? 1 : 0) | (automaticHeadlights ? 2 : 0);
-        if (headlightState != lastHeadlightState)
-        {
-            lastHeadlightState = headlightState;
-            LogInfo($"headlight-state playerControlled={controlledByPlayer} automaticLights={automaticHeadlights} " +
-                    $"signatureOverlays={headlights} lensOverlays=false beams={headlights}.");
-        }
     }
 
     private int CountLightOverlays() =>
@@ -851,29 +834,13 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             return;
         }
 
-        var color = material.HasProperty("baseColorFactor") ? material.GetColor("baseColorFactor") :
-            material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
         var texture = material.HasProperty("baseColorTexture") ? material.GetTexture("baseColorTexture") :
             material.HasProperty("_BaseColorMap") ? material.GetTexture("_BaseColorMap") : null;
-        LogInfo($"surface operation='{operation}' renderer='{renderer.name}' material='{material.name}' " +
-                $"shader='{material.shader.name}' supported={material.shader.isSupported} color={color} " +
-                $"texture='{texture?.name ?? "none"}' queue={material.renderQueue} " +
-                $"transparent={material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT")} " +
-                $"srcBlend={ReadFloat(material, "_SrcBlend")} dstBlend={ReadFloat(material, "_DstBlend")} " +
-                $"zWrite={ReadFloat(material, "_ZWrite")}.");
         if (!material.shader.isSupported)
             LogWarning($"surface operation='{operation}' shader '{material.shader.name}' is unsupported.");
         if (operation == "front-lamp-preserved" && texture == null)
             LogWarning("The imported front lamp material has no base texture; model detail may be missing.");
     }
-
-    private static string ReadFloat(Material material, string propertyName) =>
-        material.HasProperty(propertyName) ? material.GetFloat(propertyName).ToString("0.###",
-            System.Globalization.CultureInfo.InvariantCulture) : "missing";
-
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"AudiRS6R lighting vehicle='{vehicleController?.name}' " +
-                             $"instance={vehicleController?.GetInstanceID()}: {message}");
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"AudiRS6R lighting vehicle='{vehicleController?.name}' " +

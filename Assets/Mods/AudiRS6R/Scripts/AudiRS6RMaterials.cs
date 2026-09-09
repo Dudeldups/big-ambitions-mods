@@ -526,15 +526,6 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
 
         var result = AudiRS6RMaterials.FixSolidVehicleMaterials(vehicle.gameObject, ownedWheelMaterials);
         applied = true;
-        context?.Logger.Info(
-            $"AudiRS6R materials vehicle='{vehicle.name}' instance={vehicle.GetInstanceID()}: " +
-            $"renderers={result.RendererCount} wheelRenderers={result.WheelRendererCount} " +
-            $"wheelMaterialClones={result.WheelMaterialCloneCount} " +
-            $"solidRenderers={result.SolidRendererCount} " +
-            $"decalMasksCleared={result.DecalMasksCleared} materialsFixed={result.HdrpMaterialsFixed} " +
-            $"transparentMaterialsProtected={result.TransparentMaterialsProtected} " +
-            $"materialsValidated={result.HdrpMaterialsValidated} shaders='{result.ShaderNames}'.");
-
         if (result.WheelRendererCount == 0 || result.WheelMaterialCloneCount == 0 ||
             result.TransparentMaterialsProtected == 0)
         {
