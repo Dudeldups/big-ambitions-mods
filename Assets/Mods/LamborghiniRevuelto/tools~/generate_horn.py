@@ -11,20 +11,18 @@ OUT = Path(__file__).resolve().parents[1] / "Config" / "Audio" / "Horn.wav"
 
 
 def main():
-    # Two close fundamentals create the dense beating of an electromagnetic
-    # road horn without the musical interval that made the Audi sample sound
-    # like a fanfare. Integer-Hz components keep the one-second loop seamless.
+    # One lower fundamental and its fixed harmonics create a compact road-horn
+    # timbre without either a musical interval or slow beating. The integer-Hz
+    # fundamental also keeps the one-second loop seamless.
     horn = []
     for sample in range(RATE * SECONDS):
         t = sample / RATE
-        phase_a = 2 * math.pi * 392 * t
-        phase_b = 2 * math.pi * 398 * t
+        phase = 2 * math.pi * 330 * t
         value = (
-            math.cos(phase_a)
-            + .48 * math.cos(phase_b)
-            + .30 * math.cos(2 * phase_a)
-            + .12 * math.cos(3 * phase_a)
-            + .08 * math.cos(2 * phase_b)
+            math.cos(phase)
+            + .36 * math.cos(2 * phase)
+            + .17 * math.cos(3 * phase)
+            + .07 * math.cos(5 * phase)
         )
         horn.append(math.tanh(1.30 * value))
 

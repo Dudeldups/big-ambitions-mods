@@ -32,8 +32,8 @@ def tone_amplitude(frequency):
     return 2 * math.hypot(real, imaginary) / len(audio)
 
 
-for tone in (392, 398):
-    assert tone_amplitude(tone) > .035, f"Missing compact horn tone near {tone} Hz"
+assert tone_amplitude(330) > .08, "Missing stable horn fundamental near 330 Hz"
+assert tone_amplitude(660) > .02, "Missing road-horn second harmonic near 660 Hz"
 print(
     f"PASS Horn.wav: seconds=1 RMS={rms:.4f} peak={peak:.3f} "
     f"seamStep={abs(audio[0] - audio[-1]):.5f}"

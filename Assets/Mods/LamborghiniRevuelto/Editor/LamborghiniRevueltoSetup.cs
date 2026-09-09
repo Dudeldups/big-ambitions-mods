@@ -62,9 +62,9 @@ public static class LamborghiniRevueltoSetup
     private static AnimationCurve CreateRevueltoPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.23f, 0.18f),
-            new Keyframe(0.55f, 0.38f),
-            new Keyframe(0.78f, 0.64f),
+            new Keyframe(0.23f, 0.16f),
+            new Keyframe(0.55f, 0.34f),
+            new Keyframe(0.78f, 0.58f),
             new Keyframe(0.90f, 1f),
             new Keyframe(1f, 0.88f));
 
