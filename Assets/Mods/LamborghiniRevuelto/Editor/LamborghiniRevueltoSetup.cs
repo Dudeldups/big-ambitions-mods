@@ -30,7 +30,10 @@ public static class LamborghiniRevueltoSetup
     private const float AntiRollBarForce = 7800f;
     private const float SuspensionTravel = 0.10f;
     private const float FrontWheelOutset = 0.03f;
-    private const float RearWheelOutset = 0.015f;
+    private const float RearWheelOutset = 0f;
+    private const float RimMetallic = 0.35f;
+    private const float RimSmoothness = 0.50f;
+    private static readonly Color RimBaseColor = new Color(0.24f, 0.24f, 0.24f, 1f);
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
@@ -38,8 +41,8 @@ public static class LamborghiniRevueltoSetup
         {
             { "FrontLeft_WheelController", new Vector3(-0.8515f, 0.348f, 1.3202f) },
             { "FrontRight_WheelController", new Vector3(0.8515f, 0.348f, 1.3202f) },
-            { "RearLeft_WheelController", new Vector3(-0.8206f, 0.370f, -1.5811f) },
-            { "RearRight_WheelController", new Vector3(0.8206f, 0.370f, -1.5811f) },
+            { "RearLeft_WheelController", new Vector3(-0.8056f, 0.370f, -1.5811f) },
+            { "RearRight_WheelController", new Vector3(0.8056f, 0.370f, -1.5811f) },
         };
 
     private static readonly float[] RevueltoGears =
@@ -220,7 +223,7 @@ public static class LamborghiniRevueltoSetup
                 : float.NaN;
             wheelPlacementVerified &=
                 frontTrack >= 1.68f && frontTrack <= 1.72f &&
-                rearTrack >= 1.62f && rearTrack <= 1.66f &&
+                rearTrack >= 1.59f && rearTrack <= 1.63f &&
                 wheelbase >= 2.88f && wheelbase <= 2.92f &&
                 Math.Abs(frontLeftCenter.z - frontRightCenter.z) < 0.012f &&
                 Math.Abs(rearLeftCenter.z - rearRightCenter.z) < 0.012f;
@@ -309,7 +312,8 @@ public static class LamborghiniRevueltoSetup
             var bodyPaintSlots = 0;
             var interiorAccentPaintSlots = 0;
             var darkBodyPaintSlots = 0;
-            var rimPaintSlots = 0;
+            var rimSlots = 0;
+            var rimFinishValid = true;
             var interiorPrimaryPaintSlots = 0;
             var interiorSecondaryPaintSlots = 0;
             var interiorDarkPaintSlots = 0;
@@ -334,10 +338,20 @@ public static class LamborghiniRevueltoSetup
                     }
                     if (IsInteriorAccentPaintMaterial(material)) interiorAccentPaintSlots++;
                     if (IsDarkBodyPaintMaterial(material)) darkBodyPaintSlots++;
-                    if (IsRimPaintMaterial(material))
+                    if (IsRimMaterial(material))
                     {
-                        rimPaintSlots++;
-                        paintTexturesReadable &= IsBaseTextureReadable(material);
+                        rimSlots++;
+                        var rimColor = material.HasProperty("_BaseColor")
+                            ? material.GetColor("_BaseColor")
+                            : Color.clear;
+                        rimFinishValid &=
+                            material.HasProperty("_Metallic") &&
+                            Math.Abs(material.GetFloat("_Metallic") - RimMetallic) < 0.01f &&
+                            material.HasProperty("_Smoothness") &&
+                            Math.Abs(material.GetFloat("_Smoothness") - RimSmoothness) < 0.01f &&
+                            Math.Abs(rimColor.r - RimBaseColor.r) < 0.01f &&
+                            Math.Abs(rimColor.g - RimBaseColor.g) < 0.01f &&
+                            Math.Abs(rimColor.b - RimBaseColor.b) < 0.01f;
                     }
                     if (IsInteriorPrimaryPaintMaterial(material)) interiorPrimaryPaintSlots++;
                     if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
@@ -460,6 +474,8 @@ public static class LamborghiniRevueltoSetup
                 bodyPaintSlots == 0 ||
                 interiorAccentPaintSlots == 0 ||
                 caliperSlots != 4 ||
+                rimSlots != 4 ||
+                !rimFinishValid ||
                 !paintReferencesValid)
             {
                 throw new InvalidOperationException(
@@ -485,7 +501,7 @@ public static class LamborghiniRevueltoSetup
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
                     $"cabinGlassTint={cabinGlassTintValid}, " +
                     $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
-                    $"caliperSlots={caliperSlots}, " +
+                    $"caliperSlots={caliperSlots}, rimSlots={rimSlots}, rimFinish={rimFinishValid}, " +
                     $"paintReferences={paintReferencesValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
@@ -501,7 +517,7 @@ public static class LamborghiniRevueltoSetup
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
-                $"calipersPainted=true, rimsFactoryColor=true, " +
+                $"calipersPainted=true, rimsFactoryColor=true, rimFinish=satin-gunmetal, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -590,6 +606,7 @@ public static class LamborghiniRevueltoSetup
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
             var fix = LamborghiniRevueltoMaterials.FixSolidMaterials(root);
+            var rimMaterialsConfigured = ConfigureRimFinish(root);
             MarkMaterialsDirty(root);
             ConfigureRendererReferences(root);
 
@@ -598,6 +615,7 @@ public static class LamborghiniRevueltoSetup
                 $"decalMasksCleared={fix.DecalMasksCleared}, " +
                 $"opaqueFixed={fix.OpaqueMaterialsFixed}, " +
                 $"transparentFixed={fix.TransparentMaterialsFixed}, " +
+                $"rimMaterialsConfigured={rimMaterialsConfigured}, " +
                 $"hdrpValidated={fix.MaterialsValidated}.");
 
             var result = PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
@@ -999,8 +1017,35 @@ public static class LamborghiniRevueltoSetup
     private static bool IsInteriorAccentPaintMaterial(Material material) =>
         material.name.IndexOf("_Interior_color", StringComparison.OrdinalIgnoreCase) >= 0;
 
-    private static bool IsRimPaintMaterial(Material material) =>
-        material.name.IndexOf("LamborghiniOpaque_01_Rims", StringComparison.OrdinalIgnoreCase) >= 0;
+    private static bool IsRimMaterial(Material material) =>
+        material.name.IndexOf("LamborghiniOpaque_19_material", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static int ConfigureRimFinish(GameObject root)
+    {
+        var configured = new HashSet<Material>();
+        foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!LamborghiniRevueltoMaterials.IsLamborghiniRenderer(renderer.transform))
+                continue;
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material == null || !IsRimMaterial(material) || !configured.Add(material))
+                    continue;
+                if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", RimBaseColor);
+                if (material.HasProperty("_Color")) material.SetColor("_Color", RimBaseColor);
+                if (material.HasProperty("baseColorFactor"))
+                    material.SetColor("baseColorFactor", RimBaseColor);
+                if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", RimMetallic);
+                if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", RimSmoothness);
+                EditorUtility.SetDirty(material);
+            }
+        }
+
+        if (configured.Count != 1)
+            throw new InvalidOperationException(
+                $"Expected one shared Lamborghini rim material, found {configured.Count}.");
+        return configured.Count;
+    }
 
     private static bool IsCaliperMaterial(Material material) =>
         material.name.IndexOf("_Caliper", StringComparison.OrdinalIgnoreCase) >= 0;
