@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using BAModAPI;
 using BigAmbitions.SaveSystem.Legacy;
+using Data.VehicleColors;
 using Helpers;
 using Localizor;
 using UnityEngine;
@@ -79,9 +80,11 @@ namespace DeveloperTools
 
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
                 NotifyModVehicleCreated(controller, vehicleTypeName);
+                var colorName = ApplyRandomRegisteredColor(controller, instance);
                 NormalizeParkedMotorVehicle(controller, vehicleTypeName);
                 lastSpawnedVehicleId = instance.id;
-                message = "Spawned " + Localize(vehicleTypeName) + ".";
+                message = "Spawned " + Localize(vehicleTypeName) +
+                          (string.IsNullOrEmpty(colorName) ? "." : " with random color " + colorName + ".");
                 return true;
             }
             catch (Exception exception)
@@ -204,6 +207,30 @@ namespace DeveloperTools
                     "DeveloperTools: could not normalize the parked engine for type=" +
                     vehicleTypeName + ": " + exception.GetBaseException().Message);
             }
+        }
+
+        private string ApplyRandomRegisteredColor(VehicleController controller, VehicleInstance instance)
+        {
+            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors?
+                .Where(color => color != null)
+                .ToArray();
+            if (colors == null || colors.Length == 0 || controller.CarFeatures == null)
+                return string.Empty;
+
+            // Vehicle Repainter registers its extended colors in the game's
+            // shared catalog with zero random weight so vanilla dealerships do
+            // not select them automatically. Prefer that generally useful pool
+            // without depending on a particular mod or color-name prefix.
+            var extendedColors = colors.Where(color => color.randomWeight <= 0f).ToArray();
+            var candidates = extendedColors.Length > 0 ? extendedColors : colors;
+            VehicleColor color = candidates[UnityEngine.Random.Range(0, candidates.Length)];
+            var colorName = ((UnityEngine.Object)color).name;
+            if (string.IsNullOrWhiteSpace(colorName))
+                return string.Empty;
+
+            instance.vehicleColorName = colorName;
+            controller.CarFeatures.SetColor(color);
+            return colorName;
         }
 
         private static string Localize(string id)

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
 using GleyTrafficSystem;
@@ -17,6 +18,7 @@ namespace DeveloperTools
         }
 
         private const float RefreshIntervalSeconds = 0.5f;
+        private const int MaximumTrafficMultiplier = 5;
         private static readonly FieldInfo? LastTrafficDensityField = typeof(TimeOfDayController).GetField(
             "_lastTrafficDensity",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -31,10 +33,39 @@ namespace DeveloperTools
         private bool trafficChanged;
         private bool originalParkedCarsEnabled;
         private bool parkedCarsChanged;
+        private VehiclePool? expandedPool;
+        private readonly Dictionary<CarType, int> originalPoolCounts = new Dictionary<CarType, int>();
 
         public DeveloperToolsTrafficService(ModContext context) => this.context = context;
 
         public bool ParkedCarsEnabled => ParkingLaneGenerator.spawningActive;
+
+        public void PrepareTrafficPoolCapacity()
+        {
+            if (TrafficManager.IsInitialized)
+                return;
+
+            var pool = TrafficComponent.Instance?.vehiclePool;
+            if (pool == null || pool.trafficCars == null || ReferenceEquals(pool, expandedPool))
+                return;
+
+            RestoreTrafficPoolCounts();
+            expandedPool = pool;
+            foreach (var carType in pool.trafficCars)
+            {
+                if (carType == null || carType.nrOfVehicles <= 0)
+                    continue;
+
+                originalPoolCounts[carType] = carType.nrOfVehicles;
+                carType.nrOfVehicles = checked(carType.nrOfVehicles * MaximumTrafficMultiplier);
+            }
+
+            if (originalPoolCounts.Count > 0)
+            {
+                context.Logger.Info(
+                    $"DeveloperTools: expanded the pre-initialization NPC traffic pool to {pool.GetNumberOfVehicles()} vehicles for density testing.");
+            }
+        }
 
         public void Update()
         {
@@ -135,6 +166,8 @@ namespace DeveloperTools
 
             if (parkedCarsChanged && ParkingLaneGenerator.spawningActive != originalParkedCarsEnabled)
                 ApplyParkedCars(originalParkedCarsEnabled, out _);
+
+            RestoreTrafficPoolCounts();
         }
 
         private bool ApplyMultipliedDensity(bool describeCapacityLimit, out string message)
@@ -207,6 +240,18 @@ namespace DeveloperTools
                 else
                     lane.CleanupParkedVehicles(true);
             }
+        }
+
+        private void RestoreTrafficPoolCounts()
+        {
+            foreach (var entry in originalPoolCounts)
+            {
+                if (entry.Key != null)
+                    entry.Key.nrOfVehicles = entry.Value;
+            }
+
+            originalPoolCounts.Clear();
+            expandedPool = null;
         }
     }
 }

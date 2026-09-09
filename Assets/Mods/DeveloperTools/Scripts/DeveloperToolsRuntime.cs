@@ -30,6 +30,7 @@ namespace DeveloperTools
             runtime.playerService = new DeveloperToolsPlayerService();
             runtime.timeService = new DeveloperToolsTimeService(context);
             runtime.trafficService = new DeveloperToolsTrafficService(context);
+            runtime.trafficService.PrepareTrafficPoolCapacity();
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
                 new DeveloperToolsVehicleService(context),
@@ -60,7 +61,11 @@ namespace DeveloperTools
             SceneManager.sceneLoaded -= HandleSceneLoaded;
         }
 
-        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode) => overlay?.Hide();
+        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            trafficService?.PrepareTrafficPoolCapacity();
+            overlay?.Hide();
+        }
 
         private void Update()
         {
