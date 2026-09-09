@@ -34268,7 +34268,7 @@ MonoBehaviour:
         onWastegateRelease:
           m_PersistentCalls:
             m_Calls: []
-      idleRPM: 800
+      idleRPM: 900
       maxPower: 1103
       engineLossPercent: 0.25
       onRevLimiter:
@@ -34376,7 +34376,7 @@ MonoBehaviour:
       isPostShiftBanActive: 0
       isShifting: 0
       shiftProgress: 0
-      _downshiftRPM: 2800
+      _downshiftRPM: 3200
       _upshiftRPM: 6500
       transmissionType: 1
       isSequential: 0

@@ -183,7 +183,10 @@ public static class BugattiChironSetup
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRange")) - 500f) < 0.01f &&
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.12f) < 0.001f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("idleRPM")) - 900f) < 0.01f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.5f) < 0.001f &&
+                    Math.Abs(ReadNumber(
+                        transmission?.FindPropertyRelative("_downshiftRPM")) - 3200f) < 0.01f &&
                     Math.Abs(ReadNumber(
                         forcedInduction?.FindPropertyRelative("powerGainMultiplier")) -
                         ForcedInductionPowerMultiplier) < 0.001f &&
@@ -663,7 +666,7 @@ public static class BugattiChironSetup
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.12f);
                 SetRelativeNumber(serialized, "powertrain.engine.maxPower", 1103f);
-                SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 800f);
+                SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 900f);
                 SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6700f);
                 SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.5f);
                 SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", false);
@@ -677,7 +680,7 @@ public static class BugattiChironSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 7f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.08f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2800f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3200f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 6500f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 
