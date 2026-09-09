@@ -14,6 +14,9 @@ public static class LamborghiniRevueltoSetup
     private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath = ModRoot + "/Models/free_lamborghini_revuelto.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
+    private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
+    private const string DamageBodyMeshPath =
+        MeshFolder + "/LamborghiniDamageBody.asset";
     private const string RightRimMaterialPath =
         MaterialFolder + "/LamborghiniOpaque_19_material_Right.mat";
     private const string VehicleAssetPath = ModRoot + "/LamborghiniRevuelto.asset";
@@ -34,6 +37,9 @@ public static class LamborghiniRevueltoSetup
     private const float RearSuspensionTravel = 0.06f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
+    private const float DeformationStrength = 0.20f;
+    private const float DeformationRadius = 0.22f;
+    private const float DeformationRandomness = 0.005f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
@@ -143,6 +149,8 @@ public static class LamborghiniRevueltoSetup
             var fixedCalipers = 0;
             var calipersDetachedFromWheels = true;
             var fittedCaliperCenters = new Dictionary<string, Vector3>();
+            var deformationBodyValid = false;
+            var deformationTuningValid = false;
             var continuousTailLight = false;
             var thirdBrakeLight = false;
             var frontBlinkerMeshes = 0;
@@ -479,6 +487,45 @@ public static class LamborghiniRevueltoSetup
                 }
             }
 
+            foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (component == null ||
+                    !string.Equals(
+                        component.GetType().Name,
+                        "VehicleDeformationController",
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var deformation = new SerializedObject(component);
+                var meshFilters = deformation.FindProperty("meshFilters");
+                if (meshFilters != null && meshFilters.isArray && meshFilters.arraySize == 1 &&
+                    meshFilters.GetArrayElementAtIndex(0).objectReferenceValue is MeshFilter bodyFilter)
+                {
+                    deformationBodyValid =
+                        string.Equals(
+                            bodyFilter.name,
+                            "LamborghiniDamageBody",
+                            StringComparison.Ordinal) &&
+                        bodyFilter.transform.parent == prefab.transform &&
+                        bodyFilter.transform.localPosition.sqrMagnitude < 0.000001f &&
+                        Quaternion.Angle(bodyFilter.transform.localRotation, Quaternion.identity) < 0.01f &&
+                        Vector3.Distance(bodyFilter.transform.localScale, Vector3.one) < 0.0001f &&
+                        bodyFilter.sharedMesh != null &&
+                        bodyFilter.sharedMesh.isReadable;
+                }
+
+                deformationTuningValid =
+                    Math.Abs(ReadNumber(deformation.FindProperty("deformationStrength")) -
+                             DeformationStrength) < 0.001f &&
+                    Math.Abs(ReadNumber(deformation.FindProperty("deformationRadius")) -
+                             DeformationRadius) < 0.001f &&
+                    Math.Abs(ReadNumber(deformation.FindProperty("deformationRandomness")) -
+                             DeformationRandomness) < 0.001f;
+                break;
+            }
+
             if (Math.Abs(price - 608358f) > 0.5f ||
                 Math.Abs(maxFuel - 85f) > 0.5f ||
                 Math.Abs(maxSpeed - 355f) > 0.5f ||
@@ -497,6 +544,8 @@ public static class LamborghiniRevueltoSetup
                 fixedCalipers != 4 ||
                 !calipersDetachedFromWheels ||
                 !caliperPivotsVerified ||
+                !deformationBodyValid ||
+                !deformationTuningValid ||
                 !continuousTailLight ||
                 !thirdBrakeLight ||
                 frontBlinkerMeshes != 2 ||
@@ -533,6 +582,8 @@ public static class LamborghiniRevueltoSetup
                     $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                     $"fixedCalipers={fixedCalipers}, calipersDetached={calipersDetachedFromWheels}, " +
                     $"caliperPivots={caliperPivotsVerified}, " +
+                    $"deformationBody={deformationBodyValid}, " +
+                    $"deformationTuning={deformationTuningValid}, " +
                     $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
@@ -558,6 +609,7 @@ public static class LamborghiniRevueltoSetup
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
+                $"damageBody=outer-shell-only, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
@@ -650,6 +702,8 @@ public static class LamborghiniRevueltoSetup
             ConfigureExitMarkers(root, modelInstance);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
+            var damageBody = CreateDeformableBody(root, modelInstance);
+            ConfigureVehicleDeformation(root, damageBody);
             var fix = LamborghiniRevueltoMaterials.FixSolidMaterials(root);
             var rimMaterialsConfigured = ConfigureRimFinish(root);
             MarkMaterialsDirty(root);
@@ -1063,6 +1117,127 @@ public static class LamborghiniRevueltoSetup
             AssignRendererArray(serialized.FindProperty("renderers"), renderers);
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
+    }
+
+    private static MeshFilter CreateDeformableBody(GameObject root, GameObject modelInstance)
+    {
+        MeshRenderer? sourceRenderer = null;
+        foreach (var renderer in modelInstance.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (string.Equals(renderer.name, "Hood.075_Body_0", StringComparison.Ordinal))
+            {
+                sourceRenderer = renderer;
+                break;
+            }
+        }
+
+        var sourceFilter = sourceRenderer?.GetComponent<MeshFilter>();
+        if (sourceRenderer == null || sourceFilter?.sharedMesh == null)
+            throw new InvalidOperationException("The Lamborghini outer body mesh was not found.");
+
+        if (!AssetDatabase.IsValidFolder(MeshFolder))
+            AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMeshes");
+
+        var bakedMesh = UnityEngine.Object.Instantiate(sourceFilter.sharedMesh);
+        bakedMesh.name = "LamborghiniDamageBody";
+        var sourceToRoot = root.transform.worldToLocalMatrix * sourceFilter.transform.localToWorldMatrix;
+
+        var vertices = bakedMesh.vertices;
+        for (var index = 0; index < vertices.Length; index++)
+            vertices[index] = sourceToRoot.MultiplyPoint3x4(vertices[index]);
+        bakedMesh.vertices = vertices;
+
+        var normals = bakedMesh.normals;
+        if (normals.Length == vertices.Length)
+        {
+            var normalMatrix = sourceToRoot.inverse.transpose;
+            for (var index = 0; index < normals.Length; index++)
+                normals[index] = normalMatrix.MultiplyVector(normals[index]).normalized;
+            bakedMesh.normals = normals;
+        }
+
+        var tangents = bakedMesh.tangents;
+        if (tangents.Length == vertices.Length)
+        {
+            for (var index = 0; index < tangents.Length; index++)
+            {
+                var tangent = tangents[index];
+                var direction = sourceToRoot.MultiplyVector(
+                    new Vector3(tangent.x, tangent.y, tangent.z)).normalized;
+                tangents[index] = new Vector4(direction.x, direction.y, direction.z, tangent.w);
+            }
+            bakedMesh.tangents = tangents;
+        }
+        bakedMesh.RecalculateBounds();
+        bakedMesh.UploadMeshData(false);
+
+        var persistentMesh = AssetDatabase.LoadAssetAtPath<Mesh>(DamageBodyMeshPath);
+        if (persistentMesh == null)
+        {
+            AssetDatabase.CreateAsset(bakedMesh, DamageBodyMeshPath);
+            persistentMesh = bakedMesh;
+        }
+        else
+        {
+            EditorUtility.CopySerialized(bakedMesh, persistentMesh);
+            UnityEngine.Object.DestroyImmediate(bakedMesh);
+            EditorUtility.SetDirty(persistentMesh);
+        }
+
+        var damageBody = new GameObject("LamborghiniDamageBody")
+        {
+            layer = sourceRenderer.gameObject.layer,
+        };
+        damageBody.transform.SetParent(root.transform, false);
+        var damageFilter = damageBody.AddComponent<MeshFilter>();
+        damageFilter.sharedMesh = persistentMesh;
+        var damageRenderer = damageBody.AddComponent<MeshRenderer>();
+        damageRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+        damageRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+        damageRenderer.receiveShadows = sourceRenderer.receiveShadows;
+        damageRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
+        damageRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+        damageRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
+        damageRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
+        damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+
+        sourceRenderer.enabled = false;
+        sourceRenderer.sharedMaterials = Array.Empty<Material>();
+        return damageFilter;
+    }
+
+    private static void ConfigureVehicleDeformation(GameObject root, MeshFilter bodyFilter)
+    {
+        var configured = false;
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null ||
+                !string.Equals(
+                    component.GetType().Name,
+                    "VehicleDeformationController",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var serialized = new SerializedObject(component);
+            var meshFilters = serialized.FindProperty("meshFilters");
+            if (meshFilters == null || !meshFilters.isArray)
+                throw new InvalidOperationException("Vehicle deformation mesh list is missing.");
+            meshFilters.arraySize = 1;
+            meshFilters.GetArrayElementAtIndex(0).objectReferenceValue = bodyFilter;
+            var originals = serialized.FindProperty("originalMeshes");
+            if (originals != null && originals.isArray)
+                originals.ClearArray();
+            SetNumber(serialized, "deformationStrength", DeformationStrength);
+            SetNumber(serialized, "deformationRadius", DeformationRadius);
+            SetNumber(serialized, "deformationRandomness", DeformationRandomness);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            configured = true;
+        }
+
+        if (!configured)
+            throw new InvalidOperationException("Vehicle deformation controller is missing.");
     }
 
     private static bool IsBodyPaintMaterial(Material material) =>

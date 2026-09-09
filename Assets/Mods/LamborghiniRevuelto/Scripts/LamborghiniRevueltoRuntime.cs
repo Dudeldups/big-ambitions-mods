@@ -30,6 +30,9 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float AntiRollBarForce = 7800f;
     private const float FrontSuspensionTravel = 0.08f;
     private const float RearSuspensionTravel = 0.06f;
+    private const float DeformationStrength = 0.20f;
+    private const float DeformationRadius = 0.22f;
+    private const float DeformationRandomness = 0.005f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] RevueltoGears =
@@ -275,6 +278,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
+            var deformationControllers = ConfigureDeformationControllers(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<LamborghiniRevueltoCaliperController>();
             if (caliperController == null)
@@ -313,6 +317,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
+                $"deformationControllers={deformationControllers}, " +
+                $"deformation={DeformationStrength:0.00}/{DeformationRadius:0.00}, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 "powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
@@ -392,6 +398,29 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 colliders[1].size = new Vector3(1.72f, 0.62f, 2.62f);
             }
         }
+    }
+
+    private static int ConfigureDeformationControllers(GameObject root)
+    {
+        var configuredCount = 0;
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null ||
+                !string.Equals(
+                    component.GetType().Name,
+                    "VehicleDeformationController",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            SetFloat(component, "deformationStrength", DeformationStrength);
+            SetFloat(component, "deformationRadius", DeformationRadius);
+            SetFloat(component, "deformationRandomness", DeformationRandomness);
+            configuredCount++;
+        }
+
+        return configuredCount;
     }
 
     private static bool ConfigurePowertrain(GameObject root)

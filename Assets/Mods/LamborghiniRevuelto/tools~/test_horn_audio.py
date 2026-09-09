@@ -32,9 +32,14 @@ def tone_amplitude(frequency):
     return 2 * math.hypot(real, imaginary) / len(audio)
 
 
-assert tone_amplitude(330) > .08, "Missing stable horn fundamental near 330 Hz"
-assert tone_amplitude(660) > .02, "Missing road-horn second harmonic near 660 Hz"
+low_reed = tone_amplitude(330)
+high_reed = tone_amplitude(390)
+assert low_reed > .065, "Missing lower horn reed near 330 Hz"
+assert high_reed > .04, "Missing upper horn reed near 390 Hz"
+assert high_reed / low_reed > .55, "Upper horn reed is not distinct enough"
+assert tone_amplitude(660) > .012, "Missing lower-reed harmonic near 660 Hz"
 print(
     f"PASS Horn.wav: seconds=1 RMS={rms:.4f} peak={peak:.3f} "
-    f"seamStep={abs(audio[0] - audio[-1]):.5f}"
+    f"seamStep={abs(audio[0] - audio[-1]):.5f} "
+    f"reeds={low_reed:.4f}/{high_reed:.4f}"
 )

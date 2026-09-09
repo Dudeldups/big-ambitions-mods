@@ -11,20 +11,22 @@ OUT = Path(__file__).resolve().parents[1] / "Config" / "Audio" / "Horn.wav"
 
 
 def main():
-    # One lower fundamental and its fixed harmonics create a compact road-horn
-    # timbre without either a musical interval or slow beating. The integer-Hz
-    # fundamental also keeps the one-second loop seamless.
+    # Two fixed lower reeds, separated by 60 Hz, remain individually audible
+    # without the slow beating of the previous near-unison attempt. Integer-Hz
+    # fundamentals also keep the one-second loop seamless.
     horn = []
     for sample in range(RATE * SECONDS):
         t = sample / RATE
-        phase = 2 * math.pi * 330 * t
+        low_phase = 2 * math.pi * 330 * t
+        high_phase = 2 * math.pi * 390 * t
         value = (
-            math.cos(phase)
-            + .36 * math.cos(2 * phase)
-            + .17 * math.cos(3 * phase)
-            + .07 * math.cos(5 * phase)
+            math.cos(low_phase)
+            + .68 * math.cos(high_phase)
+            + .28 * math.cos(2 * low_phase)
+            + .20 * math.cos(2 * high_phase)
+            + .10 * math.cos(3 * low_phase)
         )
-        horn.append(math.tanh(1.30 * value))
+        horn.append(math.tanh(1.22 * value))
 
     mean = sum(horn) / len(horn)
     horn = [sample - mean for sample in horn]

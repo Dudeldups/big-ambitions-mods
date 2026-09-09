@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 4225651817
+CRC: 1860947771
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: a4b40d961f1bbd067c8afc37e9e2cbd9
+    Hash: 70cc6fa71f3074b71b10c5fb3dc282f5
   TypeTreeHash:
     serializedVersion: 2
     Hash: d3a3e7138e89d02ba237c51b3a56f38a
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: a4b40d961f1bbd067c8afc37e9e2cbd9
+    Hash: 70cc6fa71f3074b71b10c5fb3dc282f5
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -227,6 +227,7 @@ Assets:
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_03_Plastic.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_07_Engine.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_25_Steering_wheel.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMeshes/LamborghiniDamageBody.asset
 - Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineMidLoad.wav
 - Assets/Mods/LamborghiniRevuelto/LamborghiniRevuelto.asset
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_22_Body.mat
