@@ -26,6 +26,12 @@ The cow has no trunk. A package held while mounting remains visible in the rider
 
 Normal fuel and repair stations are disabled for the cow. Mobile Veterinarian is required and heals damage while the player is mounted.
 
+[h2]Required items[/h2]
+[list]
+[*] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798823954]Mobile Veterinarian[/url] heals damaged animal vehicles.
+[*] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3796393608]Modded Vehicles Integration[/url] makes the cow available from the City Cars dealer.
+[/list]
+
 [h2]Compatibility[/h2]
 [list]
 [*] Big Ambitions build 3674
