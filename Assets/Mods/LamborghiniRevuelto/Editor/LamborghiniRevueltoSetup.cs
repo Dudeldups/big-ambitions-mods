@@ -29,7 +29,8 @@ public static class LamborghiniRevueltoSetup
     private const float TireFrictionCircleStrength = 0.92f;
     private const float AntiRollBarForce = 7800f;
     private const float SuspensionTravel = 0.10f;
-    private const float WheelOutset = 0.03f;
+    private const float FrontWheelOutset = 0.03f;
+    private const float RearWheelOutset = 0.015f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
@@ -37,8 +38,8 @@ public static class LamborghiniRevueltoSetup
         {
             { "FrontLeft_WheelController", new Vector3(-0.8515f, 0.348f, 1.3202f) },
             { "FrontRight_WheelController", new Vector3(0.8515f, 0.348f, 1.3202f) },
-            { "RearLeft_WheelController", new Vector3(-0.8356f, 0.370f, -1.5811f) },
-            { "RearRight_WheelController", new Vector3(0.8356f, 0.370f, -1.5811f) },
+            { "RearLeft_WheelController", new Vector3(-0.8206f, 0.370f, -1.5811f) },
+            { "RearRight_WheelController", new Vector3(0.8206f, 0.370f, -1.5811f) },
         };
 
     private static readonly float[] RevueltoGears =
@@ -126,7 +127,6 @@ public static class LamborghiniRevueltoSetup
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
             var wheelSideMappingCorrect = true;
-            var rightRimFacesOriented = 0;
             var fittedWheelCenters = new Dictionary<string, Vector3>();
             var fixedCalipers = 0;
             var calipersDetachedFromWheels = true;
@@ -181,8 +181,6 @@ public static class LamborghiniRevueltoSetup
                     if (FindTransformWithNameFragment(transform, "_Caliper_") == null)
                         calipersDetachedFromWheels = false;
                 }
-                if (transform.name.EndsWith("_Rim_0_ExteriorFacing", StringComparison.Ordinal))
-                    rightRimFacesOriented++;
                 if (string.Equals(
                         transform.name,
                         "Tail_light_Tail_light_0",
@@ -222,7 +220,7 @@ public static class LamborghiniRevueltoSetup
                 : float.NaN;
             wheelPlacementVerified &=
                 frontTrack >= 1.68f && frontTrack <= 1.72f &&
-                rearTrack >= 1.65f && rearTrack <= 1.69f &&
+                rearTrack >= 1.62f && rearTrack <= 1.66f &&
                 wheelbase >= 2.88f && wheelbase <= 2.92f &&
                 Math.Abs(frontLeftCenter.z - frontRightCenter.z) < 0.012f &&
                 Math.Abs(rearLeftCenter.z - rearRightCenter.z) < 0.012f;
@@ -440,7 +438,6 @@ public static class LamborghiniRevueltoSetup
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !wheelSideMappingCorrect ||
-                rightRimFacesOriented != 2 ||
                 !wheelPlacementVerified ||
                 fixedCalipers != 4 ||
                 !calipersDetachedFromWheels ||
@@ -473,7 +470,6 @@ public static class LamborghiniRevueltoSetup
                     $"windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
                     $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, wheelSides={wheelSideMappingCorrect}, " +
-                    $"rightRimFaces={rightRimFacesOriented}, " +
                     $"wheelPlacement={wheelPlacementVerified}, wheelbase={wheelbase:F3}, " +
                     $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                     $"fixedCalipers={fixedCalipers}, calipersDetached={calipersDetachedFromWheels}, " +
@@ -499,7 +495,6 @@ public static class LamborghiniRevueltoSetup
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, eightSpeed=true, " +
                 $"fixedCalipers=4, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
-                $"rightRimFaces=2, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={SuspensionTravel:F2}, " +
                 $"launchResponse=true, " +
@@ -897,8 +892,9 @@ public static class LamborghiniRevueltoSetup
             // with the physical radius to put the contact patch on the ground.
             var authoredCenter = root.transform.InverseTransformPoint(tireBounds.center);
             var side = authoredCenter.x < 0f ? -1f : 1f;
+            var outset = isFront ? FrontWheelOutset : RearWheelOutset;
             controller.localPosition = new Vector3(
-                authoredCenter.x + side * WheelOutset,
+                authoredCenter.x + side * outset,
                 radius,
                 authoredCenter.z);
             var mount = new GameObject(
@@ -915,17 +911,6 @@ public static class LamborghiniRevueltoSetup
             // both sides to one rotation turns the authored inner rim faces out.
             wheel.SetParent(mount.transform, true);
             wheel.name = "Geometry_" + pair.Key;
-
-            // The supplied right-side rim and center-logo meshes expose their
-            // inner faces at the exterior. Turn just those face meshes around;
-            // tires and brake rotors keep their authored orientation, and the
-            // fixed caliper remains chassis-owned.
-            if (pair.Key.EndsWith("_FR", StringComparison.Ordinal) ||
-                pair.Key.EndsWith("_BR", StringComparison.Ordinal))
-            {
-                RotateWheelFaceMesh(wheel, "_Rim_");
-                RotateWheelFaceMesh(wheel, "_Logo_");
-            }
 
             // Fit and center from the tire alone. The authored brake caliper is
             // deliberately off-axis, so including it in the aggregate bounds
@@ -978,15 +963,6 @@ public static class LamborghiniRevueltoSetup
         }
 
         throw new InvalidOperationException($"Wheel controller '{controller.name}' has no visual property.");
-    }
-
-    private static void RotateWheelFaceMesh(Transform wheel, string nameFragment)
-    {
-        var face = FindTransformWithNameFragment(wheel, nameFragment) ??
-                   throw new InvalidOperationException(
-                       $"Wheel '{wheel.name}' has no face mesh matching '{nameFragment}'.");
-        face.Rotate(wheel.root.up, 180f, Space.World);
-        face.name += "_ExteriorFacing";
     }
 
     private static void ConfigureRendererReferences(GameObject root)
