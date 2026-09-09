@@ -92,28 +92,20 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
             if (uv.Length != vertices.Length)
                 throw new InvalidOperationException("Headlight source mesh has no usable UV channel.");
 
-            var selected = new List<int>();
+            var candidates = new List<Vector3Int>();
             var triangles = source.GetTriangles(0);
             for (var index = 0; index + 2 < triangles.Length; index += 3)
             {
                 var a = triangles[index];
                 var b = triangles[index + 1];
                 var c = triangles[index + 2];
-                // Use source-mesh space here. Imported glTF hierarchy transforms differ
-                // between the prefab and a spawned vehicle, while these coordinates and
-                // UV islands remain stable.
-                var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
                 var touchesHeadlightAtlas = IsPaintedHeadlightUv(uv[a]) ||
                                             IsPaintedHeadlightUv(uv[b]) ||
                                             IsPaintedHeadlightUv(uv[c]);
-                if (!touchesHeadlightAtlas || Mathf.Abs(center.x) < 0.85f ||
-                    center.z < -0.35f || center.z > 0.4f ||
-                    center.y < 1.6f || center.y > 2.25f)
-                    continue;
-                selected.Add(a);
-                selected.Add(b);
-                selected.Add(c);
+                if (touchesHeadlightAtlas)
+                    candidates.Add(new Vector3Int(a, b, c));
             }
+            var selected = SelectLargestConnectedGroups(candidates, 2);
             if (selected.Count == 0)
                 throw new InvalidOperationException("No painted headlight triangles matched the model atlas.");
 
@@ -144,6 +136,9 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
             generatedObjects.Add(overlayObject);
+            context?.Logger.Info(
+                $"BigfootMonsterTruck lighting vehicle={vehicle?.GetInstanceID()}: " +
+                $"painted headlight overlay ready triangles={selected.Count / 3}.");
             return overlayRenderer;
         }
         catch (Exception exception)
@@ -157,6 +152,75 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
         uv.y >= 0.55f && uv.y <= 0.64f &&
         ((uv.x >= 0.06f && uv.x <= 0.15f) ||
          (uv.x >= 0.40f && uv.x <= 0.51f));
+
+    private static List<int> SelectLargestConnectedGroups(
+        List<Vector3Int> triangles,
+        int groupCount)
+    {
+        var parents = new int[triangles.Count];
+        var vertexOwner = new Dictionary<int, int>();
+        for (var index = 0; index < triangles.Count; index++)
+        {
+            parents[index] = index;
+            ConnectVertex(triangles[index].x, index, parents, vertexOwner);
+            ConnectVertex(triangles[index].y, index, parents, vertexOwner);
+            ConnectVertex(triangles[index].z, index, parents, vertexOwner);
+        }
+
+        var groups = new Dictionary<int, List<Vector3Int>>();
+        for (var index = 0; index < triangles.Count; index++)
+        {
+            var root = FindRoot(index, parents);
+            if (!groups.TryGetValue(root, out var group))
+            {
+                group = new List<Vector3Int>();
+                groups[root] = group;
+            }
+            group.Add(triangles[index]);
+        }
+
+        var ordered = new List<List<Vector3Int>>(groups.Values);
+        ordered.Sort((left, right) => right.Count.CompareTo(left.Count));
+        var selected = new List<int>();
+        for (var groupIndex = 0; groupIndex < Mathf.Min(groupCount, ordered.Count); groupIndex++)
+            foreach (var triangle in ordered[groupIndex])
+            {
+                selected.Add(triangle.x);
+                selected.Add(triangle.y);
+                selected.Add(triangle.z);
+            }
+        return selected;
+    }
+
+    private static void ConnectVertex(
+        int vertex,
+        int triangle,
+        int[] parents,
+        Dictionary<int, int> vertexOwner)
+    {
+        if (vertexOwner.TryGetValue(vertex, out var owner))
+            Union(triangle, owner, parents);
+        else
+            vertexOwner[vertex] = triangle;
+    }
+
+    private static int FindRoot(int value, int[] parents)
+    {
+        while (parents[value] != value)
+        {
+            parents[value] = parents[parents[value]];
+            value = parents[value];
+        }
+        return value;
+    }
+
+    private static void Union(int left, int right, int[] parents)
+    {
+        var leftRoot = FindRoot(left, parents);
+        var rightRoot = FindRoot(right, parents);
+        if (leftRoot != rightRoot)
+            parents[rightRoot] = leftRoot;
+    }
 
     private Material CreateEmissiveMaterial(Material? source)
     {
