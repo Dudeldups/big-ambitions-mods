@@ -91,10 +91,6 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
             var vertices = source.vertices;
             if (uv.Length != vertices.Length)
                 throw new InvalidOperationException("Headlight source mesh has no usable UV channel.");
-            var vehiclePositions = new Vector3[vertices.Length];
-            for (var index = 0; index < vertices.Length; index++)
-                vehiclePositions[index] = vehicle!.transform.InverseTransformPoint(
-                    sourceRenderer.transform.TransformPoint(vertices[index]));
 
             var selected = new List<int>();
             var triangles = source.GetTriangles(0);
@@ -103,12 +99,16 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
                 var a = triangles[index];
                 var b = triangles[index + 1];
                 var c = triangles[index + 2];
-                var center = (vehiclePositions[a] + vehiclePositions[b] + vehiclePositions[c]) / 3f;
+                // Use source-mesh space here. Imported glTF hierarchy transforms differ
+                // between the prefab and a spawned vehicle, while these coordinates and
+                // UV islands remain stable.
+                var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
                 var touchesHeadlightAtlas = IsPaintedHeadlightUv(uv[a]) ||
                                             IsPaintedHeadlightUv(uv[b]) ||
                                             IsPaintedHeadlightUv(uv[c]);
                 if (!touchesHeadlightAtlas || Mathf.Abs(center.x) < 0.85f ||
-                    center.z < 1.9f || center.y < 1.35f || center.y > 1.95f)
+                    center.z < -0.35f || center.z > 0.4f ||
+                    center.y < 1.6f || center.y > 2.25f)
                     continue;
                 selected.Add(a);
                 selected.Add(b);
