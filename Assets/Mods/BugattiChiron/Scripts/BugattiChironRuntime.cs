@@ -788,7 +788,9 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
     private const float EndDentLateralRadius = 0.9f;
     private const float EndDentVerticalRadius = 0.9f;
     private const float EndDentLongitudinalRadius = 1.15f;
-    private const float MaximumEndDentDepth = 0.45f;
+    private const float MaximumFrontEndDentDepth = 0.30f;
+    private const float MaximumRearEndDentDepth = 0.45f;
+    private const float MaximumSideCumulativeDentDepth = 0.30f;
     private const float EndDepthPerExcessMps = 0.012f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
@@ -796,6 +798,7 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
 
     private readonly List<MeshFilter> deformableFilters = new();
     private readonly Dictionary<MeshFilter, Mesh> originalMeshes = new();
+    private readonly Dictionary<MeshFilter, Vector3[]> originalVertices = new();
     private VehicleController? vehicle;
     private NWH.VehiclePhysics2.Damage.DamageHandler? damageHandler;
     private ModContext? context;
@@ -825,12 +828,14 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
         previousDamage = handler.Damage;
         deformableFilters.Clear();
         originalMeshes.Clear();
+        originalVertices.Clear();
         foreach (var filter in filters)
         {
             if (filter == null || filter.sharedMesh == null)
                 continue;
             deformableFilters.Add(filter);
             originalMeshes[filter] = filter.sharedMesh;
+            originalVertices[filter] = filter.sharedMesh.vertices;
         }
         initialized = true;
     }
@@ -872,14 +877,12 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
 
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
             var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.02f, MaximumDentDepth);
-            var endDentDepth = Mathf.Clamp(
-                excessSpeed * EndDepthPerExcessMps,
-                0.035f,
-                MaximumEndDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var changedMeshes = 0;
             var changedVertices = 0;
-            var endImpact = false;
+            var frontEndImpact = false;
+            var rearEndImpact = false;
+            var maximumAppliedDepth = 0f;
             var changedMeshNames = new List<string>();
 
             foreach (var filter in deformableFilters)
@@ -888,6 +891,7 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                     continue;
                 var mesh = filter.mesh;
                 var vertices = mesh.vertices;
+                originalVertices.TryGetValue(filter, out var sourceVertices);
                 var meshChanged = false;
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
@@ -896,6 +900,7 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                     var inwardDirection = Vector3.zero;
                     var selectedDepth = dentDepth;
                     var selectedEndImpact = false;
+                    var selectedFrontEndImpact = false;
                     foreach (var contact in contacts)
                     {
                         var localContact = transform.InverseTransformPoint(contact.point);
@@ -934,7 +939,15 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                             continue;
                         strongestInfluence = influence;
                         inwardDirection = candidateDirection;
-                        selectedDepth = isEndContact ? endDentDepth : dentDepth;
+                        selectedFrontEndImpact = isEndContact && localContact.z >= 0f;
+                        selectedDepth = isEndContact
+                            ? Mathf.Clamp(
+                                excessSpeed * EndDepthPerExcessMps,
+                                0.035f,
+                                selectedFrontEndImpact
+                                    ? MaximumFrontEndDentDepth
+                                    : MaximumRearEndDentDepth)
+                            : dentDepth;
                         selectedEndImpact = isEndContact;
                     }
 
@@ -944,10 +957,28 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                         ? Mathf.Pow(strongestInfluence, 1.35f)
                         : strongestInfluence * strongestInfluence;
                     worldVertex += inwardDirection * (selectedDepth * falloff);
+                    var cumulativeCap = selectedEndImpact
+                        ? (selectedFrontEndImpact
+                            ? MaximumFrontEndDentDepth
+                            : MaximumRearEndDentDepth)
+                        : MaximumSideCumulativeDentDepth;
+                    if (sourceVertices != null && vertexIndex < sourceVertices.Length)
+                    {
+                        var originalWorldVertex =
+                            filter.transform.TransformPoint(sourceVertices[vertexIndex]);
+                        var cumulativeOffset = worldVertex - originalWorldVertex;
+                        if (cumulativeOffset.sqrMagnitude > cumulativeCap * cumulativeCap)
+                        {
+                            worldVertex = originalWorldVertex +
+                                          cumulativeOffset.normalized * cumulativeCap;
+                        }
+                    }
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
                     changedVertices++;
                     meshChanged = true;
-                    endImpact |= selectedEndImpact;
+                    frontEndImpact |= selectedEndImpact && selectedFrontEndImpact;
+                    rearEndImpact |= selectedEndImpact && !selectedFrontEndImpact;
+                    maximumAppliedDepth = Mathf.Max(maximumAppliedDepth, selectedDepth);
                 }
 
                 if (!meshChanged)
@@ -966,9 +997,10 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                     $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
-                    $"region={(endImpact ? "front/rear" : "side")} " +
-                    $"depth={(endImpact ? endDentDepth : dentDepth):0.000}m " +
-                    $"radius={(endImpact ? $"{EndDentLateralRadius:0.00}x{EndDentVerticalRadius:0.00}x{EndDentLongitudinalRadius:0.00}" : DentRadius.ToString("0.00"))}m " +
+                    $"region={(frontEndImpact ? "front" : rearEndImpact ? "rear" : "side")} " +
+                    $"depth={maximumAppliedDepth:0.000}m " +
+                    $"cumulativeCap={(frontEndImpact ? MaximumFrontEndDentDepth : rearEndImpact ? MaximumRearEndDentDepth : MaximumSideCumulativeDentDepth):0.00}m " +
+                    $"radius={(frontEndImpact || rearEndImpact ? $"{EndDentLateralRadius:0.00}x{EndDentVerticalRadius:0.00}x{EndDentLongitudinalRadius:0.00}" : DentRadius.ToString("0.00"))}m " +
                     $"meshes={changedMeshes} vertices={changedVertices} " +
                     $"meshNames=[{string.Join(", ", changedMeshNames)}] " +
                     $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
@@ -990,10 +1022,10 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
 [AddComponentMenu("")]
 internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
 {
-    private const float MaximumStuckSpeedMps = 0.75f;
+    private const float MaximumStuckSpeedMps = 0.90f;
     private const float RequiredThrottle = 0.35f;
-    private const float RequiredContactSeconds = 0.65f;
-    private const float RequiredThrottleSeconds = 0.8f;
+    private const float RequiredContactSeconds = 0.35f;
+    private const float RequiredThrottleSeconds = 0.45f;
     private const float RecoveryCollisionIgnoreSeconds = 1.15f;
     private const float RecoveryEscapeSpeedMps = 2.5f;
     private const float RecoveryLiftSpeedMps = 0.25f;
@@ -1004,7 +1036,7 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
     private VehicleController? vehicle;
     private NWH.VehiclePhysics2.VehicleController? physicsVehicle;
     private Rigidbody? body;
-    private Rigidbody? contactedBody;
+    private Transform? contactedVehicleRoot;
     private ModContext? context;
     private float contactStartedAt;
     private float throttleStartedAt;
@@ -1041,7 +1073,7 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
         }
 
         if (vehicle == null || physicsVehicle == null || body == null ||
-            !vehicle.controlledByPlayer || contactedBody == null ||
+            !vehicle.controlledByPlayer || contactedVehicleRoot == null ||
             Time.unscaledTime < nextRecoveryAt)
         {
             throttleStartedAt = 0f;
@@ -1078,7 +1110,7 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
 
     private void OnCollisionExit(Collision collision)
     {
-        if (!recoveryActive && collision?.rigidbody == contactedBody)
+        if (!recoveryActive && CollisionBelongsToContact(collision))
             ClearContact();
     }
 
@@ -1089,37 +1121,51 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
 
     private void TrackAiVehicleContact(Collision collision)
     {
-        if (recoveryActive || collision == null || collision.rigidbody == null ||
+        var otherCollider = collision?.collider;
+        if (recoveryActive || collision == null || otherCollider == null ||
             collision.rigidbody == body)
         {
             return;
         }
 
-        var otherVehicle = collision.rigidbody.GetComponent<NWH.VehiclePhysics2.VehicleController>() ??
-                           collision.rigidbody.GetComponentInParent<NWH.VehiclePhysics2.VehicleController>();
-        var otherLayer = collision.collider != null
-            ? LayerMask.LayerToName(collision.collider.gameObject.layer)
-            : string.Empty;
-        if (otherVehicle == null &&
+        var otherVehicle = otherCollider.GetComponentInParent<
+                               NWH.VehiclePhysics2.VehicleController>() ??
+                           collision.rigidbody?.GetComponentInParent<
+                               NWH.VehiclePhysics2.VehicleController>();
+        var otherLayer = LayerMask.LayerToName(otherCollider.gameObject.layer);
+        var vehicleNamedCollider = otherCollider.name.IndexOf(
+            "vehicletype_",
+            StringComparison.OrdinalIgnoreCase) >= 0;
+        if (otherVehicle == null && !vehicleNamedCollider &&
             !string.Equals(otherLayer, "AiVehicles", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        if (contactedBody == collision.rigidbody)
+        var contactRoot = otherVehicle != null
+            ? otherVehicle.transform
+            : collision.rigidbody != null
+                ? collision.rigidbody.transform
+                : otherCollider.transform;
+        if (contactedVehicleRoot == contactRoot)
             return;
-        contactedBody = collision.rigidbody;
+        contactedVehicleRoot = contactRoot;
         contactStartedAt = Time.unscaledTime;
         throttleStartedAt = 0f;
+        context?.Logger.Info(
+            $"BugattiChiron pin recovery vehicle={vehicle?.GetInstanceID()}: tracking " +
+            $"other='{contactRoot.name}' rigidbody={collision.rigidbody != null} " +
+            $"vehicleComponent={otherVehicle != null} layer='{otherLayer}'.");
     }
 
     private void BeginRecovery()
     {
-        if (vehicle == null || physicsVehicle == null || body == null || contactedBody == null)
+        if (vehicle == null || physicsVehicle == null || body == null ||
+            contactedVehicleRoot == null)
             return;
 
         ignoredOtherColliders.Clear();
-        var otherColliders = contactedBody.GetComponentsInChildren<Collider>(true);
+        var otherColliders = contactedVehicleRoot.GetComponentsInChildren<Collider>(true);
         var ignoredPairs = 0;
         foreach (var other in otherColliders)
         {
@@ -1147,8 +1193,8 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
         recoveryEndsAt = Time.unscaledTime + RecoveryCollisionIgnoreSeconds;
         nextRecoveryAt = recoveryEndsAt + RecoveryCooldownSeconds;
         context?.Logger.Warn(
-            $"BugattiChiron pin recovery vehicle={vehicle.GetInstanceID()}: released AI vehicle overlap " +
-            $"other='{contactedBody.name}' gear={gear} ignoredPairs={ignoredPairs} " +
+            $"BugattiChiron pin recovery vehicle={vehicle.GetInstanceID()}: released vehicle overlap " +
+            $"other='{contactedVehicleRoot.name}' gear={gear} ignoredPairs={ignoredPairs} " +
             $"escapeSpeed={RecoveryEscapeSpeedMps:0.0}mps ignoreFor=" +
             $"{RecoveryCollisionIgnoreSeconds:0.00}s.");
     }
@@ -1177,9 +1223,18 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
 
     private void ClearContact()
     {
-        contactedBody = null;
+        contactedVehicleRoot = null;
         contactStartedAt = 0f;
         throttleStartedAt = 0f;
+    }
+
+    private bool CollisionBelongsToContact(Collision? collision)
+    {
+        if (collision?.collider == null || contactedVehicleRoot == null)
+            return false;
+        var colliderTransform = collision.collider.transform;
+        return colliderTransform == contactedVehicleRoot ||
+               colliderTransform.IsChildOf(contactedVehicleRoot);
     }
 }
 
