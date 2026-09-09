@@ -26,6 +26,9 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 700f;
     private const float ClutchEngagementRange = 650f;
     private const float ClutchCreepTorque = 0f;
+    private const float TireFrictionCircleStrength = 0.92f;
+    private const float AntiRollBarForce = 7800f;
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] RevueltoGears =
     {
@@ -253,11 +256,12 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             if (rigidbody != null)
             {
                 rigidbody.mass = VehicleMass;
-                rigidbody.centerOfMass = new Vector3(0f, 0.24f, -0.08f);
+                rigidbody.centerOfMass = StableCenterOfMass;
                 rigidbody.drag = 0f;
                 rigidbody.angularDrag = 1.45f;
             }
 
+            ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
@@ -283,6 +287,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"LamborghiniRevuelto: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=8-speed-DCT, awd=true, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
+                $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
+                $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
@@ -319,7 +325,22 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 var wheel = GetMember(component, "wheel");
                 SetFloat(wheel, "radius", isFront ? 0.348f : 0.370f);
                 SetFloat(wheel, "width", isFront ? 0.265f : 0.345f);
+                SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
             }
+        }
+    }
+
+    private static void ConfigureMassProperties(GameObject root)
+    {
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null || GetMember(component, "centerOfMass") is not Vector3)
+                continue;
+            SetBool(component, "useDefaultCenterOfMass", false);
+            SetVector3(component, "centerOfMass", StableCenterOfMass);
+            SetVector3(component, "combinedCenterOfMass", StableCenterOfMass);
+            SetFloat(component, "baseMass", VehicleMass);
+            SetFloat(component, "combinedMass", VehicleMass);
         }
     }
 
@@ -386,6 +407,12 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             SetInt(transmission, "transmissionType", 1);
             SetFloatArray(transmission, "gears", RevueltoGears);
 
+            if (GetMember(powertrain, "wheelGroups") is IList wheelGroups)
+            {
+                foreach (var wheelGroup in wheelGroups)
+                    SetFloat(wheelGroup, "antiRollBarForce", AntiRollBarForce);
+            }
+
             foreach (var other in root.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (other != null &&
@@ -433,6 +460,11 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private static void SetBool(object? target, string name, bool value)
     {
         SetValue(target, name, typeof(bool), value);
+    }
+
+    private static void SetVector3(object? target, string name, Vector3 value)
+    {
+        SetValue(target, name, typeof(Vector3), value);
     }
 
     private static int GetInt(object? target, string name)

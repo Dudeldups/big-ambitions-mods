@@ -26,6 +26,9 @@ public static class LamborghiniRevueltoSetup
     private const float TargetLength = 4.947f;
     private const float TargetWidth = 2.033f;
     private const float TargetHeight = 1.160f;
+    private const float TireFrictionCircleStrength = 0.92f;
+    private const float AntiRollBarForce = 7800f;
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
@@ -121,6 +124,7 @@ public static class LamborghiniRevueltoSetup
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
             var wheelSideMappingCorrect = true;
+            var fittedWheelCenters = new Dictionary<string, Vector3>();
             var fixedCalipers = 0;
             var calipersDetachedFromWheels = true;
             var continuousTailLight = false;
@@ -152,6 +156,7 @@ public static class LamborghiniRevueltoSetup
 
                     if (FindTransformWithNameFragment(transform, "_Caliper_") != null)
                         calipersDetachedFromWheels = false;
+                    fittedWheelCenters[transform.name] = transform.position;
 
                     var expectedGeometry = transform.name switch
                     {
@@ -190,10 +195,60 @@ public static class LamborghiniRevueltoSetup
                     sideBlinkerMeshes++;
             }
 
+            var frontLeftCenter = Vector3.zero;
+            var frontRightCenter = Vector3.zero;
+            var rearLeftCenter = Vector3.zero;
+            var rearRightCenter = Vector3.zero;
+            var wheelPlacementVerified =
+                fittedWheelCenters.TryGetValue("LamborghiniWheelFrontLeft", out frontLeftCenter) &&
+                fittedWheelCenters.TryGetValue("LamborghiniWheelFrontRight", out frontRightCenter) &&
+                fittedWheelCenters.TryGetValue("LamborghiniWheelRearLeft", out rearLeftCenter) &&
+                fittedWheelCenters.TryGetValue("LamborghiniWheelRearRight", out rearRightCenter);
+            var frontTrack = wheelPlacementVerified
+                ? Math.Abs(frontRightCenter.x - frontLeftCenter.x)
+                : float.NaN;
+            var rearTrack = wheelPlacementVerified
+                ? Math.Abs(rearRightCenter.x - rearLeftCenter.x)
+                : float.NaN;
+            var wheelbase = wheelPlacementVerified
+                ? Math.Abs(
+                    (frontLeftCenter.z + frontRightCenter.z) * 0.5f -
+                    (rearLeftCenter.z + rearRightCenter.z) * 0.5f)
+                : float.NaN;
+            wheelPlacementVerified &=
+                frontTrack >= 1.62f && frontTrack <= 1.67f &&
+                rearTrack >= 1.59f && rearTrack <= 1.64f &&
+                wheelbase >= 2.88f && wheelbase <= 2.92f &&
+                Math.Abs(frontLeftCenter.z - frontRightCenter.z) < 0.012f &&
+                Math.Abs(rearLeftCenter.z - rearRightCenter.z) < 0.012f;
+
             var transmissionVerified = false;
             var launchResponseVerified = false;
+            var antiRollVerified = false;
+            var massCenterVerified = false;
+            var tireFrictionCount = 0;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
+                if (component == null)
+                    continue;
+                var componentSerialized = new SerializedObject(component);
+                var configuredCenter = componentSerialized.FindProperty("centerOfMass");
+                var useDefaultCenter = componentSerialized.FindProperty("useDefaultCenterOfMass");
+                if (configuredCenter?.propertyType == SerializedPropertyType.Vector3 &&
+                    useDefaultCenter?.propertyType == SerializedPropertyType.Boolean)
+                {
+                    massCenterVerified = !useDefaultCenter.boolValue &&
+                                         Vector3.Distance(
+                                             configuredCenter.vector3Value,
+                                             StableCenterOfMass) < 0.005f;
+                }
+                var friction = componentSerialized.FindProperty("frictionCircleStrength");
+                if (friction != null &&
+                    component.transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
+                    Math.Abs(ReadNumber(friction) - TireFrictionCircleStrength) < 0.005f)
+                {
+                    tireFrictionCount++;
+                }
                 if (component == null ||
                     !string.Equals(
                         component.GetType().FullName,
@@ -205,6 +260,17 @@ public static class LamborghiniRevueltoSetup
 
                 var serialized = new SerializedObject(component);
                 var powertrain = serialized.FindProperty("powertrain");
+                var wheelGroups = powertrain?.FindPropertyRelative("wheelGroups");
+                antiRollVerified = wheelGroups != null && wheelGroups.isArray && wheelGroups.arraySize == 2;
+                if (antiRollVerified)
+                {
+                    for (var index = 0; index < wheelGroups!.arraySize; index++)
+                    {
+                        antiRollVerified &= Math.Abs(ReadNumber(
+                            wheelGroups.GetArrayElementAtIndex(index)
+                                .FindPropertyRelative("antiRollBarForce")) - AntiRollBarForce) < 0.5f;
+                    }
+                }
                 var transmission = powertrain?.FindPropertyRelative("transmission");
                 var gearCount = transmission?.FindPropertyRelative("forwardGearCount")?.intValue ?? 0;
                 var gears = transmission?.FindPropertyRelative("gears");
@@ -358,6 +424,7 @@ public static class LamborghiniRevueltoSetup
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
                 !wheelSideMappingCorrect ||
+                !wheelPlacementVerified ||
                 fixedCalipers != 4 ||
                 !calipersDetachedFromWheels ||
                 !continuousTailLight ||
@@ -366,6 +433,9 @@ public static class LamborghiniRevueltoSetup
                 !headlightTemplateValid ||
                 !transmissionVerified ||
                 !launchResponseVerified ||
+                !massCenterVerified ||
+                !antiRollVerified ||
+                tireFrictionCount != 4 ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
@@ -384,11 +454,15 @@ public static class LamborghiniRevueltoSetup
                     $"windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
                     $"wheels={wheelVisuals}, " +
                     $"wheelGeometryOriented={wheelGeometryOriented}, wheelSides={wheelSideMappingCorrect}, " +
+                    $"wheelPlacement={wheelPlacementVerified}, wheelbase={wheelbase:F3}, " +
+                    $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                     $"fixedCalipers={fixedCalipers}, calipersDetached={calipersDetachedFromWheels}, " +
                     $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
                     $"eightSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
+                    $"massCenter={massCenterVerified}, antiRoll={antiRollVerified}, " +
+                    $"tireFrictionCount={tireFrictionCount}, " +
                     $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
@@ -401,7 +475,9 @@ public static class LamborghiniRevueltoSetup
             Debug.Log(
                 $"LamborghiniRevuelto bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, eightSpeed=true, " +
-                $"fixedCalipers=4, tireBoundsCentered=true, " +
+                $"fixedCalipers=4, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
+                $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
+                $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
@@ -556,9 +632,32 @@ public static class LamborghiniRevueltoSetup
         body.mass = 1772f;
         body.drag = 0f;
         body.angularDrag = 1.45f;
-        body.centerOfMass = new Vector3(0f, 0.24f, -0.08f);
+        body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null)
+                continue;
+            var serialized = new SerializedObject(component);
+            var configuredCenter = serialized.FindProperty("centerOfMass");
+            var useDefaultCenter = serialized.FindProperty("useDefaultCenterOfMass");
+            if (configuredCenter?.propertyType != SerializedPropertyType.Vector3 ||
+                useDefaultCenter?.propertyType != SerializedPropertyType.Boolean)
+            {
+                continue;
+            }
+
+            useDefaultCenter.boolValue = false;
+            configuredCenter.vector3Value = StableCenterOfMass;
+            var combinedCenter = serialized.FindProperty("combinedCenterOfMass");
+            if (combinedCenter?.propertyType == SerializedPropertyType.Vector3)
+                combinedCenter.vector3Value = StableCenterOfMass;
+            SetNumber(serialized, "baseMass", 1772f);
+            SetNumber(serialized, "combinedMass", 1772f);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 
     private static void ConfigureWheelControllers(GameObject root)
@@ -576,6 +675,7 @@ public static class LamborghiniRevueltoSetup
                 SetRelativeNumber(serialized, "spring.maxForce", 20500f);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? 0.348f : 0.370f);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? 0.265f : 0.345f);
+                SetRelativeNumber(serialized, "frictionCircleStrength", TireFrictionCircleStrength);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }
         }
@@ -662,6 +762,18 @@ public static class LamborghiniRevueltoSetup
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 9250f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 
+                var wheelGroups = FindRelativeProperty(serialized, "powertrain.wheelGroups");
+                if (wheelGroups == null || !wheelGroups.isArray || wheelGroups.arraySize != 2)
+                    throw new InvalidOperationException("Reference wheel groups are missing.");
+                for (var index = 0; index < wheelGroups.arraySize; index++)
+                {
+                    var antiRoll = wheelGroups.GetArrayElementAtIndex(index)
+                        .FindPropertyRelative("antiRollBarForce");
+                    if (antiRoll?.propertyType != SerializedPropertyType.Float)
+                        throw new InvalidOperationException("Wheel group anti-roll setting is missing.");
+                    antiRoll.floatValue = AntiRollBarForce;
+                }
+
                 var gears = FindRelativeProperty(serialized, "powertrain.transmission.gears");
                 if (gears == null || !gears.isArray)
                     throw new InvalidOperationException("Reference transmission gear array is missing.");
@@ -744,6 +856,22 @@ public static class LamborghiniRevueltoSetup
             var isFront = pair.Value.StartsWith("Front", StringComparison.Ordinal);
             var radius = isFront ? 0.348f : 0.370f;
             var width = isFront ? 0.265f : 0.345f;
+            var tire = FindTransformWithNameFragment(wheel, "_Tire_") ??
+                       throw new InvalidOperationException(
+                           $"Model wheel '{pair.Key}' has no dedicated tire renderer.");
+            if (!TryGetRendererBounds(tire, out var tireBounds) ||
+                tireBounds.size.x <= 0.001f ||
+                tireBounds.size.y <= 0.001f ||
+                tireBounds.size.z <= 0.001f)
+            {
+                throw new InvalidOperationException($"Model wheel '{pair.Key}' has invalid tire bounds.");
+            }
+
+            // Use the supplied model's wheel center for X/Z so physics and
+            // visuals share the actual wheel-arch locations. Only Y is replaced
+            // with the physical radius to put the contact patch on the ground.
+            var authoredCenter = root.transform.InverseTransformPoint(tireBounds.center);
+            controller.localPosition = new Vector3(authoredCenter.x, radius, authoredCenter.z);
             var mount = new GameObject(
                 "LamborghiniWheel" +
                 pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
@@ -758,16 +886,6 @@ public static class LamborghiniRevueltoSetup
             // both sides to one rotation turns the authored inner rim faces out.
             wheel.SetParent(mount.transform, true);
             wheel.name = "Geometry_" + pair.Key;
-            var tire = FindTransformWithNameFragment(wheel, "_Tire_") ??
-                       throw new InvalidOperationException(
-                           $"Model wheel '{pair.Key}' has no dedicated tire renderer.");
-            if (!TryGetRendererBounds(tire, out var tireBounds) ||
-                tireBounds.size.x <= 0.001f ||
-                tireBounds.size.y <= 0.001f ||
-                tireBounds.size.z <= 0.001f)
-            {
-                throw new InvalidOperationException($"Model wheel '{pair.Key}' has invalid tire bounds.");
-            }
 
             // Fit and center from the tire alone. The authored brake caliper is
             // deliberately off-axis, so including it in the aggregate bounds
@@ -779,6 +897,10 @@ public static class LamborghiniRevueltoSetup
             if (!TryGetRendererBounds(tire, out tireBounds))
                 throw new InvalidOperationException($"Model wheel '{pair.Key}' tire could not be fitted.");
             wheel.position += mount.transform.position - tireBounds.center;
+            Debug.Log(
+                $"LamborghiniRevuelto: fitted {pair.Key} to authored arch " +
+                $"center=({authoredCenter.x:F3},{radius:F3},{authoredCenter.z:F3}), " +
+                $"tire={width:F3}x{radius * 2f:F3}m.");
 
             // The rotor remains part of the rolling visual, while the caliper
             // keeps its fitted world pose under a chassis-owned mount and can no

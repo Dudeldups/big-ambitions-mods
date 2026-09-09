@@ -20,6 +20,8 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         Shader.PropertyToID("Color_f78fac473bac467092fb27521e9f71ea");
     private static readonly int VehicleFresnelPower =
         Shader.PropertyToID("Vector1_481fa2a8a5e94165a039319bfd512b76");
+    private const float PaintMetallic = 0f;
+    private const float PaintSmoothness = 0.68f;
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
@@ -138,8 +140,19 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
             material.shader = fallback;
             return false;
         }
+        if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", PaintMetallic);
+        if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", PaintSmoothness);
+        if (material.HasProperty("_DoubleSidedEnable")) material.SetFloat("_DoubleSidedEnable", 0f);
+        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode", 2f);
+        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward", 2f);
+        if (material.HasProperty("_OpaqueCullMode")) material.SetFloat("_OpaqueCullMode", 2f);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
         if (material.HasProperty("_SupportDecals")) material.SetFloat("_SupportDecals", 0f);
+        material.doubleSidedGI = false;
+        material.DisableKeyword("_DOUBLESIDED_ON");
         material.EnableKeyword("_DISABLE_DECALS");
+        material.SetOverrideTag("RenderType", "Opaque");
+        material.renderQueue = 2225;
         return true;
     }
 
