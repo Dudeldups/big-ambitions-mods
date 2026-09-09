@@ -1,1 +1,3 @@
-Initial upload to the workshop
+- Expanded the repaint palette to 96 shade-sorted colors, with full save persistence for the additional colors.
+- Fixed an exploit that could preserve a previewed color without payment when driving away. The serviced vehicle is now locked during repainting, and the preview safely cancels when leaving the vehicle or service bay.
+- Refined the repaint interface and improved repair-cabin priority where gas-station interaction zones overlap.

@@ -75,6 +75,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         foreach (var audioController in FindObjectsOfType<BigfootMonsterTruckAudioController>(true))
             if (audioController != null)
                 Destroy(audioController);
+        foreach (var parkingController in FindObjectsOfType<BigfootMonsterTruckParkingController>(true))
+            if (parkingController != null)
+                Destroy(parkingController);
+        foreach (var lightingController in FindObjectsOfType<BigfootMonsterTruckLightingController>(true))
+            if (lightingController != null)
+                Destroy(lightingController);
         Destroy(gameObject);
     }
 
@@ -95,6 +101,10 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onExitVehicle += HandleVehicleExited;
+        GlobalEvents.onNewHour -= HandleNewHour;
+        GlobalEvents.onNewHour += HandleNewHour;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -106,6 +116,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private void UnsubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onNewHour -= HandleNewHour;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -131,7 +143,21 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         initializationCoroutine = null;
     }
 
-    private void HandleVehicleEntered(VehicleController vehicle) => TryConfigureVehicle(vehicle);
+    private void HandleVehicleEntered(VehicleController vehicle)
+    {
+        TryConfigureVehicle(vehicle);
+        vehicle?.GetComponent<BigfootMonsterTruckParkingController>()?.HandleVehicleEntered();
+    }
+
+    private void HandleVehicleExited(VehicleController vehicle) =>
+        vehicle?.GetComponent<BigfootMonsterTruckParkingController>()?.HandleVehicleExited();
+
+    private static void HandleNewHour()
+    {
+        foreach (var parkingController in FindObjectsOfType<BigfootMonsterTruckParkingController>(true))
+            if (parkingController != null)
+                parkingController.AddSecondSpaceHourlyFee();
+    }
 
     private void HandleBuildingEntered(Address address)
     {
@@ -166,25 +192,20 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private IEnumerator InitializeForLifecycle(string source)
     {
         var dealerReady = false;
-        var configuredTotal = 0;
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
             dealerReady |= BigfootTruckDealerStock.EnsureVehicleAvailable(
                 vehicleTypeName,
                 context,
                 source);
-            configuredTotal += ConfigureExistingVehicles();
+            ConfigureExistingVehicles();
             if (dealerReady && attempt >= 8)
                 break;
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }
 
         initializationCoroutine = null;
-        if (dealerReady)
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: lifecycle ready source='{source}', " +
-                $"newlyConfigured={configuredTotal}.");
-        else
+        if (!dealerReady)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: truck dealer data was not ready source='{source}'.");
     }
@@ -228,18 +249,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             bounceCombine = PhysicMaterialCombine.Minimum,
         };
         var wheelCount = ConfigureWheels(vehicle);
-        var colliderCount = ConfigureBodyColliders(vehicle, contactMaterial);
-        var wheelColliderCount = ConfigureWheelContactColliders(vehicle, contactMaterial);
+        ConfigureBodyColliders(vehicle, contactMaterial);
+        ConfigureWheelContactColliders(vehicle, contactMaterial);
         ConfigureVehicleModules(vehicle);
         ConfigureExitMarkers(vehicle);
         ConfigureDriverSeat(vehicle);
         var materialFix = BigfootMonsterTruckMaterials.FixSolidMaterials(vehicle.gameObject);
-        context?.Logger.Info(
-            $"BigfootMonsterTruck materials vehicle={vehicle.GetInstanceID()}: " +
-            $"renderers={materialFix.RendererCount}, " +
-            $"decalMasksCleared={materialFix.DecalMasksCleared}, " +
-            $"opaqueFixed={materialFix.OpaqueMaterialsFixed}, " +
-            $"hdrpValidated={materialFix.MaterialsValidated}.");
         if (materialFix.MaterialsValidated < materialFix.OpaqueMaterialsFixed)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck materials vehicle={vehicle.GetInstanceID()}: " +
@@ -251,20 +266,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         collisionGuard.Initialize(vehicle, context);
         var audioController = vehicle.gameObject.AddComponent<BigfootMonsterTruckAudioController>();
         audioController.Initialize(vehicle, context);
+        var parkingController = vehicle.gameObject.AddComponent<BigfootMonsterTruckParkingController>();
+        parkingController.Initialize(vehicle, context);
+        var lightingController = vehicle.gameObject.AddComponent<BigfootMonsterTruckLightingController>();
+        lightingController.Initialize(vehicle, context);
         var marker = vehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
         marker.Initialize(contactMaterial);
-        context?.Logger.Info(
-            $"BigfootMonsterTruck: configured vehicle id={vehicle.GetInstanceID()}, " +
-            $"mass={VehicleMass:F0}, wheels={wheelCount}, colliders={colliderCount}, " +
-            $"wheelColliders={wheelColliderCount}, " +
-            $"power={vehicle.vehicleType?.enginePower ?? 0f:F0}, " +
-            $"topSpeed={vehicle.vehicleType?.maxSpeed ?? 0}km/h, " +
-            $"gearbox=4-speed/{TransmissionFinalDrive:F1}:1, " +
-            $"turnRadius={(float)(vehicle.vehicleType?.turnRadius ?? 0):F1}, " +
-            $"wheelRadius={WheelRadius:F2}, wheelWidth={WheelWidth:F2}, " +
-            "wheelVisual=native-direct, " +
-            $"suspensionTravel={SuspensionLength:F2}, differentialSlip=1000, " +
-            "climbAssist=small-vehicles, wheelTrafficContact=false.");
         if (wheelCount != 4)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: expected four wheel controllers but configured {wheelCount}.");
@@ -486,7 +493,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                         }
                         SetMember(powertrain, "differentials", differentials);
                     }
-                    VerifyFourWheelDrive(powertrain);
                     SetMember(component, "powertrain", powertrain);
 
                     var steering = GetMember(component, "steering");
@@ -539,60 +545,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         return FindField(type, name)?.GetValue(target) ??
                type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                    ?.GetValue(target);
-    }
-
-    private void VerifyFourWheelDrive(object? powertrain)
-    {
-        if (powertrain == null ||
-            GetMember(powertrain, "engine") is not object engine ||
-            GetMember(powertrain, "transmission") is not object transmission ||
-            GetMember(powertrain, "differentials") is not IList differentials ||
-            GetMember(powertrain, "wheels") is not IList wheels)
-        {
-            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive components are unavailable.");
-            return;
-        }
-
-        var center = FindNamedComponent(differentials, "Center Differential");
-        var front = FindNamedComponent(differentials, "Front Differential");
-        var rear = FindNamedComponent(differentials, "Rear Differential");
-        var frontLeft = FindNamedComponent(wheels, "WheelFrontLeft_WheelController");
-        var frontRight = FindNamedComponent(wheels, "WheelFrontRight_WheelController");
-        var rearLeft = FindNamedComponent(wheels, "WheelRearLeft_WheelController");
-        var rearRight = FindNamedComponent(wheels, "WheelRearRight_WheelController");
-        if (center == null || front == null || rear == null || frontLeft == null ||
-            frontRight == null || rearLeft == null || rearRight == null)
-        {
-            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive topology is incomplete.");
-            return;
-        }
-
-        var verified = ReferenceEquals(GetMember(engine, "Output"), transmission) &&
-                       ReferenceEquals(GetMember(transmission, "Output"), center) &&
-                       ReferenceEquals(GetMember(center, "Output"), front) &&
-                       ReferenceEquals(GetMember(center, "OutputB"), rear) &&
-                       ReferenceEquals(GetMember(front, "Output"), frontLeft) &&
-                       ReferenceEquals(GetMember(front, "OutputB"), frontRight) &&
-                       ReferenceEquals(GetMember(rear, "Output"), rearLeft) &&
-                       ReferenceEquals(GetMember(rear, "OutputB"), rearRight);
-        if (verified)
-            context?.Logger.Info(
-                "BigfootMonsterTruck: prefab four-wheel-drive topology verified without runtime rewiring.");
-        else
-            context?.Logger.Info(
-                "BigfootMonsterTruck: runtime AWD references are not exposed for verification; " +
-                "retaining the serialized prefab four-wheel-drive topology.");
-    }
-
-    private static object? FindNamedComponent(IList components, string name)
-    {
-        foreach (var component in components)
-            if (component != null && string.Equals(
-                    GetMember(component, "name") as string,
-                    name,
-                    StringComparison.Ordinal))
-                return component;
-        return null;
     }
 
     private static void SetMember(object? target, string name, object? value)
