@@ -117,17 +117,22 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         }
         bodyRenderer.sharedMaterials = materials;
         var badgeTriangleCount = ConfigureFactoryGrilleBadge();
-        ConfigurePaintedGrilleBacking();
+        var grilleTriangleCount = ConfigurePaintedGrilleBacking();
         var pillarTriangleCount = ConfigurePaintedPillars();
         configured = true;
-        ApplySelectedColor(true, pillarTriangleCount, badgeTriangleCount);
+        ApplySelectedColor(
+            true,
+            pillarTriangleCount,
+            badgeTriangleCount,
+            grilleTriangleCount);
         return true;
     }
 
     private void ApplySelectedColor(
         bool force = false,
         int pillarTriangleCount = -1,
-        int badgeTriangleCount = -1)
+        int badgeTriangleCount = -1,
+        int grilleTriangleCount = -1)
     {
         if (bodyRenderer == null || paintMaterial == null || sourceTexture == null ||
             sourcePixels == null)
@@ -183,6 +188,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     $"flamePixels={flamePixelCount}/{sourcePixels.Length} " +
                     $"pillarTriangles={Mathf.Max(0, pillarTriangleCount)} " +
                     $"badgeTriangles={Mathf.Max(0, badgeTriangleCount)} " +
+                    $"grilleTriangles={Mathf.Max(0, grilleTriangleCount)} " +
                     $"tint={tint} contrast={flameColor}.");
             }
             else
@@ -433,31 +439,60 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         return badgeTriangles.Count / 3;
     }
 
-    private void ConfigurePaintedGrilleBacking()
+    private int ConfigurePaintedGrilleBacking()
     {
-        if (bodyRenderer == null || originalMaterial == null)
-            return;
+        var sourceFilter = bodyRenderer?.GetComponent<MeshFilter>();
+        var sourceMesh = sourceFilter?.sharedMesh;
+        if (bodyRenderer == null || sourceMesh == null || originalMaterial == null ||
+            sourceTexture == null || sourcePixels == null || sourceMesh.subMeshCount == 0)
+            return 0;
 
-        grilleBackingMesh = new Mesh
+        var vertices = sourceMesh.vertices;
+        var uv = sourceMesh.uv;
+        if (uv.Length != vertices.Length)
+            return 0;
+        var sourceTriangles = sourceMesh.GetTriangles(0);
+        var grilleTriangles = new List<int>();
+        for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
         {
-            name = "Bigfoot painted grille backing",
-            vertices = new[]
-            {
-                new Vector3(-0.70f, 3.60f, -0.45f),
-                new Vector3(0.66f, 3.60f, -0.45f),
-                new Vector3(0.66f, 3.60f, -0.10f),
-                new Vector3(-0.70f, 3.60f, -0.10f),
-            },
-            normals = new[]
-            {
-                Vector3.up, Vector3.up, Vector3.up, Vector3.up,
-            },
-            uv = new[]
-            {
-                Vector2.zero, Vector2.right, Vector2.one, Vector2.up,
-            },
-        };
-        grilleBackingMesh.SetTriangles(new[] { 0, 2, 1, 0, 3, 2 }, 0, true);
+            var a = sourceTriangles[index];
+            var b = sourceTriangles[index + 1];
+            var c = sourceTriangles[index + 2];
+            var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
+            var insideGrille =
+                Mathf.Abs(center.x) <= 0.78f &&
+                center.y >= 3.50f && center.y <= 3.78f &&
+                center.z >= -0.53f && center.z <= -0.04f;
+            var insideBadge =
+                Mathf.Abs(center.x) <= 0.18f &&
+                center.y >= 3.68f && center.y <= 3.78f &&
+                center.z >= -0.36f && center.z <= -0.20f;
+            if (!insideGrille || insideBadge)
+                continue;
+
+            var triangleUv = (uv[a] + uv[b] + uv[c]) / 3f;
+            var sourceColor = SampleSourceColor(triangleUv);
+            var red = sourceColor.r / 255f;
+            var green = sourceColor.g / 255f;
+            var blue = sourceColor.b / 255f;
+            var maximum = Mathf.Max(red, Mathf.Max(green, blue));
+            var blueDominance = blue - Mathf.Max(red, green);
+            // Only copy the dark/blue inner surfaces. The white grille shell and
+            // its authored highlights remain on the original renderer.
+            if (maximum > 0.48f && blueDominance < 0.06f)
+                continue;
+
+            grilleTriangles.Add(a);
+            grilleTriangles.Add(b);
+            grilleTriangles.Add(c);
+        }
+        if (grilleTriangles.Count == 0)
+            return 0;
+
+        grilleBackingMesh = Instantiate(sourceMesh);
+        grilleBackingMesh.name = sourceMesh.name + "_PaintedInnerGrille";
+        grilleBackingMesh.subMeshCount = 1;
+        grilleBackingMesh.SetTriangles(grilleTriangles, 0, true);
         grilleBackingMesh.RecalculateBounds();
 
         grilleBackingMaterial = new Material(originalMaterial)
@@ -465,17 +500,39 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             name = "Bigfoot Repaintable Grille Backing"
         };
         SetBaseTexture(grilleBackingMaterial, Texture2D.whiteTexture);
+        ClearTexture(grilleBackingMaterial, "_NormalMap");
+        ClearTexture(grilleBackingMaterial, "_BumpMap");
+        ClearTexture(grilleBackingMaterial, "normalTexture");
+        ClearTexture(grilleBackingMaterial, "_MaskMap");
+        ClearTexture(grilleBackingMaterial, "_MetallicGlossMap");
+        ClearTexture(grilleBackingMaterial, "_OcclusionMap");
+        ClearTexture(grilleBackingMaterial, "_DetailMap");
         SetFloat(grilleBackingMaterial, "_Metallic", 0.15f);
         SetFloat(grilleBackingMaterial, "_Smoothness", 0.40f);
 
         grilleBackingObject = new GameObject("BigfootMonsterTruck_PaintedGrilleBacking");
         grilleBackingObject.transform.SetParent(bodyRenderer.transform, false);
+        grilleBackingObject.transform.localPosition = new Vector3(0f, 0.0015f, 0f);
         grilleBackingObject.layer = bodyRenderer.gameObject.layer;
         grilleBackingObject.AddComponent<MeshFilter>().sharedMesh = grilleBackingMesh;
         var backingRenderer = grilleBackingObject.AddComponent<MeshRenderer>();
         backingRenderer.sharedMaterial = grilleBackingMaterial;
         backingRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         backingRenderer.receiveShadows = false;
+        return grilleTriangles.Count / 3;
+    }
+
+    private Color32 SampleSourceColor(Vector2 uv)
+    {
+        var x = Mathf.Clamp(
+            Mathf.FloorToInt(Mathf.Repeat(uv.x, 1f) * sourceTexture!.width),
+            0,
+            sourceTexture.width - 1);
+        var y = Mathf.Clamp(
+            Mathf.FloorToInt(Mathf.Repeat(uv.y, 1f) * sourceTexture.height),
+            0,
+            sourceTexture.height - 1);
+        return sourcePixels![y * sourceTexture.width + x];
     }
 
     private static Color GetContrastingFlameColor(Color tint)
@@ -619,6 +676,12 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     {
         if (material.HasProperty(property))
             material.SetFloat(property, value);
+    }
+
+    private static void ClearTexture(Material material, string property)
+    {
+        if (material.HasProperty(property))
+            material.SetTexture(property, null);
     }
 
     private static bool ColorsMatch(Color left, Color right) =>
