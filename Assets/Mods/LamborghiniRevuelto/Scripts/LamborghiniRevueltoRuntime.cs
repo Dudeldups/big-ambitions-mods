@@ -841,6 +841,8 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
 public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
 {
     private readonly List<Renderer> cabinGlass = new List<Renderer>();
+    private readonly Dictionary<Material, Material> runtimeMaterials =
+        new Dictionary<Material, Material>();
     private ModContext? context;
     private Coroutine? restoreCoroutine;
     private bool initialized;
@@ -848,16 +850,40 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
     internal void Initialize(ModContext? modContext)
     {
         context = modContext;
+        if (initialized)
+        {
+            EnsureVisible("reinitialize");
+            return;
+        }
+
         cabinGlass.Clear();
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
-            if (Array.Exists(
-                    renderer.sharedMaterials,
-                    material => material != null &&
-                                LamborghiniRevueltoMaterials.IsCabinGlassMaterial(material)))
+            var materials = renderer.sharedMaterials;
+            var containsCabinGlass = false;
+            for (var index = 0; index < materials.Length; index++)
             {
-                cabinGlass.Add(renderer);
+                var source = materials[index];
+                if (source == null ||
+                    !LamborghiniRevueltoMaterials.IsCabinGlassMaterial(source))
+                {
+                    continue;
+                }
+
+                containsCabinGlass = true;
+                if (!runtimeMaterials.TryGetValue(source, out var runtimeMaterial))
+                {
+                    runtimeMaterial = Instantiate(source);
+                    runtimeMaterial.name = source.name + "_RuntimeCabinGlass";
+                    LamborghiniRevueltoMaterials.RestoreCabinGlassMaterial(runtimeMaterial);
+                    runtimeMaterials.Add(source, runtimeMaterial);
+                }
+                materials[index] = runtimeMaterial;
             }
+            if (!containsCabinGlass)
+                continue;
+            renderer.sharedMaterials = materials;
+            cabinGlass.Add(renderer);
         }
         initialized = true;
         EnsureVisible("initialize");
@@ -886,10 +912,13 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
     private void EnsureVisible(string source)
     {
         var restored = 0;
+        var activeRenderers = 0;
         foreach (var renderer in cabinGlass)
         {
             if (renderer == null)
                 continue;
+            if (renderer.gameObject.activeInHierarchy)
+                activeRenderers++;
             if (!renderer.enabled || renderer.forceRenderingOff)
                 restored++;
             renderer.enabled = true;
@@ -905,7 +934,9 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
         }
         context?.Logger.Info(
             $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: source='{source}' " +
-            $"renderers={cabinGlass.Count}, restored={restored}, deferredPolling=false.");
+            $"renderers={cabinGlass.Count}, active={activeRenderers}, " +
+            $"runtimeMaterials={runtimeMaterials.Count}, restored={restored}, " +
+            "deferredPolling=false.");
     }
 
     private void OnDestroy()
@@ -913,6 +944,12 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
         if (restoreCoroutine != null)
             StopCoroutine(restoreCoroutine);
         restoreCoroutine = null;
+        foreach (var material in runtimeMaterials.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        runtimeMaterials.Clear();
     }
 }
 
