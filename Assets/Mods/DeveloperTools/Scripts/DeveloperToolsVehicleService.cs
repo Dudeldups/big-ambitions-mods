@@ -115,6 +115,45 @@ namespace DeveloperTools
             return true;
         }
 
+        public bool RepairVehicle(out string message)
+        {
+            var activeVehicleId = SaveGameManager.Current?.ActiveVehicleId;
+            var controller = FindVehicleController(activeVehicleId) ?? FindVehicleController(lastSpawnedVehicleId);
+            if (controller?.vehicleInstance == null)
+            {
+                message = "Enter a vehicle or spawn one before repairing it.";
+                return false;
+            }
+
+            try
+            {
+                controller.Repair();
+                foreach (var deformation in controller.GetComponentsInChildren<VehicleDeformationController>(true))
+                    if (deformation != null) deformation.Reset();
+
+                SaveGameManager.MarkChange();
+                GlobalEvents.onVehicleVariablesChanged?.Invoke();
+                message = "Repaired " + Localize(controller.vehicleInstance.vehicleTypeName) + ".";
+                return true;
+            }
+            catch (Exception exception)
+            {
+                message = "Vehicle repair failed: " + exception.GetBaseException().Message;
+                context.Logger.Error(exception);
+                return false;
+            }
+        }
+
+        private static VehicleController? FindVehicleController(string? vehicleId)
+        {
+            if (string.IsNullOrEmpty(vehicleId))
+                return null;
+
+            return VehicleHelper.AllPlayerVehicles?.FirstOrDefault(value =>
+                value?.vehicleInstance != null &&
+                string.Equals(value.vehicleInstance.id, vehicleId, StringComparison.Ordinal));
+        }
+
         private void NotifyModVehicleCreated(VehicleController controller, string vehicleTypeName)
         {
             if (!IsModdedVehicleType(vehicleTypeName) || GlobalEvents.onEnterVehicle == null)

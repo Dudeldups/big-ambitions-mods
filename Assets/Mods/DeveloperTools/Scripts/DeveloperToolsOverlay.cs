@@ -330,6 +330,11 @@ namespace DeveloperTools
                 ref selectedModdedVehicleId,
                 ref moddedVehicleDropdownOpen,
                 ref moddedVehicleScroll);
+            var previousBackgroundColor = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.38f, 0.72f, 0.42f, 1f);
+            if (GUILayout.Button("Repair Vehicle"))
+                vehicles.RepairVehicle(out status);
+            GUI.backgroundColor = previousBackgroundColor;
             if (GUILayout.Button("Despawn Last Spawned Vehicle"))
                 vehicles.DespawnLast(out status);
         }
