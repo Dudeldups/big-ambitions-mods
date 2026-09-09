@@ -46,6 +46,15 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         0.58f,
     };
 
+    private static AnimationCurve CreateRevueltoPowerCurve() =>
+        new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.23f, 0.18f),
+            new Keyframe(0.55f, 0.38f),
+            new Keyframe(0.78f, 0.64f),
+            new Keyframe(0.90f, 1f),
+            new Keyframe(1f, 0.88f));
+
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private ModContext? context;
@@ -267,6 +276,10 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
+            var caliperController = vehicle.GetComponent<LamborghiniRevueltoCaliperController>();
+            if (caliperController == null)
+                caliperController = vehicle.gameObject.AddComponent<LamborghiniRevueltoCaliperController>();
+            caliperController.Initialize(vehicle, context);
             var materialResult = LamborghiniRevueltoMaterials.FixSolidMaterials(vehicle.gameObject);
             var lightingController = vehicle.GetComponent<LamborghiniRevueltoLightingController>();
             if (lightingController == null)
@@ -302,6 +315,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
+                "powerCurve=telemetry-calibration-1, steeringCalipers=4, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -403,6 +417,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             var engine = GetMember(powertrain, "engine");
             SetFloat(engine, "inertia", EngineInertia);
             SetFloat(engine, "maxPower", EnginePowerKw);
+            SetValue(engine, "powerCurve", typeof(AnimationCurve), CreateRevueltoPowerCurve());
             SetFloat(engine, "idleRPM", EngineIdleRpm);
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
             SetFloat(engine, "startDuration", EngineStartDuration);

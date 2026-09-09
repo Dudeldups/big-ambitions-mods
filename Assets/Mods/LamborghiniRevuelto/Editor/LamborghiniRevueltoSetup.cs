@@ -59,6 +59,15 @@ public static class LamborghiniRevueltoSetup
         0.58f,
     };
 
+    private static AnimationCurve CreateRevueltoPowerCurve() =>
+        new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.23f, 0.18f),
+            new Keyframe(0.55f, 0.38f),
+            new Keyframe(0.78f, 0.64f),
+            new Keyframe(0.90f, 1f),
+            new Keyframe(1f, 0.88f));
+
     [MenuItem("Big Ambitions Mods/Setup Lamborghini Revuelto")]
     public static void Generate()
     {
@@ -133,6 +142,7 @@ public static class LamborghiniRevueltoSetup
             var fittedWheelCenters = new Dictionary<string, Vector3>();
             var fixedCalipers = 0;
             var calipersDetachedFromWheels = true;
+            var fittedCaliperCenters = new Dictionary<string, Vector3>();
             var continuousTailLight = false;
             var thirdBrakeLight = false;
             var frontBlinkerMeshes = 0;
@@ -183,6 +193,7 @@ public static class LamborghiniRevueltoSetup
                     fixedCalipers++;
                     if (FindTransformWithNameFragment(transform, "_Caliper_") == null)
                         calipersDetachedFromWheels = false;
+                    fittedCaliperCenters[transform.name] = transform.position;
                 }
                 if (string.Equals(
                         transform.name,
@@ -227,6 +238,23 @@ public static class LamborghiniRevueltoSetup
                 wheelbase >= 2.88f && wheelbase <= 2.92f &&
                 Math.Abs(frontLeftCenter.z - frontRightCenter.z) < 0.012f &&
                 Math.Abs(rearLeftCenter.z - rearRightCenter.z) < 0.012f;
+            var caliperPivotsVerified = wheelPlacementVerified &&
+                CaliperPivotMatches(
+                    fittedCaliperCenters,
+                    "LamborghiniFixedCaliperFrontLeft",
+                    frontLeftCenter) &&
+                CaliperPivotMatches(
+                    fittedCaliperCenters,
+                    "LamborghiniFixedCaliperFrontRight",
+                    frontRightCenter) &&
+                CaliperPivotMatches(
+                    fittedCaliperCenters,
+                    "LamborghiniFixedCaliperRearLeft",
+                    rearLeftCenter) &&
+                CaliperPivotMatches(
+                    fittedCaliperCenters,
+                    "LamborghiniFixedCaliperRearRight",
+                    rearRightCenter);
 
             var transmissionVerified = false;
             var launchResponseVerified = false;
@@ -297,6 +325,7 @@ public static class LamborghiniRevueltoSetup
                 transmissionVerified = gearCount == 8 && gears != null && gears.arraySize == 10;
                 var clutch = powertrain?.FindPropertyRelative("clutch");
                 var engine = powertrain?.FindPropertyRelative("engine");
+                var powerCurve = engine?.FindPropertyRelative("powerCurve")?.animationCurveValue;
                 launchResponseVerified =
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRPM")) - 1400f) < 0.01f &&
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("throttleEngagementOffsetRPM")) - 700f) < 0.01f &&
@@ -304,6 +333,7 @@ public static class LamborghiniRevueltoSetup
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.09f) < 0.001f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.42f) < 0.001f &&
+                    RevueltoPowerCurveMatches(powerCurve) &&
                     !(engine?.FindPropertyRelative("stallingEnabled")?.boolValue ?? true);
             }
 
@@ -466,6 +496,7 @@ public static class LamborghiniRevueltoSetup
                 !wheelPlacementVerified ||
                 fixedCalipers != 4 ||
                 !calipersDetachedFromWheels ||
+                !caliperPivotsVerified ||
                 !continuousTailLight ||
                 !thirdBrakeLight ||
                 frontBlinkerMeshes != 2 ||
@@ -501,6 +532,7 @@ public static class LamborghiniRevueltoSetup
                     $"wheelPlacement={wheelPlacementVerified}, wheelbase={wheelbase:F3}, " +
                     $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                     $"fixedCalipers={fixedCalipers}, calipersDetached={calipersDetachedFromWheels}, " +
+                    $"caliperPivots={caliperPivotsVerified}, " +
                     $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
@@ -522,7 +554,7 @@ public static class LamborghiniRevueltoSetup
             Debug.Log(
                 $"LamborghiniRevuelto bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, eightSpeed=true, " +
-                $"fixedCalipers=4, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
+                $"fixedCalipers=4, steeringCaliperPivots=true, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
@@ -801,6 +833,10 @@ public static class LamborghiniRevueltoSetup
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.09f);
                 SetRelativeNumber(serialized, "powertrain.engine.maxPower", 747f);
+                var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
+                if (powerCurve?.propertyType != SerializedPropertyType.AnimationCurve)
+                    throw new InvalidOperationException("Reference engine power curve is missing.");
+                powerCurve.animationCurveValue = CreateRevueltoPowerCurve();
                 SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 1000f);
                 SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 9500f);
                 SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.42f);
@@ -971,6 +1007,8 @@ public static class LamborghiniRevueltoSetup
                 "LamborghiniFixedCaliper" +
                 pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
             fixedCaliper.transform.SetParent(root.transform, false);
+            fixedCaliper.transform.position = mount.transform.position;
+            fixedCaliper.transform.rotation = root.transform.rotation;
             caliper.SetParent(fixedCaliper.transform, true);
 
             AssignWheelVisual(controller, mount);
@@ -1117,6 +1155,29 @@ public static class LamborghiniRevueltoSetup
 
     private static bool IsCaliperMaterial(Material material) =>
         material.name.IndexOf("_Caliper", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool CaliperPivotMatches(
+        IReadOnlyDictionary<string, Vector3> centers,
+        string name,
+        Vector3 wheelCenter) =>
+        centers.TryGetValue(name, out var center) &&
+        Vector3.Distance(center, wheelCenter) < 0.005f;
+
+    private static bool RevueltoPowerCurveMatches(AnimationCurve? curve)
+    {
+        var expected = CreateRevueltoPowerCurve();
+        if (curve == null || curve.length != expected.length)
+            return false;
+        for (var index = 0; index < expected.length; index++)
+        {
+            if (Math.Abs(curve[index].time - expected[index].time) > 0.002f ||
+                Math.Abs(curve[index].value - expected[index].value) > 0.002f)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private static bool IsRimInnerPaintMaterial(Material material) =>
         material.name.IndexOf("LamborghiniOpaque_03_Brake_rotor", StringComparison.OrdinalIgnoreCase) >= 0;
