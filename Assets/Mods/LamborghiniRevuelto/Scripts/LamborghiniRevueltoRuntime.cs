@@ -482,8 +482,6 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     {
         var name = filter.name;
         if (name.IndexOf("_Interior_", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("Inside_Headlight", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("Taillight_rear", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("_Sphere_", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return false;
@@ -493,7 +491,9 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                name.StartsWith("Front_part_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Front_vents", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Headlight_carbon", StringComparison.OrdinalIgnoreCase) ||
+               name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.StartsWith("Daylight_Part_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Daylight_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Mid_part_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Mid_parts_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Rear_part_", StringComparison.OrdinalIgnoreCase) ||
@@ -501,6 +501,10 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                name.StartsWith("Rear_vent", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Rear_engine_carbon", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Tail_light_Plastic", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Tail_light_", StringComparison.OrdinalIgnoreCase) ||
+               name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.StartsWith("Brake_light_", StringComparison.OrdinalIgnoreCase) ||
+               name.IndexOf("Turning_light", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.StartsWith("Vents_", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(name, "Mirrors_Body_0", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(name, "Mirrors_Carbon_0", StringComparison.OrdinalIgnoreCase);
@@ -700,21 +704,22 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.52f;
-    private const float MaximumDentDepth = 0.28f;
-    private const float DepthPerExcessMps = 0.009f;
-    private const float EndDentLateralRadius = 0.82f;
-    private const float EndDentVerticalRadius = 0.72f;
-    private const float EndDentLongitudinalRadius = 1.05f;
-    private const float MaximumEndDentDepth = 0.40f;
-    private const float EndDepthPerExcessMps = 0.011f;
+    private const float DentRadius = 0.66f;
+    private const float MaximumDentDepth = 0.40f;
+    private const float DepthPerExcessMps = 0.013f;
+    private const float EndDentLateralRadius = 0.96f;
+    private const float EndDentVerticalRadius = 0.82f;
+    private const float EndDentLongitudinalRadius = 1.18f;
+    private const float MaximumEndDentDepth = 0.58f;
+    private const float EndDepthPerExcessMps = 0.017f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
 
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
-    private readonly Dictionary<MeshFilter, Mesh> originalMeshes =
-        new Dictionary<MeshFilter, Mesh>();
+    private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
+        new Dictionary<MeshFilter, Vector3[]>();
+    private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
     private VehicleController? vehicle;
     private NWH.VehiclePhysics2.Damage.DamageHandler? damageHandler;
     private ModContext? context;
@@ -743,13 +748,18 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
         impactThresholdMps = thresholdMps;
         previousDamage = handler.Damage;
         deformableFilters.Clear();
-        originalMeshes.Clear();
+        originalVertices.Clear();
+        runtimeMeshes.Clear();
         foreach (var filter in filters)
         {
             if (filter == null || filter.sharedMesh == null)
                 continue;
+            var runtimeMesh = Instantiate(filter.sharedMesh);
+            runtimeMesh.name = filter.sharedMesh.name + "_RuntimeDamage";
+            filter.sharedMesh = runtimeMesh;
             deformableFilters.Add(filter);
-            originalMeshes[filter] = filter.sharedMesh;
+            originalVertices[filter] = runtimeMesh.vertices;
+            runtimeMeshes.Add(runtimeMesh);
         }
         initialized = true;
     }
@@ -762,10 +772,15 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
         var currentDamage = damageHandler.Damage;
         if (previousDamage > 0.001f && currentDamage <= 0.001f)
         {
-            foreach (var pair in originalMeshes)
+            foreach (var pair in originalVertices)
             {
-                if (pair.Key != null && pair.Value != null)
-                    pair.Key.sharedMesh = pair.Value;
+                if (pair.Key == null || pair.Key.sharedMesh == null)
+                    continue;
+                var mesh = pair.Key.sharedMesh;
+                mesh.vertices = pair.Value;
+                mesh.RecalculateBounds();
+                mesh.RecalculateNormals();
+                mesh.RecalculateTangents();
             }
             context?.Logger.Info(
                 $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
@@ -803,7 +818,7 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
             {
                 if (filter == null || filter.sharedMesh == null)
                     continue;
-                var mesh = filter.mesh;
+                var mesh = filter.sharedMesh;
                 var vertices = mesh.vertices;
                 var meshChanged = false;
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
@@ -899,5 +914,12 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                 $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
                 $"with {exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var mesh in runtimeMeshes)
+            if (mesh != null) Destroy(mesh);
+        runtimeMeshes.Clear();
     }
 }

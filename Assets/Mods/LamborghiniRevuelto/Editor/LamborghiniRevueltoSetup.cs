@@ -17,8 +17,6 @@ public static class LamborghiniRevueltoSetup
     private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
     private const string DamageBodyMeshPath =
         MeshFolder + "/LamborghiniDamageBody.asset";
-    private const string RightRimMaterialPath =
-        MaterialFolder + "/LamborghiniOpaque_19_material_Right.mat";
     private const string VehicleAssetPath = ModRoot + "/LamborghiniRevuelto.asset";
     private const string VehiclePrefabPath = ModRoot + "/LamborghiniRevuelto.prefab";
     private const string ManifestPath = ModRoot + "/ModManifest.asset";
@@ -386,10 +384,7 @@ public static class LamborghiniRevueltoSetup
                     {
                         rimSlots++;
                         rimMaterials.Add(material);
-                        var expectedRimColor =
-                            LamborghiniRevueltoMaterials.IsRightRimRenderer(renderer.transform)
-                                ? LamborghiniRevueltoMaterials.RimRightBaseColor
-                                : LamborghiniRevueltoMaterials.RimBaseColor;
+                        var expectedRimColor = LamborghiniRevueltoMaterials.RimBaseColor;
                         var rimColor = material.HasProperty("_BaseColor")
                             ? material.GetColor("_BaseColor")
                             : Color.clear;
@@ -431,9 +426,13 @@ public static class LamborghiniRevueltoSetup
                                 : material.HasProperty("baseColorFactor")
                                     ? material.GetColor("baseColorFactor")
                                     : Color.black;
-                            cabinGlassTintValid &= tint.r >= 0.08f &&
-                                                   tint.a >= 0.24f &&
-                                                   tint.a <= 0.34f;
+                            cabinGlassTintValid &= tint.r >= 0.04f &&
+                                                   tint.a >= 0.40f &&
+                                                   tint.a <= 0.50f &&
+                                                   (!material.HasProperty("_Smoothness") ||
+                                                    material.GetFloat("_Smoothness") >= 0.90f) &&
+                                                   (!material.HasProperty("_Metallic") ||
+                                                    material.GetFloat("_Metallic") <= 0.01f);
                         }
                         continue;
                     }
@@ -564,7 +563,7 @@ public static class LamborghiniRevueltoSetup
                 interiorAccentPaintSlots == 0 ||
                 caliperSlots != 4 ||
                 rimSlots != 4 ||
-                rimMaterials.Count != 2 ||
+                rimMaterials.Count != 1 ||
                 !rimFinishValid ||
                 !paintReferencesValid)
             {
@@ -1273,21 +1272,6 @@ public static class LamborghiniRevueltoSetup
             throw new InvalidOperationException("The shared Lamborghini rim material is missing.");
 
         ApplyRimFinish(leftMaterial, LamborghiniRevueltoMaterials.RimBaseColor);
-        var rightMaterial = AssetDatabase.LoadAssetAtPath<Material>(RightRimMaterialPath);
-        if (rightMaterial == null)
-        {
-            rightMaterial = new Material(leftMaterial)
-            {
-                name = "LamborghiniOpaque_19_material_Right",
-            };
-            AssetDatabase.CreateAsset(rightMaterial, RightRimMaterialPath);
-        }
-        else
-        {
-            rightMaterial.CopyPropertiesFromMaterial(leftMaterial);
-            rightMaterial.shader = leftMaterial.shader;
-        }
-        ApplyRimFinish(rightMaterial, LamborghiniRevueltoMaterials.RimRightBaseColor);
 
         var configuredSlots = 0;
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
@@ -1300,9 +1284,8 @@ public static class LamborghiniRevueltoSetup
             {
                 if (materials[index] == null || !IsRimMaterial(materials[index]))
                     continue;
-                materials[index] = LamborghiniRevueltoMaterials.IsRightRimRenderer(renderer.transform)
-                    ? rightMaterial
-                    : leftMaterial;
+                materials[index] = leftMaterial;
+                renderer.SetPropertyBlock(null, index);
                 configuredSlots++;
                 changed = true;
             }

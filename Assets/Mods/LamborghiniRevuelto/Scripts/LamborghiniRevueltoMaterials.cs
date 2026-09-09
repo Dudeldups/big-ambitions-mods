@@ -41,8 +41,7 @@ public static class LamborghiniRevueltoMaterials
 {
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
-    public static readonly Color RimBaseColor = new Color(0.10f, 0.10f, 0.10f, 1f);
-    public static readonly Color RimRightBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
+    public static readonly Color RimBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string RimMaterialMarker = "LamborghiniOpaque_19_material";
@@ -58,6 +57,7 @@ public static class LamborghiniRevueltoMaterials
 
     public static LamborghiniRevueltoMaterialFixResult FixSolidMaterials(GameObject vehicle)
     {
+        var canonicalRimMaterial = FindCanonicalRimMaterial(vehicle);
         var materials = new HashSet<Material>();
         var rendererCount = 0;
         var decalMasksCleared = 0;
@@ -104,7 +104,7 @@ public static class LamborghiniRevueltoMaterials
                 opaqueMaterialsFixed++;
             }
 
-            rimSlotsNormalized += NormalizeRimRenderer(renderer);
+            rimSlotsNormalized += NormalizeRimRenderer(renderer, canonicalRimMaterial);
 
             if (!HasOpaqueMaterial(renderer))
             {
@@ -129,10 +129,44 @@ public static class LamborghiniRevueltoMaterials
             cabinGlassRenderersReenabled);
     }
 
-    private static int NormalizeRimRenderer(Renderer renderer)
+    private static Material? FindCanonicalRimMaterial(GameObject vehicle)
     {
+        Material? fallback = null;
+        foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!IsLamborghiniRenderer(renderer.transform))
+                continue;
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material == null ||
+                    material.name.IndexOf(RimMaterialMarker, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                fallback ??= material;
+                if (material.name.EndsWith("_Right", StringComparison.OrdinalIgnoreCase))
+                    return material;
+            }
+        }
+
+        return fallback;
+    }
+
+    private static int NormalizeRimRenderer(Renderer renderer, Material? canonicalMaterial)
+    {
+        if (canonicalMaterial == null)
+            return 0;
+
+        SetColor(canonicalMaterial, "_BaseColor", RimBaseColor);
+        SetColor(canonicalMaterial, "_Color", RimBaseColor);
+        SetColor(canonicalMaterial, "baseColorFactor", RimBaseColor);
+        SetFloat(canonicalMaterial, "_Metallic", RimMetallic);
+        SetFloat(canonicalMaterial, "_Smoothness", RimSmoothness);
+
         var normalized = 0;
         var materials = renderer.sharedMaterials;
+        var changed = false;
         for (var index = 0; index < materials.Length; index++)
         {
             var material = materials[index];
@@ -142,37 +176,19 @@ public static class LamborghiniRevueltoMaterials
                 continue;
             }
 
-            // The mirrored left mesh shades materially brighter under the
-            // game's vehicle lighting. Side-specific calibrated base values
-            // make both sides read as the darker factory graphite finish. This
-            // runs once during initialization; no frame polling is required.
-            var baseColor = IsRightRimRenderer(renderer.transform)
-                ? RimRightBaseColor
-                : RimBaseColor;
-            var properties = new MaterialPropertyBlock();
-            renderer.GetPropertyBlock(properties, index);
-            properties.SetColor("_BaseColor", baseColor);
-            properties.SetColor("_Color", baseColor);
-            properties.SetColor("baseColorFactor", baseColor);
-            properties.SetFloat("_Metallic", RimMetallic);
-            properties.SetFloat("_Smoothness", RimSmoothness);
-            renderer.SetPropertyBlock(properties, index);
+            // All four rims deliberately share one material object and have no
+            // renderer-local overrides. This makes their finish byte-for-byte
+            // identical; only the scene's natural directional lighting differs.
+            materials[index] = canonicalMaterial;
+            renderer.SetPropertyBlock(null, index);
             normalized++;
+            changed = true;
         }
+
+        if (changed)
+            renderer.sharedMaterials = materials;
 
         return normalized;
-    }
-
-    public static bool IsRightRimRenderer(Transform transform)
-    {
-        for (var current = transform; current != null; current = current.parent)
-        {
-            if (!current.name.StartsWith("LamborghiniWheel", StringComparison.Ordinal))
-                continue;
-            return current.name.EndsWith("Right", StringComparison.Ordinal);
-        }
-
-        return false;
     }
 
     public static bool IsTransparentMaterial(Material material)
@@ -293,8 +309,9 @@ public static class LamborghiniRevueltoMaterials
     private static void FixTransparentHdrpMaterial(Material material)
     {
         var name = material.name;
-        var tint = IsCabinGlassMaterial(material)
-            ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
+        var cabinGlass = IsCabinGlassMaterial(material);
+        var tint = cabinGlass
+            ? new Color(0.055f, 0.075f, 0.095f, 0.44f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -314,7 +331,14 @@ public static class LamborghiniRevueltoMaterials
         SetFloat(material, "_ZWrite", 0f);
         SetFloat(material, "_TransparentZWrite", 0f);
         SetFloat(material, "_AlphaCutoffEnable", 0f);
-        SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
+        SetFloat(material, "_EnableBlendModePreserveSpecularLighting", cabinGlass ? 1f : 0f);
+        if (cabinGlass)
+        {
+            SetFloat(material, "_Metallic", 0f);
+            SetFloat(material, "metallicFactor", 0f);
+            SetFloat(material, "_Smoothness", 0.94f);
+            SetFloat(material, "roughnessFactor", 0.06f);
+        }
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
