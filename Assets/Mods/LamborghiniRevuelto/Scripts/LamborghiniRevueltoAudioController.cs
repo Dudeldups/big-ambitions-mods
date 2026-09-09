@@ -92,16 +92,16 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         hornHost.transform.SetParent(audioHost.transform, false);
         var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
         if (otherSource == null || otherSource.outputAudioMixerGroup == null) otherSource = native;
-        var hornClip = LoadClip("Horn");
-        hornSource = CreateSource(hornHost, hornClip, true, otherSource);
-        hornSupportSource = CreateSource(hornHost, hornClip, true, otherSource);
+        hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, otherSource);
+        hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
         context.Logger.Info(
             $"LamborghiniRevuelto audio configured vehicle={vehicle.GetInstanceID()}, " +
             $"engineLayers=7, engineGain={LamborghiniRevueltoAudioModel.EngineBaseVolume:0.00}.." +
             $"{LamborghiniRevueltoAudioModel.EngineBaseVolume + LamborghiniRevueltoAudioModel.EngineThrottleVolume:0.00}, " +
-            $"hornVoices=2x{LamborghiniRevueltoAudioModel.HornVolumePerVoice:0.00}, " +
+            $"hornVoices=low/high@{LamborghiniRevueltoAudioModel.HornLowVolume:0.00}/" +
+            $"{LamborghiniRevueltoAudioModel.HornHighVolume:0.00}, " +
             $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
             "exhaust=continuous-subtle-crackle.");
         return true;
@@ -231,9 +231,10 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
     private void UpdateHorn(bool pressed, float master)
     {
         if (hornSource == null || hornSupportSource == null) return;
-        var target = pressed ? master * LamborghiniRevueltoAudioModel.HornVolumePerVoice : 0f;
-        UpdateHornVoice(hornSource, pressed, target);
-        UpdateHornVoice(hornSupportSource, pressed, target);
+        var lowTarget = pressed ? master * LamborghiniRevueltoAudioModel.HornLowVolume : 0f;
+        var highTarget = pressed ? master * LamborghiniRevueltoAudioModel.HornHighVolume : 0f;
+        UpdateHornVoice(hornSource, pressed, lowTarget);
+        UpdateHornVoice(hornSupportSource, pressed, highTarget);
     }
 
     private static void UpdateHornVoice(AudioSource source, bool pressed, float target)

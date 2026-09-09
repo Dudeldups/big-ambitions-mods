@@ -33,6 +33,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
+    private const float DamageIntensity = 1f;
+    private const float DamageDecelerationThreshold = 500f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] RevueltoGears =
@@ -278,7 +280,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
-            var deformationControllers = ConfigureDeformationControllers(vehicle.gameObject);
+            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<LamborghiniRevueltoCaliperController>();
             if (caliperController == null)
@@ -317,8 +319,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
-                $"deformationControllers={deformationControllers}, " +
-                $"deformation={DeformationStrength:0.00}/{DeformationRadius:0.00}, " +
+                $"deformableBodyMeshes={deformableBodyMeshes}, " +
+                $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 "powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
@@ -326,6 +328,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
                 $"transparentFixed={materialResult.TransparentMaterialsFixed}, " +
+                $"cabinGlass={materialResult.CabinGlassRenderers}/" +
+                $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
                 $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
                 $"hdrpValidated={materialResult.MaterialsValidated}.");
         }
@@ -400,27 +404,85 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         }
     }
 
-    private static int ConfigureDeformationControllers(GameObject root)
+    private int ConfigureVisualDamage(VehicleController vehicle)
     {
-        var configuredCount = 0;
-        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
         {
-            if (component == null ||
-                !string.Equals(
+            if (component == null || !string.Equals(
                     component.GetType().Name,
                     "VehicleDeformationController",
                     StringComparison.Ordinal))
-            {
                 continue;
-            }
-
-            SetFloat(component, "deformationStrength", DeformationStrength);
-            SetFloat(component, "deformationRadius", DeformationRadius);
-            SetFloat(component, "deformationRandomness", DeformationRandomness);
-            configuredCount++;
+            component.enabled = false;
+            ClearCollection(component, "_deformationQueue");
         }
 
-        return configuredCount;
+        var damageHandler =
+            vehicle.GetComponentInChildren<NWH.VehiclePhysics2.Damage.DamageHandler>(true);
+        if (damageHandler == null)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto damage vehicle={vehicle.GetInstanceID()}: " +
+                "NWH damage handler is missing; visual damage remains disabled.");
+            return 0;
+        }
+
+        var filters = new List<MeshFilter>();
+        foreach (var filter in vehicle.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null ||
+                !filter.name.StartsWith("LamborghiniDamageBody", StringComparison.Ordinal))
+                continue;
+            var renderer = filter.GetComponent<MeshRenderer>();
+            if (renderer != null && renderer.enabled)
+                filters.Add(filter);
+        }
+
+        if (filters.Count == 0)
+        {
+            damageHandler.meshDeform = false;
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto damage vehicle={vehicle.GetInstanceID()}: " +
+                "deformable outer body mesh is missing; visual damage remains disabled.");
+            return 0;
+        }
+
+        ClearCollection(damageHandler, "_collisionEvents");
+        damageHandler.collisionTimeout = 0.8f;
+        damageHandler.damageIntensity = DamageIntensity;
+        damageHandler.decelerationThreshold = DamageDecelerationThreshold;
+        damageHandler.deformationRadius = DeformationRadius;
+        damageHandler.deformationRandomness = DeformationRandomness;
+        damageHandler.deformationStrength = DeformationStrength;
+        damageHandler.deformationVerticesPerFrame = 8000;
+        // The stock deformation controller assumes every mesh shares root-local
+        // coordinates and can silently miss imported panels. The model-aware
+        // controller below works in world space and only touches the outer shell.
+        damageHandler.meshDeform = false;
+
+        var visualDamage = vehicle.GetComponent<LamborghiniRevueltoVisualDamageController>();
+        if (visualDamage == null)
+            visualDamage = vehicle.gameObject.AddComponent<LamborghiniRevueltoVisualDamageController>();
+        visualDamage.Initialize(
+            vehicle,
+            damageHandler,
+            context,
+            filters,
+            DamageDecelerationThreshold / 100f);
+
+        context?.Logger.Info(
+            $"LamborghiniRevuelto damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
+            $"bodyMeshes={filters.Count} threshold={DamageDecelerationThreshold / 100f:0.0}mps " +
+            $"filters=[{string.Join(", ", filters.ConvertAll(filter => filter.name))}]; " +
+            "legacy deformation disabled.");
+        return filters.Count;
+    }
+
+    private static void ClearCollection(object target, string fieldName)
+    {
+        var collection = FindField(target.GetType(), fieldName)?.GetValue(target);
+        collection?.GetType().GetMethod("Clear", BindingFlags.Instance | BindingFlags.Public)
+            ?.Invoke(collection, null);
     }
 
     private static bool ConfigurePowertrain(GameObject root)
@@ -604,5 +666,207 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[AddComponentMenu("")]
+public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
+{
+    private const float DentRadius = 0.52f;
+    private const float MaximumDentDepth = 0.28f;
+    private const float DepthPerExcessMps = 0.009f;
+    private const float EndDentLateralRadius = 0.82f;
+    private const float EndDentVerticalRadius = 0.72f;
+    private const float EndDentLongitudinalRadius = 1.05f;
+    private const float MaximumEndDentDepth = 0.40f;
+    private const float EndDepthPerExcessMps = 0.011f;
+    private const float EndContactMinimumLongitudinalOffset = 1.35f;
+    private const float CollisionCooldown = 0.5f;
+    private const int MaximumDiagnosticLogs = 6;
+
+    private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
+    private readonly Dictionary<MeshFilter, Mesh> originalMeshes =
+        new Dictionary<MeshFilter, Mesh>();
+    private VehicleController? vehicle;
+    private NWH.VehiclePhysics2.Damage.DamageHandler? damageHandler;
+    private ModContext? context;
+    private Rigidbody? body;
+    private float impactThresholdMps;
+    private float nextCollisionTime;
+    private float previousDamage;
+    private int diagnosticLogs;
+    private bool initialized;
+    private bool failureReported;
+
+    internal void Initialize(
+        VehicleController controller,
+        NWH.VehiclePhysics2.Damage.DamageHandler handler,
+        ModContext? modContext,
+        IReadOnlyList<MeshFilter> filters,
+        float thresholdMps)
+    {
+        if (initialized && vehicle == controller)
+            return;
+
+        vehicle = controller;
+        damageHandler = handler;
+        context = modContext;
+        body = controller.GetComponent<Rigidbody>();
+        impactThresholdMps = thresholdMps;
+        previousDamage = handler.Damage;
+        deformableFilters.Clear();
+        originalMeshes.Clear();
+        foreach (var filter in filters)
+        {
+            if (filter == null || filter.sharedMesh == null)
+                continue;
+            deformableFilters.Add(filter);
+            originalMeshes[filter] = filter.sharedMesh;
+        }
+        initialized = true;
+    }
+
+    private void Update()
+    {
+        if (!initialized || damageHandler == null)
+            return;
+
+        var currentDamage = damageHandler.Damage;
+        if (previousDamage > 0.001f && currentDamage <= 0.001f)
+        {
+            foreach (var pair in originalMeshes)
+            {
+                if (pair.Key != null && pair.Value != null)
+                    pair.Key.sharedMesh = pair.Value;
+            }
+            context?.Logger.Info(
+                $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
+        }
+        previousDamage = currentDamage;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!initialized || collision == null || Time.unscaledTime < nextCollisionTime ||
+            collision.relativeVelocity.magnitude < impactThresholdMps ||
+            !NWH.VehiclePhysics2.Damage.DamageHandler.IsCollisionValid(collision))
+            return;
+
+        try
+        {
+            nextCollisionTime = Time.unscaledTime + CollisionCooldown;
+            var contacts = collision.contacts;
+            if (contacts.Length == 0)
+                return;
+
+            var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
+            var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.025f, MaximumDentDepth);
+            var endDentDepth = Mathf.Clamp(
+                excessSpeed * EndDepthPerExcessMps,
+                0.04f,
+                MaximumEndDentDepth);
+            var center = body != null ? body.worldCenterOfMass : transform.position;
+            var changedMeshes = 0;
+            var changedVertices = 0;
+            var endImpact = false;
+
+            foreach (var filter in deformableFilters)
+            {
+                if (filter == null || filter.sharedMesh == null)
+                    continue;
+                var mesh = filter.mesh;
+                var vertices = mesh.vertices;
+                var meshChanged = false;
+                for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+                {
+                    var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
+                    var strongestInfluence = 0f;
+                    var inwardDirection = Vector3.zero;
+                    var selectedDepth = dentDepth;
+                    var selectedEndImpact = false;
+                    foreach (var contact in contacts)
+                    {
+                        var localContact = transform.InverseTransformPoint(contact.point);
+                        var isEndContact =
+                            Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
+                            Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
+                        float influence;
+                        Vector3 candidateDirection;
+                        if (isEndContact)
+                        {
+                            var localDelta = transform.InverseTransformVector(worldVertex - contact.point);
+                            var normalizedDistance = Mathf.Sqrt(
+                                localDelta.x * localDelta.x /
+                                (EndDentLateralRadius * EndDentLateralRadius) +
+                                localDelta.y * localDelta.y /
+                                (EndDentVerticalRadius * EndDentVerticalRadius) +
+                                localDelta.z * localDelta.z /
+                                (EndDentLongitudinalRadius * EndDentLongitudinalRadius));
+                            influence = 1f - normalizedDistance;
+                            candidateDirection = localContact.z >= 0f
+                                ? -transform.forward
+                                : transform.forward;
+                        }
+                        else
+                        {
+                            influence = 1f - Vector3.Distance(worldVertex, contact.point) / DentRadius;
+                            var towardCenter = (center - contact.point).normalized;
+                            var contactNormal = contact.normal.normalized;
+                            candidateDirection = Vector3.Dot(contactNormal, towardCenter) >= 0f
+                                ? contactNormal
+                                : -contactNormal;
+                        }
+
+                        if (influence <= strongestInfluence)
+                            continue;
+                        strongestInfluence = influence;
+                        inwardDirection = candidateDirection;
+                        selectedDepth = isEndContact ? endDentDepth : dentDepth;
+                        selectedEndImpact = isEndContact;
+                    }
+
+                    if (strongestInfluence <= 0f || inwardDirection.sqrMagnitude < 0.5f)
+                        continue;
+                    var falloff = selectedEndImpact
+                        ? Mathf.Pow(strongestInfluence, 1.35f)
+                        : strongestInfluence * strongestInfluence;
+                    worldVertex += inwardDirection * (selectedDepth * falloff);
+                    vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
+                    changedVertices++;
+                    meshChanged = true;
+                    endImpact |= selectedEndImpact;
+                }
+
+                if (!meshChanged)
+                    continue;
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+                mesh.RecalculateNormals();
+                mesh.RecalculateTangents();
+                changedMeshes++;
+            }
+
+            if (diagnosticLogs++ < MaximumDiagnosticLogs)
+            {
+                context?.Logger.Info(
+                    $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
+                    $"contact='{collision.collider?.name ?? "unknown"}' " +
+                    $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
+                    $"region={(endImpact ? "front/rear" : "side")} " +
+                    $"depth={(endImpact ? endDentDepth : dentDepth):0.000}m " +
+                    $"meshes={changedMeshes} vertices={changedVertices} " +
+                    $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
+                    $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
+            }
+        }
+        catch (Exception exception)
+        {
+            if (failureReported)
+                return;
+            failureReported = true;
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
+                $"with {exception.GetType().Name}: {exception.Message}");
+        }
     }
 }

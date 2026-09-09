@@ -431,11 +431,9 @@ public static class LamborghiniRevueltoSetup
                                 : material.HasProperty("baseColorFactor")
                                     ? material.GetColor("baseColorFactor")
                                     : Color.black;
-                            var isWindshieldMaterial = material.name.IndexOf(
-                                "Windshield", StringComparison.OrdinalIgnoreCase) >= 0;
-                            cabinGlassTintValid &= tint.r >= 0.1f &&
-                                                   tint.a >= (isWindshieldMaterial ? 0.03f : 0.08f) &&
-                                                   tint.a <= (isWindshieldMaterial ? 0.08f : 0.24f);
+                            cabinGlassTintValid &= tint.r >= 0.08f &&
+                                                   tint.a >= 0.24f &&
+                                                   tint.a <= 0.34f;
                         }
                         continue;
                     }
@@ -714,6 +712,8 @@ public static class LamborghiniRevueltoSetup
                 $"decalMasksCleared={fix.DecalMasksCleared}, " +
                 $"opaqueFixed={fix.OpaqueMaterialsFixed}, " +
                 $"transparentFixed={fix.TransparentMaterialsFixed}, " +
+                $"cabinGlass={fix.CabinGlassRenderers}/" +
+                $"reenabled={fix.CabinGlassRenderersReenabled}, " +
                 $"rimMaterialsConfigured={rimMaterialsConfigured}, " +
                 $"hdrpValidated={fix.MaterialsValidated}.");
 

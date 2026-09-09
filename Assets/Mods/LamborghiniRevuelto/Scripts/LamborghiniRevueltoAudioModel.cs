@@ -5,7 +5,8 @@ using System;
 internal static class LamborghiniRevueltoAudioModel
 {
     internal const float IdlePitch = 1f;
-    internal const float HornVolumePerVoice = .95f;
+    internal const float HornLowVolume = .95f;
+    internal const float HornHighVolume = .58f;
     internal const float EngineBaseVolume = .48f;
     internal const float EngineThrottleVolume = .47f;
     internal const float CrackleIdleVolume = .009f;

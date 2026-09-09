@@ -1,4 +1,4 @@
-"""Validate the Revuelto horn's level, character, and loop boundary."""
+"""Validate the Revuelto horn stems' levels, character, and loop boundaries."""
 from pathlib import Path
 from array import array
 import math
@@ -6,23 +6,20 @@ import sys
 import wave
 
 
-PATH = Path(__file__).resolve().parents[1] / "Config" / "Audio" / "Horn.wav"
+ROOT = Path(__file__).resolve().parents[1] / "Config" / "Audio"
 
 
-with wave.open(str(PATH), "rb") as wav:
-    assert wav.getparams()[:4] == (1, 2, 44100, 44100)
-    audio = array("h")
-    audio.frombytes(wav.readframes(wav.getnframes()))
-if sys.byteorder != "little":
-    audio.byteswap()
-audio = [sample / 32767.0 for sample in audio]
+def load(name):
+    with wave.open(str(ROOT / f"{name}.wav"), "rb") as wav:
+        assert wav.getparams()[:4] == (1, 2, 44100, 44100)
+        audio = array("h")
+        audio.frombytes(wav.readframes(wav.getnframes()))
+    if sys.byteorder != "little":
+        audio.byteswap()
+    return [sample / 32767.0 for sample in audio]
 
-rms = math.sqrt(sum(sample * sample for sample in audio) / len(audio))
-peak = max(abs(sample) for sample in audio)
-assert .135 < rms < .145 and peak < .55, "Horn level/headroom failed"
-assert abs(audio[0] - audio[-1]) < .01, "Horn loop boundary has an audible step"
 
-def tone_amplitude(frequency):
+def tone_amplitude(audio, frequency):
     real = 0.0
     imaginary = 0.0
     for index, sample in enumerate(audio):
@@ -32,14 +29,19 @@ def tone_amplitude(frequency):
     return 2 * math.hypot(real, imaginary) / len(audio)
 
 
-low_reed = tone_amplitude(330)
-high_reed = tone_amplitude(390)
-assert low_reed > .065, "Missing lower horn reed near 330 Hz"
-assert high_reed > .04, "Missing upper horn reed near 390 Hz"
-assert high_reed / low_reed > .55, "Upper horn reed is not distinct enough"
-assert tone_amplitude(660) > .012, "Missing lower-reed harmonic near 660 Hz"
-print(
-    f"PASS Horn.wav: seconds=1 RMS={rms:.4f} peak={peak:.3f} "
-    f"seamStep={abs(audio[0] - audio[-1]):.5f} "
-    f"reeds={low_reed:.4f}/{high_reed:.4f}"
-)
+for name, frequency, minimum_rms, maximum_rms in (
+    ("HornLow", 320, .165, .175),
+    ("HornHigh", 400, .110, .120),
+):
+    audio = load(name)
+    rms = math.sqrt(sum(sample * sample for sample in audio) / len(audio))
+    peak = max(abs(sample) for sample in audio)
+    fundamental = tone_amplitude(audio, frequency)
+    assert minimum_rms < rms < maximum_rms and peak < .50, f"{name} level/headroom failed"
+    assert abs(audio[0] - audio[-1]) < .01, f"{name} loop boundary has an audible step"
+    assert fundamental > .10, f"{name} is missing its {frequency} Hz reed"
+    assert tone_amplitude(audio, frequency * 2) > .01, f"{name} lacks road-horn harmonics"
+    print(
+        f"PASS {name}.wav: seconds=1 RMS={rms:.4f} peak={peak:.3f} "
+        f"seamStep={abs(audio[0] - audio[-1]):.5f} fundamental={fundamental:.4f}"
+    )

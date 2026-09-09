@@ -149,7 +149,7 @@ Material:
     m_Colors:
     - _DoubleSidedConstants: {r: -1, g: -1, b: -1, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - baseColorFactor: {r: 0.16, g: 0.2, b: 0.24, a: 0.14}
+    - baseColorFactor: {r: 0.1, g: 0.14, b: 0.18, a: 0.28}
     - baseColorTexture_Rotation: {r: 0, g: 0, b: 0, a: 0}
     - emissiveFactor: {r: 0, g: 0, b: 0, a: 1}
     - emissiveTexture_Rotation: {r: 0, g: 0, b: 0, a: 0}

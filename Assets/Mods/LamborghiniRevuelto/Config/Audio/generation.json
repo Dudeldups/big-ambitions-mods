@@ -48,6 +48,7 @@
   ],
   "transients": [],
   "runtime_layers": [
-    "very-low-gain procedural continuous exhaust crackle"
+    "very-low-gain procedural continuous exhaust crackle",
+    "independent 320 Hz and 400 Hz road-horn reeds"
   ]
 }

@@ -13,7 +13,9 @@ public readonly struct LamborghiniRevueltoMaterialFixResult
         int opaqueMaterialsFixed,
         int transparentMaterialsFixed,
         int materialsValidated,
-        int rimSlotsNormalized)
+        int rimSlotsNormalized,
+        int cabinGlassRenderers,
+        int cabinGlassRenderersReenabled)
     {
         RendererCount = rendererCount;
         DecalMasksCleared = decalMasksCleared;
@@ -21,6 +23,8 @@ public readonly struct LamborghiniRevueltoMaterialFixResult
         TransparentMaterialsFixed = transparentMaterialsFixed;
         MaterialsValidated = materialsValidated;
         RimSlotsNormalized = rimSlotsNormalized;
+        CabinGlassRenderers = cabinGlassRenderers;
+        CabinGlassRenderersReenabled = cabinGlassRenderersReenabled;
     }
 
     public int RendererCount { get; }
@@ -29,6 +33,8 @@ public readonly struct LamborghiniRevueltoMaterialFixResult
     public int TransparentMaterialsFixed { get; }
     public int MaterialsValidated { get; }
     public int RimSlotsNormalized { get; }
+    public int CabinGlassRenderers { get; }
+    public int CabinGlassRenderersReenabled { get; }
 }
 
 public static class LamborghiniRevueltoMaterials
@@ -59,6 +65,8 @@ public static class LamborghiniRevueltoMaterials
         var transparentMaterialsFixed = 0;
         var materialsValidated = 0;
         var rimSlotsNormalized = 0;
+        var cabinGlassRenderers = 0;
+        var cabinGlassRenderersReenabled = 0;
 
         foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
         {
@@ -66,6 +74,18 @@ public static class LamborghiniRevueltoMaterials
                 continue;
 
             rendererCount++;
+            var hasCabinGlass = Array.Exists(
+                renderer.sharedMaterials,
+                material => material != null && IsCabinGlassMaterial(material));
+            if (hasCabinGlass)
+            {
+                cabinGlassRenderers++;
+                if (!renderer.enabled)
+                {
+                    renderer.enabled = true;
+                    cabinGlassRenderersReenabled++;
+                }
+            }
             foreach (var material in renderer.sharedMaterials)
             {
                 if (material == null || !materials.Add(material))
@@ -104,7 +124,9 @@ public static class LamborghiniRevueltoMaterials
             opaqueMaterialsFixed,
             transparentMaterialsFixed,
             materialsValidated,
-            rimSlotsNormalized);
+            rimSlotsNormalized,
+            cabinGlassRenderers,
+            cabinGlassRenderersReenabled);
     }
 
     private static int NormalizeRimRenderer(Renderer renderer)
@@ -272,7 +294,7 @@ public static class LamborghiniRevueltoMaterials
     {
         var name = material.name;
         var tint = IsCabinGlassMaterial(material)
-            ? new Color(0.16f, 0.20f, 0.24f, 0.14f)
+            ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||

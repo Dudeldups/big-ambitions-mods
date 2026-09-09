@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1860947771
+CRC: 552078524
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 70cc6fa71f3074b71b10c5fb3dc282f5
+    Hash: 3b2af337f20ac528a9d255f0139b2677
   TypeTreeHash:
     serializedVersion: 2
     Hash: d3a3e7138e89d02ba237c51b3a56f38a
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 70cc6fa71f3074b71b10c5fb3dc282f5
+    Hash: 3b2af337f20ac528a9d255f0139b2677
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -235,12 +235,14 @@ Assets:
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_03_Windows.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_24_Interior_color.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_04_Tail_light.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/HornHigh.wav
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_15_Tire.mat
 - Assets/Mods/LamborghiniRevuelto/Config/Audio/generation.json
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_27_Interior_Black.mat
 - Assets/Mods/LamborghiniRevuelto/Config/Audio/Horn.wav
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_19_material.mat
 - Assets/Mods/LamborghiniRevuelto/Config/ATTRIBUTION.txt
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/HornLow.wav
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_19_material_Right.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_20_Turning_light_right.mat
 - Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_13_Interior_black.mat
