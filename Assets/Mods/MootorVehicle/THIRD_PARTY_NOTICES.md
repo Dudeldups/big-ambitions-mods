@@ -12,6 +12,9 @@ The model is included as `Models/cow.glb`.
 
 ## Moo sound
 
-`Audio/Moo.mp3` was supplied by the mod author as
-`dragon-studio-cow-moo-1-472361.mp3`. No separate attribution or license file
-was supplied with the source asset.
+"Cow Moo 1" by DRAGON-STUDIO is licensed under the Pixabay Content License.
+
+- Source: https://pixabay.com/sound-effects/nature-cow-moo-1-472361/
+- License: https://pixabay.com/service/license-summary/
+
+The sound is included as `Audio/Moo.mp3`.
