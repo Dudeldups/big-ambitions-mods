@@ -28,15 +28,16 @@ public static class LamborghiniRevueltoSetup
     private const float TargetHeight = 1.160f;
     private const float TireFrictionCircleStrength = 0.92f;
     private const float AntiRollBarForce = 7800f;
+    private const float SuspensionTravel = 0.10f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8215f, 0.348f, 1.3855f) },
-            { "FrontRight_WheelController", new Vector3(0.8215f, 0.348f, 1.3855f) },
-            { "RearLeft_WheelController", new Vector3(-0.8055f, 0.370f, -1.5165f) },
-            { "RearRight_WheelController", new Vector3(0.8055f, 0.370f, -1.5165f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8215f, 0.348f, 1.3202f) },
+            { "FrontRight_WheelController", new Vector3(0.8215f, 0.348f, 1.3202f) },
+            { "RearLeft_WheelController", new Vector3(-0.8056f, 0.370f, -1.5811f) },
+            { "RearRight_WheelController", new Vector3(0.8056f, 0.370f, -1.5811f) },
         };
 
     private static readonly float[] RevueltoGears =
@@ -227,6 +228,7 @@ public static class LamborghiniRevueltoSetup
             var antiRollVerified = false;
             var massCenterVerified = false;
             var tireFrictionCount = 0;
+            var suspensionTravelCount = 0;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (component == null)
@@ -248,6 +250,14 @@ public static class LamborghiniRevueltoSetup
                     Math.Abs(ReadNumber(friction) - TireFrictionCircleStrength) < 0.005f)
                 {
                     tireFrictionCount++;
+                }
+                var springTravel = componentSerialized.FindProperty("spring")
+                    ?.FindPropertyRelative("maxLength");
+                if (springTravel != null &&
+                    component.transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
+                    Math.Abs(ReadNumber(springTravel) - SuspensionTravel) < 0.005f)
+                {
+                    suspensionTravelCount++;
                 }
                 if (component == null ||
                     !string.Equals(
@@ -436,6 +446,7 @@ public static class LamborghiniRevueltoSetup
                 !massCenterVerified ||
                 !antiRollVerified ||
                 tireFrictionCount != 4 ||
+                suspensionTravelCount != 4 ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
@@ -463,6 +474,7 @@ public static class LamborghiniRevueltoSetup
                     $"eightSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
                     $"massCenter={massCenterVerified}, antiRoll={antiRollVerified}, " +
                     $"tireFrictionCount={tireFrictionCount}, " +
+                    $"suspensionTravelCount={suspensionTravelCount}, " +
                     $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
@@ -478,6 +490,7 @@ public static class LamborghiniRevueltoSetup
                 $"fixedCalipers=4, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
+                $"suspensionTravel={SuspensionTravel:F2}, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
@@ -671,7 +684,7 @@ public static class LamborghiniRevueltoSetup
             foreach (var component in transform.GetComponents<MonoBehaviour>())
             {
                 var serialized = new SerializedObject(component);
-                SetRelativeNumber(serialized, "spring.maxLength", 0.16f);
+                SetRelativeNumber(serialized, "spring.maxLength", SuspensionTravel);
                 SetRelativeNumber(serialized, "spring.maxForce", 20500f);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? 0.348f : 0.370f);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? 0.265f : 0.345f);

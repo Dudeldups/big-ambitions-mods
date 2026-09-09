@@ -10,18 +10,9 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
 {
     private const string BodyMaterialMarker = "_Body";
     private const string CaliperMaterialMarker = "_Caliper";
-    private const string VehiclePaintShaderName = "Shader Graphs/SH_Vehicle";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
-    private static readonly int VehicleTint =
-        Shader.PropertyToID("Color_3d0f0cdbe6b74be28a1a5be5bab71dea");
-    private static readonly int VehicleFresnel =
-        Shader.PropertyToID("Color_f78fac473bac467092fb27521e9f71ea");
-    private static readonly int VehicleFresnelPower =
-        Shader.PropertyToID("Vector1_481fa2a8a5e94165a039319bfd512b76");
-    private const float PaintMetallic = 0f;
-    private const float PaintSmoothness = 0.68f;
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
@@ -62,13 +53,12 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
                     continue;
                 if (material.name.IndexOf(BodyMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index, true,
-                        TryConfigureVehiclePaintShader(material)));
+                    slots.Add(new PaintSlot(renderer, material, index));
                     bodySlots++;
                 }
                 else if (material.name.IndexOf(CaliperMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index, false, false));
+                    slots.Add(new PaintSlot(renderer, material, index));
                     caliperSlots++;
                 }
             }
@@ -95,26 +85,13 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
-        var fresnelColor = selected.fresnelColor;
-        fresnelColor.a = byte.MaxValue;
         foreach (var slot in slots)
         {
             properties.Clear();
             slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
-            if (slot.UsesVehiclePaintShader)
-            {
-                properties.SetColor(VehicleTint, selectedColor);
-                properties.SetColor(VehicleFresnel, fresnelColor);
-                properties.SetFloat(VehicleFresnelPower, selected.fresnelPower);
-            }
-            else
-            {
-                var color = selectedColor.linear;
-                color.a = 1f;
-                if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
-                if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
-                if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
-            }
+            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, selectedColor);
+            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, selectedColor);
+            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, selectedColor);
             slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
         }
 
@@ -125,35 +102,6 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
             $"LamborghiniRevuelto paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"to {slots.Count} body/caliper slots.");
-    }
-
-    private static bool TryConfigureVehiclePaintShader(Material material)
-    {
-        var shader = Shader.Find(VehiclePaintShaderName);
-        if (shader == null)
-            return false;
-        var fallback = material.shader;
-        material.shader = shader;
-        if (!material.HasProperty(VehicleTint) || !material.HasProperty(VehicleFresnel) ||
-            !material.HasProperty(VehicleFresnelPower))
-        {
-            material.shader = fallback;
-            return false;
-        }
-        if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", PaintMetallic);
-        if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", PaintSmoothness);
-        if (material.HasProperty("_DoubleSidedEnable")) material.SetFloat("_DoubleSidedEnable", 0f);
-        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode", 2f);
-        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward", 2f);
-        if (material.HasProperty("_OpaqueCullMode")) material.SetFloat("_OpaqueCullMode", 2f);
-        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
-        if (material.HasProperty("_SupportDecals")) material.SetFloat("_SupportDecals", 0f);
-        material.doubleSidedGI = false;
-        material.DisableKeyword("_DOUBLESIDED_ON");
-        material.EnableKeyword("_DISABLE_DECALS");
-        material.SetOverrideTag("RenderType", "Opaque");
-        material.renderQueue = 2225;
-        return true;
     }
 
     private VehicleColor? ResolveVehicleColor()
@@ -169,20 +117,15 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
 
     private readonly struct PaintSlot
     {
-        internal PaintSlot(Renderer renderer, Material material, int materialIndex,
-            bool isBody, bool usesVehiclePaintShader)
+        internal PaintSlot(Renderer renderer, Material material, int materialIndex)
         {
             Renderer = renderer;
             Material = material;
             MaterialIndex = materialIndex;
-            IsBody = isBody;
-            UsesVehiclePaintShader = usesVehiclePaintShader;
         }
 
         internal readonly Renderer Renderer;
         internal readonly Material Material;
         internal readonly int MaterialIndex;
-        internal readonly bool IsBody;
-        internal readonly bool UsesVehiclePaintShader;
     }
 }

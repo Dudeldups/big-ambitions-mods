@@ -28,6 +28,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.92f;
     private const float AntiRollBarForce = 7800f;
+    private const float SuspensionTravel = 0.10f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] RevueltoGears =
@@ -289,6 +290,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"powertrainConfigured={powertrainConfigured}, " +
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
+                $"suspensionTravel={SuspensionTravel:0.00}, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
@@ -319,7 +321,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             foreach (var component in transform.GetComponents<MonoBehaviour>())
             {
                 var spring = GetMember(component, "spring");
-                SetFloat(spring, "maxLength", 0.16f);
+                SetFloat(spring, "maxLength", SuspensionTravel);
                 SetFloat(spring, "maxForce", 20500f);
 
                 var wheel = GetMember(component, "wheel");
