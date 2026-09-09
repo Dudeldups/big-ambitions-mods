@@ -6,13 +6,24 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
 {
     private const int MaximumBenchmarkRuns = 3;
+    private const int MaximumDormantEngineRestartAttempts = 3;
+    private const float DormantEngineGracePeriod = 0.35f;
+    private const float DormantEngineRestartDelay = 0.10f;
+    private const float DormantEngineRetryDelay = 0.90f;
+    private const float MaximumDormantEngineRecoverySpeed = 1.5f;
+    private const float MinimumHealthyEngineRpm = 400f;
     private static readonly float[] BenchmarkSpeedsKph = { 100f, 200f, 300f, 400f, 420f };
     private static readonly float[] PublishedTimes = { 2.4f, 6.1f, 13.1f, 32.6f, 0f };
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
     private Rigidbody? body;
     private ModContext? context;
-    private bool dormantEngineLogged;
+    private float dormantEngineDetectedAt = -1f;
+    private float restartDormantEngineAt = -1f;
+    private float nextDormantEngineCheckAt;
+    private int dormantEngineRestartAttempts;
+    private bool dormantEngineRecoveryActive;
+    private bool dormantEngineFailureLogged;
     private bool benchmarkRunning;
     private float benchmarkStartedAt;
     private float benchmarkPeakSpeedKph;
@@ -26,6 +37,7 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
         physics = controller.GetComponent<PhysicsVehicle>();
         body = controller.GetComponent<Rigidbody>();
         context = modContext;
+        ResetDormantEngineRecovery();
     }
 
     private void Update()
@@ -34,13 +46,13 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
             return;
         if (!vehicle.controlledByPlayer)
         {
-            dormantEngineLogged = false;
+            ResetDormantEngineRecovery();
             return;
         }
 
         var throttle = physics.input.Throttle;
         var speed = body.velocity.magnitude;
-        LogDormantEngine(throttle);
+        RecoverDormantEngine(throttle, speed);
         UpdateAccelerationBenchmark(throttle, speed);
     }
 
@@ -126,23 +138,89 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
         benchmarkRuns++;
     }
 
-    private void LogDormantEngine(float throttle)
+    private void RecoverDormantEngine(float throttle, float speedMetersPerSecond)
     {
         var engine = physics!.powertrain.engine;
         var rpm = CurrentRpm();
-        if (Mathf.Abs(throttle) >= 0.25f && (!engine.IsRunning || rpm < 200f))
+
+        if (restartDormantEngineAt >= 0f)
         {
-            if (dormantEngineLogged)
+            if (Time.unscaledTime < restartDormantEngineAt)
                 return;
-            dormantEngineLogged = true;
-            context?.Logger.Warn(
-                $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: throttle={throttle:F2} " +
-                $"but engine is dormant rpm={rpm:F0} running={engine.IsRunning} " +
-                $"ignition={engine.ignition} canRun={engine.canRun}.");
+
+            restartDormantEngineAt = -1f;
+            engine.StartEngine();
+            nextDormantEngineCheckAt = Time.unscaledTime + DormantEngineRetryDelay;
             return;
         }
 
-        if (Mathf.Abs(throttle) < 0.1f || rpm >= 400f)
-            dormantEngineLogged = false;
+        if (rpm >= MinimumHealthyEngineRpm)
+        {
+            if (dormantEngineRecoveryActive)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: dormant engine " +
+                    $"recovered after {dormantEngineRestartAttempts} restart request(s); rpm={rpm:F0}.");
+            }
+            ResetDormantEngineRecovery();
+            return;
+        }
+
+        var throttlePressed = Mathf.Abs(throttle) >= 0.25f;
+        var nearStandstill = speedMetersPerSecond <= MaximumDormantEngineRecoverySpeed;
+        var recoverableNativeState =
+            engine.ignition && engine.canRun &&
+            (engine.IsRunning || dormantEngineRecoveryActive);
+        if (!throttlePressed || !nearStandstill || !recoverableNativeState)
+        {
+            dormantEngineDetectedAt = -1f;
+            return;
+        }
+
+        if (Time.unscaledTime < nextDormantEngineCheckAt)
+            return;
+
+        if (dormantEngineDetectedAt < 0f)
+        {
+            dormantEngineDetectedAt = Time.unscaledTime;
+            return;
+        }
+
+        if (Time.unscaledTime - dormantEngineDetectedAt < DormantEngineGracePeriod)
+            return;
+
+        if (dormantEngineRestartAttempts >= MaximumDormantEngineRestartAttempts)
+        {
+            if (!dormantEngineFailureLogged)
+            {
+                dormantEngineFailureLogged = true;
+                context?.Logger.Warn(
+                    $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: dormant engine " +
+                    $"did not recover after {dormantEngineRestartAttempts} restart requests; " +
+                    $"rpm={rpm:F0} running={engine.IsRunning} ignition={engine.ignition} " +
+                    $"canRun={engine.canRun}.");
+            }
+            return;
+        }
+
+        dormantEngineRecoveryActive = true;
+        dormantEngineRestartAttempts++;
+        dormantEngineDetectedAt = -1f;
+        engine.StopEngine();
+        restartDormantEngineAt = Time.unscaledTime + DormantEngineRestartDelay;
+        context?.Logger.Warn(
+            $"BugattiChiron engine vehicle={vehicle?.GetInstanceID()}: resetting dormant native " +
+            $"engine at full stop, restart={dormantEngineRestartAttempts}/" +
+            $"{MaximumDormantEngineRestartAttempts}, throttle={throttle:F2}, rpm={rpm:F0}.");
+    }
+
+    private void ResetDormantEngineRecovery()
+    {
+        dormantEngineDetectedAt = -1f;
+        restartDormantEngineAt = -1f;
+        nextDormantEngineCheckAt = 0f;
+        dormantEngineRestartAttempts = 0;
+        dormantEngineRecoveryActive = false;
+        dormantEngineFailureLogged = false;
     }
 }
