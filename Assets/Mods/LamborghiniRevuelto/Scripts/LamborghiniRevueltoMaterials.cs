@@ -12,13 +12,15 @@ public readonly struct LamborghiniRevueltoMaterialFixResult
         int decalMasksCleared,
         int opaqueMaterialsFixed,
         int transparentMaterialsFixed,
-        int materialsValidated)
+        int materialsValidated,
+        int rimSlotsNormalized)
     {
         RendererCount = rendererCount;
         DecalMasksCleared = decalMasksCleared;
         OpaqueMaterialsFixed = opaqueMaterialsFixed;
         TransparentMaterialsFixed = transparentMaterialsFixed;
         MaterialsValidated = materialsValidated;
+        RimSlotsNormalized = rimSlotsNormalized;
     }
 
     public int RendererCount { get; }
@@ -26,11 +28,17 @@ public readonly struct LamborghiniRevueltoMaterialFixResult
     public int OpaqueMaterialsFixed { get; }
     public int TransparentMaterialsFixed { get; }
     public int MaterialsValidated { get; }
+    public int RimSlotsNormalized { get; }
 }
 
 public static class LamborghiniRevueltoMaterials
 {
+    public const float RimMetallic = 0.08f;
+    public const float RimSmoothness = 0.32f;
+    public static readonly Color RimBaseColor = new Color(0.16f, 0.16f, 0.16f, 1f);
+
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
+    private const string RimMaterialMarker = "LamborghiniOpaque_19_material";
     private const string HdMaterialTypeName =
         "UnityEngine.Rendering.HighDefinition.HDMaterial";
     private const string ShaderGraphApiTypeName =
@@ -49,6 +57,7 @@ public static class LamborghiniRevueltoMaterials
         var opaqueMaterialsFixed = 0;
         var transparentMaterialsFixed = 0;
         var materialsValidated = 0;
+        var rimSlotsNormalized = 0;
 
         foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
         {
@@ -74,6 +83,8 @@ public static class LamborghiniRevueltoMaterials
                 opaqueMaterialsFixed++;
             }
 
+            rimSlotsNormalized += NormalizeRimRenderer(renderer);
+
             if (!HasOpaqueMaterial(renderer))
             {
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
@@ -91,7 +102,39 @@ public static class LamborghiniRevueltoMaterials
             decalMasksCleared,
             opaqueMaterialsFixed,
             transparentMaterialsFixed,
-            materialsValidated);
+            materialsValidated,
+            rimSlotsNormalized);
+    }
+
+    private static int NormalizeRimRenderer(Renderer renderer)
+    {
+        var normalized = 0;
+        var materials = renderer.sharedMaterials;
+        for (var index = 0; index < materials.Length; index++)
+        {
+            var material = materials[index];
+            if (material == null ||
+                material.name.IndexOf(RimMaterialMarker, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                continue;
+            }
+
+            // All four rims share one asset. A per-renderer override prevents
+            // pooled property blocks or vehicle paint state from making one
+            // side appear to use a different finish. This runs once when the
+            // vehicle instance is configured; no frame polling is required.
+            var properties = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(properties, index);
+            properties.SetColor("_BaseColor", RimBaseColor);
+            properties.SetColor("_Color", RimBaseColor);
+            properties.SetColor("baseColorFactor", RimBaseColor);
+            properties.SetFloat("_Metallic", RimMetallic);
+            properties.SetFloat("_Smoothness", RimSmoothness);
+            renderer.SetPropertyBlock(properties, index);
+            normalized++;
+        }
+
+        return normalized;
     }
 
     public static bool IsTransparentMaterial(Material material)

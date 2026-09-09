@@ -28,12 +28,10 @@ public static class LamborghiniRevueltoSetup
     private const float TargetHeight = 1.160f;
     private const float TireFrictionCircleStrength = 0.92f;
     private const float AntiRollBarForce = 7800f;
-    private const float SuspensionTravel = 0.06f;
+    private const float FrontSuspensionTravel = 0.08f;
+    private const float RearSuspensionTravel = 0.06f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
-    private const float RimMetallic = 0.35f;
-    private const float RimSmoothness = 0.50f;
-    private static readonly Color RimBaseColor = new Color(0.24f, 0.24f, 0.24f, 1f);
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
@@ -258,9 +256,14 @@ public static class LamborghiniRevueltoSetup
                 }
                 var springTravel = componentSerialized.FindProperty("spring")
                     ?.FindPropertyRelative("maxLength");
-                if (springTravel != null &&
-                    component.transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
-                    Math.Abs(ReadNumber(springTravel) - SuspensionTravel) < 0.005f)
+                var isWheelController = component.transform.name.EndsWith(
+                    "_WheelController", StringComparison.Ordinal);
+                var expectedTravel = component.transform.name.StartsWith(
+                    "Front", StringComparison.Ordinal)
+                    ? FrontSuspensionTravel
+                    : RearSuspensionTravel;
+                if (springTravel != null && isWheelController &&
+                    Math.Abs(ReadNumber(springTravel) - expectedTravel) < 0.005f)
                 {
                     suspensionTravelCount++;
                 }
@@ -313,6 +316,7 @@ public static class LamborghiniRevueltoSetup
             var interiorAccentPaintSlots = 0;
             var darkBodyPaintSlots = 0;
             var rimSlots = 0;
+            var rimMaterials = new HashSet<Material>();
             var rimFinishValid = true;
             var interiorPrimaryPaintSlots = 0;
             var interiorSecondaryPaintSlots = 0;
@@ -341,17 +345,18 @@ public static class LamborghiniRevueltoSetup
                     if (IsRimMaterial(material))
                     {
                         rimSlots++;
+                        rimMaterials.Add(material);
                         var rimColor = material.HasProperty("_BaseColor")
                             ? material.GetColor("_BaseColor")
                             : Color.clear;
                         rimFinishValid &=
                             material.HasProperty("_Metallic") &&
-                            Math.Abs(material.GetFloat("_Metallic") - RimMetallic) < 0.01f &&
+                            Math.Abs(material.GetFloat("_Metallic") - LamborghiniRevueltoMaterials.RimMetallic) < 0.01f &&
                             material.HasProperty("_Smoothness") &&
-                            Math.Abs(material.GetFloat("_Smoothness") - RimSmoothness) < 0.01f &&
-                            Math.Abs(rimColor.r - RimBaseColor.r) < 0.01f &&
-                            Math.Abs(rimColor.g - RimBaseColor.g) < 0.01f &&
-                            Math.Abs(rimColor.b - RimBaseColor.b) < 0.01f;
+                            Math.Abs(material.GetFloat("_Smoothness") - LamborghiniRevueltoMaterials.RimSmoothness) < 0.01f &&
+                            Math.Abs(rimColor.r - LamborghiniRevueltoMaterials.RimBaseColor.r) < 0.01f &&
+                            Math.Abs(rimColor.g - LamborghiniRevueltoMaterials.RimBaseColor.g) < 0.01f &&
+                            Math.Abs(rimColor.b - LamborghiniRevueltoMaterials.RimBaseColor.b) < 0.01f;
                     }
                     if (IsInteriorPrimaryPaintMaterial(material)) interiorPrimaryPaintSlots++;
                     if (IsInteriorSecondaryPaintMaterial(material)) interiorSecondaryPaintSlots++;
@@ -475,6 +480,7 @@ public static class LamborghiniRevueltoSetup
                 interiorAccentPaintSlots == 0 ||
                 caliperSlots != 4 ||
                 rimSlots != 4 ||
+                rimMaterials.Count != 1 ||
                 !rimFinishValid ||
                 !paintReferencesValid)
             {
@@ -501,7 +507,8 @@ public static class LamborghiniRevueltoSetup
                     $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
                     $"cabinGlassTint={cabinGlassTintValid}, " +
                     $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
-                    $"caliperSlots={caliperSlots}, rimSlots={rimSlots}, rimFinish={rimFinishValid}, " +
+                    $"caliperSlots={caliperSlots}, rimSlots={rimSlots}, " +
+                    $"rimMaterials={rimMaterials.Count}, rimFinish={rimFinishValid}, " +
                     $"paintReferences={paintReferencesValid}, " +
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
@@ -512,12 +519,12 @@ public static class LamborghiniRevueltoSetup
                 $"fixedCalipers=4, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
-                $"suspensionTravel={SuspensionTravel:F2}, " +
+                $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
-                $"calipersPainted=true, rimsFactoryColor=true, rimFinish=satin-gunmetal, " +
+                $"calipersPainted=true, rimsFactoryColor=true, rimFinish=matte-graphite, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
         }
         finally
@@ -709,7 +716,10 @@ public static class LamborghiniRevueltoSetup
             foreach (var component in transform.GetComponents<MonoBehaviour>())
             {
                 var serialized = new SerializedObject(component);
-                SetRelativeNumber(serialized, "spring.maxLength", SuspensionTravel);
+                SetRelativeNumber(
+                    serialized,
+                    "spring.maxLength",
+                    isFront ? FrontSuspensionTravel : RearSuspensionTravel);
                 SetRelativeNumber(serialized, "spring.maxForce", 20500f);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? 0.348f : 0.370f);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? 0.265f : 0.345f);
@@ -1031,12 +1041,16 @@ public static class LamborghiniRevueltoSetup
             {
                 if (material == null || !IsRimMaterial(material) || !configured.Add(material))
                     continue;
-                if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", RimBaseColor);
-                if (material.HasProperty("_Color")) material.SetColor("_Color", RimBaseColor);
+                if (material.HasProperty("_BaseColor"))
+                    material.SetColor("_BaseColor", LamborghiniRevueltoMaterials.RimBaseColor);
+                if (material.HasProperty("_Color"))
+                    material.SetColor("_Color", LamborghiniRevueltoMaterials.RimBaseColor);
                 if (material.HasProperty("baseColorFactor"))
-                    material.SetColor("baseColorFactor", RimBaseColor);
-                if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", RimMetallic);
-                if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", RimSmoothness);
+                    material.SetColor("baseColorFactor", LamborghiniRevueltoMaterials.RimBaseColor);
+                if (material.HasProperty("_Metallic"))
+                    material.SetFloat("_Metallic", LamborghiniRevueltoMaterials.RimMetallic);
+                if (material.HasProperty("_Smoothness"))
+                    material.SetFloat("_Smoothness", LamborghiniRevueltoMaterials.RimSmoothness);
                 EditorUtility.SetDirty(material);
             }
         }
