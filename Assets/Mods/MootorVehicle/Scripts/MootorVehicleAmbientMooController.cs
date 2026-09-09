@@ -22,7 +22,6 @@ namespace MootorVehicle
 
         private readonly HashSet<int> playerColliderIds = new();
         private readonly Collider[] dismountOverlapBuffer = new Collider[64];
-        private VehicleController? vehicle;
         private PhysicsVehicle? physicsVehicle;
         private ModContext? context;
         private GameObject? audioHost;
@@ -33,15 +32,12 @@ namespace MootorVehicle
         private Coroutine? dismountRearmCoroutine;
         private bool initialized;
         private bool mounted;
-        private bool proximityEntryLogged;
-        private bool playbackLogged;
 
         internal void Initialize(VehicleController controller, ModContext? modContext)
         {
             if (initialized)
                 return;
 
-            vehicle = controller;
             physicsVehicle = controller.GetComponent<PhysicsVehicle>();
             context = modContext;
 
@@ -50,11 +46,6 @@ namespace MootorVehicle
                 ConfigureAudio();
                 ConfigureTrigger();
                 initialized = true;
-                context?.Logger.Info(
-                    $"Moo-tor Vehicle ambient moo vehicle={controller.GetInstanceID()}: " +
-                    $"eventDriven=true radius={ProximityRadius:F0}m " +
-                    $"delay={RepeatDelayMinimum:F0}-{RepeatDelayMaximum:F0}s " +
-                    $"spatialBlend={audioSource!.spatialBlend:F1}.");
             }
             catch (System.Exception exception)
             {
@@ -91,14 +82,6 @@ namespace MootorVehicle
 
             if (!playerColliderIds.Add(other.GetInstanceID()))
                 return;
-
-            if (!proximityEntryLogged)
-            {
-                proximityEntryLogged = true;
-                context?.Logger.Info(
-                    $"Moo-tor Vehicle ambient moo vehicle={vehicle?.GetInstanceID()}: " +
-                    "player entered proximity; random moo timer started.");
-            }
 
             if (mooCoroutine == null)
                 mooCoroutine = StartCoroutine(MooWhilePlayerNearby());
@@ -170,15 +153,6 @@ namespace MootorVehicle
                     audioSource.volume = Mathf.Clamp01(masterVolume * AmbientVolume);
                     audioSource.pitch = Random.Range(0.97f, 1.03f);
                     audioSource.Play();
-
-                    if (!playbackLogged)
-                    {
-                        playbackLogged = true;
-                        context?.Logger.Info(
-                            $"Moo-tor Vehicle ambient moo vehicle={vehicle?.GetInstanceID()}: " +
-                            $"played clip='{audioSource.clip.name}' volume={audioSource.volume:F2} " +
-                            $"range={audioSource.minDistance:F1}-{audioSource.maxDistance:F1}m.");
-                    }
                 }
 
                 yield return new WaitForSeconds(Random.Range(RepeatDelayMinimum, RepeatDelayMaximum));

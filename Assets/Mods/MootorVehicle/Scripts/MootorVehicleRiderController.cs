@@ -89,15 +89,12 @@ namespace MootorVehicle
         private float nextAttempt;
         private int engineStartAttempts;
         private float nextEngineStartAttempt;
-        private bool engineStartConfirmedLogged;
         private bool engineStartFailureLogged;
         private bool engineRestartPending;
         private bool engineReady;
         private float dormantThrottleDetectedAt = -1f;
         private AudioSource? mooHornSource;
-        private bool hornConfigurationLogged;
         private bool hornPressed;
-        private bool hornPlaybackLogged;
         private float mountControlGraceUntil;
         private string? lastFailure;
 
@@ -136,7 +133,6 @@ namespace MootorVehicle
             nextAttempt = 0f;
             engineStartAttempts = 0;
             nextEngineStartAttempt = Time.unscaledTime + 0.15f;
-            engineStartConfirmedLogged = false;
             engineStartFailureLogged = false;
             engineRestartPending = true;
             engineReady = false;
@@ -149,7 +145,6 @@ namespace MootorVehicle
             ApplyRideHeight(true);
             ResetDrivetrainForMount();
             LogInfo("mounted; preparing current player appearance.");
-            LogDrivetrainState("mount");
         }
 
         private void ResetDrivetrainForMount()
@@ -309,7 +304,7 @@ namespace MootorVehicle
                 rendererCount++;
             }
 
-            var heldItemRendererCount = CopyHeldItemRenderers(character.GetHandContent(), sourceRoot, transforms);
+            CopyHeldItemRenderers(character.GetHandContent(), sourceRoot, transforms);
 
             if (rendererCount == 0)
                 throw new InvalidOperationException("Player has no visible skinned appearance meshes yet.");
@@ -358,13 +353,11 @@ namespace MootorVehicle
                 HumanBodyBones.RightLowerLeg,
                 HumanBodyBones.RightFoot);
 
-            var poseBefore = PosePositions();
             ApplyCowRidingPose();
             LogInfo(
                 $"created visible rider renderers={rendererCount} scale={RiderScale:F2} " +
-                $"heldItemRenderers={heldItemRendererCount} seatLocal={riderSeat.localPosition} " +
+                $"seatLocal={riderSeat.localPosition} " +
                 $"clip='{sittingClip.name}'.");
-            LogInfo($"cow-riding pose before={poseBefore} after={PosePositions()}.");
         }
 
         private void AlignWithSeat()
@@ -413,21 +406,6 @@ namespace MootorVehicle
                 riderSeat.TransformPoint(RightKneeHintOffset));
         }
 
-        private string PosePositions()
-        {
-            return
-                $"hands=({VehiclePosition(leftArm?.End)},{VehiclePosition(rightArm?.End)}) " +
-                $"knees=({VehiclePosition(leftLeg?.Middle)},{VehiclePosition(rightLeg?.Middle)}) " +
-                $"feet=({VehiclePosition(leftLeg?.End)},{VehiclePosition(rightLeg?.End)})";
-        }
-
-        private string VehiclePosition(Transform? target)
-        {
-            return target != null && vehicle != null
-                ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3")
-                : "missing";
-        }
-
         private void UpdateEngineStart()
         {
             if (physicsVehicle == null || engineReady)
@@ -443,13 +421,6 @@ namespace MootorVehicle
                 if (engine.IsRunning && rpm >= MinimumHealthyEngineRpm && !stationaryAtRevLimiter)
                 {
                     engineReady = true;
-                    if (engineStartAttempts > 0 && !engineStartConfirmedLogged)
-                    {
-                        engineStartConfirmedLogged = true;
-                        LogInfo(
-                            $"native engine start confirmed after {engineStartAttempts} request(s); " +
-                            $"rpm={rpm:F0}.");
-                    }
                     engineRestartPending = false;
                     dormantThrottleDetectedAt = -1f;
                     return;
@@ -568,13 +539,6 @@ namespace MootorVehicle
                 mooHornSource.outputAudioMixerGroup = physicsVehicle.soundManager.otherMixerGroup;
                 mooHornSource.clip.LoadAudioData();
 
-                if (!hornConfigurationLogged)
-                {
-                    hornConfigurationLogged = true;
-                    LogInfo(
-                        $"moo horn source configured clip='{mooHornSource.clip.name}' " +
-                        $"loop={mooHornSource.loop} spatialBlend={mooHornSource.spatialBlend:F1}.");
-                }
             }
             catch (Exception exception)
             {
@@ -598,14 +562,6 @@ namespace MootorVehicle
                     physicsVehicle.soundManager.masterVolume * MooHornVolume);
                 mooHornSource.Play();
 
-                if (!hornPlaybackLogged)
-                {
-                    hornPlaybackLogged = true;
-                    LogInfo(
-                        $"moo horn input received; clip='{mooHornSource.clip.name}' " +
-                        $"loadState={mooHornSource.clip.loadState} playing={mooHornSource.isPlaying} " +
-                        $"volume={mooHornSource.volume:F2}.");
-                }
             }
 
             hornPressed = pressed;
@@ -793,26 +749,6 @@ namespace MootorVehicle
             earFlapActive = false;
             activeEarMask = 0;
             nextEarFlapAt = 0f;
-        }
-
-        private void LogDrivetrainState(string phase)
-        {
-            if (physicsVehicle == null)
-            {
-                context?.Logger.Warn(
-                    $"Moo-tor Vehicle drivetrain vehicle={vehicle?.GetInstanceID()} phase='{phase}': " +
-                    "native NWH VehicleController is missing.");
-                return;
-            }
-
-            var engine = physicsVehicle.powertrain.engine;
-            var transmission = physicsVehicle.powertrain.transmission;
-            var speedKmh = vehicleBody != null ? vehicleBody.velocity.magnitude * 3.6f : 0f;
-            context?.Logger.Info(
-                $"Moo-tor Vehicle drivetrain vehicle={vehicle?.GetInstanceID()} phase='{phase}' " +
-                $"throttle={physicsVehicle.input.Throttle:F2} gear={transmission.Gear} running={engine.IsRunning} " +
-                $"rpm={engine.RPMPercent * engine.revLimiterRPM:F0}/{engine.revLimiterRPM:F0} " +
-                $"speed={speedKmh:F2}kmh.");
         }
 
         private static bool IsActiveWithinCharacter(Transform child, Transform root)
@@ -1091,9 +1027,11 @@ namespace MootorVehicle
             return copied;
         }
 
+        [System.Diagnostics.Conditional("MOOTORVEHICLE_DIAGNOSTICS")]
         private void LogInfo(string message)
         {
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: {message}");
         }
 

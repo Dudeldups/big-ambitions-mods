@@ -1,7 +1,6 @@
 #nullable enable
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using BAModAPI;
 using Helpers;
 using UI.Notification;
@@ -15,14 +14,12 @@ namespace MootorVehicle
         private const int InitializationRetryCount = 24;
         private const int RequiredStablePasses = 5;
         private const float InitializationRetryDelay = 0.25f;
-        private const string RiderSeatName = "MootorVehicle_RiderSeat";
         private const string VeterinarianAssemblyName = "MobileVeterinarian";
         private const string MissingVeterinarianNotificationKey =
             "mootorvehicle:missing_mobile_veterinarian";
         private const string MissingVeterinarianNotificationId =
             "MootorVehicleMissingMobileVeterinarian";
 
-        private readonly HashSet<int> loggedVehicleIds = new();
         private Coroutine? initializationCoroutine;
         private ModContext? context;
         private string vehicleTypeName = string.Empty;
@@ -42,7 +39,7 @@ namespace MootorVehicle
             runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
             runtime.SubscribeGlobalEvents();
             GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
-            runtime.ScheduleInitialization("mod-load");
+            runtime.ScheduleInitialization();
             return runtime;
         }
 
@@ -110,13 +107,13 @@ namespace MootorVehicle
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             SubscribeGlobalEvents();
-            ScheduleInitialization($"scene-loaded:{scene.name}");
+            ScheduleInitialization();
         }
 
         private void HandleGameLoadedLate()
         {
             SubscribeGlobalEvents();
-            ScheduleInitialization("game-loaded-late");
+            ScheduleInitialization();
         }
 
         private void HandleGameUnloaded()
@@ -142,30 +139,23 @@ namespace MootorVehicle
                 context?.Logger.Warn("Moo-tor Vehicle: dealer catalog was not ready when the full menu opened.");
         }
 
-        private void ScheduleInitialization(string source)
+        private void ScheduleInitialization()
         {
             if (initializationCoroutine != null)
                 StopCoroutine(initializationCoroutine);
 
-            initializationCoroutine = StartCoroutine(InitializeForLifecycle(source));
+            initializationCoroutine = StartCoroutine(InitializeForLifecycle());
         }
 
-        private IEnumerator InitializeForLifecycle(string source)
+        private IEnumerator InitializeForLifecycle()
         {
             var previousMatchedCount = -1;
             var stablePasses = 0;
             var dealerReady = false;
-            var maximumMatchedCount = 0;
-            var configuredCount = 0;
-            var attempts = 0;
-
             for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
             {
-                attempts = attempt;
                 dealerReady |= MootorVehicleDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
-                EnsureVehiclesConfigured(out var matchedCount, out var configuredThisPass);
-                maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
-                configuredCount += configuredThisPass;
+                EnsureVehiclesConfigured(out var matchedCount, out _);
 
                 if (dealerReady && matchedCount == previousMatchedCount)
                     stablePasses++;
@@ -181,9 +171,6 @@ namespace MootorVehicle
             }
 
             initializationCoroutine = null;
-            context?.Logger.Info(
-                $"Moo-tor Vehicle: initialization source='{source}' attempts={attempts} " +
-                $"dealerReady={dealerReady} matched={maximumMatchedCount} configured={configuredCount}.");
             TryShowMissingVeterinarianNotice();
         }
 
@@ -213,8 +200,9 @@ namespace MootorVehicle
                     true,
                     false);
                 missingVeterinarianNoticeShown = true;
-                context?.Logger.Info(
-                    "Moo-tor Vehicle: Mobile Veterinarian was not loaded; displayed optional-mod notice.");
+                MootorVehicleDiagnostics.Info(
+                    context,
+                    "Moo-tor Vehicle: Mobile Veterinarian was not loaded; displayed dependency notice.");
             }
             catch (Exception exception)
             {
@@ -289,43 +277,7 @@ namespace MootorVehicle
             riderController!.Initialize(vehicleController, context);
             if (source == "vehicle-entered")
                 riderController.NotifyMounted();
-            LogVehicleConfiguration(vehicleController, source);
             return added;
-        }
-
-        private void LogVehicleConfiguration(VehicleController vehicleController, string source)
-        {
-            var instanceId = vehicleController.GetInstanceID();
-            if (!loggedVehicleIds.Add(instanceId))
-                return;
-
-            var rigidbody = vehicleController.GetComponent<Rigidbody>();
-            var seatFound = false;
-            var visibleRenderers = 0;
-            var wheelControllers = 0;
-
-            foreach (var child in vehicleController.GetComponentsInChildren<Transform>(true))
-                seatFound |= string.Equals(child.name, RiderSeatName, StringComparison.Ordinal);
-
-            foreach (var renderer in vehicleController.GetComponentsInChildren<Renderer>(true))
-                if (renderer.enabled && renderer.gameObject.activeInHierarchy)
-                    visibleRenderers++;
-
-            foreach (var component in vehicleController.GetComponentsInChildren<MonoBehaviour>(true))
-                if (component != null &&
-                    string.Equals(
-                        component.GetType().FullName,
-                        "NWH.WheelController3D.WheelController",
-                        StringComparison.Ordinal))
-                {
-                    wheelControllers++;
-                }
-
-            context?.Logger.Info(
-                $"Moo-tor Vehicle: configured vehicle={instanceId} source='{source}' " +
-                $"seat={seatFound} wheels={wheelControllers} colliders=" +
-                $"{vehicleController.GetComponentsInChildren<Collider>(true).Length} " +
-                $"visibleRenderers={visibleRenderers} mass={(rigidbody != null ? rigidbody.mass : 0f):F0}.");
         }
     }
 }

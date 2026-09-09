@@ -345,7 +345,8 @@ namespace MootorVehicle
             // opaque HDRP state here even when the material already reports the expected shader.
             var result = MootorVehicleMaterials.FixSolidCowMaterials(cowVisual.gameObject);
             applied = true;
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle materials vehicle={vehicle.GetInstanceID()}: " +
                 $"renderers={result.RendererCount} decalMasksCleared={result.DecalMasksCleared} " +
                 $"hdrpFixed={result.HdrpMaterialsFixed} " +
