@@ -27,22 +27,24 @@ internal static class BigfootMonsterTruckEngineWave
         {
             var time = index / (float)SampleRate;
             var flutter = 0.018f * Mathf.Sin(2f * Mathf.PI * 4f * time);
-            var lowPhase = 2f * Mathf.PI * (96f * time + flutter);
-            var highPhase = 2f * Mathf.PI * (120f * time + flutter * 1.06f);
+            var lowPhase = 2f * Mathf.PI * (90f * time + flutter);
+            var highPhase = 2f * Mathf.PI * (114f * time + flutter * 1.06f);
             var lowPipe =
                 Mathf.Sin(lowPhase) +
-                0.42f * Mathf.Sin(2f * lowPhase + 0.12f) +
-                0.23f * Mathf.Sin(3f * lowPhase + 0.31f) +
-                0.12f * Mathf.Sin(4f * lowPhase + 0.48f) +
-                0.06f * Mathf.Sin(5f * lowPhase + 0.67f);
+                0.56f * Mathf.Sin(2f * lowPhase + 0.12f) +
+                0.31f * Mathf.Sin(3f * lowPhase + 0.31f) +
+                0.18f * Mathf.Sin(4f * lowPhase + 0.48f) +
+                0.10f * Mathf.Sin(5f * lowPhase + 0.67f) +
+                0.05f * Mathf.Sin(6f * lowPhase + 0.83f);
             var highPipe =
                 Mathf.Sin(highPhase + 0.18f) +
-                0.38f * Mathf.Sin(2f * highPhase + 0.36f) +
-                0.20f * Mathf.Sin(3f * highPhase + 0.54f) +
-                0.10f * Mathf.Sin(4f * highPhase + 0.73f);
-            var brass = 0.62f * lowPipe + 0.45f * highPipe;
-            var compressor = (float)Math.Tanh(brass * 1.75f);
-            samples[index] = compressor * 0.65f;
+                0.49f * Mathf.Sin(2f * highPhase + 0.36f) +
+                0.28f * Mathf.Sin(3f * highPhase + 0.54f) +
+                0.16f * Mathf.Sin(4f * highPhase + 0.73f) +
+                0.08f * Mathf.Sin(5f * highPhase + 0.91f);
+            var brass = 0.67f * lowPipe + 0.47f * highPipe;
+            var compressor = (float)Math.Tanh(brass * 2.35f);
+            samples[index] = compressor * 0.72f;
         }
 
         var clip = AudioClip.Create(

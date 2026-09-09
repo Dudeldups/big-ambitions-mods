@@ -1,11 +1,13 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using BAModAPI;
 using UnityEngine;
 
 internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
 {
     private const string BodyRendererName = "Object_5";
+    private const string StructureRendererName = "Object_4";
     private static readonly int TintId =
         Shader.PropertyToID("Color_3d0f0cdbe6b74be28a1a5be5bab71dea");
     private readonly MaterialPropertyBlock propertyBlock = new();
@@ -16,6 +18,12 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private Texture2D? sourceTexture;
     private Color32[]? sourcePixels;
     private Texture2D? paintedTexture;
+    private MeshRenderer? structureRenderer;
+    private MeshFilter? structureFilter;
+    private Mesh? originalStructureMesh;
+    private Mesh? paintedStructureMesh;
+    private Material[]? originalStructureMaterials;
+    private Material? pillarMaterial;
     private ModContext? context;
     private Color lastTint;
     private bool configured;
@@ -91,12 +99,13 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         };
         materials[0] = paintMaterial;
         bodyRenderer.sharedMaterials = materials;
+        var pillarTriangleCount = ConfigurePaintedPillars();
         configured = true;
-        ApplySelectedColor(true);
+        ApplySelectedColor(true, pillarTriangleCount);
         return true;
     }
 
-    private void ApplySelectedColor(bool force = false)
+    private void ApplySelectedColor(bool force = false, int pillarTriangleCount = -1)
     {
         if (bodyRenderer == null || paintMaterial == null || sourceTexture == null ||
             sourcePixels == null)
@@ -113,8 +122,13 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         Texture2D? replacement = null;
         try
         {
-            replacement = CreatePaintedTexture(sourceTexture, sourcePixels, tint);
+            replacement = CreatePaintedTexture(
+                sourceTexture,
+                sourcePixels,
+                tint,
+                out var paintedPixelCount);
             SetBaseTexture(paintMaterial, replacement);
+            SetPillarColor(tint);
             if (paintedTexture != null)
                 Destroy(paintedTexture);
             paintedTexture = replacement;
@@ -125,7 +139,10 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 loggedReady = true;
                 context?.Logger.Info(
                     $"BigfootMonsterTruck paint ready vehicle={vehicle?.GetInstanceID()} " +
-                    $"texture={sourceTexture.width}x{sourceTexture.height}.");
+                    $"texture={sourceTexture.width}x{sourceTexture.height} " +
+                    $"maskedPixels={paintedPixelCount}/{sourcePixels.Length} " +
+                    $"pillarTriangles={Mathf.Max(0, pillarTriangleCount)} " +
+                    $"tint={tint}.");
             }
         }
         catch (Exception exception)
@@ -176,9 +193,11 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private static Texture2D CreatePaintedTexture(
         Texture2D source,
         Color32[] originalPixels,
-        Color tint)
+        Color tint,
+        out int paintedPixelCount)
     {
         var pixels = (Color32[])originalPixels.Clone();
+        paintedPixelCount = 0;
         for (var index = 0; index < pixels.Length; index++)
         {
             var sourceColor = pixels[index];
@@ -188,11 +207,22 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             var maximum = Mathf.Max(red, Mathf.Max(green, blue));
             var minimum = Mathf.Min(red, Mathf.Min(green, blue));
             var chroma = maximum - minimum;
-            var darkMask = 1f - Mathf.SmoothStep(0.16f, 0.34f, maximum);
-            var neutralMask = 1f - Mathf.SmoothStep(0.055f, 0.18f, chroma);
+            // The atlas uses near-black for the base body and strongly colored or
+            // bright pixels for flames, sponsor decals, lamps, grille and bumper.
+            // Keep the transition deliberately narrow so those authored graphics
+            // cannot inherit the selected vehicle color.
+            var darkMask = 1f - Mathf.SmoothStep(
+                0f,
+                1f,
+                Mathf.InverseLerp(0.075f, 0.17f, maximum));
+            var neutralMask = 1f - Mathf.SmoothStep(
+                0f,
+                1f,
+                Mathf.InverseLerp(0.028f, 0.085f, chroma));
             var paintMask = darkMask * neutralMask;
             if (paintMask <= 0f)
                 continue;
+            paintedPixelCount++;
 
             var shade = Mathf.Lerp(0.58f, 1f, Mathf.Clamp01(maximum / 0.24f));
             var target = new Color(tint.r * shade, tint.g * shade, tint.b * shade, 1f);
@@ -217,6 +247,82 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         return texture;
     }
 
+    private int ConfigurePaintedPillars()
+    {
+        foreach (var renderer in vehicle!.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (!string.Equals(renderer.name, StructureRendererName, StringComparison.Ordinal))
+                continue;
+            structureRenderer = renderer;
+            structureFilter = renderer.GetComponent<MeshFilter>();
+            break;
+        }
+        var sourceMesh = structureFilter?.sharedMesh;
+        if (structureRenderer == null || sourceMesh == null || sourceMesh.subMeshCount != 1)
+            return 0;
+
+        var sourceTriangles = sourceMesh.GetTriangles(0);
+        var vertices = sourceMesh.vertices;
+        var regularTriangles = new List<int>(sourceTriangles.Length);
+        var pillarTriangles = new List<int>();
+        for (var index = 0; index < sourceTriangles.Length; index += 3)
+        {
+            var a = sourceTriangles[index];
+            var b = sourceTriangles[index + 1];
+            var c = sourceTriangles[index + 2];
+            var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
+            var absX = Mathf.Abs(center.x);
+            var isCabinPillar =
+                absX >= 0.95f && absX <= 1.40f &&
+                center.y >= 0.80f && center.y <= 2.00f &&
+                center.z >= 0.10f && center.z <= 1.10f;
+            var destination = isCabinPillar ? pillarTriangles : regularTriangles;
+            destination.Add(a);
+            destination.Add(b);
+            destination.Add(c);
+        }
+        if (pillarTriangles.Count == 0)
+            return 0;
+
+        originalStructureMesh = sourceMesh;
+        originalStructureMaterials = structureRenderer.sharedMaterials;
+        paintedStructureMesh = Instantiate(sourceMesh);
+        paintedStructureMesh.name = "Bigfoot structure with repaintable A-pillars";
+        paintedStructureMesh.subMeshCount = 2;
+        paintedStructureMesh.SetTriangles(regularTriangles, 0);
+        paintedStructureMesh.SetTriangles(pillarTriangles, 1);
+        structureFilter!.sharedMesh = paintedStructureMesh;
+
+        var sourceMaterial = originalStructureMaterials.Length > 0
+            ? originalStructureMaterials[0]
+            : originalMaterial;
+        if (sourceMaterial == null)
+            return 0;
+        pillarMaterial = new Material(sourceMaterial)
+        {
+            name = "Bigfoot Repaintable A-Pillars"
+        };
+        SetBaseTexture(pillarMaterial, Texture2D.whiteTexture);
+        SetFloat(pillarMaterial, "_Metallic", 0.18f);
+        SetFloat(pillarMaterial, "_Smoothness", 0.48f);
+        structureRenderer.sharedMaterials = new[] { sourceMaterial, pillarMaterial };
+        return pillarTriangles.Count / 3;
+    }
+
+    private void SetPillarColor(Color tint)
+    {
+        if (pillarMaterial == null)
+            return;
+        var color = new Color(
+            Mathf.Max(0.035f, tint.r * 0.82f),
+            Mathf.Max(0.035f, tint.g * 0.82f),
+            Mathf.Max(0.035f, tint.b * 0.82f),
+            1f);
+        SetColor(pillarMaterial, "_BaseColor", color);
+        SetColor(pillarMaterial, "_Color", color);
+        SetColor(pillarMaterial, "baseColorFactor", color);
+    }
+
     private static Texture? GetBaseTexture(Material material)
     {
         foreach (var property in new[] { "_BaseColorMap", "_MainTex", "baseColorTexture" })
@@ -230,6 +336,18 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         foreach (var property in new[] { "_BaseColorMap", "_MainTex", "baseColorTexture" })
             if (material.HasProperty(property))
                 material.SetTexture(property, texture);
+    }
+
+    private static void SetColor(Material material, string property, Color color)
+    {
+        if (material.HasProperty(property))
+            material.SetColor(property, color);
+    }
+
+    private static void SetFloat(Material material, string property, float value)
+    {
+        if (material.HasProperty(property))
+            material.SetFloat(property, value);
     }
 
     private static bool ColorsMatch(Color left, Color right) =>
@@ -254,10 +372,24 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             Destroy(paintedTexture);
         if (paintMaterial != null)
             Destroy(paintMaterial);
+        if (structureFilter != null && originalStructureMesh != null)
+            structureFilter.sharedMesh = originalStructureMesh;
+        if (structureRenderer != null && originalStructureMaterials != null)
+            structureRenderer.sharedMaterials = originalStructureMaterials;
+        if (paintedStructureMesh != null)
+            Destroy(paintedStructureMesh);
+        if (pillarMaterial != null)
+            Destroy(pillarMaterial);
         paintedTexture = null;
         paintMaterial = null;
         sourceTexture = null;
         sourcePixels = null;
         bodyRenderer = null;
+        structureRenderer = null;
+        structureFilter = null;
+        originalStructureMesh = null;
+        paintedStructureMesh = null;
+        originalStructureMaterials = null;
+        pillarMaterial = null;
     }
 }

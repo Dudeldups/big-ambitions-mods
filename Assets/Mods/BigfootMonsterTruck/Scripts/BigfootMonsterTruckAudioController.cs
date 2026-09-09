@@ -89,7 +89,7 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
         rumbleSource = CreateSource("LowRumble", rumbleClip, 1500f, 0.05f);
         roarSource = CreateSource("SuperchargedRoar", roarClip, 5200f, 0.18f, 90f);
         crackleSource = CreateSource("ExhaustCrackle", crackleClip, 6800f, 0.24f, 520f);
-        hornSource = CreateSource("DualToneTruckHorn", hornClip, 4600f, 0.035f, 55f);
+        hornSource = CreateSource("DualToneTruckHorn", hornClip, 6000f, 0.08f, 35f);
         var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
         if (otherSource?.outputAudioMixerGroup != null)
             hornSource.outputAudioMixerGroup = otherSource.outputAudioMixerGroup;
@@ -212,14 +212,17 @@ internal sealed class BigfootMonsterTruckAudioController : MonoBehaviour
     {
         if (hornSource == null)
             return;
-        var targetVolume = pressed ? masterVolume * 0.64f : 0f;
+        var targetVolume = pressed ? masterVolume * 0.74f : 0f;
+        if (pressed && !hornSource.isPlaying)
+        {
+            hornSource.volume = targetVolume * 0.38f;
+            hornSource.Play();
+        }
         hornSource.volume = Mathf.MoveTowards(
             hornSource.volume,
             targetVolume,
-            Time.unscaledDeltaTime * 5f);
-        if (pressed && !hornSource.isPlaying)
-            hornSource.Play();
-        else if (!pressed && hornSource.volume <= 0f && hornSource.isPlaying)
+            Time.unscaledDeltaTime * (pressed ? 24f : 8f));
+        if (!pressed && hornSource.volume <= 0f && hornSource.isPlaying)
             hornSource.Stop();
     }
 
