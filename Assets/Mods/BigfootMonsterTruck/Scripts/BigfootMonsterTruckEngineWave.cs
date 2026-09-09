@@ -23,27 +23,12 @@ internal static class BigfootMonsterTruckEngineWave
     {
         var sampleCount = (int)(SampleRate * Duration);
         var samples = new float[sampleCount];
-        uint random = 0xA17F00D5u;
-        var airNoise = 0f;
         for (var index = 0; index < sampleCount; index++)
         {
             var time = index / (float)SampleRate;
-            var firstPulse = time < 0.64f;
-            var secondPulse = time >= 0.84f && time < 1.50f;
-            if (!firstPulse && !secondPulse)
-                continue;
-
-            var pulseTime = firstPulse ? time : time - 0.84f;
-            var pulseDuration = firstPulse ? 0.64f : 0.66f;
-            var attack = 1f - Mathf.Exp(-pulseTime * 62f);
-            var release = Mathf.SmoothStep(
-                0f,
-                1f,
-                Mathf.Clamp01((pulseDuration - pulseTime) / 0.085f));
-            var pressure = attack * release;
-            var flutter = 0.026f * Mathf.Sin(2f * Mathf.PI * 5.2f * pulseTime);
-            var lowPhase = 2f * Mathf.PI * (112f * pulseTime + flutter);
-            var highPhase = 2f * Mathf.PI * (141f * pulseTime + flutter * 1.08f);
+            var flutter = 0.018f * Mathf.Sin(2f * Mathf.PI * 4f * time);
+            var lowPhase = 2f * Mathf.PI * (96f * time + flutter);
+            var highPhase = 2f * Mathf.PI * (120f * time + flutter * 1.06f);
             var lowPipe =
                 Mathf.Sin(lowPhase) +
                 0.42f * Mathf.Sin(2f * lowPhase + 0.12f) +
@@ -55,16 +40,13 @@ internal static class BigfootMonsterTruckEngineWave
                 0.38f * Mathf.Sin(2f * highPhase + 0.36f) +
                 0.20f * Mathf.Sin(3f * highPhase + 0.54f) +
                 0.10f * Mathf.Sin(4f * highPhase + 0.73f);
-            airNoise = Mathf.Lerp(airNoise, NextSigned(ref random), 0.12f);
-            var pressureRush = airNoise * (0.045f + 0.10f * Mathf.Exp(-pulseTime * 22f));
-            var brass = 0.58f * lowPipe + 0.48f * highPipe + pressureRush;
+            var brass = 0.62f * lowPipe + 0.45f * highPipe;
             var compressor = (float)Math.Tanh(brass * 1.75f);
-            var pulseGain = firstPulse ? 1f : 0.96f;
-            samples[index] = compressor * pressure * pulseGain * 0.65f;
+            samples[index] = compressor * 0.65f;
         }
 
         var clip = AudioClip.Create(
-            "Bigfoot twin-blast air horn",
+            "Bigfoot continuous low air horn",
             sampleCount,
             1,
             SampleRate,
