@@ -99,6 +99,13 @@ public static class LamborghiniRevueltoSetup
             var bodySidesOriented =
                 bounds.size.x > bounds.size.y * 1.4f &&
                 bounds.size.z > bounds.size.x * 2f;
+            var frontMarker = FindTransform(visual, "Daylight");
+            var rearMarker = FindTransform(visual, "Tail_light");
+            var frontFacesVehicleForward =
+                frontMarker != null && rearMarker != null &&
+                TryGetRendererBounds(frontMarker, out var frontMarkerBounds) &&
+                TryGetRendererBounds(rearMarker, out var rearMarkerBounds) &&
+                frontMarkerBounds.center.z > rearMarkerBounds.center.z + 2f;
             var windshield = FindTransform(visual, "Windshield");
             var exhaust = FindTransform(visual, "Exhaust_1_Exhaust_0");
             var windshieldHeight = float.NaN;
@@ -113,6 +120,7 @@ public static class LamborghiniRevueltoSetup
 
             var wheelVisuals = 0;
             var wheelGeometryOriented = true;
+            var wheelSideMappingCorrect = true;
             var continuousTailLight = false;
             var thirdBrakeLight = false;
             var frontBlinkerMeshes = 0;
@@ -132,6 +140,20 @@ public static class LamborghiniRevueltoSetup
                         wheelBounds.size.z < 0.62f || wheelBounds.size.z > 0.76f)
                     {
                         wheelGeometryOriented = false;
+                    }
+
+                    var expectedGeometry = transform.name switch
+                    {
+                        "LamborghiniWheelFrontLeft" => "Geometry_Wheel_FL",
+                        "LamborghiniWheelFrontRight" => "Geometry_Wheel_FR",
+                        "LamborghiniWheelRearLeft" => "Geometry_Wheel_BL",
+                        "LamborghiniWheelRearRight" => "Geometry_Wheel_BR",
+                        _ => string.Empty,
+                    };
+                    if (string.IsNullOrEmpty(expectedGeometry) ||
+                        FindTransform(transform, expectedGeometry) == null)
+                    {
+                        wheelSideMappingCorrect = false;
                     }
                 }
                 if (string.Equals(
@@ -315,8 +337,10 @@ public static class LamborghiniRevueltoSetup
                 bounds.size.y < 1.10f || bounds.size.y > 1.22f ||
                 !bodySidesOriented ||
                 !bodyUpright ||
+                !frontFacesVehicleForward ||
                 wheelVisuals != 4 ||
                 !wheelGeometryOriented ||
+                !wheelSideMappingCorrect ||
                 !continuousTailLight ||
                 !thirdBrakeLight ||
                 frontBlinkerMeshes != 2 ||
@@ -337,9 +361,10 @@ public static class LamborghiniRevueltoSetup
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
                     $"speed={maxSpeed}, power={enginePower}, luxury={luxury}, " +
                     $"bounds={bounds.size}, bodySidesOriented={bodySidesOriented}, " +
-                    $"bodyUpright={bodyUpright}, windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
+                    $"bodyUpright={bodyUpright}, frontForward={frontFacesVehicleForward}, " +
+                    $"windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
                     $"wheels={wheelVisuals}, " +
-                    $"wheelGeometryOriented={wheelGeometryOriented}, " +
+                    $"wheelGeometryOriented={wheelGeometryOriented}, wheelSides={wheelSideMappingCorrect}, " +
                     $"continuousTailLight={continuousTailLight}, thirdBrakeLight={thirdBrakeLight}, " +
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
@@ -431,7 +456,6 @@ public static class LamborghiniRevueltoSetup
             ConfigureRootPhysics(root);
             ConfigureWheelControllers(root);
             ConfigureBodyColliders(root);
-            ConfigureExitMarkers(root);
             ConfigureVehicleReferences(root, vehicleType);
             ConfigurePowertrain(root);
 
@@ -445,6 +469,7 @@ public static class LamborghiniRevueltoSetup
             modelInstance.name = "LamborghiniVisual";
             RemoveModelLights(modelInstance);
             NormalizeModel(modelInstance);
+            ConfigureExitMarkers(root, modelInstance);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
             var fix = LamborghiniRevueltoMaterials.FixSolidMaterials(root);
@@ -549,10 +574,17 @@ public static class LamborghiniRevueltoSetup
         colliders[1].size = new Vector3(1.72f, 0.62f, 2.62f);
     }
 
-    private static void ConfigureExitMarkers(GameObject root)
+    private static void ConfigureExitMarkers(GameObject root, GameObject model)
     {
-        SetLocalPosition(root, "Driverside", new Vector3(1.45f, 0.1f, 0f));
-        SetLocalPosition(root, "Passengerside", new Vector3(-1.45f, 0.1f, 0f));
+        var steeringWheel = FindTransform(model.transform, "Steering_wheel") ??
+                            throw new InvalidOperationException("Model steering wheel is missing.");
+        var steeringPosition = root.transform.InverseTransformPoint(steeringWheel.position);
+        var driverSide = steeringPosition.x < 0f ? -1.45f : 1.45f;
+        SetLocalPosition(root, "Driverside", new Vector3(driverSide, 0.1f, 0f));
+        SetLocalPosition(root, "Passengerside", new Vector3(-driverSide, 0.1f, 0f));
+        Debug.Log(
+            $"LamborghiniRevuelto: steering wheel x={steeringPosition.x:F3}; " +
+            $"driver exit x={driverSide:F2}.");
     }
 
     private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)
@@ -632,11 +664,11 @@ public static class LamborghiniRevueltoSetup
     {
         model.transform.localPosition = Vector3.zero;
         // glTFast imports this Blender model with its authored length on Unity Y
-        // and height on Z. Rotate it once so Y is up and the nose runs along +Z.
-        model.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+        // and height on Z. Rotate it once so Y is up.
+        model.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         model.transform.localScale = Vector3.one;
 
-        if (!TryGetRendererBounds(model.transform, out var bounds))
+        if (!TryGetModelBodyBounds(model.transform, out var bounds))
             throw new InvalidOperationException("Lamborghini model contains no renderers.");
 
         var headlights = FindTransform(model.transform, "Daylight");
@@ -646,10 +678,13 @@ public static class LamborghiniRevueltoSetup
             TryGetRendererBounds(tailLights, out var tailBounds) &&
             headBounds.center.z < tailBounds.center.z)
         {
-            model.transform.Rotate(0f, 180f, 0f, Space.Self);
+            // Yaw around the chassis/parent up axis. Rotating in self space here
+            // would turn around the GLB's authored longitudinal axis instead.
+            model.transform.localRotation =
+                Quaternion.Euler(0f, 180f, 0f) * model.transform.localRotation;
         }
 
-        if (!TryGetRendererBounds(model.transform, out bounds) || bounds.size.z <= 0.001f)
+        if (!TryGetModelBodyBounds(model.transform, out bounds) || bounds.size.z <= 0.001f)
             throw new InvalidOperationException("Lamborghini model length could not be measured.");
 
         var scale = new Vector3(
@@ -657,11 +692,11 @@ public static class LamborghiniRevueltoSetup
             TargetLength / bounds.size.z,
             TargetHeight / bounds.size.y);
         model.transform.localScale = scale;
-        if (!TryGetRendererBounds(model.transform, out bounds))
+        if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Scaled Lamborghini bounds could not be measured.");
 
         model.transform.position += new Vector3(-bounds.center.x, -bounds.min.y, -bounds.center.z);
-        if (!TryGetRendererBounds(model.transform, out bounds))
+        if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Final Lamborghini bounds could not be measured.");
 
         Debug.Log(
@@ -673,10 +708,10 @@ public static class LamborghiniRevueltoSetup
     {
         var mapping = new Dictionary<string, string>
         {
-            { "Wheel_FR", "FrontLeft_WheelController" },
-            { "Wheel_FL", "FrontRight_WheelController" },
-            { "Wheel_BR", "RearLeft_WheelController" },
-            { "Wheel_BL", "RearRight_WheelController" },
+            { "Wheel_FL", "FrontLeft_WheelController" },
+            { "Wheel_FR", "FrontRight_WheelController" },
+            { "Wheel_BL", "RearLeft_WheelController" },
+            { "Wheel_BR", "RearRight_WheelController" },
         };
 
         foreach (var pair in mapping)
@@ -698,13 +733,10 @@ public static class LamborghiniRevueltoSetup
                     radius,
                     controller.localPosition.z);
 
-            wheel.SetParent(mount.transform, false);
-            wheel.name = "Geometry";
-            wheel.localPosition = Vector3.zero;
-            // The source rim face is on the opposite side of its local Y axle.
-            // +90 maps the authored outside faces to the outside on both sides.
-            wheel.localRotation = Quaternion.Euler(0f, 0f, 90f);
-            wheel.localScale = Vector3.one;
+            // Preserve the GLB's side-specific hierarchy and rotation. Resetting
+            // both sides to one rotation turns the authored inner rim faces out.
+            wheel.SetParent(mount.transform, true);
+            wheel.name = "Geometry_" + pair.Key;
             if (!TryGetRendererBounds(mount.transform, out var wheelBounds) ||
                 wheelBounds.size.x <= 0.001f ||
                 wheelBounds.size.y <= 0.001f ||
@@ -915,6 +947,41 @@ public static class LamborghiniRevueltoSetup
         for (var index = 1; index < renderers.Length; index++)
             bounds.Encapsulate(renderers[index].bounds);
         return true;
+    }
+
+    private static bool TryGetModelBodyBounds(Transform root, out Bounds bounds)
+    {
+        var found = false;
+        bounds = default;
+        foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            var current = renderer.transform;
+            var belongsToSourceWheel = false;
+            while (current != null && current != root)
+            {
+                if (current.name == "Wheel_FL" || current.name == "Wheel_FR" ||
+                    current.name == "Wheel_BL" || current.name == "Wheel_BR")
+                {
+                    belongsToSourceWheel = true;
+                    break;
+                }
+                current = current.parent;
+            }
+
+            if (belongsToSourceWheel)
+                continue;
+            if (!found)
+            {
+                bounds = renderer.bounds;
+                found = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        return found;
     }
 
     private static bool TryGetLamborghiniRendererBounds(Transform root, out Bounds bounds)

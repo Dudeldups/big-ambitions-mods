@@ -302,21 +302,14 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private static void ConfigureWheelControllers(GameObject root)
     {
-        var positions = new Dictionary<string, Vector3>
-        {
-            { "FrontLeft_WheelController", new Vector3(-0.8215f, 0.348f, 1.3855f) },
-            { "FrontRight_WheelController", new Vector3(0.8215f, 0.348f, 1.3855f) },
-            { "RearLeft_WheelController", new Vector3(-0.8055f, 0.370f, -1.5165f) },
-            { "RearRight_WheelController", new Vector3(0.8055f, 0.370f, -1.5165f) },
-        };
-
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))
         {
-            if (!positions.TryGetValue(transform.name, out var position))
+            var isFront = transform.name.StartsWith("Front", StringComparison.Ordinal);
+            var isRear = transform.name.StartsWith("Rear", StringComparison.Ordinal);
+            if ((!isFront && !isRear) ||
+                !transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
                 continue;
 
-            transform.localPosition = position;
-            var isFront = transform.name.StartsWith("Front", StringComparison.Ordinal);
             foreach (var component in transform.GetComponents<MonoBehaviour>())
             {
                 var spring = GetMember(component, "spring");

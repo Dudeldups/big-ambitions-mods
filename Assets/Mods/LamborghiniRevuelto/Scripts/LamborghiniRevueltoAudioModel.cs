@@ -20,8 +20,10 @@ internal static class LamborghiniRevueltoAudioModel
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));
 
     internal static float ReferenceHz(int layer) => layer == 0 ? 100f : layer == 1 ? 350f : 750f;
+    // Keep the naturally aspirated V12 bright under load without pitching the
+    // synthesized combustion layers into the toy-like register.
     internal static float TargetHz(float normalized) =>
-        (float)(100d * Math.Pow(950d / 100d, Clamp01(normalized)));
+        (float)(75d * Math.Pow(300d / 75d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)
