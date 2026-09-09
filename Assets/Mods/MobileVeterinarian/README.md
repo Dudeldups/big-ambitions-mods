@@ -41,7 +41,7 @@ See [MODDER_GUIDE.md](MODDER_GUIDE.md) for the registration API, localization ex
 
 ## Diagnostics
 
-Focused lifecycle, validation, placement, repair, payment and cleanup messages are written through the Big Ambitions mod logger. No world scan or permanent polling loop is used.
+Informational diagnostic logging is disabled in the release build. Genuine warnings and errors are still written through the Big Ambitions mod logger for support. No world scan or permanent polling loop is used.
 
 ## Credits
 

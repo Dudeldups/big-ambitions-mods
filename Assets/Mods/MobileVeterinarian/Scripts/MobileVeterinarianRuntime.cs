@@ -906,7 +906,12 @@ namespace MobileVeterinarian
             }
         }
 
-        private void LogInfo(string message) => context?.Logger.Info("Mobile Veterinarian: " + message);
+        private void LogInfo(string message)
+        {
+            if (MobileVeterinarianMod.DiagnosticLoggingEnabled)
+                context?.Logger.Info("Mobile Veterinarian: " + message);
+        }
+
         private void LogWarning(string message) => context?.Logger.Warn("Mobile Veterinarian: " + message);
 
         private sealed class VisitState

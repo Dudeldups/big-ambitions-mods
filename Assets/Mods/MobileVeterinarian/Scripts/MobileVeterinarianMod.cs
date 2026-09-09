@@ -14,6 +14,7 @@ namespace MobileVeterinarian
     {
         internal const string BundleKey = "AssetBundles/mobileveterinarian.unity3d";
         internal const string DoctorPrefabPath = "Assets/Mods/MobileVeterinarian/Doctor.prefab";
+        internal static readonly bool DiagnosticLoggingEnabled = false;
 
         private MobileVeterinarianRuntime? runtime;
         private GameObject? doctorPrefab;
@@ -30,7 +31,7 @@ namespace MobileVeterinarian
                 context.Logger.Warn(
                     $"Mobile Veterinarian: doctor prefab load failed bundle='{BundleKey}' asset='{DoctorPrefabPath}'.");
             }
-            else
+            else if (DiagnosticLoggingEnabled)
             {
                 context.Logger.Info(
                     $"Mobile Veterinarian: doctor prefab loaded bundle='{BundleKey}' asset='{DoctorPrefabPath}'.");
