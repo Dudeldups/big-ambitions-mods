@@ -24,6 +24,9 @@ namespace MootorVehicle
             "TMPro.TMPro_EventManager, Unity.TextMeshPro";
         private const string VanillaLegalParkingLocalizationKey =
             "itempanelui_parkingzone_legal";
+        private const string SidewalkLayerName = "Sidewalk";
+        private const float SidewalkProbeStartHeight = 0.5f;
+        private const float SidewalkProbeDistance = 3f;
 
         private Coroutine? initializationCoroutine;
         private Coroutine? parkingHudCorrectionCoroutine;
@@ -164,8 +167,10 @@ namespace MootorVehicle
             if (!IsMootorVehicle(vehicleController))
                 return;
 
+            var isOnSidewalk = IsOnSidewalk(vehicleController);
             EndFreeParkingHudOverride();
-            ApplyFreeParking(vehicleController);
+            if (isOnSidewalk)
+                ApplyFreeParking(vehicleController);
         }
 
         private void HandleFullMenuToggle(bool isOpen)
@@ -282,7 +287,8 @@ namespace MootorVehicle
                 return false;
 
             var configuredVehicle = vehicleController!;
-            ApplyFreeParking(configuredVehicle);
+            if (!configuredVehicle.controlledByPlayer && IsOnSidewalk(configuredVehicle))
+                ApplyFreeParking(configuredVehicle);
 
             var riderController = configuredVehicle.GetComponent<MootorVehicleRiderController>();
             var added = riderController == null;
@@ -451,6 +457,7 @@ namespace MootorVehicle
             if (!IsMootorVehicle(selectedVehicle) ||
                 selectedVehicle == null ||
                 !selectedVehicle.controlledByPlayer ||
+                !IsOnSidewalk(selectedVehicle) ||
                 vehicleInfo == null ||
                 (vehicleInfo.currentParkingState == ParkingState.NotAvailable &&
                  string.IsNullOrEmpty(vehicleInfo.currentParkingNeighbourhood)))
@@ -480,6 +487,47 @@ namespace MootorVehicle
             {
                 correctingParkingHud = false;
             }
+        }
+
+        private static bool IsOnSidewalk(VehicleController vehicleController)
+        {
+            var sidewalkLayer = LayerMask.NameToLayer(SidewalkLayerName);
+            if (sidewalkLayer < 0)
+                return false;
+
+            var carController = vehicleController as CarController ??
+                                vehicleController.GetComponent<CarController>();
+            var wheels = carController?.vehicleController?.powertrain?.wheels;
+            if (wheels == null || wheels.Count == 0)
+                return false;
+
+            var surfaceMask = 1 << sidewalkLayer;
+            surfaceMask |= 1 << LayerHelper.RoadsLayerIndex;
+            surfaceMask |= 1 << LayerHelper.GroundLayerIndex;
+            surfaceMask |= 1 << LayerHelper.GroundUnplacableLayerIndex;
+
+            foreach (var wheel in wheels)
+            {
+                var wheelTransform = wheel?.wheelUAPI?.transform;
+                if (wheelTransform == null)
+                    return false;
+
+                var probeOrigin = wheelTransform.position + Vector3.up * SidewalkProbeStartHeight;
+                if (!Physics.Raycast(
+                        probeOrigin,
+                        Vector3.down,
+                        out var hit,
+                        SidewalkProbeDistance,
+                        surfaceMask,
+                        QueryTriggerInteraction.Ignore) ||
+                    hit.collider == null ||
+                    hit.collider.gameObject.layer != sidewalkLayer)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void EndFreeParkingHudOverride()
