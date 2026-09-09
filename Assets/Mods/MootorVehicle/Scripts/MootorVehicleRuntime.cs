@@ -6,6 +6,7 @@ using BAModAPI;
 using Helpers;
 using UI.Notification;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 
 namespace MootorVehicle
@@ -25,8 +26,13 @@ namespace MootorVehicle
         private const string VanillaLegalParkingLocalizationKey =
             "itempanelui_parkingzone_legal";
         private const string SidewalkLayerName = "Sidewalk";
+        private const string CrosswalkLayerName = "Crosswalk";
+        private const int NpcNavMeshAgentTypeId = 0;
         private const float SidewalkProbeStartHeight = 0.5f;
         private const float SidewalkProbeDistance = 3f;
+        private const float SidewalkNavMeshSampleDistance = 1.5f;
+        private const float SidewalkHorizontalTolerance = 0.45f;
+        private const float SidewalkVerticalTolerance = 0.75f;
 
         private Coroutine? initializationCoroutine;
         private Coroutine? parkingHudCorrectionCoroutine;
@@ -492,7 +498,8 @@ namespace MootorVehicle
         private static bool IsOnSidewalk(VehicleController vehicleController)
         {
             var sidewalkLayer = LayerMask.NameToLayer(SidewalkLayerName);
-            if (sidewalkLayer < 0)
+            var crosswalkLayer = LayerMask.NameToLayer(CrosswalkLayerName);
+            if (sidewalkLayer < 0 || crosswalkLayer < 0)
                 return false;
 
             var carController = vehicleController as CarController ??
@@ -502,9 +509,15 @@ namespace MootorVehicle
                 return false;
 
             var surfaceMask = 1 << sidewalkLayer;
+            surfaceMask |= 1 << crosswalkLayer;
             surfaceMask |= 1 << LayerHelper.RoadsLayerIndex;
             surfaceMask |= 1 << LayerHelper.GroundLayerIndex;
             surfaceMask |= 1 << LayerHelper.GroundUnplacableLayerIndex;
+            var navMeshFilter = new NavMeshQueryFilter
+            {
+                agentTypeID = NpcNavMeshAgentTypeId,
+                areaMask = NavMesh.AllAreas
+            };
 
             foreach (var wheel in wheels)
             {
@@ -513,15 +526,38 @@ namespace MootorVehicle
                     return false;
 
                 var probeOrigin = wheelTransform.position + Vector3.up * SidewalkProbeStartHeight;
-                if (!Physics.Raycast(
+                var probePosition = wheelTransform.position;
+                if (Physics.Raycast(
                         probeOrigin,
                         Vector3.down,
-                        out var hit,
+                        out var surfaceHit,
                         SidewalkProbeDistance,
                         surfaceMask,
-                        QueryTriggerInteraction.Ignore) ||
-                    hit.collider == null ||
-                    hit.collider.gameObject.layer != sidewalkLayer)
+                        QueryTriggerInteraction.Ignore))
+                {
+                    if (surfaceHit.collider != null &&
+                        surfaceHit.collider.gameObject.layer == crosswalkLayer)
+                    {
+                        return false;
+                    }
+
+                    probePosition = surfaceHit.point;
+                }
+
+                if (!NavMesh.SamplePosition(
+                        probePosition,
+                        out var navMeshHit,
+                        SidewalkNavMeshSampleDistance,
+                        navMeshFilter))
+                {
+                    return false;
+                }
+
+                var horizontalDelta = navMeshHit.position - probePosition;
+                horizontalDelta.y = 0f;
+                if (horizontalDelta.sqrMagnitude >
+                        SidewalkHorizontalTolerance * SidewalkHorizontalTolerance ||
+                    Mathf.Abs(navMeshHit.position.y - probePosition.y) > SidewalkVerticalTolerance)
                 {
                     return false;
                 }
