@@ -82,9 +82,6 @@ internal sealed class BigfootMonsterTruckParkingController : MonoBehaviour
             if (!validTwoSpaceParking)
                 return;
             ApplyLegalParkingToVehicle();
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: two-space parking accepted vehicle={vehicle.GetInstanceID()} " +
-                $"neighbourhood='{parkingNeighbourhood}'.");
         }
         catch (Exception exception)
         {
@@ -101,10 +98,6 @@ internal sealed class BigfootMonsterTruckParkingController : MonoBehaviour
         {
             var fee = NeighborhoodHelper.GetData(parkingNeighbourhood).parkingPrice;
             vehicle.vehicleInstance.unpaidParkingAmount += fee;
-            if (fee > 0f)
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: second parking-space fee charged " +
-                    $"vehicle={vehicle.GetInstanceID()} amount={fee:F0}.");
         }
         catch (Exception exception)
         {

@@ -493,7 +493,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
                         }
                         SetMember(powertrain, "differentials", differentials);
                     }
-                    VerifyFourWheelDrive(powertrain);
                     SetMember(component, "powertrain", powertrain);
 
                     var steering = GetMember(component, "steering");
@@ -546,56 +545,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         return FindField(type, name)?.GetValue(target) ??
                type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                    ?.GetValue(target);
-    }
-
-    private void VerifyFourWheelDrive(object? powertrain)
-    {
-        if (powertrain == null ||
-            GetMember(powertrain, "engine") is not object engine ||
-            GetMember(powertrain, "transmission") is not object transmission ||
-            GetMember(powertrain, "differentials") is not IList differentials ||
-            GetMember(powertrain, "wheels") is not IList wheels)
-        {
-            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive components are unavailable.");
-            return;
-        }
-
-        var center = FindNamedComponent(differentials, "Center Differential");
-        var front = FindNamedComponent(differentials, "Front Differential");
-        var rear = FindNamedComponent(differentials, "Rear Differential");
-        var frontLeft = FindNamedComponent(wheels, "WheelFrontLeft_WheelController");
-        var frontRight = FindNamedComponent(wheels, "WheelFrontRight_WheelController");
-        var rearLeft = FindNamedComponent(wheels, "WheelRearLeft_WheelController");
-        var rearRight = FindNamedComponent(wheels, "WheelRearRight_WheelController");
-        if (center == null || front == null || rear == null || frontLeft == null ||
-            frontRight == null || rearLeft == null || rearRight == null)
-        {
-            context?.Logger.Warn("BigfootMonsterTruck: four-wheel-drive topology is incomplete.");
-            return;
-        }
-
-        var verified = ReferenceEquals(GetMember(engine, "Output"), transmission) &&
-                       ReferenceEquals(GetMember(transmission, "Output"), center) &&
-                       ReferenceEquals(GetMember(center, "Output"), front) &&
-                       ReferenceEquals(GetMember(center, "OutputB"), rear) &&
-                       ReferenceEquals(GetMember(front, "Output"), frontLeft) &&
-                       ReferenceEquals(GetMember(front, "OutputB"), frontRight) &&
-                       ReferenceEquals(GetMember(rear, "Output"), rearLeft) &&
-                       ReferenceEquals(GetMember(rear, "OutputB"), rearRight);
-        if (!verified)
-            context?.Logger.Warn(
-                "BigfootMonsterTruck: runtime AWD references could not verify the serialized topology.");
-    }
-
-    private static object? FindNamedComponent(IList components, string name)
-    {
-        foreach (var component in components)
-            if (component != null && string.Equals(
-                    GetMember(component, "name") as string,
-                    name,
-                    StringComparison.Ordinal))
-                return component;
-        return null;
     }
 
     private static void SetMember(object? target, string name, object? value)

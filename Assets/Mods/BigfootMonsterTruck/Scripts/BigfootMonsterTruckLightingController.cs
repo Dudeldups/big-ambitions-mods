@@ -136,9 +136,6 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
             overlayRenderer.receiveShadows = false;
             overlayRenderer.enabled = false;
             generatedObjects.Add(overlayObject);
-            context?.Logger.Info(
-                $"BigfootMonsterTruck lighting vehicle={vehicle?.GetInstanceID()}: " +
-                $"painted headlight overlay ready triangles={selected.Count / 3}.");
             return overlayRenderer;
         }
         catch (Exception exception)
