@@ -57,11 +57,6 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             if (!occupied)
             {
                 RemoveDriver();
-                LogInfo("exited; seated model removed.");
-            }
-            else
-            {
-                LogInfo("occupied; preparing current player appearance.");
             }
         }
 
@@ -146,7 +141,6 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         driverRoot.transform.localPosition = Vector3.zero;
 
         var rendererCount = 0;
-        var suppressedCount = 0;
         var lowerDetailRenderers = GetLowerDetailRenderers(appearance.transform);
         foreach (var source in appearance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
@@ -157,9 +151,6 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             if (source.forceRenderingOff || source.shadowCastingMode == ShadowCastingMode.ShadowsOnly ||
                 lowerDetailRenderers.Contains(source))
             {
-                suppressedCount++;
-                LogInfo($"skipped mesh='{source.name}' forceRenderingOff={source.forceRenderingOff} " +
-                        $"shadowMode={source.shadowCastingMode} lowerDetail={lowerDetailRenderers.Contains(source)}.");
                 continue;
             }
             CopyRenderer(source, transforms);
@@ -189,25 +180,11 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
             throw new InvalidOperationException("Seated avatar has no humanoid hips bone.");
 
         AlignWithSeat();
-        var head = animator.GetBoneTransform(HumanBodyBones.Head);
-        var leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
-        var rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
         leftArm = CreateArm(animator, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm,
             HumanBodyBones.LeftHand);
         rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
             HumanBodyBones.RightHand);
-        var originalLeftHand = VehiclePosition(leftHand);
-        var originalRightHand = VehiclePosition(rightHand);
         AlignHandsWithWheel();
-        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} " +
-                $"leftBefore={originalLeftHand} leftAfter={VehiclePosition(leftHand)} " +
-                $"rightBefore={originalRightHand} rightAfter={VehiclePosition(rightHand)}.");
-        LogInfo($"created from current player appearance; renderers={rendererCount} " +
-                $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
-                $"transforms={transforms.Count} clip='{sittingClip.name}' " +
-                $"hips={VehiclePosition(hips)} head={VehiclePosition(head)} " +
-                $"leftHand={VehiclePosition(leftHand)} rightHand={VehiclePosition(rightHand)} " +
-                $"steeringWheel={VehiclePosition(steeringWheel)}.");
     }
 
     private void AlignWithSeat()
@@ -420,17 +397,7 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
         destination.renderingLayerMask = source.renderingLayerMask;
         destination.shadowCastingMode = ShadowCastingMode.Off;
         destination.receiveShadows = source.receiveShadows;
-        LogInfo($"copied mesh='{source.name}' vertices={mesh.vertexCount} " +
-                $"blendShapes={mesh.blendShapeCount} materials={materials.Length} " +
-                $"sourceShadowMode={source.shadowCastingMode} receiveShadows={source.receiveShadows} " +
-                $"renderingLayerMask={source.renderingLayerMask}.");
     }
-
-    private string VehiclePosition(Transform? target) =>
-        target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
-
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"AudiRS6R driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {

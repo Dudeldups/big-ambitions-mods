@@ -259,8 +259,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         var sleepConfigured = ConfigureSleepEnvironment(vehicleController);
         var roadDamageGuard = vehicleController.GetComponent<AudiRS6RRoadDamageGuard>();
+        var materialController = vehicleController.GetComponent<AudiRS6RMaterialController>();
         var lightingController = vehicleController.GetComponent<AudiRS6RLightingController>();
         var addedRoadDamageGuard = roadDamageGuard == null;
+        var addedMaterialController = materialController == null;
         var addedLightingController = lightingController == null;
 
         if (addedRoadDamageGuard)
@@ -272,6 +274,11 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         if (addedLightingController)
             lightingController = vehicleController.gameObject.AddComponent<AudiRS6RLightingController>();
 
+        if (addedMaterialController)
+            materialController = vehicleController.gameObject.AddComponent<AudiRS6RMaterialController>();
+
+        // Correct imported opaque materials before the lighting controller clones any lamp surfaces.
+        materialController!.Initialize(vehicleController, context);
         lightingController!.Initialize(vehicleController, context);
         roadDamageGuard!.Initialize(vehicleController);
 
@@ -287,7 +294,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             audioController = vehicleController.gameObject.AddComponent<AudiRS6RAudioController>();
         audioController!.Initialize(vehicleController, context);
 
-        return sleepConfigured > 0 || addedRoadDamageGuard || addedLightingController || addedDriverController || addedAudioController;
+        return sleepConfigured > 0 || addedRoadDamageGuard || addedMaterialController || addedLightingController ||
+               addedDriverController || addedAudioController;
     }
 
     private void ConfigureVehiclePhysics(VehicleController vehicleController)
@@ -1011,6 +1019,9 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         foreach (var driverController in FindObjectsOfType<AudiRS6RDriverController>(true))
             if (driverController != null) Destroy(driverController);
+
+        foreach (var materialController in FindObjectsOfType<AudiRS6RMaterialController>(true))
+            if (materialController != null) Destroy(materialController);
 
         var roadDamageGuards = FindObjectsOfType<AudiRS6RRoadDamageGuard>();
         foreach (var roadDamageGuard in roadDamageGuards)
