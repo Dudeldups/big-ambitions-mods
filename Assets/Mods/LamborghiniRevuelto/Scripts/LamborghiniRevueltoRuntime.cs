@@ -739,17 +739,23 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
         mirrored += MirrorRightMesh("Wheel_BR_Rim_0", "Wheel_BL_Rim_0");
         mirrored += MirrorRightMesh("Wheel_FR_Caliper_0", "Wheel_FL_Caliper_0");
         mirrored += MirrorRightMesh("Wheel_BR_Caliper_0", "Wheel_BL_Caliper_0");
-        if (mirrored != 4)
+        mirrored += MirrorRightMesh("Wheel_FR_Tire_0", "Wheel_FL_Tire_0");
+        mirrored += MirrorRightMesh("Wheel_BR_Tire_0", "Wheel_BL_Tire_0");
+        mirrored += MirrorRightMesh("Wheel_FR_Brake_rotor_0", "Wheel_FL_Brake_rotor_0");
+        mirrored += MirrorRightMesh("Wheel_BR_Brake_rotor_0", "Wheel_BL_Brake_rotor_0");
+        mirrored += MirrorRightMesh("Wheel_FR_Logo_0", "Wheel_FL_Logo_0");
+        mirrored += MirrorRightMesh("Wheel_BR_Logo_0", "Wheel_BL_Logo_0");
+        if (mirrored != 10)
         {
             context?.Logger.Warn(
                 $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: mirrored " +
-                $"{mirrored}/4 left-side rim/caliper meshes; a mesh pair is missing.");
+                $"{mirrored}/10 left-side wheel meshes; a mesh pair is missing.");
         }
         else
         {
             context?.Logger.Info(
-                $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: left rims and " +
-                "calipers rebuilt as exact mirrors of the preferred right-side geometry.");
+                $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: complete left " +
+                "wheel assemblies rebuilt as exact mirrors of the preferred right-side geometry.");
         }
         return mirrored;
     }
@@ -916,11 +922,11 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
     private const float DentRadius = 0.72f;
     private const float MaximumDentDepth = 0.46f;
     private const float DepthPerExcessMps = 0.015f;
-    private const float FrontDentLateralRadius = 0.78f;
-    private const float FrontDentVerticalRadius = 0.65f;
-    private const float FrontDentLongitudinalRadius = 0.90f;
-    private const float MaximumFrontDentDepth = 0.32f;
-    private const float FrontDepthPerExcessMps = 0.011f;
+    private const float FrontDentLateralRadius = 0.82f;
+    private const float FrontDentVerticalRadius = 0.68f;
+    private const float FrontDentLongitudinalRadius = 0.95f;
+    private const float MaximumFrontDentDepth = 0.36f;
+    private const float FrontDepthPerExcessMps = 0.012f;
     private const float RearDentLateralRadius = 0.96f;
     private const float RearDentVerticalRadius = 0.82f;
     private const float RearDentLongitudinalRadius = 1.18f;
