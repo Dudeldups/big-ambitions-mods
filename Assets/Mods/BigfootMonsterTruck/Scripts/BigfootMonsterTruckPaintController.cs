@@ -27,11 +27,10 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private Mesh? paintedStructureMesh;
     private Material[]? originalStructureMaterials;
     private Material? pillarMaterial;
-    private GameObject? factoryBadgeObject;
-    private Mesh? factoryBadgeMesh;
-    private GameObject? grilleBackingObject;
-    private Mesh? grilleBackingMesh;
-    private Material? grilleBackingMaterial;
+    private MeshFilter? bodyFilter;
+    private Mesh? originalBodyMesh;
+    private Mesh? paintedBodyMesh;
+    private Material[]? originalBodyMaterials;
     private ModContext? context;
     private Color lastTint;
     private bool configured;
@@ -83,6 +82,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             return false;
 
         var materials = bodyRenderer.sharedMaterials;
+        originalBodyMaterials = materials;
         if (materials.Length == 0 || materials[0] == null)
             return false;
         originalMaterial = materials[0];
@@ -115,16 +115,19 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             };
             materials[1] = paintWindowMaterial;
         }
-        bodyRenderer.sharedMaterials = materials;
-        var badgeTriangleCount = ConfigureFactoryGrilleBadge();
-        var grilleTriangleCount = ConfigurePaintedGrilleBacking();
+        var detailSplit = ConfigureFactoryDetails(
+            materials,
+            out var badgeTriangleCount,
+            out var headlightTriangleCount);
+        if (!detailSplit)
+            bodyRenderer.sharedMaterials = materials;
         var pillarTriangleCount = ConfigurePaintedPillars();
         configured = true;
         ApplySelectedColor(
             true,
             pillarTriangleCount,
             badgeTriangleCount,
-            grilleTriangleCount);
+            headlightTriangleCount);
         return true;
     }
 
@@ -132,7 +135,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         bool force = false,
         int pillarTriangleCount = -1,
         int badgeTriangleCount = -1,
-        int grilleTriangleCount = -1)
+        int headlightTriangleCount = -1)
     {
         if (bodyRenderer == null || paintMaterial == null || sourceTexture == null ||
             sourcePixels == null)
@@ -168,7 +171,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     new Color(0.78f, 0.84f, 0.88f, 0.11f));
             }
             SetPillarColor(tint);
-            SetGrilleBackingColor(tint);
             if (paintedTexture != null)
                 Destroy(paintedTexture);
             if (paintedWindowTexture != null)
@@ -188,7 +190,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     $"flamePixels={flamePixelCount}/{sourcePixels.Length} " +
                     $"pillarTriangles={Mathf.Max(0, pillarTriangleCount)} " +
                     $"badgeTriangles={Mathf.Max(0, badgeTriangleCount)} " +
-                    $"grilleTriangles={Mathf.Max(0, grilleTriangleCount)} " +
+                    $"headlightTriangles={Mathf.Max(0, headlightTriangleCount)} " +
                     $"tint={tint} contrast={flameColor}.");
             }
             else
@@ -291,13 +293,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     0f,
                     1f,
                     Mathf.InverseLerp(0.16f, 0.42f, maximum));
-            var u = ((index % source.width) + 0.5f) / source.width;
-            var v = ((index / source.width) + 0.5f) / source.height;
-            if (IsProtectedDetailUv(u, v))
-            {
-                paintMask = 0f;
-                flameMask = 0f;
-            }
             if (paintMask <= 0f && flameMask <= 0f)
                 continue;
 
@@ -377,140 +372,161 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         return texture;
     }
 
-    private static bool IsProtectedDetailUv(float u, float v)
+    private bool ConfigureFactoryDetails(
+        Material[] configuredMaterials,
+        out int badgeTriangleCount,
+        out int headlightTriangleCount)
     {
-        // These atlas islands contain the complete painted headlamp assemblies.
-        // Their dark and blue pixels are product artwork, not either layer of
-        // the two-tone body livery. The grille badge is protected geometrically
-        // because its UVs overlap unrelated body paint elsewhere in the atlas.
-        var headlamp = v >= 0.535f && v <= 0.655f &&
-                       ((u >= 0.045f && u <= 0.165f) ||
-                        (u >= 0.385f && u <= 0.525f));
-        return headlamp;
-    }
-
-    private int ConfigureFactoryGrilleBadge()
-    {
-        var sourceFilter = bodyRenderer?.GetComponent<MeshFilter>();
-        var sourceMesh = sourceFilter?.sharedMesh;
+        badgeTriangleCount = 0;
+        headlightTriangleCount = 0;
+        bodyFilter = bodyRenderer?.GetComponent<MeshFilter>();
+        var sourceMesh = bodyFilter?.sharedMesh;
         if (bodyRenderer == null || sourceMesh == null || originalMaterial == null ||
             sourceMesh.subMeshCount == 0)
-            return 0;
+            return false;
 
         var vertices = sourceMesh.vertices;
+        var uv = sourceMesh.uv;
+        if (uv.Length != vertices.Length)
+            return false;
         var sourceTriangles = sourceMesh.GetTriangles(0);
-        var badgeTriangles = new List<int>();
+        var headlightCandidates = new List<Vector3Int>();
         for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
         {
             var a = sourceTriangles[index];
             var b = sourceTriangles[index + 1];
             var c = sourceTriangles[index + 2];
+            if (IsHeadlightUv(uv[a]) || IsHeadlightUv(uv[b]) || IsHeadlightUv(uv[c]))
+                headlightCandidates.Add(new Vector3Int(a, b, c));
+        }
+        var selectedHeadlightIndices = SelectLargestConnectedGroups(headlightCandidates, 2);
+        var headlightTriangles = new HashSet<Vector3Int>();
+        for (var index = 0; index + 2 < selectedHeadlightIndices.Count; index += 3)
+            headlightTriangles.Add(new Vector3Int(
+                selectedHeadlightIndices[index],
+                selectedHeadlightIndices[index + 1],
+                selectedHeadlightIndices[index + 2]));
+
+        var paintTriangles = new List<int>(sourceTriangles.Length);
+        var factoryTriangles = new List<int>();
+        for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+        {
+            var a = sourceTriangles[index];
+            var b = sourceTriangles[index + 1];
+            var c = sourceTriangles[index + 2];
+            var triangle = new Vector3Int(a, b, c);
             var center = (vertices[a] + vertices[b] + vertices[c]) / 3f;
             var isBadge =
                 Mathf.Abs(center.x) <= 0.18f &&
                 center.y >= 3.68f && center.y <= 3.78f &&
                 center.z >= -0.36f && center.z <= -0.20f;
-            if (!isBadge)
-                continue;
-            badgeTriangles.Add(a);
-            badgeTriangles.Add(b);
-            badgeTriangles.Add(c);
+            var isHeadlight = headlightTriangles.Contains(triangle);
+            var destination = isBadge || isHeadlight ? factoryTriangles : paintTriangles;
+            destination.Add(a);
+            destination.Add(b);
+            destination.Add(c);
+            if (isBadge)
+                badgeTriangleCount++;
+            else if (isHeadlight)
+                headlightTriangleCount++;
         }
-        if (badgeTriangles.Count == 0)
-            return 0;
+        if (factoryTriangles.Count == 0)
+            return false;
 
-        factoryBadgeMesh = Instantiate(sourceMesh);
-        factoryBadgeMesh.name = sourceMesh.name + "_FactoryGrilleBadge";
-        factoryBadgeMesh.subMeshCount = 1;
-        factoryBadgeMesh.SetTriangles(badgeTriangles, 0, true);
-        factoryBadgeMesh.RecalculateBounds();
+        originalBodyMesh = sourceMesh;
+        paintedBodyMesh = Instantiate(sourceMesh);
+        paintedBodyMesh.name = sourceMesh.name + "_RepaintableFactoryDetails";
+        var factorySubMesh = sourceMesh.subMeshCount;
+        paintedBodyMesh.subMeshCount = factorySubMesh + 1;
+        paintedBodyMesh.SetTriangles(paintTriangles, 0, true);
+        for (var subMesh = 1; subMesh < sourceMesh.subMeshCount; subMesh++)
+            paintedBodyMesh.SetTriangles(sourceMesh.GetTriangles(subMesh), subMesh, true);
+        paintedBodyMesh.SetTriangles(factoryTriangles, factorySubMesh, true);
+        paintedBodyMesh.RecalculateBounds();
+        bodyFilter!.sharedMesh = paintedBodyMesh;
 
-        factoryBadgeObject = new GameObject("BigfootMonsterTruck_FactoryGrilleBadge");
-        factoryBadgeObject.transform.SetParent(bodyRenderer.transform, false);
-        // Pull the copied surface a hair toward the front to avoid z-fighting
-        // with the recolored copy underneath it.
-        factoryBadgeObject.transform.localPosition = new Vector3(0f, 0.025f, 0f);
-        factoryBadgeObject.layer = bodyRenderer.gameObject.layer;
-        factoryBadgeObject.AddComponent<MeshFilter>().sharedMesh = factoryBadgeMesh;
-        var badgeRenderer = factoryBadgeObject.AddComponent<MeshRenderer>();
-        badgeRenderer.sharedMaterial = originalMaterial;
-        badgeRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        badgeRenderer.receiveShadows = false;
-        return badgeTriangles.Count / 3;
+        var splitMaterials = new Material[factorySubMesh + 1];
+        for (var index = 0; index < factorySubMesh; index++)
+            splitMaterials[index] = configuredMaterials[Mathf.Min(
+                index,
+                configuredMaterials.Length - 1)];
+        splitMaterials[factorySubMesh] = originalMaterial;
+        bodyRenderer.sharedMaterials = splitMaterials;
+        return true;
     }
 
-    private int ConfigurePaintedGrilleBacking()
+    private static bool IsHeadlightUv(Vector2 uv) =>
+        uv.y >= 0.55f && uv.y <= 0.64f &&
+        ((uv.x >= 0.06f && uv.x <= 0.15f) ||
+         (uv.x >= 0.40f && uv.x <= 0.51f));
+
+    private static List<int> SelectLargestConnectedGroups(
+        List<Vector3Int> triangles,
+        int groupCount)
     {
-        if (bodyRenderer == null || originalMaterial == null)
-            return 0;
-
-        // The grille openings are physically open in the source model, so the
-        // diagonal chassis behind them can otherwise appear as black triangles.
-        // Use three conservative inserts that sit inside the openings without
-        // overlapping the authored white bars around them.
-        var vertices = new List<Vector3>();
-        var triangles = new List<int>();
-        foreach (var range in new[]
+        var parents = new int[triangles.Count];
+        var vertexOwner = new Dictionary<int, int>();
+        for (var index = 0; index < triangles.Count; index++)
         {
-            new Vector2(-0.19f, -0.04f),
-            new Vector2(-0.35f, -0.23f),
-            new Vector2(-0.50f, -0.39f),
-        })
-        {
-            var first = vertices.Count;
-            vertices.Add(new Vector3(-0.66f, 3.775f, range.x));
-            vertices.Add(new Vector3(0.62f, 3.775f, range.x));
-            vertices.Add(new Vector3(0.62f, 3.775f, range.y));
-            vertices.Add(new Vector3(-0.66f, 3.775f, range.y));
-            triangles.Add(first);
-            triangles.Add(first + 2);
-            triangles.Add(first + 1);
-            triangles.Add(first);
-            triangles.Add(first + 3);
-            triangles.Add(first + 2);
+            parents[index] = index;
+            ConnectVertex(triangles[index].x, index, parents, vertexOwner);
+            ConnectVertex(triangles[index].y, index, parents, vertexOwner);
+            ConnectVertex(triangles[index].z, index, parents, vertexOwner);
         }
 
-        grilleBackingMesh = new Mesh
+        var groups = new Dictionary<int, List<Vector3Int>>();
+        for (var index = 0; index < triangles.Count; index++)
         {
-            name = "Bigfoot painted grille inserts",
-            vertices = vertices.ToArray(),
-        };
-        var normals = new Vector3[vertices.Count];
-        var uv = new Vector2[vertices.Count];
-        for (var index = 0; index < vertices.Count; index++)
-        {
-            normals[index] = Vector3.up;
-            uv[index] = new Vector2(index % 2, index % 4 >= 2 ? 1f : 0f);
+            var root = FindRoot(index, parents);
+            if (!groups.TryGetValue(root, out var group))
+            {
+                group = new List<Vector3Int>();
+                groups[root] = group;
+            }
+            group.Add(triangles[index]);
         }
-        grilleBackingMesh.normals = normals;
-        grilleBackingMesh.uv = uv;
-        grilleBackingMesh.SetTriangles(triangles, 0, true);
-        grilleBackingMesh.RecalculateBounds();
 
-        grilleBackingMaterial = new Material(originalMaterial)
+        var ordered = new List<List<Vector3Int>>(groups.Values);
+        ordered.Sort((left, right) => right.Count.CompareTo(left.Count));
+        var selected = new List<int>();
+        for (var groupIndex = 0; groupIndex < Mathf.Min(groupCount, ordered.Count); groupIndex++)
+            foreach (var triangle in ordered[groupIndex])
+            {
+                selected.Add(triangle.x);
+                selected.Add(triangle.y);
+                selected.Add(triangle.z);
+            }
+        return selected;
+    }
+
+    private static void ConnectVertex(
+        int vertex,
+        int triangle,
+        int[] parents,
+        Dictionary<int, int> vertexOwner)
+    {
+        if (vertexOwner.TryGetValue(vertex, out var owner))
+            Union(triangle, owner, parents);
+        else
+            vertexOwner[vertex] = triangle;
+    }
+
+    private static int FindRoot(int value, int[] parents)
+    {
+        while (parents[value] != value)
         {
-            name = "Bigfoot Repaintable Grille Backing"
-        };
-        SetBaseTexture(grilleBackingMaterial, Texture2D.whiteTexture);
-        ClearTexture(grilleBackingMaterial, "_NormalMap");
-        ClearTexture(grilleBackingMaterial, "_BumpMap");
-        ClearTexture(grilleBackingMaterial, "normalTexture");
-        ClearTexture(grilleBackingMaterial, "_MaskMap");
-        ClearTexture(grilleBackingMaterial, "_MetallicGlossMap");
-        ClearTexture(grilleBackingMaterial, "_OcclusionMap");
-        ClearTexture(grilleBackingMaterial, "_DetailMap");
-        SetFloat(grilleBackingMaterial, "_Metallic", 0.15f);
-        SetFloat(grilleBackingMaterial, "_Smoothness", 0.40f);
+            parents[value] = parents[parents[value]];
+            value = parents[value];
+        }
+        return value;
+    }
 
-        grilleBackingObject = new GameObject("BigfootMonsterTruck_PaintedGrilleBacking");
-        grilleBackingObject.transform.SetParent(bodyRenderer.transform, false);
-        grilleBackingObject.layer = bodyRenderer.gameObject.layer;
-        grilleBackingObject.AddComponent<MeshFilter>().sharedMesh = grilleBackingMesh;
-        var backingRenderer = grilleBackingObject.AddComponent<MeshRenderer>();
-        backingRenderer.sharedMaterial = grilleBackingMaterial;
-        backingRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        backingRenderer.receiveShadows = false;
-        return triangles.Count / 3;
+    private static void Union(int left, int right, int[] parents)
+    {
+        var leftRoot = FindRoot(left, parents);
+        var rightRoot = FindRoot(right, parents);
+        if (leftRoot != rightRoot)
+            parents[rightRoot] = leftRoot;
     }
 
     private static Color GetContrastingFlameColor(Color tint)
@@ -615,20 +631,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         SetColor(pillarMaterial, "baseColorFactor", color);
     }
 
-    private void SetGrilleBackingColor(Color tint)
-    {
-        if (grilleBackingMaterial == null)
-            return;
-        var color = new Color(
-            Mathf.Max(0.025f, tint.r),
-            Mathf.Max(0.025f, tint.g),
-            Mathf.Max(0.025f, tint.b),
-            1f);
-        SetColor(grilleBackingMaterial, "_BaseColor", color);
-        SetColor(grilleBackingMaterial, "_Color", color);
-        SetColor(grilleBackingMaterial, "baseColorFactor", color);
-    }
-
     private static Texture? GetBaseTexture(Material material)
     {
         foreach (var property in new[] { "_BaseColorMap", "_MainTex", "baseColorTexture" })
@@ -656,12 +658,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             material.SetFloat(property, value);
     }
 
-    private static void ClearTexture(Material material, string property)
-    {
-        if (material.HasProperty(property))
-            material.SetTexture(property, null);
-    }
-
     private static bool ColorsMatch(Color left, Color right) =>
         Mathf.Abs(left.r - right.r) < 0.002f &&
         Mathf.Abs(left.g - right.g) < 0.002f &&
@@ -672,7 +668,13 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (bodyRenderer != null && originalMaterial != null && paintMaterial != null)
+        if (bodyFilter != null && originalBodyMesh != null)
+            bodyFilter.sharedMesh = originalBodyMesh;
+        if (bodyRenderer != null && originalBodyMaterials != null)
+        {
+            bodyRenderer.sharedMaterials = originalBodyMaterials;
+        }
+        else if (bodyRenderer != null && originalMaterial != null && paintMaterial != null)
         {
             var materials = bodyRenderer.sharedMaterials;
             for (var index = 0; index < materials.Length; index++)
@@ -693,6 +695,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             Destroy(paintMaterial);
         if (paintWindowMaterial != null)
             Destroy(paintWindowMaterial);
+        if (paintedBodyMesh != null)
+            Destroy(paintedBodyMesh);
         if (structureFilter != null && originalStructureMesh != null)
             structureFilter.sharedMesh = originalStructureMesh;
         if (structureRenderer != null && originalStructureMaterials != null)
@@ -701,16 +705,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             Destroy(paintedStructureMesh);
         if (pillarMaterial != null)
             Destroy(pillarMaterial);
-        if (factoryBadgeObject != null)
-            Destroy(factoryBadgeObject);
-        if (factoryBadgeMesh != null)
-            Destroy(factoryBadgeMesh);
-        if (grilleBackingObject != null)
-            Destroy(grilleBackingObject);
-        if (grilleBackingMesh != null)
-            Destroy(grilleBackingMesh);
-        if (grilleBackingMaterial != null)
-            Destroy(grilleBackingMaterial);
         paintedTexture = null;
         paintedWindowTexture = null;
         paintMaterial = null;
@@ -719,16 +713,15 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         sourceTexture = null;
         sourcePixels = null;
         bodyRenderer = null;
+        bodyFilter = null;
+        originalBodyMesh = null;
+        paintedBodyMesh = null;
+        originalBodyMaterials = null;
         structureRenderer = null;
         structureFilter = null;
         originalStructureMesh = null;
         paintedStructureMesh = null;
         originalStructureMaterials = null;
         pillarMaterial = null;
-        factoryBadgeObject = null;
-        factoryBadgeMesh = null;
-        grilleBackingObject = null;
-        grilleBackingMesh = null;
-        grilleBackingMaterial = null;
     }
 }
