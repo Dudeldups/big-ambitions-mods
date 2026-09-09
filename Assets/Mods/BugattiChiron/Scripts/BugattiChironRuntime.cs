@@ -276,10 +276,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (driverController == null)
                 driverController = vehicle.gameObject.AddComponent<BugattiChironDriverController>();
             driverController.Initialize(vehicle, context);
-            var caliperController = vehicle.GetComponent<BugattiChironCaliperController>();
-            if (caliperController == null)
-                caliperController = vehicle.gameObject.AddComponent<BugattiChironCaliperController>();
-            caliperController.Initialize(vehicle, context);
             var paintController = vehicle.GetComponent<BugattiChironPaintController>();
             if (paintController == null)
                 paintController = vehicle.gameObject.AddComponent<BugattiChironPaintController>();
@@ -288,6 +284,20 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (audioController == null)
                 audioController = vehicle.gameObject.AddComponent<BugattiChironAudioController>();
             audioController.Initialize(vehicle, context);
+            try
+            {
+                var caliperController = vehicle.GetComponent<BugattiChironCaliperController>();
+                if (caliperController == null)
+                    caliperController = vehicle.gameObject.AddComponent<BugattiChironCaliperController>();
+                caliperController.Initialize(vehicle, context);
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: steering caliper configuration failed instance={instanceId}; " +
+                    $"remaining vehicle systems stay active: {exception.GetType().Name}: " +
+                    exception.Message);
+            }
             var launchDiagnostics = vehicle.GetComponent<BugattiChironLaunchDiagnostics>();
             if (launchDiagnostics == null)
                 launchDiagnostics = vehicle.gameObject.AddComponent<BugattiChironLaunchDiagnostics>();

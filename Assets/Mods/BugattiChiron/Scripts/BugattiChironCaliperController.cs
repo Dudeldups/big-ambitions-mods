@@ -27,6 +27,16 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
         bindings.Clear();
         warnedAboutInvalidSteering = false;
 
+        var availableCalipers = new List<Transform>(4);
+        foreach (var candidate in controller.GetComponentsInChildren<Transform>(true))
+        {
+            if (candidate.name.IndexOf("_Caliper_", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                candidate.GetComponent<Renderer>() != null)
+            {
+                availableCalipers.Add(candidate);
+            }
+        }
+
         for (var index = 0; index < BindingNames.GetLength(0); index++)
         {
             var pivotName = BindingNames[index, 0];
@@ -37,9 +47,11 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
             var pivot = FindTransform(controller.transform, pivotName);
             if (pivot == null)
             {
-                var caliper = FindTransformWithNameFragment(wheel, "_Caliper_") ??
+                var caliper = FindClosestCaliper(wheel, availableCalipers) ??
                               throw new InvalidOperationException(
-                                  $"Wheel visual '{wheelName}' has no brake caliper renderer.");
+                                  $"No unassigned brake caliper renderer was found for '{wheelName}' " +
+                                  $"(candidates={availableCalipers.Count}).");
+                availableCalipers.Remove(caliper);
                 var pivotObject = new GameObject(pivotName);
                 pivot = pivotObject.transform;
                 pivot.SetParent(controller.transform, false);
@@ -127,14 +139,22 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
         return null;
     }
 
-    private static Transform? FindTransformWithNameFragment(Transform root, string fragment)
+    private static Transform? FindClosestCaliper(
+        Transform wheel,
+        IReadOnlyList<Transform> candidates)
     {
-        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        Transform? closest = null;
+        var closestDistance = float.PositiveInfinity;
+        foreach (var candidate in candidates)
         {
-            if (child.name.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
-                return child;
+            var distance = (candidate.position - wheel.position).sqrMagnitude;
+            if (distance >= closestDistance)
+                continue;
+
+            closest = candidate;
+            closestDistance = distance;
         }
-        return null;
+        return closest;
     }
 
     private sealed class CaliperBinding
