@@ -912,15 +912,11 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
     private void EnsureVisible(string source)
     {
         var restored = 0;
-        var activeRenderers = 0;
         var propertyBlocksCleared = 0;
-        var materialStates = new List<string>();
         foreach (var renderer in cabinGlass)
         {
             if (renderer == null)
                 continue;
-            if (renderer.gameObject.activeInHierarchy)
-                activeRenderers++;
             if (!renderer.enabled || renderer.forceRenderingOff)
                 restored++;
             renderer.enabled = true;
@@ -939,30 +935,22 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
                 {
                     renderer.SetPropertyBlock(null, index);
                     LamborghiniRevueltoMaterials.RestoreCabinGlassMaterial(material);
-                    materialStates.Add(DescribeMaterial(renderer, material));
                 }
             }
         }
-        context?.Logger.Info(
-            $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: source='{source}' " +
-            $"renderers={cabinGlass.Count}, active={activeRenderers}, " +
-            $"runtimeMaterials={runtimeMaterials.Count}, restored={restored}, " +
-            $"propertyBlocksCleared={propertyBlocksCleared}, " +
-            $"states=[{string.Join("; ", materialStates)}], deferredPolling=false.");
-    }
-
-    private static string DescribeMaterial(Renderer renderer, Material material)
-    {
-        var color = material.HasProperty("_BaseColor")
-            ? material.GetColor("_BaseColor")
-            : material.HasProperty("baseColorFactor")
-                ? material.GetColor("baseColorFactor")
-                : Color.clear;
-        var size = renderer.bounds.size;
-        return $"{renderer.name}:shader='{material.shader?.name ?? "missing"}' " +
-               $"supported={material.shader?.isSupported ?? false} queue={material.renderQueue} " +
-               $"rgba=({color.r:0.00},{color.g:0.00},{color.b:0.00},{color.a:0.00}) " +
-               $"bounds=({size.x:0.00},{size.y:0.00},{size.z:0.00})";
+        if (string.Equals(source, "initialize", StringComparison.Ordinal))
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: configured " +
+                $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
+                "shader=HDRP/Lit, deferredPolling=false.");
+        }
+        else if (restored > 0 || propertyBlocksCleared > 0)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: repaired after " +
+                $"'{source}' renderers={restored}, propertyBlocks={propertyBlocksCleared}.");
+        }
     }
 
     private void OnDestroy()
