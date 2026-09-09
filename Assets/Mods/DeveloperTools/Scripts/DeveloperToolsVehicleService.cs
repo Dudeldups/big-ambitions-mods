@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using BAModAPI;
 using BigAmbitions.SaveSystem.Legacy;
 using Helpers;
@@ -14,6 +15,9 @@ namespace DeveloperTools
     internal sealed class DeveloperToolsVehicleService
     {
         private const float SpawnDistance = 7f;
+        private static readonly MethodInfo? StopEngineMethod = typeof(CarController).GetMethod(
+            "StopEngine",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly List<CatalogEntry> vanillaEntries = new List<CatalogEntry>();
         private readonly List<CatalogEntry> moddedEntries = new List<CatalogEntry>();
         private readonly ModContext context;
@@ -75,6 +79,7 @@ namespace DeveloperTools
 
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
                 NotifyModVehicleCreated(controller, vehicleTypeName);
+                NormalizeParkedMotorVehicle(controller, vehicleTypeName);
                 lastSpawnedVehicleId = instance.id;
                 message = "Spawned " + Localize(vehicleTypeName) + ".";
                 return true;
@@ -137,6 +142,28 @@ namespace DeveloperTools
                         "DeveloperTools: an external vehicle initializer failed for type=" +
                         vehicleTypeName + ": " + exception.GetBaseException().Message);
                 }
+            }
+        }
+
+        private void NormalizeParkedMotorVehicle(VehicleController controller, string vehicleTypeName)
+        {
+            if (controller is not CarController carController || StopEngineMethod == null)
+                return;
+
+            try
+            {
+                // A freshly spawned parked car must begin stopped. Some modded
+                // prefabs serialize their engine as already running, causing the
+                // first StartEngine call to be ignored with RPM stuck at zero.
+                // Use the same transition as a normal vehicle exit so the first
+                // real entry performs a complete engine start.
+                StopEngineMethod.Invoke(carController, null);
+            }
+            catch (Exception exception)
+            {
+                context.Logger.Warn(
+                    "DeveloperTools: could not normalize the parked engine for type=" +
+                    vehicleTypeName + ": " + exception.GetBaseException().Message);
             }
         }
 
