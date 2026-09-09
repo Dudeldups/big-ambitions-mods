@@ -60,7 +60,8 @@ namespace DeveloperTools
                 var instance = new VehicleInstance(vehicleTypeName)
                 {
                     id = Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
-                    fuel = vehicleType.maxFuel * 0.98f
+                    fuel = vehicleType.maxFuel * 0.98f,
+                    vehicleColorName = GetDefaultVehicleColorName()
                 };
                 var controller = VehicleHelper.CreateAndSpawnVehicle(instance, position, rotation);
                 if (controller == null)
@@ -117,6 +118,19 @@ namespace DeveloperTools
             {
                 return id;
             }
+        }
+
+        private static string GetDefaultVehicleColorName()
+        {
+            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors;
+            if (colors == null)
+                return string.Empty;
+
+            foreach (var color in colors)
+                if (color != null && !string.IsNullOrEmpty(color.name))
+                    return color.name;
+
+            return string.Empty;
         }
 
         private static bool IsModdedVehicleType(string id)
