@@ -42,6 +42,9 @@ namespace MootorVehicle
                 return Task.CompletedTask;
             }
 
+            vehicleType.maxSpeed = Mathf.RoundToInt(MootorVehicleFuelController.RegularSpeedLimit);
+            vehicleType.enginePower = MootorVehicleFuelController.RegularEnginePower;
+
             ModdingAPI.RegisterModVehicleType(vehicleType);
             runtime = MootorVehicleRuntime.Initialize(context, vehicleType.vehicleTypeName);
             context.Logger.Info(
@@ -68,14 +71,22 @@ namespace MootorVehicle
     internal static class MootorVehicleDealerStock
     {
         private const string TargetBusinessTypeName = "ba:businesstype_cardealership";
-        private const string TargetBuildingSize = "ba:buildingsize_m";
-        private const int TargetBuildingVersion = 1;
-        private const string TargetLayoutName = "MurrayHillCarDealershipLuxury";
+        private const string TargetBuildingSize = "ba:buildingsize_d";
+        private const int TargetBuildingVersion = 2;
+        private const string TargetLayoutName = "GarmentDistrictCarDealershipCheap";
         private const string TargetLayoutKey =
-            "ba:businesstype_cardealership|ba:buildingsize_m|1|murrayhillcardealershipluxury";
+            "ba:businesstype_cardealership|ba:buildingsize_d|2|garmentdistrictcardealershipcheap";
+        private const string TargetDealerContactId = "City Cars";
 
-        private static readonly string[] DealerContactIds =
+        private static readonly string[] LegacyLuxuryDealerContactIds =
         {
+            "The Hamptons Axis",
+            "Manhattan Luxury Cars"
+        };
+
+        private static readonly string[] ManagedDealerContactIds =
+        {
+            TargetDealerContactId,
             "The Hamptons Axis",
             "Manhattan Luxury Cars"
         };
@@ -85,11 +96,7 @@ namespace MootorVehicle
             if (string.IsNullOrEmpty(contactId))
                 return false;
 
-            foreach (var dealerContactId in DealerContactIds)
-                if (string.Equals(dealerContactId, contactId, StringComparison.Ordinal))
-                    return true;
-
-            return false;
+            return string.Equals(TargetDealerContactId, contactId, StringComparison.Ordinal);
         }
 
         internal static bool EnsureVehicleAvailable(string vehicleName, ModContext? context)
@@ -97,15 +104,14 @@ namespace MootorVehicle
             if (string.IsNullOrWhiteSpace(vehicleName))
                 return false;
 
-            var vanillaStock = GetLuxuryDealerLayoutVehicles();
+            foreach (var legacyDealerContactId in LegacyLuxuryDealerContactIds)
+                RemoveVehicleFromDealer(legacyDealerContactId, vehicleName, context);
+
+            var vanillaStock = GetCityCarsLayoutVehicles();
             if (vanillaStock.Count == 0)
                 return false;
 
-            var allDealersReady = true;
-            foreach (var dealerContactId in DealerContactIds)
-                allDealersReady &= EnsureDealerStock(dealerContactId, vanillaStock, vehicleName, context);
-
-            return allDealersReady;
+            return EnsureDealerStock(TargetDealerContactId, vanillaStock, vehicleName, context);
         }
 
         internal static void RemoveVehicle(string vehicleName)
@@ -113,14 +119,23 @@ namespace MootorVehicle
             if (string.IsNullOrWhiteSpace(vehicleName))
                 return;
 
-            foreach (var dealerContactId in DealerContactIds)
+            foreach (var dealerContactId in ManagedDealerContactIds)
+                RemoveVehicleFromDealer(dealerContactId, vehicleName, null);
+        }
+
+        private static void RemoveVehicleFromDealer(
+            string dealerContactId,
+            string vehicleName,
+            ModContext? context)
+        {
+            try
             {
                 if (!ContractItemsForSaleService.TryGetVehiclesForContact(
                         dealerContactId,
                         out List<string> existingStock) ||
                     existingStock == null)
                 {
-                    continue;
+                    return;
                 }
 
                 var remainingStock = new List<string>();
@@ -129,12 +144,21 @@ namespace MootorVehicle
                         AddUnique(remainingStock, existingVehicle);
 
                 if (remainingStock.Count == existingStock.Count)
-                    continue;
+                    return;
 
                 if (remainingStock.Count == 0)
                     ContractItemsForSaleService.RemoveContact(dealerContactId);
                 else
                     ContractItemsForSaleService.SetVehiclesForContact(dealerContactId, remainingStock);
+
+                context?.Logger.Info(
+                    $"Moo-tor Vehicle: removed '{vehicleName}' from dealer '{dealerContactId}'.");
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    $"Moo-tor Vehicle: could not remove '{vehicleName}' from dealer '{dealerContactId}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
             }
         }
 
@@ -174,13 +198,13 @@ namespace MootorVehicle
             }
         }
 
-        private static List<string> GetLuxuryDealerLayoutVehicles()
+        private static List<string> GetCityCarsLayoutVehicles()
         {
             var stock = new List<string>();
 
             try
             {
-                var layoutSet = TryGetLuxuryDealerLayoutSet();
+                var layoutSet = TryGetCityCarsLayoutSet();
                 if (layoutSet?.Items == null)
                     return stock;
 
@@ -209,7 +233,7 @@ namespace MootorVehicle
             return stock;
         }
 
-        private static BusinessLayoutSet? TryGetLuxuryDealerLayoutSet()
+        private static BusinessLayoutSet? TryGetCityCarsLayoutSet()
         {
             var layoutSets = BusinessLayoutSetHelper.GetAllBusinessLayoutSets();
             if (layoutSets != null && layoutSets.TryGetValue(TargetLayoutKey, out var layoutSet))
