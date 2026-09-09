@@ -1,3 +1,4 @@
 - Prevented vehicles from moving while the repaint picker is open.
 - Repainting now cancels safely if the vehicle leaves the service bay.
-- Added eight additional paint colors with save persistence.
+- Exiting the serviced vehicle now closes and cancels the repaint picker.
+- Added four additional paint colors with save persistence.

@@ -65,11 +65,7 @@ namespace VehicleRepainter
         {
             new CustomColorDefinition("VehicleRepainter_Orange", new Color32(255, 106, 0, 255), new Color32(255, 175, 85, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
-            new CustomColorDefinition("VehicleRepainter_Copper", new Color32(166, 79, 45, 255), new Color32(235, 145, 95, 255), 2f),
-            new CustomColorDefinition("VehicleRepainter_Brown", new Color32(83, 43, 27, 255), new Color32(160, 95, 60, 255), 2f),
-            new CustomColorDefinition("VehicleRepainter_Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Turquoise", new Color32(0, 157, 154, 255), new Color32(80, 240, 230, 255), 1f),
-            new CustomColorDefinition("VehicleRepainter_Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f)
         };
 
@@ -333,6 +329,7 @@ namespace VehicleRepainter
                     return;
 
                 stationTrigger.onExited += HandleStationExited;
+                GlobalEvents.onExitVehicle += HandleVehicleExited;
                 vehicle.SetFreeze(true);
                 movementLocked = true;
             }
@@ -368,6 +365,7 @@ namespace VehicleRepainter
 
                 closed = true;
                 stationTrigger.onExited -= HandleStationExited;
+                GlobalEvents.onExitVehicle -= HandleVehicleExited;
 
                 if (!purchaseCompleted && vehicle != null && vehicle.CarFeatures != null)
                     originalPaint.Restore(vehicle.CarFeatures);
@@ -444,6 +442,19 @@ namespace VehicleRepainter
                 if (closed || !ReferenceEquals(exitedStation, stationTrigger))
                     return;
 
+                CancelSession();
+            }
+
+            private void HandleVehicleExited(VehicleController exitedVehicle)
+            {
+                if (closed || !ReferenceEquals(exitedVehicle, vehicle))
+                    return;
+
+                CancelSession();
+            }
+
+            private void CancelSession()
+            {
                 var purchaseUi = InstanceBehavior<UIs>.Instance?.playerHUD?.purchaseVehicleUI;
                 if (purchaseUi != null && PurchaseVehicleUI.IsPanelOpen)
                     purchaseUi.Close();
