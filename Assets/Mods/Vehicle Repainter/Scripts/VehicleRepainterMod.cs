@@ -162,7 +162,6 @@ namespace VehicleRepainter
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
         private RepaintPurchasableAsset? activeRepaintAsset;
-        private GlobalReferences? registeredGlobalReferences;
         private Coroutine? pendingRepairOverlayRefresh;
 
         internal VehicleRepainterRuntime(ModContext context)
@@ -186,7 +185,7 @@ namespace VehicleRepainter
                 return;
             }
 
-            if (!RegisterCustomVehicleColors())
+            if (!InitializeCustomVehicleColors())
                 return;
 
             overlayUi = uis.overlayUI;
@@ -214,7 +213,7 @@ namespace VehicleRepainter
             overlayUi = null;
             originalGasStationOverlay = null;
             extendedGasStationOverlay = null;
-            UnregisterCustomVehicleColors();
+            ReleaseCustomVehicleColors();
         }
 
         private void ObserveStationTriggers()
@@ -319,7 +318,12 @@ namespace VehicleRepainter
                 return;
             }
 
-            var repaintAsset = new RepaintPurchasableAsset(context, vehicle, stationTrigger, HandleRepaintUiClosed);
+            var repaintAsset = new RepaintPurchasableAsset(
+                this,
+                context,
+                vehicle,
+                stationTrigger,
+                HandleRepaintUiClosed);
             activeRepaintAsset = repaintAsset;
             GasStationOverlay.Hide(stationTrigger);
             purchaseUi.SetAsset(repaintAsset);
@@ -343,7 +347,7 @@ namespace VehicleRepainter
                 activeRepaintAsset = null;
         }
 
-        private bool RegisterCustomVehicleColors()
+        private bool InitializeCustomVehicleColors()
         {
             var globalReferences = InstanceBehavior<GlobalReferences>.Instance;
             if (globalReferences == null || globalReferences.vehicleColors == null)
@@ -352,10 +356,10 @@ namespace VehicleRepainter
                 return false;
             }
 
-            var colors = globalReferences.vehicleColors.Where(color => color != null).ToList();
+            var registeredColors = globalReferences.vehicleColors.Where(color => color != null).ToList();
             foreach (var definition in AdditionalColors)
             {
-                var color = colors.FirstOrDefault(existing =>
+                var color = registeredColors.FirstOrDefault(existing =>
                     string.Equals(((UnityEngine.Object)existing).name, definition.Name, StringComparison.Ordinal));
                 if (color == null)
                 {
@@ -366,44 +370,85 @@ namespace VehicleRepainter
                     color.fresnelPower = definition.FresnelPower;
                     color.randomWeight = 0f;
                     color.hideFlags = HideFlags.HideAndDontSave;
-                    colors.Add(color);
-                    ownedCustomVehicleColors.Add(color);
                 }
 
                 customVehicleColors[definition.Name] = color;
+                ownedCustomVehicleColors.Add(color);
             }
 
-            globalReferences.vehicleColors = colors.ToArray();
-            registeredGlobalReferences = globalReferences;
-            RestoreSavedCustomVehicleColors();
+            // Older versions registered these colors globally, which caused vanilla dealers to
+            // display the repaint-only palette. Remove any stale entries while keeping the assets
+            // alive in this runtime-owned collection for previews and saved-vehicle restoration.
+            var dealerColors = registeredColors
+                .Where(color => !customVehicleColors.ContainsKey(((UnityEngine.Object)color).name))
+                .ToArray();
+            if (dealerColors.Length != registeredColors.Count)
+                globalReferences.vehicleColors = dealerColors;
+
+            var restoredVehicleCount = RestoreSavedCustomVehicleColors();
+            GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+            GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+            context.Logger.Info(
+                $"Scoped {customVehicleColors.Count} repaint colors outside the global dealer palette; " +
+                $"the global registry contains {globalReferences.vehicleColors.Length} colors and " +
+                $"{restoredVehicleCount} saved custom paint job(s) were restored.");
             return true;
         }
 
-        private void RestoreSavedCustomVehicleColors()
+        internal List<VehicleColor> GetRepaintColors()
         {
-            foreach (var vehicle in VehicleHelper.AllPlayerVehicles.ToArray())
-            {
-                if (vehicle == null || vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
-                    !customVehicleColors.TryGetValue(vehicle.vehicleInstance.vehicleColorName, out var color))
-                {
-                    continue;
-                }
+            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors?
+                .Where(color => color != null &&
+                                !customVehicleColors.ContainsKey(((UnityEngine.Object)color).name))
+                .ToList() ?? new List<VehicleColor>();
 
-                vehicle.CarFeatures.SetColor(color);
+            foreach (var definition in AdditionalColors)
+            {
+                if (customVehicleColors.TryGetValue(definition.Name, out var color))
+                    colors.Add(color);
             }
+
+            return colors;
         }
 
-        private void UnregisterCustomVehicleColors()
+        internal bool TryResolveVehicleColor(string colorName, out VehicleColor vehicleColor)
         {
-            if (registeredGlobalReferences != null && registeredGlobalReferences.vehicleColors != null &&
-                ownedCustomVehicleColors.Count > 0)
+            return customVehicleColors.TryGetValue(colorName, out vehicleColor) ||
+                   VehicleHelper.TryGetVehicleColor(colorName, out vehicleColor);
+        }
+
+        private int RestoreSavedCustomVehicleColors()
+        {
+            var restoredVehicleCount = 0;
+            foreach (var vehicle in VehicleHelper.AllPlayerVehicles.ToArray())
             {
-                var ownedColors = new HashSet<VehicleColor>(ownedCustomVehicleColors);
-                registeredGlobalReferences.vehicleColors = registeredGlobalReferences.vehicleColors
-                    .Where(color => color != null && !ownedColors.Contains(color))
-                    .ToArray();
+                if (RestoreSavedCustomVehicleColor(vehicle))
+                    restoredVehicleCount++;
             }
 
+            return restoredVehicleCount;
+        }
+
+        private bool RestoreSavedCustomVehicleColor(VehicleController? vehicle)
+        {
+            if (vehicle == null || vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
+                !customVehicleColors.TryGetValue(vehicle.vehicleInstance.vehicleColorName, out var color))
+            {
+                return false;
+            }
+
+            vehicle.CarFeatures.SetColor(color);
+            return true;
+        }
+
+        private void HandleVehicleEntered(VehicleController vehicle)
+        {
+            RestoreSavedCustomVehicleColor(vehicle);
+        }
+
+        private void ReleaseCustomVehicleColors()
+        {
+            GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
             foreach (var color in ownedCustomVehicleColors)
             {
                 if (color != null)
@@ -412,7 +457,6 @@ namespace VehicleRepainter
 
             customVehicleColors.Clear();
             ownedCustomVehicleColors.Clear();
-            registeredGlobalReferences = null;
         }
 
         private sealed class ExtendedGasStationOverlay : GasStationOverlay, IOverlay
@@ -453,6 +497,7 @@ namespace VehicleRepainter
 
         private sealed class RepaintPurchasableAsset : IPurchasableAsset
         {
+            private readonly VehicleRepainterRuntime runtime;
             private readonly ModContext context;
             private readonly VehicleController vehicle;
             private readonly GasStationTrigger stationTrigger;
@@ -469,11 +514,13 @@ namespace VehicleRepainter
             private bool colorGridBackgroundWasEnabled;
 
             internal RepaintPurchasableAsset(
+                VehicleRepainterRuntime runtime,
                 ModContext context,
                 VehicleController vehicle,
                 GasStationTrigger stationTrigger,
                 Action<RepaintPurchasableAsset> onClosed)
             {
+                this.runtime = runtime;
                 this.context = context;
                 this.vehicle = vehicle;
                 this.stationTrigger = stationTrigger;
@@ -556,9 +603,7 @@ namespace VehicleRepainter
 
             public List<(string, Color32)> GetColors()
             {
-                var colors = InstanceBehavior<GlobalReferences>.Instance.vehicleColors;
-                return colors
-                    .Where(color => color != null)
+                return runtime.GetRepaintColors()
                     .Select((color, index) => new SortableVehicleColor(color, index))
                     .OrderBy(color => color.Group)
                     .ThenBy(color => color.Hue)
@@ -571,7 +616,7 @@ namespace VehicleRepainter
 
             public void SetColor(string colorName, bool updateVisuals = true)
             {
-                if (!VehicleHelper.TryGetVehicleColor(colorName, out var vehicleColor))
+                if (!runtime.TryResolveVehicleColor(colorName, out var vehicleColor))
                     return;
 
                 selectedColorName = colorName;
@@ -816,10 +861,10 @@ namespace VehicleRepainter
                 }
             }
 
-            private static string ResolveInitialColorName(VehicleController vehicle)
+            private string ResolveInitialColorName(VehicleController vehicle)
             {
                 if (!string.IsNullOrEmpty(vehicle.vehicleInstance.vehicleColorName) &&
-                    VehicleHelper.TryGetVehicleColor(vehicle.vehicleInstance.vehicleColorName, out _))
+                    runtime.TryResolveVehicleColor(vehicle.vehicleInstance.vehicleColorName, out _))
                 {
                     return vehicle.vehicleInstance.vehicleColorName;
                 }
@@ -828,8 +873,8 @@ namespace VehicleRepainter
                 if (liveColor != null)
                     return ((UnityEngine.Object)liveColor).name;
 
-                VehicleColor[] colors = InstanceBehavior<GlobalReferences>.Instance.vehicleColors;
-                return colors.Length > 0 ? ((UnityEngine.Object)colors[0]).name : string.Empty;
+                var colors = runtime.GetRepaintColors();
+                return colors.Count > 0 ? ((UnityEngine.Object)colors[0]).name : string.Empty;
             }
 
             private sealed class VehiclePaintSnapshot
