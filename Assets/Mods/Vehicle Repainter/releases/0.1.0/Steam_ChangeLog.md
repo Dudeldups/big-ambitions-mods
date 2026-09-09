@@ -1,5 +1,6 @@
 - Prevented vehicles from moving while the repaint picker is open.
 - Repainting now cancels safely if the vehicle leaves the service bay.
 - Exiting the serviced vehicle now closes and cancels the repaint picker.
-- Added sixteen additional paint colors with save persistence.
-- Reworked the repaint palette into a compact six-column grid sorted by shade.
+- Added twenty-eight additional paint colors with save persistence.
+- Reworked the repaint palette into a compact seven-column grid sorted by shade.
+- Removed the vanilla color-grid background from the repaint view.

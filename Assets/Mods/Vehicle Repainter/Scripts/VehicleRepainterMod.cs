@@ -69,18 +69,30 @@ namespace VehicleRepainter
         {
             new CustomColorDefinition("VehicleRepainter_Charcoal", new Color32(43, 47, 54, 255), new Color32(105, 112, 125, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_White", new Color32(238, 238, 232, 255), new Color32(255, 255, 255, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Ivory", new Color32(245, 235, 210, 255), new Color32(255, 250, 225, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Slate", new Color32(80, 95, 110, 255), new Color32(150, 170, 190, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_DeepRed", new Color32(120, 0, 0, 255), new Color32(205, 55, 45, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Burgundy", new Color32(105, 16, 38, 255), new Color32(185, 65, 90, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Scarlet", new Color32(220, 30, 20, 255), new Color32(255, 105, 80, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Coral", new Color32(238, 83, 74, 255), new Color32(255, 160, 140, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Peach", new Color32(255, 160, 105, 255), new Color32(255, 215, 175, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Orange", new Color32(255, 106, 0, 255), new Color32(255, 175, 85, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Copper", new Color32(166, 79, 45, 255), new Color32(235, 145, 95, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Brown", new Color32(83, 43, 27, 255), new Color32(160, 95, 60, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Amber", new Color32(255, 170, 0, 255), new Color32(255, 225, 95, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Olive", new Color32(110, 110, 20, 255), new Color32(190, 190, 75, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Emerald", new Color32(0, 120, 72, 255), new Color32(70, 220, 145, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Mint", new Color32(85, 210, 150, 255), new Color32(160, 255, 210, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Turquoise", new Color32(0, 157, 154, 255), new Color32(80, 240, 230, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Teal", new Color32(0, 105, 110, 255), new Color32(65, 195, 195, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_SkyBlue", new Color32(85, 180, 240, 255), new Color32(165, 225, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Azure", new Color32(0, 112, 221, 255), new Color32(90, 185, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Indigo", new Color32(55, 45, 145, 255), new Color32(120, 105, 225, 255), 2f),
             new CustomColorDefinition("VehicleRepainter_Violet", new Color32(105, 66, 180, 255), new Color32(175, 135, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Lavender", new Color32(170, 125, 215, 255), new Color32(225, 190, 255, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f),
             new CustomColorDefinition("VehicleRepainter_Rose", new Color32(230, 70, 125, 255), new Color32(255, 150, 190, 255), 1f)
         };
@@ -327,6 +339,8 @@ namespace VehicleRepainter
             private bool purchaseCompleted;
             private GridLayoutGroup? colorGridLayout;
             private ColorGridLayoutSnapshot? originalColorGridLayout;
+            private Image? colorGridBackground;
+            private bool colorGridBackgroundWasEnabled;
 
             internal RepaintPurchasableAsset(
                 ModContext context,
@@ -364,11 +378,18 @@ namespace VehicleRepainter
 
                 colorGridLayout = gridLayout;
                 originalColorGridLayout = new ColorGridLayoutSnapshot(gridLayout);
+                colorGridBackground = gridLayout.GetComponent<Image>();
+                if (colorGridBackground != null)
+                {
+                    colorGridBackgroundWasEnabled = colorGridBackground.enabled;
+                    colorGridBackground.enabled = false;
+                }
+
                 gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-                gridLayout.constraintCount = 6;
-                gridLayout.cellSize = new Vector2(62f, 62f);
-                gridLayout.spacing = new Vector2(8f, 8f);
-                gridLayout.padding = new RectOffset(30, 30, 20, 20);
+                gridLayout.constraintCount = 7;
+                gridLayout.cellSize = new Vector2(50f, 50f);
+                gridLayout.spacing = new Vector2(7f, 7f);
+                gridLayout.padding = new RectOffset(22, 22, 16, 16);
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)gridLayout.transform);
             }
 
@@ -529,9 +550,13 @@ namespace VehicleRepainter
                     return;
 
                 originalColorGridLayout.Restore(colorGridLayout);
+                if (colorGridBackground != null)
+                    colorGridBackground.enabled = colorGridBackgroundWasEnabled;
+
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)colorGridLayout.transform);
                 colorGridLayout = null;
                 originalColorGridLayout = null;
+                colorGridBackground = null;
             }
 
             private readonly struct SortableVehicleColor
