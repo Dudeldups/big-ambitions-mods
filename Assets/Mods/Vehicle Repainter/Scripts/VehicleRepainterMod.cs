@@ -385,13 +385,9 @@ namespace VehicleRepainter
             if (dealerColors.Length != registeredColors.Count)
                 globalReferences.vehicleColors = dealerColors;
 
-            var restoredVehicleCount = RestoreSavedCustomVehicleColors();
+            RestoreSavedCustomVehicleColors();
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
             GlobalEvents.onEnterVehicle += HandleVehicleEntered;
-            context.Logger.Info(
-                $"Scoped {customVehicleColors.Count} repaint colors outside the global dealer palette; " +
-                $"the global registry contains {globalReferences.vehicleColors.Length} colors and " +
-                $"{restoredVehicleCount} saved custom paint job(s) were restored.");
             return true;
         }
 
