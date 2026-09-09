@@ -150,7 +150,6 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
         driverRoot.transform.localPosition = Vector3.zero;
 
         var rendererCount = 0;
-        var suppressedCount = 0;
         var lowerDetailRenderers = GetLowerDetailRenderers(appearance.transform);
         foreach (var source in appearance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
@@ -161,7 +160,6 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
             if (source.forceRenderingOff || source.shadowCastingMode == ShadowCastingMode.ShadowsOnly ||
                 lowerDetailRenderers.Contains(source))
             {
-                suppressedCount++;
                 continue;
             }
             CopyRenderer(source, transforms);
@@ -201,9 +199,6 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
             HumanBodyBones.RightFoot, "right leg");
         AlignHandsWithWheel();
         RaiseFeetAndKnees();
-        LogInfo($"created from current player appearance; renderers={rendererCount} " +
-                $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
-                $"transforms={transforms.Count} clip='{sittingClip.name}'.");
     }
 
     private void AlignWithSeat()
@@ -439,9 +434,6 @@ internal sealed class BugattiChironDriverController : MonoBehaviour
         destination.shadowCastingMode = ShadowCastingMode.Off;
         destination.receiveShadows = source.receiveShadows;
     }
-
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"BugattiChiron driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {

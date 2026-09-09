@@ -28,7 +28,6 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
         warnedAboutInvalidSteering = false;
 
         var availableCalipers = new List<Transform>(4);
-        var attachedBrakeDiscs = 0;
         foreach (var candidate in controller.GetComponentsInChildren<Transform>(true))
         {
             if (candidate.name.IndexOf("_Caliper_", StringComparison.OrdinalIgnoreCase) >= 0 &&
@@ -65,10 +64,7 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
                 // it steers and rolls; only the caliper belongs on the
                 // steering-only pivot above.
                 if (brakeDiscRoot != null && brakeDiscRoot != controller.transform)
-                {
                     brakeDiscRoot.SetParent(wheel, true);
-                    attachedBrakeDiscs++;
-                }
             }
 
             CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
@@ -76,11 +72,6 @@ internal sealed class BugattiChironCaliperController : MonoBehaviour
         }
 
         ApplyBindings();
-        context?.Logger.Info(
-            $"BugattiChiron steering calipers ready vehicle={controller.GetInstanceID()}, " +
-            $"bindings={bindings.Count}, brakeDiscsAttached={attachedBrakeDiscs}, " +
-            "calipersFollowSteeringAndSuspension=true, calipersInheritWheelSpin=false, " +
-            "brakeDiscsInheritFullWheelPose=true.");
     }
 
     private void LateUpdate()

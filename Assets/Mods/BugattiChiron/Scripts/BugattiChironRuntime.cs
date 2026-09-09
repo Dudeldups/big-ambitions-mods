@@ -279,13 +279,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
-            var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
-            var materialResult = BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
+            ConfigurePowertrain(vehicle.gameObject);
+            BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
             var glassController = vehicle.GetComponent<BugattiChironGlassController>();
             if (glassController == null)
                 glassController = vehicle.gameObject.AddComponent<BugattiChironGlassController>();
             glassController.Initialize(context);
-            var deformableMeshCount = ConfigureVisualDamage(vehicle);
+            ConfigureVisualDamage(vehicle);
             var lightingController = vehicle.GetComponent<BugattiChironLightingController>();
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<BugattiChironLightingController>();
@@ -316,17 +316,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                     $"remaining vehicle systems stay active: {exception.GetType().Name}: " +
                     exception.Message);
             }
-            var launchDiagnostics = vehicle.GetComponent<BugattiChironLaunchDiagnostics>();
-            if (launchDiagnostics == null)
-                launchDiagnostics = vehicle.gameObject.AddComponent<BugattiChironLaunchDiagnostics>();
-            launchDiagnostics.Initialize(vehicle, context);
-            var damageDiagnostics = vehicle.GetComponent<BugattiChironDamageDiagnostics>();
-            if (damageDiagnostics == null)
-                damageDiagnostics = vehicle.gameObject.AddComponent<BugattiChironDamageDiagnostics>();
-            damageDiagnostics.Initialize(
-                vehicle,
-                context,
-                DamageDecelerationThreshold / 100f);
+            var engineRecovery = vehicle.GetComponent<BugattiChironEngineRecovery>();
+            if (engineRecovery == null)
+                engineRecovery = vehicle.gameObject.AddComponent<BugattiChironEngineRecovery>();
+            engineRecovery.Initialize(vehicle, context);
             var bridgeSeamGuard = vehicle.GetComponent<BugattiChironBridgeSeamGuard>();
             if (bridgeSeamGuard == null)
                 bridgeSeamGuard = vehicle.gameObject.AddComponent<BugattiChironBridgeSeamGuard>();
@@ -335,23 +328,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (pinRecovery == null)
                 pinRecovery = vehicle.gameObject.AddComponent<BugattiChironAiVehiclePinRecovery>();
             pinRecovery.Initialize(vehicle, context);
-
-            context?.Logger.Info(
-                $"BugattiChiron: configured vehicle instance={instanceId}, " +
-                $"mass={VehicleMass:0}kg, transmission=7-speed-DSG, awd=true, " +
-                $"powertrainConfigured={powertrainConfigured}, " +
-                $"linearDrag={VehicleLinearDrag:0.000}, boostMultiplier=" +
-                $"{ForcedInductionPowerMultiplier:0.00}, " +
-                $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
-                $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
-                "shiftWindow=2400..6100rpm, powerCurve=W16-torque-plateau, " +
-                $"deformableBodyMeshes={deformableMeshCount}, " +
-                $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
-                $"materialRenderers={materialResult.RendererCount}, " +
-                $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
-                $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
-                $"transparentFixed={materialResult.TransparentMaterialsFixed}, " +
-                $"hdrpValidated={materialResult.MaterialsValidated}.");
         }
         catch (Exception exception)
         {
@@ -539,13 +515,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             deformableFilters,
             DamageDecelerationThreshold / 100f);
 
-        context?.Logger.Info(
-            $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
-            $"bodyMeshes={deformableFilters.Count} threshold=" +
-            $"{DamageDecelerationThreshold / 100f:0.0}mps radius={DeformationRadius:0.00} " +
-            $"strength={DeformationStrength:0.00} filters=" +
-            $"[{string.Join(", ", deformableFilters.ConvertAll(filter => filter.name))}]; " +
-            "legacy unfiltered deformation disabled.");
         return deformableFilters.Count;
     }
 
@@ -742,16 +711,14 @@ internal sealed class BugattiChironGlassController : MonoBehaviour
     private readonly List<Renderer> cabinGlass = new List<Renderer>();
     private readonly Dictionary<Material, Material> runtimeMaterials =
         new Dictionary<Material, Material>();
-    private ModContext? context;
     private Coroutine? restoreCoroutine;
     private bool initialized;
 
-    internal void Initialize(ModContext? modContext)
+    internal void Initialize(ModContext? _)
     {
-        context = modContext;
         if (initialized)
         {
-            EnsureVisible("reinitialize");
+            EnsureVisible();
             return;
         }
 
@@ -782,7 +749,7 @@ internal sealed class BugattiChironGlassController : MonoBehaviour
         }
 
         initialized = true;
-        EnsureVisible("initialize");
+        EnsureVisible();
     }
 
     internal void RestoreAfterVehicleEntered()
@@ -798,27 +765,20 @@ internal sealed class BugattiChironGlassController : MonoBehaviour
     {
         yield return null;
         yield return new WaitForEndOfFrame();
-        EnsureVisible("vehicle-entered");
+        EnsureVisible();
         restoreCoroutine = null;
     }
 
-    private void EnsureVisible(string source)
+    private void EnsureVisible()
     {
-        var renderersRestored = 0;
-        var propertyBlocksCleared = 0;
         foreach (var renderer in cabinGlass)
         {
             if (renderer == null)
                 continue;
-            if (!renderer.enabled || renderer.forceRenderingOff)
-                renderersRestored++;
             renderer.enabled = true;
             renderer.forceRenderingOff = false;
             if (renderer.HasPropertyBlock())
-            {
                 renderer.SetPropertyBlock(null);
-                propertyBlocksCleared++;
-            }
 
             var materials = renderer.sharedMaterials;
             for (var index = 0; index < materials.Length; index++)
@@ -830,11 +790,6 @@ internal sealed class BugattiChironGlassController : MonoBehaviour
                 BugattiChironMaterials.RestoreCabinGlassMaterial(material);
             }
         }
-
-        context?.Logger.Info(
-            $"BugattiChiron glass vehicle={GetInstanceID()}: source='{source}' " +
-            $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-            $"renderersRestored={renderersRestored}, propertyBlocksCleared={propertyBlocksCleared}.");
     }
 
     private void OnDestroy()
@@ -848,52 +803,6 @@ internal sealed class BugattiChironGlassController : MonoBehaviour
                 Destroy(material);
         }
         runtimeMaterials.Clear();
-    }
-}
-
-[DefaultExecutionOrder(100)]
-internal sealed class BugattiChironDamageDiagnostics : MonoBehaviour
-{
-    private const int MaximumRoadSuppressionLogs = 3;
-    private VehicleController? vehicle;
-    private ModContext? context;
-    private float impactThreshold;
-    private float nextLogTime;
-    private int roadSuppressionLogs;
-
-    internal void Initialize(
-        VehicleController controller,
-        ModContext? modContext,
-        float threshold)
-    {
-        vehicle = controller;
-        context = modContext;
-        impactThreshold = threshold;
-    }
-
-    private void OnCollisionEnter(Collision collision)
-    {
-        if (vehicle == null || collision == null || collision.relativeVelocity.magnitude < impactThreshold ||
-            Time.unscaledTime < nextLogTime)
-        {
-            return;
-        }
-
-        nextLogTime = Time.unscaledTime + 0.8f;
-        var other = collision.collider;
-        var otherName = other != null ? other.name : "unknown";
-        var layerName = other != null ? LayerMask.LayerToName(other.gameObject.layer) : "unknown";
-        var speedKph = collision.relativeVelocity.magnitude * 3.6f;
-        if (!NWH.VehiclePhysics2.Damage.DamageHandler.IsCollisionValid(collision))
-        {
-            if (roadSuppressionLogs++ < MaximumRoadSuppressionLogs)
-            {
-                context?.Logger.Info(
-                    $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: suppressed road/ground " +
-                    $"contact='{otherName}' layer='{layerName}' relativeSpeed={speedKph:0.0}kph.");
-            }
-            return;
-        }
     }
 }
 
@@ -912,7 +821,6 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
     private const float EndDepthPerExcessMps = 0.012f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
-    private const int MaximumDiagnosticLogs = 6;
 
     private readonly List<MeshFilter> deformableFilters = new();
     private readonly Dictionary<MeshFilter, Mesh> originalMeshes = new();
@@ -924,7 +832,6 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
     private float impactThresholdMps;
     private float nextCollisionTime;
     private float previousDamage;
-    private int diagnosticLogs;
     private bool initialized;
     private bool failureReported;
 
@@ -971,8 +878,6 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                 if (pair.Key != null && pair.Value != null)
                     pair.Key.sharedMesh = pair.Value;
             }
-            context?.Logger.Info(
-                $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
         }
         previousDamage = currentDamage;
     }
@@ -996,12 +901,6 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
             var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.02f, MaximumDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
-            var changedMeshes = 0;
-            var changedVertices = 0;
-            var frontEndImpact = false;
-            var rearEndImpact = false;
-            var maximumAppliedDepth = 0f;
-            var changedMeshNames = new List<string>();
 
             foreach (var filter in deformableFilters)
             {
@@ -1092,11 +991,7 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                         }
                     }
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
-                    changedVertices++;
                     meshChanged = true;
-                    frontEndImpact |= selectedEndImpact && selectedFrontEndImpact;
-                    rearEndImpact |= selectedEndImpact && !selectedFrontEndImpact;
-                    maximumAppliedDepth = Mathf.Max(maximumAppliedDepth, selectedDepth);
                 }
 
                 if (!meshChanged)
@@ -1105,24 +1000,6 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                 mesh.RecalculateBounds();
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
-                changedMeshes++;
-                changedMeshNames.Add(filter.name);
-            }
-
-            if (diagnosticLogs++ < MaximumDiagnosticLogs)
-            {
-                context?.Logger.Info(
-                    $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
-                    $"contact='{collision.collider?.name ?? "unknown"}' " +
-                    $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
-                    $"region={(frontEndImpact ? "front" : rearEndImpact ? "rear" : "side")} " +
-                    $"depth={maximumAppliedDepth:0.000}m " +
-                    $"cumulativeCap={(frontEndImpact ? MaximumFrontEndDentDepth : rearEndImpact ? MaximumRearEndDentDepth : MaximumSideCumulativeDentDepth):0.00}m " +
-                    $"radius={(frontEndImpact || rearEndImpact ? $"{EndDentLateralRadius:0.00}x{EndDentVerticalRadius:0.00}x{EndDentLongitudinalRadius:0.00}" : DentRadius.ToString("0.00"))}m " +
-                    $"meshes={changedMeshes} vertices={changedVertices} " +
-                    $"meshNames=[{string.Join(", ", changedMeshNames)}] " +
-                    $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
-                    $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
             }
         }
         catch (Exception ex)
@@ -1175,10 +1052,6 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
                 continue;
             ownBodyColliders.AddRange(child.GetComponents<Collider>());
         }
-
-        context?.Logger.Info(
-            $"BugattiChiron pin recovery vehicle={controller.GetInstanceID()}: " +
-            $"bodyColliders={ownBodyColliders.Count} enabled=true.");
     }
 
     private void FixedUpdate()
@@ -1331,8 +1204,6 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
         recoveryActive = false;
         ignoredOtherColliders.Clear();
         ClearContact();
-        context?.Logger.Info(
-            $"BugattiChiron pin recovery vehicle={vehicle?.GetInstanceID()}: collisions restored.");
     }
 
     private void ClearContact()
@@ -1383,20 +1254,12 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
             ? colliderHolder.GetComponents<Collider>()
             : Array.Empty<Collider>();
 
-        var seamColliders = 0;
-        var ignoredPairs = 0;
         foreach (var other in UnityEngine.Object.FindObjectsOfType<Collider>(true))
         {
             if (other == null || !IsKnownBridgeSeam(other.name))
                 continue;
-            seamColliders++;
-            ignoredPairs += IgnoreBodyCollision(other);
+            IgnoreBodyCollision(other);
         }
-
-        context?.Logger.Info(
-            $"BugattiChiron bridge guard vehicle={controller.GetInstanceID()}: " +
-            $"bodyColliders={bodyColliders.Length} seamColliders={seamColliders} " +
-            $"ignoredPairs={ignoredPairs}.");
     }
 
     private void FixedUpdate()

@@ -42,7 +42,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private MeshRenderer? rearRightBlinkerOverlay;
     private bool initialized;
     private bool updateFailureReported;
-    private bool overlayDeformationLogged;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
 
@@ -90,10 +89,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
-        LogInfo($"initialized headlamp='{headlamp?.name ?? "missing"}' " +
-                $"rearStrip='{rearStrip?.name ?? "missing"}' " +
-                $"thirdBrake='{thirdBrake?.name ?? "missing"}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/4 blinkerOverlays={CountBlinkerOverlays()}/6.");
         if (headlampOverlay == null || rearTailOverlay == null || rearBrakeOverlay == null ||
             thirdBrakeOverlay == null || beamCount != 2 || CountBlinkerOverlays() != 6)
         {
@@ -229,7 +224,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
 
     private void SynchronizeDeformableOverlays()
     {
-        var synchronized = 0;
         foreach (var binding in deformableOverlayBindings)
         {
             if (binding.Source == null || binding.Overlay == null ||
@@ -242,13 +236,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
             // writable runtime clone. Point the emissive overlay at that same
             // mesh so lamp geometry cannot remain at the undamaged position.
             binding.Overlay.sharedMesh = binding.Source.sharedMesh;
-            synchronized++;
-        }
-
-        if (synchronized > 0 && !overlayDeformationLogged)
-        {
-            overlayDeformationLogged = true;
-            LogInfo($"bound {synchronized} lighting overlays to collision-deformed meshes.");
         }
     }
 
@@ -441,10 +428,6 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     {
         if (material.HasProperty(name)) material.SetFloat(name, value);
     }
-
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"BugattiChiron lighting vehicle='{vehicle?.name}' " +
-                             $"instance={vehicle?.GetInstanceID()}: {message}");
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"BugattiChiron lighting vehicle='{vehicle?.name}' " +

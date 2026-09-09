@@ -118,13 +118,6 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
 
         engineSound.maxDistortion = 0f;
         configured = true;
-        context.Logger.Info(
-            $"BugattiChiron audio configured vehicle={vehicle.GetInstanceID()}, " +
-            $"engineLayers=8, engineGain={BugattiChironAudioModel.EngineBaseVolume:0.00}.." +
-            $"{BugattiChironAudioModel.EngineBaseVolume + BugattiChironAudioModel.EngineThrottleVolume:0.00}, " +
-            $"hornGain={BugattiChironAudioModel.HornVolume:0.00}, " +
-            $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
-            "exhaust=continuous-quad-turbo-airflow.");
         return true;
     }
 

@@ -97,12 +97,6 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             }
         }
 
-        context?.Logger.Info(
-            $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
-            $"mapped bodySlots={bodySlots}, darkBodySlots={darkBodySlots}, " +
-            $"rimSlots={rimSlots}, rimInnerSlots={rimInnerSlots}, " +
-            $"caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
-            $"interiorSlots={interiorSlots}; chrome/black excluded.");
         if (bodySlots == 0 || darkBodySlots == 0 || rimSlots == 0 ||
             rimInnerSlots == 0 || caliperSlots == 0 || seatSlots == 0 || interiorSlots == 0)
             context?.Logger.Warn(
@@ -194,14 +188,6 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         appliedVehicleColor = selected;
         appliedTint = tint;
         hasAppliedTint = true;
-        var darkColor = Scale(bodyColor, useDarkPaintCompensation ? 0.55f : 0.35f);
-        context?.Logger.Info(
-            $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
-            $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
-            $"fresnel={(Color32)selected.fresnelColor} " +
-            $"body={bodyColor} dark={darkColor} " +
-            $"darkPaintCompensation={useDarkPaintCompensation} " +
-            $"to {slots.Count} body/rim/caliper/seat/interior slots.");
     }
 
     private static PaintCategory GetCategory(Material material)
