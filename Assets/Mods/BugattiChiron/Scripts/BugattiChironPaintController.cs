@@ -24,6 +24,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private static readonly int BaseColorMap = Shader.PropertyToID("_BaseColorMap");
     private static readonly int MainTexture = Shader.PropertyToID("_MainTex");
     private static readonly int BaseColorTexture = Shader.PropertyToID("baseColorTexture");
+    private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
+    private static readonly int Metallic = Shader.PropertyToID("_Metallic");
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
@@ -124,6 +126,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         selectedColor.a = 1f;
         var fresnelColor = (Color)selected.fresnelColor;
         fresnelColor.a = 1f;
+        var useVanillaDarkSurface = IsDarkSaturated(selectedColor);
         var bodyColor = CreateBodyColor(selectedColor, fresnelColor);
         RebuildPaintTextures(tint, bodyColor);
         foreach (var slot in slots)
@@ -136,6 +139,17 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
             if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
             if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
+            if (slot.Category == PaintCategory.MainBody || slot.Category == PaintCategory.DarkBody)
+            {
+                if (slot.Material.HasProperty(Smoothness))
+                    properties.SetFloat(
+                        Smoothness,
+                        useVanillaDarkSurface ? 0.5f : slot.Material.GetFloat(Smoothness));
+                if (slot.Material.HasProperty(Metallic))
+                    properties.SetFloat(
+                        Metallic,
+                        useVanillaDarkSurface ? 0f : slot.Material.GetFloat(Metallic));
+            }
             var texture = slot.Category == PaintCategory.Rim
                 ? rimPaintTexture
                 : slot.Category == PaintCategory.RimInner
@@ -161,7 +175,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"fresnel={(Color32)selected.fresnelColor} " +
-            $"body={bodyColor} dark={darkColor} " +
+            $"body={bodyColor} dark={darkColor} vanillaDarkSurface={useVanillaDarkSurface} " +
             $"to {slots.Count} body/rim/caliper/seat/interior slots.");
     }
 
@@ -227,10 +241,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         // The imported HDRP material has no vanilla vehicle-paint Fresnel pass.
         // For dark saturated entries, fold the palette's Fresnel hue into the
         // static base color. Neutral and bright paints retain their proven tint.
-        var brightest = Mathf.Max(selectedColor.r, Mathf.Max(selectedColor.g, selectedColor.b));
-        var darkest = Mathf.Min(selectedColor.r, Mathf.Min(selectedColor.g, selectedColor.b));
-        var saturation = brightest > 0.001f ? (brightest - darkest) / brightest : 0f;
-        if (brightest >= 0.45f || saturation <= 0.20f)
+        if (!IsDarkSaturated(selectedColor))
             return linear;
 
         var fresnelLinear = fresnelColor.linear;
@@ -239,6 +250,14 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             Mathf.Max(linear.g, fresnelLinear.g),
             Mathf.Max(linear.b, fresnelLinear.b),
             1f);
+    }
+
+    private static bool IsDarkSaturated(Color color)
+    {
+        var brightest = Mathf.Max(color.r, Mathf.Max(color.g, color.b));
+        var darkest = Mathf.Min(color.r, Mathf.Min(color.g, color.b));
+        var saturation = brightest > 0.001f ? (brightest - darkest) / brightest : 0f;
+        return brightest < 0.45f && saturation > 0.20f;
     }
 
     private static Color Scale(Color color, float factor) =>
