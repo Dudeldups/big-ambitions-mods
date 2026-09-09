@@ -6,7 +6,7 @@ Dai al tuo veicolo un nuovo look senza comprarne uno nuovo. Vehicle Repainter ag
 [list]
 [*] Porta un veicolo nella normale area di riparazione e lavaggio di una stazione di servizio.
 [*] Seleziona [b]Rivernicia (800 $)[/b].
-[*] Usa il familiare selettore del colore per vedere in anteprima sul veicolo tutti i colori disponibili.
+[*] Scegli da una tavolozza ampliata di 96 colori, ordinati per tonalità, e visualizza ciascuno in anteprima direttamente sul veicolo.
 [/list]
 
 [h2]Compatibilità[/h2]

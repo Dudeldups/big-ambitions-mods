@@ -6,7 +6,7 @@ Dale un aspecto nuevo a tu vehículo sin tener que comprar otro. Vehicle Repaint
 [list]
 [*] Lleva un vehículo a la zona habitual de reparación y lavado de una gasolinera.
 [*] Selecciona [b]Repintar (800 $)[/b].
-[*] Usa el selector de color de vehículos que ya conoces para previsualizar en directo todos los colores disponibles.
+[*] Elige entre una paleta ampliada de 96 colores, ordenados por tonalidad, y previsualiza cada uno directamente en tu vehículo.
 [/list]
 
 [h2]Compatibilidad[/h2]

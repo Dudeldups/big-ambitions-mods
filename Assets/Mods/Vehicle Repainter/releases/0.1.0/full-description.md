@@ -6,7 +6,7 @@ Give your vehicle a fresh look without buying a new one. Vehicle Repainter adds 
 [list]
 [*] Drive a vehicle into a gas station's normal Repair and Wash service bay.
 [*] Select [b]Repaint ($800)[/b].
-[*] Use the familiar vehicle color picker to preview every available color live on your vehicle.
+[*] Choose from an expanded palette of 96 colors, arranged by shade, and preview each one live on your vehicle.
 [/list]
 
 [h2]Compatibility[/h2]
