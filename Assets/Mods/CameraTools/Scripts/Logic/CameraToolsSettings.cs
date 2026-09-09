@@ -22,7 +22,7 @@ namespace CameraTools
 
         public bool HideMapMarkersWithUi { get; set; } = false;
 
-        public bool DisableCityMapFog { get; set; } = false;
+        public bool DisableCityFog { get; set; } = false;
 
         public bool EnableCameraToolsDebug { get; set; } = false;
 

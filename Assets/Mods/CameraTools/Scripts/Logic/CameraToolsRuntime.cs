@@ -7,7 +7,6 @@ using Helpers;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
 namespace CameraTools
@@ -321,7 +320,7 @@ namespace CameraTools
                 runtime = runtimeObject.AddComponent<CameraToolsRuntime>();
             }
 
-            runtime.RestoreCityMapFogState();
+            runtime.RestoreCityFogState();
             runtime.RestoreForcedIndoorWallsVisibility();
             runtime.RestoreTrackedMemberStates();
             runtime.context = context;
@@ -418,7 +417,7 @@ namespace CameraTools
 
         public void Shutdown()
         {
-            RestoreCityMapFogState();
+            RestoreCityFogState();
             RestoreForcedIndoorWallsVisibility();
             RestoreTrackedMemberStates();
             RestoreScenicView();
@@ -431,14 +430,12 @@ namespace CameraTools
         private void OnEnable()
         {
             Camera.onPreCull += HandleCameraPreCull;
-            RenderPipelineManager.beginCameraRendering += HandleBeginCameraRendering;
         }
 
         private void OnDisable()
         {
             Camera.onPreCull -= HandleCameraPreCull;
-            RenderPipelineManager.beginCameraRendering -= HandleBeginCameraRendering;
-            RestoreCityMapFogState();
+            RestoreCityFogState();
             RestoreForcedIndoorWallsVisibility();
             RestoreTrackedMemberStates();
         }
@@ -473,7 +470,7 @@ namespace CameraTools
             else
                 SuspendVehicleRuntimeStateForMap();
             ApplyMapTweaks(cityMapOpen);
-            UpdateCityMapFogSuppression(cityMapOpen);
+            UpdateCityFogSuppression();
             if (cameraToolsDebugEnabled)
                 ProcessPendingVcamDiagnostic();
         }

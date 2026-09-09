@@ -285,10 +285,6 @@ namespace CameraTools
                 ApplyMapCameraState();
             }
 
-            var mapFogRenderCamera = activeMapRenderCamera ?? GetLiveMainCamera();
-            if (cityMapOpen && settings.DisableCityMapFog && camera == mapFogRenderCamera)
-                UpdateCityMapFogSuppression(cityMapOpen: true);
-
             if (!cameraToolsDebugEnabled ||
                 !needsVehicleDistanceReapply ||
                 float.IsNaN(desiredVehicleDistance) ||

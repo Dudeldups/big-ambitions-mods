@@ -12,7 +12,8 @@ namespace CameraTools
         private const string ScenicViewHotkeyKey = "camera_tools_scenic_view_hotkey";
         private const string HideUiHotkeyKey = "camera_tools_hide_ui_hotkey";
         private const string HideMapMarkersKey = "camera_tools_hide_map_markers";
-        private const string DisableCityMapFogKey = "camera_tools_disable_city_map_fog";
+        // Preserve the original preference key so existing enabled settings migrate automatically.
+        private const string DisableCityFogKey = "camera_tools_disable_city_map_fog";
         private static readonly string[] HotkeyChoices =
         {
             "cameratools_hotkey_f5",
@@ -42,7 +43,7 @@ namespace CameraTools
         {
             context = modContext;
             settings.HideMapMarkersWithUi = LoadSavedHideMapMarkersValue(modContext.ModId, settings.HideMapMarkersWithUi);
-            settings.DisableCityMapFog = LoadSavedDisableCityMapFogValue(modContext.ModId, settings.DisableCityMapFog);
+            settings.DisableCityFog = LoadSavedDisableCityFogValue(modContext.ModId, settings.DisableCityFog);
             if (!string.IsNullOrEmpty(registeredModId))
             {
                 LogOptionsDebug(modContext, $"CameraTools: unregistering previous options for modId={registeredModId}.");
@@ -70,12 +71,12 @@ namespace CameraTools
                         .AddDropdown(HideUiHotkeyKey, "cameratools_hide_ui_hotkey_label", HotkeyChoices,
                             GetHotkeyIndex(settings.HideUiHotkey),
                             value => settings.HideUiHotkey = HotkeyValues[value])
-                        .AddToggle(DisableCityMapFogKey, "cameratools_disable_city_map_fog_label",
-                            settings.DisableCityMapFog,
+                        .AddToggle(DisableCityFogKey, "cameratools_disable_city_fog_label",
+                            settings.DisableCityFog,
                             value =>
                             {
-                                settings.DisableCityMapFog = value;
-                                SaveDisableCityMapFogValue(modContext.ModId, value);
+                                settings.DisableCityFog = value;
+                                SaveDisableCityFogValue(modContext.ModId, value);
                             })
                         .AddToggle(HideMapMarkersKey, "cameratools_hide_map_markers_label",
                             settings.HideMapMarkersWithUi,
@@ -151,22 +152,22 @@ namespace CameraTools
             UnityEngine.PlayerPrefs.Save();
         }
 
-        private static string GetSavedDisableCityMapFogKey(string modId)
+        private static string GetSavedDisableCityFogKey(string modId)
         {
-            return modId + "." + DisableCityMapFogKey;
+            return modId + "." + DisableCityFogKey;
         }
 
-        private static bool LoadSavedDisableCityMapFogValue(string modId, bool fallbackValue)
+        private static bool LoadSavedDisableCityFogValue(string modId, bool fallbackValue)
         {
-            var key = GetSavedDisableCityMapFogKey(modId);
+            var key = GetSavedDisableCityFogKey(modId);
             return UnityEngine.PlayerPrefs.HasKey(key)
                 ? UnityEngine.PlayerPrefs.GetInt(key, fallbackValue ? 1 : 0) != 0
                 : fallbackValue;
         }
 
-        private static void SaveDisableCityMapFogValue(string modId, bool value)
+        private static void SaveDisableCityFogValue(string modId, bool value)
         {
-            var key = GetSavedDisableCityMapFogKey(modId);
+            var key = GetSavedDisableCityFogKey(modId);
             UnityEngine.PlayerPrefs.SetInt(key, value ? 1 : 0);
             UnityEngine.PlayerPrefs.Save();
         }
