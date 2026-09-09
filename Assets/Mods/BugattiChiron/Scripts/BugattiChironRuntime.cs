@@ -280,10 +280,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             if (paintController == null)
                 paintController = vehicle.gameObject.AddComponent<BugattiChironPaintController>();
             paintController.Initialize(vehicle, context);
-            var hornController = vehicle.GetComponent<BugattiChironHornController>();
-            if (hornController == null)
-                hornController = vehicle.gameObject.AddComponent<BugattiChironHornController>();
-            hornController.Initialize(vehicle, context);
+            var audioController = vehicle.GetComponent<BugattiChironAudioController>();
+            if (audioController == null)
+                audioController = vehicle.gameObject.AddComponent<BugattiChironAudioController>();
+            audioController.Initialize(vehicle, context);
             var launchDiagnostics = vehicle.GetComponent<BugattiChironLaunchDiagnostics>();
             if (launchDiagnostics == null)
                 launchDiagnostics = vehicle.gameObject.AddComponent<BugattiChironLaunchDiagnostics>();
