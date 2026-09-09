@@ -27,9 +27,9 @@ public static class BugattiChironSetup
     private const float VehicleLinearDrag = 0.027f;
     private const float ForcedInductionPowerMultiplier = 1f;
     private const float DamageDecelerationThreshold = 500f;
-    private const float DamageIntensity = 0.45f;
-    private const float DeformationRadius = 0.32f;
-    private const float DeformationStrength = 0.22f;
+    private const float DamageIntensity = 0.6f;
+    private const float DeformationRadius = 0.48f;
+    private const float DeformationStrength = 0.32f;
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>

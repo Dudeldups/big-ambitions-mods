@@ -22,6 +22,8 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
     private bool dormantEngineLogged;
     private bool benchmarkRunning;
     private float benchmarkStartedAt;
+    private float benchmarkPeakSpeedKph;
+    private float benchmarkStoppedAt;
     private int benchmarkIndex;
     private int benchmarkRuns;
 
@@ -116,20 +118,31 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
             benchmarkRunning = true;
             benchmarkStartedAt = Time.unscaledTime;
             benchmarkIndex = 0;
+            benchmarkPeakSpeedKph = speedKph;
+            benchmarkStoppedAt = 0f;
             context?.Logger.Info(
                 $"BugattiChiron acceleration vehicle={vehicle?.GetInstanceID()}: " +
                 $"benchmark run={benchmarkRuns + 1}/{MaximumBenchmarkRuns} started.");
             return;
         }
 
-        if (throttle < 0.85f || LongitudinalSpeed() < -0.5f)
+        benchmarkPeakSpeedKph = Mathf.Max(benchmarkPeakSpeedKph, speedKph);
+        if (benchmarkPeakSpeedKph > 20f && speedKph < 5f)
         {
-            context?.Logger.Info(
-                $"BugattiChiron acceleration vehicle={vehicle?.GetInstanceID()}: " +
-                $"benchmark run={benchmarkRuns + 1}/{MaximumBenchmarkRuns} cancelled " +
-                $"at {speedKph:0.0}kph after {Time.unscaledTime - benchmarkStartedAt:0.00}s.");
-            benchmarkRunning = false;
-            benchmarkRuns++;
+            if (benchmarkStoppedAt <= 0f)
+                benchmarkStoppedAt = Time.unscaledTime;
+            if (Time.unscaledTime - benchmarkStoppedAt >= 1.5f)
+            {
+                CancelBenchmark(speedKph, "vehicle stopped");
+                return;
+            }
+        }
+        else
+            benchmarkStoppedAt = 0f;
+
+        if (Time.unscaledTime - benchmarkStartedAt >= 120f)
+        {
+            CancelBenchmark(speedKph, "120s timeout");
             return;
         }
 
@@ -152,6 +165,17 @@ internal sealed class BugattiChironLaunchDiagnostics : MonoBehaviour
             benchmarkRunning = false;
             benchmarkRuns++;
         }
+    }
+
+    private void CancelBenchmark(float speedKph, string reason)
+    {
+        context?.Logger.Info(
+            $"BugattiChiron acceleration vehicle={vehicle?.GetInstanceID()}: " +
+            $"benchmark run={benchmarkRuns + 1}/{MaximumBenchmarkRuns} cancelled " +
+            $"reason='{reason}' current={speedKph:0.0}kph peak={benchmarkPeakSpeedKph:0.0}kph " +
+            $"after {Time.unscaledTime - benchmarkStartedAt:0.00}s.");
+        benchmarkRunning = false;
+        benchmarkRuns++;
     }
 
     private void LogDormantEngine(float throttle)

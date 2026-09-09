@@ -29,9 +29,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float VehicleLinearDrag = 0.027f;
     private const float ForcedInductionPowerMultiplier = 1f;
     private const float DamageDecelerationThreshold = 500f;
-    private const float DamageIntensity = 0.45f;
-    private const float DeformationRadius = 0.32f;
-    private const float DeformationStrength = 0.22f;
+    private const float DamageIntensity = 0.6f;
+    private const float DeformationRadius = 0.48f;
+    private const float DeformationStrength = 0.32f;
 
     private static readonly float[] ChironGears =
     {
@@ -296,6 +296,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 context,
                 DamageDecelerationThreshold / 100f,
                 deformableMeshCount);
+            var bridgeSeamGuard = vehicle.GetComponent<BugattiChironBridgeSeamGuard>();
+            if (bridgeSeamGuard == null)
+                bridgeSeamGuard = vehicle.gameObject.AddComponent<BugattiChironBridgeSeamGuard>();
+            bridgeSeamGuard.Initialize(vehicle, context);
 
             context?.Logger.Info(
                 $"BugattiChiron: configured vehicle instance={instanceId}, " +
@@ -460,7 +464,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             }
 
             var renderer = filter.GetComponent<MeshRenderer>();
-            if (renderer == null || !renderer.enabled || !HasDeformablePaint(renderer))
+            if (renderer == null || !renderer.enabled || !IsDeformableExterior(filter, renderer))
                 continue;
             deformableFilters.Add(filter);
         }
@@ -501,19 +505,32 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: enabled " +
             $"bodyMeshes={deformableFilters.Count} threshold=" +
             $"{DamageDecelerationThreshold / 100f:0.0}mps radius={DeformationRadius:0.00} " +
-            $"strength={DeformationStrength:0.00}; legacy unfiltered deformation disabled.");
+            $"strength={DeformationStrength:0.00} filters=" +
+            $"[{string.Join(", ", deformableFilters.ConvertAll(filter => filter.name))}]; " +
+            "legacy unfiltered deformation disabled.");
         return deformableFilters.Count;
     }
 
-    private static bool HasDeformablePaint(Renderer renderer)
+    private static bool IsDeformableExterior(MeshFilter filter, Renderer renderer)
     {
+        var filterName = filter.name;
+        if (!filterName.StartsWith("Body_", StringComparison.OrdinalIgnoreCase) &&
+            !filterName.StartsWith("Door-left_", StringComparison.OrdinalIgnoreCase) &&
+            !filterName.StartsWith("Door-right_", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         foreach (var material in renderer.sharedMaterials)
         {
             if (material == null)
                 continue;
             var name = material.name;
             if (name.IndexOf("BugattiOpaque_04_Body", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("BugattiOpaque_06_Darker_Parts", StringComparison.OrdinalIgnoreCase) >= 0)
+                name.IndexOf("BugattiOpaque_06_Darker_Parts", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("BugattiOpaque_07_Carbon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("BugattiOpaque_05_Silver", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("BugattiOpaque_09_Plastic", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return true;
             }
@@ -698,5 +715,117 @@ internal sealed class BugattiChironDamageDiagnostics : MonoBehaviour
                 $"contact='{otherName}' layer='{layerName}' relativeSpeed={speedKph:0.0}kph " +
                 $"bodyMeshes={deformableMeshCount}.");
         }
+    }
+}
+
+[DefaultExecutionOrder(-100)]
+internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
+{
+    private const float MinimumVelocityRestoreMps = 25f;
+    private static readonly string[] KnownBridgeSeamNames =
+    {
+        "BridgeMiddleRoadHiderColliders",
+        "BridgeConnectionGroundPlane",
+    };
+
+    private VehicleController? vehicle;
+    private ModContext? context;
+    private Rigidbody? body;
+    private Collider[] bodyColliders = Array.Empty<Collider>();
+    private Vector3 velocityBeforeStep;
+    private Vector3 angularVelocityBeforeStep;
+    private int recoveryLogs;
+
+    internal void Initialize(VehicleController controller, ModContext? modContext)
+    {
+        vehicle = controller;
+        context = modContext;
+        body = controller.GetComponent<Rigidbody>();
+        var colliderHolder = FindChild(controller.transform, "BodyCollider");
+        bodyColliders = colliderHolder != null
+            ? colliderHolder.GetComponents<Collider>()
+            : Array.Empty<Collider>();
+
+        var seamColliders = 0;
+        var ignoredPairs = 0;
+        foreach (var other in UnityEngine.Object.FindObjectsOfType<Collider>(true))
+        {
+            if (other == null || !IsKnownBridgeSeam(other.name))
+                continue;
+            seamColliders++;
+            ignoredPairs += IgnoreBodyCollision(other);
+        }
+
+        context?.Logger.Info(
+            $"BugattiChiron bridge guard vehicle={controller.GetInstanceID()}: " +
+            $"bodyColliders={bodyColliders.Length} seamColliders={seamColliders} " +
+            $"ignoredPairs={ignoredPairs}.");
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null)
+            return;
+        velocityBeforeStep = body.velocity;
+        angularVelocityBeforeStep = body.angularVelocity;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        var other = collision?.collider;
+        if (body == null || other == null || !IsKnownBridgeSeam(other.name))
+            return;
+
+        var ignoredPairs = IgnoreBodyCollision(other);
+        var speedBefore = velocityBeforeStep.magnitude;
+        var speedAfter = body.velocity.magnitude;
+        var restored = speedBefore >= MinimumVelocityRestoreMps && speedAfter < speedBefore * 0.7f;
+        if (restored)
+        {
+            body.velocity = velocityBeforeStep;
+            body.angularVelocity = angularVelocityBeforeStep;
+        }
+
+        if (recoveryLogs++ < 3)
+        {
+            context?.Logger.Warn(
+                $"BugattiChiron bridge guard vehicle={vehicle?.GetInstanceID()}: late seam contact " +
+                $"collider='{other.name}' before={speedBefore * 3.6f:0.0}kph " +
+                $"after={speedAfter * 3.6f:0.0}kph ignoredPairs={ignoredPairs} " +
+                $"velocityRestored={restored}.");
+        }
+    }
+
+    private int IgnoreBodyCollision(Collider other)
+    {
+        var ignored = 0;
+        foreach (var own in bodyColliders)
+        {
+            if (own == null || own == other || Physics.GetIgnoreCollision(own, other))
+                continue;
+            Physics.IgnoreCollision(own, other, true);
+            ignored++;
+        }
+        return ignored;
+    }
+
+    private static bool IsKnownBridgeSeam(string objectName)
+    {
+        foreach (var seamName in KnownBridgeSeamNames)
+        {
+            if (objectName.IndexOf(seamName, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
+    }
+
+    private static Transform? FindChild(Transform root, string objectName)
+    {
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (string.Equals(child.name, objectName, StringComparison.Ordinal))
+                return child;
+        }
+        return null;
     }
 }
