@@ -18,6 +18,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private const string CaliperMaterialMarker = "BugattiOpaque_02_Caliper";
     private const string RimInnerMaterialMarker = "BugattiOpaque_03_Brake_rotor";
     private const string SeatMaterialMarker = "BugattiOpaque_19_seats";
+    private const string VehiclePaintShaderName = "Shader Graphs/SH_Vehicle";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
@@ -26,6 +27,12 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private static readonly int BaseColorTexture = Shader.PropertyToID("baseColorTexture");
     private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
     private static readonly int Metallic = Shader.PropertyToID("_Metallic");
+    private static readonly int VehicleTint =
+        Shader.PropertyToID("Color_3d0f0cdbe6b74be28a1a5be5bab71dea");
+    private static readonly int VehicleFresnel =
+        Shader.PropertyToID("Color_f78fac473bac467092fb27521e9f71ea");
+    private static readonly int VehicleFresnelPower =
+        Shader.PropertyToID("Vector1_481fa2a8a5e94165a039319bfd512b76");
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
@@ -41,6 +48,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private Texture2D? rimInnerPaintTexture;
     private Texture2D? seatPaintTexture;
     private bool textureFailureLogged;
+    private bool vehiclePaintShaderFailureLogged;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -66,6 +74,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         var caliperSlots = 0;
         var rimInnerSlots = 0;
         var seatSlots = 0;
+        var vehiclePaintShaderSlots = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
             var materials = renderer.sharedMaterials;
@@ -77,7 +86,17 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                 var category = GetCategory(material);
                 if (category == PaintCategory.None)
                     continue;
-                slots.Add(new PaintSlot(renderer, material, index, category));
+                var usesVehiclePaintShader =
+                    (category == PaintCategory.MainBody || category == PaintCategory.DarkBody) &&
+                    TryConfigureVehiclePaintShader(material);
+                slots.Add(new PaintSlot(
+                    renderer,
+                    material,
+                    index,
+                    category,
+                    usesVehiclePaintShader));
+                if (usesVehiclePaintShader)
+                    vehiclePaintShaderSlots++;
                 if (category == PaintCategory.MainBody) bodySlots++;
                 if (category == PaintCategory.DarkBody) darkBodySlots++;
                 if (category == PaintCategory.Rim) rimSlots++;
@@ -102,7 +121,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             $"mapped bodySlots={bodySlots}, darkBodySlots={darkBodySlots}, " +
             $"rimSlots={rimSlots}, rimInnerSlots={rimInnerSlots}, " +
             $"caliperSlots={caliperSlots}, seatSlots={seatSlots}, " +
-            $"interiorSlots={interiorSlots}; chrome/black excluded.");
+            $"interiorSlots={interiorSlots}, vehiclePaintShaderSlots={vehiclePaintShaderSlots}; " +
+            "chrome/black excluded.");
         if (bodySlots == 0 || darkBodySlots == 0 || rimSlots == 0 ||
             rimInnerSlots == 0 || caliperSlots == 0 || seatSlots == 0 || interiorSlots == 0)
             context?.Logger.Warn(
@@ -128,6 +148,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         fresnelColor.a = 1f;
         var useVanillaDarkSurface = IsDarkSaturated(selectedColor);
         var bodyColor = CreateBodyColor(selectedColor, fresnelColor);
+        var darkExteriorFactor = useVanillaDarkSurface ? 0.8f : 0.55f;
         RebuildPaintTextures(tint, bodyColor);
         foreach (var slot in slots)
         {
@@ -136,19 +157,30 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                 color = bodyColor;
             properties.Clear();
             slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
-            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
-            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
-            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
-            if (slot.Category == PaintCategory.MainBody || slot.Category == PaintCategory.DarkBody)
+            if (slot.UsesVehiclePaintShader)
             {
-                if (slot.Material.HasProperty(Smoothness))
-                    properties.SetFloat(
-                        Smoothness,
-                        useVanillaDarkSurface ? 0.5f : slot.Material.GetFloat(Smoothness));
-                if (slot.Material.HasProperty(Metallic))
-                    properties.SetFloat(
-                        Metallic,
-                        useVanillaDarkSurface ? 0f : slot.Material.GetFloat(Metallic));
+                var factor = slot.Category == PaintCategory.DarkBody ? darkExteriorFactor : 1f;
+                properties.SetColor(VehicleTint, Scale(selectedColor, factor));
+                properties.SetColor(VehicleFresnel, Scale(fresnelColor, factor));
+                properties.SetFloat(VehicleFresnelPower, selected.fresnelPower);
+            }
+            else
+            {
+                if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
+                if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
+                if (slot.Material.HasProperty(BaseColorFactor))
+                    properties.SetColor(BaseColorFactor, color);
+                if (slot.Category == PaintCategory.MainBody || slot.Category == PaintCategory.DarkBody)
+                {
+                    if (slot.Material.HasProperty(Smoothness))
+                        properties.SetFloat(
+                            Smoothness,
+                            useVanillaDarkSurface ? 0.5f : slot.Material.GetFloat(Smoothness));
+                    if (slot.Material.HasProperty(Metallic))
+                        properties.SetFloat(
+                            Metallic,
+                            useVanillaDarkSurface ? 0f : slot.Material.GetFloat(Metallic));
+                }
             }
             var texture = slot.Category == PaintCategory.Rim
                 ? rimPaintTexture
@@ -175,8 +207,50 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
             $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"fresnel={(Color32)selected.fresnelColor} " +
-            $"body={bodyColor} dark={darkColor} vanillaDarkSurface={useVanillaDarkSurface} " +
+            $"body={bodyColor} dark={darkColor} darkExteriorFactor={darkExteriorFactor:F2} " +
             $"to {slots.Count} body/rim/caliper/seat/interior slots.");
+    }
+
+    private bool TryConfigureVehiclePaintShader(Material material)
+    {
+        var shader = Shader.Find(VehiclePaintShaderName);
+        if (shader == null)
+        {
+            LogVehiclePaintShaderFailure(
+                $"base-game shader '{VehiclePaintShaderName}' was not found");
+            return false;
+        }
+
+        var fallbackShader = material.shader;
+        material.shader = shader;
+        if (!material.HasProperty(VehicleTint) ||
+            !material.HasProperty(VehicleFresnel) ||
+            !material.HasProperty(VehicleFresnelPower))
+        {
+            material.shader = fallbackShader;
+            LogVehiclePaintShaderFailure(
+                "base-game vehicle paint shader is missing expected tint properties");
+            return false;
+        }
+
+        if (material.HasProperty("_SupportDecals"))
+            material.SetFloat("_SupportDecals", 0f);
+        if (material.HasProperty("_ReceivesSSR"))
+            material.SetFloat("_ReceivesSSR", 0f);
+        material.EnableKeyword("_DISABLE_DECALS");
+        material.EnableKeyword("_DISABLE_SSR");
+        vehiclePaintShaderFailureLogged = false;
+        return true;
+    }
+
+    private void LogVehiclePaintShaderFailure(string reason)
+    {
+        if (vehiclePaintShaderFailureLogged)
+            return;
+        vehiclePaintShaderFailureLogged = true;
+        context?.Logger.Warn(
+            $"BugattiChiron paint vehicle={vehicle?.GetInstanceID()}: {reason}; " +
+            "using HDRP Lit fallback.");
     }
 
     private static PaintCategory GetCategory(Material material)
@@ -406,17 +480,20 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         internal readonly Material Material;
         internal readonly int MaterialIndex;
         internal readonly PaintCategory Category;
+        internal readonly bool UsesVehiclePaintShader;
 
         internal PaintSlot(
             Renderer renderer,
             Material material,
             int materialIndex,
-            PaintCategory category)
+            PaintCategory category,
+            bool usesVehiclePaintShader)
         {
             Renderer = renderer;
             Material = material;
             MaterialIndex = materialIndex;
             Category = category;
+            UsesVehiclePaintShader = usesVehiclePaintShader;
         }
     }
 
