@@ -519,9 +519,18 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private static bool IsDeformableExterior(MeshFilter filter, Renderer renderer)
     {
         var filterName = filter.name;
-        if (!filterName.StartsWith("Body_", StringComparison.OrdinalIgnoreCase) &&
-            !filterName.StartsWith("Door-left_", StringComparison.OrdinalIgnoreCase) &&
-            !filterName.StartsWith("Door-right_", StringComparison.OrdinalIgnoreCase))
+        var bodyPanel =
+            filterName.StartsWith("Body_", StringComparison.OrdinalIgnoreCase) ||
+            filterName.StartsWith("Door-left_", StringComparison.OrdinalIgnoreCase) ||
+            filterName.StartsWith("Door-right_", StringComparison.OrdinalIgnoreCase);
+        // The FBX groups the visible horseshoe grille, surround, and badge under
+        // Engine even though they are exterior nose pieces. Keep the actual engine
+        // and its carbon geometry rigid by admitting only these named submeshes.
+        var frontCenterAssembly =
+            string.Equals(filterName, "Engine_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(filterName, "Engine_Silver_0", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(filterName, "Engine_Logo_0", StringComparison.OrdinalIgnoreCase);
+        if (!bodyPanel && !frontCenterAssembly)
         {
             return false;
         }
@@ -535,7 +544,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 name.IndexOf("BugattiOpaque_06_Darker_Parts", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("BugattiOpaque_07_Carbon", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("BugattiOpaque_05_Silver", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("BugattiOpaque_09_Plastic", StringComparison.OrdinalIgnoreCase) >= 0)
+                name.IndexOf("BugattiOpaque_09_Plastic", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                (frontCenterAssembly &&
+                 name.IndexOf("BugattiOpaque_10_Logo", StringComparison.OrdinalIgnoreCase) >= 0))
             {
                 return true;
             }
