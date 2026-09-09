@@ -61,11 +61,27 @@ namespace VehicleRepainter
             "<VehicleColor>k__BackingField",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
+        private static readonly CustomColorDefinition[] AdditionalColors =
+        {
+            new CustomColorDefinition("VehicleRepainter_Orange", new Color32(255, 106, 0, 255), new Color32(255, 175, 85, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Copper", new Color32(166, 79, 45, 255), new Color32(235, 145, 95, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Brown", new Color32(83, 43, 27, 255), new Color32(160, 95, 60, 255), 2f),
+            new CustomColorDefinition("VehicleRepainter_Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Turquoise", new Color32(0, 157, 154, 255), new Color32(80, 240, 230, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
+            new CustomColorDefinition("VehicleRepainter_Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f)
+        };
+
         private readonly ModContext context;
+        private readonly Dictionary<string, VehicleColor> customVehicleColors =
+            new Dictionary<string, VehicleColor>(StringComparer.Ordinal);
+        private readonly List<VehicleColor> ownedCustomVehicleColors = new List<VehicleColor>();
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
         private RepaintPurchasableAsset? activeRepaintAsset;
+        private GlobalReferences? registeredGlobalReferences;
 
         internal VehicleRepainterRuntime(ModContext context)
         {
@@ -86,6 +102,9 @@ namespace VehicleRepainter
                 context.Logger.Error("Could not install: required cached vanilla UI fields were not found.");
                 return;
             }
+
+            if (!RegisterCustomVehicleColors())
+                return;
 
             overlayUi = uis.overlayUI;
             originalGasStationOverlay = overlayUi.gasStation;
@@ -110,6 +129,7 @@ namespace VehicleRepainter
             overlayUi = null;
             originalGasStationOverlay = null;
             extendedGasStationOverlay = null;
+            UnregisterCustomVehicleColors();
         }
 
         internal GasStationTrigger? GetCurrentStationTrigger(GasStationOverlay overlay)
@@ -141,10 +161,18 @@ namespace VehicleRepainter
                 return;
             }
 
+            if (vehicle.vehicleCollider == null || !stationTrigger.IntersectsBounds(vehicle.vehicleCollider.bounds) ||
+                !Mathf.Approximately(vehicle.CurrentSpeed, 0f))
+            {
+                context.Logger.Warn("Could not open Repaint because the active vehicle is no longer stopped inside the service bay.");
+                return;
+            }
+
             var repaintAsset = new RepaintPurchasableAsset(context, vehicle, stationTrigger, HandleRepaintUiClosed);
             activeRepaintAsset = repaintAsset;
             GasStationOverlay.Hide(stationTrigger);
             purchaseUi.SetAsset(repaintAsset);
+            repaintAsset.BeginSession();
 
             if (PurchaseButtonField!.GetValue(purchaseUi) is Button purchaseButton)
             {
@@ -161,6 +189,78 @@ namespace VehicleRepainter
         {
             if (ReferenceEquals(activeRepaintAsset, repaintAsset))
                 activeRepaintAsset = null;
+        }
+
+        private bool RegisterCustomVehicleColors()
+        {
+            var globalReferences = InstanceBehavior<GlobalReferences>.Instance;
+            if (globalReferences == null || globalReferences.vehicleColors == null)
+            {
+                context.Logger.Error("Could not install: the game's vehicle color registry is unavailable.");
+                return false;
+            }
+
+            var colors = globalReferences.vehicleColors.Where(color => color != null).ToList();
+            foreach (var definition in AdditionalColors)
+            {
+                var color = colors.FirstOrDefault(existing =>
+                    string.Equals(((UnityEngine.Object)existing).name, definition.Name, StringComparison.Ordinal));
+                if (color == null)
+                {
+                    color = ScriptableObject.CreateInstance<VehicleColor>();
+                    ((UnityEngine.Object)color).name = definition.Name;
+                    color.tint = definition.Tint;
+                    color.fresnelColor = definition.FresnelColor;
+                    color.fresnelPower = definition.FresnelPower;
+                    color.randomWeight = 0f;
+                    color.hideFlags = HideFlags.HideAndDontSave;
+                    colors.Add(color);
+                    ownedCustomVehicleColors.Add(color);
+                }
+
+                customVehicleColors[definition.Name] = color;
+            }
+
+            globalReferences.vehicleColors = colors.ToArray();
+            registeredGlobalReferences = globalReferences;
+            RestoreSavedCustomVehicleColors();
+            return true;
+        }
+
+        private void RestoreSavedCustomVehicleColors()
+        {
+            foreach (var vehicle in VehicleHelper.AllPlayerVehicles.ToArray())
+            {
+                if (vehicle == null || vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
+                    !customVehicleColors.TryGetValue(vehicle.vehicleInstance.vehicleColorName, out var color))
+                {
+                    continue;
+                }
+
+                vehicle.CarFeatures.SetColor(color);
+            }
+        }
+
+        private void UnregisterCustomVehicleColors()
+        {
+            if (registeredGlobalReferences != null && registeredGlobalReferences.vehicleColors != null &&
+                ownedCustomVehicleColors.Count > 0)
+            {
+                var ownedColors = new HashSet<VehicleColor>(ownedCustomVehicleColors);
+                registeredGlobalReferences.vehicleColors = registeredGlobalReferences.vehicleColors
+                    .Where(color => color != null && !ownedColors.Contains(color))
+                    .ToArray();
+            }
+
+            foreach (var color in ownedCustomVehicleColors)
+            {
+                if (color != null)
+                    UnityEngine.Object.Destroy(color);
+            }
+
+            customVehicleColors.Clear();
+            ownedCustomVehicleColors.Clear();
+            registeredGlobalReferences = null;
         }
 
         private sealed class ExtendedGasStationOverlay : GasStationOverlay, IOverlay
@@ -208,6 +308,8 @@ namespace VehicleRepainter
             private readonly VehiclePaintSnapshot originalPaint;
             private string committedColorName;
             private string selectedColorName;
+            private bool closed;
+            private bool movementLocked;
             private bool purchaseCompleted;
 
             internal RepaintPurchasableAsset(
@@ -223,6 +325,16 @@ namespace VehicleRepainter
                 originalPaint = new VehiclePaintSnapshot(vehicle.CarFeatures);
                 committedColorName = ResolveInitialColorName(vehicle);
                 selectedColorName = committedColorName;
+            }
+
+            internal void BeginSession()
+            {
+                if (closed || movementLocked)
+                    return;
+
+                stationTrigger.onExited += HandleStationExited;
+                vehicle.SetFreeze(true);
+                movementLocked = true;
             }
 
             public string GetLocalizeKey() => "vehicle-repainter:title";
@@ -251,8 +363,17 @@ namespace VehicleRepainter
 
             public void ResetColor()
             {
-                if (!purchaseCompleted)
+                if (closed)
+                    return;
+
+                closed = true;
+                stationTrigger.onExited -= HandleStationExited;
+
+                if (!purchaseCompleted && vehicle != null && vehicle.CarFeatures != null)
                     originalPaint.Restore(vehicle.CarFeatures);
+
+                if (movementLocked && vehicle != null)
+                    vehicle.SetFreeze(false);
 
                 RestoreGasStationOverlayIfStillRelevant();
                 onClosed(this);
@@ -262,9 +383,12 @@ namespace VehicleRepainter
             {
                 var activeVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
                 if (!ReferenceEquals(activeVehicle, vehicle) || vehicle.vehicleInstance == null ||
-                    vehicle.CarFeatures == null || !Mathf.Approximately(vehicle.CurrentSpeed, 0f))
+                    vehicle.CarFeatures == null || vehicle.vehicleCollider == null ||
+                    !stationTrigger.IntersectsBounds(vehicle.vehicleCollider.bounds) ||
+                    !Mathf.Approximately(vehicle.CurrentSpeed, 0f))
                 {
-                    context.Logger.Warn("Repaint confirmation was rejected because the serviced vehicle is no longer active and stopped.");
+                    context.Logger.Warn(
+                        "Repaint confirmation was rejected because the serviced vehicle is no longer active, stopped, and inside the service bay.");
                     return false;
                 }
 
@@ -313,6 +437,18 @@ namespace VehicleRepainter
             public IEnumerator CancelShowcaseAnimation()
             {
                 yield break;
+            }
+
+            private void HandleStationExited(GasStationTrigger exitedStation)
+            {
+                if (closed || !ReferenceEquals(exitedStation, stationTrigger))
+                    return;
+
+                var purchaseUi = InstanceBehavior<UIs>.Instance?.playerHUD?.purchaseVehicleUI;
+                if (purchaseUi != null && PurchaseVehicleUI.IsPanelOpen)
+                    purchaseUi.Close();
+                else
+                    ResetColor();
             }
 
             private void RestoreGasStationOverlayIfStillRelevant()
@@ -388,6 +524,22 @@ namespace VehicleRepainter
                     Renderer = renderer;
                     PropertyBlock = propertyBlock;
                 }
+            }
+        }
+
+        private readonly struct CustomColorDefinition
+        {
+            internal readonly string Name;
+            internal readonly Color32 Tint;
+            internal readonly Color32 FresnelColor;
+            internal readonly float FresnelPower;
+
+            internal CustomColorDefinition(string name, Color32 tint, Color32 fresnelColor, float fresnelPower)
+            {
+                Name = name;
+                Tint = tint;
+                FresnelColor = fresnelColor;
+                FresnelPower = fresnelPower;
             }
         }
     }

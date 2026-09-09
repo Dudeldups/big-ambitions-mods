@@ -1,1 +1,3 @@
-Initial upload to the workshop
+- Prevented vehicles from moving while the repaint picker is open.
+- Repainting now cancels safely if the vehicle leaves the service bay.
+- Added eight additional paint colors with save persistence.
