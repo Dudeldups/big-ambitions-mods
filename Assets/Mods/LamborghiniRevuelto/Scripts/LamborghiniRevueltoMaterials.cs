@@ -311,7 +311,7 @@ public static class LamborghiniRevueltoMaterials
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
         var tint = cabinGlass
-            ? new Color(0.15f, 0.18f, 0.22f, 0.20f)
+            ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
