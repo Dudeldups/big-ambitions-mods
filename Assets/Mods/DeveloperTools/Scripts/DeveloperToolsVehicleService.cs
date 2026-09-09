@@ -71,7 +71,6 @@ namespace DeveloperTools
                 }
 
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
-                PrimeModVehicle(controller, vehicleTypeName);
                 lastSpawnedVehicleId = instance.id;
                 message = "Spawned " + Localize(vehicleTypeName) + ".";
                 return true;
@@ -105,44 +104,6 @@ namespace DeveloperTools
             lastSpawnedVehicleId = string.Empty;
             message = "Despawned the last test vehicle.";
             return true;
-        }
-
-        private void PrimeModVehicle(VehicleController controller, string vehicleTypeName)
-        {
-            if (!IsModdedVehicleType(vehicleTypeName))
-                return;
-
-            // Mod vehicle runtimes commonly finish configuring custom physics,
-            // input, driver, and audio components from the game's vehicle enter
-            // lifecycle. A vehicle created after their load-time catalog scan
-            // would otherwise receive that setup during its first real entry,
-            // which is too late for some prefabs until the player exits and
-            // enters again. Run a balanced enter/exit lifecycle before Unity's
-            // deferred Start pass so every registered mod gets the same general
-            // preparation opportunity without knowing any vehicle-specific API.
-            try
-            {
-                GlobalEvents.onEnterVehicle?.Invoke(controller);
-            }
-            catch (Exception exception)
-            {
-                context.Logger.Warn(
-                    "DeveloperTools: a mod vehicle enter initializer failed for type=" +
-                    vehicleTypeName + ": " + exception.GetBaseException().Message);
-            }
-            finally
-            {
-                try
-                {
-                    GlobalEvents.onExitVehicle?.Invoke(controller);
-                }
-                catch (Exception exception)
-                {
-                    context.Logger.Warn(
-                        "DeveloperTools: a mod vehicle exit initializer failed for type=" +
-                        vehicleTypeName + ": " + exception.GetBaseException().Message);
-                }
-            }
         }
 
         private static string Localize(string id)

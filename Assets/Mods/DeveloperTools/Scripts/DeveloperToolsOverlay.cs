@@ -119,6 +119,10 @@ namespace DeveloperTools
             if (!visible)
                 return;
             visible = false;
+            // Resume while the full-screen blocker still owns input. This gives
+            // freshly spawned vehicle physics several live frames to finish
+            // initialization before the player can enter the vehicle.
+            pause.ResumeAfterOverlay();
             inputReleaseBlockFrames = Math.Max(inputReleaseBlockFrames, 3);
             cursorRestorePending = true;
             vanillaVehicleDropdownOpen = false;
@@ -164,11 +168,6 @@ namespace DeveloperTools
 
             cursorRestorePending = false;
             SetUiInputBlockerActive(false);
-            pause.ResumeAfterOverlay();
-            // Resume the game's UI/game-speed state before restoring the exact
-            // actions we suspended. Otherwise the pause reset can overwrite the
-            // vehicle action state and the active car stays non-drivable until
-            // EnterVehicle configures it again.
             RestoreGameplayActions();
             Cursor.visible = cursorWasVisible;
             Cursor.lockState = previousCursorLock;
