@@ -6,4 +6,4 @@ Mobile Veterinarian requires Custom NPC API for the phone contact and temporary 
 
 Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=3795463421
 
-`MootorVehicle` is optional. It is currently the built-in supported animal, but Mobile Veterinarian can also treat animals registered by other mods.
+Moo-tor Vehicle is optional. It is currently the built-in supported animal, but Mobile Veterinarian can also treat animals registered by other mods.

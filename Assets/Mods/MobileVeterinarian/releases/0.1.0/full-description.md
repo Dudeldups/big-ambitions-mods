@@ -18,7 +18,7 @@ The veterinarian checks both sides of the animal for a safe standing position. A
 
 [h2]Supported animals[/h2]
 
-The rideable cow from MootorVehicle is supported out of the box. MootorVehicle is optional and is not bundled with this mod.
+The rideable cow from Moo-tor Vehicle is supported out of the box. Moo-tor Vehicle is optional and is not bundled with this mod.
 
 Other rideable-animal mods can register their exact VehicleType, localized animal name and preferred treatment position through the public registry. All service messages insert the name supplied by the animal mod; registrations without a usable name fall back to “your animal.”
 
@@ -33,10 +33,6 @@ The [url=https://github.com/Dudeldups/big-ambitions-mods/tree/main/Assets/Mods/M
 [*] Treatment-position coordinates and automatic opposite-side fallback
 [*] A focused integration test checklist
 [/list]
-
-[h2]Safety and performance[/h2]
-
-The target comes directly from the player's currently controlled vehicle. The mod performs no recurring world scan or permanent per-frame search. Temporary visit monitoring stops immediately on success, failure, cancellation, scene change or unload.
 
 [h2]Compatibility[/h2]
 

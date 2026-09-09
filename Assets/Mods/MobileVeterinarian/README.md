@@ -10,7 +10,7 @@ The veterinarian treats the animal the player is currently riding. The service n
 - [Custom NPC API](https://steamcommunity.com/sharedfiles/filedetails/?id=3795463421)
 - A supported rideable-animal mod
 
-Support for the cow from `MootorVehicle` is included. Mobile Veterinarian does not include the cow itself.
+Support for the cow from Moo-tor Vehicle is included. Mobile Veterinarian does not include the cow itself.
 
 ## Using the service
 
@@ -35,7 +35,7 @@ Version 0.1.0 uses these balance values:
 
 ## Animal-mod integration
 
-Messages are species-neutral and insert the display name registered by the animal mod. The built-in MootorVehicle registration supplies “your cow”; another mod can supply “your horse,” “your camel,” or a localized equivalent.
+Messages are species-neutral and insert the display name registered by the animal mod. The built-in Moo-tor Vehicle registration supplies “your cow”; another mod can supply “your horse,” “your camel,” or a localized equivalent.
 
 See [MODDER_GUIDE.md](MODDER_GUIDE.md) for the registration API, localization example, treatment-position coordinates, dependency setup and test checklist.
 
