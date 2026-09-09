@@ -46,6 +46,16 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         0.62f,
     };
 
+    private static AnimationCurve CreateChironPowerCurve() =>
+        new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.12f, 0.10f),
+            new Keyframe(0.30f, 0.38f),
+            new Keyframe(0.55f, 0.70f),
+            new Keyframe(0.78f, 0.93f),
+            new Keyframe(0.88f, 1f),
+            new Keyframe(1f, 0.82f));
+
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private ModContext? context;
@@ -327,6 +337,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 $"{ForcedInductionPowerMultiplier:0.00}, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
+                "shiftWindow=2400..6100rpm, powerCurve=W16-torque-plateau, " +
                 $"deformableBodyMeshes={deformableMeshCount}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
@@ -418,6 +429,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             var engine = GetMember(powertrain, "engine");
             SetFloat(engine, "inertia", EngineInertia);
             SetFloat(engine, "maxPower", EnginePowerKw);
+            SetValue(engine, "powerCurve", typeof(AnimationCurve), CreateChironPowerCurve());
             SetFloat(engine, "idleRPM", EngineIdleRpm);
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
             SetFloat(engine, "startDuration", EngineStartDuration);
@@ -429,9 +441,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
-            SetFloat(transmission, "shiftDuration", 0.08f);
-            SetFloat(transmission, "_downshiftRPM", 2800f);
-            SetFloat(transmission, "_upshiftRPM", 6500f);
+            SetFloat(transmission, "shiftDuration", 0.065f);
+            SetFloat(transmission, "_downshiftRPM", 2400f);
+            SetFloat(transmission, "_upshiftRPM", 6100f);
             SetInt(transmission, "forwardGearCount", 7);
             SetInt(transmission, "reverseGearCount", 1);
             SetInt(transmission, "transmissionType", 1);

@@ -22,6 +22,7 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private readonly List<GameObject> generatedObjects = new();
     private readonly List<Material> generatedMaterials = new();
     private readonly List<Mesh> generatedMeshes = new();
+    private readonly List<OverlayMeshBinding> deformableOverlayBindings = new();
     private VehicleController? vehicle;
     private ModContext? context;
     private object? brakes;
@@ -41,6 +42,7 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
     private MeshRenderer? rearRightBlinkerOverlay;
     private bool initialized;
     private bool updateFailureReported;
+    private bool overlayDeformationLogged;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
     private int lastState = -1;
@@ -109,6 +111,7 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
             return;
         try
         {
+            SynchronizeDeformableOverlays();
             ApplyState();
         }
         catch (Exception ex)
@@ -212,15 +215,42 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
         overlayObject.transform.SetParent(source.transform, false);
         overlayObject.transform.localScale = Vector3.one * scale;
         overlayObject.layer = source.gameObject.layer;
-        overlayObject.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+        var overlayFilter = overlayObject.AddComponent<MeshFilter>();
+        overlayFilter.sharedMesh = filter.sharedMesh;
         var overlay = overlayObject.AddComponent<MeshRenderer>();
         overlay.sharedMaterial = CreateUnlitMaterial(objectName + " Material", color, intensity);
         overlay.renderingLayerMask = source.renderingLayerMask;
         overlay.shadowCastingMode = ShadowCastingMode.Off;
         overlay.receiveShadows = false;
         overlay.enabled = false;
+        deformableOverlayBindings.Add(new OverlayMeshBinding(filter, overlayFilter));
         generatedObjects.Add(overlayObject);
         return overlay;
+    }
+
+    private void SynchronizeDeformableOverlays()
+    {
+        var synchronized = 0;
+        foreach (var binding in deformableOverlayBindings)
+        {
+            if (binding.Source == null || binding.Overlay == null ||
+                binding.Source.sharedMesh == binding.Overlay.sharedMesh)
+            {
+                continue;
+            }
+
+            // Collision deformation replaces MeshFilter.sharedMesh with its
+            // writable runtime clone. Point the emissive overlay at that same
+            // mesh so lamp geometry cannot remain at the undamaged position.
+            binding.Overlay.sharedMesh = binding.Source.sharedMesh;
+            synchronized++;
+        }
+
+        if (synchronized > 0 && !overlayDeformationLogged)
+        {
+            overlayDeformationLogged = true;
+            LogInfo($"bound {synchronized} lighting overlays to collision-deformed meshes.");
+        }
     }
 
     private MeshRenderer? CreateFilteredOverlay(
@@ -440,5 +470,17 @@ internal sealed class BugattiChironLightingController : MonoBehaviour
             if (generatedMaterial != null) Destroy(generatedMaterial);
         foreach (var generatedMesh in generatedMeshes)
             if (generatedMesh != null) Destroy(generatedMesh);
+    }
+
+    private sealed class OverlayMeshBinding
+    {
+        public OverlayMeshBinding(MeshFilter source, MeshFilter overlay)
+        {
+            Source = source;
+            Overlay = overlay;
+        }
+
+        public MeshFilter Source { get; }
+        public MeshFilter Overlay { get; }
     }
 }
