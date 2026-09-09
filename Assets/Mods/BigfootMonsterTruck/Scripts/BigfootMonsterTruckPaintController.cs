@@ -452,7 +452,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         if (uv.Length != vertices.Length)
             return 0;
         var sourceTriangles = sourceMesh.GetTriangles(0);
-        var grilleTriangles = new List<int>();
+        var candidates = new List<Vector3Int>();
+        var paintableCandidates = new List<bool>();
         for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
         {
             var a = sourceTriangles[index];
@@ -470,6 +471,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             if (!insideGrille || insideBadge)
                 continue;
 
+            candidates.Add(new Vector3Int(a, b, c));
             var triangleUv = (uv[a] + uv[b] + uv[c]) / 3f;
             var sourceColor = SampleSourceColor(triangleUv);
             var red = sourceColor.r / 255f;
@@ -477,15 +479,11 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             var blue = sourceColor.b / 255f;
             var maximum = Mathf.Max(red, Mathf.Max(green, blue));
             var blueDominance = blue - Mathf.Max(red, green);
-            // Only copy the dark/blue inner surfaces. The white grille shell and
-            // its authored highlights remain on the original renderer.
-            if (maximum > 0.48f && blueDominance < 0.06f)
-                continue;
-
-            grilleTriangles.Add(a);
-            grilleTriangles.Add(b);
-            grilleTriangles.Add(c);
+            paintableCandidates.Add(maximum <= 0.48f || blueDominance >= 0.06f);
         }
+        var grilleTriangles = SelectPaintableConnectedSurfaces(
+            candidates,
+            paintableCandidates);
         if (grilleTriangles.Count == 0)
             return 0;
 
@@ -520,6 +518,85 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         backingRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         backingRenderer.receiveShadows = false;
         return grilleTriangles.Count / 3;
+    }
+
+    private static List<int> SelectPaintableConnectedSurfaces(
+        List<Vector3Int> triangles,
+        List<bool> paintable)
+    {
+        var parents = new int[triangles.Count];
+        var vertexOwner = new Dictionary<int, int>();
+        for (var index = 0; index < triangles.Count; index++)
+        {
+            parents[index] = index;
+            ConnectGrilleVertex(triangles[index].x, index, parents, vertexOwner);
+            ConnectGrilleVertex(triangles[index].y, index, parents, vertexOwner);
+            ConnectGrilleVertex(triangles[index].z, index, parents, vertexOwner);
+        }
+
+        var groups = new Dictionary<int, List<int>>();
+        for (var index = 0; index < triangles.Count; index++)
+        {
+            var root = FindGrilleRoot(index, parents);
+            if (!groups.TryGetValue(root, out var group))
+            {
+                group = new List<int>();
+                groups[root] = group;
+            }
+            group.Add(index);
+        }
+
+        var selected = new List<int>();
+        foreach (var group in groups.Values)
+        {
+            var paintableCount = 0;
+            foreach (var triangleIndex in group)
+                if (paintable[triangleIndex])
+                    paintableCount++;
+            // Work at connected-surface granularity. Sampling individual atlas
+            // pixels left isolated unpainted triangles inside otherwise valid
+            // grille panels.
+            if (paintableCount == 0 || paintableCount < group.Count * 0.45f)
+                continue;
+            foreach (var triangleIndex in group)
+            {
+                var triangle = triangles[triangleIndex];
+                selected.Add(triangle.x);
+                selected.Add(triangle.y);
+                selected.Add(triangle.z);
+            }
+        }
+        return selected;
+    }
+
+    private static void ConnectGrilleVertex(
+        int vertex,
+        int triangle,
+        int[] parents,
+        Dictionary<int, int> vertexOwner)
+    {
+        if (vertexOwner.TryGetValue(vertex, out var owner))
+            UnionGrilleGroups(triangle, owner, parents);
+        else
+            vertexOwner[vertex] = triangle;
+    }
+
+    private static int FindGrilleRoot(int value, int[] parents)
+    {
+        while (parents[value] != value)
+        {
+            parents[value] = parents[parents[value]];
+            value = parents[value];
+        }
+        return value;
+    }
+
+    private static void UnionGrilleGroups(int left, int right, int[] parents)
+    {
+        var leftRoot = FindGrilleRoot(left, parents);
+        var rightRoot = FindGrilleRoot(right, parents);
+        if (leftRoot != rightRoot)
+            parents[rightRoot] = leftRoot;
     }
 
     private Color32 SampleSourceColor(Vector2 uv)
