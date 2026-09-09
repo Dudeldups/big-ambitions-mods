@@ -725,6 +725,12 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
     private const float DentRadius = 0.55f;
     private const float MaximumDentDepth = 0.3f;
     private const float DepthPerExcessMps = 0.009f;
+    private const float EndDentLateralRadius = 0.9f;
+    private const float EndDentVerticalRadius = 0.9f;
+    private const float EndDentLongitudinalRadius = 1.15f;
+    private const float MaximumEndDentDepth = 0.45f;
+    private const float EndDepthPerExcessMps = 0.012f;
+    private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
 
@@ -806,9 +812,15 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
 
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
             var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.02f, MaximumDentDepth);
+            var endDentDepth = Mathf.Clamp(
+                excessSpeed * EndDepthPerExcessMps,
+                0.035f,
+                MaximumEndDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var changedMeshes = 0;
             var changedVertices = 0;
+            var endImpact = false;
+            var changedMeshNames = new List<string>();
 
             foreach (var filter in deformableFilters)
             {
@@ -820,28 +832,62 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
                     var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
-                    var nearestDistance = float.MaxValue;
+                    var strongestInfluence = 0f;
                     var inwardDirection = Vector3.zero;
+                    var selectedDepth = dentDepth;
+                    var selectedEndImpact = false;
                     foreach (var contact in contacts)
                     {
-                        var distance = Vector3.Distance(worldVertex, contact.point);
-                        if (distance >= nearestDistance)
+                        var localContact = transform.InverseTransformPoint(contact.point);
+                        var isEndContact =
+                            Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
+                            Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
+                        float influence;
+                        Vector3 candidateDirection;
+                        if (isEndContact)
+                        {
+                            var localDelta = transform.InverseTransformVector(worldVertex - contact.point);
+                            var normalizedDistance = Mathf.Sqrt(
+                                localDelta.x * localDelta.x /
+                                (EndDentLateralRadius * EndDentLateralRadius) +
+                                localDelta.y * localDelta.y /
+                                (EndDentVerticalRadius * EndDentVerticalRadius) +
+                                localDelta.z * localDelta.z /
+                                (EndDentLongitudinalRadius * EndDentLongitudinalRadius));
+                            influence = 1f - normalizedDistance;
+                            candidateDirection = localContact.z >= 0f
+                                ? -transform.forward
+                                : transform.forward;
+                        }
+                        else
+                        {
+                            var distance = Vector3.Distance(worldVertex, contact.point);
+                            influence = 1f - distance / DentRadius;
+                            var towardCenter = (center - contact.point).normalized;
+                            var contactNormal = contact.normal.normalized;
+                            candidateDirection = Vector3.Dot(contactNormal, towardCenter) >= 0f
+                                ? contactNormal
+                                : -contactNormal;
+                        }
+
+                        if (influence <= strongestInfluence)
                             continue;
-                        nearestDistance = distance;
-                        var towardCenter = (center - contact.point).normalized;
-                        var contactNormal = contact.normal.normalized;
-                        inwardDirection = Vector3.Dot(contactNormal, towardCenter) >= 0f
-                            ? contactNormal
-                            : -contactNormal;
+                        strongestInfluence = influence;
+                        inwardDirection = candidateDirection;
+                        selectedDepth = isEndContact ? endDentDepth : dentDepth;
+                        selectedEndImpact = isEndContact;
                     }
 
-                    if (nearestDistance >= DentRadius || inwardDirection.sqrMagnitude < 0.5f)
+                    if (strongestInfluence <= 0f || inwardDirection.sqrMagnitude < 0.5f)
                         continue;
-                    var falloff = 1f - nearestDistance / DentRadius;
-                    worldVertex += inwardDirection * (dentDepth * falloff * falloff);
+                    var falloff = selectedEndImpact
+                        ? Mathf.Pow(strongestInfluence, 1.35f)
+                        : strongestInfluence * strongestInfluence;
+                    worldVertex += inwardDirection * (selectedDepth * falloff);
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
                     changedVertices++;
                     meshChanged = true;
+                    endImpact |= selectedEndImpact;
                 }
 
                 if (!meshChanged)
@@ -851,6 +897,7 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
                 changedMeshes++;
+                changedMeshNames.Add(filter.name);
             }
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
@@ -859,8 +906,11 @@ public sealed class BugattiChironVisualDamageController : MonoBehaviour
                     $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
-                    $"depth={dentDepth:0.000}m radius={DentRadius:0.00}m " +
+                    $"region={(endImpact ? "front/rear" : "side")} " +
+                    $"depth={(endImpact ? endDentDepth : dentDepth):0.000}m " +
+                    $"radius={(endImpact ? $"{EndDentLateralRadius:0.00}x{EndDentVerticalRadius:0.00}x{EndDentLongitudinalRadius:0.00}" : DentRadius.ToString("0.00"))}m " +
                     $"meshes={changedMeshes} vertices={changedVertices} " +
+                    $"meshNames=[{string.Join(", ", changedMeshNames)}] " +
                     $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
                     $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
             }
