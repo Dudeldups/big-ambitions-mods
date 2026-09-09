@@ -339,7 +339,7 @@ namespace MootorVehicle
         private void ApplyFreeParking(VehicleController vehicleController)
         {
             var instance = vehicleController.vehicleInstance;
-            if (instance == null)
+            if (instance == null || instance.parkingState == ParkingState.Legal)
                 return;
 
             var changed = instance.parkingState != ParkingState.NotAvailable ||
@@ -463,8 +463,9 @@ namespace MootorVehicle
             if (!IsMootorVehicle(selectedVehicle) ||
                 selectedVehicle == null ||
                 !selectedVehicle.controlledByPlayer ||
-                !IsOnSidewalk(selectedVehicle) ||
                 vehicleInfo == null ||
+                vehicleInfo.currentParkingState == ParkingState.Legal ||
+                !IsOnSidewalk(selectedVehicle) ||
                 (vehicleInfo.currentParkingState == ParkingState.NotAvailable &&
                  string.IsNullOrEmpty(vehicleInfo.currentParkingNeighbourhood)))
             {
@@ -533,7 +534,7 @@ namespace MootorVehicle
                         out var surfaceHit,
                         SidewalkProbeDistance,
                         surfaceMask,
-                        QueryTriggerInteraction.Ignore))
+                        QueryTriggerInteraction.Collide))
                 {
                     if (surfaceHit.collider != null &&
                         surfaceHit.collider.gameObject.layer == crosswalkLayer)
