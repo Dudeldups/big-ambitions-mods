@@ -45,8 +45,6 @@ public sealed class BigfootMonsterTruckMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        context.Logger.Info(
-            $"BigfootMonsterTruck: registered vehicle '{vehicleType.vehicleTypeName}'.");
         runtime = BigfootMonsterTruckRuntime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
     }
@@ -103,9 +101,6 @@ internal static class BigfootTruckDealerStock
         try
         {
             ContractItemsForSaleService.SetVehiclesForContact(DealerContactId, merged);
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: truck dealer stock ready source='{source}', " +
-                $"vehicleCount={merged.Count}.");
             return true;
         }
         catch (Exception exception)
