@@ -311,7 +311,7 @@ public static class LamborghiniRevueltoMaterials
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
         var tint = cabinGlass
-            ? new Color(0.055f, 0.075f, 0.095f, 0.44f)
+            ? new Color(0.045f, 0.065f, 0.085f, 0.60f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -336,8 +336,8 @@ public static class LamborghiniRevueltoMaterials
         {
             SetFloat(material, "_Metallic", 0f);
             SetFloat(material, "metallicFactor", 0f);
-            SetFloat(material, "_Smoothness", 0.94f);
-            SetFloat(material, "roughnessFactor", 0.06f);
+            SetFloat(material, "_Smoothness", 0.88f);
+            SetFloat(material, "roughnessFactor", 0.12f);
         }
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
@@ -357,6 +357,12 @@ public static class LamborghiniRevueltoMaterials
         material.SetShaderPassEnabled("TransparentBackface", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    internal static void RestoreCabinGlassMaterial(Material material)
+    {
+        if (IsCabinGlassMaterial(material))
+            FixTransparentHdrpMaterial(material);
     }
 
     public static bool IsCabinGlassMaterial(Material material)

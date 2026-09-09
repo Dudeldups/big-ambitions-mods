@@ -147,7 +147,12 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         dealerReadyLogged = false;
     }
 
-    private void HandleVehicleEntered(VehicleController vehicle) => TryConfigureVehicle(vehicle);
+    private void HandleVehicleEntered(VehicleController vehicle)
+    {
+        TryConfigureVehicle(vehicle);
+        vehicle?.GetComponent<LamborghiniRevueltoGlassController>()
+            ?.RestoreAfterVehicleEntered();
+    }
 
     private void HandleBuildingEntered(Address address)
     {
@@ -286,7 +291,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 rimGeometryController = vehicle.gameObject
                     .AddComponent<LamborghiniRevueltoRimGeometryController>();
             }
-            var mirroredRims = rimGeometryController.Initialize(context);
+            var mirroredWheelMeshes = rimGeometryController.Initialize(context);
             ConfigureBodyColliders(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
@@ -295,6 +300,10 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 caliperController = vehicle.gameObject.AddComponent<LamborghiniRevueltoCaliperController>();
             caliperController.Initialize(vehicle, context);
             var materialResult = LamborghiniRevueltoMaterials.FixSolidMaterials(vehicle.gameObject);
+            var glassController = vehicle.GetComponent<LamborghiniRevueltoGlassController>();
+            if (glassController == null)
+                glassController = vehicle.gameObject.AddComponent<LamborghiniRevueltoGlassController>();
+            glassController.Initialize(context);
             var lightingController = vehicle.GetComponent<LamborghiniRevueltoLightingController>();
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<LamborghiniRevueltoLightingController>();
@@ -332,7 +341,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 $"powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
-                $"mirroredRightRimGeometry={mirroredRims}, " +
+                $"mirroredRightWheelGeometry={mirroredWheelMeshes}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -726,24 +735,26 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
 
         initialized = true;
         var mirrored = 0;
-        mirrored += MirrorRightRim("Wheel_FR_Rim_0", "Wheel_FL_Rim_0");
-        mirrored += MirrorRightRim("Wheel_BR_Rim_0", "Wheel_BL_Rim_0");
-        if (mirrored != 2)
+        mirrored += MirrorRightMesh("Wheel_FR_Rim_0", "Wheel_FL_Rim_0");
+        mirrored += MirrorRightMesh("Wheel_BR_Rim_0", "Wheel_BL_Rim_0");
+        mirrored += MirrorRightMesh("Wheel_FR_Caliper_0", "Wheel_FL_Caliper_0");
+        mirrored += MirrorRightMesh("Wheel_BR_Caliper_0", "Wheel_BL_Caliper_0");
+        if (mirrored != 4)
         {
             context?.Logger.Warn(
-                $"LamborghiniRevuelto rims vehicle={GetInstanceID()}: mirrored {mirrored}/2 left rims; " +
-                "a wheel mesh pair is missing.");
+                $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: mirrored " +
+                $"{mirrored}/4 left-side rim/caliper meshes; a mesh pair is missing.");
         }
         else
         {
             context?.Logger.Info(
-                $"LamborghiniRevuelto rims vehicle={GetInstanceID()}: left rims rebuilt as exact " +
-                "mirrors of the preferred right-side geometry.");
+                $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: left rims and " +
+                "calipers rebuilt as exact mirrors of the preferred right-side geometry.");
         }
         return mirrored;
     }
 
-    private int MirrorRightRim(string rightName, string leftName)
+    private int MirrorRightMesh(string rightName, string leftName)
     {
         MeshFilter? right = null;
         MeshFilter? left = null;
@@ -764,9 +775,31 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
         var rightToMirroredLeft =
             rootToLeft * Matrix4x4.Scale(new Vector3(-1f, 1f, 1f)) * rightToRoot;
         var vertices = mirroredMesh.vertices;
+        var normals = mirroredMesh.normals;
+        var tangents = mirroredMesh.tangents;
         for (var index = 0; index < vertices.Length; index++)
             vertices[index] = rightToMirroredLeft.MultiplyPoint3x4(vertices[index]);
         mirroredMesh.vertices = vertices;
+
+        // Preserve the preferred right-side authored smoothing exactly. A
+        // recalculation produces subtly different highlights even when geometry
+        // and materials match, which made the left wheels look washed out.
+        var normalTransform = rightToMirroredLeft.inverse.transpose;
+        for (var index = 0; index < normals.Length; index++)
+            normals[index] = normalTransform.MultiplyVector(normals[index]).normalized;
+        mirroredMesh.normals = normals;
+        var handedness = rightToMirroredLeft.determinant < 0f ? -1f : 1f;
+        for (var index = 0; index < tangents.Length; index++)
+        {
+            var direction = rightToMirroredLeft.MultiplyVector(
+                new Vector3(tangents[index].x, tangents[index].y, tangents[index].z)).normalized;
+            tangents[index] = new Vector4(
+                direction.x,
+                direction.y,
+                direction.z,
+                tangents[index].w * handedness);
+        }
+        mirroredMesh.tangents = tangents;
 
         // Mirroring reverses handedness. Restore outward-facing triangle winding
         // before deriving normals so both sides respond identically to lighting.
@@ -781,8 +814,6 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
             }
             mirroredMesh.SetTriangles(triangles, subMesh, false);
         }
-        mirroredMesh.RecalculateNormals();
-        mirroredMesh.RecalculateTangents();
         mirroredMesh.RecalculateBounds();
         left.sharedMesh = mirroredMesh;
         runtimeMeshes.Add(mirroredMesh);
@@ -801,16 +832,100 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
 }
 
 [AddComponentMenu("")]
+public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
+{
+    private readonly List<Renderer> cabinGlass = new List<Renderer>();
+    private ModContext? context;
+    private Coroutine? restoreCoroutine;
+    private bool initialized;
+
+    internal void Initialize(ModContext? modContext)
+    {
+        context = modContext;
+        cabinGlass.Clear();
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            if (Array.Exists(
+                    renderer.sharedMaterials,
+                    material => material != null &&
+                                LamborghiniRevueltoMaterials.IsCabinGlassMaterial(material)))
+            {
+                cabinGlass.Add(renderer);
+            }
+        }
+        initialized = true;
+        EnsureVisible("initialize");
+    }
+
+    internal void RestoreAfterVehicleEntered()
+    {
+        if (!initialized)
+            return;
+        if (restoreCoroutine != null)
+            StopCoroutine(restoreCoroutine);
+        restoreCoroutine = StartCoroutine(RestoreAfterEntryLifecycle());
+    }
+
+    private IEnumerator RestoreAfterEntryLifecycle()
+    {
+        // Vehicle entry can alter renderer state after the entry callback. Two
+        // deferred event passes restore glass once setup has settled, without a
+        // permanent per-frame poll.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+        EnsureVisible("vehicle-entered");
+        restoreCoroutine = null;
+    }
+
+    private void EnsureVisible(string source)
+    {
+        var restored = 0;
+        foreach (var renderer in cabinGlass)
+        {
+            if (renderer == null)
+                continue;
+            if (!renderer.enabled || renderer.forceRenderingOff)
+                restored++;
+            renderer.enabled = true;
+            renderer.forceRenderingOff = false;
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material != null &&
+                    LamborghiniRevueltoMaterials.IsCabinGlassMaterial(material))
+                {
+                    LamborghiniRevueltoMaterials.RestoreCabinGlassMaterial(material);
+                }
+            }
+        }
+        context?.Logger.Info(
+            $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: source='{source}' " +
+            $"renderers={cabinGlass.Count}, restored={restored}, deferredPolling=false.");
+    }
+
+    private void OnDestroy()
+    {
+        if (restoreCoroutine != null)
+            StopCoroutine(restoreCoroutine);
+        restoreCoroutine = null;
+    }
+}
+
+[AddComponentMenu("")]
 public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
 {
     private const float DentRadius = 0.72f;
     private const float MaximumDentDepth = 0.46f;
     private const float DepthPerExcessMps = 0.015f;
-    private const float EndDentLateralRadius = 0.96f;
-    private const float EndDentVerticalRadius = 0.82f;
-    private const float EndDentLongitudinalRadius = 1.18f;
-    private const float MaximumEndDentDepth = 0.58f;
-    private const float EndDepthPerExcessMps = 0.017f;
+    private const float FrontDentLateralRadius = 0.78f;
+    private const float FrontDentVerticalRadius = 0.65f;
+    private const float FrontDentLongitudinalRadius = 0.90f;
+    private const float MaximumFrontDentDepth = 0.32f;
+    private const float FrontDepthPerExcessMps = 0.011f;
+    private const float RearDentLateralRadius = 0.96f;
+    private const float RearDentVerticalRadius = 0.82f;
+    private const float RearDentLongitudinalRadius = 1.18f;
+    private const float MaximumRearDentDepth = 0.58f;
+    private const float RearDepthPerExcessMps = 0.017f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
@@ -903,15 +1018,20 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
 
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
             var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.025f, MaximumDentDepth);
-            var endDentDepth = Mathf.Clamp(
-                excessSpeed * EndDepthPerExcessMps,
+            var frontDentDepth = Mathf.Clamp(
+                excessSpeed * FrontDepthPerExcessMps,
                 0.04f,
-                MaximumEndDentDepth);
+                MaximumFrontDentDepth);
+            var rearDentDepth = Mathf.Clamp(
+                excessSpeed * RearDepthPerExcessMps,
+                0.04f,
+                MaximumRearDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
             var changedMeshes = 0;
             var changedVertices = 0;
-            var endImpact = false;
+            var frontImpact = false;
+            var rearImpact = false;
 
             foreach (var filter in deformableFilters)
             {
@@ -927,24 +1047,35 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                     var inwardDirection = Vector3.zero;
                     var selectedDepth = dentDepth;
                     var selectedEndImpact = false;
+                    var selectedFrontImpact = false;
                     foreach (var contact in contacts)
                     {
                         var localContact = transform.InverseTransformPoint(contact.point);
                         var isEndContact =
                             Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
                             Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
+                        var isFrontContact = isEndContact && localContact.z >= 0f;
                         float influence;
                         Vector3 candidateDirection;
                         if (isEndContact)
                         {
                             var localDelta = transform.InverseTransformVector(worldVertex - contact.point);
+                            var lateralRadius = isFrontContact
+                                ? FrontDentLateralRadius
+                                : RearDentLateralRadius;
+                            var verticalRadius = isFrontContact
+                                ? FrontDentVerticalRadius
+                                : RearDentVerticalRadius;
+                            var longitudinalRadius = isFrontContact
+                                ? FrontDentLongitudinalRadius
+                                : RearDentLongitudinalRadius;
                             var normalizedDistance = Mathf.Sqrt(
                                 localDelta.x * localDelta.x /
-                                (EndDentLateralRadius * EndDentLateralRadius) +
+                                (lateralRadius * lateralRadius) +
                                 localDelta.y * localDelta.y /
-                                (EndDentVerticalRadius * EndDentVerticalRadius) +
+                                (verticalRadius * verticalRadius) +
                                 localDelta.z * localDelta.z /
-                                (EndDentLongitudinalRadius * EndDentLongitudinalRadius));
+                                (longitudinalRadius * longitudinalRadius));
                             influence = 1f - normalizedDistance;
                             candidateDirection = localContact.z >= 0f
                                 ? -transform.forward
@@ -964,8 +1095,11 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                             continue;
                         strongestInfluence = influence;
                         inwardDirection = candidateDirection;
-                        selectedDepth = isEndContact ? endDentDepth : dentDepth;
+                        selectedDepth = isEndContact
+                            ? isFrontContact ? frontDentDepth : rearDentDepth
+                            : dentDepth;
                         selectedEndImpact = isEndContact;
+                        selectedFrontImpact = isFrontContact;
                     }
 
                     if (strongestInfluence <= 0f || inwardDirection.sqrMagnitude < 0.5f)
@@ -977,7 +1111,8 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
                     changedVertices++;
                     meshChanged = true;
-                    endImpact |= selectedEndImpact;
+                    frontImpact |= selectedEndImpact && selectedFrontImpact;
+                    rearImpact |= selectedEndImpact && !selectedFrontImpact;
                 }
 
                 if (!meshChanged)
@@ -997,8 +1132,8 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
                     $"localContact=({primaryLocalContact.x:0.00}," +
                     $"{primaryLocalContact.y:0.00},{primaryLocalContact.z:0.00}) " +
-                    $"region={(endImpact ? "front/rear" : "side")} " +
-                    $"depth={(endImpact ? endDentDepth : dentDepth):0.000}m " +
+                    $"region={(frontImpact ? "front" : rearImpact ? "rear" : "side")} " +
+                    $"depth={(frontImpact ? frontDentDepth : rearImpact ? rearDentDepth : dentDepth):0.000}m " +
                     $"meshes={changedMeshes} vertices={changedVertices} " +
                     $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
                     $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
