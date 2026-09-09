@@ -219,7 +219,7 @@ public static class BugattiChironSetup
 
                 var damage = new SerializedObject(component);
                 visualDamageHandlerVerified =
-                    (damage.FindProperty("meshDeform")?.boolValue ?? false) &&
+                    !(damage.FindProperty("meshDeform")?.boolValue ?? true) &&
                     Math.Abs(ReadNumber(damage.FindProperty("decelerationThreshold")) -
                              DamageDecelerationThreshold) < 0.01f &&
                     Math.Abs(ReadNumber(damage.FindProperty("deformationRadius")) -
@@ -738,7 +738,7 @@ public static class BugattiChironSetup
 
             damageHandlerFound = true;
             var serialized = new SerializedObject(component);
-            SetRelativeBool(serialized, "meshDeform", true);
+            SetRelativeBool(serialized, "meshDeform", false);
             SetRelativeNumber(serialized, "collisionTimeout", 0.8f);
             SetRelativeNumber(serialized, "damageIntensity", DamageIntensity);
             SetRelativeNumber(serialized, "decelerationThreshold", DamageDecelerationThreshold);

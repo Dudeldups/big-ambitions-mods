@@ -469,27 +469,16 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             deformableFilters.Add(filter);
         }
 
-        var filtersField = FindField(damageHandler.GetType(), "_deformableMeshFilters");
-        var originalsField = FindField(damageHandler.GetType(), "_originalMeshes");
-        if (!(filtersField?.GetValue(damageHandler) is IList runtimeFilters) ||
-            !(originalsField?.GetValue(damageHandler) is IList originalMeshes) ||
-            deformableFilters.Count == 0)
+        if (deformableFilters.Count == 0)
         {
             damageHandler.meshDeform = false;
             context?.Logger.Warn(
                 $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: " +
-                $"could not bind visible body meshes count={deformableFilters.Count}; " +
+                "could not find visible exterior meshes; " +
                 "visual damage remains disabled.");
             return 0;
         }
 
-        runtimeFilters.Clear();
-        originalMeshes.Clear();
-        foreach (var filter in deformableFilters)
-        {
-            runtimeFilters.Add(filter);
-            originalMeshes.Add(filter.sharedMesh);
-        }
         ClearCollection(damageHandler, "_collisionEvents");
 
         damageHandler.collisionTimeout = 0.8f;
@@ -499,10 +488,22 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         damageHandler.deformationRandomness = 0.01f;
         damageHandler.deformationStrength = DeformationStrength;
         damageHandler.deformationVerticesPerFrame = 8000;
-        damageHandler.meshDeform = true;
+        // The bundled NWH mesh step adds the contact normal. On this model the
+        // reported normal points out of the body, inflating panels instead of denting them.
+        damageHandler.meshDeform = false;
+
+        var visualDamage = vehicle.GetComponent<BugattiChironVisualDamageController>();
+        if (visualDamage == null)
+            visualDamage = vehicle.gameObject.AddComponent<BugattiChironVisualDamageController>();
+        visualDamage.Initialize(
+            vehicle,
+            damageHandler,
+            context,
+            deformableFilters,
+            DamageDecelerationThreshold / 100f);
 
         context?.Logger.Info(
-            $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: enabled " +
+            $"BugattiChiron damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
             $"bodyMeshes={deformableFilters.Count} threshold=" +
             $"{DamageDecelerationThreshold / 100f:0.0}mps radius={DeformationRadius:0.00} " +
             $"strength={DeformationStrength:0.00} filters=" +
@@ -718,14 +719,174 @@ internal sealed class BugattiChironDamageDiagnostics : MonoBehaviour
     }
 }
 
+[AddComponentMenu("")]
+public sealed class BugattiChironVisualDamageController : MonoBehaviour
+{
+    private const float DentRadius = 0.55f;
+    private const float MaximumDentDepth = 0.3f;
+    private const float DepthPerExcessMps = 0.009f;
+    private const float CollisionCooldown = 0.5f;
+    private const int MaximumDiagnosticLogs = 6;
+
+    private readonly List<MeshFilter> deformableFilters = new();
+    private readonly Dictionary<MeshFilter, Mesh> originalMeshes = new();
+    private VehicleController? vehicle;
+    private NWH.VehiclePhysics2.Damage.DamageHandler? damageHandler;
+    private ModContext? context;
+    private Rigidbody? body;
+    private float impactThresholdMps;
+    private float nextCollisionTime;
+    private float previousDamage;
+    private int diagnosticLogs;
+    private bool initialized;
+    private bool failureReported;
+
+    internal void Initialize(
+        VehicleController controller,
+        NWH.VehiclePhysics2.Damage.DamageHandler handler,
+        ModContext? modContext,
+        IReadOnlyList<MeshFilter> filters,
+        float thresholdMps)
+    {
+        if (initialized && vehicle == controller)
+            return;
+
+        vehicle = controller;
+        damageHandler = handler;
+        context = modContext;
+        body = controller.GetComponent<Rigidbody>();
+        impactThresholdMps = thresholdMps;
+        previousDamage = handler.Damage;
+        deformableFilters.Clear();
+        originalMeshes.Clear();
+        foreach (var filter in filters)
+        {
+            if (filter == null || filter.sharedMesh == null)
+                continue;
+            deformableFilters.Add(filter);
+            originalMeshes[filter] = filter.sharedMesh;
+        }
+        initialized = true;
+    }
+
+    private void Update()
+    {
+        if (!initialized || damageHandler == null)
+            return;
+
+        var currentDamage = damageHandler.Damage;
+        if (previousDamage > 0.001f && currentDamage <= 0.001f)
+        {
+            foreach (var pair in originalMeshes)
+            {
+                if (pair.Key != null && pair.Value != null)
+                    pair.Key.sharedMesh = pair.Value;
+            }
+            context?.Logger.Info(
+                $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
+        }
+        previousDamage = currentDamage;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!initialized || collision == null || Time.unscaledTime < nextCollisionTime ||
+            collision.relativeVelocity.magnitude < impactThresholdMps ||
+            !NWH.VehiclePhysics2.Damage.DamageHandler.IsCollisionValid(collision))
+        {
+            return;
+        }
+
+        try
+        {
+            nextCollisionTime = Time.unscaledTime + CollisionCooldown;
+            var contacts = collision.contacts;
+            if (contacts.Length == 0)
+                return;
+
+            var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
+            var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.02f, MaximumDentDepth);
+            var center = body != null ? body.worldCenterOfMass : transform.position;
+            var changedMeshes = 0;
+            var changedVertices = 0;
+
+            foreach (var filter in deformableFilters)
+            {
+                if (filter == null || filter.sharedMesh == null)
+                    continue;
+                var mesh = filter.mesh;
+                var vertices = mesh.vertices;
+                var meshChanged = false;
+                for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+                {
+                    var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
+                    var nearestDistance = float.MaxValue;
+                    var inwardDirection = Vector3.zero;
+                    foreach (var contact in contacts)
+                    {
+                        var distance = Vector3.Distance(worldVertex, contact.point);
+                        if (distance >= nearestDistance)
+                            continue;
+                        nearestDistance = distance;
+                        var towardCenter = (center - contact.point).normalized;
+                        var contactNormal = contact.normal.normalized;
+                        inwardDirection = Vector3.Dot(contactNormal, towardCenter) >= 0f
+                            ? contactNormal
+                            : -contactNormal;
+                    }
+
+                    if (nearestDistance >= DentRadius || inwardDirection.sqrMagnitude < 0.5f)
+                        continue;
+                    var falloff = 1f - nearestDistance / DentRadius;
+                    worldVertex += inwardDirection * (dentDepth * falloff * falloff);
+                    vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
+                    changedVertices++;
+                    meshChanged = true;
+                }
+
+                if (!meshChanged)
+                    continue;
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+                mesh.RecalculateNormals();
+                mesh.RecalculateTangents();
+                changedMeshes++;
+            }
+
+            if (diagnosticLogs++ < MaximumDiagnosticLogs)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
+                    $"contact='{collision.collider?.name ?? "unknown"}' " +
+                    $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
+                    $"depth={dentDepth:0.000}m radius={DentRadius:0.00}m " +
+                    $"meshes={changedMeshes} vertices={changedVertices} " +
+                    $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
+                    $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (failureReported)
+                return;
+            failureReported = true;
+            context?.Logger.Warn(
+                $"BugattiChiron damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
+                $"with {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+}
+
 [DefaultExecutionOrder(-100)]
 internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
 {
     private const float MinimumVelocityRestoreMps = 25f;
+    private const float HighSpeedVelocityMemorySeconds = 0.75f;
     private static readonly string[] KnownBridgeSeamNames =
     {
-        "BridgeMiddleRoadHiderColliders",
+        "BridgeMiddleRoad",
         "BridgeConnectionGroundPlane",
+        "BridgeJointCollider",
     };
 
     private VehicleController? vehicle;
@@ -734,6 +895,7 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
     private Collider[] bodyColliders = Array.Empty<Collider>();
     private Vector3 velocityBeforeStep;
     private Vector3 angularVelocityBeforeStep;
+    private float velocitySampleTime;
     private int recoveryLogs;
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
@@ -766,11 +928,25 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
     {
         if (body == null)
             return;
-        velocityBeforeStep = body.velocity;
-        angularVelocityBeforeStep = body.angularVelocity;
+        if (body.velocity.magnitude >= MinimumVelocityRestoreMps)
+        {
+            velocityBeforeStep = body.velocity;
+            angularVelocityBeforeStep = body.angularVelocity;
+            velocitySampleTime = Time.unscaledTime;
+        }
     }
 
     private void OnCollisionEnter(Collision collision)
+    {
+        HandleKnownBridgeContact(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        HandleKnownBridgeContact(collision);
+    }
+
+    private void HandleKnownBridgeContact(Collision collision)
     {
         var other = collision?.collider;
         if (body == null || other == null || !IsKnownBridgeSeam(other.name))
@@ -779,7 +955,9 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
         var ignoredPairs = IgnoreBodyCollision(other);
         var speedBefore = velocityBeforeStep.magnitude;
         var speedAfter = body.velocity.magnitude;
-        var restored = speedBefore >= MinimumVelocityRestoreMps && speedAfter < speedBefore * 0.7f;
+        var restored = speedBefore >= MinimumVelocityRestoreMps &&
+                       Time.unscaledTime - velocitySampleTime <= HighSpeedVelocityMemorySeconds &&
+                       speedAfter < speedBefore * 0.98f;
         if (restored)
         {
             body.velocity = velocityBeforeStep;
@@ -801,7 +979,7 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
         var ignored = 0;
         foreach (var own in bodyColliders)
         {
-            if (own == null || own == other || Physics.GetIgnoreCollision(own, other))
+            if (own == null || own == other)
                 continue;
             Physics.IgnoreCollision(own, other, true);
             ignored++;
