@@ -135,7 +135,8 @@ namespace MootorVehicle
 
             ActivateEnergyDrinkBoost();
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle feed vehicle={vehicle.GetInstanceID()} item='{EnergyDrinkItemName}' " +
                 $"source={(boxedEnergyDrink != null ? "box" : "hands")} " +
                 $"fuelBefore={fuelBefore:F2} fuelAfter={fuelAfter:F2} " +
@@ -182,7 +183,8 @@ namespace MootorVehicle
                 else if (persistedBoost)
                     PersistEnergyDrinkBoost(false);
 
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle energy boost configured vehicle={vehicle.GetInstanceID()} " +
                     $"regularSpeed={regularSpeedLimit:F1} regularPower={regularEnginePower:F1} " +
                     $"restored={energyBoostActive}.");
@@ -233,7 +235,8 @@ namespace MootorVehicle
                 return;
 
             SetEnergyDrinkBoost(false, true);
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} ended: cow is out of fuel.");
         }
 
@@ -254,7 +257,8 @@ namespace MootorVehicle
             if (persist)
                 PersistEnergyDrinkBoost(active);
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle energy boost vehicle={vehicle?.GetInstanceID()} active={active} " +
                 $"targetSpeed={regularSpeedLimit * performanceMultiplier:F1} " +
                 $"safetyLimit={speedLimiter.speedLimit:F1} enginePower={engine.maxPower:F1} " +
@@ -281,7 +285,8 @@ namespace MootorVehicle
                     ~(RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ);
             }
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle energy stability vehicle={vehicle?.GetInstanceID()} " +
                 $"active={active} maximumSteerAngle={physicsVehicle.steering.maximumSteerAngle:F1} " +
                 "mountTransitionScheduled=" + (active && mounted) + ".");
@@ -316,7 +321,8 @@ namespace MootorVehicle
             vehicleBody.constraints =
                 RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle energy stability vehicle={vehicle.GetInstanceID()} applied after " +
                 $"mount previousConstraints={previousConstraints} " +
                 $"constraints={vehicleBody.constraints} ticks={EnergyStabilityMountDelayTicks}.");
@@ -359,7 +365,8 @@ namespace MootorVehicle
                 transmission.Gear = currentGear;
             transmission.currentGearRatio = transmission.GetGearRatio(currentGear);
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle transmission vehicle={vehicle?.GetInstanceID()} " +
                 $"singleSpeed=true energized={energized} reverseRatio={ReverseGearRatio:F3} " +
                 $"forwardRatio={forwardRatio:F3} gear={currentGear}.");
@@ -400,7 +407,8 @@ namespace MootorVehicle
                 // Reassigning uses PlayerHelper's standard remove/add lifecycle. The ItemInstance is
                 // unchanged, so this recreates the hand object and item panel without moving inventory.
                 PlayerHelper.ItemInstanceInHands = heldItem;
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle rider vehicle={vehicle?.GetInstanceID()}: restored held item " +
                     $"'{heldItem.itemName}' after dismount.");
             }
@@ -467,7 +475,8 @@ namespace MootorVehicle
                 yield break;
 
             GasStationOverlay.Hide();
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle gas-station overlay suppressed vehicle={vehicle?.GetInstanceID()} " +
                 $"station={stationId} source='{source}'.");
         }

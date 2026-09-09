@@ -6,6 +6,7 @@ Trade horsepower for cow power and ride through the city on a fully driveable co
 [list]
 [*] Purchase and own the cow from City Cars.
 [*] Mount, steer, brake, dismount, park, and save it through the standard vehicle system.
+[*] Park on the sidewalk without parking fees or tickets.
 [*] Keep your character visible while riding, with a cow-riding pose and visible carried packages.
 [*] Animated walking legs and occasional ear flaps.
 [*] Moo horn, crash moo, and spatial ambient moos while the cow is parked nearby.
@@ -23,13 +24,17 @@ The cow has no trunk. A package held while mounting remains visible in the rider
 
 [h2]Healing[/h2]
 
-Normal fuel and repair stations are disabled for the cow. The optional Mobile Veterinarian companion mod can heal damage while the player is mounted. It is not required to drive Moo-tor Vehicle.
+Normal fuel and repair stations are disabled for the cow. Mobile Veterinarian is required and heals damage while the player is mounted.
+
+[h2]Required items[/h2]
+[list]
+[*] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798823954]Mobile Veterinarian[/url] heals damaged animal vehicles.
+[*] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3796393608]Modded Vehicles Integration[/url] makes the cow available from the City Cars dealer.
+[/list]
 
 [h2]Compatibility[/h2]
 [list]
 [*] Big Ambitions build 3674
-[*] Windows
-[*] No required Workshop dependencies
 [/list]
 
 [h2]Credits[/h2]
@@ -37,5 +42,3 @@ Normal fuel and repair stations are disabled for the cow. The optional Mobile Ve
 Cow model: [url=https://skfb.ly/DTQH]"Cow" by Josué Boisvert[/url], licensed under [url=https://creativecommons.org/licenses/by/4.0/]CC BY 4.0[/url].
 
 Moo sound: [url=https://pixabay.com/sound-effects/nature-cow-moo-1-472361/]"Cow Moo 1" by DRAGON-STUDIO[/url], licensed under the [url=https://pixabay.com/service/license-summary/]Pixabay Content License[/url].
-
-Source code and issue tracker: [url=https://github.com/Dudeldups/big-ambitions-mods]github.com/Dudeldups/big-ambitions-mods[/url]

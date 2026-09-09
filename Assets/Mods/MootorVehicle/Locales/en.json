@@ -1,4 +1,4 @@
 {
   "mootorvehicle:vehicletype_mootorvehicle": "Moo-tor Vehicle",
-  "mootorvehicle:missing_mobile_veterinarian": "Mobile Veterinarian is not installed. Install it to heal a damaged cow."
+  "mootorvehicle:missing_mobile_veterinarian": "Mobile Veterinarian is required by Moo-tor Vehicle but is not installed."
 }
