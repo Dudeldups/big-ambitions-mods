@@ -15,6 +15,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private MeshRenderer? bodyRenderer;
     private Material? originalMaterial;
     private Material? paintMaterial;
+    private Material? grillePanelMaterial;
     private Material? originalWindowMaterial;
     private Material? paintWindowMaterial;
     private Texture2D? sourceTexture;
@@ -105,6 +106,18 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         {
             name = "Bigfoot Repaintable Body"
         };
+        grillePanelMaterial = new Material(originalMaterial)
+        {
+            name = "Bigfoot Repaintable Native Grille Panel"
+        };
+        SetBaseTexture(grillePanelMaterial, Texture2D.whiteTexture);
+        ClearTexture(grillePanelMaterial, "_NormalMap");
+        ClearTexture(grillePanelMaterial, "_BumpMap");
+        ClearTexture(grillePanelMaterial, "normalTexture");
+        ClearTexture(grillePanelMaterial, "_MaskMap");
+        ClearTexture(grillePanelMaterial, "_MetallicGlossMap");
+        ClearTexture(grillePanelMaterial, "_OcclusionMap");
+        ClearTexture(grillePanelMaterial, "_DetailMap");
         materials[0] = paintMaterial;
         if (materials.Length > 1 && materials[1] != null)
         {
@@ -118,7 +131,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         var detailSplit = ConfigureFactoryDetails(
             materials,
             out var badgeTriangleCount,
-            out var headlightTriangleCount);
+            out var headlightTriangleCount,
+            out var grilleTriangleCount);
         if (!detailSplit)
             bodyRenderer.sharedMaterials = materials;
         var pillarTriangleCount = ConfigurePaintedPillars();
@@ -127,7 +141,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             true,
             pillarTriangleCount,
             badgeTriangleCount,
-            headlightTriangleCount);
+            headlightTriangleCount,
+            grilleTriangleCount);
         return true;
     }
 
@@ -135,7 +150,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         bool force = false,
         int pillarTriangleCount = -1,
         int badgeTriangleCount = -1,
-        int headlightTriangleCount = -1)
+        int headlightTriangleCount = -1,
+        int grilleTriangleCount = -1)
     {
         if (bodyRenderer == null || paintMaterial == null || sourceTexture == null ||
             sourcePixels == null)
@@ -171,6 +187,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     new Color(0.78f, 0.84f, 0.88f, 0.11f));
             }
             SetPillarColor(tint);
+            SetGrillePanelColor(tint);
             if (paintedTexture != null)
                 Destroy(paintedTexture);
             if (paintedWindowTexture != null)
@@ -191,6 +208,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                     $"pillarTriangles={Mathf.Max(0, pillarTriangleCount)} " +
                     $"badgeTriangles={Mathf.Max(0, badgeTriangleCount)} " +
                     $"headlightTriangles={Mathf.Max(0, headlightTriangleCount)} " +
+                    $"nativeGrilleTriangles={Mathf.Max(0, grilleTriangleCount)} " +
                     $"tint={tint} contrast={flameColor}.");
             }
             else
@@ -375,10 +393,12 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private bool ConfigureFactoryDetails(
         Material[] configuredMaterials,
         out int badgeTriangleCount,
-        out int headlightTriangleCount)
+        out int headlightTriangleCount,
+        out int grilleTriangleCount)
     {
         badgeTriangleCount = 0;
         headlightTriangleCount = 0;
+        grilleTriangleCount = 0;
         bodyFilter = bodyRenderer?.GetComponent<MeshFilter>();
         var sourceMesh = bodyFilter?.sharedMesh;
         if (bodyRenderer == null || sourceMesh == null || originalMaterial == null ||
@@ -409,6 +429,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
 
         var paintTriangles = new List<int>(sourceTriangles.Length);
         var factoryTriangles = new List<int>();
+        var grilleTriangles = new List<int>();
         for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
         {
             var a = sourceTriangles[index];
@@ -421,7 +442,19 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 center.y >= 3.68f && center.y <= 3.78f &&
                 center.z >= -0.36f && center.z <= -0.20f;
             var isHeadlight = headlightTriangles.Contains(triangle);
-            var destination = isBadge || isHeadlight ? factoryTriangles : paintTriangles;
+            var minX = Mathf.Min(vertices[a].x, Mathf.Min(vertices[b].x, vertices[c].x));
+            var maxX = Mathf.Max(vertices[a].x, Mathf.Max(vertices[b].x, vertices[c].x));
+            var minZ = Mathf.Min(vertices[a].z, Mathf.Min(vertices[b].z, vertices[c].z));
+            var maxZ = Mathf.Max(vertices[a].z, Mathf.Max(vertices[b].z, vertices[c].z));
+            var isNativeGrillePanel =
+                center.y >= 3.64f && center.y <= 3.71f &&
+                minX >= -0.59f && maxX <= 0f && maxX - minX >= 0.52f &&
+                minZ >= -0.51f && maxZ <= -0.05f && maxZ - minZ >= 0.38f;
+            var destination = isNativeGrillePanel
+                ? grilleTriangles
+                : isBadge || isHeadlight
+                    ? factoryTriangles
+                    : paintTriangles;
             destination.Add(a);
             destination.Add(b);
             destination.Add(c);
@@ -429,28 +462,34 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 badgeTriangleCount++;
             else if (isHeadlight)
                 headlightTriangleCount++;
+            if (isNativeGrillePanel)
+                grilleTriangleCount++;
         }
-        if (factoryTriangles.Count == 0)
+        if (factoryTriangles.Count == 0 || grilleTriangles.Count == 0 ||
+            grillePanelMaterial == null)
             return false;
 
         originalBodyMesh = sourceMesh;
         paintedBodyMesh = Instantiate(sourceMesh);
         paintedBodyMesh.name = sourceMesh.name + "_RepaintableFactoryDetails";
         var factorySubMesh = sourceMesh.subMeshCount;
-        paintedBodyMesh.subMeshCount = factorySubMesh + 1;
+        var grilleSubMesh = factorySubMesh + 1;
+        paintedBodyMesh.subMeshCount = factorySubMesh + 2;
         paintedBodyMesh.SetTriangles(paintTriangles, 0, true);
         for (var subMesh = 1; subMesh < sourceMesh.subMeshCount; subMesh++)
             paintedBodyMesh.SetTriangles(sourceMesh.GetTriangles(subMesh), subMesh, true);
         paintedBodyMesh.SetTriangles(factoryTriangles, factorySubMesh, true);
+        paintedBodyMesh.SetTriangles(grilleTriangles, grilleSubMesh, true);
         paintedBodyMesh.RecalculateBounds();
         bodyFilter!.sharedMesh = paintedBodyMesh;
 
-        var splitMaterials = new Material[factorySubMesh + 1];
+        var splitMaterials = new Material[factorySubMesh + 2];
         for (var index = 0; index < factorySubMesh; index++)
             splitMaterials[index] = configuredMaterials[Mathf.Min(
                 index,
                 configuredMaterials.Length - 1)];
         splitMaterials[factorySubMesh] = originalMaterial;
+        splitMaterials[grilleSubMesh] = grillePanelMaterial;
         bodyRenderer.sharedMaterials = splitMaterials;
         return true;
     }
@@ -631,6 +670,20 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         SetColor(pillarMaterial, "baseColorFactor", color);
     }
 
+    private void SetGrillePanelColor(Color tint)
+    {
+        if (grillePanelMaterial == null)
+            return;
+        var color = new Color(
+            Mathf.Max(0.025f, tint.r),
+            Mathf.Max(0.025f, tint.g),
+            Mathf.Max(0.025f, tint.b),
+            1f);
+        SetColor(grillePanelMaterial, "_BaseColor", color);
+        SetColor(grillePanelMaterial, "_Color", color);
+        SetColor(grillePanelMaterial, "baseColorFactor", color);
+    }
+
     private static Texture? GetBaseTexture(Material material)
     {
         foreach (var property in new[] { "_BaseColorMap", "_MainTex", "baseColorTexture" })
@@ -656,6 +709,12 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     {
         if (material.HasProperty(property))
             material.SetFloat(property, value);
+    }
+
+    private static void ClearTexture(Material material, string property)
+    {
+        if (material.HasProperty(property))
+            material.SetTexture(property, null);
     }
 
     private static bool ColorsMatch(Color left, Color right) =>
@@ -695,6 +754,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             Destroy(paintMaterial);
         if (paintWindowMaterial != null)
             Destroy(paintWindowMaterial);
+        if (grillePanelMaterial != null)
+            Destroy(grillePanelMaterial);
         if (paintedBodyMesh != null)
             Destroy(paintedBodyMesh);
         if (structureFilter != null && originalStructureMesh != null)
@@ -708,6 +769,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         paintedTexture = null;
         paintedWindowTexture = null;
         paintMaterial = null;
+        grillePanelMaterial = null;
         originalWindowMaterial = null;
         paintWindowMaterial = null;
         sourceTexture = null;
