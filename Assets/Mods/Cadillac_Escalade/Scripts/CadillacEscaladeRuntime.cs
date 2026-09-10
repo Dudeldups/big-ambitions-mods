@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -70,6 +71,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private Coroutine? powertrainReadinessCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private bool dealerReady;
     private bool dealerReadyLogged;
 
     public static CadillacEscaladeRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -156,6 +158,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
         dealerReadyLogged = false;
     }
 
@@ -249,14 +252,27 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (CadillacEscaladeLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
-            EnsureDealerStock("dealer-entered");
+        if (!CadillacEscaladeLuxuryDealerStock.IsTargetDealer(registration?.BusinessName) ||
+            dealerReady)
+            return;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ScheduleInitialization("dealer-entered");
+            return;
+        }
+        EnsureDealerStock("dealer-entered");
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen)
-            EnsureDealerStock("full-menu");
+        if (!isOpen || dealerReady)
+            return;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ScheduleInitialization("full-menu");
+            return;
+        }
+        EnsureDealerStock("full-menu");
     }
 
     private void ScheduleInitialization(string source)
@@ -268,14 +284,21 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
+        while (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ConfigureExistingVehicles(out var matchedCount);
+            maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= EnsureDealerStock(source);
+            if (!dealerReady)
+                dealerReady = EnsureDealerStock(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
@@ -302,9 +325,15 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private bool EnsureDealerStock(string source)
     {
+        if (dealerReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
         try
         {
             var ready = CadillacEscaladeLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            dealerReady = ready;
             if (ready && !dealerReadyLogged)
             {
                 dealerReadyLogged = true;
