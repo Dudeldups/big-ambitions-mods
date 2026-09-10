@@ -169,7 +169,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             return null;
         var clone = Instantiate(templateBeam.gameObject, vehicle.transform, false);
         clone.name = "CadillacEscalade_" + suffix;
-        clone.transform.localPosition = new Vector3(localX, 0.96f, 2.43f);
+        clone.transform.localPosition = new Vector3(localX, 0.86f, 2.43f);
         clone.transform.localRotation = Quaternion.Euler(8f, 0f, 0f);
         var light = clone.GetComponent<Light>();
         if (light == null)

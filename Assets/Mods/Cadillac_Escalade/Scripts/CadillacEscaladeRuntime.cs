@@ -39,9 +39,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
-    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.40f, -0.05f);
+    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.30f, -0.05f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
-    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.88f, -0.22f);
+    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.78f, -0.22f);
     private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 3.42f);
 
     private static readonly float[] EscaladeGears =
@@ -175,11 +175,15 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
-        vehicle?.vehicleInstance != null &&
-        string.Equals(
-            vehicle.vehicleInstance.vehicleTypeName,
-            vehicleTypeName,
-            StringComparison.Ordinal);
+        vehicle != null &&
+        (string.Equals(
+             vehicle.vehicleInstance?.vehicleTypeName,
+             vehicleTypeName,
+             StringComparison.Ordinal) ||
+         string.Equals(
+             vehicle.vehicleType?.vehicleTypeName,
+             vehicleTypeName,
+             StringComparison.Ordinal));
 
     private IEnumerator EnsurePowertrainReadyAfterEntry(VehicleController vehicle)
     {
@@ -252,27 +256,14 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (!CadillacEscaladeLuxuryDealerStock.IsTargetDealer(registration?.BusinessName) ||
-            dealerReady)
-            return;
-        if (BusinessLayoutSetHelper.loadingLayouts)
-        {
+        if (CadillacEscaladeLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
             ScheduleInitialization("dealer-entered");
-            return;
-        }
-        EnsureDealerStock("dealer-entered");
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (!isOpen || dealerReady)
-            return;
-        if (BusinessLayoutSetHelper.loadingLayouts)
-        {
+        if (isOpen)
             ScheduleInitialization("full-menu");
-            return;
-        }
-        EnsureDealerStock("full-menu");
     }
 
     private void ScheduleInitialization(string source)
@@ -355,20 +346,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private void ConfigureExistingVehicles(out int matchedCount)
     {
         matchedCount = 0;
-        var vehicles = VehicleHelper.AllPlayerVehicles;
-        if (vehicles == null)
-            return;
-
-        foreach (var vehicle in vehicles)
+        foreach (var vehicle in FindObjectsOfType<VehicleController>(true))
         {
-            if (vehicle?.vehicleInstance == null ||
-                !string.Equals(
-                    vehicle.vehicleInstance.vehicleTypeName,
-                    vehicleTypeName,
-                    StringComparison.Ordinal))
-            {
+            if (!IsTargetVehicle(vehicle))
                 continue;
-            }
 
             matchedCount++;
             TryConfigureVehicle(vehicle);
@@ -377,12 +358,12 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private void TryConfigureVehicle(VehicleController? vehicle)
     {
-        if (vehicle?.vehicleInstance == null ||
-            !string.Equals(
-                vehicle.vehicleInstance.vehicleTypeName,
-                vehicleTypeName,
-                StringComparison.Ordinal))
+        if (!IsTargetVehicle(vehicle) || vehicle == null)
+            return;
+
+        if (vehicle.vehicleInstance == null)
         {
+            ConfigurePresentationOnly(vehicle);
             return;
         }
 
@@ -405,6 +386,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             ConfigureWheelControllers(vehicle.gameObject);
             const int bakedPositiveWheelMeshes = 8;
             ConfigureBodyColliders(vehicle.gameObject);
+            ConfigureExitMarkers(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<CadillacEscaladeCaliperController>();
@@ -469,6 +451,41 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"CadillacEscalade: vehicle configuration failed instance={instanceId}: " +
                 $"{exception.GetType().Name}: {exception.Message}");
+        }
+    }
+
+    private void ConfigurePresentationOnly(VehicleController vehicle)
+    {
+        CadillacEscaladeMaterials.FixSolidMaterials(vehicle.gameObject);
+        var paintController = vehicle.GetComponent<CadillacEscaladePaintController>();
+        if (paintController == null)
+        {
+            paintController = vehicle.gameObject.AddComponent<CadillacEscaladePaintController>();
+            paintController.Initialize(vehicle, context);
+        }
+        var glassController = vehicle.GetComponent<CadillacEscaladeGlassController>();
+        if (glassController == null)
+        {
+            glassController = vehicle.gameObject.AddComponent<CadillacEscaladeGlassController>();
+            glassController.Initialize(context);
+        }
+    }
+
+    private static void ConfigureExitMarkers(GameObject root)
+    {
+        SetLocalPosition(root, "Animate_SteeringWheel_033", new Vector3(-0.52f, 1.15f, 0.68f));
+        SetLocalPosition(root, "Driverside", new Vector3(-1.55f, 0.10f, 0.30f));
+        SetLocalPosition(root, "Passengerside", new Vector3(1.55f, 0.10f, 0.30f));
+    }
+
+    private static void SetLocalPosition(GameObject root, string childName, Vector3 position)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(transform.name, childName, StringComparison.Ordinal))
+                continue;
+            transform.localPosition = position;
+            return;
         }
     }
 
@@ -910,7 +927,7 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
             context?.Logger.Info(
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-                "shader=HDRP/Lit, tint=(0.38,0.46,0.54,0.18), deferredPolling=false.");
+                "shader=HDRP/Lit, tint=(0.62,0.68,0.74,0.10), deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {

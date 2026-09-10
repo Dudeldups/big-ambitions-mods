@@ -34,6 +34,7 @@ public static class CadillacEscaladeSetup
     private const float TargetHeight = 1.948f;
     private const float Wheelbase = 3.064f;
     private const float BodyGroundClearance = 0.18f;
+    private const float BodyVisualLowering = 0.10f;
     private const float WheelRadius = 0.408f;
     private const float WheelWidth = 0.285f;
     private const float TireFrictionCircleStrength = 0.90f;
@@ -44,9 +45,9 @@ public static class CadillacEscaladeSetup
     private const float DeformationRadius = 0.45f;
     private const float DeformationRandomness = 0.012f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
-    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.40f, -0.05f);
+    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.30f, -0.05f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
-    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.88f, -0.22f);
+    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.78f, -0.22f);
     private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 3.42f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
@@ -142,7 +143,7 @@ public static class CadillacEscaladeSetup
                     issues.Add($"length={bounds.size.z:F3}");
                 if (bounds.size.x < 2.40f || bounds.size.x > 2.50f)
                     issues.Add($"mirrorSpan={bounds.size.x:F3}");
-                if (bounds.size.y < 1.88f || bounds.size.y > 2.02f)
+                if (bounds.size.y < 1.80f || bounds.size.y > 1.92f)
                     issues.Add($"height={bounds.size.y:F3}");
             }
 
@@ -299,6 +300,14 @@ public static class CadillacEscaladeSetup
             if (caliperSlots != 4) issues.Add($"caliperSlots={caliperSlots}");
             if (FindTransform(prefab.transform, "Animate_SteeringWheel_033") == null)
                 issues.Add("steering/driver reference");
+            var driverExit = FindTransform(prefab.transform, "Driverside");
+            var passengerExit = FindTransform(prefab.transform, "Passengerside");
+            if (driverExit == null || passengerExit == null ||
+                Vector3.Distance(driverExit.localPosition, new Vector3(-1.55f, 0.10f, 0.30f)) > 0.001f ||
+                Vector3.Distance(passengerExit.localPosition, new Vector3(1.55f, 0.10f, 0.30f)) > 0.001f)
+            {
+                issues.Add("exit-marker-clearance");
+            }
             if (FindTransform(prefab.transform, "Spotlights") == null)
                 issues.Add("headlight beam template");
             if (FindTransform(prefab.transform, "CadillacDamageBodyFront") == null ||
@@ -540,12 +549,12 @@ public static class CadillacEscaladeSetup
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)
     {
-        const float driverSide = -1.25f;
-        SetLocalPosition(root, "Animate_SteeringWheel_033", new Vector3(-0.52f, 1.25f, 0.68f));
-        SetLocalPosition(root, "Driverside", new Vector3(driverSide, 0.20f, 0.30f));
-        SetLocalPosition(root, "Passengerside", new Vector3(-driverSide, 0.20f, 0.30f));
+        const float driverSide = -1.55f;
+        SetLocalPosition(root, "Animate_SteeringWheel_033", new Vector3(-0.52f, 1.15f, 0.68f));
+        SetLocalPosition(root, "Driverside", new Vector3(driverSide, 0.10f, 0.30f));
+        SetLocalPosition(root, "Passengerside", new Vector3(-driverSide, 0.10f, 0.30f));
         Debug.Log(
-            $"CadillacEscalade: left-hand-drive steering reference=(-0.52,1.25,0.68); " +
+            $"CadillacEscalade: left-hand-drive steering reference=(-0.52,1.15,0.68); " +
             $"driver/passenger exits={driverSide:F2}/{-driverSide:F2}.");
     }
 
@@ -662,14 +671,15 @@ public static class CadillacEscaladeSetup
 
         model.transform.position += new Vector3(
             -bounds.center.x,
-            BodyGroundClearance - bounds.min.y,
+            BodyGroundClearance - BodyVisualLowering - bounds.min.y,
             -bounds.center.z);
         if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Final Cadillac bounds could not be measured.");
 
         Debug.Log(
             $"CadillacEscalade: normalized replacement 2021 GLB scale={scale}, " +
-            $"bodyBounds={bounds.size}, center={bounds.center}.");
+            $"bodyBounds={bounds.size}, center={bounds.center}, " +
+            $"visualLowering={BodyVisualLowering:F2}m.");
     }
 
     private static void AttachWheelVisuals(GameObject root, GameObject model)
