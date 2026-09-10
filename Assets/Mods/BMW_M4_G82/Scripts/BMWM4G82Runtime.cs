@@ -32,6 +32,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.05f;
     private const float RearSuspensionTravel = 0.05f;
+    private const float SuspensionBumpRate = 24500f;
+    private const float SuspensionReboundRate = 28000f;
+    private const float SuspensionExtensionSpeed = 4f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
@@ -510,11 +513,19 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                     "maxLength",
                     isFront ? FrontSuspensionTravel : RearSuspensionTravel);
                 SetFloat(spring, "maxForce", isFront ? 19500f : 18500f);
+                SetMember(component, "spring", spring);
+
+                var damper = GetMember(component, "damper");
+                SetFloat(damper, "bumpRate", SuspensionBumpRate);
+                SetFloat(damper, "reboundRate", SuspensionReboundRate);
+                SetMember(component, "damper", damper);
 
                 var wheel = GetMember(component, "wheel");
                 SetFloat(wheel, "radius", isFront ? 0.3376f : 0.3395f);
                 SetFloat(wheel, "width", isFront ? 0.275f : 0.285f);
+                SetMember(component, "wheel", wheel);
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
+                SetFloat(component, "suspensionExtensionSpeedCoeff", SuspensionExtensionSpeed);
             }
         }
     }
@@ -666,6 +677,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 name.IndexOf("Badge", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("LightA", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("ManufacturerPlate", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("Base_Material", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("dark", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
         }
@@ -755,6 +767,21 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
         var property = FindProperty(target.GetType(), name);
         return property?.GetValue(target, null);
+    }
+
+    private static void SetMember(object? target, string name, object? value)
+    {
+        if (target == null || value == null)
+            return;
+        var field = FindField(target.GetType(), name);
+        if (field != null && field.FieldType.IsInstanceOfType(value))
+        {
+            field.SetValue(target, value);
+            return;
+        }
+        var property = FindProperty(target.GetType(), name);
+        if (property != null && property.CanWrite && property.PropertyType.IsInstanceOfType(value))
+            property.SetValue(target, value, null);
     }
 
     private static void SetFloat(object? target, string name, float value)

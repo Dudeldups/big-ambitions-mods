@@ -10,7 +10,6 @@ using UnityEngine;
 internal sealed class BMWM4G82PaintController : MonoBehaviour
 {
     private const string MainPaintMarker = "PaintTNR";
-    private const string SecondaryPaintMarker = "Coloured";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
@@ -101,8 +100,7 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
     }
 
     private static bool IsPaintMaterial(string materialName) =>
-        materialName.IndexOf(MainPaintMarker, StringComparison.OrdinalIgnoreCase) >= 0 ||
-        materialName.IndexOf(SecondaryPaintMarker, StringComparison.OrdinalIgnoreCase) >= 0;
+        materialName.IndexOf(MainPaintMarker, StringComparison.OrdinalIgnoreCase) >= 0;
 
     private readonly struct PaintSlot
     {

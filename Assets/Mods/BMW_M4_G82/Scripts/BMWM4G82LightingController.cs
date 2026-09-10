@@ -63,15 +63,18 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             component => IsFront(component) && component.Bounds.center.x >= 0f,
             "RightDaytimeRunningLights", white, 4.8f, 1.001f);
         headlampOverlay = CreateComponentOverlay(lamp,
-            component => IsFront(component) && component.TriangleCount >= 280,
+            component => IsFront(component) && component.TriangleCount >= 200 &&
+                         component.TriangleCount <= 260,
             "HeadlampProjectors", white, 5.8f, 1.001f);
         rearTailOverlay = CreateComponentOverlay(lamp,
             component => IsRear(component) && component.TriangleCount >= 110 &&
                          component.TriangleCount <= 170,
             "RearTailSignature", new Color(0.78f, 0.006f, 0.002f, 1f), 2.5f, 1.001f);
         rearBrakeOverlay = CreateComponentOverlay(lamp,
-            component => IsRear(component) && component.TriangleCount >= 180 &&
-                         component.TriangleCount <= 260,
+            component => IsRear(component) &&
+                         ((component.TriangleCount >= 180 && component.TriangleCount <= 260) ||
+                          (component.TriangleCount >= 140 && component.TriangleCount <= 160 &&
+                           Mathf.Abs(component.Bounds.center.x) < 1.80f)),
             "RearBrakeSignature", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.0015f);
         reverseOverlay = CreateComponentOverlay(lamp,
             component => IsRear(component) && component.TriangleCount >= 95 &&
@@ -85,12 +88,12 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             component => IsFront(component) && component.Bounds.center.x >= 0f,
             "RightIndicator", amber, 5.4f, 1.002f);
         rearLeftBlinkerOverlay = CreateComponentOverlay(lamp,
-            component => IsRear(component) && component.TriangleCount >= 95 &&
-                         component.TriangleCount <= 109 && component.Bounds.center.x <= -0.50f,
+            component => IsRear(component) && component.TriangleCount >= 110 &&
+                         component.TriangleCount <= 160 && component.Bounds.center.x < 0f,
             "RearLeftIndicator", amber, 5.4f, 1.002f);
         rearRightBlinkerOverlay = CreateComponentOverlay(lamp,
-            component => IsRear(component) && component.TriangleCount >= 95 &&
-                         component.TriangleCount <= 109 && component.Bounds.center.x >= 0.50f,
+            component => IsRear(component) && component.TriangleCount >= 110 &&
+                         component.TriangleCount <= 160 && component.Bounds.center.x >= 0f,
             "RearRightIndicator", amber, 5.4f, 1.002f);
         var beamCount = ConfigureHeadlightBeams();
 
@@ -403,8 +406,11 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = blinking;
 
-        SetEnabled(leftDaylightOverlay, lightsOn && !(leftBlinker && flash));
-        SetEnabled(rightDaylightOverlay, lightsOn && !(rightBlinker && flash));
+        // The amber indicator geometry is not the low-beam emitter. Keeping a
+        // white copy enabled with the headlights made the indicator strips
+        // look like the headlamps while the actual round projectors stayed dark.
+        SetEnabled(leftDaylightOverlay, false);
+        SetEnabled(rightDaylightOverlay, false);
         SetEnabled(headlampOverlay, lightsOn);
         SetEnabled(rearTailOverlay, lightsOn);
         SetEnabled(rearBrakeOverlay, braking);
