@@ -15,6 +15,7 @@ namespace DeveloperTools
         private DeveloperToolsMapTeleport? mapTeleport;
         private DeveloperToolsTimeService? timeService;
         private DeveloperToolsTrafficService? trafficService;
+        private DeveloperToolsVehicleDiagnosticsService? vehicleDiagnostics;
 
         public static DeveloperToolsRuntime Initialize(ModContext context, DeveloperToolsSettings settings)
         {
@@ -30,6 +31,7 @@ namespace DeveloperTools
             runtime.playerService = new DeveloperToolsPlayerService(context);
             runtime.timeService = new DeveloperToolsTimeService(context);
             runtime.trafficService = new DeveloperToolsTrafficService(context);
+            runtime.vehicleDiagnostics = new DeveloperToolsVehicleDiagnosticsService(context);
             runtime.trafficService.PrepareTrafficPoolCapacity();
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
@@ -38,6 +40,7 @@ namespace DeveloperTools
                 runtime.playerService,
                 runtime.timeService,
                 runtime.trafficService,
+                runtime.vehicleDiagnostics,
                 new DeveloperToolsPauseService(context));
             runtime.mapTeleport = new DeveloperToolsMapTeleport(context, runtime.playerService);
             return runtime;
@@ -46,6 +49,9 @@ namespace DeveloperTools
         public void Shutdown()
         {
             GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onEnterVehicle -= HandleEnterVehicle;
+            GlobalEvents.onExitVehicle -= HandleExitVehicle;
+            vehicleDiagnostics?.Shutdown();
             overlay?.Shutdown();
             timeService?.Shutdown();
             trafficService?.Shutdown();
@@ -57,18 +63,29 @@ namespace DeveloperTools
             SceneManager.sceneLoaded += HandleSceneLoaded;
             GlobalEvents.onNewHour -= HandleNewHour;
             GlobalEvents.onNewHour += HandleNewHour;
+            GlobalEvents.onEnterVehicle -= HandleEnterVehicle;
+            GlobalEvents.onEnterVehicle += HandleEnterVehicle;
+            GlobalEvents.onExitVehicle -= HandleExitVehicle;
+            GlobalEvents.onExitVehicle += HandleExitVehicle;
         }
 
         private void OnDisable()
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
             GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onEnterVehicle -= HandleEnterVehicle;
+            GlobalEvents.onExitVehicle -= HandleExitVehicle;
         }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             GlobalEvents.onNewHour -= HandleNewHour;
             GlobalEvents.onNewHour += HandleNewHour;
+            GlobalEvents.onEnterVehicle -= HandleEnterVehicle;
+            GlobalEvents.onEnterVehicle += HandleEnterVehicle;
+            GlobalEvents.onExitVehicle -= HandleExitVehicle;
+            GlobalEvents.onExitVehicle += HandleExitVehicle;
+            vehicleDiagnostics?.HandleSceneChanged();
             trafficService?.PrepareTrafficPoolCapacity();
             overlay?.Hide();
         }
@@ -78,6 +95,14 @@ namespace DeveloperTools
             if (trafficService != null)
                 StartCoroutine(trafficService.ReapplyTrafficAfterHourlyUpdate());
         }
+
+        private void HandleEnterVehicle(VehicleController vehicle) =>
+            vehicleDiagnostics?.HandleEnterVehicle(vehicle);
+
+        private void HandleExitVehicle(VehicleController vehicle) =>
+            vehicleDiagnostics?.HandleExitVehicle(vehicle);
+
+        private void FixedUpdate() => vehicleDiagnostics?.TickFixed();
 
         private void Update()
         {
