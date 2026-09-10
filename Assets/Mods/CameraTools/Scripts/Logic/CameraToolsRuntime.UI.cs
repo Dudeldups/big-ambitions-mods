@@ -18,7 +18,6 @@ namespace CameraTools
         private bool lastHiddenUiHideMapMarkers;
         private bool lastHiddenUiVehicleMode;
         private int pendingHiddenUiRefreshFrames;
-        private float nextHiddenUiDiagnosticLogTime;
         private static readonly string[] HideMapMarkersOptionKeys =
         {
             "camera_tools_hide_map_markers"
@@ -207,12 +206,7 @@ namespace CameraTools
             lastHiddenUiHideMapMarkers = hideMapMarkers;
             lastHiddenUiVehicleMode = vehicleDebug.IsVehicleMode;
 
-            var logDiagnostics = hideMapMarkers && Time.unscaledTime >= nextHiddenUiDiagnosticLogTime;
-            if (logDiagnostics)
-                nextHiddenUiDiagnosticLogTime = Time.unscaledTime + 2f;
-
-            var targets = ResolveHiddenUiTargets(cityMapOpen, hideMapMarkers, logDiagnostics);
-            const int markerRendererCount = 0;
+            var targets = ResolveHiddenUiTargets(cityMapOpen, hideMapMarkers);
             if (targets.Count == 0)
             {
                 nextHiddenUiRefreshTime = Time.unscaledTime + HiddenUiRefreshIntervalSeconds;
@@ -231,8 +225,6 @@ namespace CameraTools
 
             hiddenUiStates = states.ToArray();
             nextHiddenUiRefreshTime = Time.unscaledTime + HiddenUiRefreshIntervalSeconds;
-            LogHiddenUiDebug(
-                $"Hidden UI V8_EFFECTIVE_MARKER_OPTION applied. cityMapOpen={cityMapOpen}, hideMapMarkers={hideMapMarkers}, uiTargets={hiddenUiStates.Length}, markerRenderers={markerRendererCount}, rendererScanDisabled=True, pendingBurstFrames={pendingHiddenUiRefreshFrames}");
         }
 
         private void RestoreHiddenUi()
@@ -323,13 +315,13 @@ namespace CameraTools
             return false;
         }
 
-        private static List<GameObject> ResolveHiddenUiTargets(bool cityMapOpen, bool hideMapMarkers, bool logDiagnostics)
+        private static List<GameObject> ResolveHiddenUiTargets(bool cityMapOpen, bool hideMapMarkers)
         {
             var targets = new List<GameObject>();
             var seen = new HashSet<int>();
 
             if (hideMapMarkers)
-                AddKnownMapMarkerRoots(targets, seen, logDiagnostics);
+                AddKnownMapMarkerRoots(targets, seen);
             foreach (var rectTransform in Resources.FindObjectsOfTypeAll<RectTransform>())
             {
                 if (rectTransform == null)
@@ -342,6 +334,12 @@ namespace CameraTools
                 var path = GetHierarchyPath(rectTransform).ToLowerInvariant();
                 if (hideMapMarkers && IsUnderKnownMapMarkerRootPath(path))
                     continue;
+
+                if (IsSpeedometerHudBackgroundPath(path))
+                {
+                    TryAddHiddenUiTarget(targets, seen, gameObject);
+                    continue;
+                }
 
                 if (cityMapOpen && IsCityMapControlPath(path))
                 {
@@ -399,13 +397,16 @@ namespace CameraTools
             return FilterNestedUiTargets(targets);
         }
 
-        private static void AddKnownMapMarkerRoots(List<GameObject> targets, HashSet<int> seen, bool logDiagnostics)
+        private static bool IsSpeedometerHudBackgroundPath(string lowerPath)
+        {
+            return lowerPath.IndexOf("speedometer_analogstripbg_", StringComparison.Ordinal) >= 0;
+        }
+
+        private static void AddKnownMapMarkerRoots(List<GameObject> targets, HashSet<int> seen)
         {
             if (cachedKnownMapMarkerRoot != null && cachedKnownMapMarkerRoot.activeInHierarchy)
             {
                 TryAddHiddenUiTarget(targets, seen, cachedKnownMapMarkerRoot);
-                if (logDiagnostics)
-                    LogHiddenUiDebug($"Hidden known map marker root: path={GetHierarchyPath(cachedKnownMapMarkerRoot.transform)} cached=True");
                 return;
             }
 
@@ -424,8 +425,6 @@ namespace CameraTools
 
                 cachedKnownMapMarkerRoot = gameObject;
                 TryAddHiddenUiTarget(targets, seen, gameObject);
-                if (logDiagnostics)
-                    LogHiddenUiDebug($"Hidden known map marker root: path={GetHierarchyPath(transform)} cached=False");
                 return;
             }
         }
@@ -847,17 +846,9 @@ namespace CameraTools
             "locationlabel"
         };
 
-        private static void LogHiddenUiDebug(string message)
+        private bool IsGameplayInputBlockedByUi(bool forceRefresh = false)
         {
-            if (!cameraToolsDebugEnabled)
-                return;
-
-            CameraToolsFileLogger.Log(message);
-        }
-
-        private bool IsGameplayInputBlockedByUi()
-        {
-            if (Time.unscaledTime < nextUiStateRefreshTime)
+            if (!forceRefresh && Time.unscaledTime < nextUiStateRefreshTime)
                 return isGameplayUiBlocked;
 
             nextUiStateRefreshTime = Time.unscaledTime + UiStateRefreshIntervalSeconds;
@@ -881,8 +872,30 @@ namespace CameraTools
             if (IsDialogPanelOpen())
                 return isGameplayUiBlocked = true;
 
+            if (IsStaticUiOpen(placementSystemType, "IsInPlacementMode"))
+                return isGameplayUiBlocked = true;
+
+            if (IsStaticUiOpen(interiorDesignerUiType, "IsOpen"))
+                return isGameplayUiBlocked = true;
+
             isGameplayUiBlocked = false;
             return false;
+        }
+
+        private static bool IsStaticUiOpen(Type? type, string propertyName)
+        {
+            if (type == null)
+                return false;
+
+            try
+            {
+                var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                return property?.GetValue(null, null) is bool isOpen && isOpen;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private bool IsCachedUiOpen(ref MonoBehaviour? cachedController, Type? type, string propertyName)

@@ -46,8 +46,8 @@ namespace CameraTools
 
             if (needsReconfigure)
             {
-                SetMemberValue(gameplayController, "minMaxDistance", desiredBounds);
-                SetMemberValue(gameplayController, "blockCameraZoom", false);
+                SetTrackedMemberValue(gameplayController, "minMaxDistance", desiredBounds);
+                SetTrackedMemberValue(gameplayController, "blockCameraZoom", false);
                 lastAppliedGameplayMaxZoom = settings.GameplayMaxZoom;
                 lastConfiguredGameplayControllerId = controllerId;
             }
@@ -78,25 +78,51 @@ namespace CameraTools
 
             if (Input.GetMouseButtonDown(1))
             {
-                isTrackingRightMousePitch = true;
+                if (IsGameplayInputBlockedByUi(forceRefresh: true))
+                {
+                    ResetGameplayRightMouseGesture();
+                }
+                else
+                {
+                    isGameplayRightMousePending = true;
+                    isTrackingRightMousePitch = false;
+                    gameplayRightMousePressPosition = Input.mousePosition;
+                }
                 lastRightMouseY = Input.mousePosition.y;
             }
 
-            if (Input.GetMouseButton(1) && isTrackingRightMousePitch)
+            if (Input.GetMouseButton(1) && (isGameplayRightMousePending || isTrackingRightMousePitch))
             {
                 var currentMouseY = Input.mousePosition.y;
-                var deltaY = currentMouseY - lastRightMouseY;
-                lastRightMouseY = currentMouseY;
-
-                if (Mathf.Abs(deltaY) > Mathf.Epsilon)
+                if (IsGameplayInputBlockedByUi())
                 {
-                    manualGameplayPitch = Mathf.Clamp(manualGameplayPitch - deltaY * PitchStepPerMousePixel, minPitch, maxPitch);
-                    hasManualGameplayPitch = true;
+                    ResetGameplayRightMouseGesture();
+                }
+                else if (isGameplayRightMousePending)
+                {
+                    var dragDelta = (Vector2)Input.mousePosition - gameplayRightMousePressPosition;
+                    if (dragDelta.sqrMagnitude > GameplayRightMouseDragDeadZonePixels * GameplayRightMouseDragDeadZonePixels)
+                    {
+                        isGameplayRightMousePending = false;
+                        isTrackingRightMousePitch = true;
+                        lastRightMouseY = currentMouseY;
+                    }
+                }
+                else
+                {
+                    var deltaY = currentMouseY - lastRightMouseY;
+                    lastRightMouseY = currentMouseY;
+
+                    if (Mathf.Abs(deltaY) > Mathf.Epsilon)
+                    {
+                        manualGameplayPitch = Mathf.Clamp(manualGameplayPitch - deltaY * PitchStepPerMousePixel, minPitch, maxPitch);
+                        hasManualGameplayPitch = true;
+                    }
                 }
             }
 
-            if (Input.GetMouseButtonUp(1))
-                isTrackingRightMousePitch = false;
+            if (Input.GetMouseButtonUp(1) || !Input.GetMouseButton(1))
+                ResetGameplayRightMouseGesture();
 
             if (Input.GetKeyDown(KeyCode.Home))
             {
@@ -109,6 +135,12 @@ namespace CameraTools
             ClampGameplayDistance(bounds);
             ApplyGameplayOffset(hasManualGameplayPitch ? manualGameplayPitch : settings.GameplayDefaultPitch);
             ApplyGameplayTrackedObjectOffset();
+        }
+
+        private void ResetGameplayRightMouseGesture()
+        {
+            isGameplayRightMousePending = false;
+            isTrackingRightMousePitch = false;
         }
 
         private void ApplyGameplayFineZoom(Vector2 bounds)
@@ -182,7 +214,7 @@ namespace CameraTools
                 if (Mathf.Abs(clampedDistance - currentDistance) <= 0.01f)
                     continue;
 
-                SetMemberValue(gameplayController, memberName, clampedDistance);
+                SetTrackedMemberValue(gameplayController, memberName, clampedDistance);
             }
 
             if (!foundAny && TryGetCameraDistanceToFollowTarget(GetLiveVirtualCameraComponent(), Camera.main, out var actualDistance))
@@ -190,8 +222,8 @@ namespace CameraTools
                 var clampedActualDistance = Mathf.Clamp(actualDistance, bounds.x, bounds.y);
                 if (Mathf.Abs(clampedActualDistance - actualDistance) > 0.01f)
                 {
-                    SetMemberValue(gameplayController, "distance", clampedActualDistance);
-                    SetMemberValue(gameplayController, "_currentDistance", clampedActualDistance);
+                    SetTrackedMemberValue(gameplayController, "distance", clampedActualDistance);
+                    SetTrackedMemberValue(gameplayController, "_currentDistance", clampedActualDistance);
                 }
             }
         }
@@ -222,13 +254,13 @@ namespace CameraTools
             if (gameplayController == null)
                 return;
 
-            SetMemberValue(gameplayController, activeMemberName, distance);
+            SetTrackedMemberValue(gameplayController, activeMemberName, distance);
 
             if (!string.Equals(activeMemberName, "distance", StringComparison.Ordinal))
-                SetMemberValue(gameplayController, "distance", distance);
+                SetTrackedMemberValue(gameplayController, "distance", distance);
 
             if (!string.Equals(activeMemberName, "_currentDistance", StringComparison.Ordinal))
-                SetMemberValue(gameplayController, "_currentDistance", distance);
+                SetTrackedMemberValue(gameplayController, "_currentDistance", distance);
         }
 
         private void ApplyGameplayOffset(float pitchDegrees)
@@ -240,7 +272,7 @@ namespace CameraTools
             var offset = new Vector3(0f, Mathf.Sin(radians), -Mathf.Cos(radians));
             if (!lastAppliedGameplayOffset.HasValue || lastAppliedGameplayOffset.Value != offset)
             {
-                SetMemberValue(gameplayController, "offset", offset);
+                SetTrackedMemberValue(gameplayController, "offset", offset);
                 lastAppliedGameplayOffset = offset;
             }
         }
@@ -271,7 +303,7 @@ namespace CameraTools
                     var desiredOffset = trackedOffset;
                     desiredOffset.y = GameplayTrackedObjectOffsetY;
                     if (desiredOffset != trackedOffset)
-                        SetMemberValue(pipelineComponent, "m_TrackedObjectOffset", desiredOffset);
+                        SetTrackedMemberValue(pipelineComponent, "m_TrackedObjectOffset", desiredOffset);
                     return;
                 }
 
@@ -281,7 +313,7 @@ namespace CameraTools
                     var desiredOffset = publicTrackedOffset;
                     desiredOffset.y = GameplayTrackedObjectOffsetY;
                     if (desiredOffset != publicTrackedOffset)
-                        SetMemberValue(pipelineComponent, "TrackedObjectOffset", desiredOffset);
+                        SetTrackedMemberValue(pipelineComponent, "TrackedObjectOffset", desiredOffset);
                     return;
                 }
             }

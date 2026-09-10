@@ -45,12 +45,26 @@
   not as a follow-up after an inconclusive test. Before runtime testing, add
   focused logs that can confirm whether the changed path was entered, which
   important decision or state was observed, and whether it succeeded or failed.
+- Give each mod that uses diagnostic logging one global debug flag. Gate general
+  diagnostic messages, such as mod startup, registration, hook installation,
+  and integration-state traces, behind that flag so diagnostics can be enabled
+  or silenced in one place. The global debug flag must default to disabled.
+- For a feature or fix that needs isolated or potentially noisy diagnostics, add
+  a separate feature-specific debug sub-flag and require both the global flag
+  and that sub-flag to be enabled before those messages are emitted. Each
+  feature-specific sub-flag must also default to disabled.
+- Prefer retaining useful gated diagnostics when they may help investigate a
+  future regression, because the flags make them inexpensive to re-enable.
+  Remove diagnostics that no longer provide support value or cannot be made
+  safe and focused.
 - Use the target mod's existing logging wrapper and include enough context to
   correlate an event, such as the affected entity, operation, state transition,
   or failure reason. Never log credentials, tokens, or other sensitive data.
 - Log warnings and errors for unexpected or failed outcomes. Use informational
   logging for meaningful lifecycle events and results that help validate the
-  requested behavior.
+  requested behavior. Do not hide actionable release-mode warnings or errors
+  behind debug flags; the flags control diagnostic detail, not essential failure
+  reporting.
 - Avoid unconditional logging in per-frame updates, tight loops, or other hot
   paths. Gate, deduplicate, or rate-limit repeated messages so a useful trace
   does not become log spam.
@@ -136,6 +150,13 @@ this repository. Do not wait for the user to request a commit separately.
 
 - Finish, verify, and commit a fix or feature on its dedicated branch before
   integrating it into `main` through the pull-request workflow above.
+- Before preparing, staging, planning, or uploading any Workshop release,
+  inspect the mod's source and configuration and confirm that its global debug
+  flag and every feature-specific diagnostic sub-flag are disabled in the
+  release state. Do not rely only on an absence of observed log output.
+- Treat an enabled debug or diagnostic flag as a release blocker. Disable it,
+  rebuild and reinstall the mod, and repeat any affected verification before
+  continuing with Workshop preparation or upload.
 - Run the final Workshop preparation and `ba-workshop upload` only from the
   local checkout on branch `main`. Never upload from a worktree, task branch,
   or detached `HEAD`.

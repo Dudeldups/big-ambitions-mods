@@ -6,7 +6,7 @@ Geef je voertuig een nieuwe uitstraling zonder een nieuw voertuig te kopen. Vehi
 [list]
 [*] Rijd een voertuig naar de gebruikelijke reparatie- en wasplaats van een benzinestation.
 [*] Selecteer [b]Overschilderen ($ 800)[/b].
-[*] Gebruik de vertrouwde voertuigkleurkiezer om alle beschikbare kleuren direct op je voertuig te bekijken.
+[*] Kies uit een uitgebreid palet van 96 kleuren, gerangschikt op tint, en bekijk elke kleur direct op je voertuig.
 [/list]
 
 [h2]Compatibiliteit[/h2]

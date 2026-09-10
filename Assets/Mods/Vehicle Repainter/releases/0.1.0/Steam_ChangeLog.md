@@ -1,1 +1,1 @@
-Initial upload to the workshop
+- Fixed cancelling a repaint preview so the vehicle reliably returns to its original color without changing its saved paint.
