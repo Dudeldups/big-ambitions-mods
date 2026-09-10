@@ -1,13 +1,16 @@
-# 2012 Cadillac Escalade AWD Premium calibration
+# Cadillac Escalade vehicle calibration
 
-The supplied model depicts the third-generation, short-wheelbase Escalade. This
-mod uses the 2012 AWD Premium configuration as its physical and economic target.
+The replacement model depicts a 2021 Cadillac Escalade Premium. Its body and
+wheel geometry are normalized to the fourth-generation proportions below. The
+existing gameplay economy and proven AWD/V8 powertrain tune are intentionally
+retained so replacing the visual source does not change the mod's identity or
+save behavior.
 
 | Property | Calibration |
 | --- | --- |
-| Length / width / height | 5.144 m / 2.007 m / 1.887 m |
-| Wheelbase | 2.946 m |
-| Approximate front / rear track | 1.73 m / 1.70 m |
+| Generated length / mirror span / height | 5.382 m / 2.450 m / 1.948 m |
+| Generated wheelbase | 3.064 m |
+| Generated front / rear track | 1.775 m / 1.775 m |
 | Curb mass | 2,575 kg |
 | Engine | 6.2 L naturally aspirated V8 |
 | Power | 301 kW / 403 hp at 5,700 rpm |

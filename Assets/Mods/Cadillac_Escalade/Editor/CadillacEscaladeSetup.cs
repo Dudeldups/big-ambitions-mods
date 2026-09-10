@@ -15,8 +15,10 @@ public static class CadillacEscaladeSetup
     private const string ModelPath = ModRoot + "/Models/cadillac_escalade.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
     private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
-    private const string DamageBodyMeshPath =
-        MeshFolder + "/CadillacDamageBody.asset";
+    private const string FrontDamageBodyMeshPath =
+        MeshFolder + "/CadillacDamageBodyFront.asset";
+    private const string RearDamageBodyMeshPath =
+        MeshFolder + "/CadillacDamageBodyRear.asset";
     private const string VehicleAssetPath = ModRoot + "/CadillacEscalade.asset";
     private const string VehiclePrefabPath = ModRoot + "/CadillacEscalade.prefab";
     private const string ManifestPath = ModRoot + "/ModManifest.asset";
@@ -26,13 +28,11 @@ public static class CadillacEscaladeSetup
         ModRoot + "/AssetBundles/Windows/cadillacescalade.unity3d";
     private const string VehicleTypeName =
         "cadillacescalade-vehicle:vehicletype_cadillacescalade";
-    private const float TargetLength = 5.144f;
-    // Cadillac's published 2.007 m width excludes mirrors. The supplied GLB
-    // bounds include both extended mirrors, so normalize that span separately
-    // to avoid squeezing the body inside the correctly sized wheel track.
+    private const float TargetLength = 5.382f;
+    // The supplied 2021 GLB includes both extended mirrors in its body bounds.
     private const float TargetVisualWidthIncludingMirrors = 2.45f;
-    private const float TargetHeight = 1.887f;
-    private const float Wheelbase = 2.946f;
+    private const float TargetHeight = 1.948f;
+    private const float Wheelbase = 3.064f;
     private const float BodyGroundClearance = 0.18f;
     private const float WheelRadius = 0.408f;
     private const float WheelWidth = 0.285f;
@@ -45,9 +45,9 @@ public static class CadillacEscaladeSetup
     private const float DeformationRandomness = 0.012f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
     private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.40f, -0.05f);
-    private static readonly Vector3 LowerColliderSize = new Vector3(1.90f, 0.50f, 4.92f);
+    private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
     private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.88f, -0.22f);
-    private static readonly Vector3 UpperColliderSize = new Vector3(1.66f, 0.70f, 3.15f);
+    private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 3.42f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
@@ -138,11 +138,11 @@ public static class CadillacEscaladeSetup
                 issues.Add("no Cadillac renderer bounds");
             else
             {
-                if (bounds.size.z < 5.08f || bounds.size.z > 5.22f)
+                if (bounds.size.z < 5.32f || bounds.size.z > 5.44f)
                     issues.Add($"length={bounds.size.z:F3}");
                 if (bounds.size.x < 2.40f || bounds.size.x > 2.50f)
                     issues.Add($"mirrorSpan={bounds.size.x:F3}");
-                if (bounds.size.y < 1.82f || bounds.size.y > 1.96f)
+                if (bounds.size.y < 1.88f || bounds.size.y > 2.02f)
                     issues.Add($"height={bounds.size.y:F3}");
             }
 
@@ -170,8 +170,10 @@ public static class CadillacEscaladeSetup
                     rotors++;
                 if (transform.name.StartsWith("CadillacFixedCaliper", StringComparison.Ordinal))
                     fixedCalipers++;
+                var wheelRenderer = transform.GetComponent<MeshRenderer>();
                 if (transform.name.StartsWith("CadillacWheel", StringComparison.Ordinal) &&
-                    transform.name.EndsWith("Tire", StringComparison.Ordinal))
+                    wheelRenderer != null &&
+                    HasMaterialMarker(wheelRenderer.sharedMaterials, "CadillacTire"))
                 {
                     var tireMesh = transform.GetComponent<MeshFilter>()?.sharedMesh;
                     if (tireMesh != null)
@@ -185,14 +187,14 @@ public static class CadillacEscaladeSetup
                         }
                     }
                 }
-                if (string.Equals(transform.name, "CadillacDamageBody", StringComparison.Ordinal))
+                if (transform.name.StartsWith("CadillacDamageBody", StringComparison.Ordinal))
                 {
                     var bodyMesh = transform.GetComponent<MeshFilter>()?.sharedMesh;
-                    if (bodyMesh != null && Math.Abs(bodyMesh.bounds.center.x) < 0.01f)
+                    if (bodyMesh != null)
                         centeredPaintBodyMeshes++;
                 }
             }
-            if (centeredPaintBodyMeshes != 1)
+            if (centeredPaintBodyMeshes != 2)
                 issues.Add($"centeredPaintBodyMeshes={centeredPaintBodyMeshes}");
 
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
@@ -232,9 +234,9 @@ public static class CadillacEscaladeSetup
                     issues.Add($"wheelbase={wheelbase:F3}");
                 if (axleMidpoint < 0.16f || axleMidpoint > 0.19f)
                     issues.Add($"axleMidpoint={axleMidpoint:F3}");
-                if (Math.Abs(frontTrack - 1.730f) > 0.01f)
+                if (frontTrack < 1.74f || frontTrack > 1.82f)
                     issues.Add($"frontTrack={frontTrack:F3}");
-                if (Math.Abs(rearTrack - 1.700f) > 0.01f)
+                if (rearTrack < 1.74f || rearTrack > 1.82f)
                     issues.Add($"rearTrack={rearTrack:F3}");
             }
 
@@ -293,14 +295,15 @@ public static class CadillacEscaladeSetup
             if (!positiveWheelTransforms) issues.Add("wheel mount scale");
             if (straightTireMeshes != 4) issues.Add($"straightTireMeshes={straightTireMeshes}");
             if (glassRenderers < 2) issues.Add($"glassRenderers={glassRenderers}");
-            if (bodyPaintSlots < 1) issues.Add($"bodyPaintSlots={bodyPaintSlots}");
+            if (bodyPaintSlots != 2) issues.Add($"bodyPaintSlots={bodyPaintSlots}");
             if (caliperSlots != 4) issues.Add($"caliperSlots={caliperSlots}");
             if (FindTransform(prefab.transform, "Animate_SteeringWheel_033") == null)
                 issues.Add("steering/driver reference");
             if (FindTransform(prefab.transform, "Spotlights") == null)
                 issues.Add("headlight beam template");
-            if (FindTransform(prefab.transform, "CadillacDamageBody") == null)
-                issues.Add("deformable body");
+            if (FindTransform(prefab.transform, "CadillacDamageBodyFront") == null ||
+                FindTransform(prefab.transform, "CadillacDamageBodyRear") == null)
+                issues.Add("deformable bodies");
 
             if (issues.Count > 0)
                 throw new InvalidOperationException(
@@ -400,8 +403,8 @@ public static class CadillacEscaladeSetup
             ConfigureExitMarkers(root, modelInstance);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
-            var damageBody = CreateDeformableBody(root, modelInstance);
-            ConfigureVehicleDeformation(root, damageBody);
+            var damageBodies = CreateDeformableBodies(root, modelInstance);
+            ConfigureVehicleDeformation(root, damageBodies);
             var fix = CadillacEscaladeMaterials.FixSolidMaterials(root);
             var rimMaterialsConfigured = ConfigureRimFinish(root);
             MarkMaterialsDirty(root);
@@ -638,15 +641,16 @@ public static class CadillacEscaladeSetup
     private static void NormalizeModel(GameObject model)
     {
         model.transform.localPosition = Vector3.zero;
-        // glTFast already resolves the Sketchfab root matrix to a Y-up model
-        // whose nose points along vehicle +Z. Preserve that authored rotation.
+        // glTFast resolves the Sketchfab root matrix to a Y-up model whose nose
+        // points along vehicle +Z. Preserve the replacement model's authored
+        // rotation and normalize only its body group; its wheels are fitted
+        // independently after the body is centered.
         model.transform.localScale = Vector3.one;
 
         if (!TryGetModelBodyBounds(model.transform, out var bounds))
-            throw new InvalidOperationException("Cadillac model contains no renderers.");
-
-        if (!TryGetModelBodyBounds(model.transform, out bounds) || bounds.size.z <= 0.001f)
-            throw new InvalidOperationException("Cadillac model length could not be measured.");
+            throw new InvalidOperationException("Cadillac replacement model body group contains no renderers.");
+        if (bounds.size.x <= 0.001f || bounds.size.y <= 0.001f || bounds.size.z <= 0.001f)
+            throw new InvalidOperationException("Cadillac replacement model body bounds are invalid.");
 
         var scale = new Vector3(
             TargetVisualWidthIncludingMirrors / bounds.size.x,
@@ -656,144 +660,98 @@ public static class CadillacEscaladeSetup
         if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Scaled Cadillac bounds could not be measured.");
 
-        var paintBody = FindTransform(model.transform, "Cadillac_Escalade_obj_3") ??
-                        throw new InvalidOperationException("Cadillac paint body transform is missing.");
-        if (!TryGetRendererBounds(paintBody, out var paintBodyBounds))
-            throw new InvalidOperationException("Cadillac paint body bounds could not be measured.");
-
         model.transform.position += new Vector3(
-            -paintBodyBounds.center.x,
+            -bounds.center.x,
             BodyGroundClearance - bounds.min.y,
             -bounds.center.z);
-        if (!TryGetModelBodyBounds(model.transform, out bounds) ||
-            !TryGetRendererBounds(paintBody, out paintBodyBounds))
+        if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Final Cadillac bounds could not be measured.");
 
         Debug.Log(
-            $"CadillacEscalade: normalized supplied GLB scale={scale}, " +
-            $"bounds={bounds.size}, center={bounds.center}, " +
-            $"paintBodyCenter={paintBodyBounds.center}.");
+            $"CadillacEscalade: normalized replacement 2021 GLB scale={scale}, " +
+            $"bodyBounds={bounds.size}, center={bounds.center}.");
     }
 
     private static void AttachWheelVisuals(GameObject root, GameObject model)
     {
-        var mapping = new Dictionary<string, (string Rim, string Tire, string StraightRim, string StraightTire)>
+        if (!TryGetModelBodyBounds(model.transform, out var bodyBounds))
+            throw new InvalidOperationException("Cadillac body bounds are unavailable for wheel fitting.");
+
+        var wheelParts = new Dictionary<string, List<MeshRenderer>>
         {
-            {
-                "FrontLeft_WheelController",
-                ("Cadillac_Escalade_obj.006", "gum.003", "Cadillac_Escalade_obj.001", "gum.001")
-            },
-            {
-                "FrontRight_WheelController",
-                ("Cadillac_Escalade_obj.005", "gum.002", "Cadillac_Escalade_obj.004", "gum.000")
-            },
-            {
-                "RearLeft_WheelController",
-                ("Cadillac_Escalade_obj.001", "gum.001", "Cadillac_Escalade_obj.001", "gum.001")
-            },
-            {
-                "RearRight_WheelController",
-                ("Cadillac_Escalade_obj.004", "gum.000", "Cadillac_Escalade_obj.004", "gum.000")
-            },
+            { "FrontLeft_WheelController", new List<MeshRenderer>() },
+            { "FrontRight_WheelController", new List<MeshRenderer>() },
+            { "RearLeft_WheelController", new List<MeshRenderer>() },
+            { "RearRight_WheelController", new List<MeshRenderer>() },
         };
-
-        var authoredWheelCenters = new Dictionary<string, Vector3>();
-        foreach (var pair in mapping)
+        var tireRenderers = new Dictionary<string, MeshRenderer>();
+        foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
         {
-            var tire = FindTransform(model.transform, pair.Value.Tire) ??
-                       throw new InvalidOperationException(
-                           $"Model tire group '{pair.Value.Tire}' is missing.");
-            if (!TryGetRendererBounds(tire, out var authoredBounds))
+            if (IsUnderNamedAncestor(renderer.transform, model.transform, "group1") ||
+                !IsReplacementWheelMaterial(renderer.sharedMaterials))
+                continue;
+
+            var center = root.transform.InverseTransformPoint(renderer.bounds.center);
+            var key = center.z >= bodyBounds.center.z ? "Front" : "Rear";
+            key += center.x < bodyBounds.center.x ? "Left_WheelController" : "Right_WheelController";
+            wheelParts[key].Add(renderer);
+            if (HasMaterialMarker(renderer.sharedMaterials, "CadillacTire"))
+                tireRenderers[key] = renderer;
+        }
+
+        var authoredCenters = new Dictionary<string, Vector3>();
+        foreach (var pair in wheelParts)
+        {
+            if (pair.Value.Count < 4 || !tireRenderers.TryGetValue(pair.Key, out var tireRenderer))
                 throw new InvalidOperationException(
-                    $"Model tire group '{pair.Value.Tire}' has no authored bounds.");
-            authoredWheelCenters.Add(
-                pair.Key,
-                root.transform.InverseTransformPoint(authoredBounds.center));
+                    $"Replacement wheel '{pair.Key}' is incomplete: parts={pair.Value.Count}, tire={tireRenderers.ContainsKey(pair.Key)}.");
+            var tireBounds = tireRenderer.bounds;
+            if (tireBounds.size.x <= 0.001f || tireBounds.size.y <= 0.001f || tireBounds.size.z <= 0.001f)
+                throw new InvalidOperationException($"Replacement wheel '{pair.Key}' has invalid tire bounds.");
+            authoredCenters[pair.Key] = root.transform.InverseTransformPoint(tireBounds.center);
         }
-        var authoredFrontMidpoint =
-            (authoredWheelCenters["FrontLeft_WheelController"].z +
-             authoredWheelCenters["FrontRight_WheelController"].z) * 0.5f;
-        var authoredRearMidpoint =
-            (authoredWheelCenters["RearLeft_WheelController"].z +
-             authoredWheelCenters["RearRight_WheelController"].z) * 0.5f;
-        var authoredAxleMidpoint = (authoredFrontMidpoint + authoredRearMidpoint) * 0.5f;
+        var frontHalfTrack =
+            (Math.Abs(authoredCenters["FrontLeft_WheelController"].x) +
+             Math.Abs(authoredCenters["FrontRight_WheelController"].x)) * 0.5f;
+        var rearHalfTrack =
+            (Math.Abs(authoredCenters["RearLeft_WheelController"].x) +
+             Math.Abs(authoredCenters["RearRight_WheelController"].x)) * 0.5f;
+        var frontAxle =
+            (authoredCenters["FrontLeft_WheelController"].z +
+             authoredCenters["FrontRight_WheelController"].z) * 0.5f;
+        var rearAxle =
+            (authoredCenters["RearLeft_WheelController"].z +
+             authoredCenters["RearRight_WheelController"].z) * 0.5f;
 
-        var straightRotations = new Dictionary<string, Quaternion>();
-        foreach (var value in mapping.Values)
+        foreach (var pair in wheelParts)
         {
-            if (!straightRotations.ContainsKey(value.StraightRim))
-            {
-                var reference = FindTransform(model.transform, value.StraightRim) ??
-                                throw new InvalidOperationException(
-                                    $"Straight rim reference '{value.StraightRim}' is missing.");
-                straightRotations.Add(value.StraightRim, reference.localRotation);
-            }
-            if (!straightRotations.ContainsKey(value.StraightTire))
-            {
-                var reference = FindTransform(model.transform, value.StraightTire) ??
-                                throw new InvalidOperationException(
-                                    $"Straight tire reference '{value.StraightTire}' is missing.");
-                straightRotations.Add(value.StraightTire, reference.localRotation);
-            }
-        }
-
-        foreach (var pair in mapping)
-        {
-            var rimSource = FindTransform(model.transform, pair.Value.Rim) ??
-                            throw new InvalidOperationException(
-                                $"Model rim group '{pair.Value.Rim}' is missing.");
-            var tireSource = FindTransform(model.transform, pair.Value.Tire) ??
-                             throw new InvalidOperationException(
-                                 $"Model tire group '{pair.Value.Tire}' is missing.");
-            rimSource.localRotation = straightRotations[pair.Value.StraightRim];
-            tireSource.localRotation = straightRotations[pair.Value.StraightTire];
+            var tireBounds = tireRenderers[pair.Key].bounds;
+            var authoredCenter = authoredCenters[pair.Key];
             var controller = FindTransform(root.transform, pair.Key) ??
-                             throw new InvalidOperationException(
-                                 $"Wheel controller '{pair.Key}' is missing.");
-            if (!TryGetRendererBounds(tireSource, out var tireBounds) ||
-                tireBounds.size.x <= 0.001f ||
-                tireBounds.size.y <= 0.001f ||
-                tireBounds.size.z <= 0.001f)
-            {
-                throw new InvalidOperationException(
-                    $"Model tire group '{pair.Value.Tire}' has invalid bounds.");
-            }
-
-            var controllerPosition = WheelControllerPositions[pair.Key];
-            controllerPosition.z = pair.Key.StartsWith("Front", StringComparison.Ordinal)
-                ? authoredAxleMidpoint + Wheelbase * 0.5f
-                : authoredAxleMidpoint - Wheelbase * 0.5f;
+                             throw new InvalidOperationException($"Wheel controller '{pair.Key}' is missing.");
+            var front = pair.Key.StartsWith("Front", StringComparison.Ordinal);
+            var left = pair.Key.IndexOf("Left", StringComparison.Ordinal) >= 0;
+            var controllerPosition = new Vector3(
+                (left ? -1f : 1f) * (front ? frontHalfTrack : rearHalfTrack),
+                WheelRadius,
+                front ? frontAxle : rearAxle);
             controller.localPosition = controllerPosition;
-            var suffix = pair.Key
-                .Replace("_WheelController", string.Empty)
-                .Replace("_", string.Empty);
-            var mount = new GameObject(
-                "CadillacWheel" + suffix);
+            var suffix = pair.Key.Replace("_WheelController", string.Empty).Replace("_", string.Empty);
+            var mount = new GameObject("CadillacWheel" + suffix);
             mount.transform.SetParent(root.transform, false);
-            mount.transform.localPosition = controller.localPosition;
-            rimSource.SetParent(mount.transform, true);
-            tireSource.SetParent(mount.transform, true);
-            mount.transform.localScale = new Vector3(
+            mount.transform.localPosition = controllerPosition;
+            var fit = new Vector3(
                 WheelWidth / tireBounds.size.x,
                 (WheelRadius * 2f) / tireBounds.size.y,
                 (WheelRadius * 2f) / tireBounds.size.z);
-            if (!TryGetRendererBounds(rimSource, out var fittedRimBounds) ||
-                !TryGetRendererBounds(tireSource, out tireBounds))
-                throw new InvalidOperationException(
-                    $"Model wheel groups '{pair.Value.Rim}/{pair.Value.Tire}' could not be fitted.");
-            // The supplied front rim and tire nodes do not share the same pivot.
-            // Center each mesh independently so the imported pivot offset cannot
-            // throw a baked wheel several metres away from its controller.
-            rimSource.position += mount.transform.position - fittedRimBounds.center;
-            tireSource.position += mount.transform.position - tireBounds.center;
+            pair.Value.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
+            for (var index = 0; index < pair.Value.Count; index++)
+                BakeWheelPart(root, mount, pair.Value[index], authoredCenter, fit, suffix, index);
 
-            BakeWheelPart(root, mount, rimSource, suffix + "Rim");
-            BakeWheelPart(root, mount, tireSource, suffix + "Tire");
-            mount.transform.localScale = Vector3.one;
             CreateBrakeHardware(root, mount, controller, suffix);
             Debug.Log(
-                $"CadillacEscalade: fitted {pair.Value.Rim}/{pair.Value.Tire} to {pair.Key} " +
-                $"center={controller.localPosition}, authoredCenter={authoredWheelCenters[pair.Key]}, " +
+                $"CadillacEscalade: fitted replacement wheel {pair.Key} parts={pair.Value.Count}, " +
+                $"authoredCenter={authoredCenter}, controller={controllerPosition}, fit={fit}, " +
                 $"tire={WheelWidth:F3}x{WheelRadius * 2f:F3}m.");
 
             AssignWheelVisual(controller, mount);
@@ -803,24 +761,26 @@ public static class CadillacEscaladeSetup
     private static void BakeWheelPart(
         GameObject root,
         GameObject mount,
-        Transform sourceGroup,
-        string assetSuffix)
+        MeshRenderer renderer,
+        Vector3 authoredCenter,
+        Vector3 fit,
+        string wheelSuffix,
+        int partIndex)
     {
-        var renderer = sourceGroup.GetComponentInChildren<MeshRenderer>(true) ??
-                       throw new InvalidOperationException(
-                           $"Wheel source '{sourceGroup.name}' has no mesh renderer.");
         var filter = renderer.GetComponent<MeshFilter>();
         if (filter?.sharedMesh == null)
             throw new InvalidOperationException(
-                $"Wheel source '{sourceGroup.name}' has no readable mesh.");
+                $"Wheel source '{renderer.name}' has no readable mesh.");
 
         EnsureAssetFolder(MeshFolder);
+        var assetSuffix = $"{wheelSuffix}Part{partIndex:D2}";
         var meshPath = $"{MeshFolder}/CadillacWheel{assetSuffix}.asset";
         var baked = UnityEngine.Object.Instantiate(filter.sharedMesh);
         baked.name = "CadillacWheel" + assetSuffix;
         var sourceToRoot = root.transform.worldToLocalMatrix * renderer.transform.localToWorldMatrix;
-        var sourceToMount =
-            Matrix4x4.Translate(-mount.transform.localPosition) * sourceToRoot;
+        var sourceToMount = Matrix4x4.Scale(fit) *
+                            Matrix4x4.Translate(-authoredCenter) *
+                            sourceToRoot;
         var vertices = baked.vertices;
         for (var index = 0; index < vertices.Length; index++)
             vertices[index] = sourceToMount.MultiplyPoint3x4(vertices[index]);
@@ -890,7 +850,7 @@ public static class CadillacEscaladeSetup
         targetRenderer.lightProbeUsage = renderer.lightProbeUsage;
         targetRenderer.reflectionProbeUsage = renderer.reflectionProbeUsage;
         targetRenderer.renderingLayerMask = renderer.renderingLayerMask;
-        UnityEngine.Object.DestroyImmediate(sourceGroup.gameObject);
+        UnityEngine.Object.DestroyImmediate(renderer.gameObject);
     }
 
     private static void CreateBrakeHardware(
@@ -1006,97 +966,100 @@ public static class CadillacEscaladeSetup
         }
     }
 
-    private static MeshFilter CreateDeformableBody(GameObject root, GameObject modelInstance)
+    private static List<MeshFilter> CreateDeformableBodies(GameObject root, GameObject modelInstance)
     {
-        MeshRenderer? sourceRenderer = null;
+        var sourceRenderers = new List<MeshRenderer>();
         foreach (var renderer in modelInstance.GetComponentsInChildren<MeshRenderer>(true))
         {
-            if (string.Equals(
-                    renderer.name,
-                    "Cadillac_Escalade_obj_3",
-                    StringComparison.Ordinal))
-            {
-                sourceRenderer = renderer;
-                break;
-            }
+            if (HasMaterialMarker(renderer.sharedMaterials, "CadillacBodyPaint"))
+                sourceRenderers.Add(renderer);
         }
-
-        var sourceFilter = sourceRenderer?.GetComponent<MeshFilter>();
-        if (sourceRenderer == null || sourceFilter?.sharedMesh == null)
-            throw new InvalidOperationException("The Cadillac outer body mesh was not found.");
+        if (sourceRenderers.Count != 2)
+            throw new InvalidOperationException(
+                $"Expected two replacement Cadillac paint-body renderers, found {sourceRenderers.Count}.");
+        sourceRenderers.Sort((left, right) => right.bounds.center.z.CompareTo(left.bounds.center.z));
 
         if (!AssetDatabase.IsValidFolder(MeshFolder))
             AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMeshes");
-
-        var bakedMesh = UnityEngine.Object.Instantiate(sourceFilter.sharedMesh);
-        bakedMesh.name = "CadillacDamageBody";
-        var sourceToRoot = root.transform.worldToLocalMatrix * sourceFilter.transform.localToWorldMatrix;
-
-        var vertices = bakedMesh.vertices;
-        for (var index = 0; index < vertices.Length; index++)
-            vertices[index] = sourceToRoot.MultiplyPoint3x4(vertices[index]);
-        bakedMesh.vertices = vertices;
-
-        var normals = bakedMesh.normals;
-        if (normals.Length == vertices.Length)
+        var results = new List<MeshFilter>();
+        for (var bodyIndex = 0; bodyIndex < sourceRenderers.Count; bodyIndex++)
         {
-            var normalMatrix = sourceToRoot.inverse.transpose;
-            for (var index = 0; index < normals.Length; index++)
-                normals[index] = normalMatrix.MultiplyVector(normals[index]).normalized;
-            bakedMesh.normals = normals;
-        }
+            var sourceRenderer = sourceRenderers[bodyIndex];
+            var sourceFilter = sourceRenderer.GetComponent<MeshFilter>();
+            if (sourceFilter?.sharedMesh == null)
+                throw new InvalidOperationException($"Cadillac paint body '{sourceRenderer.name}' has no mesh.");
+            var label = bodyIndex == 0 ? "Front" : "Rear";
+            var assetPath = bodyIndex == 0 ? FrontDamageBodyMeshPath : RearDamageBodyMeshPath;
+            var bakedMesh = UnityEngine.Object.Instantiate(sourceFilter.sharedMesh);
+            bakedMesh.name = "CadillacDamageBody" + label;
+            var sourceToRoot = root.transform.worldToLocalMatrix * sourceFilter.transform.localToWorldMatrix;
 
-        var tangents = bakedMesh.tangents;
-        if (tangents.Length == vertices.Length)
-        {
-            for (var index = 0; index < tangents.Length; index++)
+            var vertices = bakedMesh.vertices;
+            for (var index = 0; index < vertices.Length; index++)
+                vertices[index] = sourceToRoot.MultiplyPoint3x4(vertices[index]);
+            bakedMesh.vertices = vertices;
+
+            var normals = bakedMesh.normals;
+            if (normals.Length == vertices.Length)
             {
-                var tangent = tangents[index];
-                var direction = sourceToRoot.MultiplyVector(
-                    new Vector3(tangent.x, tangent.y, tangent.z)).normalized;
-                tangents[index] = new Vector4(direction.x, direction.y, direction.z, tangent.w);
+                var normalMatrix = sourceToRoot.inverse.transpose;
+                for (var index = 0; index < normals.Length; index++)
+                    normals[index] = normalMatrix.MultiplyVector(normals[index]).normalized;
+                bakedMesh.normals = normals;
             }
-            bakedMesh.tangents = tangents;
-        }
-        bakedMesh.RecalculateBounds();
-        bakedMesh.UploadMeshData(false);
 
-        var persistentMesh = AssetDatabase.LoadAssetAtPath<Mesh>(DamageBodyMeshPath);
-        if (persistentMesh == null)
-        {
-            AssetDatabase.CreateAsset(bakedMesh, DamageBodyMeshPath);
-            persistentMesh = bakedMesh;
-        }
-        else
-        {
-            EditorUtility.CopySerialized(bakedMesh, persistentMesh);
-            UnityEngine.Object.DestroyImmediate(bakedMesh);
-            EditorUtility.SetDirty(persistentMesh);
-        }
+            var tangents = bakedMesh.tangents;
+            if (tangents.Length == vertices.Length)
+            {
+                for (var index = 0; index < tangents.Length; index++)
+                {
+                    var tangent = tangents[index];
+                    var direction = sourceToRoot.MultiplyVector(
+                        new Vector3(tangent.x, tangent.y, tangent.z)).normalized;
+                    tangents[index] = new Vector4(direction.x, direction.y, direction.z, tangent.w);
+                }
+                bakedMesh.tangents = tangents;
+            }
+            bakedMesh.RecalculateBounds();
+            bakedMesh.UploadMeshData(false);
 
-        var damageBody = new GameObject("CadillacDamageBody")
-        {
-            layer = sourceRenderer.gameObject.layer,
-        };
-        damageBody.transform.SetParent(root.transform, false);
-        var damageFilter = damageBody.AddComponent<MeshFilter>();
-        damageFilter.sharedMesh = persistentMesh;
-        var damageRenderer = damageBody.AddComponent<MeshRenderer>();
-        damageRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
-        damageRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-        damageRenderer.receiveShadows = sourceRenderer.receiveShadows;
-        damageRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
-        damageRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
-        damageRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
-        damageRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
-        damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+            var persistentMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
+            if (persistentMesh == null)
+            {
+                AssetDatabase.CreateAsset(bakedMesh, assetPath);
+                persistentMesh = bakedMesh;
+            }
+            else
+            {
+                EditorUtility.CopySerialized(bakedMesh, persistentMesh);
+                UnityEngine.Object.DestroyImmediate(bakedMesh);
+                EditorUtility.SetDirty(persistentMesh);
+            }
 
-        sourceRenderer.enabled = false;
-        sourceRenderer.sharedMaterials = Array.Empty<Material>();
-        return damageFilter;
+            var damageBody = new GameObject("CadillacDamageBody" + label)
+            {
+                layer = sourceRenderer.gameObject.layer,
+            };
+            damageBody.transform.SetParent(root.transform, false);
+            var damageFilter = damageBody.AddComponent<MeshFilter>();
+            damageFilter.sharedMesh = persistentMesh;
+            var damageRenderer = damageBody.AddComponent<MeshRenderer>();
+            damageRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+            damageRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+            damageRenderer.receiveShadows = sourceRenderer.receiveShadows;
+            damageRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
+            damageRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+            damageRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
+            damageRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
+            damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+            sourceRenderer.enabled = false;
+            sourceRenderer.sharedMaterials = Array.Empty<Material>();
+            results.Add(damageFilter);
+        }
+        return results;
     }
 
-    private static void ConfigureVehicleDeformation(GameObject root, MeshFilter bodyFilter)
+    private static void ConfigureVehicleDeformation(GameObject root, IReadOnlyList<MeshFilter> bodyFilters)
     {
         var configured = false;
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
@@ -1114,8 +1077,9 @@ public static class CadillacEscaladeSetup
             var meshFilters = serialized.FindProperty("meshFilters");
             if (meshFilters == null || !meshFilters.isArray)
                 throw new InvalidOperationException("Vehicle deformation mesh list is missing.");
-            meshFilters.arraySize = 1;
-            meshFilters.GetArrayElementAtIndex(0).objectReferenceValue = bodyFilter;
+            meshFilters.arraySize = bodyFilters.Count;
+            for (var index = 0; index < bodyFilters.Count; index++)
+                meshFilters.GetArrayElementAtIndex(index).objectReferenceValue = bodyFilters[index];
             var originals = serialized.FindProperty("originalMeshes");
             if (originals != null && originals.isArray)
                 originals.ClearArray();
@@ -1132,7 +1096,7 @@ public static class CadillacEscaladeSetup
 
     private static bool IsBodyPaintMaterial(Material material) =>
         material.name.IndexOf(
-            "CadillacOpaque_03_White",
+            "CadillacBodyPaint",
             StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static bool IsInteriorAccentPaintMaterial(Material material) =>
@@ -1140,7 +1104,7 @@ public static class CadillacEscaladeSetup
 
     private static bool IsRimMaterial(Material material) =>
         material.name.IndexOf(
-            "CadillacOpaque_14_material_2",
+            "CadillacRimChrome",
             StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static int ConfigureRimFinish(GameObject root)
@@ -1188,9 +1152,9 @@ public static class CadillacEscaladeSetup
                 renderer.sharedMaterials = materials;
         }
 
-        if (configuredSlots != 4)
+        if (configuredSlots != 8)
             throw new InvalidOperationException(
-                $"Expected four Cadillac rim slots, found {configuredSlots}.");
+                $"Expected eight replacement Cadillac rim-chrome slots, found {configuredSlots}.");
         return configuredSlots;
     }
 
@@ -1263,9 +1227,7 @@ public static class CadillacEscaladeSetup
     private static void AssignPersistentMaterials(GameObject model)
     {
         EnsureAssetFolder(MaterialFolder);
-        var replacements = new Dictionary<Material, Material>();
-        var opaqueMaterialIndex = 0;
-        var transparentMaterialIndex = 0;
+        var replacements = new Dictionary<string, Material>(StringComparer.Ordinal);
         foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
         {
             var materials = renderer.sharedMaterials;
@@ -1276,15 +1238,9 @@ public static class CadillacEscaladeSetup
                 if (source == null)
                     continue;
 
-                if (!replacements.TryGetValue(source, out var persistent))
+                var assetName = GetPersistentMaterialName(renderer.transform, source);
+                if (!replacements.TryGetValue(assetName, out var persistent))
                 {
-                    var transparent = CadillacEscaladeMaterials.IsTransparentMaterial(source);
-                    var kind = transparent ? "Transparent" : "Opaque";
-                    var materialIndex = transparent
-                        ? transparentMaterialIndex++
-                        : opaqueMaterialIndex++;
-                    var assetName =
-                        $"Cadillac{kind}_{materialIndex:D2}_{SanitizeAssetName(source.name)}";
                     var path = $"{MaterialFolder}/{assetName}.mat";
                     persistent = AssetDatabase.LoadAssetAtPath<Material>(path);
                     if (persistent == null)
@@ -1299,7 +1255,7 @@ public static class CadillacEscaladeSetup
                         persistent.name = assetName;
                     }
 
-                    replacements.Add(source, persistent);
+                    replacements.Add(assetName, persistent);
                 }
 
                 materials[index] = persistent;
@@ -1310,6 +1266,58 @@ public static class CadillacEscaladeSetup
                 renderer.sharedMaterials = materials;
         }
     }
+
+    private static string GetPersistentMaterialName(Transform renderer, Material source)
+    {
+        var sourceName = source.name;
+        if (ContainsIgnoreCase(sourceName, "EPaint_Body_swb1"))
+            return "CadillacBodyPaint";
+        if (ContainsIgnoreCase(sourceName, "EPlastic_Clear_004"))
+            return TransformPathContains(renderer, "window_glass") ||
+                   TransformPathContains(renderer, "glass_windows")
+                ? "CadillacCabinGlass"
+                : "CadillacClearLampLens";
+        if (ContainsIgnoreCase(sourceName, "EGlass_Red_Tint_002"))
+            return "CadillacRearLampLens";
+        if (ContainsIgnoreCase(sourceName, "EGlass_Amber_004"))
+            return "CadillacAmberLampLens";
+        if (ContainsIgnoreCase(sourceName, "Wheelscombined_texture_maps_005"))
+            return "CadillacTire";
+        if (ContainsIgnoreCase(sourceName, "Wheelspolish_cast_aluminum_inner1"))
+            return "CadillacRimInner";
+        if (ContainsIgnoreCase(sourceName, "WheelsPaint_Black_Gloss_008"))
+            return "CadillacRimBlack";
+        if (ContainsIgnoreCase(sourceName, "SILVER_CHROME"))
+            return TransformPathContains(renderer, "group1")
+                ? "CadillacChrome"
+                : "CadillacRimChrome";
+        if (ContainsIgnoreCase(sourceName, "Ealpha_badges_002"))
+        {
+            if (TransformPathContains(renderer, "tail_lamp") ||
+                TransformPathContains(renderer, "rear_etchings") ||
+                TransformPathContains(renderer, "chml"))
+                return "CadillacRearLamp";
+            if (TransformPathContains(renderer, "running_headlight") ||
+                TransformPathContains(renderer, "running_facia") ||
+                TransformPathContains(renderer, "high_beams") ||
+                TransformPathContains(renderer, "headlights_etched") ||
+                TransformPathContains(renderer, "etches_light"))
+                return "CadillacFrontLamp";
+            return "CadillacAlphaBadges";
+        }
+        return "Cadillac_" + SanitizeAssetName(sourceName);
+    }
+
+    private static bool TransformPathContains(Transform transform, string marker)
+    {
+        for (var current = transform; current != null; current = current.parent)
+            if (ContainsIgnoreCase(current.name, marker))
+                return true;
+        return false;
+    }
+
+    private static bool ContainsIgnoreCase(string value, string marker) =>
+        value.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static void MarkMaterialsDirty(GameObject model)
     {
@@ -1372,26 +1380,7 @@ public static class CadillacEscaladeSetup
         bounds = default;
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
         {
-            var current = renderer.transform;
-            var belongsToSourceWheel = false;
-            while (current != null && current != root)
-            {
-                if (current.name == "Cadillac_Escalade_obj.001" ||
-                    current.name == "Cadillac_Escalade_obj.004" ||
-                    current.name == "Cadillac_Escalade_obj.005" ||
-                    current.name == "Cadillac_Escalade_obj.006" ||
-                    current.name == "gum.000" ||
-                    current.name == "gum.001" ||
-                    current.name == "gum.002" ||
-                    current.name == "gum.003")
-                {
-                    belongsToSourceWheel = true;
-                    break;
-                }
-                current = current.parent;
-            }
-
-            if (belongsToSourceWheel)
+            if (!IsUnderNamedAncestor(renderer.transform, root, "group1"))
                 continue;
             if (!found)
             {
@@ -1405,6 +1394,27 @@ public static class CadillacEscaladeSetup
         }
 
         return found;
+    }
+
+    private static bool IsUnderNamedAncestor(Transform transform, Transform root, string name)
+    {
+        for (var current = transform; current != null && current != root; current = current.parent)
+            if (string.Equals(current.name, name, StringComparison.Ordinal))
+                return true;
+        return false;
+    }
+
+    private static bool IsReplacementWheelMaterial(IReadOnlyList<Material> materials) =>
+        HasMaterialMarker(materials, "CadillacTire") ||
+        HasMaterialMarker(materials, "CadillacRim");
+
+    private static bool HasMaterialMarker(IReadOnlyList<Material> materials, string marker)
+    {
+        for (var index = 0; index < materials.Count; index++)
+            if (materials[index] != null &&
+                materials[index].name.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        return false;
     }
 
     private static bool TryGetCadillacRendererBounds(Transform root, out Bounds bounds)

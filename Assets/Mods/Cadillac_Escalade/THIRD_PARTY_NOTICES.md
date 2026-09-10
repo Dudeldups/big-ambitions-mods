@@ -2,15 +2,16 @@
 
 ## Cadillac Escalade 3D model
 
-- Creator: Res1n
-- Source: https://skfb.ly/pALUu
-- Canonical model page: https://sketchfab.com/3d-models/cadillac-escalade-2429115c901147f2b81ff5e03c12d611
-- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
-- License text: https://creativecommons.org/licenses/by/4.0/legalcode
+- Creator: Ddiaz Design (https://sketchfab.com/ddiaz-design)
+- Source: https://skfb.ly/pst8D
+- Canonical model page: https://sketchfab.com/3d-models/2021-cadillac-escalade-premium-54a2bdd83bb048fb8ef5b539c1b82346
+- License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+- License text: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
 
 The supplied model is redistributed and adapted for use in this Big Ambitions
-mod under CC BY 4.0. Its embedded glTF metadata identifies the same creator,
-source, and license.
+mod under CC BY-NC-SA 4.0. Its embedded glTF metadata identifies the same
+creator, source, and license. Adapted model content is distributed under the
+same license and may only be used for non-commercial purposes.
 
 ## Generated audio
 
