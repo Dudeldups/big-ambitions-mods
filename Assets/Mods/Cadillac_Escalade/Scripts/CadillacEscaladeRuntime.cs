@@ -35,7 +35,13 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float DeformationRandomness = 0.012f;
     private const float DamageIntensity = 0.75f;
     private const float DamageDecelerationThreshold = 400f;
-    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.72f, -0.10f);
+    private const float MinimumHealthyEngineRpm = 300f;
+    private const int EngineStartAttemptCount = 3;
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
+    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.40f, -0.05f);
+    private static readonly Vector3 LowerColliderSize = new Vector3(1.90f, 0.50f, 4.92f);
+    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.88f, -0.22f);
+    private static readonly Vector3 UpperColliderSize = new Vector3(1.66f, 0.70f, 3.15f);
 
     private static readonly float[] EscaladeGears =
     {
@@ -61,6 +67,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
+    private Coroutine? powertrainReadinessCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private bool dealerReadyLogged;
@@ -87,7 +94,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
+        if (powertrainReadinessCoroutine != null)
+            StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
+        powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
         Destroy(gameObject);
     }
@@ -141,7 +151,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
+        if (powertrainReadinessCoroutine != null)
+            StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
+        powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReadyLogged = false;
     }
@@ -149,8 +162,85 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private void HandleVehicleEntered(VehicleController vehicle)
     {
         TryConfigureVehicle(vehicle);
-        vehicle?.GetComponent<CadillacEscaladeGlassController>()
-            ?.RestoreAfterVehicleEntered();
+        if (!IsTargetVehicle(vehicle))
+            return;
+        vehicle.GetComponent<CadillacEscaladeGlassController>()?.RestoreAfterVehicleEntered();
+        if (powertrainReadinessCoroutine != null)
+            StopCoroutine(powertrainReadinessCoroutine);
+        powertrainReadinessCoroutine = StartCoroutine(EnsurePowertrainReadyAfterEntry(vehicle));
+    }
+
+    private bool IsTargetVehicle(VehicleController? vehicle) =>
+        vehicle?.vehicleInstance != null &&
+        string.Equals(
+            vehicle.vehicleInstance.vehicleTypeName,
+            vehicleTypeName,
+            StringComparison.Ordinal);
+
+    private IEnumerator EnsurePowertrainReadyAfterEntry(VehicleController vehicle)
+    {
+        // Native entry starts the engine asynchronously. Give that lifecycle a
+        // short grace period, then perform a bounded clean restart only when it
+        // remained dormant (the reported failure had zero RPM in first gear).
+        yield return new WaitForSecondsRealtime(0.25f);
+        var physics = vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>();
+        if (physics == null)
+        {
+            context?.Logger.Warn(
+                $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
+                "entry readiness could not find the NWH controller.");
+            powertrainReadinessCoroutine = null;
+            yield break;
+        }
+
+        var engine = physics.powertrain.engine;
+        var transmission = physics.powertrain.transmission;
+        for (var attempt = 1; attempt <= EngineStartAttemptCount; attempt++)
+        {
+            if (!vehicle.controlledByPlayer)
+                break;
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
+            if (engine.IsRunning && engine.ignition && engine.canRun &&
+                rpm >= MinimumHealthyEngineRpm)
+            {
+                if (transmission.Gear <= 0)
+                    transmission.ShiftInto(1, true);
+                context?.Logger.Info(
+                    $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
+                    $"entry ready attempt={attempt}, running={engine.IsRunning}, " +
+                    $"rpm={rpm:0}, gear={transmission.Gear}.");
+                powertrainReadinessCoroutine = null;
+                yield break;
+            }
+
+            if (attempt == 1)
+            {
+                context?.Logger.Warn(
+                    $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
+                    $"dormant after entry; beginning bounded restart, running={engine.IsRunning}, " +
+                    $"ignition={engine.ignition}, canRun={engine.canRun}, rpm={rpm:0}, " +
+                    $"gear={transmission.Gear}.");
+            }
+            engine.StopEngine();
+            transmission.ShiftInto(0, true);
+            transmission.currentGearRatio = 0f;
+            yield return new WaitForSecondsRealtime(0.15f);
+            if (!vehicle.controlledByPlayer)
+                break;
+            engine.StartEngine();
+            yield return new WaitForSecondsRealtime(0.90f);
+            if (vehicle.controlledByPlayer)
+                transmission.ShiftInto(1, true);
+            yield return new WaitForSecondsRealtime(0.15f);
+        }
+
+        var finalRpm = engine.RPMPercent * engine.revLimiterRPM;
+        context?.Logger.Warn(
+            $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
+            $"entry readiness ended without a healthy engine, controlled={vehicle.controlledByPlayer}, " +
+            $"running={engine.IsRunning}, ignition={engine.ignition}, canRun={engine.canRun}, " +
+            $"rpm={finalRpm:0}, gear={transmission.Gear}.");
+        powertrainReadinessCoroutine = null;
     }
 
     private void HandleBuildingEntered(Address address)
@@ -292,10 +382,6 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 caliperController = vehicle.gameObject.AddComponent<CadillacEscaladeCaliperController>();
             caliperController.Initialize(vehicle, context);
             var materialResult = CadillacEscaladeMaterials.FixSolidMaterials(vehicle.gameObject);
-            var glassController = vehicle.GetComponent<CadillacEscaladeGlassController>();
-            if (glassController == null)
-                glassController = vehicle.gameObject.AddComponent<CadillacEscaladeGlassController>();
-            glassController.Initialize(context);
             var lightingController = vehicle.GetComponent<CadillacEscaladeLightingController>();
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<CadillacEscaladeLightingController>();
@@ -308,6 +394,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             if (paintController == null)
                 paintController = vehicle.gameObject.AddComponent<CadillacEscaladePaintController>();
             paintController.Initialize(vehicle, context);
+            var glassController = vehicle.GetComponent<CadillacEscaladeGlassController>();
+            if (glassController == null)
+                glassController = vehicle.gameObject.AddComponent<CadillacEscaladeGlassController>();
+            glassController.Initialize(context);
             var audioController = vehicle.GetComponent<CadillacEscaladeAudioController>();
             if (audioController == null)
                 audioController = vehicle.gameObject.AddComponent<CadillacEscaladeAudioController>();
@@ -403,13 +493,13 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.56f, -0.05f);
-                colliders[0].size = new Vector3(1.96f, 0.72f, 5.04f);
+                colliders[0].center = LowerColliderCenter;
+                colliders[0].size = LowerColliderSize;
             }
             if (colliders.Length > 1)
             {
-                colliders[1].center = new Vector3(0f, 1.27f, -0.22f);
-                colliders[1].size = new Vector3(1.72f, 1.08f, 3.42f);
+                colliders[1].center = UpperColliderCenter;
+                colliders[1].size = UpperColliderSize;
             }
         }
     }
@@ -805,7 +895,7 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
             context?.Logger.Info(
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-                "shader=HDRP/Lit, deferredPolling=false.");
+                "shader=HDRP/Lit, tint=(0.38,0.46,0.54,0.18), deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {

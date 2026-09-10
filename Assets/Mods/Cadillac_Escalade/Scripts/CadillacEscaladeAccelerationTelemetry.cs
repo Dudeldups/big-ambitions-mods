@@ -29,7 +29,6 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
     private float maximumLateral;
     private int nextMilestone;
     private bool running;
-    private bool forwardGearChecked;
     private bool diagnosticSnapshotLogged;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
@@ -57,24 +56,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
                 Finish("driver-exited", speedKph);
             previousThrottle = throttle;
             previousSpeedKph = speedKph;
-            forwardGearChecked = false;
             return;
-        }
-
-        if (throttle < AbortThrottle && speedKph <= StartSpeedKph)
-            forwardGearChecked = false;
-
-        if (!forwardGearChecked && throttle >= StartThrottle && speedKph <= StartSpeedKph)
-        {
-            forwardGearChecked = true;
-            var transmission = physics.powertrain.transmission;
-            if (transmission.Gear == 0)
-            {
-                transmission.ShiftInto(1, true);
-                context?.Logger.Info(
-                    $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
-                    "selected first gear for forward launch from neutral.");
-            }
         }
 
         if (!running)
@@ -184,6 +166,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
             $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()} snapshot={label}, " +
             $"speed={speedKph:0.0}kmh, inputThrottle={throttle:0.00}, " +
             $"engineThrottle={engine.ThrottlePosition:0.00}, " +
+            $"running={engine.IsRunning}, ignition={engine.ignition}, canRun={engine.canRun}, " +
             $"rpm={engine.RPMPercent * engine.revLimiterRPM:0}, " +
             $"gear={transmission.Gear}, ratio={transmission.currentGearRatio:0.000}.");
     }
