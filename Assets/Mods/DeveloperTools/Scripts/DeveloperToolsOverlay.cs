@@ -26,6 +26,7 @@ namespace DeveloperTools
         private readonly DeveloperToolsPlayerService player;
         private readonly DeveloperToolsTimeService time;
         private readonly DeveloperToolsTrafficService traffic;
+        private readonly DeveloperToolsVehicleDiagnosticsService vehicleDiagnostics;
         private readonly DeveloperToolsPauseService pause;
         private readonly List<Texture2D> ownedTextures = new List<Texture2D>();
         private readonly List<object> suspendedGameplayActions = new List<object>();
@@ -70,6 +71,7 @@ namespace DeveloperTools
             DeveloperToolsPlayerService player,
             DeveloperToolsTimeService time,
             DeveloperToolsTrafficService traffic,
+            DeveloperToolsVehicleDiagnosticsService vehicleDiagnostics,
             DeveloperToolsPauseService pause)
         {
             this.context = context;
@@ -78,6 +80,7 @@ namespace DeveloperTools
             this.player = player;
             this.time = time;
             this.traffic = traffic;
+            this.vehicleDiagnostics = vehicleDiagnostics;
             this.pause = pause;
         }
 
@@ -322,11 +325,23 @@ namespace DeveloperTools
             GUILayout.EndScrollView();
             GUILayout.Space(4f);
             GUILayout.Label("Status: " + status, GUI.skin.box);
+            GUILayout.Label(vehicleDiagnostics.StatusLabel, GUI.skin.box);
+            GUILayout.BeginHorizontal();
             var previousBackgroundColor = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0.38f, 0.72f, 0.42f, 1f);
             if (GUILayout.Button("Repair Vehicle"))
                 vehicles.RepairVehicle(out status);
+            GUI.backgroundColor = vehicleDiagnostics.IsActive
+                ? new Color(0.82f, 0.38f, 0.32f, 1f)
+                : new Color(0.28f, 0.62f, 0.82f, 1f);
+            if (GUILayout.Button(vehicleDiagnostics.IsActive
+                    ? "Stop Vehicle Diagnostics"
+                    : "Start Vehicle Diagnostics"))
+            {
+                vehicleDiagnostics.Toggle(out status);
+            }
             GUI.backgroundColor = previousBackgroundColor;
+            GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width - 85f, 28f));
         }
