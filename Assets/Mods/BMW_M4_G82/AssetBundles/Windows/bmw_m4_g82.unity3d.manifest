@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1995742474
+CRC: 993452471
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 26565b5bfeb55fec58cf06129c792048
+    Hash: b82d0b439e1062d833fa50ce03d10ce0
   TypeTreeHash:
     serializedVersion: 2
     Hash: fe99b56c0570f178da583e93064b5623
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 26565b5bfeb55fec58cf06129c792048
+    Hash: b82d0b439e1062d833fa50ce03d10ce0
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -238,6 +238,7 @@ Assets:
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_06_red_glass.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearLeft_BMWOpaque_15_main.asset
 - Assets/Mods/BMW_M4_G82/ATTRIBUTION.md
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontRight_BMWOpaque_11_Material_001_Caliper.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontLeft_BMWOpaque_11_Material_001.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_09_bBMW_M4CompetitionG82TNR0_2021LightA_Material1.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_10_bBMW_M4CompetitionG82TNR0_2021PaintTNR_Material_004.mat
@@ -245,9 +246,11 @@ Assets:
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearLeft_BMWOpaque_14_sidetyre.asset
 - Assets/Mods/BMW_M4_G82/Config/Audio/EngineLow.wav
 - Assets/Mods/BMW_M4_G82/BMWM4G82.asset
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearLeft_BMWOpaque_11_Material_001_Caliper.asset
 - Assets/Mods/BMW_M4_G82/Config/THIRD_PARTY_NOTICES.txt
 - Assets/Mods/BMW_M4_G82/THIRD_PARTY_NOTICES.md
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_01_bBMW_M4CompetitionG82TNR0_2021GrilleNoAlpha6A_Material1.mat
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontLeft_BMWOpaque_11_Material_001_Caliper.asset
 - Assets/Mods/BMW_M4_G82/BMWM4G82.prefab
 - Assets/Mods/BMW_M4_G82/Config/Audio/EngineLowLoad.wav
 - Assets/Mods/BMW_M4_G82/Config/Audio/HornHigh.wav
@@ -282,6 +285,7 @@ Assets:
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_14_sidetyre.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_14_sidetyre.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontRight_BMWOpaque_13_metalblack.asset
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_11_Material_001_Caliper.asset
 - Assets/Mods/BMW_M4_G82/Config/Audio/EngineMidLoad.wav
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_04_bBMW_M4CompetitionG82TNR0_2021GrilleNoAlpha9A_Material1.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontLeft_BMWOpaque_15_main.asset

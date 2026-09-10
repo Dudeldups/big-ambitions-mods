@@ -26,12 +26,11 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
     private Light? templateBeam;
     private Light? leftBeam;
     private Light? rightBeam;
-    private MeshRenderer? daylightOverlay;
+    private MeshRenderer? leftDaylightOverlay;
+    private MeshRenderer? rightDaylightOverlay;
     private MeshRenderer? headlampOverlay;
-    private MeshRenderer? secondaryHeadlampOverlay;
     private MeshRenderer? rearTailOverlay;
     private MeshRenderer? rearBrakeOverlay;
-    private MeshRenderer? thirdBrakeOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
     private MeshRenderer? rightBlinkerOverlay;
@@ -56,39 +55,50 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         var lamp = FindRenderer(renderers, LampName);
         var rearStrip = FindRenderer(renderers, RearStripName);
 
-        daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
-            new Color(1f, 0.62f, 0.03f, 1f), 5.6f);
-        headlampOverlay = CreateFilteredOverlay(lamp, p => p.z > 1.60f,
-            "HeadlampProjectors", new Color(0.90f, 0.95f, 1f, 1f), 6.4f, 1.003f);
-        secondaryHeadlampOverlay = CreateFilteredOverlay(lamp,
-            p => p.z > 1.60f && Mathf.Abs(p.x) < 0.62f,
-            "HeadlampSecondary", new Color(0.84f, 0.92f, 1f, 1f), 5.8f, 1.005f);
-        rearTailOverlay = CreateOverlay(rearStrip, "RearTailSignature",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
-        rearBrakeOverlay = CreateOverlay(rearStrip, "RearBrakeSignature",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
-        thirdBrakeOverlay = CreateFilteredOverlay(rearStrip,
-            p => p.z < -1.60f && Mathf.Abs(p.x) < 0.36f && p.y > 0.55f,
-            "ThirdBrakeLight", new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.006f);
-        reverseOverlay = CreateFilteredOverlay(rearStrip,
-            p => p.z < -1.60f && Mathf.Abs(p.x) < 0.42f && p.y < 0.84f,
-            "ReverseLight", new Color(0.92f, 0.96f, 1f, 1f), 4.8f, 1.006f);
+        var white = new Color(0.90f, 0.95f, 1f, 1f);
+        leftDaylightOverlay = CreateComponentOverlay(daylight,
+            component => IsFront(component) && component.Bounds.center.x < 0f,
+            "LeftDaytimeRunningLights", white, 4.8f, 1.001f);
+        rightDaylightOverlay = CreateComponentOverlay(daylight,
+            component => IsFront(component) && component.Bounds.center.x >= 0f,
+            "RightDaytimeRunningLights", white, 4.8f, 1.001f);
+        headlampOverlay = CreateComponentOverlay(lamp,
+            component => IsFront(component) && component.TriangleCount >= 280,
+            "HeadlampProjectors", white, 5.8f, 1.001f);
+        rearTailOverlay = CreateComponentOverlay(lamp,
+            component => IsRear(component) && component.TriangleCount >= 110 &&
+                         component.TriangleCount <= 170,
+            "RearTailSignature", new Color(0.78f, 0.006f, 0.002f, 1f), 2.5f, 1.001f);
+        rearBrakeOverlay = CreateComponentOverlay(lamp,
+            component => IsRear(component) && component.TriangleCount >= 180 &&
+                         component.TriangleCount <= 260,
+            "RearBrakeSignature", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.0015f);
+        reverseOverlay = CreateComponentOverlay(lamp,
+            component => IsRear(component) && component.TriangleCount >= 95 &&
+                         component.TriangleCount <= 109 && Mathf.Abs(component.Bounds.center.x) < 0.50f,
+            "ReverseLight", white, 4.2f, 1.0015f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
-        leftBlinkerOverlay = CreateFilteredOverlay(lamp, p => p.z > 1.60f && p.x <= -0.25f,
-            "LeftIndicator", amber, 5.4f, 1.006f);
-        rightBlinkerOverlay = CreateFilteredOverlay(lamp, p => p.z > 1.60f && p.x >= 0.25f,
-            "RightIndicator", amber, 5.4f, 1.006f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearStrip, p => p.z < -1.60f && p.x <= -0.25f,
-            "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearStrip, p => p.z < -1.60f && p.x >= 0.25f,
-            "RearRightIndicator", amber, 6f, 1.006f);
+        leftBlinkerOverlay = CreateComponentOverlay(daylight,
+            component => IsFront(component) && component.Bounds.center.x < 0f,
+            "LeftIndicator", amber, 5.4f, 1.002f);
+        rightBlinkerOverlay = CreateComponentOverlay(daylight,
+            component => IsFront(component) && component.Bounds.center.x >= 0f,
+            "RightIndicator", amber, 5.4f, 1.002f);
+        rearLeftBlinkerOverlay = CreateComponentOverlay(lamp,
+            component => IsRear(component) && component.TriangleCount >= 95 &&
+                         component.TriangleCount <= 109 && component.Bounds.center.x <= -0.50f,
+            "RearLeftIndicator", amber, 5.4f, 1.002f);
+        rearRightBlinkerOverlay = CreateComponentOverlay(lamp,
+            component => IsRear(component) && component.TriangleCount >= 95 &&
+                         component.TriangleCount <= 109 && component.Bounds.center.x >= 0.50f,
+            "RearRightIndicator", amber, 5.4f, 1.002f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{lamp?.name}' " +
-                $"rear='{rearStrip?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/7 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"rearLens='{rearStrip?.name}' beams={beamCount}/2 " +
+                $"lampOverlays={CountLampOverlays()}/6 blinkerOverlays={CountBlinkerOverlays()}/4.");
+        if (CountLampOverlays() != 6 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -187,18 +197,24 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             suffix, color, intensity, scale);
     }
 
-    private MeshRenderer? CreateFilteredOverlay(MeshRenderer? source,
-        Func<Vector3, bool> includeTriangleCenter, string suffix, Color color,
+    private MeshRenderer? CreateComponentOverlay(MeshRenderer? source,
+        Func<LampComponent, bool> includeComponent, string suffix, Color color,
         float intensity, float scale)
     {
         if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
         {
-            LogWarning($"filtered overlay '{suffix}' source is missing.");
+            LogWarning($"component overlay '{suffix}' source is missing.");
             return null;
         }
         var sourceMesh = source.GetComponent<MeshFilter>().sharedMesh;
         var vertices = sourceMesh.vertices;
-        var triangles = new List<int>();
+        var rootVertices = new Vector3[vertices.Length];
+        for (var index = 0; index < vertices.Length; index++)
+            rootVertices[index] = vehicle.transform.InverseTransformPoint(
+                source.transform.TransformPoint(vertices[index]));
+
+        var allTriangles = new List<MeshTriangle>();
+        var trianglesByVertex = new Dictionary<int, List<int>>();
         for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
         {
             var sourceTriangles = sourceMesh.GetTriangles(subMesh);
@@ -207,18 +223,62 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
                 var a = sourceTriangles[index];
                 var b = sourceTriangles[index + 1];
                 var c = sourceTriangles[index + 2];
-                var center = vehicle.transform.InverseTransformPoint(source.transform.TransformPoint(
-                    (vertices[a] + vertices[b] + vertices[c]) / 3f));
-                if (!includeTriangleCenter(center))
-                    continue;
-                triangles.Add(a);
-                triangles.Add(b);
-                triangles.Add(c);
+                var triangleIndex = allTriangles.Count;
+                allTriangles.Add(new MeshTriangle(a, b, c));
+                AddTriangleForVertex(trianglesByVertex, a, triangleIndex);
+                AddTriangleForVertex(trianglesByVertex, b, triangleIndex);
+                AddTriangleForVertex(trianglesByVertex, c, triangleIndex);
             }
         }
-        if (triangles.Count == 0)
+
+        var selectedTriangles = new List<int>();
+        var visited = new bool[allTriangles.Count];
+        var queue = new Queue<int>();
+        var componentTriangles = new List<int>();
+        var componentCount = 0;
+        var selectedComponentCount = 0;
+        for (var seed = 0; seed < allTriangles.Count; seed++)
         {
-            LogWarning($"filtered overlay '{suffix}' selected no triangles.");
+            if (visited[seed])
+                continue;
+
+            componentCount++;
+            componentTriangles.Clear();
+            queue.Enqueue(seed);
+            visited[seed] = true;
+            var hasBounds = false;
+            var bounds = default(Bounds);
+            while (queue.Count > 0)
+            {
+                var triangleIndex = queue.Dequeue();
+                componentTriangles.Add(triangleIndex);
+                var triangle = allTriangles[triangleIndex];
+                Encapsulate(ref bounds, ref hasBounds, rootVertices[triangle.A]);
+                Encapsulate(ref bounds, ref hasBounds, rootVertices[triangle.B]);
+                Encapsulate(ref bounds, ref hasBounds, rootVertices[triangle.C]);
+                EnqueueNeighbors(trianglesByVertex, triangle.A, visited, queue);
+                EnqueueNeighbors(trianglesByVertex, triangle.B, visited, queue);
+                EnqueueNeighbors(trianglesByVertex, triangle.C, visited, queue);
+            }
+
+            var component = new LampComponent(bounds, componentTriangles.Count);
+            if (!includeComponent(component))
+                continue;
+
+            selectedComponentCount++;
+            foreach (var triangleIndex in componentTriangles)
+            {
+                var triangle = allTriangles[triangleIndex];
+                selectedTriangles.Add(triangle.A);
+                selectedTriangles.Add(triangle.B);
+                selectedTriangles.Add(triangle.C);
+            }
+        }
+
+        if (selectedTriangles.Count == 0)
+        {
+            LogWarning($"component overlay '{suffix}' selected no geometry from " +
+                       $"{componentCount} components.");
             return null;
         }
         var mesh = new Mesh
@@ -232,10 +292,57 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             uv = sourceMesh.uv,
             uv2 = sourceMesh.uv2
         };
-        mesh.SetTriangles(triangles, 0, true);
+        mesh.SetTriangles(selectedTriangles, 0, true);
         mesh.RecalculateBounds();
         generatedMeshes.Add(mesh);
+        LogInfo($"overlay '{suffix}' selected components={selectedComponentCount}/" +
+                $"{componentCount} triangles={selectedTriangles.Count / 3}.");
         return CreateOverlayObject(source, mesh, suffix, color, intensity, scale);
+    }
+
+    private static bool IsFront(LampComponent component) => component.Bounds.center.z > 1.60f;
+
+    private static bool IsRear(LampComponent component) => component.Bounds.center.z < -1.60f;
+
+    private static void AddTriangleForVertex(
+        IDictionary<int, List<int>> trianglesByVertex,
+        int vertex,
+        int triangle)
+    {
+        if (!trianglesByVertex.TryGetValue(vertex, out var triangles))
+        {
+            triangles = new List<int>();
+            trianglesByVertex.Add(vertex, triangles);
+        }
+        triangles.Add(triangle);
+    }
+
+    private static void EnqueueNeighbors(
+        IReadOnlyDictionary<int, List<int>> trianglesByVertex,
+        int vertex,
+        bool[] visited,
+        Queue<int> queue)
+    {
+        if (!trianglesByVertex.TryGetValue(vertex, out var neighbors))
+            return;
+        foreach (var neighbor in neighbors)
+        {
+            if (visited[neighbor])
+                continue;
+            visited[neighbor] = true;
+            queue.Enqueue(neighbor);
+        }
+    }
+
+    private static void Encapsulate(ref Bounds bounds, ref bool hasBounds, Vector3 point)
+    {
+        if (!hasBounds)
+        {
+            bounds = new Bounds(point, Vector3.zero);
+            hasBounds = true;
+            return;
+        }
+        bounds.Encapsulate(point);
     }
 
     private MeshRenderer CreateOverlayObject(MeshRenderer source, Mesh mesh, string suffix,
@@ -296,12 +403,11 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = blinking;
 
-        SetEnabled(daylightOverlay, lightsOn);
+        SetEnabled(leftDaylightOverlay, lightsOn && !(leftBlinker && flash));
+        SetEnabled(rightDaylightOverlay, lightsOn && !(rightBlinker && flash));
         SetEnabled(headlampOverlay, lightsOn);
-        SetEnabled(secondaryHeadlampOverlay, lightsOn);
-        SetEnabled(rearTailOverlay, lightsOn && !braking);
+        SetEnabled(rearTailOverlay, lightsOn);
         SetEnabled(rearBrakeOverlay, braking);
-        SetEnabled(thirdBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
@@ -322,9 +428,9 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
     }
 
     private int CountLampOverlays() =>
-        (daylightOverlay != null ? 1 : 0) + (headlampOverlay != null ? 1 : 0) +
-        (secondaryHeadlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
-        (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0) +
+        (leftDaylightOverlay != null ? 1 : 0) + (rightDaylightOverlay != null ? 1 : 0) +
+        (headlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
+        (rearBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>
@@ -392,6 +498,32 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
     private void LogWarning(string message) =>
         context?.Logger.Warn($"BMWM4G82 lighting vehicle='{vehicle?.name}' " +
                              $"instance={vehicle?.GetInstanceID()}: {message}");
+
+    private readonly struct MeshTriangle
+    {
+        internal MeshTriangle(int a, int b, int c)
+        {
+            A = a;
+            B = b;
+            C = c;
+        }
+
+        internal readonly int A;
+        internal readonly int B;
+        internal readonly int C;
+    }
+
+    private readonly struct LampComponent
+    {
+        internal LampComponent(Bounds bounds, int triangleCount)
+        {
+            Bounds = bounds;
+            TriangleCount = triangleCount;
+        }
+
+        internal readonly Bounds Bounds;
+        internal readonly int TriangleCount;
+    }
 
     private void OnDestroy()
     {

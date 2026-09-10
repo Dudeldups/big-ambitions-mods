@@ -20,7 +20,7 @@ internal sealed class BMWM4G82DriverController : MonoBehaviour
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
-    private const float BackrestPitchDegrees = -8f;
+    private const float BackrestPitchDegrees = -10f;
     // Pelvis position relative to the M4 steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.50f);
     private const int MaximumAttempts = 20;

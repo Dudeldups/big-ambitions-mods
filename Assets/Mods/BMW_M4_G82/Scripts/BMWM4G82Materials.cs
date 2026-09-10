@@ -106,11 +106,6 @@ public static class BMWM4G82Materials
             }
 
             rimSlotsNormalized += NormalizeRimRenderer(renderer, canonicalRimMaterial);
-            if (IsCaliperRenderer(renderer.transform))
-            {
-                foreach (var material in renderer.sharedMaterials)
-                    if (material != null) ApplyCaliperFinish(material);
-            }
 
             if (!HasOpaqueMaterial(renderer))
             {
@@ -197,16 +192,29 @@ public static class BMWM4G82Materials
         return normalized;
     }
 
-    public static void ApplyCaliperFinish(Material material)
+    public static int ApplyCaliperFinish(GameObject vehicle)
     {
-        SetColor(material, "_BaseColor", CaliperBaseColor);
-        SetColor(material, "_Color", CaliperBaseColor);
-        SetColor(material, "baseColorFactor", CaliperBaseColor);
-        SetFloat(material, "_Metallic", 0.25f);
-        SetFloat(material, "_Smoothness", 0.52f);
+        var configured = 0;
+        foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!IsCaliperRenderer(renderer.transform))
+                continue;
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material == null)
+                    continue;
+                SetColor(material, "_BaseColor", CaliperBaseColor);
+                SetColor(material, "_Color", CaliperBaseColor);
+                SetColor(material, "baseColorFactor", CaliperBaseColor);
+                SetFloat(material, "_Metallic", 0.25f);
+                SetFloat(material, "_Smoothness", 0.52f);
+                configured++;
+            }
+        }
+        return configured;
     }
 
-    private static bool IsCaliperRenderer(Transform transform)
+    internal static bool IsCaliperRenderer(Transform transform)
     {
         for (var current = transform; current != null; current = current.parent)
             if (current.name.StartsWith("BMWFixedCaliper", StringComparison.Ordinal))
@@ -326,6 +334,9 @@ public static class BMWM4G82Materials
         SetFloat(material, "_ZWrite", 1f);
         SetFloat(material, "_SrcBlend", (float)BlendMode.One);
         SetFloat(material, "_DstBlend", (float)BlendMode.Zero);
+        SetFloat(material, "_TransmissionEnable", 0f);
+        SetFloat(material, "_TransmissionMask", 0f);
+        SetFloat(material, "transmissionFactor", 0f);
         return validated;
     }
 
@@ -543,5 +554,65 @@ public static class BMWM4G82Materials
         }
 
         return cachedMethod;
+    }
+}
+
+[AddComponentMenu("")]
+internal sealed class BMWM4G82RuntimeMaterialOwner : MonoBehaviour
+{
+    private readonly List<Material> ownedMaterials = new List<Material>();
+    private bool initialized;
+
+    internal int Initialize()
+    {
+        if (initialized)
+            return ownedMaterials.Count;
+
+        var sharedClones = new Dictionary<Material, Material>();
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            if (!BMWM4G82Materials.IsBMWRenderer(renderer.transform))
+                continue;
+
+            var materials = renderer.sharedMaterials;
+            var changed = false;
+            var caliperRenderer = BMWM4G82Materials.IsCaliperRenderer(renderer.transform);
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var source = materials[index];
+                if (source == null)
+                    continue;
+
+                Material clone;
+                if (caliperRenderer || !sharedClones.TryGetValue(source, out clone))
+                {
+                    clone = new Material(source)
+                    {
+                        name = source.name + (caliperRenderer
+                            ? " BMWM4G82 Caliper Runtime"
+                            : " BMWM4G82 Runtime")
+                    };
+                    ownedMaterials.Add(clone);
+                    if (!caliperRenderer)
+                        sharedClones[source] = clone;
+                }
+
+                materials[index] = clone;
+                changed = true;
+            }
+
+            if (changed)
+                renderer.sharedMaterials = materials;
+        }
+
+        initialized = true;
+        return ownedMaterials.Count;
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var material in ownedMaterials)
+            if (material != null) Destroy(material);
+        ownedMaterials.Clear();
     }
 }
