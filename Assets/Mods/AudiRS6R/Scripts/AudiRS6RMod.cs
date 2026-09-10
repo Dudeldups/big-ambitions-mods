@@ -68,9 +68,6 @@ internal static class AudiRS6RLuxuryDealerStock
     private const string TargetBuildingSize = "ba:buildingsize_m";
     private const int TargetBuildingVersion = 1;
     private const string TargetLayoutName = "MurrayHillCarDealershipLuxury";
-    private const string TargetLayoutKey =
-        "ba:businesstype_cardealership|ba:buildingsize_m|1|murrayhillcardealershipluxury";
-
     private static readonly string[] DealerContactIds =
     {
         "The Hamptons Axis",
@@ -94,6 +91,12 @@ internal static class AudiRS6RLuxuryDealerStock
     internal static bool EnsureVehicleAvailable(string vehicleName, ModContext? context)
     {
         if (string.IsNullOrWhiteSpace(vehicleName))
+            return false;
+
+        if (AllDealersContainVehicle(vehicleName))
+            return true;
+
+        if (BusinessLayoutSetHelper.loadingLayouts)
             return false;
 
         var vanillaStock = GetLuxuryDealerLayoutVehicles();
@@ -162,6 +165,9 @@ internal static class AudiRS6RLuxuryDealerStock
                 return true;
 
             ContractItemsForSaleService.SetVehiclesForContact(dealerContactId, mergedStock);
+            context?.Logger.Info(
+                $"AudiRS6R: registered dealer stock dealer='{dealerContactId}' " +
+                $"vehicles={mergedStock.Count}.");
             return true;
         }
         catch (Exception exception)
@@ -211,15 +217,39 @@ internal static class AudiRS6RLuxuryDealerStock
 
     private static BusinessLayoutSet? TryGetLuxuryDealerLayoutSet()
     {
-        var layoutSets = BusinessLayoutSetHelper.GetAllBusinessLayoutSets();
-        if (layoutSets != null && layoutSets.TryGetValue(TargetLayoutKey, out var layoutSet))
-            return layoutSet;
-
         return BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
             TargetBusinessTypeName,
             new BuildingSizeInfo(TargetBuildingSize, TargetBuildingVersion),
             TargetLayoutName.ToLowerInvariant(),
             false);
+    }
+
+    private static bool AllDealersContainVehicle(string vehicleName)
+    {
+        foreach (var dealerContactId in DealerContactIds)
+        {
+            if (!ContractItemsForSaleService.TryGetVehiclesForContact(
+                    dealerContactId,
+                    out List<string> existingStock) ||
+                existingStock == null ||
+                !ContainsVehicle(existingStock, vehicleName))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ContainsVehicle(IEnumerable<string> stock, string vehicleName)
+    {
+        foreach (var existingVehicle in stock)
+        {
+            if (string.Equals(existingVehicle, vehicleName, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
     }
 
     private static void AddUniqueRange(List<string> stock, IEnumerable<string> vehicles)
