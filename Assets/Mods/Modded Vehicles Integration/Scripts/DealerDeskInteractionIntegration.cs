@@ -16,6 +16,7 @@ namespace ModdedVehiclesIntegration
     internal sealed class DealerDeskInteractionIntegration
     {
         private const string NoVehiclesNotificationKey = "modded-vehicles-integration:no_mod_vehicles";
+        private const string DealerUnavailableNotificationKey = "modded-vehicles-integration:dealer_unavailable";
 
         private static readonly HashSet<string> InteractiveDealerContactIds = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -147,6 +148,7 @@ namespace ModdedVehiclesIntegration
             if (playerController == null || character == null)
                 return;
 
+            CaptureStandingPosition(character);
             playerController.RemoveGoal();
 
             try
@@ -158,8 +160,109 @@ namespace ModdedVehiclesIntegration
                 context?.Logger.Error(exception);
             }
 
-            desk.Interact();
-            InstanceBehavior<OverlayManager>.Instance?.HideSimpleOverlayAndClearCta();
+            var dealerContactId =
+                InstanceBehavior<BuildingManager>.Instance?.buildingRegistration?.BusinessName;
+            if (string.IsNullOrEmpty(dealerContactId) ||
+                !InteractiveDealerContactIds.Contains(dealerContactId!) ||
+                !DealerServiceIntegration.EnsureDealerReady(dealerContactId!, context))
+            {
+                RecoverFailedInteraction(character);
+                Notifications.ShowError(
+                    DealerUnavailableNotificationKey,
+                    DealerUnavailableNotificationKey,
+                    true);
+                return;
+            }
+
+            var modVehicleCount = GetModVehicleCount(dealerContactId!);
+            if (modVehicleCount == 0)
+            {
+                RecoverFailedInteraction(character);
+                Notifications.ShowError(NoVehiclesNotificationKey, NoVehiclesNotificationKey, true);
+                context?.Logger.Warn(
+                    $"Modded Vehicles Integration: blocked desk interaction at '{dealerContactId}' because " +
+                    "its mod-only catalogue is empty.");
+                return;
+            }
+
+            context?.Logger.Info(
+                $"Modded Vehicles Integration: opening vehicle-store dialog at '{dealerContactId}' " +
+                $"with {modVehicleCount} mod vehicle(s).");
+
+            try
+            {
+                var interactionAccepted = desk.Interact();
+                InstanceBehavior<OverlayManager>.Instance?.HideSimpleOverlayAndClearCta();
+
+                var dialog = DialogController.current;
+                var dialogContactId = dialog?.contact?.id;
+                var validVehicleDialog =
+                    interactionAccepted &&
+                    dialog?.dialogType == DialogType.Physical &&
+                    dialog.dialog is VehicleStoreDialog &&
+                    string.Equals(dialogContactId, dealerContactId, StringComparison.Ordinal);
+                if (!validVehicleDialog)
+                {
+                    context?.Logger.Warn(
+                        $"Modded Vehicles Integration: dealer dialog validation failed for '{dealerContactId}' " +
+                        $"(accepted={interactionAccepted}, dialogType={dialog?.dialogType.ToString() ?? "<none>"}, " +
+                        $"dialog={dialog?.dialog?.GetType().Name ?? "<none>"}, " +
+                        $"contact='{dialogContactId ?? "<none>"}'); recovering the player.");
+                    TryCloseDialog(context);
+                    RecoverFailedInteraction(character);
+                    Notifications.ShowError(
+                        DealerUnavailableNotificationKey,
+                        DealerUnavailableNotificationKey,
+                        true);
+                    return;
+                }
+
+                dealerDialogWasOpen = true;
+                character.Reset();
+                RestoreStandingPosition(character);
+                context?.Logger.Info(
+                    $"Modded Vehicles Integration: vehicle-store dialog opened successfully at '{dealerContactId}' " +
+                    "and the player remained standing.");
+            }
+            catch (Exception exception)
+            {
+                TryCloseDialog(context);
+                RecoverFailedInteraction(character);
+                context?.Logger.Error(exception);
+                Notifications.ShowError(
+                    DealerUnavailableNotificationKey,
+                    DealerUnavailableNotificationKey,
+                    true);
+            }
+        }
+
+        private void CaptureStandingPosition(ThirdPersonCharacter character)
+        {
+            if (character.isSittingOn)
+                return;
+
+            lastStandingPosition = character.transform.position;
+            lastStandingRotation = character.transform.rotation;
+            hasStandingSnapshot = true;
+        }
+
+        private void RecoverFailedInteraction(ThirdPersonCharacter character)
+        {
+            character.Reset();
+            RestoreStandingPosition(character);
+            dealerDialogWasOpen = false;
+        }
+
+        private static void TryCloseDialog(ModContext? context)
+        {
+            try
+            {
+                DialogController.current?.FinishDialog();
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+            }
         }
 
         private void RestoreStandingPosition(ThirdPersonCharacter character)

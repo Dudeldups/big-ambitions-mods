@@ -20,6 +20,7 @@ namespace ModdedVehiclesIntegration
 
         private static readonly List<PatchRecord> AppliedPatches = new List<PatchRecord>();
         private static readonly HashSet<string> ReportedProblems = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly HashSet<string> ReportedReadyDealers = new HashSet<string>(StringComparer.Ordinal);
 
         internal static void EnsureApplied(ModContext? context)
         {
@@ -102,6 +103,45 @@ namespace ModdedVehiclesIntegration
 
             AppliedPatches.Clear();
             ReportedProblems.Clear();
+            ReportedReadyDealers.Clear();
+        }
+
+        internal static bool EnsureDealerReady(string dealerContactId, ModContext? context)
+        {
+            EnsureApplied(context);
+
+            var registrations = SaveGameManager.Current?.BuildingRegistrations;
+            var registration = registrations?.Find(candidate =>
+                candidate != null &&
+                string.Equals(candidate.BusinessName, dealerContactId, StringComparison.Ordinal));
+            var service = registration?.BuildingCached?.SpecialService;
+            var ready =
+                service != null &&
+                service.dialogType == CallDialogType.VehicleStoreDialog &&
+                service.settings is VehicleStoreSettings;
+
+            if (!ready)
+            {
+                ReportedReadyDealers.Remove(dealerContactId);
+                ReportProblemOnce(
+                    "interaction:" + dealerContactId,
+                    $"blocked desk interaction for '{dealerContactId}' because its vehicle-store service is not ready " +
+                    $"(registration={registration != null}, building={registration?.BuildingCached != null}, " +
+                    $"service={service != null}, dialogType={service?.dialogType.ToString() ?? "<none>"}, " +
+                    $"settings={service?.settings?.GetType().Name ?? "<none>"}).",
+                    context);
+                return false;
+            }
+
+            ReportedProblems.Remove("dealer:" + dealerContactId);
+            ReportedProblems.Remove("interaction:" + dealerContactId);
+            if (ReportedReadyDealers.Add(dealerContactId))
+            {
+                context?.Logger.Info(
+                    $"Modded Vehicles Integration: vehicle-store service ready for '{dealerContactId}'.");
+            }
+
+            return true;
         }
 
         private static PatchRecord? FindPatch(SpecialService service)
