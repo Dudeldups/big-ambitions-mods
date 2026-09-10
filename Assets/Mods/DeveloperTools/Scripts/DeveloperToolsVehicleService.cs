@@ -233,16 +233,16 @@ namespace DeveloperTools
             if (colors == null)
                 return;
 
+            var originalIndex = 0;
             foreach (var color in colors.Where(value => value != null))
             {
                 var name = ((UnityEngine.Object)color).name;
                 if (string.IsNullOrWhiteSpace(name) || colorEntries.Any(entry => entry.Name == name))
                     continue;
-                colorEntries.Add(new VehicleColorEntry(name, color.tint));
+                colorEntries.Add(new VehicleColorEntry(name, color.tint, originalIndex++));
             }
 
-            colorEntries.Sort((left, right) =>
-                string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase));
+            colorEntries.Sort(CompareColors);
         }
 
         private static string ApplyRegisteredColor(
@@ -289,6 +289,18 @@ namespace DeveloperTools
 
         private static int CompareEntries(CatalogEntry left, CatalogEntry right) =>
             string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase);
+
+        private static int CompareColors(VehicleColorEntry left, VehicleColorEntry right)
+        {
+            var comparison = left.Group.CompareTo(right.Group);
+            if (comparison != 0) return comparison;
+            comparison = left.Hue.CompareTo(right.Hue);
+            if (comparison != 0) return comparison;
+            comparison = left.Value.CompareTo(right.Value);
+            if (comparison != 0) return comparison;
+            comparison = right.Saturation.CompareTo(left.Saturation);
+            return comparison != 0 ? comparison : left.OriginalIndex.CompareTo(right.OriginalIndex);
+        }
     }
 
     internal sealed class CatalogEntry
@@ -305,13 +317,24 @@ namespace DeveloperTools
 
     internal sealed class VehicleColorEntry
     {
-        public VehicleColorEntry(string name, Color tint)
+        public VehicleColorEntry(string name, Color tint, int originalIndex)
         {
             Name = name;
             Tint = tint;
+            OriginalIndex = originalIndex;
+            Color.RGBToHSV(tint, out var hue, out var saturation, out var value);
+            Group = saturation < 0.14f ? 0 : 1;
+            Hue = Group == 0 ? 0f : hue >= 0.95f && saturation >= 0.5f ? hue - 1f : hue;
+            Saturation = saturation;
+            Value = value;
         }
 
         public string Name { get; }
         public Color Tint { get; }
+        public int Group { get; }
+        public float Hue { get; }
+        public float Saturation { get; }
+        public float Value { get; }
+        public int OriginalIndex { get; }
     }
 }

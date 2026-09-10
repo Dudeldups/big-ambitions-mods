@@ -17,6 +17,9 @@ namespace DeveloperTools
         private const float WindowWidth = 760f;
         private const float WindowHeight = 820f;
         private const float VehicleDropdownHeight = 270f;
+        private const int VehicleColorColumns = 12;
+        private const float VehicleColorSwatchWidth = 48f;
+        private const float VehicleColorSwatchHeight = 24f;
         private readonly ModContext context;
         private readonly DeveloperToolsVehicleService vehicles;
         private readonly DeveloperToolsItemService items;
@@ -39,11 +42,9 @@ namespace DeveloperTools
         private Vector2 mainScroll;
         private Vector2 vanillaVehicleScroll;
         private Vector2 moddedVehicleScroll;
-        private Vector2 vehicleColorScroll;
         private Vector2 itemScroll;
         private bool vanillaVehicleDropdownOpen;
         private bool moddedVehicleDropdownOpen;
-        private bool vehicleColorDropdownOpen;
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
@@ -132,7 +133,6 @@ namespace DeveloperTools
             cursorRestorePending = true;
             vanillaVehicleDropdownOpen = false;
             moddedVehicleDropdownOpen = false;
-            vehicleColorDropdownOpen = false;
             itemDropdownOpen = false;
         }
 
@@ -318,10 +318,15 @@ namespace DeveloperTools
             DrawPlayerNeeds();
             Divider();
             GUILayout.Label("City Map Teleport", GUI.skin.box);
-            GUILayout.Label("Double-click a non-UI location while the city map is open. Input processing is dormant while the map is closed, and the landing point is snapped to nearby navigation/ground geometry.");
+            GUILayout.Label("Double-click a non-UI location while the city map is open. On foot, the landing point is snapped to nearby navigation/ground geometry. In a vehicle, it is snapped to a nearby drivable road; destinations outside the road network are rejected.");
             GUILayout.EndScrollView();
             GUILayout.Space(4f);
             GUILayout.Label("Status: " + status, GUI.skin.box);
+            var previousBackgroundColor = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.38f, 0.72f, 0.42f, 1f);
+            if (GUILayout.Button("Repair Vehicle"))
+                vehicles.RepairVehicle(out status);
+            GUI.backgroundColor = previousBackgroundColor;
             GUILayout.EndVertical();
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width - 85f, 28f));
         }
@@ -344,11 +349,6 @@ namespace DeveloperTools
                 ref selectedModdedVehicleId,
                 ref moddedVehicleDropdownOpen,
                 ref moddedVehicleScroll);
-            var previousBackgroundColor = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(0.38f, 0.72f, 0.42f, 1f);
-            if (GUILayout.Button("Repair Vehicle"))
-                vehicles.RepairVehicle(out status);
-            GUI.backgroundColor = previousBackgroundColor;
             if (GUILayout.Button("Despawn Last Spawned Vehicle"))
                 vehicles.DespawnLast(out status);
         }
@@ -422,37 +422,40 @@ namespace DeveloperTools
 
         private void DrawVehicleColorPicker()
         {
-            GUILayout.Label("Vehicle Color");
+            var selected = vehicles.ColorEntries.FirstOrDefault(entry => entry.Name == selectedVehicleColorName);
+            GUILayout.Label("Vehicle Color: " + (selected?.Name ?? "Unavailable"));
             if (vehicles.ColorEntries.Count == 0)
             {
                 GUILayout.Label("No registered vehicle colors are available.", GUI.skin.box);
                 return;
             }
-            var selected = vehicles.ColorEntries.FirstOrDefault(entry => entry.Name == selectedVehicleColorName);
+
             var previousBackgroundColor = GUI.backgroundColor;
-            if (selected != null)
-                GUI.backgroundColor = selected.Tint;
-            if (GUILayout.Button(selected == null ? "Select color..." : selected.Name + "  ▼"))
-                vehicleColorDropdownOpen = !vehicleColorDropdownOpen;
-            GUI.backgroundColor = previousBackgroundColor;
-
-            if (!vehicleColorDropdownOpen)
-                return;
-
-            vehicleColorScroll = GUILayout.BeginScrollView(
-                vehicleColorScroll,
-                GUI.skin.box,
-                GUILayout.Height(VehicleDropdownHeight));
-            foreach (var entry in vehicles.ColorEntries)
+            GUILayout.BeginVertical(GUI.skin.box);
+            for (var index = 0; index < vehicles.ColorEntries.Count; index++)
             {
+                if (index % VehicleColorColumns == 0)
+                    GUILayout.BeginHorizontal();
+
+                var entry = vehicles.ColorEntries[index];
                 GUI.backgroundColor = entry.Tint;
-                if (!GUILayout.Button(entry.Name))
-                    continue;
-                selectedVehicleColorName = entry.Name;
-                vehicleColorDropdownOpen = false;
+                var marker = entry.Name == selectedVehicleColorName ? "✓" : string.Empty;
+                if (GUILayout.Button(
+                        new GUIContent(marker, entry.Name),
+                        GUILayout.Width(VehicleColorSwatchWidth),
+                        GUILayout.Height(VehicleColorSwatchHeight)))
+                {
+                    selectedVehicleColorName = entry.Name;
+                }
+
+                if (index % VehicleColorColumns == VehicleColorColumns - 1 ||
+                    index == vehicles.ColorEntries.Count - 1)
+                {
+                    GUILayout.EndHorizontal();
+                }
             }
             GUI.backgroundColor = previousBackgroundColor;
-            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
         }
 
         private void DrawMoney()

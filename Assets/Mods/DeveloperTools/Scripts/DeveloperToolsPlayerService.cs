@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using BAModAPI;
+using GleyTrafficSystem;
 using Helpers;
 using UnityEngine;
 using UnityEngine.AI;
@@ -10,6 +11,7 @@ namespace DeveloperTools
     internal sealed class DeveloperToolsPlayerService
     {
         private const float GroundOffset = 0.05f;
+        private const float MaximumVehicleRoadSnapDistance = 30f;
         private readonly ModContext context;
 
         public DeveloperToolsPlayerService(ModContext context) => this.context = context;
@@ -118,10 +120,21 @@ namespace DeveloperTools
             finalPosition = requested;
             try
             {
+                if (!TryResolveVehicleRoadPosition(requested, out var roadPosition, out message))
+                    return false;
+
                 var forward = Vector3.ProjectOnPlane(vehicle.transform.forward, Vector3.up);
                 var rotation = forward.sqrMagnitude > 0.001f
                     ? Quaternion.LookRotation(forward.normalized, Vector3.up)
                     : vehicle.transform.rotation;
+                if (TrafficManager.Instance.TryGetClosestRoadYaw(
+                        roadPosition,
+                        forward,
+                        MaximumVehicleRoadSnapDistance,
+                        out var roadYaw))
+                {
+                    rotation = Quaternion.Euler(0f, roadYaw, 0f);
+                }
                 var rigidbody = vehicle.GetComponent<Rigidbody>();
                 if (rigidbody != null)
                 {
@@ -132,7 +145,7 @@ namespace DeveloperTools
                 // Use the game's vehicle-specific grounding path. A pedestrian
                 // navmesh point is not a valid chassis position and can bury an
                 // occupied vehicle below the road surface.
-                VehicleHelper.TeleportVehicleToGround(vehicle, requested + Vector3.up * 0.5f, rotation);
+                VehicleHelper.TeleportVehicleToGround(vehicle, roadPosition + Vector3.up * 0.5f, rotation);
                 Physics.SyncTransforms();
                 finalPosition = vehicle.transform.position;
                 message = "Teleported occupied vehicle to " + FormatVector(finalPosition) + ".";
@@ -142,6 +155,7 @@ namespace DeveloperTools
                         "DeveloperTools: teleported occupied vehicle; type=" +
                         (vehicle.vehicleInstance?.vehicleTypeName ?? "unknown") +
                         ", requested=" + FormatVector(requested) +
+                        ", road=" + FormatVector(roadPosition) +
                         ", final=" + FormatVector(finalPosition) + ".");
                 }
                 return true;
@@ -152,6 +166,35 @@ namespace DeveloperTools
                 context.Logger.Warn("DeveloperTools: " + message);
                 return false;
             }
+        }
+
+        private static bool TryResolveVehicleRoadPosition(
+            Vector3 requested,
+            out Vector3 roadPosition,
+            out string message)
+        {
+            roadPosition = requested;
+            if (!TrafficManager.IsInitialized)
+            {
+                message = "Vehicle teleport is unavailable until the city road network has loaded.";
+                return false;
+            }
+
+            var waypoint = TrafficManager.Instance.GetClosestWaypoint(
+                requested,
+                MaximumVehicleRoadSnapDistance,
+                null,
+                null);
+            if (waypoint == null)
+            {
+                message = "Vehicle teleport rejected: no drivable road is within " +
+                          MaximumVehicleRoadSnapDistance.ToString("0") + " meters of those coordinates.";
+                return false;
+            }
+
+            roadPosition = waypoint.position;
+            message = string.Empty;
+            return true;
         }
 
         private static VehicleController? ResolveOccupiedVehicle()
