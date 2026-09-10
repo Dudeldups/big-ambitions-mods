@@ -185,10 +185,6 @@ namespace ModdedVehiclesIntegration
                 return;
             }
 
-            context?.Logger.Info(
-                $"Modded Vehicles Integration: opening vehicle-store dialog at '{dealerContactId}' " +
-                $"with {modVehicleCount} mod vehicle(s).");
-
             try
             {
                 var interactionAccepted = desk.Interact();
@@ -220,9 +216,6 @@ namespace ModdedVehiclesIntegration
                 dealerDialogWasOpen = true;
                 character.Reset();
                 RestoreStandingPosition(character);
-                context?.Logger.Info(
-                    $"Modded Vehicles Integration: vehicle-store dialog opened successfully at '{dealerContactId}' " +
-                    "and the player remained standing.");
             }
             catch (Exception exception)
             {

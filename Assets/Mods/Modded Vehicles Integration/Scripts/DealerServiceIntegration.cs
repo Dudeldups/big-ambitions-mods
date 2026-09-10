@@ -20,7 +20,6 @@ namespace ModdedVehiclesIntegration
 
         private static readonly List<PatchRecord> AppliedPatches = new List<PatchRecord>();
         private static readonly HashSet<string> ReportedProblems = new HashSet<string>(StringComparer.Ordinal);
-        private static readonly HashSet<string> ReportedReadyDealers = new HashSet<string>(StringComparer.Ordinal);
 
         internal static void EnsureApplied(ModContext? context)
         {
@@ -103,7 +102,6 @@ namespace ModdedVehiclesIntegration
 
             AppliedPatches.Clear();
             ReportedProblems.Clear();
-            ReportedReadyDealers.Clear();
         }
 
         internal static bool EnsureDealerReady(string dealerContactId, ModContext? context)
@@ -122,7 +120,6 @@ namespace ModdedVehiclesIntegration
 
             if (!ready)
             {
-                ReportedReadyDealers.Remove(dealerContactId);
                 ReportProblemOnce(
                     "interaction:" + dealerContactId,
                     $"blocked desk interaction for '{dealerContactId}' because its vehicle-store service is not ready " +
@@ -135,12 +132,6 @@ namespace ModdedVehiclesIntegration
 
             ReportedProblems.Remove("dealer:" + dealerContactId);
             ReportedProblems.Remove("interaction:" + dealerContactId);
-            if (ReportedReadyDealers.Add(dealerContactId))
-            {
-                context?.Logger.Info(
-                    $"Modded Vehicles Integration: vehicle-store service ready for '{dealerContactId}'.");
-            }
-
             return true;
         }
 
