@@ -7,12 +7,12 @@ internal static class BMWM4G82AudioModel
     internal const float IdlePitch = 1f;
     internal const float HornLowVolume = .82f;
     internal const float HornHighVolume = .50f;
-    internal const float EngineBaseVolume = .38f;
-    internal const float EngineThrottleVolume = .40f;
+    internal const float EngineBaseVolume = .27f;
+    internal const float EngineThrottleVolume = .28f;
     internal const float CrackleIdleVolume = .004f;
     internal const float CrackleLoadVolume = .015f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .10f) / .76f);
-    internal static float IdleVolume(float drivingBlend) => .30f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) => .22f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the inherited low-speed idle bed out quickly; the synthesized

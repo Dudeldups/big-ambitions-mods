@@ -42,6 +42,7 @@ public static class BMWM4G82Materials
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
     public static readonly Color RimBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
+    public static readonly Color CaliperBaseColor = new Color(0.02f, 0.16f, 0.72f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string RimMaterialMarker = "_main";
@@ -105,6 +106,11 @@ public static class BMWM4G82Materials
             }
 
             rimSlotsNormalized += NormalizeRimRenderer(renderer, canonicalRimMaterial);
+            if (IsCaliperRenderer(renderer.transform))
+            {
+                foreach (var material in renderer.sharedMaterials)
+                    if (material != null) ApplyCaliperFinish(material);
+            }
 
             if (!HasOpaqueMaterial(renderer))
             {
@@ -189,6 +195,23 @@ public static class BMWM4G82Materials
             renderer.sharedMaterials = materials;
 
         return normalized;
+    }
+
+    public static void ApplyCaliperFinish(Material material)
+    {
+        SetColor(material, "_BaseColor", CaliperBaseColor);
+        SetColor(material, "_Color", CaliperBaseColor);
+        SetColor(material, "baseColorFactor", CaliperBaseColor);
+        SetFloat(material, "_Metallic", 0.25f);
+        SetFloat(material, "_Smoothness", 0.52f);
+    }
+
+    private static bool IsCaliperRenderer(Transform transform)
+    {
+        for (var current = transform; current != null; current = current.parent)
+            if (current.name.StartsWith("BMWFixedCaliper", StringComparison.Ordinal))
+                return true;
+        return false;
     }
 
     public static bool IsTransparentMaterial(Material material)
