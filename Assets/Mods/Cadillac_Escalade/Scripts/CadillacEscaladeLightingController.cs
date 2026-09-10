@@ -85,7 +85,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             new Color(0.92f, 0.96f, 1f, 1f),
             4.8f,
             1.006f);
-        var amber = new Color(1f, 0.18f, 0.001f, 1f);
+        var amber = new Color(1f, 0.52f, 0.02f, 1f);
         // The amber source mesh contains the fender repeaters. The Escalade's
         // primary front signals sit in the outer horizontal headlamp signature,
         // so drive both surfaces from the same indicator state.
@@ -322,7 +322,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         SetEnabled(daylightOverlay, controlled);
         SetEnabled(headlampOverlay, lightsOn);
         SetEnabled(secondaryHeadlampOverlay, controlled);
-        SetEnabled(rearTailOverlay, lightsOn && !braking);
+        SetEnabled(rearTailOverlay, controlled && !braking);
         SetEnabled(rearBrakeOverlay, braking);
         SetEnabled(thirdBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);

@@ -340,14 +340,10 @@ public static class CadillacEscaladeMaterials
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
-        // The authored cabin is extremely dark behind the panes. A transparent
-        // HDRP Unlit surface preserves a predictable neutral glass value instead
-        // of letting Lit shading collapse it back to black. Lamp lenses retain
-        // HDRP Lit so their authored texture and active overlays still interact.
-        if (cabinGlass)
-            RebindToHdrpUnlit(material);
-        else
-            RebindToHdrpLit(material);
+        // Imported transparent Lit materials collapse toward black in the game.
+        // Use an unlit transparent surface for both panes and passive lamp covers;
+        // the dedicated lighting overlays provide the active light signatures.
+        RebindToHdrpUnlit(material);
         var tint = GetTransparentTint(name, cabinGlass);
         SetColor(material, "_UnlitColor", tint);
         SetColor(material, "_BaseColor", tint);
@@ -405,18 +401,18 @@ public static class CadillacEscaladeMaterials
     private static Color GetTransparentTint(string name, bool cabinGlass)
     {
         if (cabinGlass)
-            return new Color(0.70f, 0.76f, 0.82f, 0.24f);
+            return new Color(0.08f, 0.09f, 0.10f, 0.12f);
         if (Contains(name, "CadillacRearLampLens"))
-            return new Color(0.95f, 0.08f, 0.03f, 0.30f);
+            return new Color(0.10f, 0.008f, 0.006f, 0.38f);
         if (Contains(name, "CadillacRearLamp"))
-            return new Color(1f, 0.08f, 0.025f, 0.52f);
+            return new Color(0.28f, 0.012f, 0.008f, 0.36f);
         if (Contains(name, "CadillacAmberLampLens"))
-            return new Color(1f, 0.34f, 0.02f, 0.36f);
+            return new Color(0.35f, 0.18f, 0.01f, 0.20f);
         if (Contains(name, "CadillacFrontLamp"))
-            return new Color(0.95f, 0.98f, 1f, 0.55f);
+            return new Color(0.88f, 0.93f, 1f, 0.08f);
         if (Contains(name, "CadillacClearLampLens"))
-            return new Color(0.95f, 0.98f, 1f, 0.16f);
-        return new Color(0.82f, 0.88f, 0.94f, 0.10f);
+            return new Color(0.88f, 0.93f, 1f, 0.06f);
+        return new Color(0.18f, 0.20f, 0.22f, 0.10f);
     }
 
     private static void ConfigureLampRestingEmission(Material material, string name)

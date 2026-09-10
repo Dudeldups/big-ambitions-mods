@@ -998,7 +998,7 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
             CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-                "shader=HDRP/Lit, tint=(0.82,0.88,0.94,0.28), deferredPolling=false.");
+                "shader=HDRP/Unlit, tint=(0.08,0.09,0.10,0.12), deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {
@@ -1031,7 +1031,7 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
     private const float FrontDentLateralRadius = 0.82f;
     private const float FrontDentVerticalRadius = 0.68f;
     private const float FrontDentLongitudinalRadius = 0.95f;
-    private const float MaximumFrontDentDepth = 0.36f;
+    private const float MaximumFrontDentDepth = 0.28f;
     private const float FrontDepthPerExcessMps = 0.012f;
     private const float RearDentLateralRadius = 0.90f;
     private const float RearDentVerticalRadius = 0.72f;
