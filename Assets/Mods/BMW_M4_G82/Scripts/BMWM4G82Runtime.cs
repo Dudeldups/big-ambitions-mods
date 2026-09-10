@@ -29,12 +29,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.96f;
-    private const float AntiRollBarForce = 7200f;
+    private const float AntiRollBarForce = 8200f;
     private const float FrontSuspensionTravel = 0.05f;
     private const float RearSuspensionTravel = 0.05f;
     private const float SuspensionBumpRate = 24500f;
     private const float SuspensionReboundRate = 28000f;
     private const float SuspensionExtensionSpeed = 4f;
+    private const float MaximumDamagedWheelWobbleAngle = 1.5f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
@@ -44,7 +45,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 DriverExitPosition = new Vector3(-1.72f, 0.20f, 0.15f);
     private static readonly Vector3 PassengerExitPosition = new Vector3(1.72f, 0.20f, 0.15f);
-    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.18f, -0.08f);
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] M4Gears =
     {
@@ -404,14 +405,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 rigidbody.mass = VehicleMass;
                 rigidbody.centerOfMass = StableCenterOfMass;
                 rigidbody.drag = 0f;
-                rigidbody.angularDrag = 1.45f;
+                rigidbody.angularDrag = 1.90f;
             }
 
             ConfigureMassProperties(targetVehicle.gameObject);
             ConfigureWheelControllers(targetVehicle.gameObject);
             ConfigureBodyColliders(targetVehicle.gameObject);
             ConfigureExitMarkers(targetVehicle.gameObject);
-            var deformableBodyMeshes = ConfigureVisualDamage(targetVehicle);
             var powertrainConfigured = ConfigurePowertrain(targetVehicle.gameObject);
             var caliperController = targetVehicle.GetComponent<BMWM4G82CaliperController>();
             if (caliperController == null)
@@ -435,6 +435,10 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             if (lightingController == null)
                 lightingController = targetVehicle.gameObject.AddComponent<BMWM4G82LightingController>();
             lightingController.Initialize(targetVehicle, context);
+            // Lighting overlays must exist before the damage controller captures
+            // its per-instance meshes, otherwise lit surfaces stay behind when
+            // the surrounding lamp and body geometry dents.
+            var deformableBodyMeshes = ConfigureVisualDamage(targetVehicle);
             var driverController = targetVehicle.GetComponent<BMWM4G82DriverController>();
             if (driverController == null)
                 driverController = targetVehicle.gameObject.AddComponent<BMWM4G82DriverController>();
@@ -526,6 +530,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 SetMember(component, "wheel", wheel);
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
                 SetFloat(component, "suspensionExtensionSpeedCoeff", SuspensionExtensionSpeed);
+                SetFloat(component, "damageMaxWobbleAngle", MaximumDamagedWheelWobbleAngle);
             }
         }
     }
@@ -654,6 +659,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     {
         if (filter.name.StartsWith("BMWDamageBody", StringComparison.Ordinal))
             return true;
+        if (filter.name.StartsWith("BMWM4G82_", StringComparison.Ordinal))
+            return true;
         var renderer = filter.GetComponent<MeshRenderer>();
         if (renderer == null || !BMWM4G82Materials.IsBMWRenderer(renderer.transform))
             return false;
@@ -676,6 +683,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 name.IndexOf("Grille", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("Badge", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("LightA", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("red_glass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("wmit_red", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("emit", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("ManufacturerPlate", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("Base_Material", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("dark", StringComparison.OrdinalIgnoreCase) >= 0)

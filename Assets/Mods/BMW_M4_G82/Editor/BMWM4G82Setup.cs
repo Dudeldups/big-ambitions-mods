@@ -41,16 +41,17 @@ public static class BMWM4G82Setup
     private const float RearTireRadius = 0.3395f;
     private const float VisualBodyOffsetY = -0.035f;
     private const float TireFrictionCircleStrength = 0.96f;
-    private const float AntiRollBarForce = 7200f;
+    private const float AntiRollBarForce = 8200f;
     private const float FrontSuspensionTravel = 0.05f;
     private const float RearSuspensionTravel = 0.05f;
     private const float SuspensionBumpRate = 24500f;
     private const float SuspensionReboundRate = 28000f;
     private const float SuspensionExtensionSpeed = 4f;
+    private const float MaximumDamagedWheelWobbleAngle = 1.5f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
-    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.18f, -0.08f);
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
     private static readonly Vector3 SteeringAnchorPosition = new Vector3(-0.38f, 0.92f, 0.55f);
     private static readonly Vector3 DriverExitPosition = new Vector3(-1.72f, 0.20f, 0.15f);
     private static readonly Vector3 PassengerExitPosition = new Vector3(1.72f, 0.20f, 0.15f);
@@ -305,12 +306,16 @@ public static class BMWM4G82Setup
                     var rebound = ReadNumber(serializedWheel.FindProperty("damper.reboundRate"));
                     var extension = ReadNumber(
                         serializedWheel.FindProperty("suspensionExtensionSpeedCoeff"));
+                    var damageWobble = ReadNumber(
+                        serializedWheel.FindProperty("damageMaxWobbleAngle"));
                     if (Math.Abs(bump - SuspensionBumpRate) > 1f ||
                         Math.Abs(rebound - SuspensionReboundRate) > 1f ||
-                        Math.Abs(extension - SuspensionExtensionSpeed) > 0.01f)
+                        Math.Abs(extension - SuspensionExtensionSpeed) > 0.01f ||
+                        Math.Abs(damageWobble - MaximumDamagedWheelWobbleAngle) > 0.01f)
                         throw new InvalidOperationException(
                             $"BMW suspension damping mismatch at '{transform.name}': " +
-                            $"bump={bump:F0} rebound={rebound:F0} extension={extension:F1}.");
+                            $"bump={bump:F0} rebound={rebound:F0} extension={extension:F1} " +
+                            $"damageWobble={damageWobble:F1}.");
                     validatedSprings++;
                 }
             }
@@ -665,7 +670,7 @@ public static class BMWM4G82Setup
                    throw new InvalidOperationException("Reference prefab has no Rigidbody.");
         body.mass = 1775f;
         body.drag = 0f;
-        body.angularDrag = 1.45f;
+        body.angularDrag = 1.90f;
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
@@ -713,6 +718,7 @@ public static class BMWM4G82Setup
                 SetRelativeNumber(serialized, "damper.bumpRate", SuspensionBumpRate);
                 SetRelativeNumber(serialized, "damper.reboundRate", SuspensionReboundRate);
                 SetRelativeNumber(serialized, "suspensionExtensionSpeedCoeff", SuspensionExtensionSpeed);
+                SetRelativeNumber(serialized, "damageMaxWobbleAngle", MaximumDamagedWheelWobbleAngle);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? FrontTireRadius : RearTireRadius);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? FrontTireWidth : RearTireWidth);
                 SetRelativeNumber(serialized, "frictionCircleStrength", TireFrictionCircleStrength);
@@ -1043,8 +1049,9 @@ public static class BMWM4G82Setup
         if (caliper == null)
             throw new InvalidOperationException($"BMW {corner.Suffix} caliper geometry is missing.");
         caliperGeometry.transform.SetParent(fixedMount.transform, true);
+        caliperGeometry.transform.localScale = new Vector3(1f, 1.18f, 1.18f);
         caliperGeometry.transform.position += alignmentDelta +
-            new Vector3(corner.Left ? -0.018f : 0.018f, 0f, 0f);
+            new Vector3(corner.Left ? -0.055f : 0.055f, 0f, 0f);
 
         AssignWheelVisual(controller, mount);
         Debug.Log(
@@ -1387,8 +1394,10 @@ public static class BMWM4G82Setup
             var meshFilters = serialized.FindProperty("meshFilters");
             if (meshFilters == null || !meshFilters.isArray)
                 throw new InvalidOperationException("Vehicle deformation mesh list is missing.");
-            meshFilters.arraySize = 1;
-            meshFilters.GetArrayElementAtIndex(0).objectReferenceValue = bodyFilter;
+            // Runtime uses the model-aware damage controller. Keep the legacy
+            // arrays empty so CarController.Repair() can call Reset() safely
+            // without indexing an intentionally absent original-mesh entry.
+            meshFilters.arraySize = 0;
             var originals = serialized.FindProperty("originalMeshes");
             if (originals != null && originals.isArray)
                 originals.ClearArray();

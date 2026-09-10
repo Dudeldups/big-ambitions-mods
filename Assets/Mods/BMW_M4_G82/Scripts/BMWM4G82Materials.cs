@@ -42,7 +42,7 @@ public static class BMWM4G82Materials
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
     public static readonly Color RimBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
-    public static readonly Color CaliperBaseColor = new Color(0.62f, 0.65f, 0.68f, 1f);
+    public static readonly Color CaliperBaseColor = new Color(0.78f, 0.80f, 0.82f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string RimMaterialMarker = "_main";
@@ -96,6 +96,13 @@ public static class BMWM4G82Materials
             {
                 if (material == null || !materials.Add(material))
                     continue;
+
+                if (IsTexturedDecalMaterial(material))
+                {
+                    FixTexturedCutoutMaterial(material);
+                    opaqueMaterialsFixed++;
+                    continue;
+                }
 
                 if (IsTransparentMaterial(material))
                 {
@@ -220,9 +227,9 @@ public static class BMWM4G82Materials
                 if (material.HasProperty(BaseColorFactorProperty))
                     properties.SetColor(BaseColorFactorProperty, CaliperBaseColor);
                 if (material.HasProperty(MetallicProperty))
-                    properties.SetFloat(MetallicProperty, 0.58f);
+                    properties.SetFloat(MetallicProperty, 0.35f);
                 if (material.HasProperty(SmoothnessProperty))
-                    properties.SetFloat(SmoothnessProperty, 0.60f);
+                    properties.SetFloat(SmoothnessProperty, 0.46f);
                 renderer.SetPropertyBlock(properties, index);
                 configured++;
             }
@@ -433,6 +440,35 @@ public static class BMWM4G82Materials
         material.SetShaderPassEnabled("TransparentBackface", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    private static void FixTexturedCutoutMaterial(Material material)
+    {
+        RebindToHdrpLit(material);
+        var tint = Color.white;
+        SetColor(material, "_BaseColor", tint);
+        SetColor(material, "_Color", tint);
+        SetColor(material, "baseColorFactor", tint);
+        SetFloat(material, "_SurfaceType", 0f);
+        SetFloat(material, "_AlphaCutoffEnable", 1f);
+        SetFloat(material, "_AlphaCutoff", 0.04f);
+        SetFloat(material, "_Cutoff", 0.04f);
+        SetFloat(material, "_SupportDecals", 0f);
+        SetFloat(material, "_ReceivesSSR", 0f);
+        SetFloat(material, "_ReceivesSSRTransparent", 0f);
+        SetFloat(material, "_ZWrite", 1f);
+        SetFloat(material, "_SrcBlend", (float)BlendMode.One);
+        SetFloat(material, "_DstBlend", (float)BlendMode.Zero);
+        material.SetOverrideTag("RenderType", "TransparentCutout");
+        material.renderQueue = (int)RenderQueue.AlphaTest;
+        TryValidateHdrpMaterial(material);
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.EnableKeyword("_DISABLE_DECALS");
+        material.EnableKeyword("_DISABLE_SSR");
+        material.EnableKeyword("_DISABLE_SSR_TRANSPARENT");
+        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.SetShaderPassEnabled("DepthOnly", true);
+        material.SetShaderPassEnabled("ShadowCaster", true);
     }
 
     private static bool IsTexturedDecalMaterial(Material material)

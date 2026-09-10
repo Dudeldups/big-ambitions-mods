@@ -5,29 +5,30 @@ using System;
 internal static class BMWM4G82AudioModel
 {
     internal const float IdlePitch = 1f;
-    internal const float HornLowVolume = .72f;
-    internal const float HornHighVolume = .42f;
-    internal const float EngineBaseVolume = .21f;
-    internal const float EngineThrottleVolume = .23f;
+    internal const float HornLowVolume = .82f;
+    internal const float HornHighVolume = .50f;
+    internal const float EngineBaseVolume = .27f;
+    internal const float EngineThrottleVolume = .27f;
     internal const float CrackleIdleVolume = .004f;
     internal const float CrackleLoadVolume = .015f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .10f) / .76f);
-    internal static float IdleVolume(float drivingBlend) => .22f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) => .28f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the inherited low-speed idle bed out quickly; the synthesized
     // six-cylinder layers carry the audible engine character.
     internal static float DrivingBlend(float rpm, float idle, float limiter) =>
-        Clamp01((rpm - idle - .02f * limiter) / Math.Max(1f, .12f * limiter));
+        Clamp01((rpm - idle - .04f * limiter) / Math.Max(1f, .18f * limiter));
 
     internal static float Normalize(float rpm, float idle, float limiter) =>
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));
 
     internal static float ReferenceHz(int layer) => layer == 0 ? 80f : layer == 1 ? 190f : 380f;
-    // Keep the twin-turbocharged inline-six bright under load without pitching the
-    // synthesized combustion layers into the toy-like register.
+    // The generated layers already contain upper combustion harmonics. Keeping
+    // their playback fundamentals below the literal firing frequency avoids the
+    // thin electric/RC tone while retaining an inline-six rise through the revs.
     internal static float TargetHz(float normalized) =>
-        (float)(40d * Math.Pow(360d / 40d, Clamp01(normalized)));
+        (float)(55d * Math.Pow(230d / 55d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)
