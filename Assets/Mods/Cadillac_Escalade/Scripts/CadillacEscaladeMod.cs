@@ -45,7 +45,7 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        context.Logger.Info(
+        CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}.");
@@ -66,6 +66,27 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
         }
 
         return Task.CompletedTask;
+    }
+}
+
+internal static class CadillacEscaladeDiagnostics
+{
+    internal static readonly bool DebugEnabled = false;
+    internal static readonly bool AccelerationTelemetryDebugEnabled = false;
+
+    internal static bool AccelerationTelemetryEnabled =>
+        DebugEnabled && AccelerationTelemetryDebugEnabled;
+
+    internal static void Info(ModContext? context, string message)
+    {
+        if (DebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void TelemetryInfo(ModContext? context, string message)
+    {
+        if (AccelerationTelemetryEnabled)
+            context?.Logger.Info(message);
     }
 }
 

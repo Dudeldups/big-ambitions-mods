@@ -474,7 +474,9 @@ internal sealed class CadillacEscaladeDriverController : MonoBehaviour
         target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
 
     private void LogInfo(string message) =>
-        context?.Logger.Info($"CadillacEscalade driver vehicle={vehicle?.GetInstanceID()}: {message}");
+        CadillacEscaladeDiagnostics.Info(
+            context,
+            $"CadillacEscalade driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {

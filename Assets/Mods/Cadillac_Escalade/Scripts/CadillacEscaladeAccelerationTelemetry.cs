@@ -33,11 +33,15 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
+        enabled = CadillacEscaladeDiagnostics.AccelerationTelemetryEnabled;
+        if (!enabled)
+            return;
+
         vehicle = controller;
         physics = controller.GetComponent<PhysicsVehicle>();
         body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
         context = modContext;
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.TelemetryInfo(context,
             $"CadillacEscalade acceleration telemetry ready vehicle={controller.GetInstanceID()}, " +
             $"official0to100={OfficialZeroToHundredSeconds:0.0}s, " +
             "milestones=50/100/160kmh.");
@@ -124,7 +128,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
         elapsed = maximumYaw = maximumLateral = 0f;
         nextMilestone = 0;
         diagnosticSnapshotLogged = false;
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.TelemetryInfo(context,
             $"CadillacEscalade acceleration run started vehicle={vehicle.GetInstanceID()}, " +
             $"speed={speedKph:0.0}kmh. Hold full throttle on a flat straight.");
         LogPowertrainSnapshot("start", speedKph, Mathf.Clamp01(physics!.input.Throttle));
@@ -144,7 +148,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
                 ? $", official={OfficialZeroToHundredSeconds:0.0}s, " +
                   $"delta={milestoneTime - OfficialZeroToHundredSeconds:+0.000;-0.000;0.000}s"
                 : string.Empty;
-            context?.Logger.Info(
+            CadillacEscaladeDiagnostics.TelemetryInfo(context,
                 $"CadillacEscalade acceleration milestone vehicle={vehicle!.GetInstanceID()}, " +
                 $"0to{target:0}={milestoneTime:0.000}s{benchmark}, " +
                 $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m, " +
@@ -162,7 +166,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
             return;
         var engine = physics.powertrain.engine;
         var transmission = physics.powertrain.transmission;
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.TelemetryInfo(context,
             $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()} snapshot={label}, " +
             $"speed={speedKph:0.0}kmh, inputThrottle={throttle:0.00}, " +
             $"engineThrottle={engine.ThrottlePosition:0.00}, " +
@@ -173,7 +177,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
 
     private void Finish(string reason, float speedKph)
     {
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.TelemetryInfo(context,
             $"CadillacEscalade acceleration run ended vehicle={vehicle?.GetInstanceID()}, " +
             $"reason={reason}, elapsed={elapsed:0.000}s, speed={speedKph:0.0}kmh, " +
             $"milestones={nextMilestone}/{MilestonesKph.Length}, " +

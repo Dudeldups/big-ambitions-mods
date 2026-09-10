@@ -128,7 +128,7 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
             }
         }
 
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade paint vehicle={vehicle?.GetInstanceID()}: " +
             $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
             $"interiorAccentSlots={interiorAccentSlots}; " +
@@ -173,7 +173,7 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
         appliedColor = selected;
         appliedTint = tint;
         hasAppliedTint = true;
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"to {slots.Count} instance-owned body/caliper slots.");

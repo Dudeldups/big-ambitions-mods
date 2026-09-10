@@ -400,8 +400,10 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     }
 
     private void LogInfo(string message) =>
-        context?.Logger.Info($"CadillacEscalade lighting vehicle='{vehicle?.name}' " +
-                             $"instance={vehicle?.GetInstanceID()}: {message}");
+        CadillacEscaladeDiagnostics.Info(
+            context,
+            $"CadillacEscalade lighting vehicle='{vehicle?.name}' " +
+            $"instance={vehicle?.GetInstanceID()}: {message}");
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"CadillacEscalade lighting vehicle='{vehicle?.name}' " +
