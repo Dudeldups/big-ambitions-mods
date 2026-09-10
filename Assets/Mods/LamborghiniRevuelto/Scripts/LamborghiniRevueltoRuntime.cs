@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -178,6 +179,12 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
+        while (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ConfigureExistingVehicles(out _);
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
         var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
@@ -185,7 +192,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= EnsureDealerStock(source);
+            if (!dealerReady)
+                dealerReady = EnsureDealerStock(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
