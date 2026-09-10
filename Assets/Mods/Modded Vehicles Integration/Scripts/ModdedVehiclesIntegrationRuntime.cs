@@ -60,7 +60,10 @@ namespace ModdedVehiclesIntegration
         {
             var enteringBuilding = InstanceBehavior<BuildingManager>.Instance?.enteringBuilding == true;
             if (enteringBuilding && !wasEnteringBuilding)
+            {
                 DealerLayoutIntegration.EnsureApplied(context);
+                DealerServiceIntegration.EnsureApplied(context);
+            }
 
             wasEnteringBuilding = enteringBuilding;
         }

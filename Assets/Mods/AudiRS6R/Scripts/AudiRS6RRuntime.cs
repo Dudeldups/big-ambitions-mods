@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -187,6 +188,12 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
+        while (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            EnsureVehiclesConfigured(out _, out _);
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
         var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
@@ -197,7 +204,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
             attempts = attempt;
-            dealerReady |= AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+            if (!dealerReady)
+                dealerReady = AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
             EnsureVehiclesConfigured(out var matchedCount, out var configuredThisPass);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
             configuredCount += configuredThisPass;

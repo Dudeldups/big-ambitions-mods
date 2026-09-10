@@ -15,6 +15,7 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
     private readonly List<GameObject> generatedObjects = new();
     private readonly List<Material> generatedMaterials = new();
     private readonly List<Mesh> generatedMeshes = new();
+    private readonly List<Texture2D> generatedTextures = new();
     private VehicleController? vehicle;
     private ModContext? context;
     private Light? originalBeam;
@@ -228,7 +229,7 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
             throw new InvalidOperationException("No compatible emissive shader is available.");
         var material = new Material(shader) { name = "Bigfoot Painted Headlight Glow" };
         generatedMaterials.Add(material);
-        var texture = GetBaseTexture(source);
+        var texture = CloneStableTexture(GetBaseTexture(source));
         SetTexture(material, "_UnlitColorMap", texture);
         SetTexture(material, "_BaseColorMap", texture);
         SetTexture(material, "_BaseMap", texture);
@@ -250,6 +251,48 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
         material.EnableKeyword("_EMISSION");
         material.renderQueue = 2450;
         return material;
+    }
+
+    private Texture2D? CloneStableTexture(Texture? source)
+    {
+        if (source == null)
+            return null;
+
+        var previous = RenderTexture.active;
+        var temporary = RenderTexture.GetTemporary(
+            source.width,
+            source.height,
+            0,
+            RenderTextureFormat.ARGB32,
+            RenderTextureReadWrite.sRGB);
+        Texture2D? copy = null;
+        try
+        {
+            Graphics.Blit(source, temporary);
+            RenderTexture.active = temporary;
+            copy = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, false)
+            {
+                name = "Bigfoot stable headlight atlas",
+                filterMode = source.filterMode,
+                wrapMode = source.wrapMode,
+                anisoLevel = source.anisoLevel,
+            };
+            copy.ReadPixels(new Rect(0f, 0f, source.width, source.height), 0, 0, false);
+            copy.Apply(false, true);
+            generatedTextures.Add(copy);
+            return copy;
+        }
+        catch
+        {
+            if (copy != null)
+                Destroy(copy);
+            throw;
+        }
+        finally
+        {
+            RenderTexture.active = previous;
+            RenderTexture.ReleaseTemporary(temporary);
+        }
     }
 
     private void ConfigureBeams()
@@ -349,5 +392,8 @@ internal sealed class BigfootMonsterTruckLightingController : MonoBehaviour
         foreach (var mesh in generatedMeshes)
             if (mesh != null)
                 Destroy(mesh);
+        foreach (var texture in generatedTextures)
+            if (texture != null)
+                Destroy(texture);
     }
 }

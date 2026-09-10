@@ -13,8 +13,8 @@ namespace MootorVehicle
         private const string AudioHostName = "MootorVehicle_AmbientMoo";
         private const string TriggerHostName = "MootorVehicle_AmbientMooTrigger";
         private const float ProximityRadius = 25f;
-        private const float MinimumAudibleDistance = 4f;
-        private const float AmbientVolume = 0.55f;
+        private const float FullVolumeRadius = 10f;
+        private const float AmbientVolume = 0.12f;
         private const float InitialDelayMinimum = 2.5f;
         private const float InitialDelayMaximum = 6.5f;
         private const float RepeatDelayMinimum = 9f;
@@ -22,7 +22,6 @@ namespace MootorVehicle
 
         private readonly HashSet<int> playerColliderIds = new();
         private readonly Collider[] dismountOverlapBuffer = new Collider[64];
-        private VehicleController? vehicle;
         private PhysicsVehicle? physicsVehicle;
         private ModContext? context;
         private GameObject? audioHost;
@@ -33,15 +32,12 @@ namespace MootorVehicle
         private Coroutine? dismountRearmCoroutine;
         private bool initialized;
         private bool mounted;
-        private bool proximityEntryLogged;
-        private bool playbackLogged;
 
         internal void Initialize(VehicleController controller, ModContext? modContext)
         {
             if (initialized)
                 return;
 
-            vehicle = controller;
             physicsVehicle = controller.GetComponent<PhysicsVehicle>();
             context = modContext;
 
@@ -50,11 +46,6 @@ namespace MootorVehicle
                 ConfigureAudio();
                 ConfigureTrigger();
                 initialized = true;
-                context?.Logger.Info(
-                    $"Moo-tor Vehicle ambient moo vehicle={controller.GetInstanceID()}: " +
-                    $"eventDriven=true radius={ProximityRadius:F0}m " +
-                    $"delay={RepeatDelayMinimum:F0}-{RepeatDelayMaximum:F0}s " +
-                    $"spatialBlend={audioSource!.spatialBlend:F1}.");
             }
             catch (System.Exception exception)
             {
@@ -92,14 +83,6 @@ namespace MootorVehicle
             if (!playerColliderIds.Add(other.GetInstanceID()))
                 return;
 
-            if (!proximityEntryLogged)
-            {
-                proximityEntryLogged = true;
-                context?.Logger.Info(
-                    $"Moo-tor Vehicle ambient moo vehicle={vehicle?.GetInstanceID()}: " +
-                    "player entered proximity; random moo timer started.");
-            }
-
             if (mooCoroutine == null)
                 mooCoroutine = StartCoroutine(MooWhilePlayerNearby());
         }
@@ -132,9 +115,12 @@ namespace MootorVehicle
             audioSource.clip = horn.clips[0];
             audioSource.volume = AmbientVolume;
             audioSource.spatialBlend = 1f;
-            audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
-            audioSource.minDistance = MinimumAudibleDistance;
+            audioSource.rolloffMode = AudioRolloffMode.Custom;
+            audioSource.minDistance = 1f;
             audioSource.maxDistance = ProximityRadius;
+            audioSource.SetCustomCurve(
+                AudioSourceCurveType.CustomRolloff,
+                AnimationCurve.Linear(0f, 1f, 1f, 1f));
             audioSource.dopplerLevel = 0f;
             audioSource.outputAudioMixerGroup = physicsVehicle.soundManager.otherMixerGroup;
             audioSource.clip.LoadAudioData();
@@ -164,27 +150,26 @@ namespace MootorVehicle
             {
                 if (audioSource != null && !audioSource.isPlaying && !AudioListener.pause)
                 {
-                    var masterVolume = physicsVehicle != null
-                        ? physicsVehicle.soundManager.masterVolume
-                        : 1f;
-                    audioSource.volume = Mathf.Clamp01(masterVolume * AmbientVolume);
+                    audioSource.volume = GetAmbientVolumeForPlayerDistance();
                     audioSource.pitch = Random.Range(0.97f, 1.03f);
-                    audioSource.Play();
-
-                    if (!playbackLogged)
-                    {
-                        playbackLogged = true;
-                        context?.Logger.Info(
-                            $"Moo-tor Vehicle ambient moo vehicle={vehicle?.GetInstanceID()}: " +
-                            $"played clip='{audioSource.clip.name}' volume={audioSource.volume:F2} " +
-                            $"range={audioSource.minDistance:F1}-{audioSource.maxDistance:F1}m.");
-                    }
+                    if (audioSource.volume > 0f)
+                        audioSource.Play();
                 }
 
                 yield return new WaitForSeconds(Random.Range(RepeatDelayMinimum, RepeatDelayMaximum));
             }
 
             mooCoroutine = null;
+        }
+
+        private float GetAmbientVolumeForPlayerDistance()
+        {
+            var distance = Vector3.Distance(PlayerHelper.GetPosition(), transform.position);
+            if (distance <= FullVolumeRadius)
+                return AmbientVolume;
+
+            var fade = Mathf.InverseLerp(ProximityRadius, FullVolumeRadius, distance);
+            return AmbientVolume * fade;
         }
 
         private IEnumerator RearmAfterDismount()

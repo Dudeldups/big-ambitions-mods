@@ -94,7 +94,8 @@ namespace MootorVehicle
                 crashMooSource.maxDistance = 35f;
                 crashAudioConfigured = true;
 
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle impact audio vehicle={vehicle?.GetInstanceID()} configured " +
                     $"clip='{mooClip.name}' normalVolume={NormalCrashMooVolume:F2} " +
                     $"ejectionVolume={EjectionCrashMooVolume:F2}.");
@@ -136,7 +137,8 @@ namespace MootorVehicle
                 ? LayerMask.LayerToName(collisionObject.layer)
                 : "<unknown>";
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle strong impact vehicle={vehicle.GetInstanceID()} " +
                 $"horizontalDeltaV={horizontalDeltaVelocity:F2}m/s " +
                 $"relativeSpeed={horizontalImpactSpeed:F2}m/s damageBefore={damageBeforeImpact:F4} " +
@@ -211,7 +213,8 @@ namespace MootorVehicle
 
                 crashMooSource.Stop();
                 crashMooSource.PlayOneShot(crashMooClip);
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} played explicit " +
                     $"strong-impact moo clip='{crashMooClip.name}'.");
             }
@@ -252,7 +255,8 @@ namespace MootorVehicle
                     if (engine != null)
                     {
                         engine.StopEngine();
-                        context?.Logger.Info(
+                        MootorVehicleDiagnostics.Info(
+                            context,
                             $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} reset drivetrain " +
                             "before forced exit.");
                     }
@@ -302,7 +306,8 @@ namespace MootorVehicle
             var damageAfterNativeHandlers = GetRuntimeDamage();
             if (damageAfterNativeHandlers > damageBeforeImpact + 0.0001f)
             {
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} retained native " +
                     $"collision damage before={damageBeforeImpact:F4} " +
                     $"after={damageAfterNativeHandlers:F4}.");
@@ -325,7 +330,8 @@ namespace MootorVehicle
 
             SaveGameManager.MarkChange();
             GlobalEvents.onVehicleVariablesChanged?.Invoke();
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} applied ejection " +
                 $"damage before={damageBeforeImpact:F4} after={targetDamage:F4} " +
                 $"collision='{collisionObjectName}' layer='{collisionLayerName}'.");
@@ -435,7 +441,8 @@ namespace MootorVehicle
                 Physics.SyncTransforms();
             }
 
-            context?.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle impact vehicle={vehicle.GetInstanceID()} placed rider on safe " +
                 $"NavMesh crash exit from={previousPosition:F3} to={safePosition:F3} agents={agents.Length}.");
         }
@@ -512,7 +519,8 @@ namespace MootorVehicle
                 fallenPlayerAnimator.Play(faintState, faintLayer, 1f);
                 fallenPlayerAnimator.Update(0f);
 
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} positioned rider " +
                     $"prone with native clip='{faintClip.name}' layer={faintLayer} " +
                     $"length={faintClip.length:F2}s.");
@@ -533,7 +541,8 @@ namespace MootorVehicle
                     yield return null;
                 }
 
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle impact vehicle={vehicle?.GetInstanceID()} completed rider get-up.");
             }
             finally

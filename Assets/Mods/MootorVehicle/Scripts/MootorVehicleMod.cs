@@ -47,7 +47,8 @@ namespace MootorVehicle
 
             ModdingAPI.RegisterModVehicleType(vehicleType);
             runtime = MootorVehicleRuntime.Initialize(context, vehicleType.vehicleTypeName);
-            context.Logger.Info(
+            MootorVehicleDiagnostics.Info(
+                context,
                 $"Moo-tor Vehicle: registered '{vehicleType.vehicleTypeName}' " +
                 $"speed={vehicleType.maxSpeed} power={vehicleType.enginePower}.");
             return Task.CompletedTask;
@@ -151,7 +152,8 @@ namespace MootorVehicle
                 else
                     ContractItemsForSaleService.SetVehiclesForContact(dealerContactId, remainingStock);
 
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle: removed '{vehicleName}' from dealer '{dealerContactId}'.");
             }
             catch (Exception exception)
@@ -185,7 +187,8 @@ namespace MootorVehicle
                     return true;
 
                 ContractItemsForSaleService.SetVehiclesForContact(dealerContactId, mergedStock);
-                context?.Logger.Info(
+                MootorVehicleDiagnostics.Info(
+                    context,
                     $"Moo-tor Vehicle: added '{vehicleName}' to dealer '{dealerContactId}'.");
                 return true;
             }
@@ -274,6 +277,17 @@ namespace MootorVehicle
                     return false;
 
             return true;
+        }
+    }
+
+    internal static class MootorVehicleDiagnostics
+    {
+        // Release builds do not define this symbol, so both the call and message construction are
+        // removed by the C# compiler. It can be enabled locally for focused troubleshooting.
+        [System.Diagnostics.Conditional("MOOTORVEHICLE_DIAGNOSTICS")]
+        internal static void Info(ModContext? context, string message)
+        {
+            context?.Logger.Info(message);
         }
     }
 }
