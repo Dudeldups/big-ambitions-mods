@@ -12,6 +12,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private const string HeadlampName = "high_beams";
     private const string SecondaryHeadlampName = "running_facia_lamps";
     private const string RearStripName = "tail_lamp_long";
+    private const string RearEtchingName = "rear_etchings";
     private const string ThirdBrakeLightName = "chml_red";
     private const string FrontBlinkerName = "amber_lights";
     private const string RearBlinkerName = "rear_turn_signals";
@@ -35,10 +36,13 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private MeshRenderer? secondaryHeadlampOverlay;
     private MeshRenderer? rearTailOverlay;
     private MeshRenderer? rearBrakeOverlay;
+    private MeshRenderer? rearBrakeDetailOverlay;
     private MeshRenderer? thirdBrakeOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
     private MeshRenderer? rightBlinkerOverlay;
+    private MeshRenderer? leftFenderBlinkerOverlay;
+    private MeshRenderer? rightFenderBlinkerOverlay;
     private MeshRenderer? rearLeftBlinkerOverlay;
     private MeshRenderer? rearRightBlinkerOverlay;
     private bool initialized;
@@ -60,6 +64,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         var headlamp = FindRenderer(renderers, HeadlampName);
         var secondaryHeadlamp = FindRenderer(renderers, SecondaryHeadlampName);
         var rearStrip = FindRenderer(renderers, RearStripName);
+        var rearEtchings = FindRenderer(renderers, RearEtchingName);
         var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
         var frontBlinkers = FindRenderer(renderers, FrontBlinkerName);
         var rearBlinkers = FindRenderer(renderers, RearBlinkerName);
@@ -73,7 +78,9 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         rearTailOverlay = CreateOverlay(rearStrip, "RearTailSignature",
             new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
         rearBrakeOverlay = CreateOverlay(rearStrip, "RearBrakeSignature",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
+            new Color(1f, 0.008f, 0.001f, 1f), 5.6f, 1.012f);
+        rearBrakeDetailOverlay = CreateOverlay(rearEtchings, "RearBrakeElements",
+            new Color(1f, 0.006f, 0.001f, 1f), 5.2f, 1.014f);
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
         reverseOverlay = CreateFilteredOverlay(
@@ -84,22 +91,29 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             4.8f,
             1.006f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
-        leftBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x <= -0.10f,
-            "LeftIndicator", amber, 5.4f, 1.004f);
-        rightBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x >= 0.10f,
-            "RightIndicator", amber, 5.4f, 1.004f);
+        // The amber source mesh contains the fender repeaters. The Escalade's
+        // primary front signals sit in the outer horizontal headlamp signature,
+        // so drive both surfaces from the same indicator state.
+        leftBlinkerOverlay = CreateFilteredOverlay(daylight, p => p.x <= -0.35f,
+            "LeftHeadlampIndicator", amber, 6.4f, 1.012f);
+        rightBlinkerOverlay = CreateFilteredOverlay(daylight, p => p.x >= 0.35f,
+            "RightHeadlampIndicator", amber, 6.4f, 1.012f);
+        leftFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x <= -0.10f,
+            "LeftFenderIndicator", amber, 5.4f, 1.008f);
+        rightFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x >= 0.10f,
+            "RightFenderIndicator", amber, 5.4f, 1.008f);
         rearLeftBlinkerOverlay = CreateFilteredOverlay(rearBlinkers, p => p.x <= -0.10f,
-            "RearLeftIndicator", amber, 6f, 1.006f);
+            "RearLeftIndicator", amber, 7.2f, 1.018f);
         rearRightBlinkerOverlay = CreateFilteredOverlay(rearBlinkers, p => p.x >= 0.10f,
-            "RearRightIndicator", amber, 6f, 1.006f);
+            "RearRightIndicator", amber, 7.2f, 1.018f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
-                $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
+                $"rear='{rearStrip?.name}/{rearEtchings?.name}' thirdBrake='{thirdBrake?.name}' " +
                 $"reverse='{rearStrip?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/7 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"lampOverlays={CountLampOverlays()}/8 blinkerOverlays={CountBlinkerOverlays()}/6.");
+        if (CountLampOverlays() != 8 || beamCount != 2 || CountBlinkerOverlays() != 6)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -312,10 +326,13 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         SetEnabled(secondaryHeadlampOverlay, lightsOn);
         SetEnabled(rearTailOverlay, lightsOn && !braking);
         SetEnabled(rearBrakeOverlay, braking);
+        SetEnabled(rearBrakeDetailOverlay, braking);
         SetEnabled(thirdBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
+        SetEnabled(leftFenderBlinkerOverlay, leftBlinker && flash);
+        SetEnabled(rightFenderBlinkerOverlay, rightBlinker && flash);
         SetEnabled(rearLeftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rearRightBlinkerOverlay, rightBlinker && flash);
         SetEnabled(leftBeam, lightsOn);
@@ -335,11 +352,14 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private int CountLampOverlays() =>
         (daylightOverlay != null ? 1 : 0) + (headlampOverlay != null ? 1 : 0) +
         (secondaryHeadlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
-        (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0) +
+        (rearBrakeOverlay != null ? 1 : 0) + (rearBrakeDetailOverlay != null ? 1 : 0) +
+        (thirdBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>
         (leftBlinkerOverlay != null ? 1 : 0) + (rightBlinkerOverlay != null ? 1 : 0) +
+        (leftFenderBlinkerOverlay != null ? 1 : 0) +
+        (rightFenderBlinkerOverlay != null ? 1 : 0) +
         (rearLeftBlinkerOverlay != null ? 1 : 0) + (rearRightBlinkerOverlay != null ? 1 : 0);
 
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string name)
