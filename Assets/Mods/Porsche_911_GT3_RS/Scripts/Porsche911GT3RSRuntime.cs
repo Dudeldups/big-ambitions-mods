@@ -1115,6 +1115,8 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                     throw new InvalidOperationException(
                         $"wheel assembly is incomplete for corner={index}");
 
+                RecenterRollingGeometry(wheel, caliper);
+
                 // Wheel.Initialize() reparents the visual under its controller.
                 // Configuration can run on either side of that lifecycle point,
                 // so never move the visual twice when it already follows the
@@ -1202,6 +1204,113 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 
     private void MoveDown(Transform target, float distance) =>
         target.position -= transform.up * distance;
+
+    private static void RecenterRollingGeometry(Transform wheel, Transform caliper)
+    {
+        MeshFilter? wheelFilter = null;
+        foreach (var filter in wheel.GetComponentsInChildren<MeshFilter>(true))
+        {
+            var renderer = filter.GetComponent<Renderer>();
+            if (filter.sharedMesh == null || renderer == null)
+                continue;
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material != null && material.name.IndexOf(
+                        "wheels_chrome_1",
+                        StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    wheelFilter = filter;
+                    break;
+                }
+            }
+            if (wheelFilter != null)
+                break;
+        }
+
+        if (wheelFilter?.sharedMesh == null)
+            return;
+        var mesh = wheelFilter.sharedMesh;
+        var vertices = mesh.vertices;
+        if (vertices.Length == 0)
+            return;
+
+        var parent = new int[vertices.Length];
+        for (var index = 0; index < parent.Length; index++)
+            parent[index] = index;
+        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
+        {
+            var triangles = mesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < triangles.Length; index += 3)
+            {
+                Union(parent, triangles[index], triangles[index + 1]);
+                Union(parent, triangles[index + 1], triangles[index + 2]);
+            }
+        }
+
+        var componentMinimum = new Dictionary<int, Vector3>();
+        var componentMaximum = new Dictionary<int, Vector3>();
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            var local = wheel.InverseTransformPoint(
+                wheelFilter.transform.TransformPoint(vertices[index]));
+            var root = Find(parent, index);
+            if (!componentMinimum.TryGetValue(root, out var minimum))
+            {
+                componentMinimum[root] = local;
+                componentMaximum[root] = local;
+            }
+            else
+            {
+                componentMinimum[root] = Vector3.Min(minimum, local);
+                componentMaximum[root] = Vector3.Max(componentMaximum[root], local);
+            }
+        }
+
+        var bestRadialDiameter = 0f;
+        var bestRadialCenter = Vector2.zero;
+        foreach (var pair in componentMinimum)
+        {
+            var maximum = componentMaximum[pair.Key];
+            var size = maximum - pair.Value;
+            var radialDiameter = Mathf.Min(size.y, size.z);
+            if (radialDiameter <= bestRadialDiameter)
+                continue;
+            bestRadialDiameter = radialDiameter;
+            bestRadialCenter = new Vector2(
+                (pair.Value.y + maximum.y) * 0.5f,
+                (pair.Value.z + maximum.z) * 0.5f);
+        }
+
+        if (bestRadialDiameter <= 0.001f)
+            return;
+        var localCorrection = new Vector3(
+            0f,
+            -bestRadialCenter.x,
+            -bestRadialCenter.y);
+        var worldCorrection = wheel.TransformVector(localCorrection);
+        for (var index = 0; index < wheel.childCount; index++)
+            wheel.GetChild(index).localPosition += localCorrection;
+        for (var index = 0; index < caliper.childCount; index++)
+            caliper.GetChild(index).position += worldCorrection;
+    }
+
+    private static int Find(int[] parent, int index)
+    {
+        while (parent[index] != index)
+        {
+            parent[index] = parent[parent[index]];
+            index = parent[index];
+        }
+        return index;
+    }
+
+    private static void Union(int[] parent, int first, int second)
+    {
+        var firstRoot = Find(parent, first);
+        var secondRoot = Find(parent, second);
+        if (firstRoot != secondRoot)
+            parent[secondRoot] = firstRoot;
+    }
 
     private static NWH.WheelController3D.WheelController BindRollingVisual(
         Transform controller,

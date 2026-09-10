@@ -826,10 +826,10 @@ public static class Porsche911GT3RSSetup
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle requires two body colliders.");
 
-        colliders[0].center = new Vector3(0f, 0.33f, 0f);
-        colliders[0].size = new Vector3(1.86f, 0.44f, 4.46f);
+        colliders[0].center = new Vector3(0f, 0.32f, 0f);
+        colliders[0].size = new Vector3(1.82f, 0.42f, 4.40f);
         colliders[1].center = new Vector3(0f, 0.78f, -0.08f);
-        colliders[1].size = new Vector3(1.68f, 0.72f, 2.82f);
+        colliders[1].size = new Vector3(1.62f, 0.72f, 2.70f);
     }
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)
@@ -1076,21 +1076,13 @@ public static class Porsche911GT3RSSetup
                 sourceBounds.size.x <= 0.001f || sourceBounds.size.y <= 0.001f ||
                 sourceBounds.size.z <= 0.001f)
                 throw new InvalidOperationException($"Wheel '{wheel.name}' has invalid bounds.");
-            if (!TryGetWheelAxleCenter(wheel, out var sourceAxleCenter))
-                throw new InvalidOperationException(
-                    $"Wheel '{wheel.name}' has no measurable tire/rim axle center.");
             var brake = FindClosestBrake(wheel, brakes) ??
                         throw new InvalidOperationException($"Wheel '{wheel.name}' has no brake assembly.");
             brakes.Remove(brake);
 
             var mount = new GameObject("PorscheWheel" + corner);
             mount.transform.SetParent(root.transform, false);
-            // The imported combined tire/rim mesh contains a few asymmetric
-            // decorative islands, so its aggregate renderer bounds are not
-            // centered on the actual circular tire. Pivot the rolling group on
-            // the largest circular connected component instead; otherwise the
-            // tire appears to orbit the rim as the visual steers and spins.
-            mount.transform.position = sourceAxleCenter;
+            mount.transform.position = sourceBounds.center;
             wheel.SetParent(mount.transform, true);
             brake.SetParent(mount.transform, true);
             wheel.name = "Geometry_PorscheWheel_" +
@@ -1133,113 +1125,6 @@ public static class Porsche911GT3RSSetup
             closestDistance = distance;
         }
         return closest;
-    }
-
-    private static bool TryGetWheelAxleCenter(Transform wheel, out Vector3 worldCenter)
-    {
-        worldCenter = Vector3.zero;
-        MeshFilter? wheelFilter = null;
-        foreach (var filter in wheel.GetComponentsInChildren<MeshFilter>(true))
-        {
-            var renderer = filter.GetComponent<Renderer>();
-            if (filter.sharedMesh == null || renderer == null)
-                continue;
-            foreach (var material in renderer.sharedMaterials)
-            {
-                if (material != null && IsRimMaterial(material))
-                {
-                    wheelFilter = filter;
-                    break;
-                }
-            }
-            if (wheelFilter != null)
-                break;
-        }
-
-        if (wheelFilter?.sharedMesh == null)
-            return false;
-        var mesh = wheelFilter.sharedMesh;
-        var vertices = mesh.vertices;
-        if (vertices.Length == 0)
-            return false;
-
-        var parent = new int[vertices.Length];
-        for (var index = 0; index < parent.Length; index++)
-            parent[index] = index;
-        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-        {
-            var triangles = mesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < triangles.Length; index += 3)
-            {
-                Union(parent, triangles[index], triangles[index + 1]);
-                Union(parent, triangles[index + 1], triangles[index + 2]);
-            }
-        }
-
-        var minimum = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
-        var maximum = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
-        var componentMinimum = new Dictionary<int, Vector3>();
-        var componentMaximum = new Dictionary<int, Vector3>();
-        for (var index = 0; index < vertices.Length; index++)
-        {
-            var local = wheel.InverseTransformPoint(
-                wheelFilter.transform.TransformPoint(vertices[index]));
-            minimum = Vector3.Min(minimum, local);
-            maximum = Vector3.Max(maximum, local);
-            var root = Find(parent, index);
-            if (!componentMinimum.TryGetValue(root, out var componentMin))
-            {
-                componentMinimum[root] = local;
-                componentMaximum[root] = local;
-            }
-            else
-            {
-                componentMinimum[root] = Vector3.Min(componentMin, local);
-                componentMaximum[root] = Vector3.Max(componentMaximum[root], local);
-            }
-        }
-
-        var bestRadialDiameter = 0f;
-        var bestRadialCenter = Vector2.zero;
-        foreach (var pair in componentMinimum)
-        {
-            var componentMax = componentMaximum[pair.Key];
-            var size = componentMax - pair.Value;
-            var radialDiameter = Mathf.Min(size.y, size.z);
-            if (radialDiameter <= bestRadialDiameter)
-                continue;
-            bestRadialDiameter = radialDiameter;
-            bestRadialCenter = new Vector2(
-                (pair.Value.y + componentMax.y) * 0.5f,
-                (pair.Value.z + componentMax.z) * 0.5f);
-        }
-
-        if (bestRadialDiameter <= 0.001f)
-            return false;
-        var localCenter = new Vector3(
-            (minimum.x + maximum.x) * 0.5f,
-            bestRadialCenter.x,
-            bestRadialCenter.y);
-        worldCenter = wheel.TransformPoint(localCenter);
-        return true;
-    }
-
-    private static int Find(int[] parent, int index)
-    {
-        while (parent[index] != index)
-        {
-            parent[index] = parent[parent[index]];
-            index = parent[index];
-        }
-        return index;
-    }
-
-    private static void Union(int[] parent, int first, int second)
-    {
-        var firstRoot = Find(parent, first);
-        var secondRoot = Find(parent, second);
-        if (firstRoot != secondRoot)
-            parent[secondRoot] = firstRoot;
     }
 
     private static void AssignWheelVisual(Transform controller, GameObject visualObject)
