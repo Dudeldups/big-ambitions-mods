@@ -734,14 +734,21 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
 
     private static bool IsInteriorAccent(Renderer renderer, Material material)
     {
-        var rendererName = renderer.name;
-        if (rendererName.IndexOf("seat_", StringComparison.OrdinalIgnoreCase) < 0 &&
-            rendererName.IndexOf("seats_R", StringComparison.OrdinalIgnoreCase) < 0)
+        if (!HasAncestor(renderer.transform, "seat_") &&
+            !HasAncestor(renderer.transform, "seats_R"))
             return false;
         var materialName = material.name;
         return materialName.IndexOf("seat_leather_2", StringComparison.OrdinalIgnoreCase) >= 0 ||
                materialName.IndexOf("B60000", StringComparison.OrdinalIgnoreCase) >= 0 ||
                materialName.IndexOf("_red", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool HasAncestor(Transform transform, string marker)
+    {
+        for (var current = transform; current != null; current = current.parent)
+            if (current.name.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        return false;
     }
 
     private VehicleColor? ResolveVehicleColor()

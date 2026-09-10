@@ -33,7 +33,7 @@ internal static class Porsche911GT3RSAudioModel
         var target = (float)(38d * Math.Pow(335d / 38d, position));
         var highRpmBlend = Clamp01((position - .68f) / .32f);
         highRpmBlend = highRpmBlend * highRpmBlend * (3f - 2f * highRpmBlend);
-        return target * (1f - .14f * highRpmBlend);
+        return target * (1f - .18f * highRpmBlend);
     }
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 

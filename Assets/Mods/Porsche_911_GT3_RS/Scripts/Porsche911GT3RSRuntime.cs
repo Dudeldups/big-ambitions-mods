@@ -210,10 +210,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         enteredVehicleActivationCoroutine = null;
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
-        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit());
+        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
     }
 
-    private IEnumerator RecoverPlayerNavMeshAfterExit()
+    private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
     {
         yield return null;
         yield return new WaitForEndOfFrame();
@@ -229,14 +229,13 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         var needsRecovery = false;
         foreach (var agent in agents)
             needsRecovery |= agent != null && agent.enabled && !agent.isOnNavMesh;
-        if (!needsRecovery ||
-            !NavMesh.SamplePosition(root.position, out var hit, 5f, NavMesh.AllAreas))
+        needsRecovery |= !IsPlayerExitClear(root, root.position);
+        if (!needsRecovery || !TryFindClearExitPosition(root, exitedVehicle, out var target))
         {
             exitedPlayerRecoveryCoroutine = null;
             yield break;
         }
 
-        var target = hit.position + Vector3.up * 0.05f;
         var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
         var controllerStates = Array.ConvertAll(
             characterControllers,
@@ -271,6 +270,57 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             Physics.SyncTransforms();
         }
         exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private static bool TryFindClearExitPosition(
+        Transform playerRoot,
+        VehicleController exitedVehicle,
+        out Vector3 target)
+    {
+        var vehicleTransform = exitedVehicle.transform;
+        var candidates = new[]
+        {
+            playerRoot.position,
+            vehicleTransform.position - vehicleTransform.right * 2.05f,
+            vehicleTransform.position + vehicleTransform.right * 2.05f,
+            vehicleTransform.position - vehicleTransform.forward * 2.35f,
+            vehicleTransform.position + vehicleTransform.forward * 2.35f,
+            vehicleTransform.position - vehicleTransform.right * 2.05f - vehicleTransform.forward * 1.35f,
+            vehicleTransform.position + vehicleTransform.right * 2.05f - vehicleTransform.forward * 1.35f,
+            vehicleTransform.position - vehicleTransform.right * 2.45f + vehicleTransform.forward * 1.15f,
+            vehicleTransform.position + vehicleTransform.right * 2.45f + vehicleTransform.forward * 1.15f,
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!NavMesh.SamplePosition(candidate, out var hit, 1.25f, NavMesh.AllAreas))
+                continue;
+            var sampled = hit.position + Vector3.up * 0.05f;
+            if (!IsPlayerExitClear(playerRoot, sampled))
+                continue;
+            target = sampled;
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private static bool IsPlayerExitClear(Transform playerRoot, Vector3 position)
+    {
+        var overlaps = Physics.OverlapCapsule(
+            position + Vector3.up * 0.42f,
+            position + Vector3.up * 1.55f,
+            0.30f,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+        foreach (var overlap in overlaps)
+        {
+            if (overlap == null || overlap.transform.IsChildOf(playerRoot))
+                continue;
+            return false;
+        }
+        return true;
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
@@ -727,6 +777,16 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private static bool IsDeformableExterior(MeshFilter filter)
     {
         var name = filter.name;
+        if (HasAncestor(filter.transform, "gt3rs_tailgate_TwiXeR_992_CSR2_Badge") ||
+            HasAncestor(filter.transform, "fascia_glass") ||
+            HasAncestor(filter.transform, "fascia_mid") ||
+            HasAncestor(filter.transform, "exhausttip_3_") ||
+            HasAncestor(filter.transform, "exhaust_180") ||
+            HasAncestor(filter.transform, "exhaust_TT"))
+        {
+            return true;
+        }
+
         if (HasAncestor(filter.transform, "PorscheWheel") ||
             HasAncestor(filter.transform, "PorscheFixedCaliper") ||
             HasAncestor(filter.transform, "windshield") ||
@@ -1044,12 +1104,20 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                     throw new InvalidOperationException(
                         $"wheel assembly is incomplete for corner={index}");
 
+                // Wheel.Initialize() reparents the visual under its controller.
+                // Configuration can run on either side of that lifecycle point,
+                // so never move the visual twice when it already follows the
+                // controller hierarchy.
+                var wheelFollowsController = wheel.IsChildOf(controller);
                 MoveInward(controller);
-                MoveInward(wheel);
+                if (!wheelFollowsController)
+                    MoveInward(wheel);
                 MoveInward(caliper);
                 MoveDown(controller, chassisAndTireDrop);
-                MoveDown(wheel, chassisAndTireDrop);
+                if (!wheelFollowsController)
+                    MoveDown(wheel, chassisAndTireDrop);
                 MoveDown(caliper, chassisAndTireDrop);
+                BindRollingVisual(controller, wheel);
                 correctedCorners++;
             }
             catch (Exception exception)
@@ -1067,7 +1135,7 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: moved " +
                 $"{correctedCorners} complete wheel/controller/caliper assemblies inward by " +
                 $"{WheelAssemblyInsetMeters:F3}m and lowered the complete chassis/wheel datum by " +
-                $"{chassisAndTireDrop:F3}m; authored wheel visual bindings retained.");
+                $"{chassisAndTireDrop:F3}m; rolling assemblies bound to steering controllers.");
         }
         else
         {
@@ -1097,6 +1165,19 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 
     private void MoveDown(Transform target, float distance) =>
         target.position -= transform.up * distance;
+
+    private static void BindRollingVisual(Transform controller, Transform wheel)
+    {
+        var wheelController =
+            controller.GetComponent<NWH.WheelController3D.WheelController>();
+        if (wheelController == null)
+            throw new InvalidOperationException(
+                $"'{controller.name}' has no NWH wheel controller.");
+        wheelController.wheel.visual = wheel.gameObject;
+        wheelController.wheel.visualTransform = wheel;
+        if (wheel.parent != controller)
+            wheel.SetParent(controller, true);
+    }
 }
 
 [AddComponentMenu("")]
@@ -1244,11 +1325,11 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
     private const float FrontDentLongitudinalRadius = 0.95f;
     private const float MaximumFrontDentDepth = 0.36f;
     private const float FrontDepthPerExcessMps = 0.012f;
-    private const float RearDentLateralRadius = 0.96f;
-    private const float RearDentVerticalRadius = 0.82f;
-    private const float RearDentLongitudinalRadius = 1.18f;
-    private const float MaximumRearDentDepth = 0.58f;
-    private const float RearDepthPerExcessMps = 0.017f;
+    private const float RearDentLateralRadius = 0.88f;
+    private const float RearDentVerticalRadius = 0.72f;
+    private const float RearDentLongitudinalRadius = 1.02f;
+    private const float MaximumRearDentDepth = 0.42f;
+    private const float RearDepthPerExcessMps = 0.013f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
@@ -1256,6 +1337,8 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
     private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
         new Dictionary<MeshFilter, Vector3[]>();
+    private readonly Dictionary<MeshFilter, Mesh> damageMeshes =
+        new Dictionary<MeshFilter, Mesh>();
     private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
     private VehicleController? vehicle;
     private NWH.VehiclePhysics2.Damage.DamageHandler? damageHandler;
@@ -1264,9 +1347,11 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
     private float impactThresholdMps;
     private float nextCollisionTime;
     private float previousDamage;
+    private float previousSavedDamage;
     private int diagnosticLogs;
     private bool initialized;
     private bool failureReported;
+    private Coroutine? repairRecoveryCoroutine;
 
     internal void Initialize(
         VehicleController controller,
@@ -1284,8 +1369,10 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
         body = controller.GetComponent<Rigidbody>();
         impactThresholdMps = thresholdMps;
         previousDamage = handler.Damage;
+        previousSavedDamage = controller.vehicleInstance?.damage ?? 0f;
         deformableFilters.Clear();
         originalVertices.Clear();
+        damageMeshes.Clear();
         runtimeMeshes.Clear();
         foreach (var filter in filters)
         {
@@ -1296,6 +1383,7 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
             filter.sharedMesh = runtimeMesh;
             deformableFilters.Add(filter);
             originalVertices[filter] = runtimeMesh.vertices;
+            damageMeshes[filter] = runtimeMesh;
             runtimeMeshes.Add(runtimeMesh);
         }
         initialized = true;
@@ -1307,23 +1395,64 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
             return;
 
         var currentDamage = damageHandler.Damage;
-        if (previousDamage > 0.001f && currentDamage <= 0.001f)
+        var currentSavedDamage = vehicle?.vehicleInstance?.damage ?? 0f;
+        if ((previousDamage > 0.001f && currentDamage <= 0.001f) ||
+            (previousSavedDamage > 0.001f && currentSavedDamage <= 0.001f))
         {
             foreach (var pair in originalVertices)
             {
-                if (pair.Key == null || pair.Key.sharedMesh == null)
+                if (pair.Key == null || !damageMeshes.TryGetValue(pair.Key, out var mesh) ||
+                    mesh == null)
                     continue;
-                var mesh = pair.Key.sharedMesh;
+                // CarController.Repair() invokes the disabled legacy deformation
+                // component, which swaps its serialized source mesh back onto the
+                // filter. Restore this vehicle-owned mesh before resetting it so
+                // later impacts never mutate the shared prefab asset.
+                pair.Key.sharedMesh = mesh;
                 mesh.vertices = pair.Value;
                 mesh.RecalculateBounds();
-                mesh.RecalculateNormals();
-                mesh.RecalculateTangents();
             }
+            if (repairRecoveryCoroutine != null)
+                StopCoroutine(repairRecoveryCoroutine);
+            repairRecoveryCoroutine = StartCoroutine(RestoreDrivingStateAfterRepair());
             Porsche911GT3RSDiagnostics.DamageInfo(
                 context,
                 $"Porsche911GT3RS damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
         }
         previousDamage = currentDamage;
+        previousSavedDamage = currentSavedDamage;
+    }
+
+    private IEnumerator RestoreDrivingStateAfterRepair()
+    {
+        yield return null;
+        for (var pass = 0; pass < 3; pass++)
+        {
+            yield return new WaitForFixedUpdate();
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                continue;
+
+            vehicle.SetFreeze(false);
+            var physics = vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>();
+            if (physics != null)
+            {
+                physics.enabled = true;
+                if (!physics.powertrain.engine.IsRunning)
+                    physics.powertrain.engine.StartEngine();
+                if (physics.powertrain.transmission.Gear == 0)
+                    physics.powertrain.transmission.ShiftInto(1, true);
+            }
+            foreach (var wheelController in
+                     vehicle.GetComponentsInChildren<NWH.WheelController3D.WheelController>(true))
+                wheelController.enabled = true;
+            var rigidbody = vehicle.GetComponent<Rigidbody>();
+            if (rigidbody != null)
+            {
+                rigidbody.isKinematic = false;
+                rigidbody.WakeUp();
+            }
+        }
+        repairRecoveryCoroutine = null;
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -1443,8 +1572,6 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
                     continue;
                 mesh.vertices = vertices;
                 mesh.RecalculateBounds();
-                mesh.RecalculateNormals();
-                mesh.RecalculateTangents();
                 changedMeshes++;
             }
 
@@ -1477,9 +1604,13 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (repairRecoveryCoroutine != null)
+            StopCoroutine(repairRecoveryCoroutine);
+        repairRecoveryCoroutine = null;
         foreach (var mesh in runtimeMeshes)
             if (mesh != null) Destroy(mesh);
         runtimeMeshes.Clear();
+        damageMeshes.Clear();
     }
 }
 

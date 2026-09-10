@@ -62,7 +62,7 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var rearLamp = FindRenderer(renderers, "fascia_mid", "brakelight_1");
         var thirdBrake = FindRendererByHierarchy(renderers, "gt3rs_tailgate_TwiXeR_992_brakelight_1");
         var frontSignals = FindRendererByHierarchy(renderers, "signal_L_bumper");
-        var rearLampSplit = GetLateralSplit(rearLamp, 0.50f, 0.56f);
+        var rearLampSplit = GetLateralSplit(rearLamp, 0.72f, 0.50f);
 
         daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
             new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
@@ -89,7 +89,7 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             new Color(0.92f, 0.96f, 1f, 1f),
             4.8f,
             1.006f);
-        var amber = new Color(1f, 0.18f, 0.001f, 1f);
+        var amber = new Color(1f, 0.52f, 0.015f, 1f);
         leftBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x <= -0.45f,
             "LeftIndicator", amber, 5.4f, 1.004f);
         rightBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x >= 0.45f,
