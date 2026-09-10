@@ -36,6 +36,7 @@ public static class Porsche911GT3RSSetup
     private const float RearTireRadius = 0.36720f;
     private const float FrontTireWidth = 0.275f;
     private const float RearTireWidth = 0.335f;
+    private const float WheelInset = 0.085f;
     private const float TireFrictionCircleStrength = 1.02f;
     private const float AntiRollBarForce = 9000f;
     private const float FrontSuspensionTravel = 0.075f;
@@ -48,11 +49,15 @@ public static class Porsche911GT3RSSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f, FrontTireRadius, Wheelbase * 0.5f) },
-            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f, FrontTireRadius, Wheelbase * 0.5f) },
-            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f, RearTireRadius, -Wheelbase * 0.5f) },
-            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f, RearTireRadius, -Wheelbase * 0.5f) },
+            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f + WheelInset, FrontTireRadius, Wheelbase * 0.5f) },
+            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f - WheelInset, FrontTireRadius, Wheelbase * 0.5f) },
+            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f + WheelInset, RearTireRadius, -Wheelbase * 0.5f) },
+            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f - WheelInset, RearTireRadius, -Wheelbase * 0.5f) },
         };
+    private static readonly Vector3 FrontContactColliderCenter =
+        new Vector3(0f, 0.61f, 1.58f);
+    private static readonly Vector3 FrontContactColliderSize =
+        new Vector3(1.78f, 0.50f, 1.08f);
 
     private static readonly float[] GT3RSGears =
     {
@@ -94,6 +99,28 @@ public static class Porsche911GT3RSSetup
     public static void GenerateAndBuild()
     {
         Generate();
+        ModAssetBundleCli.BuildForMod();
+        VerifyBuiltBundle();
+    }
+
+    public static void RepairPrefabAndBuild()
+    {
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        var root = PrefabUtility.LoadPrefabContents(VehiclePrefabPath);
+        try
+        {
+            ConfigureWheelControllers(root);
+            ConfigureBodyColliders(root);
+            RepairStaticWheelVisuals(root);
+            PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         ModAssetBundleCli.BuildForMod();
         VerifyBuiltBundle();
     }
@@ -235,8 +262,8 @@ public static class Porsche911GT3RSSetup
                     (rearLeftCenter.z + rearRightCenter.z) * 0.5f)
                 : float.NaN;
             wheelPlacementVerified &=
-                Math.Abs(frontTrack - FrontTrack) <= 0.01f &&
-                Math.Abs(rearTrack - RearTrack) <= 0.01f &&
+                Math.Abs(frontTrack - (FrontTrack - WheelInset * 2f)) <= 0.01f &&
+                Math.Abs(rearTrack - (RearTrack - WheelInset * 2f)) <= 0.01f &&
                 Math.Abs(wheelbase - Wheelbase) <= 0.01f &&
                 Math.Abs(frontLeftCenter.z - frontRightCenter.z) < 0.012f &&
                 Math.Abs(rearLeftCenter.z - rearRightCenter.z) < 0.012f;
@@ -417,7 +444,8 @@ public static class Porsche911GT3RSSetup
                             (!material.HasProperty("_DoubleSidedEnable") ||
                              material.GetFloat("_DoubleSidedEnable") > 0.5f) &&
                             material.IsKeywordEnabled("_DOUBLESIDED_ON");
-                        if (IsCabinGlassRenderer(renderer.transform))
+                        if (IsCabinGlassRenderer(renderer.transform) &&
+                            string.Equals(material.shader.name, "HDRP/Lit", StringComparison.Ordinal))
                         {
                             var tint = material.HasProperty("_BaseColor")
                                 ? material.GetColor("_BaseColor")
@@ -830,6 +858,33 @@ public static class Porsche911GT3RSSetup
         colliders[0].size = new Vector3(1.82f, 0.42f, 4.40f);
         colliders[1].center = new Vector3(0f, 0.78f, -0.08f);
         colliders[1].size = new Vector3(1.62f, 0.72f, 2.70f);
+        var frontContactCollider = colliders.Length > 2
+            ? colliders[2]
+            : holder.gameObject.AddComponent<BoxCollider>();
+        frontContactCollider.center = FrontContactColliderCenter;
+        frontContactCollider.size = FrontContactColliderSize;
+        frontContactCollider.isTrigger = false;
+        frontContactCollider.enabled = true;
+    }
+
+    private static void RepairStaticWheelVisuals(GameObject root)
+    {
+        foreach (var pair in WheelControllerPositions)
+        {
+            var corner = pair.Key.Replace("_WheelController", string.Empty);
+            var controller = FindTransform(root.transform, pair.Key) ??
+                             throw new InvalidOperationException($"Wheel controller '{pair.Key}' is missing.");
+            var mount = FindTransform(root.transform, "PorscheWheel" + corner) ??
+                        throw new InvalidOperationException($"Rolling visual for '{corner}' is missing.");
+            var caliper = FindTransform(root.transform, "PorscheFixedCaliper" + corner) ??
+                          throw new InvalidOperationException($"Fixed caliper for '{corner}' is missing.");
+
+            controller.localPosition = pair.Value;
+            mount.SetParent(root.transform, true);
+            mount.localPosition = pair.Value;
+            caliper.localPosition = pair.Value;
+            AssignWheelVisual(controller, mount.gameObject);
+        }
     }
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)
@@ -1066,10 +1121,7 @@ public static class Porsche911GT3RSSetup
                              throw new InvalidOperationException($"Wheel controller '{controllerName}' is missing.");
             var radius = isFront ? FrontTireRadius : RearTireRadius;
             var width = isFront ? FrontTireWidth : RearTireWidth;
-            var targetCenter = new Vector3(
-                (isLeft ? -1f : 1f) * (isFront ? FrontTrack : RearTrack) * 0.5f,
-                radius,
-                (isFront ? 1f : -1f) * Wheelbase * 0.5f);
+            var targetCenter = WheelControllerPositions[controllerName];
             controller.localPosition = targetCenter;
 
             if (!TryGetRendererBounds(wheel, out var sourceBounds) ||
@@ -1082,6 +1134,9 @@ public static class Porsche911GT3RSSetup
 
             var mount = new GameObject("PorscheWheel" + corner);
             mount.transform.SetParent(root.transform, false);
+            // The complete imported tire/rim group is the NWH rolling visual.
+            // Fit and center it once in the prefab, like the working Lamborghini
+            // and Bugatti vehicles; no runtime pose correction is required.
             mount.transform.position = sourceBounds.center;
             wheel.SetParent(mount.transform, true);
             brake.SetParent(mount.transform, true);

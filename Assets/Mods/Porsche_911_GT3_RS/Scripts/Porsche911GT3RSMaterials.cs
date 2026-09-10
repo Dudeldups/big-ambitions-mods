@@ -713,11 +713,9 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
                 }
                 else if (material != null && IsExteriorPaintCover(renderer, material))
                 {
-                    // The supplied model places textured black/carbon cover
-                    // meshes directly over the hood, roof, and fender paint
-                    // shells. Give only those renderer slots a vehicle-owned
-                    // paint surface so their selected color is not multiplied
-                    // back to black by the shared carbon texture.
+                    // The supplied model places a textured cover over the roof
+                    // paint shell. The hood center and fender vents are factory
+                    // black trim and are intentionally excluded here.
                     var panelMaterial = Instantiate(material);
                     panelMaterial.name = material.name + "_PaintSurface";
                     PrepareExteriorPaintSurface(panelMaterial);
@@ -770,20 +768,14 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
     private static bool IsExteriorPaintCover(Renderer renderer, Material material)
     {
         var materialName = material.name;
-        var hoodOrRoof =
-            HasAncestor(renderer.transform, "gt3rs_carbon_hood") ||
-            HasAncestor(renderer.transform, "gt3rs_carbon_roof");
-        if (hoodOrRoof && materialName.IndexOf(
+        if (HasAncestor(renderer.transform, "gt3rs_carbon_roof") &&
+            materialName.IndexOf(
                 "carbon_roof",
                 StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return true;
         }
-
-        return HasAncestor(renderer.transform, "gt3rs_fender_") &&
-               materialName.IndexOf(
-                   "plastic_mgl",
-                   StringComparison.OrdinalIgnoreCase) >= 0;
+        return false;
     }
 
     private static void PrepareExteriorPaintSurface(Material material)

@@ -37,13 +37,16 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float RearTireRadius = 0.36720f;
     private const float FrontTireWidth = 0.275f;
     private const float RearTireWidth = 0.335f;
-    private const float ChassisAndTireDrop = 0.060f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.08f, -0.28f);
+    private static readonly Vector3 FrontContactColliderCenter =
+        new Vector3(0f, 0.61f, 1.58f);
+    private static readonly Vector3 FrontContactColliderSize =
+        new Vector3(1.78f, 0.50f, 1.08f);
 
     private static readonly float[] GT3RSGears =
     {
@@ -575,20 +578,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
-            var collisionSeparation =
-                vehicle.GetComponent<Porsche911GT3RSCollisionSeparationController>();
-            if (collisionSeparation == null)
-            {
-                collisionSeparation = vehicle.gameObject
-                    .AddComponent<Porsche911GT3RSCollisionSeparationController>();
-            }
-            collisionSeparation.Initialize(vehicle);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
-            var wheelGeometryController = vehicle.GetComponent<Porsche911GT3RSWheelGeometryController>();
-            if (wheelGeometryController == null)
-                wheelGeometryController = vehicle.gameObject.AddComponent<Porsche911GT3RSWheelGeometryController>();
-            wheelGeometryController.Initialize(context, ChassisAndTireDrop);
             var caliperController = vehicle.GetComponent<Porsche911GT3RSCaliperController>();
             if (caliperController == null)
                 caliperController = vehicle.gameObject.AddComponent<Porsche911GT3RSCaliperController>();
@@ -699,14 +690,21 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.33f - ChassisAndTireDrop, 0f);
-                colliders[0].size = new Vector3(1.86f, 0.44f, 4.46f);
+                colliders[0].center = new Vector3(0f, 0.32f, 0f);
+                colliders[0].size = new Vector3(1.82f, 0.42f, 4.40f);
             }
             if (colliders.Length > 1)
             {
-                colliders[1].center = new Vector3(0f, 0.78f - ChassisAndTireDrop, -0.08f);
-                colliders[1].size = new Vector3(1.68f, 0.72f, 2.82f);
+                colliders[1].center = new Vector3(0f, 0.78f, -0.08f);
+                colliders[1].size = new Vector3(1.62f, 0.72f, 2.70f);
             }
+            var frontContactCollider = colliders.Length > 2
+                ? colliders[2]
+                : transform.gameObject.AddComponent<BoxCollider>();
+            frontContactCollider.center = FrontContactColliderCenter;
+            frontContactCollider.size = FrontContactColliderSize;
+            frontContactCollider.isTrigger = false;
+            frontContactCollider.enabled = true;
         }
     }
 
@@ -1074,6 +1072,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     }
 }
 
+#if false // Retired: wheel geometry is authored statically in the prefab.
 [AddComponentMenu("")]
 [DefaultExecutionOrder(900)]
 public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
@@ -1158,31 +1157,6 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 $"{correctedCorners}/{CornerNames.GetLength(0)} wheel assemblies.");
         }
         return correctedCorners;
-    }
-
-    private void LateUpdate()
-    {
-        if (!initialized)
-            return;
-
-        foreach (var binding in bindings)
-        {
-            var wheel = binding.Controller.wheel;
-            var position = wheel.worldPosition;
-            var rotation = wheel.worldRotation;
-            if (!IsFinite(position) || !IsFinite(rotation) ||
-                rotation.x * rotation.x + rotation.y * rotation.y +
-                rotation.z * rotation.z + rotation.w * rotation.w < 0.5f)
-            {
-                continue;
-            }
-
-            // NWH owns the authoritative suspension, steering, and roll pose.
-            // Apply that pose to the complete imported tire/rim/rotor group
-            // after NWH has stepped so no later lifecycle reparenting can leave
-            // the tire at the chassis pose while the wheel steers.
-            binding.Visual.SetPositionAndRotation(position, rotation);
-        }
     }
 
     private Transform? FindTransform(string name)
@@ -1466,6 +1440,7 @@ public sealed class Porsche911GT3RSCollisionSeparationController : MonoBehaviour
         separationCoroutine = null;
     }
 }
+#endif
 
 [AddComponentMenu("")]
 public sealed class Porsche911GT3RSGlassController : MonoBehaviour

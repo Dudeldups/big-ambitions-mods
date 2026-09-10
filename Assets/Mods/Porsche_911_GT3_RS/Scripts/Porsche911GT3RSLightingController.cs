@@ -60,19 +60,30 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var thirdBrake = FindRendererByHierarchy(renderers, "gt3rs_tailgate_TwiXeR_992_brakelight_1");
         var frontSignals = FindRendererByHierarchy(renderers, "signal_L_bumper");
         var rearLampSplit = GetLateralSplit(rearLamp, 0.72f, 0.50f);
+        var rearCenterGap = GetCentralGapHalfWidth(rearStrip, 0.25f, 0.18f);
 
         daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
-            new Color(0.80f, 0.90f, 1f, 1f), 4.8f);
+            new Color(0.80f, 0.90f, 1f, 1f), 4.8f, 1.018f);
         daylightOverlayRight = CreateOverlay(daylightRight, "DaytimeRunningLightsRight",
-            new Color(0.80f, 0.90f, 1f, 1f), 4.8f);
+            new Color(0.80f, 0.90f, 1f, 1f), 4.8f, 1.018f);
         headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
         headlampOverlayRight = CreateOverlay(headlampRight, "HeadlampProjectorsRight",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
-        rearTailOverlay = CreateOverlay(rearStrip, "RearTailSignature",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
-        rearBrakeOverlay = CreateOverlay(rearStrip, "RearBrakeSignature",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
+        rearTailOverlay = CreateFilteredOverlay(
+            rearStrip,
+            p => Mathf.Abs(p.x) >= rearCenterGap,
+            "RearTailSignature",
+            new Color(0.78f, 0.006f, 0.002f, 1f),
+            2.8f,
+            1.004f);
+        rearBrakeOverlay = CreateFilteredOverlay(
+            rearStrip,
+            p => Mathf.Abs(p.x) >= rearCenterGap,
+            "RearBrakeSignature",
+            new Color(1f, 0.008f, 0.001f, 1f),
+            4.5f,
+            1.006f);
         rearBrakeSegmentsOverlay = CreateConnectedOverlay(
             rearLamp,
             IsRearBrakeSegment,
@@ -108,6 +119,8 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             amber,
             5.4f,
             1.006f);
+        OffsetOverlayTowardLens(rearLeftBlinkerOverlay);
+        OffsetOverlayTowardLens(rearRightBlinkerOverlay);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
@@ -360,18 +373,8 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var center = component.Bounds.center;
         if ((left && center.x >= 0f) || (!left && center.x <= 0f))
             return false;
-        var maximumLateral = Mathf.Max(Mathf.Abs(total.min.x), Mathf.Abs(total.max.x));
-        var componentOuter = left
-            ? Mathf.Abs(component.Bounds.min.x)
-            : Mathf.Abs(component.Bounds.max.x);
-        var lowerBar =
-            component.Bounds.size.x >= total.size.x * 0.14f &&
-            component.Bounds.size.z <= total.size.z * 0.22f;
-        var outerHook =
-            componentOuter >= maximumLateral * 0.98f &&
-            component.Bounds.size.x <= total.size.x * 0.05f &&
-            component.Bounds.size.y >= total.size.y * 0.35f;
-        return lowerBar || outerHook;
+        return component.Bounds.size.x >= total.size.x * 0.14f &&
+               component.Bounds.size.z <= total.size.z * 0.22f;
     }
 
     private static bool IsRearBrakeSegment(ConnectedComponent component, Bounds total)
@@ -422,6 +425,33 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         return maximum > minimum
             ? Mathf.Lerp(minimum, maximum, Mathf.Clamp01(1f - outerFraction))
             : fallback;
+    }
+
+    private float GetCentralGapHalfWidth(MeshRenderer? source, float gapFraction, float fallback)
+    {
+        if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
+            return fallback;
+        var vertices = source.GetComponent<MeshFilter>().sharedMesh.vertices;
+        if (vertices.Length == 0)
+            return fallback;
+        var minimum = float.PositiveInfinity;
+        var maximum = float.NegativeInfinity;
+        foreach (var vertex in vertices)
+        {
+            var lateral = vehicle.transform.InverseTransformPoint(
+                source.transform.TransformPoint(vertex)).x;
+            minimum = Mathf.Min(minimum, lateral);
+            maximum = Mathf.Max(maximum, lateral);
+        }
+        return maximum > minimum
+            ? (maximum - minimum) * Mathf.Clamp01(gapFraction) * 0.5f
+            : fallback;
+    }
+
+    private static void OffsetOverlayTowardLens(MeshRenderer? overlay)
+    {
+        if (overlay != null)
+            overlay.transform.localPosition = new Vector3(0f, 0f, 0.012f);
     }
 
     private MeshRenderer CreateOverlayObject(MeshRenderer source, Mesh mesh, string suffix,
