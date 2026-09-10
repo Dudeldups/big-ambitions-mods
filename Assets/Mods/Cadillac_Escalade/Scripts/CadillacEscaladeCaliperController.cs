@@ -1,58 +1,108 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using BAModAPI;
-using NWH.WheelController3D;
 using UnityEngine;
 
+[DefaultExecutionOrder(1000)]
 internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
 {
     private static readonly string[,] BindingNames =
     {
-        { "CadillacFixedCaliperFrontLeft", "FrontLeft_WheelController" },
-        { "CadillacFixedCaliperFrontRight", "FrontRight_WheelController" },
-        { "CadillacFixedCaliperRearLeft", "RearLeft_WheelController" },
-        { "CadillacFixedCaliperRearRight", "RearRight_WheelController" },
+        { "CadillacFixedCaliperFrontLeft", "CadillacWheelFrontLeft" },
+        { "CadillacFixedCaliperFrontRight", "CadillacWheelFrontRight" },
+        { "CadillacFixedCaliperRearLeft", "CadillacWheelRearLeft" },
+        { "CadillacFixedCaliperRearRight", "CadillacWheelRearRight" },
     };
+
+    private readonly List<CaliperBinding> bindings = new List<CaliperBinding>(4);
+    private VehicleController? vehicle;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
-        var bound = 0;
+        vehicle = controller;
+        bindings.Clear();
+
         for (var index = 0; index < BindingNames.GetLength(0); index++)
         {
             var pivotName = BindingNames[index, 0];
-            var controllerName = BindingNames[index, 1];
+            var wheelName = BindingNames[index, 1];
             var pivot = FindTransform(controller.transform, pivotName) ??
                         throw new InvalidOperationException($"Caliper pivot '{pivotName}' is missing.");
-            var wheelControllerTransform = FindTransform(controller.transform, controllerName) ??
-                                           throw new InvalidOperationException(
-                                               $"Wheel controller '{controllerName}' is missing.");
-            var wheelController = wheelControllerTransform.GetComponent<WheelController>() ??
-                                  throw new InvalidOperationException(
-                                      $"Wheel controller component on '{controllerName}' is missing.");
-
-            // NWH owns the final suspension and steering pose. Its dedicated
-            // non-rotating visual follows both while excluding axle spin, which
-            // is exactly the brake-caliper contract. Rotors remain children of
-            // the rolling visual and therefore steer and spin with the wheel.
-            wheelController.wheel.nonRotatingVisualPositionOffset = Vector3.zero;
-            wheelController.wheel.nonRotatingVisualRotationOffset = Quaternion.identity;
-            wheelController.NonRotatingVisual = pivot.gameObject;
-            bound++;
+            var wheel = FindTransform(controller.transform, wheelName) ??
+                        throw new InvalidOperationException($"Wheel visual '{wheelName}' is missing.");
+            CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
+            bindings.Add(new CaliperBinding(pivot, wheel));
         }
 
+        ApplyBindings();
         CadillacEscaladeDiagnostics.Info(modContext,
-            $"CadillacEscalade native brake visuals ready vehicle={controller.GetInstanceID()}, " +
-            $"calipers={bound}, rotors=rolling-wheel-children.");
+            $"CadillacEscalade steering brake visuals ready vehicle={controller.GetInstanceID()}, " +
+            $"calipers={bindings.Count}, rotors=rolling-wheel-children.");
+    }
+
+    private void LateUpdate()
+    {
+        if (vehicle != null && bindings.Count == 4)
+            ApplyBindings();
+    }
+
+    private void ApplyBindings()
+    {
+        var vehicleTransform = vehicle!.transform;
+        var vehicleUp = vehicleTransform.up;
+        foreach (var binding in bindings)
+        {
+            // Wheel roll occurs around the visual's right axis. That axis keeps
+            // steering and suspension pose while excluding axle spin.
+            var axle = Vector3.ProjectOnPlane(binding.Wheel.right, vehicleUp).normalized;
+            if (axle.sqrMagnitude < 0.5f)
+                continue;
+            var steeringAngle = Vector3.SignedAngle(vehicleTransform.right, axle, vehicleUp);
+            if (Mathf.Abs(steeringAngle) > 60f)
+                continue;
+
+            binding.Pivot.SetPositionAndRotation(
+                binding.Wheel.position,
+                vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f));
+        }
+    }
+
+    private static void CenterPivotWithoutMovingGeometry(
+        Transform pivot,
+        Transform wheel,
+        Quaternion chassisRotation)
+    {
+        var childPositions = new Vector3[pivot.childCount];
+        var childRotations = new Quaternion[pivot.childCount];
+        for (var index = 0; index < pivot.childCount; index++)
+        {
+            childPositions[index] = pivot.GetChild(index).position;
+            childRotations[index] = pivot.GetChild(index).rotation;
+        }
+
+        pivot.SetPositionAndRotation(wheel.position, chassisRotation);
+        for (var index = 0; index < pivot.childCount; index++)
+            pivot.GetChild(index).SetPositionAndRotation(childPositions[index], childRotations[index]);
     }
 
     private static Transform? FindTransform(Transform root, string name)
     {
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))
-        {
             if (string.Equals(transform.name, name, StringComparison.Ordinal))
                 return transform;
-        }
         return null;
     }
 
+    private sealed class CaliperBinding
+    {
+        public CaliperBinding(Transform pivot, Transform wheel)
+        {
+            Pivot = pivot;
+            Wheel = wheel;
+        }
+
+        public Transform Pivot { get; }
+        public Transform Wheel { get; }
+    }
 }

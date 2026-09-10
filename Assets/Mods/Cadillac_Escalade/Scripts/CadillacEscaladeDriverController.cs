@@ -15,9 +15,9 @@ internal sealed class CadillacEscaladeDriverController : MonoBehaviour
     private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 1.00f;
-    private const float BackrestLeanDegrees = -5f;
+    private const float BackrestLeanDegrees = -8f;
     private const float HandHalfSpacing = 0.19f;
-    private const float HandForwardOffset = 0.015f;
+    private const float HandForwardOffset = -0.025f;
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.08f;
     private const float FootForwardOffset = 0.20f;

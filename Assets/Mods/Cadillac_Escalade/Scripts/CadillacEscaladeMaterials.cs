@@ -451,6 +451,18 @@ public static class CadillacEscaladeMaterials
             FixTransparentHdrpMaterial(material);
     }
 
+    internal static void RestoreRearCabinGlassMaterial(Material material)
+    {
+        if (!IsCabinGlassMaterial(material))
+            return;
+        FixTransparentHdrpMaterial(material);
+        var tint = new Color(0.045f, 0.05f, 0.055f, 0.25f);
+        SetColor(material, "_UnlitColor", tint);
+        SetColor(material, "_BaseColor", tint);
+        SetColor(material, "_Color", tint);
+        SetColor(material, "baseColorFactor", tint);
+    }
+
     public static bool IsCabinGlassMaterial(Material material)
     {
         var name = material.name;
