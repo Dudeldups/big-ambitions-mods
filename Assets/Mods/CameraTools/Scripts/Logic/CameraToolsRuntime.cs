@@ -212,6 +212,7 @@ namespace CameraTools
         };
 
         private Camera? activeMapRenderCamera;
+        private readonly CameraToolsUpdateNoticeUi updateNoticeUi = new CameraToolsUpdateNoticeUi();
         private CameraState activeMapRenderCameraState;
         private Transform? activeMapVcamTransform;
         private Component? activeVehicleCameraRoot;
@@ -325,6 +326,7 @@ namespace CameraTools
             runtime.RestoreTrackedMemberStates();
             runtime.context = context;
             runtime.settings = settings;
+            runtime.updateNoticeUi.Initialize(context.ModId);
             runtime.activeVehicleCameraRoot = null;
             runtime.cachedVehicleCameras = null;
             runtime.cachedVehicleFollowOffsets.Clear();
@@ -417,6 +419,7 @@ namespace CameraTools
 
         public void Shutdown()
         {
+            updateNoticeUi.Shutdown();
             RestoreCityFogState();
             RestoreForcedIndoorWallsVisibility();
             RestoreTrackedMemberStates();
@@ -447,6 +450,7 @@ namespace CameraTools
 
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
+            updateNoticeUi.ConsumeGameplayInputIfNeeded();
             if (!cameraToolsDebugEnabled)
                 showVehicleDebugOverlay = false;
 
@@ -475,6 +479,10 @@ namespace CameraTools
                 ProcessPendingVcamDiagnostic();
         }
 
+        private void OnGUI()
+        {
+            updateNoticeUi.OnGui();
+        }
 
         private void EnsureControllers(bool cityMapOpen)
         {
