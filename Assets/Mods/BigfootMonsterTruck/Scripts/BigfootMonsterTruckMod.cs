@@ -71,9 +71,6 @@ internal static class BigfootTruckDealerStock
     private const string TargetBuildingSize = "ba:buildingsize_m";
     private const int TargetBuildingVersion = 1;
     private const string TargetLayoutName = "IndustryCityCarDealershipTrucks";
-    private const string TargetLayoutKey =
-        "ba:businesstype_cardealership|ba:buildingsize_m|1|industrycitycardealershiptrucks";
-
     internal static bool EnsureVehicleAvailable(string vehicleName, ModContext? context, string source)
     {
         if (string.IsNullOrWhiteSpace(vehicleName))
@@ -84,7 +81,17 @@ internal static class BigfootTruckDealerStock
             DealerContactId,
             out List<string> existingStock);
         if (hadExplicitStock && existingStock != null)
+        {
+            if (ContainsVehicle(existingStock, vehicleName))
+                return true;
             AddUniqueRange(merged, existingStock);
+        }
+
+        // GetOrLoadBusinessLayoutSet must not be called while the game's native
+        // layout load is still running. The lifecycle coroutine waits for this
+        // flag, while event-driven calls simply defer to that initialization.
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
 
         AddVehiclesFromTruckDealerLayout(merged);
         var vanillaCount = merged.Count;
@@ -158,10 +165,6 @@ internal static class BigfootTruckDealerStock
 
     private static BusinessLayoutSet? TryGetTruckDealerLayoutSet()
     {
-        var layouts = BusinessLayoutSetHelper.GetAllBusinessLayoutSets();
-        if (layouts != null && layouts.TryGetValue(TargetLayoutKey, out var layout))
-            return layout;
-
         return BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
             TargetBusinessTypeName,
             new BuildingSizeInfo(TargetBuildingSize, TargetBuildingVersion),
@@ -181,6 +184,14 @@ internal static class BigfootTruckDealerStock
             if (string.Equals(existing, value, StringComparison.Ordinal))
                 return;
         target.Add(value);
+    }
+
+    private static bool ContainsVehicle(IEnumerable<string> stock, string vehicleName)
+    {
+        foreach (var entry in stock)
+            if (string.Equals(entry, vehicleName, StringComparison.Ordinal))
+                return true;
+        return false;
     }
 
     private static bool SameVehicleList(List<string> left, List<string> right)

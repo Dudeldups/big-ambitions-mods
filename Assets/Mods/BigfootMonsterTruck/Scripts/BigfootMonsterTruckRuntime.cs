@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -203,23 +204,46 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
+        var waitedForNativeLayouts = false;
+        while (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            if (!waitedForNativeLayouts)
+            {
+                waitedForNativeLayouts = true;
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck: dealer setup waiting for native layouts source='{source}'.");
+            }
+            ConfigureExistingVehicles();
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
         var dealerReady = false;
+        var attempts = 0;
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= BigfootTruckDealerStock.EnsureVehicleAvailable(
+            attempts = attempt;
+            dealerReady = BigfootTruckDealerStock.EnsureVehicleAvailable(
                 vehicleTypeName,
                 context,
                 source);
             ConfigureExistingVehicles();
-            if (dealerReady && attempt >= 8)
+            if (dealerReady)
                 break;
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }
 
         initializationCoroutine = null;
-        if (!dealerReady)
+        if (dealerReady)
+        {
+            context?.Logger.Info(
+                $"BigfootMonsterTruck: dealer setup ready source='{source}' attempts={attempts} " +
+                $"waitedForNativeLayouts={waitedForNativeLayouts}.");
+        }
+        else
+        {
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: truck dealer data was not ready source='{source}'.");
+        }
     }
 
     private int ConfigureExistingVehicles()
