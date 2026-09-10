@@ -340,11 +340,16 @@ public static class CadillacEscaladeMaterials
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
-        // Imported glTF blend shaders can retain a valid-looking state while
-        // producing no pixels in the game's HDRP build. Rebind every transparent
-        // lens and cabin-glass material to the stock HDRP Lit shader.
-        RebindToHdrpLit(material);
+        // The authored cabin is extremely dark behind the panes. A transparent
+        // HDRP Unlit surface preserves a predictable neutral glass value instead
+        // of letting Lit shading collapse it back to black. Lamp lenses retain
+        // HDRP Lit so their authored texture and active overlays still interact.
+        if (cabinGlass)
+            RebindToHdrpUnlit(material);
+        else
+            RebindToHdrpLit(material);
         var tint = GetTransparentTint(name, cabinGlass);
+        SetColor(material, "_UnlitColor", tint);
         SetColor(material, "_BaseColor", tint);
         SetColor(material, "_Color", tint);
         SetColor(material, "baseColorFactor", tint);
@@ -367,7 +372,7 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_TransmissionMask", 0f);
         SetFloat(material, "_RefractionModel", 0f);
         SetFloat(material, "_EnableBlendModePreserveSpecularLighting", cabinGlass ? 1f : 0f);
-        ConfigureRestingEmission(material, name, cabinGlass);
+        ConfigureLampRestingEmission(material, name);
         if (cabinGlass)
         {
             SetFloat(material, "_Metallic", 0f);
@@ -378,17 +383,14 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
-        var cullMode = cabinGlass ? (float)CullMode.Back : (float)CullMode.Off;
+        var cullMode = (float)CullMode.Off;
         SetFloat(material, "_Cull", cullMode);
         SetFloat(material, "_CullMode", cullMode);
         SetFloat(material, "_CullModeForward", cullMode);
         SetFloat(material, "_TransparentCullMode", cullMode);
-        SetFloat(material, "_DoubleSidedEnable", cabinGlass ? 0f : 1f);
+        SetFloat(material, "_DoubleSidedEnable", 1f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        if (cabinGlass)
-            material.DisableKeyword("_DOUBLESIDED_ON");
-        else
-            material.EnableKeyword("_DOUBLESIDED_ON");
+        material.EnableKeyword("_DOUBLESIDED_ON");
         material.EnableKeyword("_DISABLE_DECALS");
         material.DisableKeyword("_ALPHATEST_ON");
         material.SetOverrideTag("RenderType", "Transparent");
@@ -403,7 +405,7 @@ public static class CadillacEscaladeMaterials
     private static Color GetTransparentTint(string name, bool cabinGlass)
     {
         if (cabinGlass)
-            return new Color(0.94f, 0.97f, 1f, 0.34f);
+            return new Color(0.70f, 0.76f, 0.82f, 0.24f);
         if (Contains(name, "CadillacRearLampLens"))
             return new Color(0.95f, 0.08f, 0.03f, 0.30f);
         if (Contains(name, "CadillacRearLamp"))
@@ -417,12 +419,10 @@ public static class CadillacEscaladeMaterials
         return new Color(0.82f, 0.88f, 0.94f, 0.10f);
     }
 
-    private static void ConfigureRestingEmission(Material material, string name, bool cabinGlass)
+    private static void ConfigureLampRestingEmission(Material material, string name)
     {
         Color emission;
-        if (cabinGlass)
-            emission = new Color(0.08f, 0.095f, 0.11f, 1f);
-        else if (Contains(name, "CadillacFrontLamp"))
+        if (Contains(name, "CadillacFrontLamp"))
             emission = new Color(0.18f, 0.22f, 0.28f, 1f);
         else if (Contains(name, "CadillacRearLamp") &&
                  !Contains(name, "CadillacRearLampLens"))
@@ -439,6 +439,14 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_UseEmissiveIntensity", 0f);
         SetFloat(material, "_EmissiveExposureWeight", 1f);
         material.EnableKeyword("_EMISSION");
+    }
+
+    private static void RebindToHdrpUnlit(Material material)
+    {
+        var shader = Shader.Find("HDRP/Unlit") ??
+                     Shader.Find("High Definition Render Pipeline/Unlit");
+        if (shader != null && material.shader != shader)
+            material.shader = shader;
     }
 
     internal static void RestoreCabinGlassMaterial(Material material)

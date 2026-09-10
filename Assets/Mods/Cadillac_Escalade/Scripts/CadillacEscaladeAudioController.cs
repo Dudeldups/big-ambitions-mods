@@ -207,6 +207,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         else RestoreMute();
 
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
+        if (controlled && !paused)
+            EnsureOwnedSourcesEnabled();
         UpdateHorn(controlled && !paused && physics.input.Horn, Mathf.Clamp01(physics.soundManager.masterVolume));
         if (!paused)
         {
@@ -263,6 +265,21 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var highTarget = pressed ? master * CadillacEscaladeAudioModel.HornHighVolume : 0f;
         UpdateHornVoice(hornSource, pressed, lowTarget);
         UpdateHornVoice(hornSupportSource, pressed, highTarget);
+    }
+
+    private void EnsureOwnedSourcesEnabled()
+    {
+        if (idleSource != null)
+            idleSource.enabled = true;
+        if (layers != null)
+            foreach (var source in layers)
+                if (source != null) source.enabled = true;
+        if (crackleSource != null)
+            crackleSource.enabled = true;
+        if (hornSource != null)
+            hornSource.enabled = true;
+        if (hornSupportSource != null)
+            hornSupportSource.enabled = true;
     }
 
     private static void UpdateHornVoice(AudioSource source, bool pressed, float target)

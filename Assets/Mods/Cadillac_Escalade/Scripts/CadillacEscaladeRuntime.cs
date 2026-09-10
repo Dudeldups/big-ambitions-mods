@@ -683,7 +683,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         return name.StartsWith("CadillacDamageBody", StringComparison.Ordinal) ||
                ContainsAny(name,
                    "combined_mesh", "blackout", "black_smooth", "smooth_plastics",
-                   "misc_primer", "bright_chrome", "galvano", "stainless_steel",
+                   "painted_black", "panited_gloss", "misc_primer", "bright_chrome",
+                   "galvano", "stainless_steel", "steel_cast", "clear_plastics",
+                   "LED_Light_Pipe", "rubber",
                    "tail_lamp", "rear_etchings", "rear_turn_signals", "chml",
                    "reflectorGlass", "running_headlight", "running_facia_lamps",
                    "high_beams", "headlights_etched", "headlight_metals",
@@ -1031,11 +1033,11 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
     private const float FrontDentLongitudinalRadius = 0.95f;
     private const float MaximumFrontDentDepth = 0.36f;
     private const float FrontDepthPerExcessMps = 0.012f;
-    private const float RearDentLateralRadius = 0.96f;
-    private const float RearDentVerticalRadius = 0.82f;
-    private const float RearDentLongitudinalRadius = 1.18f;
-    private const float MaximumRearDentDepth = 0.58f;
-    private const float RearDepthPerExcessMps = 0.017f;
+    private const float RearDentLateralRadius = 0.90f;
+    private const float RearDentVerticalRadius = 0.72f;
+    private const float RearDentLongitudinalRadius = 1.02f;
+    private const float MaximumRearDentDepth = 0.40f;
+    private const float RearDepthPerExcessMps = 0.012f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
