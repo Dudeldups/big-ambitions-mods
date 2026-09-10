@@ -25,7 +25,7 @@ public static class BMWM4G82Setup
     private const string WindowsBundlePath =
         ModRoot + "/AssetBundles/Windows/bmw_m4_g82.unity3d";
     private const string VehicleTypeName =
-        "bmw_m4_g82-vehicle:vehicletype_bmw_m4_g82";
+        "bmwm4g82-vehicle:vehicletype_bmwm4g82";
     private const float TargetLength = 4.794f;
     private const float TargetWidth = 1.887f;
     private const float TargetHeight = 1.394f;
@@ -114,6 +114,16 @@ public static class BMWM4G82Setup
                 throw new InvalidOperationException("Bundle is missing its BMW VehicleType or prefab.");
 
             var vehicleSerialized = new SerializedObject(vehicleType);
+            var bundledVehicleTypeName =
+                vehicleSerialized.FindProperty("vehicleTypeName")?.stringValue;
+            if (!string.Equals(bundledVehicleTypeName, VehicleTypeName, StringComparison.Ordinal) ||
+                !string.Equals(prefab.name, "BMWM4G82", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"BMW purchase identity mismatch vehicleType='{bundledVehicleTypeName}', " +
+                    $"prefab='{prefab.name}'.");
+            }
+
             var price = ReadNumber(vehicleSerialized.FindProperty("price"));
             var maxFuel = ReadNumber(vehicleSerialized.FindProperty("maxFuel"));
             var maxCargo = ReadNumber(vehicleSerialized.FindProperty("maxCargoCapacity"));

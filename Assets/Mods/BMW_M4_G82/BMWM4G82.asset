@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   database: {fileID: 0}
   tags: []
-  vehicleTypeName: bmw_m4_g82-vehicle:vehicletype_bmw_m4_g82
+  vehicleTypeName: bmwm4g82-vehicle:vehicletype_bmwm4g82
   price: 79795
   itemVersion: 
   maxFuel: 59

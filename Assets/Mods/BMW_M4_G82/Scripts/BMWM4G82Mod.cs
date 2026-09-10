@@ -8,6 +8,7 @@ using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
 using Services;
+using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(BMWM4G82Mod))]
@@ -16,11 +17,14 @@ using Vehicles.VehicleTypes;
 public sealed class BMWM4G82Mod : IModBigAmbitions
 {
     internal const string VehicleTypeName =
-        "bmw_m4_g82-vehicle:vehicletype_bmw_m4_g82";
+        "bmwm4g82-vehicle:vehicletype_bmwm4g82";
 
     private const string BundleKey = "AssetBundles/bmw_m4_g82.unity3d";
     private const string VehicleAssetPath =
         "Assets/Mods/BMW_M4_G82/BMWM4G82.asset";
+    private const string VehiclePrefabAssetPath =
+        "Assets/Mods/BMW_M4_G82/BMWM4G82.prefab";
+    private const string PurchasePrefabName = "bmwm4g82";
 
     private VehicleType? vehicleType;
     private BMWM4G82Runtime? runtime;
@@ -44,11 +48,31 @@ public sealed class BMWM4G82Mod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabAssetPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"BMWM4G82: purchase prefab load failed asset='{VehiclePrefabAssetPath}'. " +
+                "Vehicle registration was skipped to prevent purchases that cannot spawn.");
+            vehicleType = null;
+            return Task.CompletedTask;
+        }
+
+        if (!string.Equals(PurchasePrefabName, vehiclePrefab.name, StringComparison.OrdinalIgnoreCase))
+        {
+            context.Logger.Warn(
+                $"BMWM4G82: purchase prefab mismatch lookup='{PurchasePrefabName}' " +
+                $"bundledPrefab='{vehiclePrefab.name}'. Vehicle registration was skipped.");
+            vehicleType = null;
+            return Task.CompletedTask;
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
         context.Logger.Info(
             $"BMWM4G82: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
-            $"enginePower={vehicleType.enginePower:0}.");
+            $"enginePower={vehicleType.enginePower:0}, " +
+            $"purchasePrefab='Vehicles/PlayerVehicles/{PurchasePrefabName}'.");
         runtime = BMWM4G82Runtime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
     }
