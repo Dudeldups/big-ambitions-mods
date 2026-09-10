@@ -1,12 +1,14 @@
 #nullable enable
 using Localizor;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace CameraTools
 {
     internal sealed class CameraToolsUpdateNoticeUi
     {
-        private const int CurrentNoticeVersion = 1;
+        private const int CurrentNoticeVersion = 2;
         private const string SeenVersionPreference = "camera_tools_update_notice_seen_version";
         private const int WindowId = 348723;
         private const float WindowWidth = 540f;
@@ -17,9 +19,12 @@ namespace CameraTools
         private string modId = string.Empty;
         private bool isVisible;
         private bool needsCentering = true;
-        private int hotControlId;
 
         private Texture2D? solidTexture;
+        private Texture2D? windowBackgroundTexture;
+        private Texture2D? buttonBackgroundTexture;
+        private Texture2D? buttonActiveBackgroundTexture;
+        private GameObject? inputBlockerRoot;
         private GUIStyle? windowStyle;
         private GUIStyle? titleStyle;
         private GUIStyle? bodyStyle;
@@ -30,27 +35,32 @@ namespace CameraTools
             modId = currentModId;
             isVisible = LoadSeenVersion() < CurrentNoticeVersion;
             needsCentering = true;
-            hotControlId = 0;
             ResetStyleCache();
         }
 
         public void ConsumeGameplayInputIfNeeded()
         {
             if (!ShouldDisplay())
+            {
+                DestroyInputBlocker();
                 return;
+            }
 
-            if (IsMouseOverWindow() || GUIUtility.hotControl == hotControlId)
-                Input.ResetInputAxes();
+            EnsureInputBlocker();
+            Input.ResetInputAxes();
         }
 
         public void OnGui()
         {
             if (!ShouldDisplay())
+            {
+                DestroyInputBlocker();
                 return;
+            }
 
+            EnsureInputBlocker();
             EnsureStyles();
             EnsureWindowIsCenteredIfNeeded();
-            CaptureHotControl();
 
             var previousColor = GUI.color;
             var previousBackgroundColor = GUI.backgroundColor;
@@ -60,6 +70,7 @@ namespace CameraTools
                 GUI.color = Color.white;
                 GUI.backgroundColor = Color.white;
                 GUI.contentColor = Color.white;
+                GUI.DrawTexture(windowRect, windowBackgroundTexture!, ScaleMode.StretchToFill, true);
                 windowRect = GUI.Window(WindowId, windowRect, _ => DrawWindow(), GUIContent.none, windowStyle!);
             }
             finally
@@ -74,7 +85,7 @@ namespace CameraTools
         {
             isVisible = false;
             modId = string.Empty;
-            hotControlId = 0;
+            DestroyInputBlocker();
         }
 
         private void DrawWindow()
@@ -86,7 +97,15 @@ namespace CameraTools
             GUILayout.FlexibleSpace();
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button(Localize("cameratools_update_notice_got_it"), buttonStyle!, GUILayout.Width(150f), GUILayout.Height(42f)))
+            var buttonRect = GUILayoutUtility.GetRect(150f, 42f, GUILayout.Width(150f), GUILayout.Height(42f));
+            var currentEvent = Event.current;
+            var buttonTexture = currentEvent != null &&
+                buttonRect.Contains(currentEvent.mousePosition) &&
+                (currentEvent.type == EventType.MouseDown || currentEvent.type == EventType.MouseDrag)
+                    ? buttonActiveBackgroundTexture
+                    : buttonBackgroundTexture;
+            GUI.DrawTexture(buttonRect, buttonTexture!, ScaleMode.StretchToFill, true);
+            if (GUI.Button(buttonRect, Localize("cameratools_update_notice_got_it"), buttonStyle!))
                 Acknowledge();
 
             GUILayout.EndHorizontal();
@@ -109,55 +128,12 @@ namespace CameraTools
             UnityEngine.PlayerPrefs.SetInt(GetPreferenceKey(), CurrentNoticeVersion);
             UnityEngine.PlayerPrefs.Save();
             isVisible = false;
+            DestroyInputBlocker();
         }
 
         private string GetPreferenceKey()
         {
             return modId + "." + SeenVersionPreference;
-        }
-
-        private void CaptureHotControl()
-        {
-            var currentEvent = Event.current;
-            if (currentEvent == null)
-                return;
-
-            if (hotControlId == 0)
-                hotControlId = GUIUtility.GetControlID(FocusType.Passive);
-
-            if (!IsMouseOverWindow())
-            {
-                if (GUIUtility.hotControl == hotControlId &&
-                    (currentEvent.type == EventType.MouseUp || currentEvent.rawType == EventType.MouseUp))
-                {
-                    GUIUtility.hotControl = 0;
-                }
-
-                return;
-            }
-
-            switch (currentEvent.type)
-            {
-                case EventType.MouseDown:
-                case EventType.MouseDrag:
-                case EventType.ScrollWheel:
-                    GUIUtility.hotControl = hotControlId;
-                    currentEvent.Use();
-                    break;
-                case EventType.MouseUp:
-                    if (GUIUtility.hotControl == hotControlId)
-                        GUIUtility.hotControl = 0;
-
-                    currentEvent.Use();
-                    break;
-            }
-        }
-
-        private bool IsMouseOverWindow()
-        {
-            var mousePosition = Input.mousePosition;
-            var guiMousePosition = new Vector2(mousePosition.x, Screen.height - mousePosition.y);
-            return windowRect.Contains(guiMousePosition);
         }
 
         private void DrawSeparator()
@@ -200,6 +176,21 @@ namespace CameraTools
                 solidTexture.Apply();
             }
 
+            windowBackgroundTexture ??= MakeRoundedRectTexture(
+                64,
+                64,
+                new Color(0.97f, 0.97f, 0.98f, 1f),
+                14);
+            buttonBackgroundTexture ??= MakeRoundedRectTexture(
+                48,
+                48,
+                new Color(0.22f, 0.56f, 0.93f, 1f),
+                8);
+            buttonActiveBackgroundTexture ??= MakeRoundedRectTexture(
+                48,
+                48,
+                new Color(0.17f, 0.47f, 0.84f, 1f),
+                8);
             windowStyle ??= CreateWindowStyle();
             titleStyle ??= new GUIStyle(GUI.skin.label)
             {
@@ -216,33 +207,28 @@ namespace CameraTools
                 normal = { textColor = new Color(0.10f, 0.12f, 0.16f, 1f) },
                 margin = new RectOffset(0, 0, 0, 0)
             };
-            buttonStyle ??= CreateButtonStyle(
-                new Color(0.22f, 0.56f, 0.93f, 1f),
-                new Color(0.17f, 0.47f, 0.84f, 1f));
+            buttonStyle ??= CreateButtonStyle();
         }
 
         private GUIStyle CreateWindowStyle()
         {
-            var backgroundTexture = MakeRoundedRectTexture(64, 64, new Color(0.97f, 0.97f, 0.98f, 1f), 14);
             return new GUIStyle(GUI.skin.window)
             {
                 padding = new RectOffset(22, 22, 20, 20),
                 border = new RectOffset(14, 14, 14, 14),
-                normal = { background = backgroundTexture, textColor = Color.clear },
-                hover = { background = backgroundTexture, textColor = Color.clear },
-                active = { background = backgroundTexture, textColor = Color.clear },
-                focused = { background = backgroundTexture, textColor = Color.clear },
-                onNormal = { background = backgroundTexture, textColor = Color.clear },
-                onHover = { background = backgroundTexture, textColor = Color.clear },
-                onActive = { background = backgroundTexture, textColor = Color.clear },
-                onFocused = { background = backgroundTexture, textColor = Color.clear }
+                normal = { background = null, textColor = Color.clear },
+                hover = { background = null, textColor = Color.clear },
+                active = { background = null, textColor = Color.clear },
+                focused = { background = null, textColor = Color.clear },
+                onNormal = { background = null, textColor = Color.clear },
+                onHover = { background = null, textColor = Color.clear },
+                onActive = { background = null, textColor = Color.clear },
+                onFocused = { background = null, textColor = Color.clear }
             };
         }
 
-        private GUIStyle CreateButtonStyle(Color normalColor, Color activeColor)
+        private GUIStyle CreateButtonStyle()
         {
-            var normalBackground = MakeRoundedRectTexture(48, 48, normalColor, 8);
-            var activeBackground = MakeRoundedRectTexture(48, 48, activeColor, 8);
             return new GUIStyle(GUI.skin.button)
             {
                 fontSize = 15,
@@ -251,15 +237,59 @@ namespace CameraTools
                 fixedHeight = 40f,
                 margin = new RectOffset(0, 0, 0, 0),
                 border = new RectOffset(8, 8, 8, 8),
-                normal = { background = normalBackground, textColor = Color.white },
-                hover = { background = normalBackground, textColor = Color.white },
-                active = { background = activeBackground, textColor = Color.white },
-                focused = { background = normalBackground, textColor = Color.white },
-                onNormal = { background = activeBackground, textColor = Color.white },
-                onHover = { background = activeBackground, textColor = Color.white },
-                onActive = { background = activeBackground, textColor = Color.white },
-                onFocused = { background = activeBackground, textColor = Color.white }
+                normal = { background = null, textColor = Color.white },
+                hover = { background = null, textColor = Color.white },
+                active = { background = null, textColor = Color.white },
+                focused = { background = null, textColor = Color.white },
+                onNormal = { background = null, textColor = Color.white },
+                onHover = { background = null, textColor = Color.white },
+                onActive = { background = null, textColor = Color.white },
+                onFocused = { background = null, textColor = Color.white }
             };
+        }
+
+        private void EnsureInputBlocker()
+        {
+            if (inputBlockerRoot != null)
+                return;
+
+            inputBlockerRoot = new GameObject(
+                "CameraTools_UpdateNotice_InputBlocker",
+                typeof(RectTransform),
+                typeof(Canvas),
+                typeof(CanvasScaler),
+                typeof(GraphicRaycaster),
+                typeof(Image),
+                typeof(CameraToolsUpdateNoticeInputBlocker));
+            Object.DontDestroyOnLoad(inputBlockerRoot);
+
+            var canvas = inputBlockerRoot.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = short.MaxValue;
+
+            var scaler = inputBlockerRoot.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            var image = inputBlockerRoot.GetComponent<Image>();
+            image.color = Color.clear;
+            image.raycastTarget = true;
+
+            var rectTransform = inputBlockerRoot.GetComponent<RectTransform>();
+            rectTransform.anchorMin = Vector2.zero;
+            rectTransform.anchorMax = Vector2.one;
+            rectTransform.offsetMin = Vector2.zero;
+            rectTransform.offsetMax = Vector2.zero;
+        }
+
+        private void DestroyInputBlocker()
+        {
+            if (inputBlockerRoot == null)
+                return;
+
+            Object.Destroy(inputBlockerRoot);
+            inputBlockerRoot = null;
         }
 
         private Texture2D MakeRoundedRectTexture(int width, int height, Color color, int radius)
@@ -299,6 +329,39 @@ namespace CameraTools
         private static string Localize(string key)
         {
             return key.Localize().ToString();
+        }
+    }
+
+    internal sealed class CameraToolsUpdateNoticeInputBlocker : MonoBehaviour,
+        IPointerDownHandler,
+        IPointerUpHandler,
+        IDragHandler,
+        IScrollHandler
+    {
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            Consume(eventData);
+        }
+
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            Consume(eventData);
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            Consume(eventData);
+        }
+
+        public void OnScroll(PointerEventData eventData)
+        {
+            Consume(eventData);
+        }
+
+        private static void Consume(PointerEventData eventData)
+        {
+            eventData.Use();
+            Input.ResetInputAxes();
         }
     }
 }
