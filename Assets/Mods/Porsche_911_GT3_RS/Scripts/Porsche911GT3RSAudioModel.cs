@@ -27,8 +27,14 @@ internal static class Porsche911GT3RSAudioModel
     internal static float ReferenceHz(int layer) => layer == 0 ? 70f : layer == 1 ? 220f : 420f;
     // Keep the naturally aspirated flat-six distinct from the deeper idle bed
     // without pitching the synthesized combustion layers into a toy-like register.
-    internal static float TargetHz(float normalized) =>
-        (float)(38d * Math.Pow(335d / 38d, Clamp01(normalized)));
+    internal static float TargetHz(float normalized)
+    {
+        var position = Clamp01(normalized);
+        var target = (float)(38d * Math.Pow(335d / 38d, position));
+        var highRpmBlend = Clamp01((position - .68f) / .32f);
+        highRpmBlend = highRpmBlend * highRpmBlend * (3f - 2f * highRpmBlend);
+        return target * (1f - .14f * highRpmBlend);
+    }
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

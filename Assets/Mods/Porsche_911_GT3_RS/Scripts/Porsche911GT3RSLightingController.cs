@@ -60,8 +60,9 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var secondaryHeadlampRight = FindRenderer(renderers, "headlight_R_led", "headlight_high");
         var rearStrip = FindRenderer(renderers, "fascia_mid", "taillight_running");
         var rearLamp = FindRenderer(renderers, "fascia_mid", "brakelight_1");
-        var thirdBrake = FindRenderer(renderers, "gt3rs_tailgate", "brakelight_1");
-        var frontSignals = FindRenderer(renderers, "gt3rs_bumper_F", "signal_L_bumper");
+        var thirdBrake = FindRendererByHierarchy(renderers, "gt3rs_tailgate_TwiXeR_992_brakelight_1");
+        var frontSignals = FindRendererByHierarchy(renderers, "signal_L_bumper");
+        var rearLampSplit = GetLateralSplit(rearLamp, 0.50f, 0.56f);
 
         daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
             new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
@@ -83,7 +84,7 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
         reverseOverlay = CreateFilteredOverlay(
             rearLamp,
-            p => Mathf.Abs(p.x) >= 0.46f && Mathf.Abs(p.x) <= 0.545f,
+            p => Mathf.Abs(p.x) <= rearLampSplit,
             "ReverseLight",
             new Color(0.92f, 0.96f, 1f, 1f),
             4.8f,
@@ -93,9 +94,9 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             "LeftIndicator", amber, 5.4f, 1.004f);
         rightBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x >= 0.45f,
             "RightIndicator", amber, 5.4f, 1.004f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x <= -0.56f,
+        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x < -rearLampSplit,
             "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x >= 0.56f,
+        rearRightBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x > rearLampSplit,
             "RearRightIndicator", amber, 6f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
@@ -255,6 +256,27 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         return CreateOverlayObject(source, mesh, suffix, color, intensity, scale);
     }
 
+    private float GetLateralSplit(MeshRenderer? source, float outerFraction, float fallback)
+    {
+        if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
+            return fallback;
+        var vertices = source.GetComponent<MeshFilter>().sharedMesh.vertices;
+        if (vertices.Length == 0)
+            return fallback;
+        var minimum = float.PositiveInfinity;
+        var maximum = 0f;
+        foreach (var vertex in vertices)
+        {
+            var lateral = Mathf.Abs(vehicle.transform.InverseTransformPoint(
+                source.transform.TransformPoint(vertex)).x);
+            minimum = Mathf.Min(minimum, lateral);
+            maximum = Mathf.Max(maximum, lateral);
+        }
+        return maximum > minimum
+            ? Mathf.Lerp(minimum, maximum, Mathf.Clamp01(1f - outerFraction))
+            : fallback;
+    }
+
     private MeshRenderer CreateOverlayObject(MeshRenderer source, Mesh mesh, string suffix,
         Color color, float intensity, float scale)
     {
@@ -368,6 +390,16 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
                         materialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                     return renderer;
         }
+        return null;
+    }
+
+    private static MeshRenderer? FindRendererByHierarchy(
+        IEnumerable<MeshRenderer> renderers,
+        string hierarchyMarker)
+    {
+        foreach (var renderer in renderers)
+            if (renderer != null && HasAncestor(renderer.transform, hierarchyMarker))
+                return renderer;
         return null;
     }
 

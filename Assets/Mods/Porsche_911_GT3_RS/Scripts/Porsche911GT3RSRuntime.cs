@@ -7,6 +7,7 @@ using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
@@ -36,7 +37,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float RearTireRadius = 0.36720f;
     private const float FrontTireWidth = 0.275f;
     private const float RearTireWidth = 0.335f;
-    private const float ChassisAndTireDrop = 0.055f;
+    private const float ChassisAndTireDrop = 0.060f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
@@ -69,6 +70,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? enteredVehicleActivationCoroutine;
+    private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private int cachedPlayerVehicleCount = -1;
@@ -101,6 +103,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         Destroy(gameObject);
     }
@@ -134,6 +139,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -145,6 +152,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private void UnsubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -170,6 +178,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         cachedPlayerVehicleCount = -1;
         dealerRegistrationReady = false;
@@ -188,6 +199,78 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
+    }
+
+    private void HandleVehicleExited(VehicleController vehicle)
+    {
+        if (!IsTargetVehicle(vehicle))
+            return;
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        enteredVehicleActivationCoroutine = null;
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit());
+    }
+
+    private IEnumerator RecoverPlayerNavMeshAfterExit()
+    {
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        var root = PlayerHelper.PlayerController?.transform;
+        if (root == null)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var agents = root.GetComponentsInChildren<NavMeshAgent>(true);
+        var needsRecovery = false;
+        foreach (var agent in agents)
+            needsRecovery |= agent != null && agent.enabled && !agent.isOnNavMesh;
+        if (!needsRecovery ||
+            !NavMesh.SamplePosition(root.position, out var hit, 5f, NavMesh.AllAreas))
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var target = hit.position + Vector3.up * 0.05f;
+        var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = Array.ConvertAll(
+            characterControllers,
+            controller => controller != null && controller.enabled);
+        var agentStates = Array.ConvertAll(agents, agent => agent != null && agent.enabled);
+        try
+        {
+            foreach (var controller in characterControllers)
+                if (controller != null) controller.enabled = false;
+            foreach (var agent in agents)
+                if (agent != null) agent.enabled = false;
+            root.position = target;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Length; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(target);
+                    agent.ResetPath();
+                }
+            }
+            for (var index = 0; index < characterControllers.Length; index++)
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            Physics.SyncTransforms();
+        }
+        exitedPlayerRecoveryCoroutine = null;
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
@@ -655,7 +738,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             HasAncestor(filter.transform, "steer_") ||
             HasAncestor(filter.transform, "pedal") ||
             HasAncestor(filter.transform, "engine_") ||
-            HasAncestor(filter.transform, "underbody") ||
             HasAncestor(filter.transform, "suspension") ||
             HasMaterial(filter, "carpet", "fabric", "leather", "seatbelt", "gauges"))
             return false;
@@ -674,12 +756,21 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                HasAncestor(filter.transform, "gt3rs_spoiler") ||
                HasAncestor(filter.transform, "gt3rs_fender_") ||
                HasAncestor(filter.transform, "gt3rs_door_") ||
+               HasAncestor(filter.transform, "underbody_gt3rs") ||
+               HasAncestor(filter.transform, "exhausttip_3_") ||
+               HasAncestor(filter.transform, "bumperbar_F") ||
+               HasAncestor(filter.transform, "bumperbar_R") ||
                HasAncestor(filter.transform, "headlight_") ||
                HasAncestor(filter.transform, "headlightglass_") ||
                HasAncestor(filter.transform, "mirror_") ||
+               HasAncestor(filter.transform, "fascia_glass") ||
                HasAncestor(filter.transform, "fascia_") ||
+               HasAncestor(filter.transform, "body_chrome_end") ||
+               HasAncestor(filter.transform, "body.002") ||
+               HasAncestor(filter.transform, "body.005") ||
                (HasAncestor(filter.transform, "body_gt3rs") &&
-                HasMaterial(filter, "carPaint", "plastic", "mirror", "chrome", "rivet"));
+                HasMaterial(filter, "carPaint", "plastic", "mirror", "chrome", "rivet",
+                    "rubbertrim", "metal_radiator"));
     }
 
     private static bool HasAncestor(Transform transform, string marker)
@@ -919,7 +1010,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 {
     private const float WheelAssemblyInsetMeters = 0.085f;
-    private const float TireComponentDiameterRatio = 0.88f;
     private static readonly string[,] CornerNames =
     {
         { "FrontLeft_WheelController", "PorscheWheelFrontLeft", "PorscheFixedCaliperFrontLeft" },
@@ -927,7 +1017,6 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         { "RearLeft_WheelController", "PorscheWheelRearLeft", "PorscheFixedCaliperRearLeft" },
         { "RearRight_WheelController", "PorscheWheelRearRight", "PorscheFixedCaliperRearRight" },
     };
-    private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
     private bool initialized;
 
     internal int Initialize(ModContext? context, float chassisAndTireDrop)
@@ -939,9 +1028,11 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         var visual = FindTransform("PorscheVisual");
         if (visual != null)
             visual.position -= transform.up * chassisAndTireDrop;
+        var damageBody = FindTransform("PorscheDamageBody");
+        if (damageBody != null)
+            damageBody.position -= transform.up * chassisAndTireDrop;
 
         var correctedCorners = 0;
-        var loweredTireComponents = 0;
         for (var index = 0; index < CornerNames.GetLength(0); index++)
         {
             try
@@ -956,8 +1047,9 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 MoveInward(controller);
                 MoveInward(wheel);
                 MoveInward(caliper);
-                BindRollingVisual(controller, wheel);
-                loweredTireComponents += LowerTireEnvelope(wheel, chassisAndTireDrop);
+                MoveDown(controller, chassisAndTireDrop);
+                MoveDown(wheel, chassisAndTireDrop);
+                MoveDown(caliper, chassisAndTireDrop);
                 correctedCorners++;
             }
             catch (Exception exception)
@@ -974,9 +1066,8 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 context,
                 $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: moved " +
                 $"{correctedCorners} complete wheel/controller/caliper assemblies inward by " +
-                $"{WheelAssemblyInsetMeters:F3}m; lowered chassis and " +
-                $"{loweredTireComponents} tire components by {chassisAndTireDrop:F3}m; " +
-                "rolling visuals explicitly bound to wheel controllers.");
+                $"{WheelAssemblyInsetMeters:F3}m and lowered the complete chassis/wheel datum by " +
+                $"{chassisAndTireDrop:F3}m; authored wheel visual bindings retained.");
         }
         else
         {
@@ -1004,181 +1095,8 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         target.position += worldOffset;
     }
 
-    private static void BindRollingVisual(Transform controller, Transform wheel)
-    {
-        foreach (var component in controller.GetComponents<MonoBehaviour>())
-        {
-            if (component == null)
-                continue;
-            var wheelState = GetMember(component, "wheel");
-            if (wheelState == null)
-                continue;
-            SetMember(wheelState, "visual", wheel.gameObject);
-            SetMember(wheelState, "visualTransform", wheel);
-        }
-    }
-
-    private int LowerTireEnvelope(Transform wheel, float drop)
-    {
-        var loweredComponents = 0;
-        foreach (var filter in wheel.GetComponentsInChildren<MeshFilter>(true))
-        {
-            if (filter == null || filter.sharedMesh == null ||
-                !HasMaterial(filter, "wheels_chrome"))
-                continue;
-
-            var mesh = Instantiate(filter.sharedMesh);
-            mesh.name = filter.sharedMesh.name + "_AlignedTire";
-            filter.sharedMesh = mesh;
-            runtimeMeshes.Add(mesh);
-
-            var vertices = mesh.vertices;
-            var parent = new int[vertices.Length];
-            for (var index = 0; index < parent.Length; index++)
-                parent[index] = index;
-            for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-            {
-                var triangles = mesh.GetTriangles(subMesh);
-                for (var index = 0; index + 2 < triangles.Length; index += 3)
-                {
-                    Union(parent, triangles[index], triangles[index + 1]);
-                    Union(parent, triangles[index], triangles[index + 2]);
-                }
-            }
-
-            var extents = new Dictionary<int, ComponentExtents>();
-            for (var index = 0; index < vertices.Length; index++)
-            {
-                var root = Find(parent, index);
-                if (!extents.TryGetValue(root, out var component))
-                    component = new ComponentExtents(vertices[index]);
-                else
-                    component.Include(vertices[index]);
-                extents[root] = component;
-            }
-
-            var componentLimit = Mathf.Max(mesh.bounds.size.y, mesh.bounds.size.z) *
-                                 TireComponentDiameterRatio;
-            var displacement = filter.transform.InverseTransformVector(-transform.up * drop);
-            var loweredRoots = new HashSet<int>();
-            for (var index = 0; index < vertices.Length; index++)
-            {
-                var root = Find(parent, index);
-                var component = extents[root];
-                if (Mathf.Max(component.SizeY, component.SizeZ) < componentLimit)
-                    continue;
-                vertices[index] += displacement;
-                loweredRoots.Add(root);
-            }
-            mesh.vertices = vertices;
-            mesh.RecalculateBounds();
-            loweredComponents += loweredRoots.Count;
-        }
-        return loweredComponents;
-    }
-
-    private static bool HasMaterial(MeshFilter filter, string marker)
-    {
-        var renderer = filter.GetComponent<Renderer>();
-        if (renderer == null)
-            return false;
-        foreach (var material in renderer.sharedMaterials)
-            if (material != null &&
-                material.name.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        return false;
-    }
-
-    private static object? GetMember(object target, string name)
-    {
-        var type = target.GetType();
-        while (type != null)
-        {
-            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public |
-                                            BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-            if (field != null)
-                return field.GetValue(target);
-            var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public |
-                                                   BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-            if (property != null)
-                return property.GetValue(target, null);
-            type = type.BaseType;
-        }
-        return null;
-    }
-
-    private static void SetMember(object target, string name, object value)
-    {
-        var type = target.GetType();
-        while (type != null)
-        {
-            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public |
-                                            BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-            if (field != null && field.FieldType.IsInstanceOfType(value))
-            {
-                field.SetValue(target, value);
-                return;
-            }
-            var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public |
-                                                   BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-            if (property?.CanWrite == true && property.PropertyType.IsInstanceOfType(value))
-            {
-                property.SetValue(target, value, null);
-                return;
-            }
-            type = type.BaseType;
-        }
-    }
-
-    private static int Find(int[] parent, int value)
-    {
-        while (parent[value] != value)
-        {
-            parent[value] = parent[parent[value]];
-            value = parent[value];
-        }
-        return value;
-    }
-
-    private static void Union(int[] parent, int left, int right)
-    {
-        var leftRoot = Find(parent, left);
-        var rightRoot = Find(parent, right);
-        if (leftRoot != rightRoot)
-            parent[rightRoot] = leftRoot;
-    }
-
-    private struct ComponentExtents
-    {
-        private float minimumY;
-        private float maximumY;
-        private float minimumZ;
-        private float maximumZ;
-
-        public float SizeY => maximumY - minimumY;
-        public float SizeZ => maximumZ - minimumZ;
-
-        public ComponentExtents(Vector3 vertex)
-        {
-            minimumY = maximumY = vertex.y;
-            minimumZ = maximumZ = vertex.z;
-        }
-
-        public void Include(Vector3 vertex)
-        {
-            minimumY = Mathf.Min(minimumY, vertex.y);
-            maximumY = Mathf.Max(maximumY, vertex.y);
-            minimumZ = Mathf.Min(minimumZ, vertex.z);
-            maximumZ = Mathf.Max(maximumZ, vertex.z);
-        }
-    }
-
-    private void OnDestroy()
-    {
-        foreach (var mesh in runtimeMeshes)
-            if (mesh != null) Destroy(mesh);
-        runtimeMeshes.Clear();
-    }
+    private void MoveDown(Transform target, float distance) =>
+        target.position -= transform.up * distance;
 }
 
 [AddComponentMenu("")]
