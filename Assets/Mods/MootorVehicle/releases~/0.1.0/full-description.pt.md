@@ -4,7 +4,7 @@ Por que se contentar com cavalos de potência quando você pode ter [b]potência
 
 [h2]Recursos[/h2]
 [list]
-[*] Compre a vaca na City Cars e torne-se seu proprietário.
+[*] Compre a vaca na City Cars por $1,800 e torne-se seu proprietário.
 [*] Monte, dirija, freie, desmonte, estacione e salve usando o sistema de veículos padrão.
 [*] Estacione na calçada sem taxas ou multas.
 [*] Seu personagem permanece visível durante o passeio, com uma pose de montaria e os pacotes carregados à mostra.

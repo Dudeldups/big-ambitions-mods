@@ -4,7 +4,7 @@ Po co zadowalać się końmi mechanicznymi, skoro można mieć [b]krowią moc[/b
 
 [h2]Funkcje[/h2]
 [list]
-[*] Kup krowę w City Cars i zostań jej właścicielem.
+[*] Kup krowę w City Cars za $1,800 i zostań jej właścicielem.
 [*] Wsiadaj, kieruj, hamuj, zsiadaj, parkuj i zapisuj ją za pomocą standardowego systemu pojazdów.
 [*] Parkuj na chodniku bez opłat i mandatów.
 [*] Postać pozostaje widoczna podczas jazdy, w odpowiedniej pozycji i z widocznymi paczkami w rękach.

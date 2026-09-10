@@ -4,7 +4,7 @@
 
 [h2]Características[/h2]
 [list]
-[*] Compra la vaca en City Cars y hazla tuya.
+[*] Compra la vaca en City Cars por $1,800 y hazla tuya.
 [*] Móntala, gira, frena, desmonta, aparca y guarda mediante el sistema de vehículos estándar.
 [*] Aparca en la acera sin pagar estacionamiento ni recibir multas.
 [*] Tu personaje permanece visible mientras monta, con una pose de jinete y los paquetes transportados a la vista.

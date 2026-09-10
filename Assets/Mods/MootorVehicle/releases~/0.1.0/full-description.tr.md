@@ -4,7 +4,7 @@
 
 [h2]Özellikler[/h2]
 [list]
-[*] İneği City Cars'tan satın alın ve sahibi olun.
+[*] İneği City Cars'tan $1,800 karşılığında satın alın ve sahibi olun.
 [*] Standart araç sistemiyle üzerine binin, yönetin, fren yapın, inin, park edin ve kaydedin.
 [*] Kaldırıma park ücreti veya ceza olmadan park edin.
 [*] Karakteriniz sürüş sırasında ineğe binme pozuyla görünür kalır; taşıdığı paketler de görünür.

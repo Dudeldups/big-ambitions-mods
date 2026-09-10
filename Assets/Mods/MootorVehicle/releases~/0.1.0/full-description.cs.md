@@ -4,7 +4,7 @@ Proč se spokojit s koňskou silou, když můžete mít [b]kravskou sílu[/b]?
 
 [h2]Funkce[/h2]
 [list]
-[*] Kupte si krávu u City Cars a staňte se jejím majitelem.
+[*] Kupte si krávu u City Cars za $1,800 a staňte se jejím majitelem.
 [*] Nasedejte, řiďte, brzděte, sesedejte, parkujte a ukládejte ji prostřednictvím standardního systému vozidel.
 [*] Parkujte na chodníku bez parkovného a pokut.
 [*] Vaše postava zůstává při jízdě viditelná, včetně jezdecké pózy a viditelných nesených balíků.

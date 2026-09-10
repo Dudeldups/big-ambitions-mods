@@ -4,7 +4,7 @@ Pourquoi se contenter de chevaux quand on peut avoir de la [b]puissance bovine[/
 
 [h2]Fonctionnalités[/h2]
 [list]
-[*] Achetez la vache chez City Cars et devenez-en propriétaire.
+[*] Achetez la vache chez City Cars pour $1,800 et devenez-en propriétaire.
 [*] Montez, dirigez, freinez, descendez, garez et sauvegardez-la grâce au système de véhicules standard.
 [*] Garez-vous sur le trottoir sans frais de stationnement ni contravention.
 [*] Votre personnage reste visible pendant le trajet, avec une pose de cavalier et les colis transportés visibles.

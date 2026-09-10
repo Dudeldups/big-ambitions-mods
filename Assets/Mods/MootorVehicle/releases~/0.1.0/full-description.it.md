@@ -4,7 +4,7 @@ Perché accontentarsi dei cavalli quando puoi avere la [b]potenza bovina[/b]?
 
 [h2]Funzionalità[/h2]
 [list]
-[*] Acquista la mucca da City Cars e diventa il suo proprietario.
+[*] Acquista la mucca da City Cars per $1,800 e diventa il suo proprietario.
 [*] Monta, sterza, frena, smonta, parcheggia e salva tramite il normale sistema dei veicoli.
 [*] Parcheggia sul marciapiede senza tariffe o multe.
 [*] Il personaggio rimane visibile durante la cavalcata, con una posa da cavaliere e i pacchi trasportati in vista.

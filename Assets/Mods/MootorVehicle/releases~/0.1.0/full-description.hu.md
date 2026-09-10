@@ -4,7 +4,7 @@ Miért érnéd be lóerővel, ha lehet [b]tehén-erőd[/b]?
 
 [h2]Funkciók[/h2]
 [list]
-[*] Vásárold meg a tehenet a City Carsnál, és legyen a sajátod.
+[*] Vásárold meg a tehenet a City Carsnál $1,800-ért, és legyen a sajátod.
 [*] Szállj fel rá, kormányozd, fékezz, szállj le, parkolj és mentsd el a szabványos járműrendszeren keresztül.
 [*] Parkolj a járdán parkolási díj és bírság nélkül.
 [*] A karaktered lovaglás közben látható marad, tehénlovagló pózzal és láthatóan tartott csomagokkal.

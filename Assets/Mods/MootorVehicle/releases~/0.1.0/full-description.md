@@ -4,7 +4,7 @@ Why settle for horsepower when you can have [b]cow power[/b]?
 
 [h2]Features[/h2]
 [list]
-[*] Purchase and own the cow from City Cars.
+[*] Purchase and own the cow from City Cars for $1,800.
 [*] Mount, steer, brake, dismount, park, and save it through the standard vehicle system.
 [*] Park on the sidewalk without parking fees or tickets.
 [*] Keep your character visible while riding, with a cow-riding pose and visible carried packages.
