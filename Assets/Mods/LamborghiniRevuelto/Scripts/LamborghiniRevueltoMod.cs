@@ -45,10 +45,13 @@ public sealed class LamborghiniRevueltoMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        context.Logger.Info(
-            $"LamborghiniRevuelto: registered '{vehicleType.vehicleTypeName}' " +
-            $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
-            $"enginePower={vehicleType.enginePower:0}.");
+        if (LamborghiniRevueltoDebug.Enabled)
+        {
+            context.Logger.Info(
+                $"LamborghiniRevuelto: registered '{vehicleType.vehicleTypeName}' " +
+                $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
+                $"enginePower={vehicleType.enginePower:0}.");
+        }
         runtime = LamborghiniRevueltoRuntime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
     }
@@ -69,14 +72,25 @@ public sealed class LamborghiniRevueltoMod : IModBigAmbitions
     }
 }
 
+internal static class LamborghiniRevueltoDebug
+{
+    private const bool Global = false;
+    private const bool Paint = false;
+    private const bool Damage = false;
+    private const bool AccelerationTelemetry = false;
+
+    internal static bool Enabled => Global;
+    internal static bool PaintEnabled => Enabled && Paint;
+    internal static bool DamageEnabled => Enabled && Damage;
+    internal static bool AccelerationTelemetryEnabled => Enabled && AccelerationTelemetry;
+}
+
 internal static class LamborghiniRevueltoLuxuryDealerStock
 {
     private const string TargetBusinessTypeName = "ba:businesstype_cardealership";
     private const string TargetBuildingSize = "ba:buildingsize_m";
     private const int TargetBuildingVersion = 1;
     private const string TargetLayoutName = "MurrayHillCarDealershipLuxury";
-    private const string TargetLayoutKey =
-        "ba:businesstype_cardealership|ba:buildingsize_m|1|murrayhillcardealershipluxury";
 
     private static readonly string[] DealerContactIds =
     {
@@ -101,6 +115,12 @@ internal static class LamborghiniRevueltoLuxuryDealerStock
     internal static bool EnsureVehicleAvailable(string vehicleName)
     {
         if (string.IsNullOrWhiteSpace(vehicleName))
+            return false;
+
+        if (AllDealersContainVehicle(vehicleName))
+            return true;
+
+        if (BusinessLayoutSetHelper.loadingLayouts)
             return false;
 
         var vanillaStock = GetLuxuryDealerLayoutVehicles();
@@ -200,15 +220,39 @@ internal static class LamborghiniRevueltoLuxuryDealerStock
 
     private static BusinessLayoutSet? TryGetLuxuryDealerLayoutSet()
     {
-        var layoutSets = BusinessLayoutSetHelper.GetAllBusinessLayoutSets();
-        if (layoutSets != null && layoutSets.TryGetValue(TargetLayoutKey, out var layoutSet))
-            return layoutSet;
-
         return BusinessLayoutSetHelper.GetOrLoadBusinessLayoutSet(
             TargetBusinessTypeName,
             new BuildingSizeInfo(TargetBuildingSize, TargetBuildingVersion),
             TargetLayoutName.ToLowerInvariant(),
             false);
+    }
+
+    private static bool AllDealersContainVehicle(string vehicleName)
+    {
+        foreach (var dealerContactId in DealerContactIds)
+        {
+            if (!ContractItemsForSaleService.TryGetVehiclesForContact(
+                    dealerContactId,
+                    out List<string> existingStock) ||
+                existingStock == null ||
+                !ContainsVehicle(existingStock, vehicleName))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ContainsVehicle(IEnumerable<string> stock, string vehicleName)
+    {
+        foreach (var existingVehicle in stock)
+        {
+            if (string.Equals(existingVehicle, vehicleName, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
     }
 
     private static void AddUniqueRange(List<string> target, IEnumerable<string> source)

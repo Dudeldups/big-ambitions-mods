@@ -32,14 +32,21 @@ internal sealed class LamborghiniRevueltoAccelerationTelemetry : MonoBehaviour
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
+        enabled = LamborghiniRevueltoDebug.AccelerationTelemetryEnabled;
+        if (!enabled)
+            return;
+
         vehicle = controller;
         physics = controller.GetComponent<PhysicsVehicle>();
         body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
         context = modContext;
-        context?.Logger.Info(
-            $"LamborghiniRevuelto acceleration telemetry ready vehicle={controller.GetInstanceID()}, " +
-            $"official0to100={OfficialZeroToHundredSeconds:0.0}s, " +
-            "milestones=100/200/300kmh.");
+        if (LamborghiniRevueltoDebug.AccelerationTelemetryEnabled)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto acceleration telemetry ready vehicle={controller.GetInstanceID()}, " +
+                $"official0to100={OfficialZeroToHundredSeconds:0.0}s, " +
+                "milestones=100/200/300kmh.");
+        }
     }
 
     private void FixedUpdate()
@@ -118,9 +125,12 @@ internal sealed class LamborghiniRevueltoAccelerationTelemetry : MonoBehaviour
         elapsed = maximumYaw = maximumLateral = 0f;
         zeroToHundred = -1f;
         nextMilestone = 0;
-        context?.Logger.Info(
-            $"LamborghiniRevuelto acceleration run started vehicle={vehicle.GetInstanceID()}, " +
-            $"speed={speedKph:0.0}kmh. Hold full throttle on a flat straight.");
+        if (LamborghiniRevueltoDebug.AccelerationTelemetryEnabled)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto acceleration run started vehicle={vehicle.GetInstanceID()}, " +
+                $"speed={speedKph:0.0}kmh. Hold full throttle on a flat straight.");
+        }
     }
 
     private void CaptureMilestones(float speedKph)
@@ -143,11 +153,14 @@ internal sealed class LamborghiniRevueltoAccelerationTelemetry : MonoBehaviour
                 ? $", official={OfficialZeroToHundredSeconds:0.0}s, " +
                   $"delta={milestoneTime - OfficialZeroToHundredSeconds:+0.000;-0.000;0.000}s"
                 : string.Empty;
-            context?.Logger.Info(
-                $"LamborghiniRevuelto acceleration milestone vehicle={vehicle!.GetInstanceID()}, " +
-                $"0to{target:0}={milestoneTime:0.000}s{segment}{benchmark}, " +
-                $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m, " +
-                $"elevation={body!.position.y - startPosition.y:+0.00;-0.00;0.00}m.");
+            if (LamborghiniRevueltoDebug.AccelerationTelemetryEnabled)
+            {
+                context?.Logger.Info(
+                    $"LamborghiniRevuelto acceleration milestone vehicle={vehicle!.GetInstanceID()}, " +
+                    $"0to{target:0}={milestoneTime:0.000}s{segment}{benchmark}, " +
+                    $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m, " +
+                    $"elevation={body!.position.y - startPosition.y:+0.00;-0.00;0.00}m.");
+            }
             nextMilestone++;
         }
 
@@ -157,11 +170,14 @@ internal sealed class LamborghiniRevueltoAccelerationTelemetry : MonoBehaviour
 
     private void Finish(string reason, float speedKph)
     {
-        context?.Logger.Info(
-            $"LamborghiniRevuelto acceleration run ended vehicle={vehicle?.GetInstanceID()}, " +
-            $"reason={reason}, elapsed={elapsed:0.000}s, speed={speedKph:0.0}kmh, " +
-            $"milestones={nextMilestone}/{MilestonesKph.Length}, " +
-            $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m.");
+        if (LamborghiniRevueltoDebug.AccelerationTelemetryEnabled)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto acceleration run ended vehicle={vehicle?.GetInstanceID()}, " +
+                $"reason={reason}, elapsed={elapsed:0.000}s, speed={speedKph:0.0}kmh, " +
+                $"milestones={nextMilestone}/{MilestonesKph.Length}, " +
+                $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m.");
+        }
         running = false;
     }
 

@@ -31,13 +31,7 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         ApplyCurrentColor();
     }
 
-    private void LateUpdate()
-    {
-        // The game exposes no vehicle-paint-changed event. This comparison is
-        // allocation-free and performs material work only when the saved color changes.
-        if (vehicle != null)
-            ApplyCurrentColor();
-    }
+    public void RefreshColor() => ApplyCurrentColor();
 
     private void FindPaintSlots()
     {
@@ -73,11 +67,14 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
             }
         }
 
-        context?.Logger.Info(
-            $"LamborghiniRevuelto paint vehicle={vehicle?.GetInstanceID()}: " +
-            $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
-            $"interiorAccentSlots={interiorAccentSlots}; " +
-            "rims, tires, carbon, black trim, and glass remain factory materials.");
+        if (LamborghiniRevueltoDebug.PaintEnabled)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto paint vehicle={vehicle?.GetInstanceID()}: " +
+                $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
+                $"interiorAccentSlots={interiorAccentSlots}; " +
+                "rims, tires, carbon, black trim, and glass remain factory materials.");
+        }
         if (bodySlots == 0 || caliperSlots != 4 || interiorAccentSlots == 0)
             context?.Logger.Warn(
                 $"LamborghiniRevuelto paint mapping incomplete bodySlots={bodySlots}, " +
@@ -115,10 +112,13 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         appliedColor = selected;
         appliedTint = tint;
         hasAppliedTint = true;
-        context?.Logger.Info(
-            $"LamborghiniRevuelto paint vehicle={vehicle?.GetInstanceID()}: " +
-            $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
-            $"to {slots.Count} body/caliper slots.");
+        if (LamborghiniRevueltoDebug.PaintEnabled)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto paint vehicle={vehicle?.GetInstanceID()}: " +
+                $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
+                $"to {slots.Count} body/caliper slots.");
+        }
     }
 
     private VehicleColor? ResolveVehicleColor()

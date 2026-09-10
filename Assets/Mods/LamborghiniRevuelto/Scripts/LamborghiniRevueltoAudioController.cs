@@ -96,14 +96,17 @@ internal sealed class LamborghiniRevueltoAudioController : MonoBehaviour
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
-        context.Logger.Info(
-            $"LamborghiniRevuelto audio configured vehicle={vehicle.GetInstanceID()}, " +
-            $"engineLayers=7, engineGain={LamborghiniRevueltoAudioModel.EngineBaseVolume:0.00}.." +
-            $"{LamborghiniRevueltoAudioModel.EngineBaseVolume + LamborghiniRevueltoAudioModel.EngineThrottleVolume:0.00}, " +
-            $"hornVoices=low/high@{LamborghiniRevueltoAudioModel.HornLowVolume:0.00}/" +
-            $"{LamborghiniRevueltoAudioModel.HornHighVolume:0.00}, " +
-            $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
-            "exhaust=continuous-subtle-crackle.");
+        if (LamborghiniRevueltoDebug.Enabled)
+        {
+            context.Logger.Info(
+                $"LamborghiniRevuelto audio configured vehicle={vehicle.GetInstanceID()}, " +
+                $"engineLayers=7, engineGain={LamborghiniRevueltoAudioModel.EngineBaseVolume:0.00}.." +
+                $"{LamborghiniRevueltoAudioModel.EngineBaseVolume + LamborghiniRevueltoAudioModel.EngineThrottleVolume:0.00}, " +
+                $"hornVoices=low/high@{LamborghiniRevueltoAudioModel.HornLowVolume:0.00}/" +
+                $"{LamborghiniRevueltoAudioModel.HornHighVolume:0.00}, " +
+                $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
+                "exhaust=continuous-subtle-crackle.");
+        }
         return true;
     }
 
