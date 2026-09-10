@@ -31,13 +31,7 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         ApplyCurrentColor();
     }
 
-    private void LateUpdate()
-    {
-        // The game exposes no vehicle-paint-changed event. This comparison is
-        // allocation-free and performs material work only when the saved color changes.
-        if (vehicle != null)
-            ApplyCurrentColor();
-    }
+    public void RefreshColor() => ApplyCurrentColor();
 
     private void FindPaintSlots()
     {

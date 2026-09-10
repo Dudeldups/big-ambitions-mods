@@ -66,6 +66,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private bool dealerReadyLogged;
+    private int observedPlayerVehicleCount = -1;
 
     public static LamborghiniRevueltoRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -94,6 +95,15 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         Destroy(gameObject);
     }
 
+    private void Update()
+    {
+        var currentCount = VehicleHelper.AllPlayerVehicles?.Count ?? 0;
+        if (currentCount == observedPlayerVehicleCount)
+            return;
+
+        ConfigureExistingVehicles(out _);
+    }
+
     private void OnEnable()
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
@@ -115,6 +125,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+        GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
         GlobalEvents.onGameUnloaded += HandleGameUnloaded;
     }
@@ -124,6 +136,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
 
@@ -146,6 +159,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReadyLogged = false;
+        observedPlayerVehicleCount = -1;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -169,6 +183,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         if (isOpen)
             EnsureDealerStock("full-menu");
     }
+
+    private void HandleVehicleVariablesChanged() => ConfigureExistingVehicles(out _);
 
     private void ScheduleInitialization(string source)
     {
@@ -246,7 +262,12 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         matchedCount = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
         if (vehicles == null)
+        {
+            observedPlayerVehicleCount = 0;
             return;
+        }
+
+        observedPlayerVehicleCount = vehicles.Count;
 
         foreach (var vehicle in vehicles)
         {
@@ -277,7 +298,10 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         var instanceId = vehicle.GetInstanceID();
         if (!configuredVehicleIds.Add(instanceId))
+        {
+            vehicle.GetComponent<LamborghiniRevueltoPaintController>()?.RefreshColor();
             return;
+        }
 
         try
         {
