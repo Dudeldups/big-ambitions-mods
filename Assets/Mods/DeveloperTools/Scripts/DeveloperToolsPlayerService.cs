@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using BAModAPI;
 using Helpers;
 using UnityEngine;
 using UnityEngine.AI;
@@ -9,10 +10,9 @@ namespace DeveloperTools
     internal sealed class DeveloperToolsPlayerService
     {
         private const float GroundOffset = 0.05f;
+        private readonly ModContext context;
 
-        public DeveloperToolsPlayerService()
-        {
-        }
+        public DeveloperToolsPlayerService(ModContext context) => this.context = context;
 
         public Transform? PlayerTransform => PlayerHelper.PlayerController?.transform;
 
@@ -59,6 +59,10 @@ namespace DeveloperTools
                 return false;
             }
 
+            var activeVehicle = ResolveOccupiedVehicle();
+            if (activeVehicle != null)
+                return TeleportActiveVehicle(activeVehicle, requested, out finalPosition, out message);
+
             if (preferSafeGround)
                 finalPosition = ResolveLandingPosition(requested);
 
@@ -100,7 +104,68 @@ namespace DeveloperTools
             }
 
             message = "Teleported player to " + FormatVector(finalPosition) + ".";
+            context.Logger.Info("DeveloperTools: teleported player to " + FormatVector(finalPosition) + ".");
             return true;
+        }
+
+        private bool TeleportActiveVehicle(
+            VehicleController vehicle,
+            Vector3 requested,
+            out Vector3 finalPosition,
+            out string message)
+        {
+            finalPosition = requested;
+            try
+            {
+                var forward = Vector3.ProjectOnPlane(vehicle.transform.forward, Vector3.up);
+                var rotation = forward.sqrMagnitude > 0.001f
+                    ? Quaternion.LookRotation(forward.normalized, Vector3.up)
+                    : vehicle.transform.rotation;
+                var rigidbody = vehicle.GetComponent<Rigidbody>();
+                if (rigidbody != null)
+                {
+                    rigidbody.velocity = Vector3.zero;
+                    rigidbody.angularVelocity = Vector3.zero;
+                }
+
+                // Use the game's vehicle-specific grounding path. A pedestrian
+                // navmesh point is not a valid chassis position and can bury an
+                // occupied vehicle below the road surface.
+                VehicleHelper.TeleportVehicleToGround(vehicle, requested + Vector3.up * 0.5f, rotation);
+                Physics.SyncTransforms();
+                finalPosition = vehicle.transform.position;
+                message = "Teleported occupied vehicle to " + FormatVector(finalPosition) + ".";
+                context.Logger.Info(
+                    "DeveloperTools: teleported occupied vehicle; type=" +
+                    (vehicle.vehicleInstance?.vehicleTypeName ?? "unknown") +
+                    ", requested=" + FormatVector(requested) +
+                    ", final=" + FormatVector(finalPosition) + ".");
+                return true;
+            }
+            catch (Exception exception)
+            {
+                message = "Vehicle teleport failed: " + exception.GetBaseException().Message;
+                context.Logger.Warn("DeveloperTools: " + message);
+                return false;
+            }
+        }
+
+        private static VehicleController? ResolveOccupiedVehicle()
+        {
+            if (!PlayerHelper.IsUsingVehicle)
+                return null;
+
+            var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+            if (selectedVehicle != null && selectedVehicle.controlledByPlayer)
+                return selectedVehicle;
+
+            var playerVehicles = VehicleHelper.AllPlayerVehicles;
+            if (playerVehicles == null)
+                return null;
+            foreach (var vehicle in playerVehicles)
+                if (vehicle != null && vehicle.controlledByPlayer)
+                    return vehicle;
+            return null;
         }
 
         public static Vector3 ResolveLandingPosition(Vector3 requested)

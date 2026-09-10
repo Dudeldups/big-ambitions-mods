@@ -27,7 +27,7 @@ namespace DeveloperTools
             var runtime = gameObject.AddComponent<DeveloperToolsRuntime>();
             runtime.context = context;
             runtime.settings = settings;
-            runtime.playerService = new DeveloperToolsPlayerService();
+            runtime.playerService = new DeveloperToolsPlayerService(context);
             runtime.timeService = new DeveloperToolsTimeService(context);
             runtime.trafficService = new DeveloperToolsTrafficService(context);
             runtime.trafficService.PrepareTrafficPoolCapacity();

@@ -16,6 +16,7 @@ namespace DeveloperTools
         private const int WindowId = 734921;
         private const float WindowWidth = 760f;
         private const float WindowHeight = 820f;
+        private const float VehicleDropdownHeight = 270f;
         private readonly ModContext context;
         private readonly DeveloperToolsVehicleService vehicles;
         private readonly DeveloperToolsItemService items;
@@ -38,9 +39,11 @@ namespace DeveloperTools
         private Vector2 mainScroll;
         private Vector2 vanillaVehicleScroll;
         private Vector2 moddedVehicleScroll;
+        private Vector2 vehicleColorScroll;
         private Vector2 itemScroll;
         private bool vanillaVehicleDropdownOpen;
         private bool moddedVehicleDropdownOpen;
+        private bool vehicleColorDropdownOpen;
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
@@ -49,6 +52,7 @@ namespace DeveloperTools
         private CursorLockMode previousCursorLock;
         private string selectedVanillaVehicleId = string.Empty;
         private string selectedModdedVehicleId = string.Empty;
+        private string selectedVehicleColorName = string.Empty;
         private string selectedItemId = string.Empty;
         private string itemSearch = string.Empty;
         private string itemAmount = "1";
@@ -111,6 +115,8 @@ namespace DeveloperTools
             items.EnsurePopulated();
             SelectFirstAvailable(vehicles.VanillaEntries, ref selectedVanillaVehicleId);
             SelectFirstAvailable(vehicles.ModdedEntries, ref selectedModdedVehicleId);
+            if (vehicles.ColorEntries.All(entry => entry.Name != selectedVehicleColorName))
+                selectedVehicleColorName = vehicles.GetDefaultRedColorName();
             if (items.Entries.Count > 0 && items.Entries.All(entry => entry.Id != selectedItemId))
                 selectedItemId = items.Entries[0].Id;
             SetCoordinatesFromPlayer();
@@ -126,6 +132,7 @@ namespace DeveloperTools
             cursorRestorePending = true;
             vanillaVehicleDropdownOpen = false;
             moddedVehicleDropdownOpen = false;
+            vehicleColorDropdownOpen = false;
             itemDropdownOpen = false;
         }
 
@@ -322,6 +329,8 @@ namespace DeveloperTools
         private void DrawVehicleSpawner()
         {
             GUILayout.Label("Vehicle Spawner", GUI.skin.box);
+            DrawVehicleColorPicker();
+            GUILayout.Space(5f);
             DrawVehicleCatalog(
                 "Vanilla Vehicles",
                 vehicles.VanillaEntries,
@@ -397,7 +406,7 @@ namespace DeveloperTools
                 dropdownOpen = !dropdownOpen;
             if (dropdownOpen)
             {
-                scroll = GUILayout.BeginScrollView(scroll, GUI.skin.box, GUILayout.Height(135f));
+                scroll = GUILayout.BeginScrollView(scroll, GUI.skin.box, GUILayout.Height(VehicleDropdownHeight));
                 foreach (var entry in entries)
                 {
                     if (!GUILayout.Button(entry.DisplayName + "  [" + entry.Id + "]")) continue;
@@ -408,7 +417,42 @@ namespace DeveloperTools
             }
 
             if (GUILayout.Button("Spawn " + label.TrimEnd('s')))
-                vehicles.Spawn(selectedId, out status);
+                vehicles.Spawn(selectedId, selectedVehicleColorName, out status);
+        }
+
+        private void DrawVehicleColorPicker()
+        {
+            GUILayout.Label("Vehicle Color");
+            if (vehicles.ColorEntries.Count == 0)
+            {
+                GUILayout.Label("No registered vehicle colors are available.", GUI.skin.box);
+                return;
+            }
+            var selected = vehicles.ColorEntries.FirstOrDefault(entry => entry.Name == selectedVehicleColorName);
+            var previousBackgroundColor = GUI.backgroundColor;
+            if (selected != null)
+                GUI.backgroundColor = selected.Tint;
+            if (GUILayout.Button(selected == null ? "Select color..." : selected.Name + "  ▼"))
+                vehicleColorDropdownOpen = !vehicleColorDropdownOpen;
+            GUI.backgroundColor = previousBackgroundColor;
+
+            if (!vehicleColorDropdownOpen)
+                return;
+
+            vehicleColorScroll = GUILayout.BeginScrollView(
+                vehicleColorScroll,
+                GUI.skin.box,
+                GUILayout.Height(VehicleDropdownHeight));
+            foreach (var entry in vehicles.ColorEntries)
+            {
+                GUI.backgroundColor = entry.Tint;
+                if (!GUILayout.Button(entry.Name))
+                    continue;
+                selectedVehicleColorName = entry.Name;
+                vehicleColorDropdownOpen = false;
+            }
+            GUI.backgroundColor = previousBackgroundColor;
+            GUILayout.EndScrollView();
         }
 
         private void DrawMoney()

@@ -21,12 +21,14 @@ namespace DeveloperTools
             BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly List<CatalogEntry> vanillaEntries = new List<CatalogEntry>();
         private readonly List<CatalogEntry> moddedEntries = new List<CatalogEntry>();
+        private readonly List<VehicleColorEntry> colorEntries = new List<VehicleColorEntry>();
         private readonly ModContext context;
         private string lastSpawnedVehicleId = string.Empty;
 
         public DeveloperToolsVehicleService(ModContext context) => this.context = context;
         public IReadOnlyList<CatalogEntry> VanillaEntries => vanillaEntries;
         public IReadOnlyList<CatalogEntry> ModdedEntries => moddedEntries;
+        public IReadOnlyList<VehicleColorEntry> ColorEntries => colorEntries;
 
         public void Refresh()
         {
@@ -42,12 +44,14 @@ namespace DeveloperTools
             }
             vanillaEntries.Sort(CompareEntries);
             moddedEntries.Sort(CompareEntries);
+            RefreshColors();
         }
 
-        public bool Spawn(string vehicleTypeName, out string message)
+        public bool Spawn(string vehicleTypeName, string vehicleColorName, out string message)
         {
             var player = PlayerHelper.PlayerController;
             var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
+            var selectedColorName = vehicleColorName ?? string.Empty;
             if (player == null || vehicleType == null)
             {
                 message = player == null ? "Player is not available." : "Selected vehicle is no longer registered.";
@@ -66,9 +70,7 @@ namespace DeveloperTools
                 {
                     id = Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
                     fuel = vehicleType.maxFuel * 0.98f,
-                    // Preserve the prefab's authored paint while satisfying
-                    // consumers that require a non-null color identifier.
-                    vehicleColorName = string.Empty
+                    vehicleColorName = selectedColorName
                 };
                 var controller = VehicleHelper.CreateAndSpawnVehicle(instance, position, rotation);
                 if (controller == null)
@@ -80,11 +82,11 @@ namespace DeveloperTools
 
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
                 NotifyModVehicleCreated(controller, vehicleTypeName);
-                var colorName = ApplyRandomRegisteredColor(controller, instance);
+                var colorName = ApplyRegisteredColor(controller, instance, selectedColorName);
                 NormalizeParkedMotorVehicle(controller, vehicleTypeName);
                 lastSpawnedVehicleId = instance.id;
                 message = "Spawned " + Localize(vehicleTypeName) +
-                          (string.IsNullOrEmpty(colorName) ? "." : " with random color " + colorName + ".");
+                          (string.IsNullOrEmpty(colorName) ? "." : " with color " + colorName + ".");
                 return true;
             }
             catch (Exception exception)
@@ -209,23 +211,47 @@ namespace DeveloperTools
             }
         }
 
-        private string ApplyRandomRegisteredColor(VehicleController controller, VehicleInstance instance)
+        public string GetDefaultRedColorName()
         {
-            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors?
-                .Where(color => color != null)
-                .ToArray();
-            if (colors == null || colors.Length == 0 || controller.CarFeatures == null)
+            if (colorEntries.Count == 0)
                 return string.Empty;
 
-            // Vehicle Repainter registers its extended colors in the game's
-            // shared catalog with zero random weight so vanilla dealerships do
-            // not select them automatically. Prefer that generally useful pool
-            // without depending on a particular mod or color-name prefix.
-            var extendedColors = colors.Where(color => color.randomWeight <= 0f).ToArray();
-            var candidates = extendedColors.Length > 0 ? extendedColors : colors;
-            VehicleColor color = candidates[UnityEngine.Random.Range(0, candidates.Length)];
-            var colorName = ((UnityEngine.Object)color).name;
-            if (string.IsNullOrWhiteSpace(colorName))
+            var target = Color.red;
+            return colorEntries
+                .OrderBy(entry =>
+                {
+                    var difference = (Vector4)entry.Tint - (Vector4)target;
+                    return difference.sqrMagnitude;
+                })
+                .First().Name;
+        }
+
+        private void RefreshColors()
+        {
+            colorEntries.Clear();
+            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors;
+            if (colors == null)
+                return;
+
+            foreach (var color in colors.Where(value => value != null))
+            {
+                var name = ((UnityEngine.Object)color).name;
+                if (string.IsNullOrWhiteSpace(name) || colorEntries.Any(entry => entry.Name == name))
+                    continue;
+                colorEntries.Add(new VehicleColorEntry(name, color.tint));
+            }
+
+            colorEntries.Sort((left, right) =>
+                string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string ApplyRegisteredColor(
+            VehicleController controller,
+            VehicleInstance instance,
+            string colorName)
+        {
+            if (controller.CarFeatures == null || string.IsNullOrWhiteSpace(colorName) ||
+                !VehicleHelper.TryGetVehicleColor(colorName, out VehicleColor color) || color == null)
                 return string.Empty;
 
             instance.vehicleColorName = colorName;
@@ -275,5 +301,17 @@ namespace DeveloperTools
 
         public string Id { get; }
         public string DisplayName { get; }
+    }
+
+    internal sealed class VehicleColorEntry
+    {
+        public VehicleColorEntry(string name, Color tint)
+        {
+            Name = name;
+            Tint = tint;
+        }
+
+        public string Name { get; }
+        public Color Tint { get; }
     }
 }
