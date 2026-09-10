@@ -117,6 +117,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
@@ -129,6 +131,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -155,6 +158,23 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         configuredVehicleIds.Clear();
         dealerReady = false;
         cachedPlayerVehicleCount = -1;
+    }
+
+    private void HandleGameEvent(string _)
+    {
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (selectedVehicle?.vehicleInstance == null ||
+            !string.Equals(
+                selectedVehicle.vehicleInstance.vehicleTypeName,
+                vehicleTypeName,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        selectedVehicle
+            .GetComponent<BugattiChironPaintController>()
+            ?.RefreshCurrentColor();
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
