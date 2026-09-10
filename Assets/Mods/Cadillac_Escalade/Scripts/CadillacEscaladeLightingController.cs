@@ -10,6 +10,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
 {
     private const string DaylightName = "running_headlight";
     private const string HeadlampName = "high_beams";
+    private const string HeadlampEtchingName = "headlights_etched";
     private const string SecondaryHeadlampName = "running_facia_lamps";
     private const string RearStripName = "tail_lamp_long";
     private const string ThirdBrakeLightName = "chml_glass";
@@ -60,6 +61,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         var renderers = controller.GetComponentsInChildren<MeshRenderer>(true);
         var daylight = FindRenderer(renderers, DaylightName);
         var headlamp = FindRenderer(renderers, HeadlampName);
+        var headlampEtching = FindRenderer(renderers, HeadlampEtchingName);
         var secondaryHeadlamp = FindRenderer(renderers, SecondaryHeadlampName);
         var rearStrip = FindRenderer(renderers, RearStripName);
         var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
@@ -86,12 +88,13 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             4.8f,
             1.006f);
         var amber = new Color(1f, 0.52f, 0.02f, 1f);
-        // The amber source mesh contains the fender repeaters. The Escalade's
-        // primary front signals sit in the outer horizontal headlamp signature,
-        // so drive both surfaces from the same indicator state.
-        leftBlinkerOverlay = CreateFilteredOverlay(daylight, p => p.x <= -0.35f,
+        // Keep the amber signal on the lower edge of the main headlamp instead
+        // of recoloring the two white projector/running-light elements.
+        leftBlinkerOverlay = CreateFilteredOverlay(headlampEtching,
+            p => p.x <= -0.60f && p.y <= 1.30f,
             "LeftHeadlampIndicator", amber, 6.4f, 1.012f);
-        rightBlinkerOverlay = CreateFilteredOverlay(daylight, p => p.x >= 0.35f,
+        rightBlinkerOverlay = CreateFilteredOverlay(headlampEtching,
+            p => p.x >= 0.60f && p.y <= 1.30f,
             "RightHeadlampIndicator", amber, 6.4f, 1.012f);
         leftFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x <= -0.10f,
             "LeftFenderIndicator", amber, 5.4f, 1.008f);

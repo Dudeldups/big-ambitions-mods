@@ -41,8 +41,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
     private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.30f, -0.05f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
-    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.78f, -0.22f);
-    private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 3.42f);
+    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.78f, -0.35f);
+    private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 4.10f);
 
     private static readonly float[] EscaladeGears =
     {
@@ -426,7 +426,6 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             const int bakedPositiveWheelMeshes = 8;
             ConfigureBodyColliders(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
-            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<CadillacEscaladeCaliperController>();
             if (caliperController == null)
@@ -437,6 +436,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<CadillacEscaladeLightingController>();
             lightingController.Initialize(vehicle, context);
+            // Lighting creates per-instance emissive meshes. Capture them only
+            // after creation so collision deformation cannot leave them floating.
+            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var driverController = vehicle.GetComponent<CadillacEscaladeDriverController>();
             if (driverController == null)
                 driverController = vehicle.gameObject.AddComponent<CadillacEscaladeDriverController>();
@@ -620,7 +622,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 !IsDeformableExterior(filter))
                 continue;
             var renderer = filter.GetComponent<MeshRenderer>();
-            if (renderer != null && renderer.enabled)
+            if (renderer != null &&
+                (renderer.enabled || filter.name.StartsWith("CadillacEscalade_", StringComparison.Ordinal)))
                 filters.Add(filter);
         }
 
@@ -681,6 +684,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         }
 
         return name.StartsWith("CadillacDamageBody", StringComparison.Ordinal) ||
+               name.StartsWith("CadillacEscalade_", StringComparison.Ordinal) ||
                ContainsAny(name,
                    "combined_mesh", "blackout", "black_smooth", "smooth_plastics",
                    "painted_black", "panited_gloss", "misc_primer", "bright_chrome",
@@ -896,7 +900,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 public sealed class CadillacEscaladeGlassController : MonoBehaviour
 {
     private readonly List<Renderer> cabinGlass = new List<Renderer>();
+    private readonly HashSet<Renderer> rearCabinGlass = new HashSet<Renderer>();
     private readonly Dictionary<Material, Material> runtimeMaterials =
+        new Dictionary<Material, Material>();
+    private readonly Dictionary<Material, Material> rearRuntimeMaterials =
         new Dictionary<Material, Material>();
     private ModContext? context;
     private Coroutine? restoreCoroutine;
@@ -912,8 +919,10 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
         }
 
         cabinGlass.Clear();
+        rearCabinGlass.Clear();
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
+            var rearGlass = IsRearCabinGlass(renderer.transform);
             var materials = renderer.sharedMaterials;
             var containsCabinGlass = false;
             for (var index = 0; index < materials.Length; index++)
@@ -926,12 +935,17 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
                 }
 
                 containsCabinGlass = true;
-                if (!runtimeMaterials.TryGetValue(source, out var runtimeMaterial))
+                var materialMap = rearGlass ? rearRuntimeMaterials : runtimeMaterials;
+                if (!materialMap.TryGetValue(source, out var runtimeMaterial))
                 {
                     runtimeMaterial = Instantiate(source);
-                    runtimeMaterial.name = source.name + "_RuntimeCabinGlass";
-                    CadillacEscaladeMaterials.RestoreCabinGlassMaterial(runtimeMaterial);
-                    runtimeMaterials.Add(source, runtimeMaterial);
+                    runtimeMaterial.name = source.name +
+                                           (rearGlass ? "_RuntimeRearCabinGlass" : "_RuntimeCabinGlass");
+                    if (rearGlass)
+                        CadillacEscaladeMaterials.RestoreRearCabinGlassMaterial(runtimeMaterial);
+                    else
+                        CadillacEscaladeMaterials.RestoreCabinGlassMaterial(runtimeMaterial);
+                    materialMap.Add(source, runtimeMaterial);
                 }
                 materials[index] = runtimeMaterial;
             }
@@ -939,6 +953,8 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
                 continue;
             renderer.sharedMaterials = materials;
             cabinGlass.Add(renderer);
+            if (rearGlass)
+                rearCabinGlass.Add(renderer);
         }
         initialized = true;
         EnsureVisible("initialize");
@@ -989,7 +1005,10 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
                     CadillacEscaladeMaterials.IsCabinGlassMaterial(material))
                 {
                     renderer.SetPropertyBlock(null, index);
-                    CadillacEscaladeMaterials.RestoreCabinGlassMaterial(material);
+                    if (rearCabinGlass.Contains(renderer))
+                        CadillacEscaladeMaterials.RestoreRearCabinGlassMaterial(material);
+                    else
+                        CadillacEscaladeMaterials.RestoreCabinGlassMaterial(material);
                 }
             }
         }
@@ -997,8 +1016,10 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
         {
             CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: configured " +
-                $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-                "shader=HDRP/Unlit, tint=(0.08,0.09,0.10,0.12), deferredPolling=false.");
+                $"renderers={cabinGlass.Count}, rearRenderers={rearCabinGlass.Count}, " +
+                $"runtimeMaterials={runtimeMaterials.Count + rearRuntimeMaterials.Count}, " +
+                "shader=HDRP/Unlit, frontTint=(0.08,0.09,0.10,0.12), " +
+                "rearTint=(0.045,0.05,0.055,0.25), deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {
@@ -1019,15 +1040,30 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
                 Destroy(material);
         }
         runtimeMaterials.Clear();
+        foreach (var material in rearRuntimeMaterials.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        rearRuntimeMaterials.Clear();
+        rearCabinGlass.Clear();
+    }
+
+    private static bool IsRearCabinGlass(Transform transform)
+    {
+        for (var current = transform; current != null; current = current.parent)
+            if (current.name.IndexOf("glass_windows", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        return false;
     }
 }
 
 [AddComponentMenu("")]
 public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.82f;
-    private const float MaximumDentDepth = 0.34f;
-    private const float DepthPerExcessMps = 0.016f;
+    private const float DentRadius = 0.70f;
+    private const float MaximumDentDepth = 0.24f;
+    private const float DepthPerExcessMps = 0.011f;
     private const float FrontDentLateralRadius = 0.82f;
     private const float FrontDentVerticalRadius = 0.68f;
     private const float FrontDentLongitudinalRadius = 0.95f;

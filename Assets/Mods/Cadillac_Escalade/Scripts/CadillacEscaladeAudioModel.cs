@@ -4,15 +4,15 @@ using System;
 // Recording references are acoustic calibration values, not measured engine RPM.
 internal static class CadillacEscaladeAudioModel
 {
-    internal const float IdlePitch = .42f;
+    internal const float IdlePitch = .36f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
-    internal const float EngineBaseVolume = .18f;
-    internal const float EngineThrottleVolume = .14f;
-    internal const float CrackleIdleVolume = .001f;
-    internal const float CrackleLoadVolume = .004f;
+    internal const float EngineBaseVolume = .11f;
+    internal const float EngineThrottleVolume = .08f;
+    internal const float CrackleIdleVolume = .0005f;
+    internal const float CrackleLoadVolume = .002f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
-    internal static float IdleVolume(float drivingBlend) => .14f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) => .10f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the dedicated low-speed idle bed out gradually so the synthesized
@@ -27,7 +27,7 @@ internal static class CadillacEscaladeAudioModel
     // Keep the large naturally aspirated V8 authoritative and relaxed instead
     // of following the raw firing frequency into sports-car territory.
     internal static float TargetHz(float normalized) =>
-        (float)(34d * Math.Pow(245d / 34d, Clamp01(normalized)));
+        (float)(31d * Math.Pow(168d / 31d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)
