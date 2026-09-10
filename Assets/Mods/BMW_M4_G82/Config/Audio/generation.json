@@ -1,0 +1,53 @@
+{
+  "engine": "2,993 cc BMW S58 twin-turbo inline-six",
+  "firing_frequency": "three combustion events per crankshaft revolution",
+  "recorded_samples": false,
+  "layers": [
+    {
+      "name": "EngineLow.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.21078228102339597,
+      "method": "deterministic additive twin-turbo inline-six synthesis"
+    },
+    {
+      "name": "EngineLowLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.1603491732091509,
+      "method": "deterministic additive twin-turbo inline-six synthesis"
+    },
+    {
+      "name": "EngineMid.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.23602809767859564,
+      "method": "deterministic additive twin-turbo inline-six synthesis"
+    },
+    {
+      "name": "EngineMidLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.16764012163386727,
+      "method": "deterministic additive twin-turbo inline-six synthesis"
+    },
+    {
+      "name": "EngineHigh.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.21678452848957777,
+      "method": "deterministic additive twin-turbo inline-six synthesis"
+    },
+    {
+      "name": "EngineHighLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.17371909985463274,
+      "method": "deterministic additive twin-turbo inline-six synthesis"
+    }
+  ],
+  "transients": [],
+  "runtime_layers": [
+    "very-low-gain procedural continuous exhaust crackle"
+  ]
+}
