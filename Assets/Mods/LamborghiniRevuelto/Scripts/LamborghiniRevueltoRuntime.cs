@@ -6,7 +6,9 @@ using System.Reflection;
 using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
+using UI.PurchaseVehicle;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 
@@ -69,8 +71,9 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
-    private bool dealerReadyLogged;
     private int observedPlayerVehicleCount = -1;
+    private VehicleController? previewVehicle;
+    private LamborghiniRevueltoPaintController? previewPaintController;
 
     public static LamborghiniRevueltoRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -96,16 +99,18 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        previewVehicle = null;
+        previewPaintController = null;
         Destroy(gameObject);
     }
 
     private void Update()
     {
         var currentCount = VehicleHelper.AllPlayerVehicles?.Count ?? 0;
-        if (currentCount == observedPlayerVehicleCount)
-            return;
+        if (currentCount != observedPlayerVehicleCount)
+            ConfigureExistingVehicles(out _);
 
-        ConfigureExistingVehicles(out _);
+        RefreshPaintPreview();
     }
 
     private void OnEnable()
@@ -123,6 +128,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
@@ -137,6 +144,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -162,9 +170,53 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
-        dealerReadyLogged = false;
         observedPlayerVehicleCount = -1;
+        previewVehicle = null;
+        previewPaintController = null;
     }
+
+    private void RefreshPaintPreview()
+    {
+        if (!PurchaseVehicleUI.IsPanelOpen)
+        {
+            // ResetColor restores CarFeatures as the repaint panel closes. Give
+            // the HDRP adapter one final event-bound refresh so cancelling a
+            // preview cannot leave its per-material color overrides behind.
+            previewPaintController?.RefreshColor();
+            previewVehicle = null;
+            previewPaintController = null;
+            return;
+        }
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!ReferenceEquals(selectedVehicle, previewVehicle))
+        {
+            previewVehicle = selectedVehicle;
+            previewPaintController = IsTargetVehicle(selectedVehicle)
+                ? selectedVehicle!.GetComponent<LamborghiniRevueltoPaintController>()
+                : null;
+        }
+
+        previewPaintController?.RefreshColor();
+    }
+
+    private void HandleGameEvent(string _)
+    {
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        selectedVehicle!
+            .GetComponent<LamborghiniRevueltoPaintController>()
+            ?.RefreshColor();
+    }
+
+    private bool IsTargetVehicle(VehicleController? vehicle) =>
+        vehicle?.vehicleInstance != null &&
+        string.Equals(
+            vehicle.vehicleInstance.vehicleTypeName,
+            vehicleTypeName,
+            StringComparison.Ordinal);
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
@@ -242,18 +294,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     {
         try
         {
-            var ready = LamborghiniRevueltoLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
-            if (ready && !dealerReadyLogged)
-            {
-                dealerReadyLogged = true;
-                if (LamborghiniRevueltoDebug.Enabled)
-                {
-                    context?.Logger.Info(
-                        $"LamborghiniRevuelto: available at The Hamptons Axis and Manhattan Luxury Cars " +
-                        $"source='{source}'.");
-                }
-            }
-            return ready;
+            return LamborghiniRevueltoLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
         }
         catch (Exception exception)
         {
@@ -335,7 +376,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 rimGeometryController = vehicle.gameObject
                     .AddComponent<LamborghiniRevueltoRimGeometryController>();
             }
-            var mirroredWheelMeshes = rimGeometryController.Initialize(context);
+            rimGeometryController.Initialize(context);
             var contactMaterialOwner =
                 vehicle.GetComponent<LamborghiniRevueltoContactMaterialOwner>();
             if (contactMaterialOwner == null)
@@ -346,13 +387,14 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             ConfigureBodyColliders(
                 vehicle.gameObject,
                 contactMaterialOwner.GetOrCreateMaterial());
-            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
-            var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
+            ConfigureNavMeshObstacles(vehicle.gameObject);
+            ConfigureVisualDamage(vehicle);
+            ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<LamborghiniRevueltoCaliperController>();
             if (caliperController == null)
                 caliperController = vehicle.gameObject.AddComponent<LamborghiniRevueltoCaliperController>();
             caliperController.Initialize(vehicle, context);
-            var materialResult = LamborghiniRevueltoMaterials.FixSolidMaterials(vehicle.gameObject);
+            LamborghiniRevueltoMaterials.FixSolidMaterials(vehicle.gameObject);
             var glassController = vehicle.GetComponent<LamborghiniRevueltoGlassController>();
             if (glassController == null)
                 glassController = vehicle.gameObject.AddComponent<LamborghiniRevueltoGlassController>();
@@ -373,42 +415,6 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             if (audioController == null)
                 audioController = vehicle.gameObject.AddComponent<LamborghiniRevueltoAudioController>();
             audioController.Initialize(vehicle, context);
-            if (LamborghiniRevueltoDebug.AccelerationTelemetryEnabled)
-            {
-                var accelerationTelemetry =
-                    vehicle.GetComponent<LamborghiniRevueltoAccelerationTelemetry>();
-                if (accelerationTelemetry == null)
-                {
-                    accelerationTelemetry = vehicle.gameObject
-                        .AddComponent<LamborghiniRevueltoAccelerationTelemetry>();
-                }
-                accelerationTelemetry.Initialize(vehicle, context);
-            }
-
-            if (LamborghiniRevueltoDebug.Enabled)
-            {
-                context?.Logger.Info(
-                    $"LamborghiniRevuelto: configured vehicle instance={instanceId}, " +
-                    $"mass={VehicleMass:0}kg, transmission=8-speed-DCT, awd=true, " +
-                    $"powertrainConfigured={powertrainConfigured}, " +
-                    $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
-                    $"tireFriction={TireFrictionCircleStrength:0.00}, " +
-                    $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
-                    $"deformableBodyMeshes={deformableBodyMeshes}, " +
-                    $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
-                    $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
-                    $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
-                    $"powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
-                    $"mirroredRightWheelGeometry={mirroredWheelMeshes}, " +
-                    $"materialRenderers={materialResult.RendererCount}, " +
-                    $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
-                    $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
-                    $"transparentFixed={materialResult.TransparentMaterialsFixed}, " +
-                    $"cabinGlass={materialResult.CabinGlassRenderers}/" +
-                    $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
-                    $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
-                    $"hdrpValidated={materialResult.MaterialsValidated}.");
-            }
         }
         catch (Exception exception)
         {
@@ -496,6 +502,93 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         }
     }
 
+    private static int ConfigureNavMeshObstacles(GameObject root)
+    {
+        if (!TryGetBodyColliderBounds(root.transform, out var bodyBounds))
+            return 0;
+
+        var normalized = 0;
+        foreach (var obstacle in root.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle == null || obstacle.shape != NavMeshObstacleShape.Box)
+                continue;
+
+            var obstacleTransform = obstacle.transform;
+            var scale = obstacleTransform.lossyScale;
+            if (Mathf.Abs(scale.x) < 0.0001f ||
+                Mathf.Abs(scale.y) < 0.0001f ||
+                Mathf.Abs(scale.z) < 0.0001f)
+            {
+                continue;
+            }
+
+            var rootTransform = root.transform;
+            obstacle.center = obstacleTransform.InverseTransformPoint(
+                rootTransform.TransformPoint(bodyBounds.center));
+            obstacle.size = new Vector3(
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.right) /
+                Mathf.Abs(scale.x),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.up) /
+                Mathf.Abs(scale.y),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.forward) /
+                Mathf.Abs(scale.z));
+            normalized++;
+        }
+
+        return normalized;
+    }
+
+    private static bool TryGetBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || collider.isTrigger)
+                    continue;
+
+                var halfSize = collider.size * 0.5f;
+                for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                for (var z = -1; z <= 1; z += 2)
+                {
+                    var corner = collider.center + Vector3.Scale(
+                        halfSize,
+                        new Vector3(x, y, z));
+                    var rootCorner = root.InverseTransformPoint(
+                        collider.transform.TransformPoint(corner));
+                    if (!found)
+                    {
+                        bounds = new Bounds(rootCorner, Vector3.zero);
+                        found = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(rootCorner);
+                    }
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBodySizeOntoAxis(
+        Vector3 bodySize,
+        Transform root,
+        Vector3 worldAxis)
+    {
+        worldAxis.Normalize();
+        return Mathf.Abs(Vector3.Dot(worldAxis, root.right)) * bodySize.x +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.up)) * bodySize.y +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.forward)) * bodySize.z;
+    }
+
     private int ConfigureVisualDamage(VehicleController vehicle)
     {
         foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
@@ -561,15 +654,6 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             context,
             filters,
             DamageDecelerationThreshold / 100f);
-
-        if (LamborghiniRevueltoDebug.DamageEnabled)
-        {
-            context?.Logger.Info(
-                $"LamborghiniRevuelto damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
-                $"bodyMeshes={filters.Count} threshold={DamageDecelerationThreshold / 100f:0.0}mps " +
-                $"filters=[{string.Join(", ", filters.ConvertAll(filter => filter.name))}]; " +
-                "legacy deformation disabled.");
-        }
         return filters.Count;
     }
 
@@ -857,15 +941,6 @@ public sealed class LamborghiniRevueltoRimGeometryController : MonoBehaviour
                 $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: mirrored " +
                 $"{mirrored}/10 left-side wheel meshes; a mesh pair is missing.");
         }
-        else
-        {
-            if (LamborghiniRevueltoDebug.Enabled)
-            {
-                context?.Logger.Info(
-                    $"LamborghiniRevuelto wheel finish vehicle={GetInstanceID()}: complete left " +
-                    "wheel assemblies rebuilt as exact mirrors of the preferred right-side geometry.");
-            }
-        }
         return mirrored;
     }
 
@@ -961,7 +1036,7 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
         context = modContext;
         if (initialized)
         {
-            EnsureVisible("reinitialize");
+            EnsureVisible();
             return;
         }
 
@@ -995,7 +1070,7 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
             cabinGlass.Add(renderer);
         }
         initialized = true;
-        EnsureVisible("initialize");
+        EnsureVisible();
     }
 
     internal void RestoreAfterVehicleEntered()
@@ -1014,26 +1089,21 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
         // permanent per-frame poll.
         yield return null;
         yield return new WaitForEndOfFrame();
-        EnsureVisible("vehicle-entered");
+        EnsureVisible();
         restoreCoroutine = null;
     }
 
-    private void EnsureVisible(string source)
+    private void EnsureVisible()
     {
-        var restored = 0;
-        var propertyBlocksCleared = 0;
         foreach (var renderer in cabinGlass)
         {
             if (renderer == null)
                 continue;
-            if (!renderer.enabled || renderer.forceRenderingOff)
-                restored++;
             renderer.enabled = true;
             renderer.forceRenderingOff = false;
             if (renderer.HasPropertyBlock())
             {
                 renderer.SetPropertyBlock(null);
-                propertyBlocksCleared++;
             }
             var materials = renderer.sharedMaterials;
             for (var index = 0; index < materials.Length; index++)
@@ -1046,21 +1116,6 @@ public sealed class LamborghiniRevueltoGlassController : MonoBehaviour
                     LamborghiniRevueltoMaterials.RestoreCabinGlassMaterial(material);
                 }
             }
-        }
-        if (LamborghiniRevueltoDebug.Enabled &&
-            string.Equals(source, "initialize", StringComparison.Ordinal))
-        {
-            context?.Logger.Info(
-                $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: configured " +
-                $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-                "shader=HDRP/Lit, deferredPolling=false.");
-        }
-        else if (LamborghiniRevueltoDebug.Enabled &&
-                 (restored > 0 || propertyBlocksCleared > 0))
-        {
-            context?.Logger.Info(
-                $"LamborghiniRevuelto glass vehicle={GetInstanceID()}: repaired after " +
-                $"'{source}' renderers={restored}, propertyBlocks={propertyBlocksCleared}.");
         }
     }
 
@@ -1096,7 +1151,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
     private const float RearDepthPerExcessMps = 0.017f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
-    private const int MaximumDiagnosticLogs = 6;
 
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
     private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
@@ -1109,7 +1163,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
     private float impactThresholdMps;
     private float nextCollisionTime;
     private float previousDamage;
-    private int diagnosticLogs;
     private bool initialized;
     private bool failureReported;
 
@@ -1164,11 +1217,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
             }
-            if (LamborghiniRevueltoDebug.DamageEnabled)
-            {
-                context?.Logger.Info(
-                    $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
-            }
         }
         previousDamage = currentDamage;
     }
@@ -1198,11 +1246,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                 0.04f,
                 MaximumRearDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
-            var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
-            var changedMeshes = 0;
-            var changedVertices = 0;
-            var frontImpact = false;
-            var rearImpact = false;
 
             foreach (var filter in deformableFilters)
             {
@@ -1218,7 +1261,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                     var inwardDirection = Vector3.zero;
                     var selectedDepth = dentDepth;
                     var selectedEndImpact = false;
-                    var selectedFrontImpact = false;
                     foreach (var contact in contacts)
                     {
                         var localContact = transform.InverseTransformPoint(contact.point);
@@ -1270,7 +1312,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                             ? isFrontContact ? frontDentDepth : rearDentDepth
                             : dentDepth;
                         selectedEndImpact = isEndContact;
-                        selectedFrontImpact = isFrontContact;
                     }
 
                     if (strongestInfluence <= 0f || inwardDirection.sqrMagnitude < 0.5f)
@@ -1280,10 +1321,7 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                         : strongestInfluence * strongestInfluence;
                     worldVertex += inwardDirection * (selectedDepth * falloff);
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
-                    changedVertices++;
                     meshChanged = true;
-                    frontImpact |= selectedEndImpact && selectedFrontImpact;
-                    rearImpact |= selectedEndImpact && !selectedFrontImpact;
                 }
 
                 if (!meshChanged)
@@ -1292,23 +1330,6 @@ public sealed class LamborghiniRevueltoVisualDamageController : MonoBehaviour
                 mesh.RecalculateBounds();
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
-                changedMeshes++;
-            }
-
-            if (LamborghiniRevueltoDebug.DamageEnabled &&
-                diagnosticLogs++ < MaximumDiagnosticLogs)
-            {
-                context?.Logger.Info(
-                    $"LamborghiniRevuelto damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
-                    $"contact='{collision.collider?.name ?? "unknown"}' " +
-                    $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
-                    $"localContact=({primaryLocalContact.x:0.00}," +
-                    $"{primaryLocalContact.y:0.00},{primaryLocalContact.z:0.00}) " +
-                    $"region={(frontImpact ? "front" : rearImpact ? "rear" : "side")} " +
-                    $"depth={(frontImpact ? frontDentDepth : rearImpact ? rearDentDepth : dentDepth):0.000}m " +
-                    $"meshes={changedMeshes} vertices={changedVertices} " +
-                    $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
-                    $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
             }
         }
         catch (Exception exception)

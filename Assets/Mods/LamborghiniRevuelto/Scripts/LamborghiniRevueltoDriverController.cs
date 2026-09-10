@@ -85,12 +85,10 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
             {
                 RemoveDriver();
                 ScheduleExitRecovery();
-                LogInfo("exited; seated model removed.");
             }
             else
             {
                 StopExitRecovery();
-                LogInfo("occupied; preparing current player appearance.");
             }
         }
 
@@ -178,7 +176,6 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
         driverRoot.transform.localPosition = Vector3.zero;
 
         var rendererCount = 0;
-        var suppressedCount = 0;
         var lowerDetailRenderers = GetLowerDetailRenderers(appearance.transform);
         foreach (var source in appearance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
@@ -189,9 +186,6 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
             if (source.forceRenderingOff || source.shadowCastingMode == ShadowCastingMode.ShadowsOnly ||
                 lowerDetailRenderers.Contains(source))
             {
-                suppressedCount++;
-                LogInfo($"skipped mesh='{source.name}' forceRenderingOff={source.forceRenderingOff} " +
-                        $"shadowMode={source.shadowCastingMode} lowerDetail={lowerDetailRenderers.Contains(source)}.");
                 continue;
             }
             CopyRenderer(source, transforms);
@@ -221,9 +215,6 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
             throw new InvalidOperationException("Seated avatar has no humanoid hips bone.");
 
         AlignWithSeat();
-        var head = animator.GetBoneTransform(HumanBodyBones.Head);
-        var leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
-        var rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
         leftArm = CreateArm(animator, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm,
             HumanBodyBones.LeftHand);
         rightArm = CreateArm(animator, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
@@ -232,27 +223,8 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
             HumanBodyBones.LeftFoot, "left leg");
         rightLeg = CreateLimb(animator, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg,
             HumanBodyBones.RightFoot, "right leg");
-        var leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
-        var rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
-        var originalLeftHand = VehiclePosition(leftHand);
-        var originalRightHand = VehiclePosition(rightHand);
-        var originalLeftFoot = VehiclePosition(leftFoot);
-        var originalRightFoot = VehiclePosition(rightFoot);
         AlignHandsWithWheel();
         RaiseFeetAndKnees();
-        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} forward={HandForwardOffset:F3} " +
-                $"height={HandHeightOffset:F3} " +
-                $"leftBefore={originalLeftHand} leftAfter={VehiclePosition(leftHand)} " +
-                $"rightBefore={originalRightHand} rightAfter={VehiclePosition(rightHand)}.");
-        LogInfo($"leg alignment footRaise={FootRaise:F3} forward={FootForwardOffset:F3} " +
-                $"leftBefore={originalLeftFoot} leftAfter={VehiclePosition(leftFoot)} " +
-                $"rightBefore={originalRightFoot} rightAfter={VehiclePosition(rightFoot)}.");
-        LogInfo($"created from current player appearance; renderers={rendererCount} " +
-                $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
-                $"transforms={transforms.Count} clip='{sittingClip.name}' " +
-                $"hips={VehiclePosition(hips)} head={VehiclePosition(head)} " +
-                $"leftHand={VehiclePosition(leftHand)} rightHand={VehiclePosition(rightHand)} " +
-                $"steeringWheel={VehiclePosition(steeringWheel)}.");
     }
 
     private void AlignWithSeat()
@@ -487,14 +459,7 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
         destination.renderingLayerMask = source.renderingLayerMask;
         destination.shadowCastingMode = ShadowCastingMode.Off;
         destination.receiveShadows = source.receiveShadows;
-        LogInfo($"copied mesh='{source.name}' vertices={mesh.vertexCount} " +
-                $"blendShapes={mesh.blendShapeCount} materials={materials.Length} " +
-                $"sourceShadowMode={source.shadowCastingMode} receiveShadows={source.receiveShadows} " +
-                $"renderingLayerMask={source.renderingLayerMask}.");
     }
-
-    private string VehiclePosition(Transform? target) =>
-        target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
 
     private void ScheduleExitRecovery()
     {
@@ -535,14 +500,7 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
             yield break;
         }
 
-        var previousPosition = playerRoot.position;
         PlacePlayerAtSafeExit(playerRoot, agents, safePosition);
-        if (LamborghiniRevueltoDebug.Enabled)
-        {
-            context?.Logger.Info(
-                $"LamborghiniRevuelto driver vehicle={vehicle.GetInstanceID()}: recovered off-NavMesh " +
-                $"exit from={previousPosition:F3} to={safePosition:F3}.");
-        }
     }
 
     private static bool HasUsableAgent(IReadOnlyList<NavMeshAgent> agents)
@@ -654,12 +612,6 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
             if (characterControllers[index] != null)
                 characterControllers[index].enabled = controllerStates[index];
         Physics.SyncTransforms();
-    }
-
-    private void LogInfo(string message)
-    {
-        if (LamborghiniRevueltoDebug.Enabled)
-            context?.Logger.Info($"LamborghiniRevuelto driver vehicle={vehicle?.GetInstanceID()}: {message}");
     }
 
     private void RemoveDriver()
