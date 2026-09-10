@@ -8631,8 +8631,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.96, y: 0.72, z: 5.04}
-  m_Center: {x: 0, y: 0.56, z: -0.05}
+  m_Size: {x: 1.9, y: 0.5, z: 4.92}
+  m_Center: {x: 0, y: 0.4, z: -0.05}
 --- !u!65 &2528356595797502578
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -8652,8 +8652,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.72, y: 1.08, z: 3.42}
-  m_Center: {x: 0, y: 1.27, z: -0.22}
+  m_Size: {x: 1.66, y: 0.7, z: 3.15}
+  m_Center: {x: 0, y: 0.88, z: -0.22}
 --- !u!1 &2520161792420006194
 GameObject:
   m_ObjectHideFlags: 0
@@ -21516,8 +21516,8 @@ Transform:
   m_GameObject: {fileID: 5195146213465126426}
   serializedVersion: 2
   m_LocalRotation: {x: 1.00153526e-16, y: 0.7071068, z: 0.7071068, w: -1.00153526e-16}
-  m_LocalPosition: {x: 0.025197268, y: -0.049380362, z: -0.09299207}
-  m_LocalScale: {x: 0.36113286, y: 0.45213547, z: 0.50795484}
+  m_LocalPosition: {x: 0.030759096, y: -0.049380362, z: -0.09299207}
+  m_LocalScale: {x: 0.4408448, y: 0.45213547, z: 0.50795484}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5426526717632403242}
@@ -32830,7 +32830,7 @@ Rigidbody:
   m_Mass: 2575
   m_Drag: 0
   m_AngularDrag: 1.8
-  m_CenterOfMass: {x: 0, y: 0.72, z: -0.1}
+  m_CenterOfMass: {x: 0, y: 0.22, z: -0.1}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
   m_IncludeLayers:
@@ -33752,8 +33752,8 @@ MonoBehaviour:
   combinedMass: 2575
   dimensions: {x: 1.989083, y: 1.414327, z: 4.584719}
   useDefaultCenterOfMass: 0
-  centerOfMass: {x: 0, y: 0.72, z: -0.1}
-  combinedCenterOfMass: {x: 0, y: 0.72, z: -0.1}
+  centerOfMass: {x: 0, y: 0.22, z: -0.1}
+  combinedCenterOfMass: {x: 0, y: 0.22, z: -0.1}
   useDefaultInertia: 1
   inertiaTensor: {x: 2222.068, y: 2206.0933, z: 623.19104}
   combinedInertiaTensor: {x: 0, y: 0, z: 0}

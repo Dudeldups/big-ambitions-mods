@@ -444,7 +444,7 @@ public static class CadillacEscaladeMaterials
             RebindToHdrpLit(material);
         }
         var tint = cabinGlass
-            ? new Color(0.08f, 0.11f, 0.14f, 0.34f)
+            ? new Color(0.38f, 0.46f, 0.54f, 0.18f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||

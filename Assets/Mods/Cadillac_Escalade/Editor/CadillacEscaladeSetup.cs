@@ -27,7 +27,10 @@ public static class CadillacEscaladeSetup
     private const string VehicleTypeName =
         "cadillacescalade-vehicle:vehicletype_cadillacescalade";
     private const float TargetLength = 5.144f;
-    private const float TargetWidth = 2.007f;
+    // Cadillac's published 2.007 m width excludes mirrors. The supplied GLB
+    // bounds include both extended mirrors, so normalize that span separately
+    // to avoid squeezing the body inside the correctly sized wheel track.
+    private const float TargetVisualWidthIncludingMirrors = 2.45f;
     private const float TargetHeight = 1.887f;
     private const float BodyGroundClearance = 0.18f;
     private const float WheelRadius = 0.408f;
@@ -39,7 +42,11 @@ public static class CadillacEscaladeSetup
     private const float DeformationStrength = 0.13f;
     private const float DeformationRadius = 0.45f;
     private const float DeformationRandomness = 0.012f;
-    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.72f, -0.10f);
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
+    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.40f, -0.05f);
+    private static readonly Vector3 LowerColliderSize = new Vector3(1.90f, 0.50f, 4.92f);
+    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.88f, -0.22f);
+    private static readonly Vector3 UpperColliderSize = new Vector3(1.66f, 0.70f, 3.15f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
@@ -132,8 +139,8 @@ public static class CadillacEscaladeSetup
             {
                 if (bounds.size.z < 5.08f || bounds.size.z > 5.22f)
                     issues.Add($"length={bounds.size.z:F3}");
-                if (bounds.size.x < 1.96f || bounds.size.x > 2.08f)
-                    issues.Add($"width={bounds.size.x:F3}");
+                if (bounds.size.x < 2.40f || bounds.size.x > 2.50f)
+                    issues.Add($"mirrorSpan={bounds.size.x:F3}");
                 if (bounds.size.y < 1.82f || bounds.size.y > 1.96f)
                     issues.Add($"height={bounds.size.y:F3}");
             }
@@ -222,6 +229,17 @@ public static class CadillacEscaladeSetup
                 Vector3.Distance(body.centerOfMass, StableCenterOfMass) > 0.001f)
             {
                 issues.Add("mass/center-of-mass");
+            }
+
+            var bodyCollider = FindTransform(prefab.transform, "BodyCollider");
+            var bodyColliders = bodyCollider?.GetComponents<BoxCollider>() ?? Array.Empty<BoxCollider>();
+            if (bodyColliders.Length < 2 ||
+                Vector3.Distance(bodyColliders[0].center, LowerColliderCenter) > 0.001f ||
+                Vector3.Distance(bodyColliders[0].size, LowerColliderSize) > 0.001f ||
+                Vector3.Distance(bodyColliders[1].center, UpperColliderCenter) > 0.001f ||
+                Vector3.Distance(bodyColliders[1].size, UpperColliderSize) > 0.001f)
+            {
+                issues.Add("body-collider-profile");
             }
 
             var transmissionVerified = false;
@@ -497,10 +515,10 @@ public static class CadillacEscaladeSetup
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle requires two body colliders.");
 
-        colliders[0].center = new Vector3(0f, 0.56f, -0.05f);
-        colliders[0].size = new Vector3(1.96f, 0.72f, 5.04f);
-        colliders[1].center = new Vector3(0f, 1.27f, -0.22f);
-        colliders[1].size = new Vector3(1.72f, 1.08f, 3.42f);
+        colliders[0].center = LowerColliderCenter;
+        colliders[0].size = LowerColliderSize;
+        colliders[1].center = UpperColliderCenter;
+        colliders[1].size = UpperColliderSize;
     }
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)
@@ -617,7 +635,7 @@ public static class CadillacEscaladeSetup
             throw new InvalidOperationException("Cadillac model length could not be measured.");
 
         var scale = new Vector3(
-            TargetWidth / bounds.size.x,
+            TargetVisualWidthIncludingMirrors / bounds.size.x,
             TargetLength / bounds.size.z,
             (TargetHeight - BodyGroundClearance) / bounds.size.y);
         model.transform.localScale = scale;
