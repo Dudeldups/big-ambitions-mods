@@ -44,7 +44,7 @@ public static class CadillacEscaladeMaterials
     public static readonly Color RimBaseColor = new Color(0.72f, 0.72f, 0.74f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
-    private const string RimMaterialMarker = "CadillacOpaque_14_material_2";
+    private const string RimMaterialMarker = "CadillacRimChrome";
     private const string HdMaterialTypeName =
         "UnityEngine.Rendering.HighDefinition.HDMaterial";
     private const string ShaderGraphApiTypeName =
@@ -195,7 +195,11 @@ public static class CadillacEscaladeMaterials
     public static bool IsTransparentMaterial(Material material)
     {
         var name = material.name;
-        if (name.IndexOf("Translucent_Glass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        if (name.IndexOf("CadillacCabinGlass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("CadillacClearLampLens", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("CadillacRearLampLens", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("CadillacAmberLampLens", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Translucent_Glass", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("Windows", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -311,111 +315,14 @@ public static class CadillacEscaladeMaterials
     private static void ApplyFactoryPalette(Material material)
     {
         var name = material.name;
-        var color = Color.white;
-        var metallic = 0f;
-        var smoothness = 0.45f;
-
-        if (Contains(name, "CadillacOpaque_00_M_0135_DarkGray"))
-        {
-            color = Gray(0.318f);
-            metallic = 0.25f;
-            smoothness = 0.62f;
-        }
-        else if (Contains(name, "CadillacOpaque_01_Color_005"))
-        {
-            color = Gray(0.447f);
-            smoothness = 0.65f;
-        }
-        else if (Contains(name, "CadillacOpaque_02_Color_008"))
-        {
-            color = Gray(0.039f);
-            smoothness = 0.30f;
-        }
-        else if (Contains(name, "CadillacOpaque_03_White"))
-        {
-            color = Color.white;
-            metallic = 0.18f;
-            smoothness = 0.82f;
-        }
-        else if (Contains(name, "CadillacOpaque_04_Color_004"))
-        {
-            color = Gray(0.557f);
-            smoothness = 0.68f;
-        }
-        else if (Contains(name, "CadillacOpaque_05_Color_A11"))
-        {
-            color = new Color(0.60f, 0f, 0f, 1f);
-            smoothness = 0.72f;
-        }
-        else if (Contains(name, "CadillacOpaque_06_Color_A06"))
-        {
-            color = new Color(0.80f, 0f, 0f, 1f);
-            smoothness = 0.72f;
-        }
-        else if (Contains(name, "CadillacOpaque_07_Color_A01"))
-        {
-            color = Color.red;
-            smoothness = 0.72f;
-        }
-        else if (Contains(name, "CadillacOpaque_08_black"))
-        {
-            color = new Color(0.006f, 0.006f, 0.006f, 1f);
-            smoothness = 0.24f;
-        }
-        else if (Contains(name, "CadillacOpaque_09_LightGray"))
-        {
-            color = Gray(0.663f);
-            metallic = 0.78f;
-            smoothness = 0.84f;
-        }
-        else if (Contains(name, "CadillacOpaque_10_M_96_96_96"))
-        {
-            color = Gray(0.376f);
-            metallic = 0.42f;
-            smoothness = 0.70f;
-        }
-        else if (Contains(name, "CadillacOpaque_11_Material8"))
-        {
-            color = Gray(0.510f);
-            metallic = 0.58f;
-            smoothness = 0.76f;
-        }
-        else if (Contains(name, "CadillacOpaque_12_Charcoal_1"))
-        {
-            color = new Color(0.012f, 0.012f, 0.012f, 1f);
-            smoothness = 0.28f;
-        }
-        else if (Contains(name, "CadillacOpaque_13_Color_B01"))
-        {
-            color = new Color(1f, 0.247f, 0f, 1f);
-            smoothness = 0.68f;
-        }
-        else if (Contains(name, "CadillacOpaque_14_material_2"))
-        {
-            color = RimBaseColor;
-            metallic = RimMetallic;
-            smoothness = RimSmoothness;
-        }
-        else if (Contains(name, "CadillacOpaque_15_gum_001"))
-        {
-            color = new Color(0.021f, 0.021f, 0.021f, 1f);
-            smoothness = 0.16f;
-        }
-        else if (Contains(name, "CadillacOpaque_16_Cadillac_Escalade_obj_002_0") ||
-                 Contains(name, "CadillacOpaque_17__003"))
-        {
-            color = Color.white;
-            smoothness = 0.58f;
-        }
-        else if (Contains(name, "CadillacOpaque_18_material"))
-        {
-            color = new Color(0.0004f, 0.0004f, 0.0004f, 1f);
-            smoothness = 0.34f;
-        }
-        else
-        {
+        if (!Contains(name, "CadillacBodyPaint") &&
+            !Contains(name, "CadillacRimChrome"))
             return;
-        }
+
+        var rim = Contains(name, "CadillacRimChrome");
+        var color = rim ? RimBaseColor : Color.white;
+        var metallic = rim ? RimMetallic : 0.18f;
+        var smoothness = rim ? RimSmoothness : 0.82f;
 
         SetColor(material, "_BaseColor", color);
         SetColor(material, "_Color", color);
@@ -429,28 +336,21 @@ public static class CadillacEscaladeMaterials
     private static bool Contains(string value, string marker) =>
         value.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0;
 
-    private static Color Gray(float value) => new Color(value, value, value, 1f);
-
     private static void FixTransparentHdrpMaterial(Material material)
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
-        if (cabinGlass)
-        {
-            // The imported glTF glass shader can retain a valid-looking
-            // transparent state while producing no visible pixels in the
-            // game's HDRP build. Cabin glass uses the stock game Lit shader so
-            // its blend state is deterministic on every vehicle instance.
-            RebindToHdrpLit(material);
-        }
+        // Imported glTF blend shaders can retain a valid-looking state while
+        // producing no pixels in the game's HDRP build. Rebind every transparent
+        // lens and cabin-glass material to the stock HDRP Lit shader.
+        RebindToHdrpLit(material);
         var tint = cabinGlass
-            ? new Color(0.38f, 0.46f, 0.54f, 0.18f)
-            : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
-                ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
-                : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                  name.IndexOf("Tail_light", StringComparison.OrdinalIgnoreCase) >= 0
-                    ? new Color(0.72f, 0.025f, 0.008f, 0.16f)
-                    : new Color(0.82f, 0.86f, 0.90f, 0.08f);
+            ? new Color(0.16f, 0.21f, 0.26f, 0.24f)
+            : name.IndexOf("CadillacRearLampLens", StringComparison.OrdinalIgnoreCase) >= 0
+                ? new Color(0.72f, 0.025f, 0.008f, 0.18f)
+                : name.IndexOf("CadillacAmberLampLens", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? new Color(1f, 0.20f, 0.01f, 0.18f)
+                    : new Color(0.82f, 0.88f, 0.94f, 0.10f);
         SetColor(material, "_BaseColor", tint);
         SetColor(material, "_Color", tint);
         SetColor(material, "baseColorFactor", tint);
@@ -507,7 +407,8 @@ public static class CadillacEscaladeMaterials
     public static bool IsCabinGlassMaterial(Material material)
     {
         var name = material.name;
-        return name.IndexOf("Translucent_Glass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        return name.IndexOf("CadillacCabinGlass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Translucent_Glass", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Windows", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0;
     }

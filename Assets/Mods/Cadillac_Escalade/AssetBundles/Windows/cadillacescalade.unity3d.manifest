@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 3343284418
+CRC: 1627227777
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: fe2c6362261d05bc730909367a100092
+    Hash: 88c9a5db8baadb96a31adcc0bf31cdf2
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: fe2c6362261d05bc730909367a100092
+    Hash: 88c9a5db8baadb96a31adcc0bf31cdf2
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -220,53 +220,80 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
 Assets:
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_04_Color_004.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightTire.asset
+- Assets/Mods/Cadillac_Escalade/Config/Audio/EngineMidLoad.wav
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacDamageBodyFront.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRearLamp.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightPart04.asset
 - Assets/Mods/Cadillac_Escalade/Config/ATTRIBUTION.txt
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacCaliper.mat
 - Assets/Mods/Cadillac_Escalade/Config/Audio/HornHigh.wav
 - Assets/Mods/Cadillac_Escalade/Config/THIRD_PARTY_NOTICES.txt
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_18_material.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_16_Cadillac_Escalade_obj_002_0.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_14_material_2.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_07_Color_A01.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_03_White.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_metal_002.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_chassis.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightPart01.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacTire.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightPart02.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRimBlack.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacCabinGlass.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacAlphaBadges.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRimChrome.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftPart02.asset
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacBrakeRotor.mat
 - Assets/Mods/Cadillac_Escalade/Models/cadillac_escalade.glb
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_06_Color_A06.mat
 - Assets/Mods/Cadillac_Escalade/Config/Audio/EngineLow.wav
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_02_Color_008.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_09_LightGray.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_10_M_96_96_96.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftTire.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacAmberLampLens.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_Espare_rim1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightPart03.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightPart01.asset
 - Assets/Mods/Cadillac_Escalade/CadillacEscalade.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_01_Color_005.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_15_gum_001.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_13_Color_B01.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftTire.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacChrome.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightPart04.asset
 - Assets/Mods/Cadillac_Escalade/Config/Audio/EngineHighLoad.wav
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightRim.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_05_Color_A11.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacTransparent_00_Translucent_Glass_Gray.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightRim.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_12_Charcoal_1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacFrontLamp.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftPart01.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EGraphics_Grey_006.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EBACK_SCREEN_MAIN_MENU1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftPart03.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightPart03.asset
 - Assets/Mods/Cadillac_Escalade/ATTRIBUTION.md
 - Assets/Mods/Cadillac_Escalade/Config/Audio/HornLow.wav
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_17__003.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_11_Material8.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftRim.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_00_M_0135_DarkGray.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacDamageBody.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftRim.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacDamageBodyRear.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_Ecombined_texture_maps_004.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacBodyPaint.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacClearLampLens.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftPart01.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EMetal_Rotor_Txt_004.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_ERubber_Black_002.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_Emirrors_002.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EScreens1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EFRONT_OLED_SCREEN1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftPart03.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_ELED_Light_Pipe_002.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftPart00.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_Glass_surr.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRimInner.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightPart00.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftPart00.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EMisc_Interior1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftPart04.asset
 - Assets/Mods/Cadillac_Escalade/THIRD_PARTY_NOTICES.md
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftPart04.asset
 - Assets/Mods/Cadillac_Escalade/Config/Audio/generation.json
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacTransparent_01_Translucent_Glass_Green_Dark.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearLeftPart02.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_BLACK_GLL.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EFabric_Black_Speaker_Mesh1.mat
 - Assets/Mods/Cadillac_Escalade/Config/Audio/EngineMid.wav
-- Assets/Mods/Cadillac_Escalade/VEHICLE_SPECS.md
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EGraphics_Yellow1.mat
 - Assets/Mods/Cadillac_Escalade/CadillacEscalade.prefab
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_08_black.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightTire.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EREAR_HVAC1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_Efront_hvac1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightPart00.asset
+- Assets/Mods/Cadillac_Escalade/VEHICLE_SPECS.md
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EGraphics_Red1.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightPart02.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_Ewood1.mat
 - Assets/Mods/Cadillac_Escalade/Config/Audio/EngineHigh.wav
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRearLampLens.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_EGraphics_Blue_002.mat
 - Assets/Mods/Cadillac_Escalade/Config/Audio/EngineLowLoad.wav
-- Assets/Mods/Cadillac_Escalade/Config/Audio/EngineMidLoad.wav
 Dependencies: []

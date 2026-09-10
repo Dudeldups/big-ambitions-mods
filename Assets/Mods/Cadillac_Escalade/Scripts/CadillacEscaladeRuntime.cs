@@ -39,9 +39,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
     private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.40f, -0.05f);
-    private static readonly Vector3 LowerColliderSize = new Vector3(1.90f, 0.50f, 4.92f);
+    private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
     private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.88f, -0.22f);
-    private static readonly Vector3 UpperColliderSize = new Vector3(1.66f, 0.70f, 3.15f);
+    private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 3.42f);
 
     private static readonly float[] EscaladeGears =
     {
@@ -581,22 +581,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private static bool IsDeformableExterior(MeshFilter filter)
     {
-        var name = filter.name;
-        return name.StartsWith("CadillacDamageBody", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_0", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_1", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_2", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_5", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_7", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_8", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_9", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_10", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_11", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_12", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_12_0", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj_15", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj.002_0", StringComparison.Ordinal) ||
-               string.Equals(name, "Cadillac_Escalade_obj.008_0", StringComparison.Ordinal);
+        return filter.name.StartsWith("CadillacDamageBody", StringComparison.Ordinal);
     }
 
     private static void ClearCollection(object target, string fieldName)

@@ -9,7 +9,7 @@ using UnityEngine;
 
 internal sealed class CadillacEscaladePaintController : MonoBehaviour
 {
-    private const string BodyMaterialMarker = "CadillacOpaque_03_White";
+    private const string BodyMaterialMarker = "CadillacBodyPaint";
     private const string CaliperMaterialMarker = "CadillacCaliper";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
@@ -128,9 +128,9 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
         selectedColor.a = 1f;
         foreach (var slot in slots)
         {
-            // The supplied cabin is a combined mesh without an isolated accent
-            // slot. Body paint and the four generated calipers are color linked;
-            // chrome, tires, glass, lamps, and interior remain factory materials.
+            // Both replacement-model body shells and the four generated calipers
+            // are color linked; chrome, tires, glass, lamps, and interior remain
+            // factory materials.
             var color = slot.Category == PaintCategory.InteriorAccent
                 ? Color.Lerp(selectedColor, Color.white, 0.12f)
                 : selectedColor;

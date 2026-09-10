@@ -8,14 +8,14 @@ using UnityEngine.Rendering;
 
 internal sealed class CadillacEscaladeLightingController : MonoBehaviour
 {
-    private const string DaylightName = "Cadillac_Escalade_obj_1";
-    private const string HeadlampName = "Cadillac_Escalade_obj_5";
-    private const string SecondaryHeadlampName = "Cadillac_Escalade_obj_1";
-    private const string RearStripName = "Cadillac_Escalade_obj_7";
-    private const string ThirdBrakeLightName = "Cadillac_Escalade_obj_9";
-    private const string ReverseLightName = "Cadillac_Escalade_obj_8";
-    private const string LeftBlinkerName = "Cadillac_Escalade_obj_15";
-    private const string RightBlinkerName = "Cadillac_Escalade_obj_15";
+    private const string DaylightName = "running_headlight";
+    private const string HeadlampName = "high_beams";
+    private const string SecondaryHeadlampName = "running_facia_lamps";
+    private const string RearStripName = "tail_lamp_long";
+    private const string ThirdBrakeLightName = "chml_red";
+    private const string ReverseLightName = "reflectorGlass";
+    private const string FrontBlinkerName = "amber_lights";
+    private const string RearBlinkerName = "rear_turn_signals";
     private const float BlinkerHalfPeriod = 0.42f;
     private static readonly BindingFlags InstanceMembers =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -63,8 +63,8 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         var rearStrip = FindRenderer(renderers, RearStripName);
         var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
         var reverseLight = FindRenderer(renderers, ReverseLightName);
-        var leftBlinker = FindRenderer(renderers, LeftBlinkerName);
-        var rightBlinker = FindRenderer(renderers, RightBlinkerName);
+        var frontBlinkers = FindRenderer(renderers, FrontBlinkerName);
+        var rearBlinkers = FindRenderer(renderers, RearBlinkerName);
 
         daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
             new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
@@ -86,13 +86,13 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             4.8f,
             1.006f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
-        leftBlinkerOverlay = CreateFilteredOverlay(leftBlinker, p => p.x <= -0.10f,
+        leftBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x <= -0.10f,
             "LeftIndicator", amber, 5.4f, 1.004f);
-        rightBlinkerOverlay = CreateFilteredOverlay(rightBlinker, p => p.x >= 0.10f,
+        rightBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x >= 0.10f,
             "RightIndicator", amber, 5.4f, 1.004f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearStrip, p => p.x <= -0.25f,
+        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearBlinkers, p => p.x <= -0.10f,
             "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearStrip, p => p.x >= 0.25f,
+        rearRightBlinkerOverlay = CreateFilteredOverlay(rearBlinkers, p => p.x >= 0.10f,
             "RearRightIndicator", amber, 6f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
@@ -347,7 +347,8 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string name)
     {
         foreach (var renderer in renderers)
-            if (renderer != null && string.Equals(renderer.name, name, StringComparison.Ordinal))
+            if (renderer != null &&
+                renderer.name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
                 return renderer;
         return null;
     }
