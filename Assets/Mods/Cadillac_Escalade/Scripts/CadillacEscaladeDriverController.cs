@@ -15,13 +15,14 @@ internal sealed class CadillacEscaladeDriverController : MonoBehaviour
     private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 1.00f;
+    private const float BackrestLeanDegrees = -5f;
     private const float HandHalfSpacing = 0.19f;
-    private const float HandForwardOffset = 0.075f;
+    private const float HandForwardOffset = 0.015f;
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.08f;
     private const float FootForwardOffset = 0.20f;
     // Pelvis position relative to the Escalade steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.50f, -0.48f);
+    private static readonly Vector3 SeatOffset = new(0f, -0.42f, -0.48f);
     private const int MaximumAttempts = 20;
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;
@@ -236,7 +237,8 @@ internal sealed class CadillacEscaladeDriverController : MonoBehaviour
     {
         if (driverRoot == null || hips == null || steeringWheel == null || vehicle == null)
             return;
-        driverRoot.transform.rotation = vehicle.transform.rotation;
+        driverRoot.transform.rotation = vehicle.transform.rotation *
+                                        Quaternion.Euler(BackrestLeanDegrees, 0f, 0f);
         var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
         driverRoot.transform.position += seatPosition - hips.position;
     }
