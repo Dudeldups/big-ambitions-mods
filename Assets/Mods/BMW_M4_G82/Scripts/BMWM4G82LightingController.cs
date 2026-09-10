@@ -65,7 +65,7 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             "RightDaytimeRunningLights", white, 4.8f, 1.001f);
         headlampOverlay = CreateComponentOverlay(lamp,
             IsFrontProjector,
-            "HeadlampProjectors", white, 6.2f, 1.004f);
+            "HeadlampProjectors", white, 8.0f, 1.010f);
         rearLeftTailOverlay = CreateComponentOverlay(lamp,
             component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
                          component.Bounds.center.x < 0f,
@@ -92,14 +92,15 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         rightBlinkerOverlay = CreateComponentOverlay(daylight,
             component => IsFront(component) && component.Bounds.center.x >= 0f,
             "RightIndicator", amber, 5.4f, 1.002f);
+        var rearAmber = new Color(1f, 0.58f, 0.005f, 1f);
         rearLeftBlinkerOverlay = CreateComponentOverlay(lamp,
-            component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
+            component => (IsRearOuterSignature(component) || IsRearBrakePanel(component)) &&
                          component.Bounds.center.x < 0f,
-            "RearLeftIndicator", amber, 6.0f, 1.006f);
+            "RearLeftIndicator", rearAmber, 4.8f, 1.010f);
         rearRightBlinkerOverlay = CreateComponentOverlay(lamp,
-            component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
+            component => (IsRearOuterSignature(component) || IsRearBrakePanel(component)) &&
                          component.Bounds.center.x >= 0f,
-            "RearRightIndicator", amber, 6.0f, 1.006f);
+            "RearRightIndicator", rearAmber, 4.8f, 1.010f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
@@ -314,8 +315,7 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
 
     private static bool IsFrontProjector(LampComponent component) =>
         IsFront(component) && component.TriangleCount >= 200 &&
-        component.TriangleCount <= 260 && component.Bounds.size.y >= 0.055f &&
-        component.Bounds.size.z >= 0.055f;
+        component.TriangleCount <= 260;
 
     private static bool IsRearOuterSignature(LampComponent component) =>
         IsRear(component) && component.TriangleCount >= 112 &&
@@ -441,10 +441,10 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         SetEnabled(leftDaylightOverlay, false);
         SetEnabled(rightDaylightOverlay, false);
         SetEnabled(headlampOverlay, lightsOn);
-        SetEnabled(rearLeftTailOverlay, lightsOn && !leftBlinker);
-        SetEnabled(rearRightTailOverlay, lightsOn && !rightBlinker);
-        SetEnabled(rearLeftBrakeOverlay, braking && !leftBlinker);
-        SetEnabled(rearRightBrakeOverlay, braking && !rightBlinker);
+        SetEnabled(rearLeftTailOverlay, lightsOn);
+        SetEnabled(rearRightTailOverlay, lightsOn);
+        SetEnabled(rearLeftBrakeOverlay, braking);
+        SetEnabled(rearRightBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);

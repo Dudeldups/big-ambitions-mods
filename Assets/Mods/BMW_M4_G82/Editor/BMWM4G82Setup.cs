@@ -15,7 +15,8 @@ public static class BMWM4G82Setup
     private const string ModelPath = ModRoot + "/Models/bmw_m4.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
     private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
-    private const string CaliperMaterialPath = MaterialFolder + "/BMWCaliper.mat";
+    private const string OriginalCaliperDiagnosticMaterialPath =
+        MaterialFolder + "/BMWOriginalCaliperDiagnostic.mat";
     private const string DamageBodyMeshPath =
         MeshFolder + "/BMWDamageBody.asset";
     private const string VehicleAssetPath = ModRoot + "/BMWM4G82.asset";
@@ -40,6 +41,7 @@ public static class BMWM4G82Setup
     private const float RearTireWidth = 0.285f;
     private const float FrontTireRadius = 0.3376f;
     private const float RearTireRadius = 0.3395f;
+    private const float OriginalCaliperDiagnosticOffset = 0.70f;
     private const float VisualBodyOffsetY = -0.035f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
@@ -231,6 +233,7 @@ public static class BMWM4G82Setup
             var caliperCount = 0;
             var caliperTriangles = 0;
             var correctlyShapedCalipers = 0;
+            var originalCaliperRenderers = 0;
             var centerCapCount = 0;
             var neutralCenterCaps = 0;
             var rollingParts = 0;
@@ -261,21 +264,27 @@ public static class BMWM4G82Setup
                         var mesh = renderer.GetComponent<MeshFilter>()?.sharedMesh;
                         if (mesh == null)
                             continue;
+                        if (renderer.name.StartsWith(
+                                "BMW_OriginalCaliper_Diagnostic_",
+                                StringComparison.Ordinal))
+                            originalCaliperRenderers++;
                         for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
                             caliperTriangles += mesh.GetTriangles(subMesh).Length / 3;
                         var caliperSize = mesh.bounds.size;
-                        if (caliperSize.y > caliperSize.z * 1.10f &&
-                            caliperSize.z > caliperSize.x * 1.25f)
+                        if (caliperSize.y >= 0.22f && caliperSize.x >= 0.07f &&
+                            caliperSize.x <= 0.25f && caliperSize.z <= 0.18f &&
+                            mesh.vertexCount >= 500)
                             correctlyShapedCalipers++;
                     }
                 }
             }
             if (wheelCount != 4 || caliperCount != 4 || centerCapCount != 4 ||
                 neutralCenterCaps != 4 || rollingParts < 20 ||
-                correctlyShapedCalipers != 4 ||
-                caliperTriangles < 80 || caliperTriangles > 240)
+                originalCaliperRenderers != 4 || correctlyShapedCalipers != 4 ||
+                caliperTriangles < 4000)
                 throw new InvalidOperationException(
                     $"BMW wheel assembly incomplete wheels={wheelCount} calipers={caliperCount} " +
+                    $"originalCaliperRenderers={originalCaliperRenderers}/4 " +
                     $"caliperTriangles={caliperTriangles} shaped={correctlyShapedCalipers}/4 " +
                     $"centerCaps={centerCapCount}/" +
                     $"neutral={neutralCenterCaps} rollingParts={rollingParts}.");
@@ -478,7 +487,7 @@ public static class BMWM4G82Setup
                 InteractionMode.AutomatedAction);
             modelInstance.name = "BMWVisual";
             RemoveModelLights(modelInstance);
-            RemoveStudioGeometry(modelInstance);
+            PreserveOriginalCaliperSources(modelInstance);
             NameKeyRenderers(modelInstance);
             NormalizeModel(modelInstance);
             ConfigureRoofPaint(modelInstance);
@@ -553,23 +562,42 @@ public static class BMWM4G82Setup
             UnityEngine.Object.DestroyImmediate(light.gameObject);
     }
 
-    private static void RemoveStudioGeometry(GameObject model)
+    private static void PreserveOriginalCaliperSources(GameObject model)
     {
+        var sourceHolder = new GameObject("BMW_OriginalCaliper_Sources");
+        sourceHolder.transform.SetParent(model.transform, false);
+        var sourceIndex = 0;
         foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
         {
             var material = renderer.sharedMaterial;
-            if (material == null ||
-                material.name.IndexOf("Material.002", StringComparison.OrdinalIgnoreCase) < 0)
-            {
+            if (!IsOriginalCaliperMaterial(material))
                 continue;
-            }
 
+            // The previous setup removed this mesh before normalization but
+            // left its empty renderer transform in the bounds pass. Retain a
+            // temporary empty marker at that exact transform so revealing the
+            // authored caliper does not alter the already-tested body scale,
+            // ride height or wheelbase.
+            var normalizationMarker = new GameObject(
+                $"BMW_CaliperNormalizationMarker_{sourceIndex}");
+            normalizationMarker.transform.SetParent(renderer.transform.parent, false);
+            normalizationMarker.transform.localPosition = renderer.transform.localPosition;
+            normalizationMarker.transform.localRotation = renderer.transform.localRotation;
+            normalizationMarker.transform.localScale = renderer.transform.localScale;
+            normalizationMarker.AddComponent<MeshRenderer>().enabled = false;
+
+            // Material.002 is the authored brake-caliper assembly. It used to
+            // be mistaken for Sketchfab studio geometry and discarded before
+            // wheel extraction. Keep the source mesh intact but hidden so it
+            // can be split into fixed, non-rolling corner geometry later.
+            renderer.name = $"BMW_OriginalCaliper_Source_{sourceIndex++}";
             renderer.enabled = false;
-            renderer.sharedMaterials = Array.Empty<Material>();
-            var filter = renderer.GetComponent<MeshFilter>();
-            if (filter != null)
-                filter.sharedMesh = null;
+            renderer.transform.SetParent(sourceHolder.transform, true);
         }
+
+        if (sourceIndex != 2)
+            throw new InvalidOperationException(
+                $"BMW requires two authored Material.002 caliper sources, found {sourceIndex}.");
     }
 
     private static void NameKeyRenderers(GameObject model)
@@ -911,14 +939,27 @@ public static class BMWM4G82Setup
     private static void AttachWheelVisuals(GameObject root, GameObject model)
     {
         var sources = new List<MeshRenderer>();
+        var originalCaliperSources = new List<MeshRenderer>();
         foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
-            if (IsWheelSourceMaterial(renderer.sharedMaterial))
+        {
+            if (IsOriginalCaliperMaterial(renderer.sharedMaterial))
+            {
+                originalCaliperSources.Add(renderer);
+                Debug.Log(
+                    $"BMWM4G82 original caliper source renderer='{renderer.name}' " +
+                    $"material='{renderer.sharedMaterial.name}'.");
+            }
+            else if (IsWheelSourceMaterial(renderer.sharedMaterial))
             {
                 sources.Add(renderer);
                 Debug.Log($"BMWM4G82 wheel source renderer='{renderer.name}' material='{renderer.sharedMaterial.name}'.");
             }
+        }
         if (sources.Count < 5)
             throw new InvalidOperationException($"Expected the BMW wheel source renderers, found {sources.Count}.");
+        if (originalCaliperSources.Count != 2)
+            throw new InvalidOperationException(
+                $"Expected two BMW authored caliper source renderers, found {originalCaliperSources.Count}.");
 
         if (!TryGetWheelRegionBounds(root.transform, sources, true, true, out var frontLeftBounds) ||
             !TryGetWheelRegionBounds(root.transform, sources, false, true, out var rearLeftBounds))
@@ -943,9 +984,17 @@ public static class BMWM4G82Setup
         };
 
         foreach (var corner in corners)
-            CreateWheelCorner(root, sources, corner);
+            CreateWheelCorner(root, sources, originalCaliperSources, corner);
 
         foreach (var renderer in sources)
+        {
+            renderer.enabled = false;
+            renderer.sharedMaterials = Array.Empty<Material>();
+            var filter = renderer.GetComponent<MeshFilter>();
+            if (filter != null)
+                filter.sharedMesh = null;
+        }
+        foreach (var renderer in originalCaliperSources)
         {
             renderer.enabled = false;
             renderer.sharedMaterials = Array.Empty<Material>();
@@ -984,7 +1033,11 @@ public static class BMWM4G82Setup
         CenterCap,
     }
 
-    private static void CreateWheelCorner(GameObject root, List<MeshRenderer> sources, WheelCorner corner)
+    private static void CreateWheelCorner(
+        GameObject root,
+        List<MeshRenderer> sources,
+        List<MeshRenderer> originalCaliperSources,
+        WheelCorner corner)
     {
         var controller = FindTransform(root.transform, corner.ControllerName) ??
                          throw new InvalidOperationException($"Wheel controller '{corner.ControllerName}' is missing.");
@@ -1014,7 +1067,6 @@ public static class BMWM4G82Setup
             throw new InvalidOperationException(
                 $"BMW {corner.Suffix} rolling assembly is incomplete ({rollingParts} parts).");
 
-        Material? caliperMaterialSource = null;
         foreach (var source in sources)
         {
             if (!IsCaliperMaterial(source.sharedMaterial))
@@ -1023,7 +1075,6 @@ public static class BMWM4G82Setup
                     root, geometry, source, corner, WheelVisualPart.CenterCap) == null)
                 continue;
             rollingParts++;
-            caliperMaterialSource = source.sharedMaterial;
             break;
         }
         if (rollingParts < 5)
@@ -1046,10 +1097,17 @@ public static class BMWM4G82Setup
         fixedMount.transform.SetParent(root.transform, false);
         fixedMount.transform.localPosition = corner.Position;
         var caliperGeometry = new GameObject("BMWCaliperGeometry_" + corner.Suffix);
-        caliperGeometry.transform.SetParent(fixedMount.transform, false);
-        if (caliperMaterialSource == null)
-            throw new InvalidOperationException($"BMW {corner.Suffix} caliper material source is missing.");
-        CreateProceduralCaliper(caliperGeometry, corner, caliperMaterialSource);
+        caliperGeometry.transform.SetParent(root.transform, false);
+        CreateOriginalCaliperGeometry(
+            root.transform,
+            caliperGeometry,
+            originalCaliperSources,
+            corner);
+        caliperGeometry.transform.SetParent(fixedMount.transform, true);
+        caliperGeometry.transform.localPosition += new Vector3(
+            corner.Left ? -OriginalCaliperDiagnosticOffset : OriginalCaliperDiagnosticOffset,
+            0f,
+            0f);
 
         AssignWheelVisual(controller, mount);
         Debug.Log(
@@ -1106,132 +1164,218 @@ public static class BMWM4G82Setup
         return renderer;
     }
 
-    private static void CreateProceduralCaliper(
+    private static void CreateOriginalCaliperGeometry(
+        Transform root,
         GameObject holder,
-        WheelCorner corner,
-        Material materialSource)
+        IReadOnlyList<MeshRenderer> sources,
+        WheelCorner corner)
     {
         if (!AssetDatabase.IsValidFolder(MeshFolder))
             AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMeshes");
 
-        var mesh = BuildCaliperMesh(corner);
-        var meshPath = $"{MeshFolder}/BMW_{corner.Suffix}_BMWOpaque_11_Material_001_Caliper.asset";
+        Mesh? bestMesh = null;
+        Material? bestMaterial = null;
+        var bestTriangleCount = 0;
+        foreach (var source in sources)
+        {
+            var candidate = CreateCompactOriginalCaliperMesh(root, source, corner, out var triangles);
+            if (candidate == null)
+                continue;
+            if (triangles > bestTriangleCount)
+            {
+                if (bestMesh != null)
+                    UnityEngine.Object.DestroyImmediate(bestMesh);
+                bestMesh = candidate;
+                bestMaterial = source.sharedMaterial;
+                bestTriangleCount = triangles;
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(candidate);
+            }
+        }
+
+        if (bestMesh == null || bestMaterial == null || bestTriangleCount < 1000)
+            throw new InvalidOperationException(
+                $"BMW {corner.Suffix} authored caliper extraction failed triangles={bestTriangleCount}.");
+
+        var meshPath = $"{MeshFolder}/BMW_{corner.Suffix}_OriginalCaliper.asset";
         var persistent = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
         if (persistent == null)
         {
-            AssetDatabase.CreateAsset(mesh, meshPath);
-            persistent = mesh;
+            AssetDatabase.CreateAsset(bestMesh, meshPath);
+            persistent = bestMesh;
         }
         else
         {
-            EditorUtility.CopySerialized(mesh, persistent);
-            UnityEngine.Object.DestroyImmediate(mesh);
+            EditorUtility.CopySerialized(bestMesh, persistent);
+            UnityEngine.Object.DestroyImmediate(bestMesh);
             EditorUtility.SetDirty(persistent);
         }
 
-        var part = new GameObject("BMW_Caliper_" + corner.Suffix);
+        var part = new GameObject("BMW_OriginalCaliper_Diagnostic_" + corner.Suffix);
         part.transform.SetParent(holder.transform, false);
         part.AddComponent<MeshFilter>().sharedMesh = persistent;
         var renderer = part.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = GetOrCreateCaliperMaterial(materialSource);
+        renderer.sharedMaterial = GetOrCreateOriginalCaliperDiagnosticMaterial(bestMaterial);
         renderer.shadowCastingMode = ShadowCastingMode.On;
         renderer.receiveShadows = true;
+        Debug.Log(
+            $"BMWM4G82: extracted authored {corner.Suffix} caliper " +
+            $"triangles={bestTriangleCount} bounds={persistent.bounds.size} " +
+            $"diagnosticOutwardOffset={OriginalCaliperDiagnosticOffset:F2}m.");
     }
 
-    private static Mesh BuildCaliperMesh(WheelCorner corner)
+    private static Mesh? CreateCompactOriginalCaliperMesh(
+        Transform root,
+        MeshRenderer source,
+        WheelCorner corner,
+        out int triangleCount)
     {
-        var height = corner.Front ? 0.31f : 0.27f;
-        var width = corner.Front ? 0.14f : 0.12f;
-        var thickness = corner.Front ? 0.095f : 0.085f;
-        var centerX = corner.Left ? 0.045f : -0.045f;
-        var centerY = 0.015f;
-        var centerZ = corner.Front ? -0.165f : 0.155f;
-        var halfHeight = height * 0.5f;
-        var halfWidth = width * 0.5f;
-        var halfThickness = thickness * 0.5f;
-        var profile = new[]
+        triangleCount = 0;
+        var sourceMesh = source.GetComponent<MeshFilter>()?.sharedMesh;
+        if (sourceMesh == null)
+            return null;
+
+        var sourceVertices = sourceMesh.vertices;
+        var sourceToRoot = root.worldToLocalMatrix * source.transform.localToWorldMatrix;
+        var rootVertices = new Vector3[sourceVertices.Length];
+        for (var index = 0; index < rootVertices.Length; index++)
+            rootVertices[index] = sourceToRoot.MultiplyPoint3x4(sourceVertices[index]);
+
+        var selectedTriangles = new List<int>();
+        var selectedVertices = new HashSet<int>();
+        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
         {
-            new Vector2(-halfHeight + 0.035f, -halfWidth),
-            new Vector2(-halfHeight, -halfWidth * 0.30f),
-            new Vector2(-halfHeight + 0.015f, halfWidth * 0.72f),
-            new Vector2(-halfHeight + 0.055f, halfWidth),
-            new Vector2(halfHeight - 0.045f, halfWidth),
-            new Vector2(halfHeight, halfWidth * 0.32f),
-            new Vector2(halfHeight - 0.012f, -halfWidth * 0.72f),
-            new Vector2(halfHeight - 0.050f, -halfWidth),
+            var triangles = sourceMesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < triangles.Length; index += 3)
+            {
+                var a = triangles[index];
+                var b = triangles[index + 1];
+                var c = triangles[index + 2];
+                var center = (rootVertices[a] + rootVertices[b] + rootVertices[c]) / 3f;
+                var delta = center - corner.Position;
+                if (Mathf.Abs(delta.x) > 0.30f || Mathf.Abs(delta.y) > 0.48f ||
+                    Mathf.Abs(delta.z) > 0.48f)
+                    continue;
+                selectedTriangles.Add(a);
+                selectedTriangles.Add(b);
+                selectedTriangles.Add(c);
+                selectedVertices.Add(a);
+                selectedVertices.Add(b);
+                selectedVertices.Add(c);
+            }
+        }
+        triangleCount = selectedTriangles.Count / 3;
+        if (triangleCount == 0)
+            return null;
+
+        var orderedSourceIndices = new List<int>(selectedVertices);
+        orderedSourceIndices.Sort();
+        var remap = new Dictionary<int, int>(orderedSourceIndices.Count);
+        var vertices = new Vector3[orderedSourceIndices.Count];
+        for (var index = 0; index < orderedSourceIndices.Count; index++)
+        {
+            var sourceIndex = orderedSourceIndices[index];
+            remap[sourceIndex] = index;
+            vertices[index] = rootVertices[sourceIndex];
+        }
+        for (var index = 0; index < selectedTriangles.Count; index++)
+            selectedTriangles[index] = remap[selectedTriangles[index]];
+
+        var mesh = new Mesh
+        {
+            name = "BMW_" + corner.Suffix + "_OriginalCaliper",
+            indexFormat = vertices.Length > 65535
+                ? IndexFormat.UInt32
+                : IndexFormat.UInt16,
+            vertices = vertices,
         };
-
-        var vertices = new Vector3[profile.Length * 2];
-        for (var index = 0; index < profile.Length; index++)
+        var sourceNormals = sourceMesh.normals;
+        if (sourceNormals.Length == sourceVertices.Length)
         {
-            var point = profile[index];
-            vertices[index] = new Vector3(
-                centerX - halfThickness,
-                centerY + point.x,
-                centerZ + point.y);
-            vertices[index + profile.Length] = new Vector3(
-                centerX + halfThickness,
-                centerY + point.x,
-                centerZ + point.y);
+            var normalMatrix = sourceToRoot.inverse.transpose;
+            var normals = new Vector3[orderedSourceIndices.Count];
+            for (var index = 0; index < orderedSourceIndices.Count; index++)
+                normals[index] = normalMatrix.MultiplyVector(
+                    sourceNormals[orderedSourceIndices[index]]).normalized;
+            mesh.normals = normals;
         }
-
-        var triangles = new List<int>((profile.Length - 2) * 6 + profile.Length * 6);
-        for (var index = 1; index < profile.Length - 1; index++)
+        var sourceTangents = sourceMesh.tangents;
+        if (sourceTangents.Length == sourceVertices.Length)
         {
-            triangles.Add(0);
-            triangles.Add(index + 1);
-            triangles.Add(index);
-            triangles.Add(profile.Length);
-            triangles.Add(profile.Length + index);
-            triangles.Add(profile.Length + index + 1);
+            var tangents = new Vector4[orderedSourceIndices.Count];
+            for (var index = 0; index < orderedSourceIndices.Count; index++)
+            {
+                var sourceTangent = sourceTangents[orderedSourceIndices[index]];
+                var direction = sourceToRoot.MultiplyVector(new Vector3(
+                    sourceTangent.x,
+                    sourceTangent.y,
+                    sourceTangent.z)).normalized;
+                tangents[index] = new Vector4(
+                    direction.x,
+                    direction.y,
+                    direction.z,
+                    sourceTangent.w);
+            }
+            mesh.tangents = tangents;
         }
-        for (var index = 0; index < profile.Length; index++)
+        var sourceColors = sourceMesh.colors32;
+        if (sourceColors.Length == sourceVertices.Length)
         {
-            var next = (index + 1) % profile.Length;
-            triangles.Add(index);
-            triangles.Add(next);
-            triangles.Add(profile.Length + next);
-            triangles.Add(index);
-            triangles.Add(profile.Length + next);
-            triangles.Add(profile.Length + index);
+            var colors = new Color32[orderedSourceIndices.Count];
+            for (var index = 0; index < orderedSourceIndices.Count; index++)
+                colors[index] = sourceColors[orderedSourceIndices[index]];
+            mesh.colors32 = colors;
         }
-
-        var mesh = new Mesh { name = "BMW_" + corner.Suffix + "_Caliper" };
-        mesh.vertices = vertices;
-        mesh.triangles = triangles.ToArray();
+        CopyUvChannel(sourceMesh.uv, sourceVertices.Length, orderedSourceIndices, values => mesh.uv = values);
+        CopyUvChannel(sourceMesh.uv2, sourceVertices.Length, orderedSourceIndices, values => mesh.uv2 = values);
+        mesh.SetTriangles(selectedTriangles, 0, true);
         mesh.RecalculateBounds();
-        mesh.RecalculateNormals();
         return mesh;
     }
 
-    private static Material GetOrCreateCaliperMaterial(Material source)
+    private static void CopyUvChannel(
+        Vector2[] source,
+        int sourceVertexCount,
+        IReadOnlyList<int> sourceIndices,
+        Action<Vector2[]> assign)
+    {
+        if (source.Length != sourceVertexCount)
+            return;
+        var values = new Vector2[sourceIndices.Count];
+        for (var index = 0; index < sourceIndices.Count; index++)
+            values[index] = source[sourceIndices[index]];
+        assign(values);
+    }
+
+    private static Material GetOrCreateOriginalCaliperDiagnosticMaterial(Material source)
     {
         if (!AssetDatabase.IsValidFolder(MaterialFolder))
             AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMaterials");
 
-        var material = AssetDatabase.LoadAssetAtPath<Material>(CaliperMaterialPath);
+        var material = AssetDatabase.LoadAssetAtPath<Material>(
+            OriginalCaliperDiagnosticMaterialPath);
         if (material == null)
         {
-            material = new Material(source) { name = "BMWCaliper" };
-            AssetDatabase.CreateAsset(material, CaliperMaterialPath);
+            material = new Material(source) { name = "BMWOriginalCaliperDiagnostic" };
+            AssetDatabase.CreateAsset(material, OriginalCaliperDiagnosticMaterialPath);
         }
 
-        foreach (var textureProperty in new[]
-                 {
-                     "_BaseColorMap", "_MainTex", "baseColorTexture", "_NormalMap",
-                     "_MaskMap", "_DetailMap", "_EmissiveColorMap"
-                 })
-            if (material.HasProperty(textureProperty))
-                material.SetTexture(textureProperty, null);
+        var diagnosticColor = new Color(1f, 0.015f, 0.62f, 1f);
         foreach (var colorProperty in new[] { "_BaseColor", "_Color", "baseColorFactor" })
             if (material.HasProperty(colorProperty))
-                material.SetColor(colorProperty, BMWM4G82Materials.CaliperBaseColor);
+                material.SetColor(colorProperty, diagnosticColor);
+        foreach (var emissionProperty in new[] { "_EmissiveColor", "_EmissionColor" })
+            if (material.HasProperty(emissionProperty))
+                material.SetColor(emissionProperty, diagnosticColor * 2.5f);
         if (material.HasProperty("_Metallic"))
-            material.SetFloat("_Metallic", 0.35f);
+            material.SetFloat("_Metallic", 0.15f);
         if (material.HasProperty("_Smoothness"))
-            material.SetFloat("_Smoothness", 0.46f);
+            material.SetFloat("_Smoothness", 0.38f);
         if (material.HasProperty("_SurfaceType"))
             material.SetFloat("_SurfaceType", 0f);
+        material.EnableKeyword("_EMISSION");
         material.renderQueue = -1;
         EditorUtility.SetDirty(material);
         return material;
@@ -1354,6 +1498,13 @@ public static class BMWM4G82Setup
                name.EndsWith("_main", StringComparison.OrdinalIgnoreCase) ||
                name.IndexOf("Material.001", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Material_001", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsOriginalCaliperMaterial(Material? material)
+    {
+        var name = material?.name ?? string.Empty;
+        return name.IndexOf("Material.002", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Material_002", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsRollingWheelMaterial(Material? material) =>
@@ -1846,12 +1997,18 @@ public static class BMWM4G82Setup
         bounds = default;
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
         {
+            if (renderer is MeshRenderer meshRenderer &&
+                IsOriginalCaliperMaterial(meshRenderer.sharedMaterial))
+                continue;
             var current = renderer.transform;
             var belongsToSourceWheel = false;
             while (current != null && current != root)
             {
                 if (current.name.StartsWith("Circle.001", StringComparison.Ordinal) ||
-                    current.name.StartsWith("Circle.004", StringComparison.Ordinal))
+                    current.name.StartsWith("Circle.004", StringComparison.Ordinal) ||
+                    current.name.StartsWith(
+                        "BMW_OriginalCaliper_Source",
+                        StringComparison.Ordinal))
                 {
                     belongsToSourceWheel = true;
                     break;
