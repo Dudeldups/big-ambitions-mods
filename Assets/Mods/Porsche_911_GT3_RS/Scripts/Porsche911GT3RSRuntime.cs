@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -69,6 +70,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private Coroutine? enteredVehicleActivationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private bool dealerRegistrationReady;
     private bool dealerReadyLogged;
 
     public static Porsche911GT3RSRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -155,6 +157,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerRegistrationReady = false;
         dealerReadyLogged = false;
     }
 
@@ -263,14 +266,33 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (Porsche911GT3RSLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
-            EnsureDealerStock("dealer-entered");
+        if (!Porsche911GT3RSLuxuryDealerStock.IsTargetDealer(registration?.BusinessName) ||
+            dealerRegistrationReady)
+        {
+            return;
+        }
+
+        if (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ScheduleInitialization("dealer-entered");
+            return;
+        }
+
+        EnsureDealerStock("dealer-entered");
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen)
-            EnsureDealerStock("full-menu");
+        if (!isOpen || dealerRegistrationReady)
+            return;
+
+        if (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ScheduleInitialization("full-menu");
+            return;
+        }
+
+        EnsureDealerStock("full-menu");
     }
 
     private void ScheduleInitialization(string source)
@@ -282,14 +304,21 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        var dealerReady = false;
+        while (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ConfigureExistingVehicles(out _);
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
+        var dealerReady = dealerRegistrationReady;
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= EnsureDealerStock(source);
+            if (!dealerReady)
+                dealerReady = EnsureDealerStock(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
@@ -316,9 +345,15 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private bool EnsureDealerStock(string source)
     {
+        if (dealerRegistrationReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
         try
         {
             var ready = Porsche911GT3RSLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            dealerRegistrationReady = ready;
             if (ready && !dealerReadyLogged)
             {
                 dealerReadyLogged = true;
