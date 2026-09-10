@@ -73,6 +73,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private string vehicleTypeName = string.Empty;
     private bool dealerReady;
     private bool dealerReadyLogged;
+    private int cachedPlayerVehicleCount = -1;
+    private int cachedTargetVehicleCount;
 
     public static CadillacEscaladeRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -86,6 +88,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.ResetPlayerVehicleSnapshot();
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -101,6 +104,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
+        ResetPlayerVehicleSnapshot();
         Destroy(gameObject);
     }
 
@@ -115,6 +119,16 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+    }
+
+    private void Update()
+    {
+        // Dealer purchases do not raise onEnterVehicle. Keep the hot path to an
+        // allocation-free integer comparison and enumerate only after the
+        // small player-vehicle collection changes.
+        var playerVehicleCount = VehicleHelper.AllPlayerVehicles?.Count ?? 0;
+        if (playerVehicleCount != cachedPlayerVehicleCount)
+            ConfigurePlayerVehiclesIfChanged(out _);
     }
 
     private void SubscribeEvents()
@@ -140,12 +154,14 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         SubscribeEvents();
+        ResetPlayerVehicleSnapshot();
         ScheduleInitialization($"scene-loaded:{scene.name}");
     }
 
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        ResetPlayerVehicleSnapshot();
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -158,6 +174,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
+        ResetPlayerVehicleSnapshot();
         dealerReady = false;
         dealerReadyLogged = false;
     }
@@ -281,7 +298,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
         while (BusinessLayoutSetHelper.loadingLayouts)
         {
-            ConfigureExistingVehicles(out var matchedCount);
+            ConfigurePlayerVehiclesIfChanged(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }
@@ -290,7 +307,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         {
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
-            ConfigureExistingVehicles(out var matchedCount);
+            ConfigurePlayerVehiclesIfChanged(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
             if (dealerReady && matchedCount == previousMatchedCount)
@@ -343,10 +360,31 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         }
     }
 
-    private void ConfigureExistingVehicles(out int matchedCount)
+    private void ResetPlayerVehicleSnapshot()
     {
+        cachedPlayerVehicleCount = -1;
+        cachedTargetVehicleCount = 0;
+    }
+
+    private void ConfigurePlayerVehiclesIfChanged(out int matchedCount)
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var playerVehicleCount = vehicles?.Count ?? 0;
+        if (playerVehicleCount == cachedPlayerVehicleCount)
+        {
+            matchedCount = cachedTargetVehicleCount;
+            return;
+        }
+
+        cachedPlayerVehicleCount = playerVehicleCount;
         matchedCount = 0;
-        foreach (var vehicle in FindObjectsOfType<VehicleController>(true))
+        if (vehicles == null)
+        {
+            cachedTargetVehicleCount = 0;
+            return;
+        }
+
+        foreach (var vehicle in vehicles)
         {
             if (!IsTargetVehicle(vehicle))
                 continue;
@@ -354,6 +392,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             matchedCount++;
             TryConfigureVehicle(vehicle);
         }
+        cachedTargetVehicleCount = matchedCount;
     }
 
     private void TryConfigureVehicle(VehicleController? vehicle)

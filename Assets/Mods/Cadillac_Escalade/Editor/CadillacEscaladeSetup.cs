@@ -298,6 +298,8 @@ public static class CadillacEscaladeSetup
             if (glassRenderers < 2) issues.Add($"glassRenderers={glassRenderers}");
             if (bodyPaintSlots != 2) issues.Add($"bodyPaintSlots={bodyPaintSlots}");
             if (caliperSlots != 4) issues.Add($"caliperSlots={caliperSlots}");
+            if (prefab.GetComponent<CadillacEscaladePaintController>() == null)
+                issues.Add("spawn-time-paint-bootstrap");
             if (FindTransform(prefab.transform, "Animate_SteeringWheel_033") == null)
                 issues.Add("steering/driver reference");
             var driverExit = FindTransform(prefab.transform, "Driverside");
@@ -418,6 +420,7 @@ public static class CadillacEscaladeSetup
             var rimMaterialsConfigured = ConfigureRimFinish(root);
             MarkMaterialsDirty(root);
             ConfigureRendererReferences(root);
+            ConfigureRuntimeBootstrap(root);
 
             Debug.Log(
                 $"CadillacEscalade: prepared decal-safe materials renderers={fix.RendererCount}, " +
@@ -437,6 +440,12 @@ public static class CadillacEscaladeSetup
         {
             UnityEngine.Object.DestroyImmediate(root);
         }
+    }
+
+    private static void ConfigureRuntimeBootstrap(GameObject root)
+    {
+        if (root.GetComponent<CadillacEscaladePaintController>() == null)
+            root.AddComponent<CadillacEscaladePaintController>();
     }
 
     private static void StripAudiGeometry(GameObject root)

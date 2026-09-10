@@ -7,7 +7,8 @@ using Data.VehicleColors;
 using Helpers;
 using UnityEngine;
 
-internal sealed class CadillacEscaladePaintController : MonoBehaviour
+[AddComponentMenu("")]
+public sealed class CadillacEscaladePaintController : MonoBehaviour
 {
     private const int PaintSettlementAttempts = 20;
     private const float PaintSettlementDelay = 0.10f;
@@ -18,7 +19,7 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly List<Material> ownedMaterials = new List<Material>();
-    private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
+    private MaterialPropertyBlock properties = null!;
     private VehicleController? vehicle;
     private ModContext? context;
     private Coroutine? settlementCoroutine;
@@ -26,8 +27,26 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
     private Color32 appliedTint;
     private bool hasAppliedTint;
 
+    private void Awake()
+    {
+        properties = new MaterialPropertyBlock();
+        var controller = GetComponent<VehicleController>();
+        if (controller == null)
+            return;
+
+        CadillacEscaladeMaterials.FixSolidMaterials(controller.gameObject);
+        Initialize(controller, null);
+
+        var glassController = controller.GetComponent<CadillacEscaladeGlassController>();
+        if (glassController == null)
+            glassController = controller.gameObject.AddComponent<CadillacEscaladeGlassController>();
+        glassController.Initialize(null);
+    }
+
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
+        if (properties == null)
+            properties = new MaterialPropertyBlock();
         vehicle = controller;
         context = modContext;
         FindPaintSlots();
