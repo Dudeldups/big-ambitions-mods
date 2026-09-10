@@ -27,6 +27,7 @@ namespace CameraTools
         private const float GameplayMinimumZoom = 1.5f;
         private const float GameplayFineZoomRange = 4f;
         private const float GameplayFineZoomDeltaMultiplier = 0.5f;
+        private const float GameplayRightMouseDragDeadZonePixels = 7f;
         private const float GameplayTrackedObjectOffsetY = 1.15f;
         private const float IndoorWallsPartlyHiddenPitchThreshold = 32.45f;
         private const float MapMinimumZoom = 120f;
@@ -211,6 +212,7 @@ namespace CameraTools
         };
 
         private Camera? activeMapRenderCamera;
+        private readonly CameraToolsUpdateNoticeUi updateNoticeUi = new CameraToolsUpdateNoticeUi();
         private CameraState activeMapRenderCameraState;
         private Transform? activeMapVcamTransform;
         private Component? activeVehicleCameraRoot;
@@ -230,12 +232,15 @@ namespace CameraTools
         private bool hasManualMapPitch;
         private bool hasManualVehiclePitch;
         private bool hasManualVehicleYaw;
+        private bool isVehicleRuntimeSuspendedForMap;
+        private bool vehicleRuntimeHadCameraBeforeMap;
         private bool hasForcedIndoorWallsPartlyHidden;
         private bool hasShownGameplayPitchHint;
         private bool isUiHidden;
         private bool isGameplayUiBlocked;
         private bool isTrackingMapRightMousePitch;
         private bool isTrackingRightMousePitch;
+        private bool isGameplayRightMousePending;
         private bool isTrackingVehicleRightMousePitch;
         private int lastActiveVehicleCameraId;
         private int lastConfiguredGameplayControllerId;
@@ -246,6 +251,7 @@ namespace CameraTools
         private float desiredMapDistance;
         private float lastAppliedVehicleMaxZoom;
         private float lastRightMouseY;
+        private Vector2 gameplayRightMousePressPosition;
         private float lastVehicleRightMouseX;
         private float lastVehicleRightMouseY;
         private float lastVehicleControllerSearchTime;
@@ -291,8 +297,10 @@ namespace CameraTools
         private static Type? dialogUiType;
         private static Type? fullMenuType;
         private static Type? gameManagerType;
+        private static Type? interiorDesignerUiType;
         private static Type? miniMenuType;
         private static Type? pedestrianCamType;
+        private static Type? placementSystemType;
         private static Type? saveGameManagerType;
         private static Type? vehicleControllerType;
         private static Type? wallsVisibilityHelperType;
@@ -313,8 +321,12 @@ namespace CameraTools
                 runtime = runtimeObject.AddComponent<CameraToolsRuntime>();
             }
 
+            runtime.RestoreCityFogState();
+            runtime.RestoreForcedIndoorWallsVisibility();
+            runtime.RestoreTrackedMemberStates();
             runtime.context = context;
             runtime.settings = settings;
+            runtime.updateNoticeUi.Initialize(context.ModId);
             runtime.activeVehicleCameraRoot = null;
             runtime.cachedVehicleCameras = null;
             runtime.cachedVehicleFollowOffsets.Clear();
@@ -331,11 +343,14 @@ namespace CameraTools
             runtime.hasManualMapPitch = false;
             runtime.hasManualVehiclePitch = false;
             runtime.hasManualVehicleYaw = false;
+            runtime.isVehicleRuntimeSuspendedForMap = false;
+            runtime.vehicleRuntimeHadCameraBeforeMap = false;
             runtime.hasForcedIndoorWallsPartlyHidden = false;
             runtime.hasShownGameplayPitchHint = false;
             runtime.isUiHidden = false;
             runtime.isTrackingMapRightMousePitch = false;
             runtime.isTrackingRightMousePitch = false;
+            runtime.isGameplayRightMousePending = false;
             runtime.isTrackingVehicleRightMousePitch = false;
             runtime.lastActiveVehicleCameraId = 0;
             runtime.lastAppliedGameplayMaxZoom = int.MinValue;
@@ -347,6 +362,7 @@ namespace CameraTools
             runtime.lastConfiguredMapControllerId = 0;
             runtime.lastAppliedGameplayOffset = null;
             runtime.lastRightMouseY = 0f;
+            runtime.gameplayRightMousePressPosition = Vector2.zero;
             runtime.lastVehicleRightMouseX = 0f;
             runtime.lastVehicleRightMouseY = 0f;
             runtime.lastVehicleControllerSearchTime = float.NegativeInfinity;
@@ -391,6 +407,8 @@ namespace CameraTools
             fullMenuType ??= FindType("UI.Smartphone.FullMenu");
             dialogUiType ??= FindType("UI.Dialog.DialogUI");
             gameManagerType ??= FindType(GameManagerTypeName);
+            interiorDesignerUiType ??= FindType("UI.InteriorDesigner.InteriorDesignerUI");
+            placementSystemType ??= FindType("BigAmbitions.PlacementSystem.PlacementSystem");
             saveGameManagerType ??= FindType(SaveGameManagerTypeName);
             wallsVisibilityHelperType ??= FindType("Buildings.Indoors.WallsVisibilityHelper");
             wallsVisibilityType ??= FindType("BigAmbitions.InteriorDesigner.WallsVisibility");
@@ -401,6 +419,10 @@ namespace CameraTools
 
         public void Shutdown()
         {
+            updateNoticeUi.Shutdown();
+            RestoreCityFogState();
+            RestoreForcedIndoorWallsVisibility();
+            RestoreTrackedMemberStates();
             RestoreScenicView();
             RestoreHiddenUi();
             RestoreMapCameraState();
@@ -416,6 +438,9 @@ namespace CameraTools
         private void OnDisable()
         {
             Camera.onPreCull -= HandleCameraPreCull;
+            RestoreCityFogState();
+            RestoreForcedIndoorWallsVisibility();
+            RestoreTrackedMemberStates();
         }
 
         private void LateUpdate()
@@ -425,6 +450,7 @@ namespace CameraTools
 
             cameraToolsDebugEnabled = settings.EnableCameraToolsDebug;
             vehicleDebugLoggingEnabled = settings.EnableCameraToolsDebug && settings.EnableVehicleDebugLogging;
+            updateNoticeUi.ConsumeGameplayInputIfNeeded();
             if (!cameraToolsDebugEnabled)
                 showVehicleDebugOverlay = false;
 
@@ -442,14 +468,21 @@ namespace CameraTools
             if (!cityMapOpen)
                 ApplyGameplayTweaks();
             if (!cityMapOpen)
+            {
                 ApplyVehicleTweaks(gameplayActive);
+            }
             else
-                ResetVehicleRuntimeState();
+                SuspendVehicleRuntimeStateForMap();
             ApplyMapTweaks(cityMapOpen);
+            UpdateCityFogSuppression();
             if (cameraToolsDebugEnabled)
                 ProcessPendingVcamDiagnostic();
         }
 
+        private void OnGUI()
+        {
+            updateNoticeUi.OnGui();
+        }
 
         private void EnsureControllers(bool cityMapOpen)
         {
