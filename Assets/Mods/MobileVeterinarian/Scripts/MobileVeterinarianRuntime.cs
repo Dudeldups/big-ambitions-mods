@@ -132,14 +132,18 @@ namespace MobileVeterinarian
 
         internal void Shutdown(string reason)
         {
-            if (shuttingDown)
+            if (ReferenceEquals(Current, this))
+                Current = null;
+
+            // Unity can destroy the native component before the mod loader invokes unload.
+            // In that state, accessing Component.gameObject throws even though the managed
+            // reference is still non-null.
+            if (this == null || shuttingDown)
                 return;
 
             shuttingDown = true;
             CancelActiveVisit(reason, false);
             RemoveSceneCallback();
-            if (Current == this)
-                Current = null;
             Destroy(gameObject);
         }
 
@@ -801,7 +805,7 @@ namespace MobileVeterinarian
             if (!shuttingDown)
                 CancelActiveVisit("runtime destroyed", false);
             RemoveSceneCallback();
-            if (Current == this)
+            if (ReferenceEquals(Current, this))
                 Current = null;
         }
 
@@ -906,11 +910,8 @@ namespace MobileVeterinarian
             }
         }
 
-        private void LogInfo(string message)
-        {
-            if (MobileVeterinarianMod.DiagnosticLoggingEnabled)
-                context?.Logger.Info("Mobile Veterinarian: " + message);
-        }
+        [System.Diagnostics.Conditional("MOBILEVETERINARIAN_DIAGNOSTICS")]
+        private void LogInfo(string message) => context?.Logger.Info("Mobile Veterinarian: " + message);
 
         private void LogWarning(string message) => context?.Logger.Warn("Mobile Veterinarian: " + message);
 
