@@ -49,6 +49,12 @@ namespace VehicleRepainter
     {
         internal const float RepaintPrice = 800f;
 
+        private static class DebugOptions
+        {
+            internal static bool EnableDebugLogging = false;
+            internal static bool EnableButtonDiagnostics = false;
+        }
+
         private static readonly FieldInfo? CurrentStationTriggerField = typeof(GasStationOverlay).GetField(
             "_currentStationTrigger",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -158,6 +164,7 @@ namespace VehicleRepainter
             new Dictionary<string, VehicleColor>(StringComparer.Ordinal);
         private readonly List<VehicleColor> ownedCustomVehicleColors = new List<VehicleColor>();
         private readonly List<GasStationTrigger> observedStationTriggers = new List<GasStationTrigger>();
+        private readonly HashSet<string> reportedButtonFailures = new HashSet<string>(StringComparer.Ordinal);
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
@@ -181,7 +188,12 @@ namespace VehicleRepainter
             if (CurrentStationTriggerField == null || PurchaseButtonField == null ||
                 ColorsGridLayoutGroupField == null || VehicleColorBackingField == null)
             {
-                context.Logger.Error("Could not install: required cached vanilla UI fields were not found.");
+                context.Logger.Error(
+                    "Could not install the Repaint button: required cached vanilla fields were not found; " +
+                    $"stationTriggerField={(CurrentStationTriggerField == null ? "missing" : "found")}, " +
+                    $"purchaseButtonField={(PurchaseButtonField == null ? "missing" : "found")}, " +
+                    $"colorsGridField={(ColorsGridLayoutGroupField == null ? "missing" : "found")}, " +
+                    $"vehicleColorField={(VehicleColorBackingField == null ? "missing" : "found")}.");
                 return;
             }
 
@@ -193,6 +205,9 @@ namespace VehicleRepainter
             extendedGasStationOverlay = new ExtendedGasStationOverlay(this);
             overlayUi.gasStation = extendedGasStationOverlay;
             ObserveStationTriggers();
+            TraceButton(
+                $"Installed gas-station overlay extension; previousOverlay='{originalGasStationOverlay?.GetType().FullName ?? "null"}', " +
+                $"observedTriggers={observedStationTriggers.Count}.");
         }
 
         internal void Uninstall()
@@ -218,6 +233,7 @@ namespace VehicleRepainter
 
         private void ObserveStationTriggers()
         {
+            var repairStationCount = 0;
             foreach (var trigger in Resources.FindObjectsOfTypeAll<GasStationTrigger>())
             {
                 if (trigger == null || !trigger.gameObject.scene.IsValid())
@@ -225,6 +241,17 @@ namespace VehicleRepainter
 
                 trigger.onEntered += HandleStationEntered;
                 observedStationTriggers.Add(trigger);
+                if (trigger.isRepairStation)
+                    repairStationCount++;
+            }
+
+            TraceButton(
+                $"Observed gas-station triggers: total={observedStationTriggers.Count}, repair={repairStationCount}.");
+            if (repairStationCount == 0)
+            {
+                TraceButton(
+                    "No loaded repair-station triggers were found during installation. " +
+                    "The Repaint button may be unavailable because the service-bay entry events could not be observed.");
             }
         }
 
@@ -245,9 +272,31 @@ namespace VehicleRepainter
 
         private void HandleStationEntered(GasStationTrigger enteredTrigger)
         {
+            reportedButtonFailures.Clear();
+            if (overlayUi == null || extendedGasStationOverlay == null ||
+                !ReferenceEquals(overlayUi.gasStation, extendedGasStationOverlay))
+            {
+                WarnButtonFailureOnce(
+                    "overlay-replaced",
+                    "The Repaint button cannot be injected because the active gas-station overlay is no longer " +
+                    $"Vehicle Repainter's extension; activeOverlay='{overlayUi?.gasStation?.GetType().FullName ?? "null"}'. " +
+                    "Another mod or a later game initialization step may have replaced it.");
+            }
+
             var vehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
             if (vehicle == null || vehicle.vehicleCollider == null)
+            {
+                var message =
+                    "A gas-station trigger was entered, but the Repaint button cannot be evaluated because " +
+                    $"selectedVehicle={(vehicle == null ? "null" : "present")}, " +
+                    $"vehicleCollider={(vehicle?.vehicleCollider == null ? "null" : "present")}, " +
+                    $"trigger='{DescribeTrigger(enteredTrigger)}'.";
+                if (enteredTrigger.isRepairStation)
+                    WarnButtonFailureOnce("entry-no-vehicle", message);
+                else
+                    TraceButton(message);
                 return;
+            }
 
             var repairTrigger = enteredTrigger.isRepairStation
                 ? enteredTrigger
@@ -255,7 +304,16 @@ namespace VehicleRepainter
                     trigger != null && trigger.isActiveAndEnabled && trigger.isRepairStation &&
                     trigger.stationCollider != null && trigger.IntersectsBounds(vehicle.vehicleCollider.bounds));
             if (repairTrigger == null)
+            {
+                TraceButton(
+                    $"Skipped repaint overlay refresh for trigger='{DescribeTrigger(enteredTrigger)}': " +
+                    "no intersecting repair-station trigger was found.");
                 return;
+            }
+
+            TraceButton(
+                $"Repair-station entry resolved: entered='{DescribeTrigger(enteredTrigger)}', " +
+                $"repair='{DescribeTrigger(repairTrigger)}', vehicle='{DescribeVehicle(vehicle)}'.");
 
             GasStationOverlay.Show(repairTrigger);
             if (overlayUi == null)
@@ -279,7 +337,53 @@ namespace VehicleRepainter
                 repairTrigger.isActiveAndEnabled && repairTrigger.IntersectsBounds(vehicle.vehicleCollider.bounds))
             {
                 GasStationOverlay.Show(repairTrigger);
+                TraceButton(
+                    $"Reasserted repair overlay for trigger='{DescribeTrigger(repairTrigger)}', " +
+                    $"vehicle='{DescribeVehicle(vehicle)}'.");
             }
+            else
+            {
+                WarnButtonFailureOnce(
+                    "reassert-invalid-state",
+                    "The Repaint button overlay was not reasserted on the next frame because the repair trigger " +
+                    $"or vehicle was no longer valid; trigger='{DescribeTrigger(repairTrigger)}', " +
+                    $"vehicle='{DescribeVehicle(vehicle)}'.");
+            }
+        }
+
+        internal void WarnButtonFailureOnce(string reason, string message)
+        {
+            if (reportedButtonFailures.Add(reason))
+                context.Logger.Warn($"Vehicle Repainter button unavailable [{reason}]: {message}");
+        }
+
+        internal void TraceButton(string message)
+        {
+            if (DebugOptions.EnableDebugLogging && DebugOptions.EnableButtonDiagnostics)
+                context.Logger.Info($"Vehicle Repainter button diagnostic: {message}");
+        }
+
+        private static string DescribeTrigger(GasStationTrigger? trigger)
+        {
+            if (trigger == null)
+                return "null";
+
+            return $"{trigger.name}#{trigger.GetInstanceID()}" +
+                   $"(active={trigger.isActiveAndEnabled}, repair={trigger.isRepairStation}, " +
+                   $"truckGarage={trigger.isTruckGarage}, collider={(trigger.stationCollider == null ? "null" : "present")})";
+        }
+
+        private static string DescribeVehicle(VehicleController? vehicle)
+        {
+            if (vehicle == null)
+                return "null";
+
+            return $"{vehicle.name}#{vehicle.GetInstanceID()}" +
+                   $"(instance={(vehicle.vehicleInstance == null ? "null" : vehicle.vehicleInstance.id)}, " +
+                   $"type={(vehicle.vehicleType == null ? "null" : vehicle.vehicleType.vehicleTypeName)}, " +
+                   $"motor={vehicle.vehicleType != null && vehicle.vehicleType.IsMotorVehicle}, " +
+                   $"carFeatures={(vehicle.CarFeatures == null ? "null" : "present")}, " +
+                   $"collider={(vehicle.vehicleCollider == null ? "null" : "present")})";
         }
 
         internal GasStationTrigger? GetCurrentStationTrigger(GasStationOverlay overlay)
@@ -466,14 +570,66 @@ namespace VehicleRepainter
 
             ButtonInfo[]? IOverlay.GetButtons()
             {
-                var vanillaButtons = base.GetButtons();
                 var stationTrigger = runtime.GetCurrentStationTrigger(this);
+                ButtonInfo[]? vanillaButtons;
+                try
+                {
+                    vanillaButtons = base.GetButtons();
+                }
+                catch (Exception exception)
+                {
+                    runtime.WarnButtonFailureOnce(
+                        "vanilla-get-buttons-exception",
+                        $"The vanilla gas-station overlay threw {exception.GetType().Name} while producing its " +
+                        $"buttons; trigger='{DescribeTrigger(stationTrigger)}', message='{exception.Message}'.");
+                    throw;
+                }
+
                 var vehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
 
-                if (vanillaButtons == null || stationTrigger == null || !stationTrigger.isRepairStation ||
-                    vehicle == null || vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
+                if (stationTrigger == null)
+                {
+                    runtime.WarnButtonFailureOnce(
+                        "missing-current-trigger",
+                        $"The extended overlay has no current station trigger; vanillaButtonCount={vanillaButtons?.Length ?? 0}.");
+                    return vanillaButtons;
+                }
+
+                if (!stationTrigger.isRepairStation)
+                {
+                    runtime.TraceButton(
+                        $"Skipped button injection for non-repair trigger='{DescribeTrigger(stationTrigger)}'.");
+                    return vanillaButtons;
+                }
+
+                if (vehicle == null)
+                {
+                    runtime.WarnButtonFailureOnce(
+                        "missing-selected-vehicle",
+                        $"Repair trigger='{DescribeTrigger(stationTrigger)}' is active, but GameManager.selectedVehicle is null; " +
+                        $"insideMotorVehicle={VehicleHelper.IsInsideMotorVehicle()}, vanillaButtonCount={vanillaButtons?.Length ?? 0}.");
+                    return vanillaButtons;
+                }
+
+                if (vehicle.vehicleInstance == null || vehicle.CarFeatures == null || vehicle.vehicleType == null ||
                     !vehicle.vehicleType.IsMotorVehicle)
                 {
+                    runtime.WarnButtonFailureOnce(
+                        "unsupported-vehicle-state",
+                        $"Repair trigger='{DescribeTrigger(stationTrigger)}' is active, but the selected vehicle " +
+                        $"does not satisfy repaint requirements; vehicle='{DescribeVehicle(vehicle)}', " +
+                        $"insideMotorVehicle={VehicleHelper.IsInsideMotorVehicle()}, vanillaButtonCount={vanillaButtons?.Length ?? 0}.");
+                    return vanillaButtons;
+                }
+
+                if (vanillaButtons == null)
+                {
+                    runtime.WarnButtonFailureOnce(
+                        "vanilla-service-buttons-null",
+                        $"The vanilla repair overlay returned no Repair/Wash buttons, so Repaint was not appended; " +
+                        $"trigger='{DescribeTrigger(stationTrigger)}', vehicle='{DescribeVehicle(vehicle)}', " +
+                        $"insideMotorVehicle={VehicleHelper.IsInsideMotorVehicle()}. This commonly indicates a " +
+                        "car-versus-truck garage mismatch or that the player is no longer considered inside the vehicle.");
                     return vanillaButtons;
                 }
 
@@ -487,6 +643,10 @@ namespace VehicleRepainter
                     () => runtime.OpenRepaintUi(stationTrigger),
                     PlayerAction.SpecialInteract,
                     Mathf.Approximately(vehicle.CurrentSpeed, 0f));
+                runtime.TraceButton(
+                    $"Appended Repaint button; trigger='{DescribeTrigger(stationTrigger)}', " +
+                    $"vehicle='{DescribeVehicle(vehicle)}', vanillaButtonCount={vanillaButtons.Length}, " +
+                    $"speed={vehicle.CurrentSpeed:0.###}.");
                 return result;
             }
         }
