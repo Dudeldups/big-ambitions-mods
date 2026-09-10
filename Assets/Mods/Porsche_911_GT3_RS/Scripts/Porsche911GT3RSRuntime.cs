@@ -903,220 +903,81 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 {
-    private const float RimInsetMeters = 0.055f;
-    private const float TireComponentDiameterRatio = 0.88f;
-    private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
+    private const float WheelAssemblyInsetMeters = 0.085f;
+    private static readonly string[,] CornerNames =
+    {
+        { "FrontLeft_WheelController", "PorscheWheelFrontLeft", "PorscheFixedCaliperFrontLeft" },
+        { "FrontRight_WheelController", "PorscheWheelFrontRight", "PorscheFixedCaliperFrontRight" },
+        { "RearLeft_WheelController", "PorscheWheelRearLeft", "PorscheFixedCaliperRearLeft" },
+        { "RearRight_WheelController", "PorscheWheelRearRight", "PorscheFixedCaliperRearRight" },
+    };
     private bool initialized;
 
     internal int Initialize(ModContext? context)
     {
         if (initialized)
-            return runtimeMeshes.Count;
+            return CornerNames.GetLength(0);
 
         initialized = true;
-        var correctedMeshes = 0;
-        var correctedComponents = 0;
-        var correctedVertices = 0;
-        foreach (var filter in GetComponentsInChildren<MeshFilter>(true))
+        var correctedCorners = 0;
+        for (var index = 0; index < CornerNames.GetLength(0); index++)
         {
-            if (filter?.sharedMesh == null || !IsPorscheWheelMesh(filter.transform))
-                continue;
-
-            var materialName = filter.GetComponent<Renderer>()?.sharedMaterial?.name ?? string.Empty;
             try
             {
-                if (materialName.IndexOf("GT3RS_black", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    correctedVertices += InsetWholeMesh(filter);
-                    correctedComponents++;
-                    correctedMeshes++;
-                }
-                else if (materialName.IndexOf("wheels_chrome", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    var result = InsetInteriorComponents(filter);
-                    correctedComponents += result.Components;
-                    correctedVertices += result.Vertices;
-                    correctedMeshes++;
-                }
+                var controller = FindTransform(CornerNames[index, 0]);
+                var wheel = FindTransform(CornerNames[index, 1]);
+                var caliper = FindTransform(CornerNames[index, 2]);
+                if (controller == null || wheel == null || caliper == null)
+                    throw new InvalidOperationException(
+                        $"wheel assembly is incomplete for corner={index}");
+
+                MoveInward(controller);
+                MoveInward(wheel);
+                MoveInward(caliper);
+                correctedCorners++;
             }
             catch (Exception exception)
             {
                 context?.Logger.Warn(
-                    $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()} mesh='{filter.name}' " +
+                    $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()} corner={index} " +
                     $"could not be inset: {exception.GetType().Name}: {exception.Message}");
             }
         }
 
-        if (correctedMeshes == 8)
+        if (correctedCorners == CornerNames.GetLength(0))
         {
             Porsche911GT3RSDiagnostics.Info(
                 context,
-                $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: inset " +
-                $"{correctedComponents} rim components ({correctedVertices} vertices) by " +
-                $"{RimInsetMeters:F3}m; four tire envelopes retained.");
+                $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: moved " +
+                $"{correctedCorners} complete wheel/controller/caliper assemblies inward by " +
+                $"{WheelAssemblyInsetMeters:F3}m.");
         }
         else
         {
             context?.Logger.Warn(
                 $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: corrected " +
-                $"{correctedMeshes}/8 rim meshes; expected four wheel and four center-cap meshes.");
+                $"{correctedCorners}/{CornerNames.GetLength(0)} wheel assemblies.");
         }
-        return correctedMeshes;
+        return correctedCorners;
     }
 
-    private static bool IsPorscheWheelMesh(Transform candidate)
+    private Transform? FindTransform(string name)
     {
-        for (var current = candidate; current != null && current.parent != null; current = current.parent)
-        {
-            if (current.name.StartsWith("PorscheWheel", StringComparison.Ordinal))
-                return true;
-        }
-        return false;
+        foreach (var candidate in GetComponentsInChildren<Transform>(true))
+            if (string.Equals(candidate.name, name, StringComparison.Ordinal))
+                return candidate;
+        return null;
     }
 
-    private int InsetWholeMesh(MeshFilter filter)
+    private void MoveInward(Transform target)
     {
-        var mesh = CreateRuntimeMesh(filter, "InsetCap");
-        var vertices = mesh.vertices;
-        var displacement = GetLocalInset(filter);
-        for (var index = 0; index < vertices.Length; index++)
-            vertices[index] += displacement;
-        mesh.vertices = vertices;
-        mesh.RecalculateBounds();
-        return vertices.Length;
+        var side = Mathf.Sign(transform.InverseTransformPoint(target.position).x);
+        if (Mathf.Approximately(side, 0f))
+            throw new InvalidOperationException($"'{target.name}' has no lateral side.");
+        var worldOffset = transform.right * (-side * WheelAssemblyInsetMeters);
+        target.position += worldOffset;
     }
 
-    private CorrectionResult InsetInteriorComponents(MeshFilter filter)
-    {
-        var mesh = CreateRuntimeMesh(filter, "InsetRim");
-        var vertices = mesh.vertices;
-        var parent = new int[vertices.Length];
-        for (var index = 0; index < parent.Length; index++)
-            parent[index] = index;
-
-        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-        {
-            var triangles = mesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < triangles.Length; index += 3)
-            {
-                Union(parent, triangles[index], triangles[index + 1]);
-                Union(parent, triangles[index], triangles[index + 2]);
-            }
-        }
-
-        var extents = new Dictionary<int, ComponentExtents>();
-        for (var index = 0; index < vertices.Length; index++)
-        {
-            var root = Find(parent, index);
-            if (!extents.TryGetValue(root, out var component))
-                component = new ComponentExtents(vertices[index]);
-            else
-                component.Include(vertices[index]);
-            extents[root] = component;
-        }
-
-        var tireDiameter = Mathf.Max(mesh.bounds.size.y, mesh.bounds.size.z);
-        var componentLimit = tireDiameter * TireComponentDiameterRatio;
-        var displacement = GetLocalInset(filter);
-        var correctedRoots = new HashSet<int>();
-        var correctedVertices = 0;
-        for (var index = 0; index < vertices.Length; index++)
-        {
-            var root = Find(parent, index);
-            var component = extents[root];
-            if (Mathf.Max(component.SizeY, component.SizeZ) >= componentLimit)
-                continue;
-            vertices[index] += displacement;
-            correctedRoots.Add(root);
-            correctedVertices++;
-        }
-
-        mesh.vertices = vertices;
-        mesh.RecalculateBounds();
-        return new CorrectionResult(correctedRoots.Count, correctedVertices);
-    }
-
-    private Mesh CreateRuntimeMesh(MeshFilter filter, string suffix)
-    {
-        var mesh = Instantiate(filter.sharedMesh);
-        mesh.name = filter.sharedMesh.name + "_" + suffix;
-        filter.sharedMesh = mesh;
-        runtimeMeshes.Add(mesh);
-        return mesh;
-    }
-
-    private Vector3 GetLocalInset(MeshFilter filter)
-    {
-        var center = transform.InverseTransformPoint(filter.GetComponent<Renderer>().bounds.center);
-        var side = center.x < 0f ? -1f : 1f;
-        return filter.transform.InverseTransformVector(
-            transform.right * (-side * RimInsetMeters));
-    }
-
-    private static int Find(int[] parent, int value)
-    {
-        while (parent[value] != value)
-        {
-            parent[value] = parent[parent[value]];
-            value = parent[value];
-        }
-        return value;
-    }
-
-    private static void Union(int[] parent, int left, int right)
-    {
-        var leftRoot = Find(parent, left);
-        var rightRoot = Find(parent, right);
-        if (leftRoot != rightRoot)
-            parent[rightRoot] = leftRoot;
-    }
-
-    private readonly struct CorrectionResult
-    {
-        public readonly int Components;
-        public readonly int Vertices;
-
-        public CorrectionResult(int components, int vertices)
-        {
-            Components = components;
-            Vertices = vertices;
-        }
-    }
-
-    private struct ComponentExtents
-    {
-        private float minimumY;
-        private float maximumY;
-        private float minimumZ;
-        private float maximumZ;
-
-        public float SizeY => maximumY - minimumY;
-        public float SizeZ => maximumZ - minimumZ;
-
-        public ComponentExtents(Vector3 vertex)
-        {
-            minimumY = maximumY = vertex.y;
-            minimumZ = maximumZ = vertex.z;
-        }
-
-        public void Include(Vector3 vertex)
-        {
-            minimumY = Mathf.Min(minimumY, vertex.y);
-            maximumY = Mathf.Max(maximumY, vertex.y);
-            minimumZ = Mathf.Min(minimumZ, vertex.z);
-            maximumZ = Mathf.Max(maximumZ, vertex.z);
-        }
-    }
-
-    private void OnDestroy()
-    {
-        foreach (var mesh in runtimeMeshes)
-        {
-            if (mesh != null)
-                Destroy(mesh);
-        }
-        runtimeMeshes.Clear();
-    }
 }
 
 [AddComponentMenu("")]

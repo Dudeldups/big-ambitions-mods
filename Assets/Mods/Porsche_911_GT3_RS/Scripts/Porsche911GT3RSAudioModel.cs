@@ -4,7 +4,7 @@ using System;
 // Recording references are acoustic calibration values, not measured engine RPM.
 internal static class Porsche911GT3RSAudioModel
 {
-    internal const float IdlePitch = 1f;
+    internal const float IdlePitch = .82f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
     internal const float EngineBaseVolume = .44f;
@@ -12,7 +12,8 @@ internal static class Porsche911GT3RSAudioModel
     internal const float CrackleIdleVolume = .005f;
     internal const float CrackleLoadVolume = .016f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
-    internal static float IdleVolume(float drivingBlend) => .36f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) =>
+        .45f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the inherited low-speed idle bed out quickly; the synthesized
@@ -24,10 +25,10 @@ internal static class Porsche911GT3RSAudioModel
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));
 
     internal static float ReferenceHz(int layer) => layer == 0 ? 70f : layer == 1 ? 220f : 420f;
-    // Keep the naturally aspirated flat-six bright under load without pitching the
-    // synthesized combustion layers into the toy-like register.
+    // Keep the naturally aspirated flat-six distinct from the deeper idle bed
+    // without pitching the synthesized combustion layers into a toy-like register.
     internal static float TargetHz(float normalized) =>
-        (float)(45d * Math.Pow(450d / 45d, Clamp01(normalized)));
+        (float)(38d * Math.Pow(360d / 38d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

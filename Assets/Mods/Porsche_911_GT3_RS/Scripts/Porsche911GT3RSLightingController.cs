@@ -59,8 +59,8 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var secondaryHeadlamp = FindRenderer(renderers, "headlight_L_led", "headlight_high");
         var secondaryHeadlampRight = FindRenderer(renderers, "headlight_R_led", "headlight_high");
         var rearStrip = FindRenderer(renderers, "fascia_mid", "taillight_running");
+        var rearLamp = FindRenderer(renderers, "fascia_mid", "brakelight_1");
         var thirdBrake = FindRenderer(renderers, "gt3rs_tailgate", "brakelight_1");
-        var reverseLight = FindRenderer(renderers, "gt3rs_bumper_R", "headlight");
         var leftBlinker = daylight;
         var rightBlinker = daylightRight;
 
@@ -82,8 +82,13 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
-        reverseOverlay = CreateOverlay(reverseLight, "ReverseLight",
-            new Color(0.92f, 0.96f, 1f, 1f), 4.8f);
+        reverseOverlay = CreateFilteredOverlay(
+            rearLamp,
+            p => Mathf.Abs(p.x) >= 0.46f && Mathf.Abs(p.x) <= 0.55f,
+            "ReverseLight",
+            new Color(0.92f, 0.96f, 1f, 1f),
+            4.8f,
+            1.006f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
         leftBlinkerOverlay = CreateOverlay(leftBlinker, "LeftIndicator", amber, 5.4f, 1.004f);
         rightBlinkerOverlay = CreateOverlay(rightBlinker, "RightIndicator", amber, 5.4f, 1.004f);
@@ -96,7 +101,7 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
                 $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
-                $"reverse='{reverseLight?.name}' beams={beamCount}/2 " +
+                $"reverse='{rearLamp?.name}' beams={beamCount}/2 " +
                 $"lampOverlays={CountLampOverlays()}/10 blinkerOverlays={CountBlinkerOverlays()}/4.");
         if (CountLampOverlays() != 10 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");

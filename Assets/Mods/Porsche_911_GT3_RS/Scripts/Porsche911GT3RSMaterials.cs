@@ -665,14 +665,18 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
         color.a = 1f;
         foreach (var slot in slots)
         {
+            var slotColor = slot.Category == PaintCategory.InteriorAccent
+                ? Color.Lerp(color, Color.white, 0.12f)
+                : color;
+            slotColor.a = 1f;
             properties.Clear();
             slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
             if (slot.Material.HasProperty(BaseColor))
-                properties.SetColor(BaseColor, color);
+                properties.SetColor(BaseColor, slotColor);
             if (slot.Material.HasProperty(ColorProperty))
-                properties.SetColor(ColorProperty, color);
+                properties.SetColor(ColorProperty, slotColor);
             if (slot.Material.HasProperty(BaseColorFactor))
-                properties.SetColor(BaseColorFactor, color);
+                properties.SetColor(BaseColorFactor, slotColor);
             slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
         }
 
@@ -681,12 +685,15 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
         Porsche911GT3RSDiagnostics.PaintInfo(
             context,
             $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: applied " +
-            $"color='{colorName}' rgba={tint} to {slots.Count} body slots source='{source}'.");
+            $"color='{colorName}' rgba={tint} to {slots.Count} body/interior slots " +
+            $"source='{source}'.");
     }
 
     private void FindPaintSlots()
     {
         slots.Clear();
+        var bodySlots = 0;
+        var interiorAccentSlots = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
             if (!Porsche911GT3RSMaterials.IsPorscheRenderer(renderer.transform))
@@ -699,7 +706,17 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
                         BodyMaterialMarker,
                         StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index));
+                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Body));
+                    bodySlots++;
+                }
+                else if (material != null && IsInteriorAccent(renderer, material))
+                {
+                    slots.Add(new PaintSlot(
+                        renderer,
+                        material,
+                        index,
+                        PaintCategory.InteriorAccent));
+                    interiorAccentSlots++;
                 }
             }
         }
@@ -707,9 +724,24 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
         Porsche911GT3RSDiagnostics.PaintInfo(
             context,
             $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: mapped " +
-            $"bodySlots={slots.Count}; glass, lamps, carbon, rims, brakes, and trim excluded.");
-        if (slots.Count == 0)
-            context?.Logger.Warn("Porsche911GT3RS paint mapping found no body material slots.");
+            $"bodySlots={bodySlots}, interiorAccentSlots={interiorAccentSlots}; " +
+            "glass, lamps, carbon, rims, brakes, and black trim excluded.");
+        if (bodySlots == 0 || interiorAccentSlots == 0)
+            context?.Logger.Warn(
+                $"Porsche911GT3RS paint mapping incomplete bodySlots={bodySlots}, " +
+                $"interiorAccentSlots={interiorAccentSlots}.");
+    }
+
+    private static bool IsInteriorAccent(Renderer renderer, Material material)
+    {
+        var rendererName = renderer.name;
+        if (rendererName.IndexOf("seat_", StringComparison.OrdinalIgnoreCase) < 0 &&
+            rendererName.IndexOf("seats_R", StringComparison.OrdinalIgnoreCase) < 0)
+            return false;
+        var materialName = material.name;
+        return materialName.IndexOf("seat_leather_2", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               materialName.IndexOf("B60000", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               materialName.IndexOf("_red", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private VehicleColor? ResolveVehicleColor()
@@ -726,16 +758,28 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
 
     private readonly struct PaintSlot
     {
-        internal PaintSlot(Renderer renderer, Material material, int materialIndex)
+        internal PaintSlot(
+            Renderer renderer,
+            Material material,
+            int materialIndex,
+            PaintCategory category)
         {
             Renderer = renderer;
             Material = material;
             MaterialIndex = materialIndex;
+            Category = category;
         }
 
         internal readonly Renderer Renderer;
         internal readonly Material Material;
         internal readonly int MaterialIndex;
+        internal readonly PaintCategory Category;
+    }
+
+    private enum PaintCategory
+    {
+        Body,
+        InteriorAccent,
     }
 }
 
