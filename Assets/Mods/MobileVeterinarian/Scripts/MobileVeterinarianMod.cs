@@ -43,8 +43,14 @@ namespace MobileVeterinarian
 
         public Task OnUnloadAsync()
         {
-            runtime?.Shutdown("game or city unload");
+            // A destroyed Unity object can retain a non-null managed reference. The null-
+            // conditional operator does not use UnityEngine.Object's native-aware equality,
+            // so check it explicitly before invoking shutdown during game teardown.
+            var currentRuntime = runtime;
             runtime = null;
+            if (currentRuntime != null)
+                currentRuntime.Shutdown("game or city unload");
+
             doctorPrefab = null;
             return Task.CompletedTask;
         }
