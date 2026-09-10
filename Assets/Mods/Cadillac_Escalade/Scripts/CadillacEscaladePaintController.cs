@@ -9,6 +9,8 @@ using UnityEngine;
 
 internal sealed class CadillacEscaladePaintController : MonoBehaviour
 {
+    private const int PaintSettlementAttempts = 20;
+    private const float PaintSettlementDelay = 0.10f;
     private const string BodyMaterialMarker = "CadillacBodyPaint";
     private const string CaliperMaterialMarker = "CadillacCaliper";
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
@@ -30,32 +32,35 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
         context = modContext;
         FindPaintSlots();
         ApplyCurrentColor();
-        SchedulePaintSettlement("initialize");
+        SchedulePaintSettlement();
     }
 
     internal void RestoreAfterVehicleEntered()
     {
-        SchedulePaintSettlement("vehicle-entered");
+        SchedulePaintSettlement();
     }
 
-    private void SchedulePaintSettlement(string source)
+    private void SchedulePaintSettlement()
     {
         if (settlementCoroutine != null)
             StopCoroutine(settlementCoroutine);
-        settlementCoroutine = StartCoroutine(SettlePaintAfterLifecycle(source));
+        settlementCoroutine = StartCoroutine(SettlePaintAfterLifecycle());
     }
 
-    private IEnumerator SettlePaintAfterLifecycle(string source)
+    private IEnumerator SettlePaintAfterLifecycle()
     {
-        // Spawn and entry can apply a renderer property block after the mod's
-        // callback. Reassert the selected color once those finite transitions
-        // have settled, then stop; no permanent paint-repair polling is needed.
+        // Dealer previews and entered vehicles can receive their selected color
+        // after the controller is created. Retry only across that bounded spawn
+        // transition, then stop; no permanent paint-repair polling is needed.
         yield return null;
         yield return new WaitForEndOfFrame();
-        ApplyCurrentColor(true);
-        context?.Logger.Info(
-            $"CadillacEscalade paint vehicle={vehicle?.GetInstanceID()}: " +
-            $"settled selected paint after '{source}' on slots={slots.Count}.");
+        for (var attempt = 1; attempt <= PaintSettlementAttempts; attempt++)
+        {
+            if (ApplyCurrentColor(true))
+                break;
+            if (attempt < PaintSettlementAttempts)
+                yield return new WaitForSecondsRealtime(PaintSettlementDelay);
+        }
         settlementCoroutine = null;
     }
 
@@ -115,14 +120,14 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
                 $"caliperSlots={caliperSlots}, interiorAccentSlots={interiorAccentSlots}.");
     }
 
-    private void ApplyCurrentColor(bool force = false)
+    private bool ApplyCurrentColor(bool force = false)
     {
         var selected = ResolveVehicleColor();
         if (selected == null)
-            return;
+            return false;
         var tint = (Color32)selected.tint;
         if (!force && hasAppliedTint && ReferenceEquals(selected, appliedColor) && tint.Equals(appliedTint))
-            return;
+            return true;
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
@@ -153,6 +158,7 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
             $"CadillacEscalade paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"to {slots.Count} instance-owned body/caliper slots.");
+        return true;
     }
 
     private void OnDestroy()

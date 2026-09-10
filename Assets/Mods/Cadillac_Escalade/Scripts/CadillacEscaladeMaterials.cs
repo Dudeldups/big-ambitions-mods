@@ -344,13 +344,7 @@ public static class CadillacEscaladeMaterials
         // producing no pixels in the game's HDRP build. Rebind every transparent
         // lens and cabin-glass material to the stock HDRP Lit shader.
         RebindToHdrpLit(material);
-        var tint = cabinGlass
-            ? new Color(0.16f, 0.21f, 0.26f, 0.24f)
-            : name.IndexOf("CadillacRearLampLens", StringComparison.OrdinalIgnoreCase) >= 0
-                ? new Color(0.72f, 0.025f, 0.008f, 0.18f)
-                : name.IndexOf("CadillacAmberLampLens", StringComparison.OrdinalIgnoreCase) >= 0
-                    ? new Color(1f, 0.20f, 0.01f, 0.18f)
-                    : new Color(0.82f, 0.88f, 0.94f, 0.10f);
+        var tint = GetTransparentTint(name, cabinGlass);
         SetColor(material, "_BaseColor", tint);
         SetColor(material, "_Color", tint);
         SetColor(material, "baseColorFactor", tint);
@@ -396,6 +390,23 @@ public static class CadillacEscaladeMaterials
         material.SetShaderPassEnabled("TransparentBackface", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    private static Color GetTransparentTint(string name, bool cabinGlass)
+    {
+        if (cabinGlass)
+            return new Color(0.62f, 0.68f, 0.74f, 0.10f);
+        if (Contains(name, "CadillacRearLampLens"))
+            return new Color(0.88f, 0.035f, 0.012f, 0.42f);
+        if (Contains(name, "CadillacRearLamp"))
+            return new Color(0.92f, 0.025f, 0.008f, 0.72f);
+        if (Contains(name, "CadillacAmberLampLens"))
+            return new Color(1f, 0.28f, 0.015f, 0.44f);
+        if (Contains(name, "CadillacFrontLamp"))
+            return new Color(0.90f, 0.95f, 1f, 0.68f);
+        if (Contains(name, "CadillacClearLampLens"))
+            return new Color(0.90f, 0.95f, 1f, 0.28f);
+        return new Color(0.82f, 0.88f, 0.94f, 0.10f);
     }
 
     internal static void RestoreCabinGlassMaterial(Material material)
