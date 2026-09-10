@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using BAModAPI;
 using Data.VehicleColors;
@@ -10,10 +11,15 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
 {
     private const string BodyMaterialMarker = "CadillacOpaque_03_White";
     private const string CaliperMaterialMarker = "CadillacCaliper";
+    private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly List<Material> ownedMaterials = new List<Material>();
+    private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
     private ModContext? context;
+    private Coroutine? settlementCoroutine;
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
     private bool hasAppliedTint;
@@ -24,14 +30,33 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
         context = modContext;
         FindPaintSlots();
         ApplyCurrentColor();
+        SchedulePaintSettlement("initialize");
     }
 
-    private void LateUpdate()
+    internal void RestoreAfterVehicleEntered()
     {
-        // The game exposes no vehicle-paint-changed event. This comparison is
-        // allocation-free and performs material work only when the saved color changes.
-        if (vehicle != null)
-            ApplyCurrentColor();
+        SchedulePaintSettlement("vehicle-entered");
+    }
+
+    private void SchedulePaintSettlement(string source)
+    {
+        if (settlementCoroutine != null)
+            StopCoroutine(settlementCoroutine);
+        settlementCoroutine = StartCoroutine(SettlePaintAfterLifecycle(source));
+    }
+
+    private IEnumerator SettlePaintAfterLifecycle(string source)
+    {
+        // Spawn and entry can apply a renderer property block after the mod's
+        // callback. Reassert the selected color once those finite transitions
+        // have settled, then stop; no permanent paint-repair polling is needed.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+        ApplyCurrentColor(true);
+        context?.Logger.Info(
+            $"CadillacEscalade paint vehicle={vehicle?.GetInstanceID()}: " +
+            $"settled selected paint after '{source}' on slots={slots.Count}.");
+        settlementCoroutine = null;
     }
 
     private void FindPaintSlots()
@@ -90,13 +115,13 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
                 $"caliperSlots={caliperSlots}, interiorAccentSlots={interiorAccentSlots}.");
     }
 
-    private void ApplyCurrentColor()
+    private void ApplyCurrentColor(bool force = false)
     {
         var selected = ResolveVehicleColor();
         if (selected == null)
             return;
         var tint = (Color32)selected.tint;
-        if (hasAppliedTint && ReferenceEquals(selected, appliedColor) && tint.Equals(appliedTint))
+        if (!force && hasAppliedTint && ReferenceEquals(selected, appliedColor) && tint.Equals(appliedTint))
             return;
 
         var selectedColor = (Color)tint;
@@ -110,9 +135,15 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
                 ? Color.Lerp(selectedColor, Color.white, 0.12f)
                 : selectedColor;
             color.a = 1f;
-            if (slot.Material.HasProperty("_BaseColor")) slot.Material.SetColor("_BaseColor", color);
-            if (slot.Material.HasProperty("_Color")) slot.Material.SetColor("_Color", color);
-            if (slot.Material.HasProperty("baseColorFactor")) slot.Material.SetColor("baseColorFactor", color);
+            if (slot.Material.HasProperty(BaseColor)) slot.Material.SetColor(BaseColor, color);
+            if (slot.Material.HasProperty(ColorProperty)) slot.Material.SetColor(ColorProperty, color);
+            if (slot.Material.HasProperty(BaseColorFactor)) slot.Material.SetColor(BaseColorFactor, color);
+            properties.Clear();
+            slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
+            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
+            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
+            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
+            slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
         }
 
         appliedColor = selected;
@@ -124,7 +155,13 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
             $"to {slots.Count} instance-owned body/caliper slots.");
     }
 
-    private void OnDestroy() => ReleaseOwnedMaterials();
+    private void OnDestroy()
+    {
+        if (settlementCoroutine != null)
+            StopCoroutine(settlementCoroutine);
+        settlementCoroutine = null;
+        ReleaseOwnedMaterials();
+    }
 
     private void ReleaseOwnedMaterials()
     {

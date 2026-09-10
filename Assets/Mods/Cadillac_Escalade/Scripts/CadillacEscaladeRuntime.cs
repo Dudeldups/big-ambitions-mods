@@ -164,6 +164,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         TryConfigureVehicle(vehicle);
         if (!IsTargetVehicle(vehicle))
             return;
+        vehicle.GetComponent<CadillacEscaladePaintController>()?.RestoreAfterVehicleEntered();
         vehicle.GetComponent<CadillacEscaladeGlassController>()?.RestoreAfterVehicleEntered();
         if (powertrainReadinessCoroutine != null)
             StopCoroutine(powertrainReadinessCoroutine);
