@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
@@ -17,7 +18,6 @@ namespace DeveloperTools
             Disabled
         }
 
-        private const float RefreshIntervalSeconds = 0.5f;
         private const int MaximumTrafficMultiplier = 5;
         private static readonly FieldInfo? LastTrafficDensityField = typeof(TimeOfDayController).GetField(
             "_lastTrafficDensity",
@@ -26,9 +26,7 @@ namespace DeveloperTools
         private readonly ModContext context;
         private TrafficMode mode;
         private float multiplier = 1f;
-        private float nextRefreshAt;
         private int vanillaDensity = -1;
-        private int lastObservedVanillaDensity = -1;
         private bool originalTrafficSpawning;
         private bool trafficChanged;
         private bool originalParkedCarsEnabled;
@@ -67,18 +65,17 @@ namespace DeveloperTools
             }
         }
 
-        public void Update()
+        public IEnumerator ReapplyTrafficAfterHourlyUpdate()
         {
-            if (mode != TrafficMode.Multiplied || Time.unscaledTime < nextRefreshAt)
-                return;
+            yield return null;
+            if (mode != TrafficMode.Multiplied)
+                yield break;
 
-            nextRefreshAt = Time.unscaledTime + RefreshIntervalSeconds;
             var currentVanillaDensity = ReadVanillaDensity();
-            if (currentVanillaDensity < 0 || currentVanillaDensity == lastObservedVanillaDensity)
-                return;
+            if (currentVanillaDensity < 0)
+                yield break;
 
             vanillaDensity = currentVanillaDensity;
-            lastObservedVanillaDensity = currentVanillaDensity;
             ApplyMultipliedDensity(false, out _);
         }
 
@@ -102,12 +99,10 @@ namespace DeveloperTools
             {
                 var target = Mathf.Clamp(vanillaDensity, 0, capacity);
                 Manager.SetTrafficDensity(target);
-                lastObservedVanillaDensity = target;
                 message = $"Restored vanilla AI vehicle traffic ({target} vehicles).";
             }
             else
             {
-                lastObservedVanillaDensity = vanillaDensity;
                 ApplyMultipliedDensity(true, out message);
             }
 

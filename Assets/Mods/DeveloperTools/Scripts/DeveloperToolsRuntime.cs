@@ -45,6 +45,7 @@ namespace DeveloperTools
 
         public void Shutdown()
         {
+            GlobalEvents.onNewHour -= HandleNewHour;
             overlay?.Shutdown();
             timeService?.Shutdown();
             trafficService?.Shutdown();
@@ -54,17 +55,28 @@ namespace DeveloperTools
         private void OnEnable()
         {
             SceneManager.sceneLoaded += HandleSceneLoaded;
+            GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onNewHour += HandleNewHour;
         }
 
         private void OnDisable()
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
+            GlobalEvents.onNewHour -= HandleNewHour;
         }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onNewHour += HandleNewHour;
             trafficService?.PrepareTrafficPoolCapacity();
             overlay?.Hide();
+        }
+
+        private void HandleNewHour()
+        {
+            if (trafficService != null)
+                StartCoroutine(trafficService.ReapplyTrafficAfterHourlyUpdate());
         }
 
         private void Update()
@@ -83,8 +95,6 @@ namespace DeveloperTools
 
             if (overlay.ShouldConsumeGameplayInput)
                 overlay.ConsumeGameplayInput();
-
-            trafficService?.Update();
         }
 
         private void LateUpdate()
