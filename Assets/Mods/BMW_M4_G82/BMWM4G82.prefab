@@ -1862,8 +1862,8 @@ Transform:
   m_GameObject: {fileID: 349401326965871195}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.8956055, y: -0.33782828, z: 0.91407543}
-  m_LocalScale: {x: 1.2168566, y: 1.010937, z: 0.89421505}
+  m_LocalPosition: {x: -0.8505818, y: -0.33782828, z: 0.91407543}
+  m_LocalScale: {x: 1, y: 1.18, z: 1.18}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5059963477554232044}
@@ -3916,7 +3916,7 @@ MonoBehaviour:
   forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 4
-  damageMaxWobbleAngle: 30
+  damageMaxWobbleAngle: 1.5
   otherBodyForceScale: 1
   loadContribution: 0.25
   layerMask:
@@ -4647,8 +4647,8 @@ Transform:
   m_GameObject: {fileID: 974314952456612150}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.8956055, y: -0.33782828, z: 0.91407543}
-  m_LocalScale: {x: 1.2168566, y: 1.010937, z: 0.89421505}
+  m_LocalPosition: {x: 0.8505818, y: -0.33782828, z: 0.91407543}
+  m_LocalScale: {x: 1, y: 1.18, z: 1.18}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5409294508172069631}
@@ -6168,8 +6168,8 @@ Rigidbody:
   serializedVersion: 4
   m_Mass: 1775
   m_Drag: 0
-  m_AngularDrag: 1.45
-  m_CenterOfMass: {x: 0, y: 0.18, z: -0.08}
+  m_AngularDrag: 1.9
+  m_CenterOfMass: {x: 0, y: 0.1, z: -0.08}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
   m_IncludeLayers:
@@ -6726,7 +6726,7 @@ MonoBehaviour:
     wheelGroups:
     - name: Front Axle 0
       addAckerman: 1
-      antiRollBarForce: 7200
+      antiRollBarForce: 8200
       brakeCoefficient: 1
       handbrakeCoefficient: 0
       isSolid: 0
@@ -6740,7 +6740,7 @@ MonoBehaviour:
       vc: {fileID: 1097034333910286812}
     - name: Rear Axle 1
       addAckerman: 1
-      antiRollBarForce: 7200
+      antiRollBarForce: 8200
       brakeCoefficient: 0.55
       handbrakeCoefficient: 2
       isSolid: 0
@@ -7090,8 +7090,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   carController: {fileID: 111165213053723752}
-  meshFilters:
-  - {fileID: 5950385663296234222}
+  meshFilters: []
   originalMeshes: []
   deformationStrength: 0.17
   deformationRadius: 0.24
@@ -7114,8 +7113,8 @@ MonoBehaviour:
   combinedMass: 1775
   dimensions: {x: 1.989083, y: 1.414327, z: 4.584719}
   useDefaultCenterOfMass: 0
-  centerOfMass: {x: 0, y: 0.18, z: -0.08}
-  combinedCenterOfMass: {x: 0, y: 0.18, z: -0.08}
+  centerOfMass: {x: 0, y: 0.1, z: -0.08}
+  combinedCenterOfMass: {x: 0, y: 0.1, z: -0.08}
   useDefaultInertia: 1
   inertiaTensor: {x: 2222.068, y: 2206.0933, z: 623.19104}
   combinedInertiaTensor: {x: 0, y: 0, z: 0}
@@ -13174,7 +13173,7 @@ MonoBehaviour:
   forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 4
-  damageMaxWobbleAngle: 30
+  damageMaxWobbleAngle: 1.5
   otherBodyForceScale: 1
   loadContribution: 0.25
   layerMask:
@@ -26754,7 +26753,7 @@ MonoBehaviour:
   forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 4
-  damageMaxWobbleAngle: 30
+  damageMaxWobbleAngle: 1.5
   otherBodyForceScale: 1
   loadContribution: 0.25
   layerMask:
@@ -31510,8 +31509,8 @@ Transform:
   m_GameObject: {fileID: 5925696058059517132}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.93188626, y: -0.33972824, z: -1.3800423}
-  m_LocalScale: {x: 1.2611067, y: 1.0166266, z: 0.8992484}
+  m_LocalPosition: {x: -0.8852253, y: -0.33972824, z: -1.3800423}
+  m_LocalScale: {x: 1, y: 1.18, z: 1.18}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 613188098717033154}
@@ -32819,7 +32818,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6224659653363377520}
   m_Enabled: 1
-  m_CastShadows: 0
+  m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -32828,7 +32827,7 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 653417e54d68209439bc16c18715ef5e, type: 2}
@@ -34631,7 +34630,7 @@ MonoBehaviour:
   forceApplicationPointDistance: 0.35
   disableMotionVectors: 1
   suspensionExtensionSpeedCoeff: 4
-  damageMaxWobbleAngle: 30
+  damageMaxWobbleAngle: 1.5
   otherBodyForceScale: 1
   loadContribution: 0.25
   layerMask:
@@ -34834,7 +34833,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6615467884211753278}
   m_Enabled: 1
-  m_CastShadows: 0
+  m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -34843,7 +34842,7 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 653417e54d68209439bc16c18715ef5e, type: 2}
@@ -37294,8 +37293,8 @@ Transform:
   m_GameObject: {fileID: 7356074781655762157}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.93188626, y: -0.33972824, z: -1.3800423}
-  m_LocalScale: {x: 1.2611067, y: 1.0166266, z: 0.8992484}
+  m_LocalPosition: {x: 0.8852253, y: -0.33972824, z: -1.3800423}
+  m_LocalScale: {x: 1, y: 1.18, z: 1.18}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7250139487861491794}
@@ -43642,7 +43641,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8977454837567506412}
   m_Enabled: 1
-  m_CastShadows: 0
+  m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -43651,7 +43650,7 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 257
+  m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 3363972f894739b4cbfa839eb7091475, type: 2}
