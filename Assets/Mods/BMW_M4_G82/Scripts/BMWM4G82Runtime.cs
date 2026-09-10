@@ -169,6 +169,48 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         TryConfigureVehicle(vehicle, "vehicle-entered-fallback");
         vehicle?.GetComponent<BMWM4G82GlassController>()
             ?.RestoreAfterVehicleEntered();
+        if (vehicle != null && IsTargetVehicle(vehicle))
+            StartCoroutine(EnsureDrivetrainReadyAfterEntry(vehicle));
+    }
+
+    private IEnumerator EnsureDrivetrainReadyAfterEntry(VehicleController vehicle)
+    {
+        yield return null;
+        yield return new WaitForSecondsRealtime(0.15f);
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+            yield break;
+
+        var physicsVehicle = vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>() ??
+                             vehicle.GetComponentInChildren<NWH.VehiclePhysics2.VehicleController>(true);
+        if (physicsVehicle == null)
+        {
+            context?.Logger.Warn(
+                $"BMWM4G82: post-entry drivetrain unavailable vehicle={vehicle.GetInstanceID()}.");
+            yield break;
+        }
+
+        try
+        {
+            ConfigurePowertrain(vehicle.gameObject);
+            var engine = physicsVehicle.powertrain.engine;
+            var transmission = physicsVehicle.powertrain.transmission;
+            var startedEngine = !engine.IsRunning;
+            if (startedEngine)
+                engine.StartEngine();
+            var selectedDrive = transmission.Gear == 0;
+            if (selectedDrive)
+                transmission.ShiftInto(1, true);
+            context?.Logger.Info(
+                $"BMWM4G82: post-entry drivetrain ready vehicle={vehicle.GetInstanceID()} " +
+                $"engineStarted={startedEngine} running={engine.IsRunning} " +
+                $"driveSelected={selectedDrive} gear={transmission.Gear}.");
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"BMWM4G82: post-entry drivetrain recovery failed vehicle={vehicle.GetInstanceID()}: " +
+                exception.GetBaseException().Message);
+        }
     }
 
     private void HandleBuildingEntered(Address address)
@@ -423,13 +465,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.36f, -0.02f);
-                colliders[0].size = new Vector3(1.82f, 0.48f, 4.58f);
+                colliders[0].center = new Vector3(0f, 0.33f, 0.08f);
+                colliders[0].size = new Vector3(1.74f, 0.42f, 4.38f);
             }
             if (colliders.Length > 1)
             {
-                colliders[1].center = new Vector3(0f, 0.86f, -0.18f);
-                colliders[1].size = new Vector3(1.62f, 0.76f, 2.68f);
+                colliders[1].center = new Vector3(0f, 0.84f, -0.20f);
+                colliders[1].size = new Vector3(1.46f, 0.64f, 2.34f);
             }
         }
     }

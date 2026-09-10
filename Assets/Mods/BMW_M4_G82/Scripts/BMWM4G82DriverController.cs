@@ -16,12 +16,12 @@ internal sealed class BMWM4G82DriverController : MonoBehaviour
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
     private const float HandHalfSpacing = 0.19f;
-    private const float HandForwardOffset = 0.075f;
+    private const float HandForwardOffset = -0.030f;
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
     // Pelvis position relative to the M4 steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.65f);
+    private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.50f);
     private const int MaximumAttempts = 20;
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;

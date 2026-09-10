@@ -29,7 +29,9 @@ public static class BMWM4G82Setup
     private const float TargetLength = 4.794f;
     private const float TargetWidth = 1.887f;
     private const float TargetHeight = 1.394f;
-    private const float TargetWheelbase = 2.857f;
+    private const float VisualFrontAxleZ = 1.535f;
+    private const float VisualRearAxleZ = -1.022f;
+    private const float VisualWheelbase = VisualFrontAxleZ - VisualRearAxleZ;
     private const float FrontTrack = 1.617f;
     private const float RearTrack = 1.605f;
     private const float FrontTireWidth = 0.275f;
@@ -49,10 +51,10 @@ public static class BMWM4G82Setup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8085f, FrontTireRadius, 1.4285f) },
-            { "FrontRight_WheelController", new Vector3(0.8085f, FrontTireRadius, 1.4285f) },
-            { "RearLeft_WheelController", new Vector3(-0.8025f, RearTireRadius, -1.4285f) },
-            { "RearRight_WheelController", new Vector3(0.8025f, RearTireRadius, -1.4285f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8085f, FrontTireRadius, VisualFrontAxleZ) },
+            { "FrontRight_WheelController", new Vector3(0.8085f, FrontTireRadius, VisualFrontAxleZ) },
+            { "RearLeft_WheelController", new Vector3(-0.8025f, RearTireRadius, VisualRearAxleZ) },
+            { "RearRight_WheelController", new Vector3(0.8025f, RearTireRadius, VisualRearAxleZ) },
         };
 
     private static readonly float[] M4Gears =
@@ -240,23 +242,36 @@ public static class BMWM4G82Setup
             var wheelbase = Math.Abs((frontLeft.z + frontRight.z - rearLeft.z - rearRight.z) * 0.5f);
             if (Math.Abs(frontTrack - FrontTrack) > 0.01f ||
                 Math.Abs(rearTrack - RearTrack) > 0.01f ||
-                Math.Abs(wheelbase - TargetWheelbase) > 0.01f)
+                Math.Abs(wheelbase - VisualWheelbase) > 0.01f ||
+                Math.Abs(frontLeft.z - VisualFrontAxleZ) > 0.01f ||
+                Math.Abs(rearLeft.z - VisualRearAxleZ) > 0.01f)
                 throw new InvalidOperationException(
                     $"BMW wheel geometry mismatch wheelbase={wheelbase:F3} tracks={frontTrack:F3}/{rearTrack:F3}.");
 
             var bodyCollider = FindTransform(prefab.transform, "BodyCollider") ??
                                throw new InvalidOperationException("BMW body collider holder is missing.");
-            if (bodyCollider.GetComponents<BoxCollider>().Length < 2)
+            var bodyColliders = bodyCollider.GetComponents<BoxCollider>();
+            if (bodyColliders.Length != 2 ||
+                Vector3.Distance(bodyColliders[0].size, new Vector3(1.74f, 0.42f, 4.38f)) > 0.01f ||
+                Vector3.Distance(bodyColliders[1].size, new Vector3(1.46f, 0.64f, 2.34f)) > 0.01f)
                 throw new InvalidOperationException("BMW body colliders are incomplete.");
             if (FindTransform(prefab.transform, "BMWDamageBody") == null ||
                 FindTransform(prefab.transform, "BMW_DRL_Source") == null ||
                 FindTransform(prefab.transform, "BMW_Lamp_Source") == null ||
                 FindTransform(prefab.transform, "BMW_RearLamp_Source") == null ||
+                FindTransform(prefab.transform, "BMW_RoofPaint_Source") == null ||
                 FindTransform(prefab.transform, "Steering_wheel") == null)
                 throw new InvalidOperationException("BMW damage, lighting, or driver anchors are incomplete.");
 
             var materialResult = BMWM4G82Materials.FixSolidMaterials(prefab);
-            if (materialResult.CabinGlassRenderers < 2 || materialResult.TransparentMaterialsFixed < 2)
+            var roofRenderer = FindTransform(prefab.transform, "BMW_RoofPaint_Source")
+                ?.GetComponent<MeshRenderer>();
+            if (roofRenderer == null || !roofRenderer.enabled ||
+                Array.Exists(roofRenderer.sharedMaterials, material =>
+                    material == null || BMWM4G82Materials.IsTransparentMaterial(material) ||
+                    !IsBodyPaintMaterial(material)))
+                throw new InvalidOperationException("BMW roof is not assigned to opaque body paint.");
+            if (materialResult.CabinGlassRenderers != 1 || materialResult.TransparentMaterialsFixed < 1)
                 throw new InvalidOperationException(
                     $"BMW glass validation failed renderers={materialResult.CabinGlassRenderers} transparent={materialResult.TransparentMaterialsFixed}.");
             if (Math.Abs(prefab.transform.localScale.x - 1f) > 0.001f ||
@@ -358,6 +373,8 @@ public static class BMWM4G82Setup
             RemoveStudioGeometry(modelInstance);
             NameKeyRenderers(modelInstance);
             NormalizeModel(modelInstance);
+            ConfigureRoofPaint(modelInstance);
+            RemoveAuxiliaryPaintGeometry(modelInstance);
             CreateSteeringAnchor(root);
             ConfigureExitMarkers(root);
             AssignPersistentMaterials(modelInstance);
@@ -446,11 +463,20 @@ public static class BMWM4G82Setup
     private static void NameKeyRenderers(GameObject model)
     {
         var glassIndex = 0;
+        MeshRenderer? bodySource = null;
+        var bodySourceVertexCount = -1;
         foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
         {
             var materialName = renderer.sharedMaterial?.name ?? string.Empty;
             if (materialName.IndexOf("PaintTNR", StringComparison.OrdinalIgnoreCase) >= 0)
-                renderer.name = "BMW_Body_Source";
+            {
+                var vertexCount = renderer.GetComponent<MeshFilter>()?.sharedMesh?.vertexCount ?? 0;
+                if (vertexCount > bodySourceVertexCount)
+                {
+                    bodySource = renderer;
+                    bodySourceVertexCount = vertexCount;
+                }
+            }
             else if (materialName.IndexOf("LightA", StringComparison.OrdinalIgnoreCase) >= 0)
                 renderer.name = "BMW_Lamp_Source";
             else if (string.Equals(materialName, "emit", StringComparison.OrdinalIgnoreCase))
@@ -463,6 +489,9 @@ public static class BMWM4G82Setup
                 renderer.name = "BMW_SteeringVisual_Source";
         }
 
+        if (bodySource != null)
+            bodySource.name = "BMW_Body_Source";
+
         if (FindTransform(model.transform, "BMW_Body_Source") == null ||
             FindTransform(model.transform, "BMW_Lamp_Source") == null ||
             FindTransform(model.transform, "BMW_DRL_Source") == null ||
@@ -471,6 +500,60 @@ public static class BMWM4G82Setup
             throw new InvalidOperationException(
                 "BMW model material classification could not locate body and lamp renderers.");
         }
+    }
+
+    private static void ConfigureRoofPaint(GameObject model)
+    {
+        var body = FindTransform(model.transform, "BMW_Body_Source")
+            ?.GetComponent<MeshRenderer>() ??
+            throw new InvalidOperationException("BMW body paint source is missing.");
+        var bodyMaterial = body.sharedMaterial ??
+                           throw new InvalidOperationException("BMW body paint material is missing.");
+        MeshRenderer? roof = null;
+        foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (!Array.Exists(renderer.sharedMaterials, material =>
+                    material != null && BMWM4G82Materials.IsCabinGlassMaterial(material)))
+                continue;
+            var bounds = renderer.bounds;
+            if (bounds.center.y > 1.2f && bounds.size.y < 0.25f && bounds.size.z < 1.6f)
+            {
+                if (roof != null)
+                    throw new InvalidOperationException("BMW roof classification found multiple candidates.");
+                roof = renderer;
+            }
+        }
+        if (roof == null)
+            throw new InvalidOperationException("BMW roof paint geometry could not be isolated from the glass.");
+
+        roof.name = "BMW_RoofPaint_Source";
+        roof.sharedMaterial = bodyMaterial;
+        Debug.Log($"BMWM4G82: classified roof as opaque body paint bounds={roof.bounds.size}.");
+    }
+
+    private static void RemoveAuxiliaryPaintGeometry(GameObject model)
+    {
+        var removed = 0;
+        foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (string.Equals(renderer.name, "BMW_Body_Source", StringComparison.Ordinal) ||
+                string.Equals(renderer.name, "BMW_RoofPaint_Source", StringComparison.Ordinal))
+                continue;
+            if (!Array.Exists(renderer.sharedMaterials, material =>
+                    material != null && material.name.IndexOf(
+                        "PaintTNR", StringComparison.OrdinalIgnoreCase) >= 0))
+                continue;
+
+            renderer.enabled = false;
+            renderer.sharedMaterials = Array.Empty<Material>();
+            var filter = renderer.GetComponent<MeshFilter>();
+            if (filter != null)
+                filter.sharedMesh = null;
+            removed++;
+        }
+        if (removed == 0)
+            throw new InvalidOperationException("BMW auxiliary PaintTNR geometry was not found.");
+        Debug.Log($"BMWM4G82: removed auxiliary PaintTNR geometry count={removed}.");
     }
 
     private static void ConfigureRootPhysics(GameObject root)
@@ -540,10 +623,10 @@ public static class BMWM4G82Setup
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle requires two body colliders.");
 
-        colliders[0].center = new Vector3(0f, 0.36f, -0.02f);
-        colliders[0].size = new Vector3(1.82f, 0.48f, 4.58f);
-        colliders[1].center = new Vector3(0f, 0.86f, -0.18f);
-        colliders[1].size = new Vector3(1.62f, 0.76f, 2.68f);
+        colliders[0].center = new Vector3(0f, 0.33f, 0.08f);
+        colliders[0].size = new Vector3(1.74f, 0.42f, 4.38f);
+        colliders[1].center = new Vector3(0f, 0.84f, -0.20f);
+        colliders[1].size = new Vector3(1.46f, 0.64f, 2.34f);
     }
 
     private static void CreateSteeringAnchor(GameObject root)
@@ -721,20 +804,19 @@ public static class BMWM4G82Setup
             throw new InvalidOperationException("BMW tire regions could not be measured.");
         }
 
-        var axleMidpoint = (frontLeftBounds.center.z + rearLeftBounds.center.z) * 0.5f;
         var corners = new[]
         {
             new WheelCorner("FrontLeft", "FrontLeft_WheelController", true, true,
-                new Vector3(-FrontTrack * 0.5f, FrontTireRadius, axleMidpoint + TargetWheelbase * 0.5f),
+                new Vector3(-FrontTrack * 0.5f, FrontTireRadius, frontLeftBounds.center.z),
                 FrontTireWidth, FrontTireRadius),
             new WheelCorner("FrontRight", "FrontRight_WheelController", true, false,
-                new Vector3(FrontTrack * 0.5f, FrontTireRadius, axleMidpoint + TargetWheelbase * 0.5f),
+                new Vector3(FrontTrack * 0.5f, FrontTireRadius, frontLeftBounds.center.z),
                 FrontTireWidth, FrontTireRadius),
             new WheelCorner("RearLeft", "RearLeft_WheelController", false, true,
-                new Vector3(-RearTrack * 0.5f, RearTireRadius, axleMidpoint - TargetWheelbase * 0.5f),
+                new Vector3(-RearTrack * 0.5f, RearTireRadius, rearLeftBounds.center.z),
                 RearTireWidth, RearTireRadius),
             new WheelCorner("RearRight", "RearRight_WheelController", false, false,
-                new Vector3(RearTrack * 0.5f, RearTireRadius, axleMidpoint - TargetWheelbase * 0.5f),
+                new Vector3(RearTrack * 0.5f, RearTireRadius, rearLeftBounds.center.z),
                 RearTireWidth, RearTireRadius),
         };
 
