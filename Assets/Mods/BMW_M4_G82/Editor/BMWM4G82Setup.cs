@@ -194,6 +194,10 @@ public static class BMWM4G82Setup
 
             var visual = FindTransform(prefab.transform, "BMWVisual") ??
                          throw new InvalidOperationException("BMW visual root is missing.");
+            var authoredUp = visual.TransformDirection(Vector3.forward).normalized;
+            if (Vector3.Dot(authoredUp, prefab.transform.up) < 0.99f)
+                throw new InvalidOperationException(
+                    $"BMW body is not upright: authoredUp={authoredUp}, chassisUp={prefab.transform.up}.");
             if (!TryGetModelBodyBounds(visual, out var bounds) ||
                 Math.Abs(bounds.size.x - TargetWidth) > 0.06f ||
                 Math.Abs(bounds.size.y - TargetHeight) > 0.06f ||
@@ -201,6 +205,9 @@ public static class BMWM4G82Setup
             {
                 throw new InvalidOperationException($"BMW body bounds are invalid: {bounds.size}.");
             }
+            if (prefab.GetComponents<BMWM4G82SpawnConfigurator>().Length != 1)
+                throw new InvalidOperationException(
+                    "BMW prefab requires exactly one spawn-time configurator.");
 
             var centers = new Dictionary<string, Vector3>();
             var wheelCount = 0;
@@ -260,6 +267,7 @@ public static class BMWM4G82Setup
             Debug.Log(
                 $"BMWM4G82 bundle verified: price={price:F0}, fuel={maxFuel:F0}L, cargo={maxCargo:F0}, " +
                 $"speed={maxSpeed:F0}km/h, power={enginePower:F0}kW, bounds={bounds.size}, " +
+                $"bodyUpright={Vector3.Dot(authoredUp, prefab.transform.up):F2}, spawnConfig=true, " +
                 $"wheelbase={wheelbase:F3}, tracks={frontTrack:F3}/{rearTrack:F3}, " +
                 $"wheels={wheelCount}, fixedCalipers={caliperCount}, rollingParts={rollingParts}, " +
                 $"glass={materialResult.CabinGlassRenderers}, materials={materialResult.RendererCount}.");
@@ -335,6 +343,8 @@ public static class BMWM4G82Setup
             ConfigureBodyColliders(root);
             ConfigureVehicleReferences(root, vehicleType);
             ConfigurePowertrain(root);
+            if (root.GetComponent<BMWM4G82SpawnConfigurator>() == null)
+                root.AddComponent<BMWM4G82SpawnConfigurator>();
 
             var modelInstance = PrefabUtility.InstantiatePrefab(model, root.transform) as GameObject;
             if (modelInstance == null)
@@ -651,8 +661,10 @@ public static class BMWM4G82Setup
     private static void NormalizeModel(GameObject model)
     {
         model.transform.localPosition = Vector3.zero;
-        // The supplied Sketchfab GLB uses Y for length and Z for height.
-        model.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        // The supplied Sketchfab GLB uses Y for length and Z for height. A negative
+        // quarter-turn maps authored +Z to chassis +Y; the positive turn mirrors
+        // the body vertically while leaving the separately generated wheels upright.
+        model.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
         model.transform.localScale = Vector3.one;
 
         if (!TryGetModelBodyBounds(model.transform, out var bounds))

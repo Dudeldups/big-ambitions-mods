@@ -11,6 +11,7 @@ using Vehicles.VehicleTypes;
 
 public sealed class BMWM4G82Runtime : MonoBehaviour
 {
+    private static BMWM4G82Runtime? activeRuntime;
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -78,6 +79,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        activeRuntime = runtime;
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -90,7 +92,15 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        if (ReferenceEquals(activeRuntime, this))
+            activeRuntime = null;
         Destroy(gameObject);
+    }
+
+    internal static bool ConfigureSpawnedVehicle(VehicleController? vehicle)
+    {
+        return activeRuntime != null &&
+               activeRuntime.TryConfigureVehicle(vehicle, "prefab-start");
     }
 
     private void OnEnable()
@@ -149,7 +159,14 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
-        TryConfigureVehicle(vehicle);
+        if (IsTargetVehicle(vehicle) &&
+            !configuredVehicleIds.Contains(vehicle.GetInstanceID()))
+        {
+            context?.Logger.Warn(
+                $"BMWM4G82: vehicle entered before spawn configuration " +
+                $"instance={vehicle.GetInstanceID()}; applying fallback.");
+        }
+        TryConfigureVehicle(vehicle, "vehicle-entered-fallback");
         vehicle?.GetComponent<BMWM4G82GlassController>()
             ?.RestoreAfterVehicleEntered();
     }
@@ -252,28 +269,24 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             }
 
             matchedCount++;
-            TryConfigureVehicle(vehicle);
+            TryConfigureVehicle(vehicle, "existing-vehicle-scan");
         }
     }
 
-    private void TryConfigureVehicle(VehicleController? vehicle)
+    private bool TryConfigureVehicle(VehicleController? vehicle, string source)
     {
-        if (vehicle?.vehicleInstance == null ||
-            !string.Equals(
-                vehicle.vehicleInstance.vehicleTypeName,
-                vehicleTypeName,
-                StringComparison.Ordinal))
-        {
-            return;
-        }
+        if (!IsTargetVehicle(vehicle))
+            return false;
 
-        var instanceId = vehicle.GetInstanceID();
+        var targetVehicle = vehicle!;
+        var instanceId = targetVehicle.GetInstanceID();
         if (!configuredVehicleIds.Add(instanceId))
-            return;
+            return true;
 
         try
         {
-            var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
+            var rigidbody = targetVehicle.GetComponent<Rigidbody>() ??
+                            targetVehicle.GetComponentInParent<Rigidbody>();
             if (rigidbody != null)
             {
                 rigidbody.mass = VehicleMass;
@@ -282,43 +295,43 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 rigidbody.angularDrag = 1.45f;
             }
 
-            ConfigureMassProperties(vehicle.gameObject);
-            ConfigureWheelControllers(vehicle.gameObject);
-            ConfigureBodyColliders(vehicle.gameObject);
-            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
-            var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
-            var caliperController = vehicle.GetComponent<BMWM4G82CaliperController>();
+            ConfigureMassProperties(targetVehicle.gameObject);
+            ConfigureWheelControllers(targetVehicle.gameObject);
+            ConfigureBodyColliders(targetVehicle.gameObject);
+            var deformableBodyMeshes = ConfigureVisualDamage(targetVehicle);
+            var powertrainConfigured = ConfigurePowertrain(targetVehicle.gameObject);
+            var caliperController = targetVehicle.GetComponent<BMWM4G82CaliperController>();
             if (caliperController == null)
-                caliperController = vehicle.gameObject.AddComponent<BMWM4G82CaliperController>();
-            caliperController.Initialize(vehicle, context);
-            var materialResult = BMWM4G82Materials.FixSolidMaterials(vehicle.gameObject);
-            var glassController = vehicle.GetComponent<BMWM4G82GlassController>();
+                caliperController = targetVehicle.gameObject.AddComponent<BMWM4G82CaliperController>();
+            caliperController.Initialize(targetVehicle, context);
+            var materialResult = BMWM4G82Materials.FixSolidMaterials(targetVehicle.gameObject);
+            var glassController = targetVehicle.GetComponent<BMWM4G82GlassController>();
             if (glassController == null)
-                glassController = vehicle.gameObject.AddComponent<BMWM4G82GlassController>();
+                glassController = targetVehicle.gameObject.AddComponent<BMWM4G82GlassController>();
             glassController.Initialize(context);
-            var lightingController = vehicle.GetComponent<BMWM4G82LightingController>();
+            var lightingController = targetVehicle.GetComponent<BMWM4G82LightingController>();
             if (lightingController == null)
-                lightingController = vehicle.gameObject.AddComponent<BMWM4G82LightingController>();
-            lightingController.Initialize(vehicle, context);
-            var driverController = vehicle.GetComponent<BMWM4G82DriverController>();
+                lightingController = targetVehicle.gameObject.AddComponent<BMWM4G82LightingController>();
+            lightingController.Initialize(targetVehicle, context);
+            var driverController = targetVehicle.GetComponent<BMWM4G82DriverController>();
             if (driverController == null)
-                driverController = vehicle.gameObject.AddComponent<BMWM4G82DriverController>();
-            driverController.Initialize(vehicle, context);
-            var audioController = vehicle.GetComponent<BMWM4G82AudioController>();
+                driverController = targetVehicle.gameObject.AddComponent<BMWM4G82DriverController>();
+            driverController.Initialize(targetVehicle, context);
+            var audioController = targetVehicle.GetComponent<BMWM4G82AudioController>();
             if (audioController == null)
-                audioController = vehicle.gameObject.AddComponent<BMWM4G82AudioController>();
-            audioController.Initialize(vehicle, context);
+                audioController = targetVehicle.gameObject.AddComponent<BMWM4G82AudioController>();
+            audioController.Initialize(targetVehicle, context);
             var accelerationTelemetry =
-                vehicle.GetComponent<BMWM4G82AccelerationTelemetry>();
+                targetVehicle.GetComponent<BMWM4G82AccelerationTelemetry>();
             if (accelerationTelemetry == null)
             {
-                accelerationTelemetry = vehicle.gameObject
+                accelerationTelemetry = targetVehicle.gameObject
                     .AddComponent<BMWM4G82AccelerationTelemetry>();
             }
-            accelerationTelemetry.Initialize(vehicle, context);
+            accelerationTelemetry.Initialize(targetVehicle, context);
 
             context?.Logger.Info(
-                $"BMWM4G82: configured vehicle instance={instanceId}, " +
+                $"BMWM4G82: configured vehicle instance={instanceId}, source='{source}', " +
                 $"mass={VehicleMass:0}kg, transmission=8-speed-M-Steptronic, awd=true, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
@@ -338,6 +351,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
                 $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
                 $"hdrpValidated={materialResult.MaterialsValidated}.");
+            return true;
         }
         catch (Exception exception)
         {
@@ -345,7 +359,17 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             context?.Logger.Warn(
                 $"BMWM4G82: vehicle configuration failed instance={instanceId}: " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
         }
+    }
+
+    private bool IsTargetVehicle(VehicleController? vehicle)
+    {
+        return vehicle?.vehicleInstance != null &&
+               string.Equals(
+                   vehicle.vehicleInstance.vehicleTypeName,
+                   vehicleTypeName,
+                   StringComparison.Ordinal);
     }
 
     private static void ConfigureWheelControllers(GameObject root)
