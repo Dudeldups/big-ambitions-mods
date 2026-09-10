@@ -13,6 +13,8 @@ namespace DeveloperTools
         private DeveloperToolsOverlay? overlay;
         private DeveloperToolsPlayerService? playerService;
         private DeveloperToolsMapTeleport? mapTeleport;
+        private DeveloperToolsTimeService? timeService;
+        private DeveloperToolsTrafficService? trafficService;
 
         public static DeveloperToolsRuntime Initialize(ModContext context, DeveloperToolsSettings settings)
         {
@@ -25,27 +27,57 @@ namespace DeveloperTools
             var runtime = gameObject.AddComponent<DeveloperToolsRuntime>();
             runtime.context = context;
             runtime.settings = settings;
-            runtime.playerService = new DeveloperToolsPlayerService();
+            runtime.playerService = new DeveloperToolsPlayerService(context);
+            runtime.timeService = new DeveloperToolsTimeService(context);
+            runtime.trafficService = new DeveloperToolsTrafficService(context);
+            runtime.trafficService.PrepareTrafficPoolCapacity();
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
                 new DeveloperToolsVehicleService(context),
                 new DeveloperToolsItemService(context),
                 runtime.playerService,
-                new DeveloperToolsTimeService(context));
+                runtime.timeService,
+                runtime.trafficService,
+                new DeveloperToolsPauseService(context));
             runtime.mapTeleport = new DeveloperToolsMapTeleport(context, runtime.playerService);
             return runtime;
         }
 
         public void Shutdown()
         {
+            GlobalEvents.onNewHour -= HandleNewHour;
             overlay?.Shutdown();
+            timeService?.Shutdown();
+            trafficService?.Shutdown();
             Destroy(gameObject);
         }
 
-        private void OnEnable() => SceneManager.sceneLoaded += HandleSceneLoaded;
-        private void OnDisable() => SceneManager.sceneLoaded -= HandleSceneLoaded;
+        private void OnEnable()
+        {
+            SceneManager.sceneLoaded += HandleSceneLoaded;
+            GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onNewHour += HandleNewHour;
+        }
 
-        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode) => overlay?.Hide();
+        private void OnDisable()
+        {
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            GlobalEvents.onNewHour -= HandleNewHour;
+        }
+
+        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            GlobalEvents.onNewHour -= HandleNewHour;
+            GlobalEvents.onNewHour += HandleNewHour;
+            trafficService?.PrepareTrafficPoolCapacity();
+            overlay?.Hide();
+        }
+
+        private void HandleNewHour()
+        {
+            if (trafficService != null)
+                StartCoroutine(trafficService.ReapplyTrafficAfterHourlyUpdate());
+        }
 
         private void Update()
         {

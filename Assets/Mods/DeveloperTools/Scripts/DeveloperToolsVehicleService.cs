@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using BAModAPI;
 using BigAmbitions.SaveSystem.Legacy;
+using Data.VehicleColors;
 using Helpers;
 using Localizor;
 using UnityEngine;
@@ -14,28 +16,42 @@ namespace DeveloperTools
     internal sealed class DeveloperToolsVehicleService
     {
         private const float SpawnDistance = 7f;
-        private readonly List<CatalogEntry> entries = new List<CatalogEntry>();
+        private static readonly MethodInfo? StopEngineMethod = typeof(CarController).GetMethod(
+            "StopEngine",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        private readonly List<CatalogEntry> vanillaEntries = new List<CatalogEntry>();
+        private readonly List<CatalogEntry> moddedEntries = new List<CatalogEntry>();
+        private readonly List<VehicleColorEntry> colorEntries = new List<VehicleColorEntry>();
         private readonly ModContext context;
         private string lastSpawnedVehicleId = string.Empty;
 
         public DeveloperToolsVehicleService(ModContext context) => this.context = context;
-        public IReadOnlyList<CatalogEntry> Entries => entries;
+        public IReadOnlyList<CatalogEntry> VanillaEntries => vanillaEntries;
+        public IReadOnlyList<CatalogEntry> ModdedEntries => moddedEntries;
+        public IReadOnlyList<VehicleColorEntry> ColorEntries => colorEntries;
 
         public void Refresh()
         {
-            entries.Clear();
+            vanillaEntries.Clear();
+            moddedEntries.Clear();
             foreach (var id in VehicleTypeHelper.GetVehicleTypeNames().Where(value => !string.IsNullOrWhiteSpace(value)).Distinct())
             {
                 if (VehicleTypeHelper.GetVehicleType(id) != null)
-                    entries.Add(new CatalogEntry(id, Localize(id)));
+                {
+                    var entry = new CatalogEntry(id, Localize(id));
+                    (IsModdedVehicleType(id) ? moddedEntries : vanillaEntries).Add(entry);
+                }
             }
-            entries.Sort((left, right) => string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase));
+            vanillaEntries.Sort(CompareEntries);
+            moddedEntries.Sort(CompareEntries);
+            RefreshColors();
         }
 
-        public bool Spawn(string vehicleTypeName, out string message)
+        public bool Spawn(string vehicleTypeName, string vehicleColorName, out string message)
         {
             var player = PlayerHelper.PlayerController;
             var vehicleType = VehicleTypeHelper.GetVehicleType(vehicleTypeName);
+            var selectedColorName = vehicleColorName ?? string.Empty;
             if (player == null || vehicleType == null)
             {
                 message = player == null ? "Player is not available." : "Selected vehicle is no longer registered.";
@@ -53,7 +69,8 @@ namespace DeveloperTools
                 var instance = new VehicleInstance(vehicleTypeName)
                 {
                     id = Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
-                    fuel = vehicleType.maxFuel * 0.98f
+                    fuel = vehicleType.maxFuel * 0.98f,
+                    vehicleColorName = selectedColorName
                 };
                 var controller = VehicleHelper.CreateAndSpawnVehicle(instance, position, rotation);
                 if (controller == null)
@@ -64,8 +81,12 @@ namespace DeveloperTools
                 }
 
                 VehicleHelper.TeleportVehicleToGround(controller, position, rotation);
+                NotifyModVehicleCreated(controller, vehicleTypeName);
+                var colorName = ApplyRegisteredColor(controller, instance, selectedColorName);
+                NormalizeParkedMotorVehicle(controller, vehicleTypeName);
                 lastSpawnedVehicleId = instance.id;
-                message = "Spawned " + Localize(vehicleTypeName) + ".";
+                message = "Spawned " + Localize(vehicleTypeName) +
+                          (string.IsNullOrEmpty(colorName) ? "." : " with color " + colorName + ".");
                 return true;
             }
             catch (Exception exception)
@@ -99,6 +120,181 @@ namespace DeveloperTools
             return true;
         }
 
+        public bool RepairVehicle(out string message)
+        {
+            var activeVehicleId = SaveGameManager.Current?.ActiveVehicleId;
+            var controller = FindVehicleController(activeVehicleId) ?? FindVehicleController(lastSpawnedVehicleId);
+            if (controller?.vehicleInstance == null)
+            {
+                message = "Enter a vehicle or spawn one before repairing it.";
+                return false;
+            }
+
+            try
+            {
+                var recoveredMalformedDeformation = false;
+                try
+                {
+                    controller.Repair();
+                }
+                catch (IndexOutOfRangeException)
+                {
+                    // Some modded vehicles have a different number of live mesh
+                    // filters and authored original meshes. The game's reset loop
+                    // indexes both arrays by the live-filter count and throws after
+                    // its saved and physics damage state has already been repaired.
+                    recoveredMalformedDeformation = true;
+                }
+
+                controller.vehicleInstance.damage = 0f;
+                controller.vehicleInstance.deformations?.Clear();
+                foreach (var deformation in controller.GetComponentsInChildren<VehicleDeformationController>(true))
+                    if (deformation != null)
+                        recoveredMalformedDeformation |= ResetDeformationSafely(deformation);
+
+                SaveGameManager.MarkChange();
+                GlobalEvents.onVehicleVariablesChanged?.Invoke();
+                message = "Repaired " + Localize(controller.vehicleInstance.vehicleTypeName) + ".";
+                if (recoveredMalformedDeformation && DeveloperToolsDiagnostics.Enabled)
+                {
+                    context.Logger.Info(
+                        "DeveloperTools: repaired a vehicle with mismatched deformation mesh arrays; type=" +
+                        controller.vehicleInstance.vehicleTypeName + ".");
+                }
+                return true;
+            }
+            catch (Exception exception)
+            {
+                message = "Vehicle repair failed: " + exception.GetBaseException().Message;
+                context.Logger.Error(exception);
+                return false;
+            }
+        }
+
+        private static bool ResetDeformationSafely(VehicleDeformationController deformation)
+        {
+            var meshFilters = deformation.meshFilters ?? Array.Empty<MeshFilter>();
+            var originalMeshes = deformation.originalMeshes ?? Array.Empty<Mesh>();
+            var matchingCount = Math.Min(meshFilters.Length, originalMeshes.Length);
+            for (var index = 0; index < matchingCount; index++)
+            {
+                if (meshFilters[index] != null && originalMeshes[index] != null)
+                    meshFilters[index].mesh = originalMeshes[index];
+            }
+
+            return meshFilters.Length != originalMeshes.Length;
+        }
+
+        private static VehicleController? FindVehicleController(string? vehicleId)
+        {
+            if (string.IsNullOrEmpty(vehicleId))
+                return null;
+
+            return VehicleHelper.AllPlayerVehicles?.FirstOrDefault(value =>
+                value?.vehicleInstance != null &&
+                string.Equals(value.vehicleInstance.id, vehicleId, StringComparison.Ordinal));
+        }
+
+        private void NotifyModVehicleCreated(VehicleController controller, string vehicleTypeName)
+        {
+            if (!IsModdedVehicleType(vehicleTypeName) || GlobalEvents.onEnterVehicle == null)
+                return;
+
+            // The game exposes no vehicle-created event. Vehicle mods therefore
+            // commonly use their enter callback to configure newly discovered
+            // controllers. Notify external listeners individually before the
+            // first real entry, but never run the game's own enter listeners or
+            // mutate player/vehicle occupancy state.
+            var gameAssembly = typeof(VehicleController).Assembly;
+            foreach (var callback in GlobalEvents.onEnterVehicle.GetInvocationList())
+            {
+                if (callback.Method.DeclaringType?.Assembly == gameAssembly)
+                    continue;
+
+                try
+                {
+                    if (callback is Action<VehicleController> vehicleCallback)
+                        vehicleCallback(controller);
+                }
+                catch (Exception exception)
+                {
+                    context.Logger.Warn(
+                        "DeveloperTools: an external vehicle initializer failed for type=" +
+                        vehicleTypeName + ": " + exception.GetBaseException().Message);
+                }
+            }
+        }
+
+        private void NormalizeParkedMotorVehicle(VehicleController controller, string vehicleTypeName)
+        {
+            if (controller is not CarController carController || StopEngineMethod == null)
+                return;
+
+            try
+            {
+                // A freshly spawned parked car must begin stopped. Some modded
+                // prefabs serialize their engine as already running, causing the
+                // first StartEngine call to be ignored with RPM stuck at zero.
+                // Use the same transition as a normal vehicle exit so the first
+                // real entry performs a complete engine start.
+                StopEngineMethod.Invoke(carController, null);
+            }
+            catch (Exception exception)
+            {
+                context.Logger.Warn(
+                    "DeveloperTools: could not normalize the parked engine for type=" +
+                    vehicleTypeName + ": " + exception.GetBaseException().Message);
+            }
+        }
+
+        public string GetDefaultRedColorName()
+        {
+            if (colorEntries.Count == 0)
+                return string.Empty;
+
+            var target = Color.red;
+            return colorEntries
+                .OrderBy(entry =>
+                {
+                    var difference = (Vector4)entry.Tint - (Vector4)target;
+                    return difference.sqrMagnitude;
+                })
+                .First().Name;
+        }
+
+        private void RefreshColors()
+        {
+            colorEntries.Clear();
+            var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors;
+            if (colors == null)
+                return;
+
+            var originalIndex = 0;
+            foreach (var color in colors.Where(value => value != null))
+            {
+                var name = ((UnityEngine.Object)color).name;
+                if (string.IsNullOrWhiteSpace(name) || colorEntries.Any(entry => entry.Name == name))
+                    continue;
+                colorEntries.Add(new VehicleColorEntry(name, color.tint, originalIndex++));
+            }
+
+            colorEntries.Sort(CompareColors);
+        }
+
+        private static string ApplyRegisteredColor(
+            VehicleController controller,
+            VehicleInstance instance,
+            string colorName)
+        {
+            if (controller.CarFeatures == null || string.IsNullOrWhiteSpace(colorName) ||
+                !VehicleHelper.TryGetVehicleColor(colorName, out VehicleColor color) || color == null)
+                return string.Empty;
+
+            instance.vehicleColorName = colorName;
+            controller.CarFeatures.SetColor(color);
+            return colorName;
+        }
+
         private static string Localize(string id)
         {
             try
@@ -110,6 +306,36 @@ namespace DeveloperTools
             {
                 return id;
             }
+        }
+
+        private static bool IsModdedVehicleType(string id)
+        {
+            if (VehicleTypeHelper.IsModVehicleType(id))
+                return true;
+
+            // Big Ambitions' own ids use the "ba" namespace. Some compatible
+            // vehicle registrars add a namespaced type to the shared catalog
+            // without also adding it to the API's separate mod-type index.
+            // Classify every non-game namespace as modded instead of maintaining
+            // a list of particular mods or vehicle ids.
+            var separatorIndex = id.IndexOf(':');
+            return separatorIndex > 0 &&
+                   !string.Equals(id.Substring(0, separatorIndex), "ba", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int CompareEntries(CatalogEntry left, CatalogEntry right) =>
+            string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase);
+
+        private static int CompareColors(VehicleColorEntry left, VehicleColorEntry right)
+        {
+            var comparison = left.Group.CompareTo(right.Group);
+            if (comparison != 0) return comparison;
+            comparison = left.Hue.CompareTo(right.Hue);
+            if (comparison != 0) return comparison;
+            comparison = left.Value.CompareTo(right.Value);
+            if (comparison != 0) return comparison;
+            comparison = right.Saturation.CompareTo(left.Saturation);
+            return comparison != 0 ? comparison : left.OriginalIndex.CompareTo(right.OriginalIndex);
         }
     }
 
@@ -123,5 +349,28 @@ namespace DeveloperTools
 
         public string Id { get; }
         public string DisplayName { get; }
+    }
+
+    internal sealed class VehicleColorEntry
+    {
+        public VehicleColorEntry(string name, Color tint, int originalIndex)
+        {
+            Name = name;
+            Tint = tint;
+            OriginalIndex = originalIndex;
+            Color.RGBToHSV(tint, out var hue, out var saturation, out var value);
+            Group = saturation < 0.14f ? 0 : 1;
+            Hue = Group == 0 ? 0f : hue >= 0.95f && saturation >= 0.5f ? hue - 1f : hue;
+            Saturation = saturation;
+            Value = value;
+        }
+
+        public string Name { get; }
+        public Color Tint { get; }
+        public int Group { get; }
+        public float Hue { get; }
+        public float Saturation { get; }
+        public float Value { get; }
+        public int OriginalIndex { get; }
     }
 }
