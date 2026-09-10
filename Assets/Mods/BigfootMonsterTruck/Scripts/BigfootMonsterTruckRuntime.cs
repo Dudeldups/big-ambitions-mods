@@ -41,7 +41,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private Coroutine? initializationCoroutine;
-    private float nextPaintScan;
 
     public static BigfootMonsterTruckRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -58,6 +57,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
+        context.Logger.Info(
+            "BigfootMonsterTruck: runtime initialized with event-driven vehicle configuration.");
         return runtime;
     }
 
@@ -87,14 +88,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             if (paintController != null)
                 Destroy(paintController);
         Destroy(gameObject);
-    }
-
-    private void Update()
-    {
-        if (Time.unscaledTime < nextPaintScan)
-            return;
-        nextPaintScan = Time.unscaledTime + 1f;
-        EnsurePaintControllers();
     }
 
     private void OnEnable()
@@ -241,25 +234,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             if (TryConfigureVehicle(vehicle))
                 configured++;
         return configured;
-    }
-
-    private void EnsurePaintControllers()
-    {
-        foreach (var vehicle in FindObjectsOfType<VehicleController>(true))
-        {
-            if (vehicle == null || vehicle.GetComponent<BigfootMonsterTruckPaintController>() != null)
-                continue;
-            var instanceType = vehicle.vehicleInstance?.vehicleTypeName;
-            var assetType = vehicle.vehicleType?.vehicleTypeName;
-            if (!string.Equals(instanceType, vehicleTypeName, StringComparison.Ordinal) &&
-                !string.Equals(assetType, vehicleTypeName, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var paint = vehicle.gameObject.AddComponent<BigfootMonsterTruckPaintController>();
-            paint.Initialize(vehicle, context);
-        }
     }
 
     private bool TryConfigureVehicle(VehicleController? vehicle)
