@@ -41,7 +41,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private Coroutine? initializationCoroutine;
-    private bool dealerLayoutWaitLogged;
     private float nextPaintScan;
 
     public static BigfootMonsterTruckRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -151,7 +150,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private void HandleGameUnloaded()
     {
-        dealerLayoutWaitLogged = false;
         if (initializationCoroutine == null)
             return;
         StopCoroutine(initializationCoroutine);
@@ -208,13 +206,6 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     {
         while (BusinessLayoutSetHelper.loadingLayouts)
         {
-            if (!dealerLayoutWaitLogged)
-            {
-                dealerLayoutWaitLogged = true;
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: dealer registration deferred while native layouts load " +
-                    $"source='{source}'.");
-            }
             ConfigureExistingVehicles();
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }

@@ -108,9 +108,6 @@ internal static class BigfootTruckDealerStock
         try
         {
             ContractItemsForSaleService.SetVehiclesForContact(DealerContactId, merged);
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: registered dealer stock source='{source}' " +
-                $"dealer='{DealerContactId}' vehicles={merged.Count}.");
             return true;
         }
         catch (Exception exception)
