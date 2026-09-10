@@ -365,6 +365,11 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 rigidbody.solverIterations = Mathf.Max(rigidbody.solverIterations, 12);
                 rigidbody.solverVelocityIterations =
                     Mathf.Max(rigidbody.solverVelocityIterations, 4);
+
+                var aerodynamics = vehicle.GetComponent<LamborghiniRevueltoAerodynamics>();
+                if (aerodynamics == null)
+                    aerodynamics = vehicle.gameObject.AddComponent<LamborghiniRevueltoAerodynamics>();
+                aerodynamics.Initialize(rigidbody);
             }
 
             ConfigureMassProperties(vehicle.gameObject);
@@ -880,6 +885,37 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[DisallowMultipleComponent]
+internal sealed class LamborghiniRevueltoAerodynamics : MonoBehaviour
+{
+    // Approximate road-load drag with F = coefficient * velocity^2. Applying it
+    // as a force preserves the launch while curbing the overly strong pull above
+    // 200 km/h seen in the diagnostic runs.
+    private const float DragForceCoefficient = 0.50f;
+    private const float MinimumDragSpeedMps = 5f;
+
+    private Rigidbody? body;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        var speedSquared = planarVelocity.sqrMagnitude;
+        if (speedSquared < MinimumDragSpeedMps * MinimumDragSpeedMps)
+            return;
+
+        var dragForce = DragForceCoefficient * speedSquared;
+        body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
     }
 }
 
