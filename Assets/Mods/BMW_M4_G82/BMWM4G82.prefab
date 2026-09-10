@@ -6051,7 +6051,7 @@ MonoBehaviour:
   vehicleType: {fileID: 11400000, guid: 6b1a41625e1f8e246b37d00ac8d51c78, type: 2}
   vehicleInstance:
     id: na6ccMXBK02Lym7iT+1PkQ==
-    vehicleTypeName: bmw_m4_g82-vehicle:vehicletype_bmw_m4_g82
+    vehicleTypeName: bmwm4g82-vehicle:vehicletype_bmwm4g82
     position:
       x: 0
       y: 0
