@@ -142,6 +142,7 @@ public static class CadillacEscaladeSetup
             var rotors = 0;
             var fixedCalipers = 0;
             var positiveWheelTransforms = true;
+            var straightTireMeshes = 0;
             var glassRenderers = 0;
             var bodyPaintSlots = 0;
             var caliperSlots = 0;
@@ -160,6 +161,21 @@ public static class CadillacEscaladeSetup
                     rotors++;
                 if (transform.name.StartsWith("CadillacFixedCaliper", StringComparison.Ordinal))
                     fixedCalipers++;
+                if (transform.name.StartsWith("CadillacWheel", StringComparison.Ordinal) &&
+                    transform.name.EndsWith("Tire", StringComparison.Ordinal))
+                {
+                    var tireMesh = transform.GetComponent<MeshFilter>()?.sharedMesh;
+                    if (tireMesh != null)
+                    {
+                        var size = tireMesh.bounds.size;
+                        if (Math.Abs(size.x - WheelWidth) < 0.005f &&
+                            Math.Abs(size.y - WheelRadius * 2f) < 0.005f &&
+                            Math.Abs(size.z - WheelRadius * 2f) < 0.005f)
+                        {
+                            straightTireMeshes++;
+                        }
+                    }
+                }
             }
 
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
@@ -230,6 +246,10 @@ public static class CadillacEscaladeSetup
                     gears != null &&
                     gears.isArray &&
                     gears.arraySize == EscaladeGears.Length;
+                var clutch = FindRelativeProperty(vehicle, "powertrain.clutch");
+                transmissionVerified &=
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
+                    Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepSpeedLimit")) - 1f) < 0.01f;
                 break;
             }
             if (!transmissionVerified)
@@ -239,6 +259,7 @@ public static class CadillacEscaladeSetup
             if (rotors != 4) issues.Add($"rotors={rotors}");
             if (fixedCalipers != 4) issues.Add($"fixedCalipers={fixedCalipers}");
             if (!positiveWheelTransforms) issues.Add("wheel mount scale");
+            if (straightTireMeshes != 4) issues.Add($"straightTireMeshes={straightTireMeshes}");
             if (glassRenderers < 2) issues.Add($"glassRenderers={glassRenderers}");
             if (bodyPaintSlots < 1) issues.Add($"bodyPaintSlots={bodyPaintSlots}");
             if (caliperSlots != 4) issues.Add($"caliperSlots={caliperSlots}");
@@ -257,7 +278,8 @@ public static class CadillacEscaladeSetup
                 $"CadillacEscalade bundle verified: price={price:F0}, fuel={fuel:F0}L, " +
                 $"cargo={cargo:F0}, speed={speed:F0}kph, power={power:F0}kW, " +
                 $"bounds={bounds.size}, wheels={wheelMounts}, rotors={rotors}, " +
-                $"fixedCalipers={fixedCalipers}, glassRenderers={glassRenderers}, " +
+                $"straightTires={straightTireMeshes}, fixedCalipers={fixedCalipers}, " +
+                $"glassRenderers={glassRenderers}, " +
                 $"bodyPaintSlots={bodyPaintSlots}, caliperSlots={caliperSlots}, " +
                 "transmission=6-speed-automatic, drivetrain=40:60-AWD.");
         }
@@ -524,11 +546,11 @@ public static class CadillacEscaladeSetup
                     StringComparison.Ordinal))
             {
                 found = true;
-                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 850f);
-                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 450f);
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 1200f);
+                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 500f);
                 SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 500f);
-                SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 80f);
-                SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 2f);
+                SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
+                SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.32f);
                 SetRelativeNumber(serialized, "powertrain.engine.maxPower", 301f);
                 var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
@@ -616,25 +638,44 @@ public static class CadillacEscaladeSetup
 
     private static void AttachWheelVisuals(GameObject root, GameObject model)
     {
-        var mapping = new Dictionary<string, (string Rim, string Tire)>
+        var mapping = new Dictionary<string, (string Rim, string Tire, string StraightRim, string StraightTire)>
         {
             {
                 "FrontLeft_WheelController",
-                ("Cadillac_Escalade_obj.006", "gum.003")
+                ("Cadillac_Escalade_obj.006", "gum.003", "Cadillac_Escalade_obj.001", "gum.001")
             },
             {
                 "FrontRight_WheelController",
-                ("Cadillac_Escalade_obj.005", "gum.002")
+                ("Cadillac_Escalade_obj.005", "gum.002", "Cadillac_Escalade_obj.004", "gum.000")
             },
             {
                 "RearLeft_WheelController",
-                ("Cadillac_Escalade_obj.001", "gum.001")
+                ("Cadillac_Escalade_obj.001", "gum.001", "Cadillac_Escalade_obj.001", "gum.001")
             },
             {
                 "RearRight_WheelController",
-                ("Cadillac_Escalade_obj.004", "gum.000")
+                ("Cadillac_Escalade_obj.004", "gum.000", "Cadillac_Escalade_obj.004", "gum.000")
             },
         };
+
+        var straightRotations = new Dictionary<string, Quaternion>();
+        foreach (var value in mapping.Values)
+        {
+            if (!straightRotations.ContainsKey(value.StraightRim))
+            {
+                var reference = FindTransform(model.transform, value.StraightRim) ??
+                                throw new InvalidOperationException(
+                                    $"Straight rim reference '{value.StraightRim}' is missing.");
+                straightRotations.Add(value.StraightRim, reference.localRotation);
+            }
+            if (!straightRotations.ContainsKey(value.StraightTire))
+            {
+                var reference = FindTransform(model.transform, value.StraightTire) ??
+                                throw new InvalidOperationException(
+                                    $"Straight tire reference '{value.StraightTire}' is missing.");
+                straightRotations.Add(value.StraightTire, reference.localRotation);
+            }
+        }
 
         foreach (var pair in mapping)
         {
@@ -644,6 +685,8 @@ public static class CadillacEscaladeSetup
             var tireSource = FindTransform(model.transform, pair.Value.Tire) ??
                              throw new InvalidOperationException(
                                  $"Model tire group '{pair.Value.Tire}' is missing.");
+            rimSource.localRotation = straightRotations[pair.Value.StraightRim];
+            tireSource.localRotation = straightRotations[pair.Value.StraightTire];
             var controller = FindTransform(root.transform, pair.Key) ??
                              throw new InvalidOperationException(
                                  $"Wheel controller '{pair.Key}' is missing.");

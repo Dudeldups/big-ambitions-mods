@@ -10,12 +10,8 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
 {
     private const string BodyMaterialMarker = "CadillacOpaque_03_White";
     private const string CaliperMaterialMarker = "CadillacCaliper";
-    private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
-    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
-    private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
-
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
-    private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
+    private readonly List<Material> ownedMaterials = new List<Material>();
     private VehicleController? vehicle;
     private ModContext? context;
     private VehicleColor? appliedColor;
@@ -40,6 +36,7 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
 
     private void FindPaintSlots()
     {
+        ReleaseOwnedMaterials();
         slots.Clear();
         var bodySlots = 0;
         var caliperSlots = 0;
@@ -52,16 +49,33 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
                 var material = materials[index];
                 if (material == null)
                     continue;
+                PaintCategory? category = null;
                 if (material.name.IndexOf(BodyMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Body));
+                    category = PaintCategory.Body;
                     bodySlots++;
                 }
                 else if (material.name.IndexOf(CaliperMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Caliper));
+                    category = PaintCategory.Caliper;
                     caliperSlots++;
                 }
+
+                if (!category.HasValue)
+                    continue;
+
+                // The game can replace or clear renderer property blocks after a
+                // vehicle is spawned. Give every mutable slot an instance-owned
+                // material so paint is stable without leaking to other vehicles.
+                var instanceMaterial = new Material(material)
+                {
+                    name = material.name + "_VehiclePaint_" + GetInstanceID()
+                };
+                ownedMaterials.Add(instanceMaterial);
+                materials[index] = instanceMaterial;
+                renderer.sharedMaterials = materials;
+                renderer.SetPropertyBlock(null, index);
+                slots.Add(new PaintSlot(renderer, instanceMaterial, index, category.Value));
             }
         }
 
@@ -96,12 +110,9 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
                 ? Color.Lerp(selectedColor, Color.white, 0.12f)
                 : selectedColor;
             color.a = 1f;
-            properties.Clear();
-            slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
-            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
-            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
-            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
-            slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
+            if (slot.Material.HasProperty("_BaseColor")) slot.Material.SetColor("_BaseColor", color);
+            if (slot.Material.HasProperty("_Color")) slot.Material.SetColor("_Color", color);
+            if (slot.Material.HasProperty("baseColorFactor")) slot.Material.SetColor("baseColorFactor", color);
         }
 
         appliedColor = selected;
@@ -110,7 +121,19 @@ internal sealed class CadillacEscaladePaintController : MonoBehaviour
         context?.Logger.Info(
             $"CadillacEscalade paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
-            $"to {slots.Count} body/caliper slots.");
+            $"to {slots.Count} instance-owned body/caliper slots.");
+    }
+
+    private void OnDestroy() => ReleaseOwnedMaterials();
+
+    private void ReleaseOwnedMaterials()
+    {
+        foreach (var material in ownedMaterials)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        ownedMaterials.Clear();
     }
 
     private VehicleColor? ResolveVehicleColor()
