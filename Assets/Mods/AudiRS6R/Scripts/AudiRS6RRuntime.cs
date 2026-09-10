@@ -50,7 +50,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private Coroutine? initializationCoroutine;
     private ModContext? context;
-    private bool dealerLayoutWaitLogged;
     private string vehicleTypeName = string.Empty;
 
     public static AudiRS6RRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -134,7 +133,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void HandleGameUnloaded()
     {
-        dealerLayoutWaitLogged = false;
         if (initializationCoroutine != null)
         {
             StopCoroutine(initializationCoroutine);
@@ -192,13 +190,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     {
         while (BusinessLayoutSetHelper.loadingLayouts)
         {
-            if (!dealerLayoutWaitLogged)
-            {
-                dealerLayoutWaitLogged = true;
-                context?.Logger.Info(
-                    $"AudiRS6R: dealer registration deferred while native layouts load " +
-                    $"source='{source}'.");
-            }
             EnsureVehiclesConfigured(out _, out _);
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }

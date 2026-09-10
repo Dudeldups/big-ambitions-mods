@@ -165,9 +165,6 @@ internal static class AudiRS6RLuxuryDealerStock
                 return true;
 
             ContractItemsForSaleService.SetVehiclesForContact(dealerContactId, mergedStock);
-            context?.Logger.Info(
-                $"AudiRS6R: registered dealer stock dealer='{dealerContactId}' " +
-                $"vehicles={mergedStock.Count}.");
             return true;
         }
         catch (Exception exception)
