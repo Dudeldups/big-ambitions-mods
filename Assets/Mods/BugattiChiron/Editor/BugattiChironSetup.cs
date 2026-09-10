@@ -631,8 +631,8 @@ public static class BugattiChironSetup
 
     private static void ConfigureExitMarkers(GameObject root)
     {
-        SetLocalPosition(root, "Driverside", new Vector3(-1.42f, 0.1f, 0.1f));
-        SetLocalPosition(root, "Passengerside", new Vector3(1.42f, 0.1f, 0.1f));
+        SetLocalPosition(root, "Driverside", new Vector3(-1.5f, 0.1f, 0.1f));
+        SetLocalPosition(root, "Passengerside", new Vector3(1.5f, 0.1f, 0.1f));
     }
 
     private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)

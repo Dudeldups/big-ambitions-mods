@@ -34,6 +34,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float DamageIntensity = 0.6f;
     private const float DeformationRadius = 0.48f;
     private const float DeformationStrength = 0.32f;
+    private const float DriverExitLocalX = -1.5f;
+    private const float PassengerExitLocalX = 1.5f;
+    private const float ExitLocalY = 0.1f;
+    private const float ExitLocalZ = 0.1f;
 
     private static readonly float[] ChironGears =
     {
@@ -352,6 +356,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             }
 
             ConfigureWheelControllers(vehicle.gameObject);
+            ConfigureExitMarkers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
             ConfigurePowertrain(vehicle.gameObject);
             BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
@@ -456,6 +461,22 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 colliders[1].center = new Vector3(0f, 0.86f, -0.08f);
                 colliders[1].size = new Vector3(1.70f, 0.72f, 2.75f);
             }
+        }
+    }
+
+    private static void ConfigureExitMarkers(GameObject root)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            float localX;
+            if (string.Equals(transform.name, "Driverside", StringComparison.Ordinal))
+                localX = DriverExitLocalX;
+            else if (string.Equals(transform.name, "Passengerside", StringComparison.Ordinal))
+                localX = PassengerExitLocalX;
+            else
+                continue;
+
+            transform.localPosition = new Vector3(localX, ExitLocalY, ExitLocalZ);
         }
     }
 

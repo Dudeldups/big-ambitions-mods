@@ -214,7 +214,7 @@ public static class BugattiChironMaterials
             // properties while disappearing in the game's HDRP build. Use the
             // stock Lit shader so every spawned vehicle gets a known state.
             RebindToHdrpLit(material);
-            var tint = new Color(0.10f, 0.14f, 0.18f, 0.28f);
+            var tint = new Color(0.10f, 0.14f, 0.18f, 0.18f);
             SetColor(material, "_BaseColor", tint);
             SetColor(material, "_Color", tint);
             SetColor(material, "baseColorFactor", tint);
