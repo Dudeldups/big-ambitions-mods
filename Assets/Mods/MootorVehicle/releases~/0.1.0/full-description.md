@@ -1,6 +1,6 @@
 [h1]Moo-tor Vehicle[/h1]
 
-Trade horsepower for cow power and ride through the city on a fully driveable cow.
+Why settle for horsepower when you can have [b]cow power[/b]?
 
 [h2]Features[/h2]
 [list]
@@ -20,7 +20,11 @@ Gas stations cannot refuel the cow. Mount while holding an energy drink, or a bo
 
 [h2]Packages[/h2]
 
-The cow has no trunk. A package held while mounting remains visible in the rider's hands and is returned to normal held-item control after dismounting.
+The cow has no trunk.
+
+Because it is a cow.
+
+A package held while mounting remains visible in the rider's hands and is returned to normal held-item control after dismounting.
 
 [h2]Healing[/h2]
 
