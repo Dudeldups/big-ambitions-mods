@@ -11,9 +11,10 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
     private const float MaximumYawDegrees = 5f;
     private const float MaximumLateralMetres = 3f;
     private const float MaximumRunSeconds = 45f;
-    private const float OfficialZeroToHundredSeconds = 2.5f;
+    private const float OfficialZeroToHundredSeconds = 7.3f;
+    private const float DiagnosticSnapshotSeconds = 2f;
 
-    private static readonly float[] MilestonesKph = { 100f, 200f, 300f };
+    private static readonly float[] MilestonesKph = { 50f, 100f, 160f };
 
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
@@ -26,9 +27,10 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
     private float elapsed;
     private float maximumYaw;
     private float maximumLateral;
-    private float zeroToHundred = -1f;
     private int nextMilestone;
     private bool running;
+    private bool forwardGearChecked;
+    private bool diagnosticSnapshotLogged;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -39,7 +41,7 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
         context?.Logger.Info(
             $"CadillacEscalade acceleration telemetry ready vehicle={controller.GetInstanceID()}, " +
             $"official0to100={OfficialZeroToHundredSeconds:0.0}s, " +
-            "milestones=100/200/300kmh.");
+            "milestones=50/100/160kmh.");
     }
 
     private void FixedUpdate()
@@ -55,7 +57,24 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
                 Finish("driver-exited", speedKph);
             previousThrottle = throttle;
             previousSpeedKph = speedKph;
+            forwardGearChecked = false;
             return;
+        }
+
+        if (throttle < AbortThrottle && speedKph <= StartSpeedKph)
+            forwardGearChecked = false;
+
+        if (!forwardGearChecked && throttle >= StartThrottle && speedKph <= StartSpeedKph)
+        {
+            forwardGearChecked = true;
+            var transmission = physics.powertrain.transmission;
+            if (transmission.Gear == 0)
+            {
+                transmission.ShiftInto(1, true);
+                context?.Logger.Info(
+                    $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
+                    "selected first gear for forward launch from neutral.");
+            }
         }
 
         if (!running)
@@ -73,6 +92,11 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
         }
 
         elapsed += Time.fixedDeltaTime;
+        if (!diagnosticSnapshotLogged && elapsed >= DiagnosticSnapshotSeconds)
+        {
+            diagnosticSnapshotLogged = true;
+            LogPowertrainSnapshot("2s", speedKph, throttle);
+        }
         var displacement = body.position - startPosition;
         var horizontalDisplacement = Vector3.ProjectOnPlane(displacement, Vector3.up);
         var longitudinal = Vector3.Dot(horizontalDisplacement, startForward);
@@ -116,11 +140,12 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
         startForward = forward;
         previousSpeedKph = speedKph;
         elapsed = maximumYaw = maximumLateral = 0f;
-        zeroToHundred = -1f;
         nextMilestone = 0;
+        diagnosticSnapshotLogged = false;
         context?.Logger.Info(
             $"CadillacEscalade acceleration run started vehicle={vehicle.GetInstanceID()}, " +
             $"speed={speedKph:0.0}kmh. Hold full throttle on a flat straight.");
+        LogPowertrainSnapshot("start", speedKph, Mathf.Clamp01(physics!.input.Throttle));
     }
 
     private void CaptureMilestones(float speedKph)
@@ -133,26 +158,34 @@ internal sealed class CadillacEscaladeAccelerationTelemetry : MonoBehaviour
                 ? Mathf.Clamp01((target - previousSpeedKph) / span)
                 : 1f;
             var milestoneTime = elapsed - Time.fixedDeltaTime + Time.fixedDeltaTime * fraction;
-            if (nextMilestone == 0)
-                zeroToHundred = milestoneTime;
-
-            var segment = nextMilestone == 1 && zeroToHundred >= 0f
-                ? $", 100to200={milestoneTime - zeroToHundred:0.000}s"
-                : string.Empty;
-            var benchmark = nextMilestone == 0
+            var benchmark = Mathf.Abs(target - 100f) < 0.1f
                 ? $", official={OfficialZeroToHundredSeconds:0.0}s, " +
                   $"delta={milestoneTime - OfficialZeroToHundredSeconds:+0.000;-0.000;0.000}s"
                 : string.Empty;
             context?.Logger.Info(
                 $"CadillacEscalade acceleration milestone vehicle={vehicle!.GetInstanceID()}, " +
-                $"0to{target:0}={milestoneTime:0.000}s{segment}{benchmark}, " +
+                $"0to{target:0}={milestoneTime:0.000}s{benchmark}, " +
                 $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m, " +
                 $"elevation={body!.position.y - startPosition.y:+0.00;-0.00;0.00}m.");
             nextMilestone++;
         }
 
         if (nextMilestone == MilestonesKph.Length)
-            Finish("300kmh-complete", speedKph);
+            Finish("160kmh-complete", speedKph);
+    }
+
+    private void LogPowertrainSnapshot(string label, float speedKph, float throttle)
+    {
+        if (physics == null || vehicle == null)
+            return;
+        var engine = physics.powertrain.engine;
+        var transmission = physics.powertrain.transmission;
+        context?.Logger.Info(
+            $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()} snapshot={label}, " +
+            $"speed={speedKph:0.0}kmh, inputThrottle={throttle:0.00}, " +
+            $"engineThrottle={engine.ThrottlePosition:0.00}, " +
+            $"rpm={engine.RPMPercent * engine.revLimiterRPM:0}, " +
+            $"gear={transmission.Gear}, ratio={transmission.currentGearRatio:0.000}.");
     }
 
     private void Finish(string reason, float speedKph)

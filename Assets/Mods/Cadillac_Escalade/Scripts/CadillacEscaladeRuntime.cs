@@ -22,10 +22,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float FinalDriveRatio = 3.42f;
     private const float EngineInertia = 0.32f;
     private const float EngineStartDuration = 0.80f;
-    private const float ClutchEngagementRpm = 850f;
-    private const float ClutchThrottleOffsetRpm = 450f;
+    private const float ClutchEngagementRpm = 1200f;
+    private const float ClutchThrottleOffsetRpm = 500f;
     private const float ClutchEngagementRange = 500f;
-    private const float ClutchCreepTorque = 80f;
+    private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.90f;
     private const float AntiRollBarForce = 10500f;
     private const float FrontSuspensionTravel = 0.15f;
@@ -534,7 +534,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
             SetFloat(clutch, "engagementRange", ClutchEngagementRange);
             SetFloat(clutch, "creepTorque", ClutchCreepTorque);
-            SetFloat(clutch, "creepSpeedLimit", 2f);
+            SetFloat(clutch, "creepSpeedLimit", 1f);
             var engine = GetMember(powertrain, "engine");
             SetFloat(engine, "inertia", EngineInertia);
             SetFloat(engine, "maxPower", EnginePowerKw);

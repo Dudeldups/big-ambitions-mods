@@ -33114,8 +33114,8 @@ MonoBehaviour:
       outputInertia: 0
       inputNameHash: 923778348
       outputNameHash: -1471968074
-      engagementRPM: 850
-      throttleEngagementOffsetRPM: 450
+      engagementRPM: 1200
+      throttleEngagementOffsetRPM: 500
       clutchInput: 0
       engagementCurve:
         serializedVersion: 2
@@ -33144,8 +33144,8 @@ MonoBehaviour:
       controlType: 0
       engagementRange: 500
       slipTorque: 4500
-      creepTorque: 80
-      creepSpeedLimit: 2
+      creepTorque: 0
+      creepSpeedLimit: 1
     differentials:
     - name: Front Differential
       inertia: 0.02

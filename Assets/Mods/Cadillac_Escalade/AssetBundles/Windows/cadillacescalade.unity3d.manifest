@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1835018331
+CRC: 1778952141
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 05e3915f60bd13127a6b18773658661d
+    Hash: ef87b45c03618d0b23f684ab02590b3a
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 05e3915f60bd13127a6b18773658661d
+    Hash: ef87b45c03618d0b23f684ab02590b3a
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -222,10 +222,12 @@ SerializeReferenceClassIdentifiers:
 Assets:
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_04_Color_004.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightTire.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_16_Cadillac_Escalade_obj_002_0.mat
+- Assets/Mods/Cadillac_Escalade/Config/ATTRIBUTION.txt
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacCaliper.mat
 - Assets/Mods/Cadillac_Escalade/Config/Audio/HornHigh.wav
+- Assets/Mods/Cadillac_Escalade/Config/THIRD_PARTY_NOTICES.txt
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_18_material.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_16_Cadillac_Escalade_obj_002_0.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_14_material_2.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_07_Color_A01.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacOpaque_03_White.mat

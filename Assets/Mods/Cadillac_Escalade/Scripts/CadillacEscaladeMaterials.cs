@@ -99,6 +99,7 @@ public static class CadillacEscaladeMaterials
                 }
 
                 RebindToHdrpLit(material);
+                ApplyFactoryPalette(material);
                 if (FixSolidHdrpMaterial(material))
                     materialsValidated++;
                 opaqueMaterialsFixed++;
@@ -306,6 +307,129 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_DstBlend", (float)BlendMode.Zero);
         return validated;
     }
+
+    private static void ApplyFactoryPalette(Material material)
+    {
+        var name = material.name;
+        var color = Color.white;
+        var metallic = 0f;
+        var smoothness = 0.45f;
+
+        if (Contains(name, "CadillacOpaque_00_M_0135_DarkGray"))
+        {
+            color = Gray(0.318f);
+            metallic = 0.25f;
+            smoothness = 0.62f;
+        }
+        else if (Contains(name, "CadillacOpaque_01_Color_005"))
+        {
+            color = Gray(0.447f);
+            smoothness = 0.65f;
+        }
+        else if (Contains(name, "CadillacOpaque_02_Color_008"))
+        {
+            color = Gray(0.039f);
+            smoothness = 0.30f;
+        }
+        else if (Contains(name, "CadillacOpaque_03_White"))
+        {
+            color = Color.white;
+            metallic = 0.18f;
+            smoothness = 0.82f;
+        }
+        else if (Contains(name, "CadillacOpaque_04_Color_004"))
+        {
+            color = Gray(0.557f);
+            smoothness = 0.68f;
+        }
+        else if (Contains(name, "CadillacOpaque_05_Color_A11"))
+        {
+            color = new Color(0.60f, 0f, 0f, 1f);
+            smoothness = 0.72f;
+        }
+        else if (Contains(name, "CadillacOpaque_06_Color_A06"))
+        {
+            color = new Color(0.80f, 0f, 0f, 1f);
+            smoothness = 0.72f;
+        }
+        else if (Contains(name, "CadillacOpaque_07_Color_A01"))
+        {
+            color = Color.red;
+            smoothness = 0.72f;
+        }
+        else if (Contains(name, "CadillacOpaque_08_black"))
+        {
+            color = new Color(0.006f, 0.006f, 0.006f, 1f);
+            smoothness = 0.24f;
+        }
+        else if (Contains(name, "CadillacOpaque_09_LightGray"))
+        {
+            color = Gray(0.663f);
+            metallic = 0.78f;
+            smoothness = 0.84f;
+        }
+        else if (Contains(name, "CadillacOpaque_10_M_96_96_96"))
+        {
+            color = Gray(0.376f);
+            metallic = 0.42f;
+            smoothness = 0.70f;
+        }
+        else if (Contains(name, "CadillacOpaque_11_Material8"))
+        {
+            color = Gray(0.510f);
+            metallic = 0.58f;
+            smoothness = 0.76f;
+        }
+        else if (Contains(name, "CadillacOpaque_12_Charcoal_1"))
+        {
+            color = new Color(0.012f, 0.012f, 0.012f, 1f);
+            smoothness = 0.28f;
+        }
+        else if (Contains(name, "CadillacOpaque_13_Color_B01"))
+        {
+            color = new Color(1f, 0.247f, 0f, 1f);
+            smoothness = 0.68f;
+        }
+        else if (Contains(name, "CadillacOpaque_14_material_2"))
+        {
+            color = RimBaseColor;
+            metallic = RimMetallic;
+            smoothness = RimSmoothness;
+        }
+        else if (Contains(name, "CadillacOpaque_15_gum_001"))
+        {
+            color = new Color(0.021f, 0.021f, 0.021f, 1f);
+            smoothness = 0.16f;
+        }
+        else if (Contains(name, "CadillacOpaque_16_Cadillac_Escalade_obj_002_0") ||
+                 Contains(name, "CadillacOpaque_17__003"))
+        {
+            color = Color.white;
+            smoothness = 0.58f;
+        }
+        else if (Contains(name, "CadillacOpaque_18_material"))
+        {
+            color = new Color(0.0004f, 0.0004f, 0.0004f, 1f);
+            smoothness = 0.34f;
+        }
+        else
+        {
+            return;
+        }
+
+        SetColor(material, "_BaseColor", color);
+        SetColor(material, "_Color", color);
+        SetColor(material, "baseColorFactor", color);
+        SetFloat(material, "_Metallic", metallic);
+        SetFloat(material, "metallicFactor", metallic);
+        SetFloat(material, "_Smoothness", smoothness);
+        SetFloat(material, "roughnessFactor", 1f - smoothness);
+    }
+
+    private static bool Contains(string value, string marker) =>
+        value.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static Color Gray(float value) => new Color(value, value, value, 1f);
 
     private static void FixTransparentHdrpMaterial(Material material)
     {
