@@ -6,6 +6,7 @@ using System.Reflection;
 using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
+using UI.PurchaseVehicle;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
@@ -71,6 +72,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private string vehicleTypeName = string.Empty;
     private bool dealerReadyLogged;
     private int observedPlayerVehicleCount = -1;
+    private VehicleController? previewVehicle;
+    private LamborghiniRevueltoPaintController? previewPaintController;
 
     public static LamborghiniRevueltoRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -96,16 +99,18 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        previewVehicle = null;
+        previewPaintController = null;
         Destroy(gameObject);
     }
 
     private void Update()
     {
         var currentCount = VehicleHelper.AllPlayerVehicles?.Count ?? 0;
-        if (currentCount == observedPlayerVehicleCount)
-            return;
+        if (currentCount != observedPlayerVehicleCount)
+            ConfigureExistingVehicles(out _);
 
-        ConfigureExistingVehicles(out _);
+        RefreshPaintPreview();
     }
 
     private void OnEnable()
@@ -123,6 +128,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
@@ -137,6 +144,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -164,7 +172,52 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         configuredVehicleIds.Clear();
         dealerReadyLogged = false;
         observedPlayerVehicleCount = -1;
+        previewVehicle = null;
+        previewPaintController = null;
     }
+
+    private void RefreshPaintPreview()
+    {
+        if (!PurchaseVehicleUI.IsPanelOpen)
+        {
+            // ResetColor restores CarFeatures as the repaint panel closes. Give
+            // the HDRP adapter one final event-bound refresh so cancelling a
+            // preview cannot leave its per-material color overrides behind.
+            previewPaintController?.RefreshColor();
+            previewVehicle = null;
+            previewPaintController = null;
+            return;
+        }
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!ReferenceEquals(selectedVehicle, previewVehicle))
+        {
+            previewVehicle = selectedVehicle;
+            previewPaintController = IsTargetVehicle(selectedVehicle)
+                ? selectedVehicle!.GetComponent<LamborghiniRevueltoPaintController>()
+                : null;
+        }
+
+        previewPaintController?.RefreshColor();
+    }
+
+    private void HandleGameEvent(string _)
+    {
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        selectedVehicle!
+            .GetComponent<LamborghiniRevueltoPaintController>()
+            ?.RefreshColor();
+    }
+
+    private bool IsTargetVehicle(VehicleController? vehicle) =>
+        vehicle?.vehicleInstance != null &&
+        string.Equals(
+            vehicle.vehicleInstance.vehicleTypeName,
+            vehicleTypeName,
+            StringComparison.Ordinal);
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
