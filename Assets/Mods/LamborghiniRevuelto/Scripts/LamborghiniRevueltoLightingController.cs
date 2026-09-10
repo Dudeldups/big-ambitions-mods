@@ -391,9 +391,14 @@ internal sealed class LamborghiniRevueltoLightingController : MonoBehaviour
         if (material.HasProperty(name)) material.SetFloat(name, value);
     }
 
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"LamborghiniRevuelto lighting vehicle='{vehicle?.name}' " +
-                             $"instance={vehicle?.GetInstanceID()}: {message}");
+    private void LogInfo(string message)
+    {
+        if (LamborghiniRevueltoDebug.Enabled)
+        {
+            context?.Logger.Info($"LamborghiniRevuelto lighting vehicle='{vehicle?.name}' " +
+                                 $"instance={vehicle?.GetInstanceID()}: {message}");
+        }
+    }
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"LamborghiniRevuelto lighting vehicle='{vehicle?.name}' " +

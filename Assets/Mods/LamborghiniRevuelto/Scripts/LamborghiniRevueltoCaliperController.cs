@@ -40,9 +40,12 @@ internal sealed class LamborghiniRevueltoCaliperController : MonoBehaviour
         }
 
         ApplyBindings();
-        context?.Logger.Info(
-            $"LamborghiniRevuelto steering calipers ready vehicle={controller.GetInstanceID()}, " +
-            $"bindings={bindings.Count}, followsSteeringAndSuspension=true, inheritsWheelSpin=false.");
+        if (LamborghiniRevueltoDebug.Enabled)
+        {
+            context?.Logger.Info(
+                $"LamborghiniRevuelto steering calipers ready vehicle={controller.GetInstanceID()}, " +
+                $"bindings={bindings.Count}, followsSteeringAndSuspension=true, inheritsWheelSpin=false.");
+        }
     }
 
     private void LateUpdate()

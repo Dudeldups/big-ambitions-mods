@@ -473,8 +473,11 @@ internal sealed class LamborghiniRevueltoDriverController : MonoBehaviour
     private string VehiclePosition(Transform? target) =>
         target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
 
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"LamborghiniRevuelto driver vehicle={vehicle?.GetInstanceID()}: {message}");
+    private void LogInfo(string message)
+    {
+        if (LamborghiniRevueltoDebug.Enabled)
+            context?.Logger.Info($"LamborghiniRevuelto driver vehicle={vehicle?.GetInstanceID()}: {message}");
+    }
 
     private void RemoveDriver()
     {
