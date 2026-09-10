@@ -40,7 +40,7 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
         }
 
         ApplyBindings();
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade steering calipers ready vehicle={controller.GetInstanceID()}, " +
             $"bindings={bindings.Count}, followsSteeringAndSuspension=true, inheritsWheelSpin=false.");
     }

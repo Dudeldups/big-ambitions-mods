@@ -96,7 +96,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
-        context.Logger.Info(
+        CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade audio configured vehicle={vehicle.GetInstanceID()}, " +
             $"engineLayers=7, engineGain={CadillacEscaladeAudioModel.EngineBaseVolume:0.00}.." +
             $"{CadillacEscaladeAudioModel.EngineBaseVolume + CadillacEscaladeAudioModel.EngineThrottleVolume:0.00}, " +

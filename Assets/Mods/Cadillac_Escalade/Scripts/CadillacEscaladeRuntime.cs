@@ -230,7 +230,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             {
                 if (transmission.Gear <= 0)
                     transmission.ShiftInto(1, true);
-                context?.Logger.Info(
+                CadillacEscaladeDiagnostics.Info(context,
                     $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
                     $"entry ready attempt={attempt}, running={engine.IsRunning}, " +
                     $"rpm={rpm:0}, gear={transmission.Gear}.");
@@ -345,7 +345,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             if (ready && !dealerReadyLogged)
             {
                 dealerReadyLogged = true;
-                context?.Logger.Info(
+                CadillacEscaladeDiagnostics.Info(context,
                     $"CadillacEscalade: available at The Hamptons Axis and Manhattan Luxury Cars " +
                     $"source='{source}'.");
             }
@@ -462,7 +462,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             }
             accelerationTelemetry.Initialize(vehicle, context);
 
-            context?.Logger.Info(
+            CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=6-speed-automatic, awd=40:60, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
@@ -656,7 +656,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             filters,
             DamageDecelerationThreshold / 100f);
 
-        context?.Logger.Info(
+        CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
             $"bodyMeshes={filters.Count} threshold={DamageDecelerationThreshold / 100f:0.0}mps " +
             $"filters=[{string.Join(", ", filters.ConvertAll(filter => filter.name))}]; " +
@@ -963,14 +963,14 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
         }
         if (string.Equals(source, "initialize", StringComparison.Ordinal))
         {
-            context?.Logger.Info(
+            CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
                 "shader=HDRP/Lit, tint=(0.62,0.68,0.74,0.10), deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {
-            context?.Logger.Info(
+            CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: repaired after " +
                 $"'{source}' renderers={restored}, propertyBlocks={propertyBlocksCleared}.");
         }
@@ -1076,7 +1076,7 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
             }
-            context?.Logger.Info(
+            CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
         }
         previousDamage = currentDamage;
@@ -1206,7 +1206,7 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
             {
-                context?.Logger.Info(
+                CadillacEscaladeDiagnostics.Info(context,
                     $"CadillacEscalade damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
