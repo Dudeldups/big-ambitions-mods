@@ -8,7 +8,7 @@ namespace CameraTools
 {
     internal sealed class CameraToolsUpdateNoticeUi
     {
-        private const int CurrentNoticeVersion = 2;
+        private const int CurrentNoticeVersion = 3;
         private const string SeenVersionPreference = "camera_tools_update_notice_seen_version";
         private const int WindowId = 348723;
         private const float WindowWidth = 540f;
@@ -177,18 +177,18 @@ namespace CameraTools
             }
 
             windowBackgroundTexture ??= MakeRoundedRectTexture(
-                64,
-                64,
+                (int)WindowWidth,
+                (int)WindowHeight,
                 new Color(0.97f, 0.97f, 0.98f, 1f),
                 14);
             buttonBackgroundTexture ??= MakeRoundedRectTexture(
-                48,
-                48,
+                150,
+                42,
                 new Color(0.22f, 0.56f, 0.93f, 1f),
                 8);
             buttonActiveBackgroundTexture ??= MakeRoundedRectTexture(
-                48,
-                48,
+                150,
+                42,
                 new Color(0.17f, 0.47f, 0.84f, 1f),
                 8);
             windowStyle ??= CreateWindowStyle();
