@@ -204,24 +204,15 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        var waitedForNativeLayouts = false;
         while (BusinessLayoutSetHelper.loadingLayouts)
         {
-            if (!waitedForNativeLayouts)
-            {
-                waitedForNativeLayouts = true;
-                context?.Logger.Info(
-                    $"BigfootMonsterTruck: dealer setup waiting for native layouts source='{source}'.");
-            }
             ConfigureExistingVehicles();
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }
 
         var dealerReady = false;
-        var attempts = 0;
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            attempts = attempt;
             dealerReady = BigfootTruckDealerStock.EnsureVehicleAvailable(
                 vehicleTypeName,
                 context,
@@ -233,13 +224,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         }
 
         initializationCoroutine = null;
-        if (dealerReady)
-        {
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: dealer setup ready source='{source}' attempts={attempts} " +
-                $"waitedForNativeLayouts={waitedForNativeLayouts}.");
-        }
-        else
+        if (!dealerReady)
         {
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: truck dealer data was not ready source='{source}'.");
