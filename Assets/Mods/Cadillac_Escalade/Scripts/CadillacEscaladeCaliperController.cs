@@ -9,10 +9,10 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
 {
     private static readonly string[,] BindingNames =
     {
-        { "CadillacFixedCaliperFrontLeft", "CadillacWheelFrontLeft" },
-        { "CadillacFixedCaliperFrontRight", "CadillacWheelFrontRight" },
-        { "CadillacFixedCaliperRearLeft", "CadillacWheelRearLeft" },
-        { "CadillacFixedCaliperRearRight", "CadillacWheelRearRight" },
+        { "CadillacFixedCaliperFrontLeft", "CadillacWheelFrontLeft", "CadillacBrakeRotorFrontLeft" },
+        { "CadillacFixedCaliperFrontRight", "CadillacWheelFrontRight", "CadillacBrakeRotorFrontRight" },
+        { "CadillacFixedCaliperRearLeft", "CadillacWheelRearLeft", "CadillacBrakeRotorRearLeft" },
+        { "CadillacFixedCaliperRearRight", "CadillacWheelRearRight", "CadillacBrakeRotorRearRight" },
     };
 
     private readonly List<CaliperBinding> bindings = new List<CaliperBinding>(4);
@@ -31,12 +31,15 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
         {
             var pivotName = BindingNames[index, 0];
             var wheelName = BindingNames[index, 1];
+            var rotorName = BindingNames[index, 2];
             var pivot = FindTransform(controller.transform, pivotName) ??
                         throw new InvalidOperationException($"Caliper pivot '{pivotName}' is missing.");
             var wheel = FindTransform(controller.transform, wheelName) ??
                         throw new InvalidOperationException($"Wheel visual '{wheelName}' is missing.");
+            var rotor = FindTransform(controller.transform, rotorName) ??
+                        throw new InvalidOperationException($"Brake rotor '{rotorName}' is missing.");
             CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
-            bindings.Add(new CaliperBinding(pivot, wheel));
+            bindings.Add(new CaliperBinding(pivot, wheel, rotor));
         }
 
         ApplyBindings();
@@ -76,9 +79,15 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
                 continue;
             }
 
-            binding.Pivot.SetPositionAndRotation(
-                binding.Wheel.position,
-                vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f));
+            var wheelForward = Vector3.Cross(axle, vehicleUp).normalized;
+            var steeringRotation = Quaternion.LookRotation(wheelForward, vehicleUp);
+            binding.Pivot.SetPositionAndRotation(binding.Wheel.position, steeringRotation);
+            // The disc remains a rolling part, but explicitly follow the final
+            // wheel pose after NWH updates it so steering and spin cannot lag or
+            // be lost through a stale cached visual transform.
+            binding.Rotor.SetPositionAndRotation(
+                binding.Wheel.TransformPoint(binding.RotorLocalPosition),
+                binding.Wheel.rotation * binding.RotorLocalRotation);
         }
     }
 
@@ -112,13 +121,19 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
 
     private sealed class CaliperBinding
     {
-        public CaliperBinding(Transform pivot, Transform wheel)
+        public CaliperBinding(Transform pivot, Transform wheel, Transform rotor)
         {
             Pivot = pivot;
             Wheel = wheel;
+            Rotor = rotor;
+            RotorLocalPosition = wheel.InverseTransformPoint(rotor.position);
+            RotorLocalRotation = Quaternion.Inverse(wheel.rotation) * rotor.rotation;
         }
 
         public Transform Pivot { get; }
         public Transform Wheel { get; }
+        public Transform Rotor { get; }
+        public Vector3 RotorLocalPosition { get; }
+        public Quaternion RotorLocalRotation { get; }
     }
 }

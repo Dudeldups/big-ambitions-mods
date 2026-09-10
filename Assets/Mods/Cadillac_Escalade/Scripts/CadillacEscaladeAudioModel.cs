@@ -7,12 +7,12 @@ internal static class CadillacEscaladeAudioModel
     internal const float IdlePitch = .52f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
-    internal const float EngineBaseVolume = .46f;
-    internal const float EngineThrottleVolume = .42f;
-    internal const float CrackleIdleVolume = .004f;
-    internal const float CrackleLoadVolume = .016f;
+    internal const float EngineBaseVolume = .30f;
+    internal const float EngineThrottleVolume = .28f;
+    internal const float CrackleIdleVolume = .002f;
+    internal const float CrackleLoadVolume = .008f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
-    internal static float IdleVolume(float drivingBlend) => .44f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) => .20f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the dedicated low-speed idle bed out gradually so the synthesized
