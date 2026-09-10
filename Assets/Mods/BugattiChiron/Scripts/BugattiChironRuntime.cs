@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -60,6 +61,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private ModContext? context;
+    private bool dealerReady;
     private string vehicleTypeName = string.Empty;
 
     public static BugattiChironRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -86,6 +88,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
         Destroy(gameObject);
     }
 
@@ -140,6 +143,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -153,13 +157,17 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (BugattiChironLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        if (!dealerReady &&
+            !BusinessLayoutSetHelper.loadingLayouts &&
+            BugattiChironLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        {
             EnsureDealerStock("dealer-entered");
+        }
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen)
+        if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
     }
 
@@ -172,14 +180,22 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= EnsureDealerStock(source);
+            while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
+            {
+                ConfigureExistingVehicles(out var waitingMatchedCount);
+                maximumMatchedCount = Math.Max(maximumMatchedCount, waitingMatchedCount);
+                yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+            }
+
+            if (!dealerReady)
+                EnsureDealerStock(source);
+
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
@@ -206,9 +222,15 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private bool EnsureDealerStock(string source)
     {
+        if (dealerReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
         try
         {
-            return BugattiChironLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            dealerReady = BugattiChironLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            return dealerReady;
         }
         catch (Exception exception)
         {
