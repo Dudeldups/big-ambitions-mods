@@ -15,9 +15,10 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
     private const string SteeringWheelMarker = "steer_3";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
+    private const float SeatBackLeanDegrees = 6f;
     private const float HandHalfSpacing = 0.19f;
-    private const float HandForwardOffset = 0.075f;
-    private const float HandHeightOffset = 0.018f;
+    private const float HandForwardOffset = -0.02f;
+    private const float HandHeightOffset = 0f;
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
     // Pelvis position relative to the GT3 RS steering-wheel pivot, in vehicle axes.
@@ -217,7 +218,7 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
         var originalRightFoot = VehiclePosition(rightFoot);
         AlignHandsWithWheel();
         RaiseFeetAndKnees();
-        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} forward={HandForwardOffset:F3} " +
+        LogInfo($"hand alignment halfSpacing={HandHalfSpacing:F3} wheelRelativeForward={HandForwardOffset:F3} " +
                 $"height={HandHeightOffset:F3} " +
                 $"leftBefore={originalLeftHand} leftAfter={VehiclePosition(leftHand)} " +
                 $"rightBefore={originalRightHand} rightAfter={VehiclePosition(rightHand)}.");
@@ -226,6 +227,7 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
                 $"rightBefore={originalRightFoot} rightAfter={VehiclePosition(rightFoot)}.");
         LogInfo($"created from current player appearance; renderers={rendererCount} " +
                 $"suppressedRenderers={suppressedCount} scale={SeatedScale:F2} " +
+                $"seatBackLean={SeatBackLeanDegrees:F1}deg " +
                 $"transforms={transforms.Count} clip='{sittingClip.name}' " +
                 $"hips={VehiclePosition(hips)} head={VehiclePosition(head)} " +
                 $"leftHand={VehiclePosition(leftHand)} rightHand={VehiclePosition(rightHand)} " +
@@ -236,7 +238,8 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
     {
         if (driverRoot == null || hips == null || steeringWheel == null || vehicle == null)
             return;
-        driverRoot.transform.rotation = vehicle.transform.rotation;
+        driverRoot.transform.rotation =
+            vehicle.transform.rotation * Quaternion.Euler(-SeatBackLeanDegrees, 0f, 0f);
         var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
         driverRoot.transform.position += seatPosition - hips.position;
     }
@@ -262,19 +265,15 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
     {
         if (vehicle == null || steeringWheel == null)
             return;
-        var centerX = vehicle.transform.InverseTransformPoint(steeringWheel.position).x;
-        AlignHand(leftArm, centerX - HandHalfSpacing);
-        AlignHand(rightArm, centerX + HandHalfSpacing);
+        var wheelCenter = vehicle.transform.InverseTransformPoint(steeringWheel.position);
+        AlignHand(leftArm, wheelCenter + new Vector3(-HandHalfSpacing, HandHeightOffset, HandForwardOffset));
+        AlignHand(rightArm, wheelCenter + new Vector3(HandHalfSpacing, HandHeightOffset, HandForwardOffset));
     }
 
-    private void AlignHand(SeatedLimb? arm, float targetX)
+    private void AlignHand(SeatedLimb? arm, Vector3 target)
     {
         if (arm == null || vehicle == null)
             return;
-        var target = vehicle.transform.InverseTransformPoint(arm.End.position);
-        target.x = targetX;
-        target.y += HandHeightOffset;
-        target.z += HandForwardOffset;
         arm.AimAt(vehicle.transform.TransformPoint(target), vehicle.transform.forward);
     }
 

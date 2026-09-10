@@ -8,6 +8,7 @@ using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
+using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 {
@@ -65,6 +66,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
+    private Coroutine? enteredVehicleActivationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private bool dealerReadyLogged;
@@ -92,6 +94,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        enteredVehicleActivationCoroutine = null;
         configuredVehicleIds.Clear();
         Destroy(gameObject);
     }
@@ -146,6 +151,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        enteredVehicleActivationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReadyLogged = false;
     }
@@ -153,8 +161,83 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private void HandleVehicleEntered(VehicleController vehicle)
     {
         TryConfigureVehicle(vehicle);
-        vehicle?.GetComponent<Porsche911GT3RSGlassController>()
+        vehicle.GetComponent<Porsche911GT3RSGlassController>()
             ?.RestoreAfterVehicleEntered();
+        if (vehicle == null || !IsTargetVehicle(vehicle))
+            return;
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
+    }
+
+    private bool IsTargetVehicle(VehicleController? vehicle) =>
+        vehicle?.vehicleInstance != null &&
+        string.Equals(
+            vehicle.vehicleInstance.vehicleTypeName,
+            vehicleTypeName,
+            StringComparison.Ordinal);
+
+    private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
+    {
+        const int maximumPasses = 4;
+        yield return null;
+
+        var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
+        var physics = vehicle.GetComponent<PhysicsVehicle>();
+        var wasKinematic = rigidbody != null && rigidbody.isKinematic;
+        var physicsWasEnabled = physics != null && physics.enabled;
+        var engineWasRunning = physics?.powertrain?.engine?.IsRunning ?? false;
+        var gearBefore = physics?.powertrain?.transmission?.Gear ?? 0;
+        var appliedPasses = 0;
+
+        for (var pass = 0; pass < maximumPasses; pass++)
+        {
+            yield return new WaitForFixedUpdate();
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                continue;
+
+            appliedPasses++;
+            if (physics != null)
+                physics.enabled = true;
+            foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (component != null && string.Equals(
+                        component.GetType().FullName,
+                        "NWH.WheelController3D.WheelController",
+                        StringComparison.Ordinal))
+                {
+                    component.enabled = true;
+                }
+            }
+
+            if (rigidbody != null)
+            {
+                rigidbody.isKinematic = false;
+                rigidbody.WakeUp();
+            }
+
+            var engine = physics?.powertrain?.engine;
+            var transmission = physics?.powertrain?.transmission;
+            if (engine != null && !engine.IsRunning)
+                engine.StartEngine();
+            if (transmission != null && transmission.Gear == 0)
+                transmission.ShiftInto(1, true);
+        }
+
+        enteredVehicleActivationCoroutine = null;
+        if (vehicle == null)
+            yield break;
+
+        var engineRunning = physics?.powertrain?.engine?.IsRunning ?? false;
+        var gearAfter = physics?.powertrain?.transmission?.Gear ?? 0;
+        var isKinematic = rigidbody != null && rigidbody.isKinematic;
+        var physicsEnabled = physics != null && physics.enabled;
+        context?.Logger.Info(
+            $"Porsche911GT3RS: entered-vehicle activation instance={vehicle.GetInstanceID()}, " +
+            $"controlled={vehicle.controlledByPlayer}, passes={appliedPasses}/{maximumPasses}, " +
+            $"kinematic={wasKinematic}->{isKinematic}, physicsEnabled={physicsWasEnabled}->{physicsEnabled}, " +
+            $"engineRunning={engineWasRunning}->{engineRunning}, gear={gearBefore}->{gearAfter}, " +
+            $"fuel={vehicle.GetCurrentFuel():F2}.");
     }
 
     private void HandleBuildingEntered(Address address)
@@ -290,6 +373,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ConfigureBodyColliders(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
+            var wheelGeometryController = vehicle.GetComponent<Porsche911GT3RSWheelGeometryController>();
+            if (wheelGeometryController == null)
+                wheelGeometryController = vehicle.gameObject.AddComponent<Porsche911GT3RSWheelGeometryController>();
+            wheelGeometryController.Initialize(context);
             var caliperController = vehicle.GetComponent<Porsche911GT3RSCaliperController>();
             if (caliperController == null)
                 caliperController = vehicle.gameObject.AddComponent<Porsche911GT3RSCaliperController>();
@@ -735,8 +822,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 }
 
 [AddComponentMenu("")]
-public sealed class Porsche911GT3RSRimGeometryController : MonoBehaviour
+public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 {
+    private const float RimInsetMeters = 0.055f;
+    private const float TireComponentDiameterRatio = 0.88f;
     private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
     private bool initialized;
 
@@ -746,96 +835,197 @@ public sealed class Porsche911GT3RSRimGeometryController : MonoBehaviour
             return runtimeMeshes.Count;
 
         initialized = true;
-        var mirrored = 0;
-        mirrored += MirrorRightMesh("Wheel_FR_Rim_0", "Wheel_FL_Rim_0");
-        mirrored += MirrorRightMesh("Wheel_BR_Rim_0", "Wheel_BL_Rim_0");
-        mirrored += MirrorRightMesh("Wheel_FR_Caliper_0", "Wheel_FL_Caliper_0");
-        mirrored += MirrorRightMesh("Wheel_BR_Caliper_0", "Wheel_BL_Caliper_0");
-        mirrored += MirrorRightMesh("Wheel_FR_Tire_0", "Wheel_FL_Tire_0");
-        mirrored += MirrorRightMesh("Wheel_BR_Tire_0", "Wheel_BL_Tire_0");
-        mirrored += MirrorRightMesh("Wheel_FR_Brake_rotor_0", "Wheel_FL_Brake_rotor_0");
-        mirrored += MirrorRightMesh("Wheel_BR_Brake_rotor_0", "Wheel_BL_Brake_rotor_0");
-        mirrored += MirrorRightMesh("Wheel_FR_Logo_0", "Wheel_FL_Logo_0");
-        mirrored += MirrorRightMesh("Wheel_BR_Logo_0", "Wheel_BL_Logo_0");
-        if (mirrored != 10)
+        var correctedMeshes = 0;
+        var correctedComponents = 0;
+        var correctedVertices = 0;
+        foreach (var filter in GetComponentsInChildren<MeshFilter>(true))
         {
-            context?.Logger.Warn(
-                $"Porsche911GT3RS wheel finish vehicle={GetInstanceID()}: mirrored " +
-                $"{mirrored}/10 left-side wheel meshes; a mesh pair is missing.");
+            if (filter?.sharedMesh == null || !IsPorscheWheelMesh(filter.transform))
+                continue;
+
+            var materialName = filter.GetComponent<Renderer>()?.sharedMaterial?.name ?? string.Empty;
+            try
+            {
+                if (materialName.IndexOf("GT3RS_black", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    correctedVertices += InsetWholeMesh(filter);
+                    correctedComponents++;
+                    correctedMeshes++;
+                }
+                else if (materialName.IndexOf("wheels_chrome", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    var result = InsetInteriorComponents(filter);
+                    correctedComponents += result.Components;
+                    correctedVertices += result.Vertices;
+                    correctedMeshes++;
+                }
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Warn(
+                    $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()} mesh='{filter.name}' " +
+                    $"could not be inset: {exception.GetType().Name}: {exception.Message}");
+            }
+        }
+
+        if (correctedMeshes == 8)
+        {
+            context?.Logger.Info(
+                $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: inset " +
+                $"{correctedComponents} rim components ({correctedVertices} vertices) by " +
+                $"{RimInsetMeters:F3}m; four tire envelopes retained.");
         }
         else
         {
-            context?.Logger.Info(
-                $"Porsche911GT3RS wheel finish vehicle={GetInstanceID()}: complete left " +
-                "wheel assemblies rebuilt as exact mirrors of the preferred right-side geometry.");
+            context?.Logger.Warn(
+                $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: corrected " +
+                $"{correctedMeshes}/8 rim meshes; expected four wheel and four center-cap meshes.");
         }
-        return mirrored;
+        return correctedMeshes;
     }
 
-    private int MirrorRightMesh(string rightName, string leftName)
+    private static bool IsPorscheWheelMesh(Transform candidate)
     {
-        MeshFilter? right = null;
-        MeshFilter? left = null;
-        foreach (var filter in GetComponentsInChildren<MeshFilter>(true))
+        for (var current = candidate; current != null && current.parent != null; current = current.parent)
         {
-            if (string.Equals(filter.name, rightName, StringComparison.Ordinal))
-                right = filter;
-            else if (string.Equals(filter.name, leftName, StringComparison.Ordinal))
-                left = filter;
+            if (current.name.StartsWith("PorscheWheel", StringComparison.Ordinal))
+                return true;
         }
-        if (right?.sharedMesh == null || left == null)
-            return 0;
+        return false;
+    }
 
-        var mirroredMesh = Instantiate(right.sharedMesh);
-        mirroredMesh.name = leftName + "_MirroredFromRight";
-        var rightToRoot = transform.worldToLocalMatrix * right.transform.localToWorldMatrix;
-        var rootToLeft = left.transform.worldToLocalMatrix * transform.localToWorldMatrix;
-        var rightToMirroredLeft =
-            rootToLeft * Matrix4x4.Scale(new Vector3(-1f, 1f, 1f)) * rightToRoot;
-        var vertices = mirroredMesh.vertices;
-        var normals = mirroredMesh.normals;
-        var tangents = mirroredMesh.tangents;
+    private int InsetWholeMesh(MeshFilter filter)
+    {
+        var mesh = CreateRuntimeMesh(filter, "InsetCap");
+        var vertices = mesh.vertices;
+        var displacement = GetLocalInset(filter);
         for (var index = 0; index < vertices.Length; index++)
-            vertices[index] = rightToMirroredLeft.MultiplyPoint3x4(vertices[index]);
-        mirroredMesh.vertices = vertices;
+            vertices[index] += displacement;
+        mesh.vertices = vertices;
+        mesh.RecalculateBounds();
+        return vertices.Length;
+    }
 
-        // Preserve the preferred right-side authored smoothing exactly. A
-        // recalculation produces subtly different highlights even when geometry
-        // and materials match, which made the left wheels look washed out.
-        var normalTransform = rightToMirroredLeft.inverse.transpose;
-        for (var index = 0; index < normals.Length; index++)
-            normals[index] = normalTransform.MultiplyVector(normals[index]).normalized;
-        mirroredMesh.normals = normals;
-        var handedness = rightToMirroredLeft.determinant < 0f ? -1f : 1f;
-        for (var index = 0; index < tangents.Length; index++)
-        {
-            var direction = rightToMirroredLeft.MultiplyVector(
-                new Vector3(tangents[index].x, tangents[index].y, tangents[index].z)).normalized;
-            tangents[index] = new Vector4(
-                direction.x,
-                direction.y,
-                direction.z,
-                tangents[index].w * handedness);
-        }
-        mirroredMesh.tangents = tangents;
+    private CorrectionResult InsetInteriorComponents(MeshFilter filter)
+    {
+        var mesh = CreateRuntimeMesh(filter, "InsetRim");
+        var vertices = mesh.vertices;
+        var parent = new int[vertices.Length];
+        for (var index = 0; index < parent.Length; index++)
+            parent[index] = index;
 
-        // Mirroring reverses handedness. Restore outward-facing triangle winding
-        // before deriving normals so both sides respond identically to lighting.
-        for (var subMesh = 0; subMesh < mirroredMesh.subMeshCount; subMesh++)
+        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
         {
-            var triangles = mirroredMesh.GetTriangles(subMesh);
+            var triangles = mesh.GetTriangles(subMesh);
             for (var index = 0; index + 2 < triangles.Length; index += 3)
             {
-                var second = triangles[index + 1];
-                triangles[index + 1] = triangles[index + 2];
-                triangles[index + 2] = second;
+                Union(parent, triangles[index], triangles[index + 1]);
+                Union(parent, triangles[index], triangles[index + 2]);
             }
-            mirroredMesh.SetTriangles(triangles, subMesh, false);
         }
-        mirroredMesh.RecalculateBounds();
-        left.sharedMesh = mirroredMesh;
-        runtimeMeshes.Add(mirroredMesh);
-        return 1;
+
+        var extents = new Dictionary<int, ComponentExtents>();
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            var root = Find(parent, index);
+            if (!extents.TryGetValue(root, out var component))
+                component = new ComponentExtents(vertices[index]);
+            else
+                component.Include(vertices[index]);
+            extents[root] = component;
+        }
+
+        var tireDiameter = Mathf.Max(mesh.bounds.size.y, mesh.bounds.size.z);
+        var componentLimit = tireDiameter * TireComponentDiameterRatio;
+        var displacement = GetLocalInset(filter);
+        var correctedRoots = new HashSet<int>();
+        var correctedVertices = 0;
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            var root = Find(parent, index);
+            var component = extents[root];
+            if (Mathf.Max(component.SizeY, component.SizeZ) >= componentLimit)
+                continue;
+            vertices[index] += displacement;
+            correctedRoots.Add(root);
+            correctedVertices++;
+        }
+
+        mesh.vertices = vertices;
+        mesh.RecalculateBounds();
+        return new CorrectionResult(correctedRoots.Count, correctedVertices);
+    }
+
+    private Mesh CreateRuntimeMesh(MeshFilter filter, string suffix)
+    {
+        var mesh = Instantiate(filter.sharedMesh);
+        mesh.name = filter.sharedMesh.name + "_" + suffix;
+        filter.sharedMesh = mesh;
+        runtimeMeshes.Add(mesh);
+        return mesh;
+    }
+
+    private Vector3 GetLocalInset(MeshFilter filter)
+    {
+        var center = transform.InverseTransformPoint(filter.GetComponent<Renderer>().bounds.center);
+        var side = center.x < 0f ? -1f : 1f;
+        return filter.transform.InverseTransformVector(
+            transform.right * (-side * RimInsetMeters));
+    }
+
+    private static int Find(int[] parent, int value)
+    {
+        while (parent[value] != value)
+        {
+            parent[value] = parent[parent[value]];
+            value = parent[value];
+        }
+        return value;
+    }
+
+    private static void Union(int[] parent, int left, int right)
+    {
+        var leftRoot = Find(parent, left);
+        var rightRoot = Find(parent, right);
+        if (leftRoot != rightRoot)
+            parent[rightRoot] = leftRoot;
+    }
+
+    private readonly struct CorrectionResult
+    {
+        public readonly int Components;
+        public readonly int Vertices;
+
+        public CorrectionResult(int components, int vertices)
+        {
+            Components = components;
+            Vertices = vertices;
+        }
+    }
+
+    private struct ComponentExtents
+    {
+        private float minimumY;
+        private float maximumY;
+        private float minimumZ;
+        private float maximumZ;
+
+        public float SizeY => maximumY - minimumY;
+        public float SizeZ => maximumZ - minimumZ;
+
+        public ComponentExtents(Vector3 vertex)
+        {
+            minimumY = maximumY = vertex.y;
+            minimumZ = maximumZ = vertex.z;
+        }
+
+        public void Include(Vector3 vertex)
+        {
+            minimumY = Mathf.Min(minimumY, vertex.y);
+            maximumY = Mathf.Max(maximumY, vertex.y);
+            minimumZ = Mathf.Min(minimumZ, vertex.z);
+            maximumZ = Mathf.Max(maximumZ, vertex.z);
+        }
     }
 
     private void OnDestroy()
