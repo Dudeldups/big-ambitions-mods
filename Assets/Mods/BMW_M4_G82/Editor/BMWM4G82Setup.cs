@@ -26,6 +26,7 @@ public static class BMWM4G82Setup
         ModRoot + "/AssetBundles/Windows/bmw_m4_g82.unity3d";
     private const string VehicleTypeName =
         "bmwm4g82-vehicle:vehicletype_bmwm4g82";
+    private const long ColouredAtlasTextureLocalId = 6107228799987672122L;
     private const float TargetLength = 4.794f;
     private const float TargetWidth = 1.887f;
     private const float TargetHeight = 1.394f;
@@ -43,6 +44,9 @@ public static class BMWM4G82Setup
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.05f;
     private const float RearSuspensionTravel = 0.05f;
+    private const float SuspensionBumpRate = 24500f;
+    private const float SuspensionReboundRate = 28000f;
+    private const float SuspensionExtensionSpeed = 4f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
@@ -153,6 +157,8 @@ public static class BMWM4G82Setup
                 "BMWWheelFrontRight", "BMWWheelRearLeft", "BMWWheelRearRight",
                 "BMWFixedCaliperFrontLeft", "BMWFixedCaliperFrontRight",
                 "BMWFixedCaliperRearLeft", "BMWFixedCaliperRearRight",
+                "BMW_Interior_Source", "BMW_EngineDetails_Source",
+                "BMW_DashboardDisplay_Source",
             };
             foreach (var requiredName in requiredUniqueNames)
             {
@@ -288,12 +294,23 @@ public static class BMWM4G82Setup
                     continue;
                 foreach (var component in transform.GetComponents<MonoBehaviour>())
                 {
-                    var spring = new SerializedObject(component).FindProperty("spring.maxLength");
+                    var serializedWheel = new SerializedObject(component);
+                    var spring = serializedWheel.FindProperty("spring.maxLength");
                     if (spring == null)
                         continue;
                     if (Math.Abs(ReadNumber(spring) - 0.05f) > 0.001f)
                         throw new InvalidOperationException(
                             $"BMW suspension travel mismatch at '{transform.name}': {ReadNumber(spring):F3}.");
+                    var bump = ReadNumber(serializedWheel.FindProperty("damper.bumpRate"));
+                    var rebound = ReadNumber(serializedWheel.FindProperty("damper.reboundRate"));
+                    var extension = ReadNumber(
+                        serializedWheel.FindProperty("suspensionExtensionSpeedCoeff"));
+                    if (Math.Abs(bump - SuspensionBumpRate) > 1f ||
+                        Math.Abs(rebound - SuspensionReboundRate) > 1f ||
+                        Math.Abs(extension - SuspensionExtensionSpeed) > 0.01f)
+                        throw new InvalidOperationException(
+                            $"BMW suspension damping mismatch at '{transform.name}': " +
+                            $"bump={bump:F0} rebound={rebound:F0} extension={extension:F1}.");
                     validatedSprings++;
                 }
             }
@@ -327,6 +344,26 @@ public static class BMWM4G82Setup
             if (materialResult.CabinGlassRenderers != 1 || materialResult.TransparentMaterialsFixed < 1)
                 throw new InvalidOperationException(
                     $"BMW glass validation failed renderers={materialResult.CabinGlassRenderers} transparent={materialResult.TransparentMaterialsFixed}.");
+            foreach (var rendererName in new[] { "BMW_Interior_Source", "BMW_EngineDetails_Source" })
+            {
+                var renderer = FindTransform(prefab.transform, rendererName)?.GetComponent<MeshRenderer>();
+                if (renderer == null || !renderer.enabled ||
+                    Array.Exists(renderer.sharedMaterials, material =>
+                        material == null || BMWM4G82Materials.IsTransparentMaterial(material)))
+                    throw new InvalidOperationException(
+                        $"BMW opaque detail renderer '{rendererName}' is missing or transparent.");
+            }
+            var colouredAtlasSlots = 0;
+            foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
+                foreach (var material in renderer.sharedMaterials)
+                    if (material != null && material.name.IndexOf(
+                            "Coloured", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        material.HasProperty("_BaseColorMap") &&
+                        material.GetTexture("_BaseColorMap") != null)
+                        colouredAtlasSlots++;
+            if (colouredAtlasSlots != 6)
+                throw new InvalidOperationException(
+                    $"BMW factory-color atlas validation found {colouredAtlasSlots}/6 renderer slots.");
             if (Math.Abs(prefab.transform.localScale.x - 1f) > 0.001f ||
                 Math.Abs(prefab.transform.localScale.y - 1f) > 0.001f ||
                 Math.Abs(prefab.transform.localScale.z - 1f) > 0.001f)
@@ -438,6 +475,9 @@ public static class BMWM4G82Setup
             var damageBody = CreateDeformableBody(root, modelInstance);
             ConfigureVehicleDeformation(root, damageBody);
             var fix = BMWM4G82Materials.FixSolidMaterials(root);
+            if (RestoreColouredAtlasMaterials(root) != 1)
+                throw new InvalidOperationException(
+                    "BMW requires exactly one restored factory-color atlas material.");
             var rimMaterialsConfigured = ConfigureRimFinish(root);
             MarkMaterialsDirty(root);
             ConfigureRendererReferences(root);
@@ -519,6 +559,7 @@ public static class BMWM4G82Setup
     private static void NameKeyRenderers(GameObject model)
     {
         var glassIndex = 0;
+        var badgeIndex = 0;
         MeshRenderer? bodySource = null;
         var bodySourceVertexCount = -1;
         foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
@@ -541,8 +582,14 @@ public static class BMWM4G82Setup
                 renderer.name = "BMW_RearLamp_Source";
             else if (materialName.IndexOf("glasswindshiled", StringComparison.OrdinalIgnoreCase) >= 0)
                 renderer.name = $"BMW_CabinGlass_{glassIndex++}";
+            else if (materialName.IndexOf("InteriorA", StringComparison.OrdinalIgnoreCase) >= 0)
+                renderer.name = "BMW_Interior_Source";
+            else if (materialName.IndexOf("EngineA", StringComparison.OrdinalIgnoreCase) >= 0)
+                renderer.name = "BMW_EngineDetails_Source";
+            else if (materialName.IndexOf("BadgeA", StringComparison.OrdinalIgnoreCase) >= 0)
+                renderer.name = $"BMW_Badge_Source_{badgeIndex++}";
             else if (string.Equals(materialName, "phong2", StringComparison.OrdinalIgnoreCase))
-                renderer.name = "BMW_SteeringVisual_Source";
+                renderer.name = "BMW_DashboardDisplay_Source";
         }
 
         if (bodySource != null)
@@ -663,6 +710,9 @@ public static class BMWM4G82Setup
                     "spring.maxLength",
                     isFront ? FrontSuspensionTravel : RearSuspensionTravel);
                 SetRelativeNumber(serialized, "spring.maxForce", isFront ? 19500f : 18500f);
+                SetRelativeNumber(serialized, "damper.bumpRate", SuspensionBumpRate);
+                SetRelativeNumber(serialized, "damper.reboundRate", SuspensionReboundRate);
+                SetRelativeNumber(serialized, "suspensionExtensionSpeedCoeff", SuspensionExtensionSpeed);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? FrontTireRadius : RearTireRadius);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? FrontTireWidth : RearTireWidth);
                 SetRelativeNumber(serialized, "frictionCircleStrength", TireFrictionCircleStrength);
@@ -993,7 +1043,8 @@ public static class BMWM4G82Setup
         if (caliper == null)
             throw new InvalidOperationException($"BMW {corner.Suffix} caliper geometry is missing.");
         caliperGeometry.transform.SetParent(fixedMount.transform, true);
-        caliperGeometry.transform.position += alignmentDelta;
+        caliperGeometry.transform.position += alignmentDelta +
+            new Vector3(corner.Left ? -0.018f : 0.018f, 0f, 0f);
 
         AssignWheelVisual(controller, mount);
         Debug.Log(
@@ -1353,8 +1404,7 @@ public static class BMWM4G82Setup
     }
 
     private static bool IsBodyPaintMaterial(Material material) =>
-        material.name.IndexOf("PaintTNR", StringComparison.OrdinalIgnoreCase) >= 0 ||
-        material.name.IndexOf("Coloured", StringComparison.OrdinalIgnoreCase) >= 0;
+        material.name.IndexOf("PaintTNR", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static bool IsInteriorAccentPaintMaterial(Material material) =>
         material.name.IndexOf("InteriorA", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -1503,9 +1553,10 @@ public static class BMWM4G82Setup
                     var materialIndex = transparent
                         ? transparentMaterialIndex++
                         : opaqueMaterialIndex++;
-                    var assetName =
-                        $"BMW{kind}_{materialIndex:D2}_{SanitizeAssetName(source.name)}";
-                    var path = $"{MaterialFolder}/{assetName}.mat";
+                    var sourceName = SanitizeAssetName(source.name);
+                    var assetName = $"BMW{kind}_{materialIndex:D2}_{sourceName}";
+                    var existingPath = FindExistingMaterialPath(kind, sourceName);
+                    var path = existingPath ?? $"{MaterialFolder}/{assetName}.mat";
                     persistent = AssetDatabase.LoadAssetAtPath<Material>(path);
                     if (persistent == null)
                     {
@@ -1514,9 +1565,25 @@ public static class BMWM4G82Setup
                     }
                     else
                     {
-                        persistent.CopyPropertiesFromMaterial(source);
-                        persistent.shader = source.shader;
-                        persistent.name = assetName;
+                        // This atlas carries the factory multi-color trim and
+                        // roundel-adjacent detail. Some importer refreshes
+                        // expose it without its texture bindings, so retain the
+                        // already curated persistent material instead of
+                        // replacing it with an incomplete transient material.
+                        var preserveCuratedAtlas = sourceName.IndexOf(
+                            "Coloured", StringComparison.OrdinalIgnoreCase) >= 0;
+                        if (!preserveCuratedAtlas)
+                        {
+                            persistent.CopyPropertiesFromMaterial(source);
+                            persistent.shader = source.shader;
+                        }
+                        else
+                        {
+                            RestoreColouredAtlasMaterial(persistent);
+                        }
+                        persistent.name = existingPath == null
+                            ? assetName
+                            : System.IO.Path.GetFileNameWithoutExtension(path);
                     }
 
                     replacements.Add(source, persistent);
@@ -1529,6 +1596,61 @@ public static class BMWM4G82Setup
             if (changed)
                 renderer.sharedMaterials = materials;
         }
+    }
+
+    private static void RestoreColouredAtlasMaterial(Material material)
+    {
+        Texture2D? atlas = null;
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(ModelPath))
+        {
+            if (!(asset is Texture2D texture) ||
+                !AssetDatabase.TryGetGUIDAndLocalFileIdentifier(
+                    texture, out _, out long localId) ||
+                localId != ColouredAtlasTextureLocalId)
+                continue;
+            atlas = texture;
+            break;
+        }
+        if (atlas == null)
+            throw new InvalidOperationException("BMW factory-color texture atlas is missing.");
+
+        foreach (var property in new[] { "baseColorTexture", "_BaseColorMap", "_MainTex" })
+            if (material.HasProperty(property)) material.SetTexture(property, atlas);
+        foreach (var property in new[] { "baseColorFactor", "_BaseColor", "_Color" })
+            if (material.HasProperty(property)) material.SetColor(property, Color.white);
+        if (material.HasProperty("metallicFactor")) material.SetFloat("metallicFactor", 0.5f);
+        if (material.HasProperty("roughnessFactor")) material.SetFloat("roughnessFactor", 0f);
+        if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", 0.5f);
+        if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", 1f);
+        EditorUtility.SetDirty(material);
+    }
+
+    private static int RestoreColouredAtlasMaterials(GameObject root)
+    {
+        var materials = new HashSet<Material>();
+        foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            foreach (var material in renderer.sharedMaterials)
+                if (material != null && material.name.IndexOf(
+                        "Coloured", StringComparison.OrdinalIgnoreCase) >= 0)
+                    materials.Add(material);
+        foreach (var material in materials)
+            RestoreColouredAtlasMaterial(material);
+        return materials.Count;
+    }
+
+    private static string? FindExistingMaterialPath(string kind, string sourceName)
+    {
+        var prefix = $"BMW{kind}_";
+        var suffix = "_" + sourceName + ".mat";
+        foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { MaterialFolder }))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            var fileName = System.IO.Path.GetFileName(path);
+            if (fileName.StartsWith(prefix, StringComparison.Ordinal) &&
+                fileName.EndsWith(suffix, StringComparison.Ordinal))
+                return path;
+        }
+        return null;
     }
 
     private static void MarkMaterialsDirty(GameObject model)

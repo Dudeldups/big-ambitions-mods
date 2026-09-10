@@ -42,10 +42,15 @@ public static class BMWM4G82Materials
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
     public static readonly Color RimBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
-    public static readonly Color CaliperBaseColor = new Color(0.02f, 0.16f, 0.72f, 1f);
+    public static readonly Color CaliperBaseColor = new Color(0.62f, 0.65f, 0.68f, 1f);
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string RimMaterialMarker = "_main";
+    private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int BaseColorFactorProperty = Shader.PropertyToID("baseColorFactor");
+    private static readonly int MetallicProperty = Shader.PropertyToID("_Metallic");
+    private static readonly int SmoothnessProperty = Shader.PropertyToID("_Smoothness");
     private const string HdMaterialTypeName =
         "UnityEngine.Rendering.HighDefinition.HDMaterial";
     private const string ShaderGraphApiTypeName =
@@ -195,19 +200,30 @@ public static class BMWM4G82Materials
     public static int ApplyCaliperFinish(GameObject vehicle)
     {
         var configured = 0;
+        var properties = new MaterialPropertyBlock();
         foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
         {
             if (!IsCaliperRenderer(renderer.transform))
                 continue;
-            foreach (var material in renderer.sharedMaterials)
+            var materials = renderer.sharedMaterials;
+            for (var index = 0; index < materials.Length; index++)
             {
+                var material = materials[index];
                 if (material == null)
                     continue;
-                SetColor(material, "_BaseColor", CaliperBaseColor);
-                SetColor(material, "_Color", CaliperBaseColor);
-                SetColor(material, "baseColorFactor", CaliperBaseColor);
-                SetFloat(material, "_Metallic", 0.25f);
-                SetFloat(material, "_Smoothness", 0.52f);
+                properties.Clear();
+                renderer.GetPropertyBlock(properties, index);
+                if (material.HasProperty(BaseColorProperty))
+                    properties.SetColor(BaseColorProperty, CaliperBaseColor);
+                if (material.HasProperty(ColorProperty))
+                    properties.SetColor(ColorProperty, CaliperBaseColor);
+                if (material.HasProperty(BaseColorFactorProperty))
+                    properties.SetColor(BaseColorFactorProperty, CaliperBaseColor);
+                if (material.HasProperty(MetallicProperty))
+                    properties.SetFloat(MetallicProperty, 0.58f);
+                if (material.HasProperty(SmoothnessProperty))
+                    properties.SetFloat(SmoothnessProperty, 0.60f);
+                renderer.SetPropertyBlock(properties, index);
                 configured++;
             }
         }
@@ -225,6 +241,15 @@ public static class BMWM4G82Materials
     public static bool IsTransparentMaterial(Material material)
     {
         var name = material.name;
+        // The source GLB marks the large engine-bay and cabin atlases as
+        // BLEND even though nearly all their pixels are opaque. Treating that
+        // import flag as glass made the steering wheel, seats, door cards and
+        // console fade almost completely in the game's HDRP renderer.
+        if (name.IndexOf("EngineA", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("InteriorA", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
         if (name.IndexOf("Windows", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -344,7 +369,8 @@ public static class BMWM4G82Materials
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
-        if (cabinGlass)
+        var texturedDecal = IsTexturedDecalMaterial(material);
+        if (cabinGlass || texturedDecal)
         {
             // The imported glTF glass shader can retain a valid-looking
             // transparent state while producing no visible pixels in the
@@ -352,7 +378,9 @@ public static class BMWM4G82Materials
             // its blend state is deterministic on every vehicle instance.
             RebindToHdrpLit(material);
         }
-        var tint = cabinGlass
+        var tint = texturedDecal
+            ? Color.white
+            : cabinGlass
             ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
@@ -405,6 +433,13 @@ public static class BMWM4G82Materials
         material.SetShaderPassEnabled("TransparentBackface", false);
         material.SetShaderPassEnabled("DepthOnly", false);
         material.SetShaderPassEnabled("ShadowCaster", false);
+    }
+
+    private static bool IsTexturedDecalMaterial(Material material)
+    {
+        var name = material.name;
+        return name.IndexOf("BadgeA", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("ManufacturerPlateA", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     internal static void RestoreCabinGlassMaterial(Material material)

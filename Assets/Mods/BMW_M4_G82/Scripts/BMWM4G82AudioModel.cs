@@ -5,10 +5,10 @@ using System;
 internal static class BMWM4G82AudioModel
 {
     internal const float IdlePitch = 1f;
-    internal const float HornLowVolume = .82f;
-    internal const float HornHighVolume = .50f;
-    internal const float EngineBaseVolume = .27f;
-    internal const float EngineThrottleVolume = .28f;
+    internal const float HornLowVolume = .72f;
+    internal const float HornHighVolume = .42f;
+    internal const float EngineBaseVolume = .21f;
+    internal const float EngineThrottleVolume = .23f;
     internal const float CrackleIdleVolume = .004f;
     internal const float CrackleLoadVolume = .015f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .10f) / .76f);
