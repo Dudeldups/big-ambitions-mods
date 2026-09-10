@@ -3862,7 +3862,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 19500
-    maxLength: 0.11
+    maxLength: 0.05
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -13037,7 +13037,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 18500
-    maxLength: 0.1
+    maxLength: 0.05
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -26532,7 +26532,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 18500
-    maxLength: 0.1
+    maxLength: 0.05
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -34242,7 +34242,7 @@ MonoBehaviour:
       m_RotationOrder: 4
     length: 0
     maxForce: 19500
-    maxLength: 0.11
+    maxLength: 0.05
     prevLength: 0
     compressionVelocity: 0
     prevVelocity: 0
@@ -34589,7 +34589,7 @@ Transform:
   m_GameObject: {fileID: 6736155219050281641}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.45, y: 0.1, z: 0}
+  m_LocalPosition: {x: 1.72, y: 0.2, z: 0.15}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -40289,7 +40289,7 @@ Transform:
   m_GameObject: {fileID: 8217733766856922078}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.45, y: 0.1, z: 0}
+  m_LocalPosition: {x: -1.72, y: 0.2, z: 0.15}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -70,8 +70,8 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         thirdBrakeOverlay = CreateFilteredOverlay(rearStrip,
             p => p.z < -1.60f && Mathf.Abs(p.x) < 0.36f && p.y > 0.55f,
             "ThirdBrakeLight", new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.006f);
-        reverseOverlay = CreateFilteredOverlay(lamp,
-            p => p.z < -1.60f && Mathf.Abs(p.x) < 0.85f,
+        reverseOverlay = CreateFilteredOverlay(rearStrip,
+            p => p.z < -1.60f && Mathf.Abs(p.x) < 0.42f && p.y < 0.84f,
             "ReverseLight", new Color(0.92f, 0.96f, 1f, 1f), 4.8f, 1.006f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
         leftBlinkerOverlay = CreateFilteredOverlay(lamp, p => p.z > 1.60f && p.x <= -0.25f,

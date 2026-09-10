@@ -30,13 +30,17 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
-    private const float FrontSuspensionTravel = 0.11f;
-    private const float RearSuspensionTravel = 0.10f;
+    private const float FrontSuspensionTravel = 0.05f;
+    private const float RearSuspensionTravel = 0.05f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
+    private const float MinimumHealthyEngineRpm = 300f;
+    private const int EngineStartAttemptCount = 3;
+    private static readonly Vector3 DriverExitPosition = new Vector3(-1.72f, 0.20f, 0.15f);
+    private static readonly Vector3 PassengerExitPosition = new Vector3(1.72f, 0.20f, 0.15f);
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.18f, -0.08f);
 
     private static readonly float[] M4Gears =
@@ -64,6 +68,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
+    private Coroutine? powertrainReadinessCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private bool dealerReady;
@@ -94,7 +99,10 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     {
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
+        if (powertrainReadinessCoroutine != null)
+            StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
+        powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
         if (ReferenceEquals(activeRuntime, this))
@@ -157,7 +165,10 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     {
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
+        if (powertrainReadinessCoroutine != null)
+            StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
+        powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
         dealerReadyLogged = false;
@@ -176,47 +187,70 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         vehicle?.GetComponent<BMWM4G82GlassController>()
             ?.RestoreAfterVehicleEntered();
         if (vehicle != null && IsTargetVehicle(vehicle))
-            StartCoroutine(EnsureDrivetrainReadyAfterEntry(vehicle));
+        {
+            if (powertrainReadinessCoroutine != null)
+                StopCoroutine(powertrainReadinessCoroutine);
+            powertrainReadinessCoroutine = StartCoroutine(EnsureDrivetrainReadyAfterEntry(vehicle));
+        }
     }
 
     private IEnumerator EnsureDrivetrainReadyAfterEntry(VehicleController vehicle)
     {
-        yield return null;
-        yield return new WaitForSecondsRealtime(0.15f);
-        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
-            yield break;
-
-        var physicsVehicle = vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>() ??
-                             vehicle.GetComponentInChildren<NWH.VehiclePhysics2.VehicleController>(true);
+        // Native entry starts the engine asynchronously. A running flag can be
+        // true while the engine is still at zero RPM, which leaves throttle
+        // input connected but produces no wheel torque until a later re-entry.
+        yield return new WaitForSecondsRealtime(0.25f);
+        var physicsVehicle = vehicle == null
+            ? null
+            : vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>() ??
+              vehicle.GetComponentInChildren<NWH.VehiclePhysics2.VehicleController>(true);
         if (physicsVehicle == null)
         {
             context?.Logger.Warn(
-                $"BMWM4G82: post-entry drivetrain unavailable vehicle={vehicle.GetInstanceID()}.");
+                $"BMWM4G82: post-entry drivetrain unavailable vehicle={vehicle?.GetInstanceID()}.");
+            powertrainReadinessCoroutine = null;
             yield break;
         }
 
-        try
+        var engine = physicsVehicle.powertrain.engine;
+        var transmission = physicsVehicle.powertrain.transmission;
+        for (var attempt = 1; attempt <= EngineStartAttemptCount; attempt++)
         {
-            ConfigurePowertrain(vehicle.gameObject);
-            var engine = physicsVehicle.powertrain.engine;
-            var transmission = physicsVehicle.powertrain.transmission;
-            var startedEngine = !engine.IsRunning;
-            if (startedEngine)
-                engine.StartEngine();
-            var selectedDrive = transmission.Gear == 0;
-            if (selectedDrive)
+            if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+                break;
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
+            if (engine.IsRunning && engine.ignition && engine.canRun &&
+                rpm >= MinimumHealthyEngineRpm)
+            {
+                if (transmission.Gear <= 0)
+                    transmission.ShiftInto(1, true);
+                context?.Logger.Info(
+                    $"BMWM4G82: post-entry drivetrain ready vehicle={vehicle.GetInstanceID()} " +
+                    $"attempt={attempt} running={engine.IsRunning} rpm={rpm:0} " +
+                    $"gear={transmission.Gear}.");
+                powertrainReadinessCoroutine = null;
+                yield break;
+            }
+
+            engine.StopEngine();
+            transmission.ShiftInto(0, true);
+            transmission.currentGearRatio = 0f;
+            yield return new WaitForSecondsRealtime(0.15f);
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                break;
+            engine.StartEngine();
+            yield return new WaitForSecondsRealtime(0.75f);
+            if (vehicle != null && vehicle.controlledByPlayer)
                 transmission.ShiftInto(1, true);
-            context?.Logger.Info(
-                $"BMWM4G82: post-entry drivetrain ready vehicle={vehicle.GetInstanceID()} " +
-                $"engineStarted={startedEngine} running={engine.IsRunning} " +
-                $"driveSelected={selectedDrive} gear={transmission.Gear}.");
+            yield return new WaitForSecondsRealtime(0.15f);
         }
-        catch (Exception exception)
-        {
-            context?.Logger.Warn(
-                $"BMWM4G82: post-entry drivetrain recovery failed vehicle={vehicle.GetInstanceID()}: " +
-                exception.GetBaseException().Message);
-        }
+
+        var finalRpm = engine.RPMPercent * engine.revLimiterRPM;
+        context?.Logger.Warn(
+            $"BMWM4G82: post-entry drivetrain remained unavailable " +
+            $"vehicle={vehicle?.GetInstanceID()} controlled={vehicle?.controlledByPlayer} " +
+            $"running={engine.IsRunning} rpm={finalRpm:0} gear={transmission.Gear}.");
+        powertrainReadinessCoroutine = null;
     }
 
     private void HandleBuildingEntered(Address address)
@@ -359,6 +393,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             ConfigureMassProperties(targetVehicle.gameObject);
             ConfigureWheelControllers(targetVehicle.gameObject);
             ConfigureBodyColliders(targetVehicle.gameObject);
+            ConfigureExitMarkers(targetVehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(targetVehicle);
             var powertrainConfigured = ConfigurePowertrain(targetVehicle.gameObject);
             var caliperController = targetVehicle.GetComponent<BMWM4G82CaliperController>();
@@ -492,6 +527,17 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 colliders[1].center = new Vector3(0f, 0.84f, -0.20f);
                 colliders[1].size = new Vector3(1.46f, 0.64f, 2.34f);
             }
+        }
+    }
+
+    private static void ConfigureExitMarkers(GameObject root)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (string.Equals(transform.name, "Driverside", StringComparison.Ordinal))
+                transform.localPosition = DriverExitPosition;
+            else if (string.Equals(transform.name, "Passengerside", StringComparison.Ordinal))
+                transform.localPosition = PassengerExitPosition;
         }
     }
 

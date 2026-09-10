@@ -40,13 +40,15 @@ public static class BMWM4G82Setup
     private const float RearTireRadius = 0.3395f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
-    private const float FrontSuspensionTravel = 0.11f;
-    private const float RearSuspensionTravel = 0.10f;
+    private const float FrontSuspensionTravel = 0.05f;
+    private const float RearSuspensionTravel = 0.05f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.18f, -0.08f);
     private static readonly Vector3 SteeringAnchorPosition = new Vector3(-0.38f, 0.92f, 0.55f);
+    private static readonly Vector3 DriverExitPosition = new Vector3(-1.72f, 0.20f, 0.15f);
+    private static readonly Vector3 PassengerExitPosition = new Vector3(1.72f, 0.20f, 0.15f);
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
@@ -189,7 +191,8 @@ public static class BMWM4G82Setup
             var driverExit = FindTransform(prefab.transform, "Driverside")!;
             var passengerExit = FindTransform(prefab.transform, "Passengerside")!;
             if (Vector3.Distance(steeringAnchor.localPosition, SteeringAnchorPosition) > 0.001f ||
-                driverExit.localPosition.x > -1.4f || passengerExit.localPosition.x < 1.4f)
+                Vector3.Distance(driverExit.localPosition, DriverExitPosition) > 0.001f ||
+                Vector3.Distance(passengerExit.localPosition, PassengerExitPosition) > 0.001f)
                 throw new InvalidOperationException(
                     $"BMW LHD cabin anchors mismatch steering={steeringAnchor.localPosition}, " +
                     $"exits={driverExit.localPosition}/{passengerExit.localPosition}.");
@@ -214,6 +217,7 @@ public static class BMWM4G82Setup
             var centers = new Dictionary<string, Vector3>();
             var wheelCount = 0;
             var caliperCount = 0;
+            var visibleBlueCalipers = 0;
             var rollingParts = 0;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
@@ -226,11 +230,20 @@ public static class BMWM4G82Setup
                 else if (transform.name.StartsWith("BMWFixedCaliper", StringComparison.Ordinal))
                 {
                     caliperCount++;
+                    foreach (var renderer in transform.GetComponentsInChildren<MeshRenderer>(true))
+                    foreach (var material in renderer.sharedMaterials)
+                    {
+                        if (material != null && material.HasProperty("_BaseColor") &&
+                            Vector4.Distance(material.GetColor("_BaseColor"),
+                                BMWM4G82Materials.CaliperBaseColor) < 0.01f)
+                            visibleBlueCalipers++;
+                    }
                 }
             }
-            if (wheelCount != 4 || caliperCount != 4 || rollingParts < 16)
+            if (wheelCount != 4 || caliperCount != 4 || visibleBlueCalipers != 4 || rollingParts < 16)
                 throw new InvalidOperationException(
-                    $"BMW wheel assembly incomplete wheels={wheelCount} calipers={caliperCount} rollingParts={rollingParts}.");
+                    $"BMW wheel assembly incomplete wheels={wheelCount} calipers={caliperCount} " +
+                    $"visibleBlueCalipers={visibleBlueCalipers} rollingParts={rollingParts}.");
 
             if (!centers.TryGetValue("BMWWheelFrontLeft", out var frontLeft) ||
                 !centers.TryGetValue("BMWWheelFrontRight", out var frontRight) ||
@@ -248,6 +261,26 @@ public static class BMWM4G82Setup
                 throw new InvalidOperationException(
                     $"BMW wheel geometry mismatch wheelbase={wheelbase:F3} tracks={frontTrack:F3}/{rearTrack:F3}.");
 
+            var validatedSprings = 0;
+            foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
+            {
+                if (!transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
+                    continue;
+                foreach (var component in transform.GetComponents<MonoBehaviour>())
+                {
+                    var spring = new SerializedObject(component).FindProperty("spring.maxLength");
+                    if (spring == null)
+                        continue;
+                    if (Math.Abs(ReadNumber(spring) - 0.05f) > 0.001f)
+                        throw new InvalidOperationException(
+                            $"BMW suspension travel mismatch at '{transform.name}': {ReadNumber(spring):F3}.");
+                    validatedSprings++;
+                }
+            }
+            if (validatedSprings != 4)
+                throw new InvalidOperationException(
+                    $"BMW requires four validated suspension springs, found {validatedSprings}.");
+
             var bodyCollider = FindTransform(prefab.transform, "BodyCollider") ??
                                throw new InvalidOperationException("BMW body collider holder is missing.");
             var bodyColliders = bodyCollider.GetComponents<BoxCollider>();
@@ -262,6 +295,20 @@ public static class BMWM4G82Setup
                 FindTransform(prefab.transform, "BMW_RoofPaint_Source") == null ||
                 FindTransform(prefab.transform, "Steering_wheel") == null)
                 throw new InvalidOperationException("BMW damage, lighting, or driver anchors are incomplete.");
+
+            var rearLamp = FindTransform(prefab.transform, "BMW_RearLamp_Source")
+                ?.GetComponent<MeshRenderer>() ??
+                throw new InvalidOperationException("BMW rear lamp renderer is missing.");
+            var rearLampMesh = rearLamp.GetComponent<MeshFilter>()?.sharedMesh ??
+                               throw new InvalidOperationException("BMW rear lamp mesh is missing.");
+            var reverseTriangles = CountFilteredTriangles(prefab.transform, rearLamp,
+                p => p.z < -1.60f && Mathf.Abs(p.x) < 0.42f && p.y < 0.84f);
+            var rearLampTriangles = 0;
+            for (var subMesh = 0; subMesh < rearLampMesh.subMeshCount; subMesh++)
+                rearLampTriangles += rearLampMesh.GetTriangles(subMesh).Length / 3;
+            if (reverseTriangles == 0 || reverseTriangles >= rearLampTriangles / 2)
+                throw new InvalidOperationException(
+                    $"BMW reverse lamp selection is invalid selected={reverseTriangles} total={rearLampTriangles}.");
 
             var materialResult = BMWM4G82Materials.FixSolidMaterials(prefab);
             var roofRenderer = FindTransform(prefab.transform, "BMW_RoofPaint_Source")
@@ -285,6 +332,7 @@ public static class BMWM4G82Setup
                 $"bodyUpright={Vector3.Dot(authoredUp, prefab.transform.up):F2}, spawnConfig=true, " +
                 $"wheelbase={wheelbase:F3}, tracks={frontTrack:F3}/{rearTrack:F3}, " +
                 $"wheels={wheelCount}, fixedCalipers={caliperCount}, rollingParts={rollingParts}, " +
+                $"reverseTriangles={reverseTriangles}/{rearLampTriangles}, " +
                 $"glass={materialResult.CabinGlassRenderers}, materials={materialResult.RendererCount}.");
         }
         finally
@@ -379,6 +427,7 @@ public static class BMWM4G82Setup
             ConfigureExitMarkers(root);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
+            ConfigureCaliperFinish(root);
             var damageBody = CreateDeformableBody(root, modelInstance);
             ConfigureVehicleDeformation(root, damageBody);
             var fix = BMWM4G82Materials.FixSolidMaterials(root);
@@ -644,12 +693,11 @@ public static class BMWM4G82Setup
         var steeringWheel = FindTransform(root.transform, "Steering_wheel") ??
                             throw new InvalidOperationException("Fitted steering-wheel anchor is missing.");
         var steeringPosition = steeringWheel.localPosition;
-        var driverSide = steeringPosition.x < 0f ? -1.45f : 1.45f;
-        SetLocalPosition(root, "Driverside", new Vector3(driverSide, 0.1f, 0f));
-        SetLocalPosition(root, "Passengerside", new Vector3(-driverSide, 0.1f, 0f));
+        SetLocalPosition(root, "Driverside", DriverExitPosition);
+        SetLocalPosition(root, "Passengerside", PassengerExitPosition);
         Debug.Log(
             $"BMWM4G82: steering wheel x={steeringPosition.x:F3}; " +
-            $"driver exit x={driverSide:F2}.");
+            $"driver exit={DriverExitPosition}.");
     }
 
     private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)
@@ -1333,6 +1381,51 @@ public static class BMWM4G82Setup
         if (material.HasProperty("_Smoothness"))
             material.SetFloat("_Smoothness", BMWM4G82Materials.RimSmoothness);
         EditorUtility.SetDirty(material);
+    }
+
+    private static void ConfigureCaliperFinish(GameObject root)
+    {
+        var configured = 0;
+        foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (!renderer.name.StartsWith("BMW_Caliper_", StringComparison.Ordinal))
+                continue;
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (material == null)
+                    continue;
+                BMWM4G82Materials.ApplyCaliperFinish(material);
+                EditorUtility.SetDirty(material);
+                configured++;
+            }
+        }
+        if (configured != 4)
+            throw new InvalidOperationException($"Expected four visible BMW caliper materials, found {configured}.");
+    }
+
+    private static int CountFilteredTriangles(
+        Transform root,
+        MeshRenderer renderer,
+        Func<Vector3, bool> includeTriangleCenter)
+    {
+        var mesh = renderer.GetComponent<MeshFilter>()?.sharedMesh;
+        if (mesh == null)
+            return 0;
+        var vertices = mesh.vertices;
+        var selected = 0;
+        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
+        {
+            var triangles = mesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < triangles.Length; index += 3)
+            {
+                var center = root.InverseTransformPoint(renderer.transform.TransformPoint(
+                    (vertices[triangles[index]] + vertices[triangles[index + 1]] +
+                     vertices[triangles[index + 2]]) / 3f));
+                if (includeTriangleCenter(center))
+                    selected++;
+            }
+        }
+        return selected;
     }
 
     private static bool IsCaliperMaterial(Material material) =>
