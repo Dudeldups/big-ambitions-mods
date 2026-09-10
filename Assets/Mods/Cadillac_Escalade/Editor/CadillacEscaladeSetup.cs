@@ -32,6 +32,7 @@ public static class CadillacEscaladeSetup
     // to avoid squeezing the body inside the correctly sized wheel track.
     private const float TargetVisualWidthIncludingMirrors = 2.45f;
     private const float TargetHeight = 1.887f;
+    private const float Wheelbase = 2.946f;
     private const float BodyGroundClearance = 0.18f;
     private const float WheelRadius = 0.408f;
     private const float WheelWidth = 0.285f;
@@ -153,6 +154,7 @@ public static class CadillacEscaladeSetup
             var glassRenderers = 0;
             var bodyPaintSlots = 0;
             var caliperSlots = 0;
+            var centeredPaintBodyMeshes = 0;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (string.Equals(transform.name, "CadillacWheelFrontLeft", StringComparison.Ordinal) ||
@@ -183,7 +185,15 @@ public static class CadillacEscaladeSetup
                         }
                     }
                 }
+                if (string.Equals(transform.name, "CadillacDamageBody", StringComparison.Ordinal))
+                {
+                    var bodyMesh = transform.GetComponent<MeshFilter>()?.sharedMesh;
+                    if (bodyMesh != null && Math.Abs(bodyMesh.bounds.center.x) < 0.01f)
+                        centeredPaintBodyMeshes++;
+                }
             }
+            if (centeredPaintBodyMeshes != 1)
+                issues.Add($"centeredPaintBodyMeshes={centeredPaintBodyMeshes}");
 
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
@@ -216,8 +226,12 @@ public static class CadillacEscaladeSetup
                 var wheelbase = Math.Abs(frontLeft.localPosition.z - rearLeft.localPosition.z);
                 var frontTrack = Math.Abs(frontRight.localPosition.x - frontLeft.localPosition.x);
                 var rearTrack = Math.Abs(rearRight.localPosition.x - rearLeft.localPosition.x);
-                if (Math.Abs(wheelbase - 2.946f) > 0.01f)
+                var axleMidpoint =
+                    (frontLeft.localPosition.z + rearLeft.localPosition.z) * 0.5f;
+                if (Math.Abs(wheelbase - Wheelbase) > 0.01f)
                     issues.Add($"wheelbase={wheelbase:F3}");
+                if (axleMidpoint < 0.16f || axleMidpoint > 0.19f)
+                    issues.Add($"axleMidpoint={axleMidpoint:F3}");
                 if (Math.Abs(frontTrack - 1.730f) > 0.01f)
                     issues.Add($"frontTrack={frontTrack:F3}");
                 if (Math.Abs(rearTrack - 1.700f) > 0.01f)
@@ -642,16 +656,23 @@ public static class CadillacEscaladeSetup
         if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Scaled Cadillac bounds could not be measured.");
 
+        var paintBody = FindTransform(model.transform, "Cadillac_Escalade_obj_3") ??
+                        throw new InvalidOperationException("Cadillac paint body transform is missing.");
+        if (!TryGetRendererBounds(paintBody, out var paintBodyBounds))
+            throw new InvalidOperationException("Cadillac paint body bounds could not be measured.");
+
         model.transform.position += new Vector3(
-            -bounds.center.x,
+            -paintBodyBounds.center.x,
             BodyGroundClearance - bounds.min.y,
             -bounds.center.z);
-        if (!TryGetModelBodyBounds(model.transform, out bounds))
+        if (!TryGetModelBodyBounds(model.transform, out bounds) ||
+            !TryGetRendererBounds(paintBody, out paintBodyBounds))
             throw new InvalidOperationException("Final Cadillac bounds could not be measured.");
 
         Debug.Log(
             $"CadillacEscalade: normalized supplied GLB scale={scale}, " +
-            $"bounds={bounds.size}, center={bounds.center}.");
+            $"bounds={bounds.size}, center={bounds.center}, " +
+            $"paintBodyCenter={paintBodyBounds.center}.");
     }
 
     private static void AttachWheelVisuals(GameObject root, GameObject model)
@@ -675,6 +696,27 @@ public static class CadillacEscaladeSetup
                 ("Cadillac_Escalade_obj.004", "gum.000", "Cadillac_Escalade_obj.004", "gum.000")
             },
         };
+
+        var authoredWheelCenters = new Dictionary<string, Vector3>();
+        foreach (var pair in mapping)
+        {
+            var tire = FindTransform(model.transform, pair.Value.Tire) ??
+                       throw new InvalidOperationException(
+                           $"Model tire group '{pair.Value.Tire}' is missing.");
+            if (!TryGetRendererBounds(tire, out var authoredBounds))
+                throw new InvalidOperationException(
+                    $"Model tire group '{pair.Value.Tire}' has no authored bounds.");
+            authoredWheelCenters.Add(
+                pair.Key,
+                root.transform.InverseTransformPoint(authoredBounds.center));
+        }
+        var authoredFrontMidpoint =
+            (authoredWheelCenters["FrontLeft_WheelController"].z +
+             authoredWheelCenters["FrontRight_WheelController"].z) * 0.5f;
+        var authoredRearMidpoint =
+            (authoredWheelCenters["RearLeft_WheelController"].z +
+             authoredWheelCenters["RearRight_WheelController"].z) * 0.5f;
+        var authoredAxleMidpoint = (authoredFrontMidpoint + authoredRearMidpoint) * 0.5f;
 
         var straightRotations = new Dictionary<string, Quaternion>();
         foreach (var value in mapping.Values)
@@ -717,7 +759,11 @@ public static class CadillacEscaladeSetup
                     $"Model tire group '{pair.Value.Tire}' has invalid bounds.");
             }
 
-            controller.localPosition = WheelControllerPositions[pair.Key];
+            var controllerPosition = WheelControllerPositions[pair.Key];
+            controllerPosition.z = pair.Key.StartsWith("Front", StringComparison.Ordinal)
+                ? authoredAxleMidpoint + Wheelbase * 0.5f
+                : authoredAxleMidpoint - Wheelbase * 0.5f;
+            controller.localPosition = controllerPosition;
             var suffix = pair.Key
                 .Replace("_WheelController", string.Empty)
                 .Replace("_", string.Empty);
@@ -747,7 +793,8 @@ public static class CadillacEscaladeSetup
             CreateBrakeHardware(root, mount, controller, suffix);
             Debug.Log(
                 $"CadillacEscalade: fitted {pair.Value.Rim}/{pair.Value.Tire} to {pair.Key} " +
-                $"center={controller.localPosition}, tire={WheelWidth:F3}x{WheelRadius * 2f:F3}m.");
+                $"center={controller.localPosition}, authoredCenter={authoredWheelCenters[pair.Key]}, " +
+                $"tire={WheelWidth:F3}x{WheelRadius * 2f:F3}m.");
 
             AssignWheelVisual(controller, mount);
         }
