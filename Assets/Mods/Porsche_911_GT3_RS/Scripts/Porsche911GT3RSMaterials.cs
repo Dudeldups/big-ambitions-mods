@@ -623,6 +623,7 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
+    private readonly List<Material> ownedPanelMaterials = new List<Material>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
     private ModContext? context;
@@ -699,6 +700,7 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
             if (!Porsche911GT3RSMaterials.IsPorscheRenderer(renderer.transform))
                 continue;
             var materials = renderer.sharedMaterials;
+            var materialsChanged = false;
             for (var index = 0; index < materials.Length; index++)
             {
                 var material = materials[index];
@@ -708,6 +710,26 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
                 {
                     slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Body));
                     bodySlots++;
+                }
+                else if (material != null && IsExteriorPaintCover(renderer, material))
+                {
+                    // The supplied model places textured black/carbon cover
+                    // meshes directly over the hood, roof, and fender paint
+                    // shells. Give only those renderer slots a vehicle-owned
+                    // paint surface so their selected color is not multiplied
+                    // back to black by the shared carbon texture.
+                    var panelMaterial = Instantiate(material);
+                    panelMaterial.name = material.name + "_PaintSurface";
+                    PrepareExteriorPaintSurface(panelMaterial);
+                    materials[index] = panelMaterial;
+                    ownedPanelMaterials.Add(panelMaterial);
+                    slots.Add(new PaintSlot(
+                        renderer,
+                        panelMaterial,
+                        index,
+                        PaintCategory.Body));
+                    bodySlots++;
+                    materialsChanged = true;
                 }
                 else if (material != null && IsInteriorAccent(renderer, material))
                 {
@@ -719,13 +741,15 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
                     interiorAccentSlots++;
                 }
             }
+            if (materialsChanged)
+                renderer.sharedMaterials = materials;
         }
 
         Porsche911GT3RSDiagnostics.PaintInfo(
             context,
             $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: mapped " +
             $"bodySlots={bodySlots}, interiorAccentSlots={interiorAccentSlots}; " +
-            "glass, lamps, carbon, rims, brakes, and black trim excluded.");
+            "glass, lamps, unmapped carbon, rims, brakes, and black trim excluded.");
         if (bodySlots == 0 || interiorAccentSlots == 0)
             context?.Logger.Warn(
                 $"Porsche911GT3RS paint mapping incomplete bodySlots={bodySlots}, " +
@@ -741,6 +765,43 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
         return materialName.IndexOf("seat_leather_2", StringComparison.OrdinalIgnoreCase) >= 0 ||
                materialName.IndexOf("B60000", StringComparison.OrdinalIgnoreCase) >= 0 ||
                materialName.IndexOf("_red", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsExteriorPaintCover(Renderer renderer, Material material)
+    {
+        var materialName = material.name;
+        var hoodOrRoof =
+            HasAncestor(renderer.transform, "gt3rs_carbon_hood") ||
+            HasAncestor(renderer.transform, "gt3rs_carbon_roof");
+        if (hoodOrRoof && materialName.IndexOf(
+                "carbon_roof",
+                StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        return HasAncestor(renderer.transform, "gt3rs_fender_") &&
+               materialName.IndexOf(
+                   "plastic_mgl",
+                   StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static void PrepareExteriorPaintSurface(Material material)
+    {
+        if (material.HasProperty("_BaseColorMap"))
+            material.SetTexture("_BaseColorMap", Texture2D.whiteTexture);
+        if (material.HasProperty("baseColorTexture"))
+            material.SetTexture("baseColorTexture", Texture2D.whiteTexture);
+        if (material.HasProperty("_NormalMap"))
+            material.SetTexture("_NormalMap", null);
+        if (material.HasProperty("_MaskMap"))
+            material.SetTexture("_MaskMap", null);
+        if (material.HasProperty("_Metallic"))
+            material.SetFloat("_Metallic", 0.12f);
+        if (material.HasProperty("_Smoothness"))
+            material.SetFloat("_Smoothness", 0.86f);
+        if (material.HasProperty("_CoatMask"))
+            material.SetFloat("_CoatMask", 0.20f);
     }
 
     private static bool HasAncestor(Transform transform, string marker)
@@ -761,6 +822,13 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
                VehicleHelper.TryGetVehicleColor(colorName, out var saved)
             ? saved
             : null;
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var material in ownedPanelMaterials)
+            if (material != null) Destroy(material);
+        ownedPanelMaterials.Clear();
     }
 
     private readonly struct PaintSlot

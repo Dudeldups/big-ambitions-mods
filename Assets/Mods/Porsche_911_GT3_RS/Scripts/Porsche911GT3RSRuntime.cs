@@ -575,6 +575,14 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
+            var collisionSeparation =
+                vehicle.GetComponent<Porsche911GT3RSCollisionSeparationController>();
+            if (collisionSeparation == null)
+            {
+                collisionSeparation = vehicle.gameObject
+                    .AddComponent<Porsche911GT3RSCollisionSeparationController>();
+            }
+            collisionSeparation.Initialize(vehicle);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var wheelGeometryController = vehicle.GetComponent<Porsche911GT3RSWheelGeometryController>();
@@ -691,13 +699,13 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.32f - ChassisAndTireDrop, 0f);
-                colliders[0].size = new Vector3(1.82f, 0.42f, 4.40f);
+                colliders[0].center = new Vector3(0f, 0.33f - ChassisAndTireDrop, 0f);
+                colliders[0].size = new Vector3(1.86f, 0.44f, 4.46f);
             }
             if (colliders.Length > 1)
             {
                 colliders[1].center = new Vector3(0f, 0.78f - ChassisAndTireDrop, -0.08f);
-                colliders[1].size = new Vector3(1.62f, 0.72f, 2.70f);
+                colliders[1].size = new Vector3(1.68f, 0.72f, 2.82f);
             }
         }
     }
@@ -1067,6 +1075,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 }
 
 [AddComponentMenu("")]
+[DefaultExecutionOrder(900)]
 public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 {
     private const float WheelAssemblyInsetMeters = 0.085f;
@@ -1077,6 +1086,7 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         { "RearLeft_WheelController", "PorscheWheelRearLeft", "PorscheFixedCaliperRearLeft" },
         { "RearRight_WheelController", "PorscheWheelRearRight", "PorscheFixedCaliperRearRight" },
     };
+    private readonly List<WheelVisualBinding> bindings = new List<WheelVisualBinding>(4);
     private bool initialized;
 
     internal int Initialize(ModContext? context, float chassisAndTireDrop)
@@ -1085,6 +1095,7 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
             return CornerNames.GetLength(0);
 
         initialized = true;
+        bindings.Clear();
         var visual = FindTransform("PorscheVisual");
         if (visual != null)
             visual.position -= transform.up * chassisAndTireDrop;
@@ -1117,7 +1128,8 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 if (!wheelFollowsController)
                     MoveDown(wheel, chassisAndTireDrop);
                 MoveDown(caliper, chassisAndTireDrop);
-                BindRollingVisual(controller, wheel);
+                var wheelController = BindRollingVisual(controller, wheel);
+                bindings.Add(new WheelVisualBinding(wheelController, wheel));
                 correctedCorners++;
             }
             catch (Exception exception)
@@ -1146,6 +1158,31 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         return correctedCorners;
     }
 
+    private void LateUpdate()
+    {
+        if (!initialized)
+            return;
+
+        foreach (var binding in bindings)
+        {
+            var wheel = binding.Controller.wheel;
+            var position = wheel.worldPosition;
+            var rotation = wheel.worldRotation;
+            if (!IsFinite(position) || !IsFinite(rotation) ||
+                rotation.x * rotation.x + rotation.y * rotation.y +
+                rotation.z * rotation.z + rotation.w * rotation.w < 0.5f)
+            {
+                continue;
+            }
+
+            // NWH owns the authoritative suspension, steering, and roll pose.
+            // Apply that pose to the complete imported tire/rim/rotor group
+            // after NWH has stepped so no later lifecycle reparenting can leave
+            // the tire at the chassis pose while the wheel steers.
+            binding.Visual.SetPositionAndRotation(position, rotation);
+        }
+    }
+
     private Transform? FindTransform(string name)
     {
         foreach (var candidate in GetComponentsInChildren<Transform>(true))
@@ -1166,7 +1203,9 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
     private void MoveDown(Transform target, float distance) =>
         target.position -= transform.up * distance;
 
-    private static void BindRollingVisual(Transform controller, Transform wheel)
+    private static NWH.WheelController3D.WheelController BindRollingVisual(
+        Transform controller,
+        Transform wheel)
     {
         var wheelController =
             controller.GetComponent<NWH.WheelController3D.WheelController>();
@@ -1177,6 +1216,145 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         wheelController.wheel.visualTransform = wheel;
         if (wheel.parent != controller)
             wheel.SetParent(controller, true);
+        return wheelController;
+    }
+
+    private static bool IsFinite(Vector3 value) =>
+        !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+        !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+        !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+
+    private static bool IsFinite(Quaternion value) =>
+        !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+        !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+        !float.IsNaN(value.z) && !float.IsInfinity(value.z) &&
+        !float.IsNaN(value.w) && !float.IsInfinity(value.w);
+
+    private sealed class WheelVisualBinding
+    {
+        internal WheelVisualBinding(
+            NWH.WheelController3D.WheelController controller,
+            Transform visual)
+        {
+            Controller = controller;
+            Visual = visual;
+        }
+
+        internal NWH.WheelController3D.WheelController Controller { get; }
+        internal Transform Visual { get; }
+    }
+}
+
+[AddComponentMenu("")]
+public sealed class Porsche911GT3RSCollisionSeparationController : MonoBehaviour
+{
+    private const float MinimumPenetration = 0.025f;
+    private const float SeparationPadding = 0.015f;
+    private const float MaximumCorrectionPerPass = 0.18f;
+    private const int MaximumPasses = 3;
+
+    private readonly List<Collider> bodyColliders = new List<Collider>(2);
+    private VehicleController? vehicle;
+    private Rigidbody? body;
+    private Coroutine? separationCoroutine;
+
+    internal void Initialize(VehicleController controller)
+    {
+        if (vehicle == controller && bodyColliders.Count > 0)
+            return;
+
+        vehicle = controller;
+        body = controller.GetComponent<Rigidbody>();
+        bodyColliders.Clear();
+        foreach (var transform in controller.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(transform.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+            foreach (var collider in transform.GetComponents<Collider>())
+                if (collider != null && collider.enabled && !collider.isTrigger)
+                    bodyColliders.Add(collider);
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (vehicle == null || body == null || collision?.collider == null)
+            return;
+        var otherVehicle = collision.collider.GetComponentInParent<VehicleController>();
+        if (otherVehicle == null || otherVehicle == vehicle)
+            return;
+
+        if (separationCoroutine != null)
+            StopCoroutine(separationCoroutine);
+        separationCoroutine = StartCoroutine(ResolveVehiclePenetration(otherVehicle));
+    }
+
+    private IEnumerator ResolveVehiclePenetration(VehicleController otherVehicle)
+    {
+        yield return new WaitForFixedUpdate();
+        var otherColliders = otherVehicle != null
+            ? otherVehicle.GetComponentsInChildren<Collider>(true)
+            : Array.Empty<Collider>();
+        for (var pass = 0; pass < MaximumPasses; pass++)
+        {
+            if (body == null || otherVehicle == null)
+                break;
+
+            var bestDirection = Vector3.zero;
+            var bestDistance = 0f;
+            foreach (var ownCollider in bodyColliders)
+            {
+                if (ownCollider == null || !ownCollider.enabled)
+                    continue;
+                foreach (var otherCollider in otherColliders)
+                {
+                    if (otherCollider == null || !otherCollider.enabled ||
+                        otherCollider.isTrigger ||
+                        otherCollider.transform.IsChildOf(transform))
+                    {
+                        continue;
+                    }
+
+                    if (!Physics.ComputePenetration(
+                            ownCollider,
+                            ownCollider.transform.position,
+                            ownCollider.transform.rotation,
+                            otherCollider,
+                            otherCollider.transform.position,
+                            otherCollider.transform.rotation,
+                            out var direction,
+                            out var distance) ||
+                        distance <= bestDistance)
+                    {
+                        continue;
+                    }
+
+                    bestDirection = direction;
+                    bestDistance = distance;
+                }
+            }
+
+            if (bestDistance <= MinimumPenetration || bestDirection.sqrMagnitude < 0.5f)
+                break;
+
+            var correction = Mathf.Min(
+                bestDistance + SeparationPadding,
+                MaximumCorrectionPerPass);
+            body.position += bestDirection.normalized * correction;
+            var inwardSpeed = Vector3.Dot(body.velocity, -bestDirection.normalized);
+            if (inwardSpeed > 0f)
+                body.velocity += bestDirection.normalized * inwardSpeed;
+            body.WakeUp();
+            yield return new WaitForFixedUpdate();
+        }
+        separationCoroutine = null;
+    }
+
+    private void OnDisable()
+    {
+        if (separationCoroutine != null)
+            StopCoroutine(separationCoroutine);
+        separationCoroutine = null;
     }
 }
 

@@ -27,10 +27,9 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
     private MeshRenderer? daylightOverlayRight;
     private MeshRenderer? headlampOverlay;
     private MeshRenderer? headlampOverlayRight;
-    private MeshRenderer? secondaryHeadlampOverlay;
-    private MeshRenderer? secondaryHeadlampOverlayRight;
     private MeshRenderer? rearTailOverlay;
     private MeshRenderer? rearBrakeOverlay;
+    private MeshRenderer? rearBrakeSegmentsOverlay;
     private MeshRenderer? thirdBrakeOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
@@ -52,12 +51,10 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         LocateStateSources();
 
         var renderers = controller.GetComponentsInChildren<MeshRenderer>(true);
-        var daylight = FindRenderer(renderers, "headlight_L_led", "led_lights");
-        var daylightRight = FindRenderer(renderers, "headlight_R_led", "led_lights");
-        var headlamp = FindRenderer(renderers, "headlight_L_led", "headlight_1");
-        var headlampRight = FindRenderer(renderers, "headlight_R_led", "headlight_1");
-        var secondaryHeadlamp = FindRenderer(renderers, "headlight_L_led", "headlight_high");
-        var secondaryHeadlampRight = FindRenderer(renderers, "headlight_R_led", "headlight_high");
+        var daylight = FindRenderer(renderers, "headlight_L_led", "headlight_1");
+        var daylightRight = FindRenderer(renderers, "headlight_R_led", "headlight_1");
+        var headlamp = FindRenderer(renderers, "headlight_L_led", "headlight_high");
+        var headlampRight = FindRenderer(renderers, "headlight_R_led", "headlight_high");
         var rearStrip = FindRenderer(renderers, "fascia_mid", "taillight_running");
         var rearLamp = FindRenderer(renderers, "fascia_mid", "brakelight_1");
         var thirdBrake = FindRendererByHierarchy(renderers, "gt3rs_tailgate_TwiXeR_992_brakelight_1");
@@ -65,21 +62,24 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var rearLampSplit = GetLateralSplit(rearLamp, 0.72f, 0.50f);
 
         daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
-            new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
+            new Color(0.80f, 0.90f, 1f, 1f), 4.8f);
         daylightOverlayRight = CreateOverlay(daylightRight, "DaytimeRunningLightsRight",
-            new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
+            new Color(0.80f, 0.90f, 1f, 1f), 4.8f);
         headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
         headlampOverlayRight = CreateOverlay(headlampRight, "HeadlampProjectorsRight",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
-        secondaryHeadlampOverlay = CreateOverlay(secondaryHeadlamp, "HeadlampSecondary",
-            new Color(0.84f, 0.92f, 1f, 1f), 5.8f);
-        secondaryHeadlampOverlayRight = CreateOverlay(secondaryHeadlampRight,
-            "HeadlampSecondaryRight", new Color(0.84f, 0.92f, 1f, 1f), 5.8f);
         rearTailOverlay = CreateOverlay(rearStrip, "RearTailSignature",
             new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
         rearBrakeOverlay = CreateOverlay(rearStrip, "RearBrakeSignature",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
+        rearBrakeSegmentsOverlay = CreateConnectedOverlay(
+            rearLamp,
+            IsRearBrakeSegment,
+            "RearBrakeSegments",
+            new Color(1f, 0.008f, 0.001f, 1f),
+            4.5f,
+            1.006f);
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
         reverseOverlay = CreateFilteredOverlay(
@@ -89,24 +89,34 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             new Color(0.92f, 0.96f, 1f, 1f),
             4.8f,
             1.006f);
-        var amber = new Color(1f, 0.52f, 0.015f, 1f);
+        var amber = new Color(1f, 0.92f, 0.015f, 1f);
         leftBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x <= -0.45f,
             "LeftIndicator", amber, 5.4f, 1.004f);
         rightBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x >= 0.45f,
             "RightIndicator", amber, 5.4f, 1.004f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x < -rearLampSplit,
-            "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x > rearLampSplit,
-            "RearRightIndicator", amber, 6f, 1.006f);
+        rearLeftBlinkerOverlay = CreateConnectedOverlay(
+            rearLamp,
+            (component, total) => IsRearIndicatorComponent(component, total, true),
+            "RearLeftIndicator",
+            amber,
+            5.4f,
+            1.006f);
+        rearRightBlinkerOverlay = CreateConnectedOverlay(
+            rearLamp,
+            (component, total) => IsRearIndicatorComponent(component, total, false),
+            "RearRightIndicator",
+            amber,
+            5.4f,
+            1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
-        LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
+        LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}' " +
                 $"signals='{frontSignals?.name}' " +
                 $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
                 $"reverse='{rearLamp?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/10 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 10 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"lampOverlays={CountLampOverlays()}/9 blinkerOverlays={CountBlinkerOverlays()}/4.");
+        if (CountLampOverlays() != 9 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -239,6 +249,92 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             LogWarning($"filtered overlay '{suffix}' selected no triangles.");
             return null;
         }
+        return CreateOverlayFromTriangles(source, sourceMesh, triangles, suffix, color, intensity, scale);
+    }
+
+    private MeshRenderer? CreateConnectedOverlay(
+        MeshRenderer? source,
+        Func<ConnectedComponent, Bounds, bool> includeComponent,
+        string suffix,
+        Color color,
+        float intensity,
+        float scale)
+    {
+        if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
+            return null;
+
+        var sourceMesh = source.GetComponent<MeshFilter>().sharedMesh;
+        var vertices = sourceMesh.vertices;
+        var parent = new int[vertices.Length];
+        for (var index = 0; index < parent.Length; index++)
+            parent[index] = index;
+        var allTriangles = new List<int>();
+        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
+        {
+            var sourceTriangles = sourceMesh.GetTriangles(subMesh);
+            allTriangles.AddRange(sourceTriangles);
+            for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+            {
+                Union(parent, sourceTriangles[index], sourceTriangles[index + 1]);
+                Union(parent, sourceTriangles[index + 1], sourceTriangles[index + 2]);
+            }
+        }
+
+        var total = new Bounds();
+        var totalInitialized = false;
+        var positions = new Vector3[vertices.Length];
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            positions[index] = vehicle.transform.InverseTransformPoint(
+                source.transform.TransformPoint(vertices[index]));
+            if (!totalInitialized)
+            {
+                total = new Bounds(positions[index], Vector3.zero);
+                totalInitialized = true;
+            }
+            else
+            {
+                total.Encapsulate(positions[index]);
+            }
+        }
+
+        var components = new Dictionary<int, ConnectedComponent>();
+        for (var index = 0; index + 2 < allTriangles.Count; index += 3)
+        {
+            var first = allTriangles[index];
+            var root = Find(parent, first);
+            if (!components.TryGetValue(root, out var component))
+            {
+                component = new ConnectedComponent();
+                components.Add(root, component);
+            }
+            component.AddTriangle(
+                first,
+                allTriangles[index + 1],
+                allTriangles[index + 2],
+                positions);
+        }
+
+        var triangles = new List<int>();
+        foreach (var component in components.Values)
+            if (includeComponent(component, total))
+                triangles.AddRange(component.Triangles);
+        if (triangles.Count == 0)
+            return null;
+
+        return CreateOverlayFromTriangles(source, sourceMesh, triangles, suffix, color, intensity, scale);
+    }
+
+    private MeshRenderer CreateOverlayFromTriangles(
+        MeshRenderer source,
+        Mesh sourceMesh,
+        List<int> triangles,
+        string suffix,
+        Color color,
+        float intensity,
+        float scale)
+    {
+        var vertices = sourceMesh.vertices;
         var mesh = new Mesh
         {
             name = sourceMesh.name + "_" + suffix,
@@ -254,6 +350,57 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         mesh.RecalculateBounds();
         generatedMeshes.Add(mesh);
         return CreateOverlayObject(source, mesh, suffix, color, intensity, scale);
+    }
+
+    private static bool IsRearIndicatorComponent(
+        ConnectedComponent component,
+        Bounds total,
+        bool left)
+    {
+        var center = component.Bounds.center;
+        if ((left && center.x >= 0f) || (!left && center.x <= 0f))
+            return false;
+        var maximumLateral = Mathf.Max(Mathf.Abs(total.min.x), Mathf.Abs(total.max.x));
+        var componentOuter = left
+            ? Mathf.Abs(component.Bounds.min.x)
+            : Mathf.Abs(component.Bounds.max.x);
+        var lowerBar =
+            component.Bounds.size.x >= total.size.x * 0.14f &&
+            component.Bounds.size.z <= total.size.z * 0.22f;
+        var outerHook =
+            componentOuter >= maximumLateral * 0.98f &&
+            component.Bounds.size.x <= total.size.x * 0.05f &&
+            component.Bounds.size.y >= total.size.y * 0.35f;
+        return lowerBar || outerHook;
+    }
+
+    private static bool IsRearBrakeSegment(ConnectedComponent component, Bounds total)
+    {
+        var maximumLateral = Mathf.Max(Mathf.Abs(total.min.x), Mathf.Abs(total.max.x));
+        var lateral = Mathf.Abs(component.Bounds.center.x);
+        return lateral < maximumLateral * 0.90f &&
+               component.Bounds.size.x >= total.size.x * 0.025f &&
+               component.Bounds.size.x <= total.size.x * 0.06f &&
+               component.Bounds.size.y <= total.size.y * 0.22f &&
+               component.Bounds.size.z <= total.size.z * 0.25f;
+    }
+
+    private static int Find(int[] parent, int index)
+    {
+        while (parent[index] != index)
+        {
+            parent[index] = parent[parent[index]];
+            index = parent[index];
+        }
+        return index;
+    }
+
+    private static void Union(int[] parent, int first, int second)
+    {
+        var firstRoot = Find(parent, first);
+        var secondRoot = Find(parent, second);
+        if (firstRoot != secondRoot)
+            parent[secondRoot] = firstRoot;
     }
 
     private float GetLateralSplit(MeshRenderer? source, float outerFraction, float fallback)
@@ -339,10 +486,9 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         SetEnabled(daylightOverlayRight, lightsOn);
         SetEnabled(headlampOverlay, lightsOn);
         SetEnabled(headlampOverlayRight, lightsOn);
-        SetEnabled(secondaryHeadlampOverlay, lightsOn);
-        SetEnabled(secondaryHeadlampOverlayRight, lightsOn);
         SetEnabled(rearTailOverlay, lightsOn && !braking);
         SetEnabled(rearBrakeOverlay, braking);
+        SetEnabled(rearBrakeSegmentsOverlay, braking);
         SetEnabled(thirdBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
@@ -366,10 +512,10 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
     private int CountLampOverlays() =>
         (daylightOverlay != null ? 1 : 0) + (daylightOverlayRight != null ? 1 : 0) +
         (headlampOverlay != null ? 1 : 0) + (headlampOverlayRight != null ? 1 : 0) +
-        (secondaryHeadlampOverlay != null ? 1 : 0) +
-        (secondaryHeadlampOverlayRight != null ? 1 : 0) +
         (rearTailOverlay != null ? 1 : 0) +
-        (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0) +
+        (rearBrakeOverlay != null ? 1 : 0) +
+        (rearBrakeSegmentsOverlay != null ? 1 : 0) +
+        (thirdBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>
@@ -475,6 +621,36 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             if (generatedMaterial != null) Destroy(generatedMaterial);
         foreach (var generatedMesh in generatedMeshes)
             if (generatedMesh != null) Destroy(generatedMesh);
+    }
+
+    private sealed class ConnectedComponent
+    {
+        internal readonly List<int> Triangles = new List<int>();
+        internal Bounds Bounds;
+        private bool boundsInitialized;
+
+        internal void AddTriangle(int first, int second, int third, Vector3[] positions)
+        {
+            Triangles.Add(first);
+            Triangles.Add(second);
+            Triangles.Add(third);
+            Encapsulate(positions[first]);
+            Encapsulate(positions[second]);
+            Encapsulate(positions[third]);
+        }
+
+        private void Encapsulate(Vector3 position)
+        {
+            if (!boundsInitialized)
+            {
+                Bounds = new Bounds(position, Vector3.zero);
+                boundsInitialized = true;
+            }
+            else
+            {
+                Bounds.Encapsulate(position);
+            }
+        }
     }
 }
 
