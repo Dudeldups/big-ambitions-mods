@@ -14,7 +14,6 @@ namespace MobileVeterinarian
     {
         internal const string BundleKey = "AssetBundles/mobileveterinarian.unity3d";
         internal const string DoctorPrefabPath = "Assets/Mods/MobileVeterinarian/Doctor.prefab";
-        internal static readonly bool DiagnosticLoggingEnabled = false;
 
         private MobileVeterinarianRuntime? runtime;
         private GameObject? doctorPrefab;
@@ -31,11 +30,6 @@ namespace MobileVeterinarian
                 context.Logger.Warn(
                     $"Mobile Veterinarian: doctor prefab load failed bundle='{BundleKey}' asset='{DoctorPrefabPath}'.");
             }
-            else if (DiagnosticLoggingEnabled)
-            {
-                context.Logger.Info(
-                    $"Mobile Veterinarian: doctor prefab loaded bundle='{BundleKey}' asset='{DoctorPrefabPath}'.");
-            }
 
             runtime = MobileVeterinarianRuntime.Install(context, doctorPrefab);
             return Task.CompletedTask;
@@ -43,8 +37,14 @@ namespace MobileVeterinarian
 
         public Task OnUnloadAsync()
         {
-            runtime?.Shutdown("game or city unload");
+            // A destroyed Unity object can retain a non-null managed reference. The null-
+            // conditional operator does not use UnityEngine.Object's native-aware equality,
+            // so check it explicitly before invoking shutdown during game teardown.
+            var currentRuntime = runtime;
             runtime = null;
+            if (currentRuntime != null)
+                currentRuntime.Shutdown("game or city unload");
+
             doctorPrefab = null;
             return Task.CompletedTask;
         }
