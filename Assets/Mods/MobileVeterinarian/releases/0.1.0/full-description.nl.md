@@ -18,7 +18,7 @@ De dierenarts controleert beide kanten van het dier om een veilige staanplaats t
 
 [h2]Ondersteunde dieren[/h2]
 
-De berijdbare koe uit Moo-tor Vehicle wordt standaard ondersteund. Moo-tor Vehicle is optioneel en wordt niet met deze mod meegeleverd.
+De berijdbare koe uit [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] wordt standaard ondersteund. Moo-tor Vehicle is optioneel en wordt niet met deze mod meegeleverd.
 
 Andere mods met rijdieren kunnen via het openbare register hun exacte VehicleType, gelokaliseerde dierennaam en gewenste behandelpositie registreren. Alle serviceberichten gebruiken de naam die door de dierenmod wordt aangeleverd; registraties zonder bruikbare naam gebruiken “je dier” als terugvaloptie.
 

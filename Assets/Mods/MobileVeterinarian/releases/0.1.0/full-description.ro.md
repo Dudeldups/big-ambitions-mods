@@ -18,7 +18,7 @@ Veterinarul verifică ambele părți ale animalului pentru a găsi un loc sigur.
 
 [h2]Animale compatibile[/h2]
 
-Vaca pe care se poate călări din Moo-tor Vehicle este compatibilă în mod implicit. Moo-tor Vehicle este opțional și nu este inclus în acest mod.
+Vaca pe care se poate călări din [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] este compatibilă în mod implicit. Moo-tor Vehicle este opțional și nu este inclus în acest mod.
 
 Alte moduri cu animale călăribile își pot înregistra în registrul public valoarea VehicleType exactă, numele localizat al animalului și poziția preferată pentru tratament. Toate mesajele serviciului folosesc numele furnizat de modul animalului; înregistrările fără un nume valid folosesc „animalul tău” ca alternativă.
 

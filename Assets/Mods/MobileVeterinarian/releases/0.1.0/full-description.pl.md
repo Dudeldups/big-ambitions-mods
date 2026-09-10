@@ -18,7 +18,7 @@ Weterynarz sprawdza obie strony zwierzęcia, aby znaleźć bezpieczne miejsce. A
 
 [h2]Obsługiwane zwierzęta[/h2]
 
-Krowa wierzchowa z Moo-tor Vehicle jest obsługiwana od razu. Moo-tor Vehicle jest opcjonalny i nie jest dołączony do tego moda.
+Krowa wierzchowa z [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] jest obsługiwana od razu. Moo-tor Vehicle jest opcjonalny i nie jest dołączony do tego moda.
 
 Inne mody ze zwierzętami wierzchowymi mogą zarejestrować w publicznym rejestrze dokładny VehicleType, zlokalizowaną nazwę zwierzęcia i preferowane miejsce leczenia. Wszystkie komunikaty usługi używają nazwy przekazanej przez mod zwierzęcia; jeśli rejestracja nie zawiera użytecznej nazwy, używane jest określenie „twoje zwierzę”.
 

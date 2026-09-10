@@ -18,7 +18,7 @@ O veterinário verifica os dois lados do animal para encontrar uma posição seg
 
 [h2]Animais compatíveis[/h2]
 
-A vaca montável de Moo-tor Vehicle é compatível de origem. Moo-tor Vehicle é opcional e não está incluído neste mod.
+A vaca montável de [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] é compatível de origem. Moo-tor Vehicle é opcional e não está incluído neste mod.
 
 Outros mods de animais montáveis podem registar o seu VehicleType exato, o nome localizado do animal e a posição de tratamento preferida através do registo público. Todas as mensagens do serviço usam o nome fornecido pelo mod do animal; os registos sem um nome válido usam “o teu animal” como alternativa.
 

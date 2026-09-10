@@ -18,7 +18,7 @@ Der Tierarzt prüft beide Seiten des Tiers auf einen sicheren Standplatz. Ein ab
 
 [h2]Unterstützte Tiere[/h2]
 
-Die reitbare Kuh aus Moo-tor Vehicle wird standardmäßig unterstützt. Moo-tor Vehicle ist optional und nicht in dieser Mod enthalten.
+Die reitbare Kuh aus [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] wird standardmäßig unterstützt. Moo-tor Vehicle ist optional und nicht in dieser Mod enthalten.
 
 Andere Reittier-Mods können ihren genauen VehicleType, einen lokalisierten Tiernamen und die bevorzugte Behandlungsposition über die öffentliche Registry registrieren. Alle Meldungen verwenden den Namen aus der Tier-Mod; Registrierungen ohne brauchbaren Namen greifen auf „dein Tier“ zurück.
 

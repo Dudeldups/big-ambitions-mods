@@ -18,7 +18,7 @@ Eläinlääkäri tarkistaa eläimen molemmat puolet löytääkseen turvallisen s
 
 [h2]Tuetut eläimet[/h2]
 
-Moo-tor Vehicle -modin ratsastettavaa lehmää tuetaan valmiiksi. Moo-tor Vehicle on valinnainen eikä sisälly tähän modiin.
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] -modin ratsastettavaa lehmää tuetaan valmiiksi. Moo-tor Vehicle on valinnainen eikä sisälly tähän modiin.
 
 Muut ratsastettavia eläimiä lisäävät modit voivat rekisteröidä julkisessa rekisterissä tarkan VehicleType-arvonsa, lokalisoidun eläimen nimen ja ensisijaisen hoitopaikan. Kaikissa palveluviesteissä käytetään eläinmodin antamaa nimeä; jos rekisteröinnissä ei ole kelvollista nimeä, käytetään ilmaisua ”eläimesi”.
 

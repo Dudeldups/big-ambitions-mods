@@ -18,7 +18,7 @@ Dyrlægen kontrollerer begge sider af dyret for at finde en sikker ståplads. Et
 
 [h2]Understøttede dyr[/h2]
 
-Ridekoen fra Moo-tor Vehicle understøttes fra starten. Moo-tor Vehicle er valgfri og følger ikke med denne mod.
+Ridekoen fra [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] understøttes fra starten. Moo-tor Vehicle er valgfri og følger ikke med denne mod.
 
 Andre mods med ridedyr kan registrere deres nøjagtige VehicleType, lokaliserede dyrenavn og foretrukne behandlingsposition gennem det offentlige register. Alle servicemeddelelser bruger navnet fra dyrets mod; registreringer uden et brugbart navn bruger i stedet “dit dyr”.
 

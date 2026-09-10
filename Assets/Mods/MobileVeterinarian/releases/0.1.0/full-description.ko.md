@@ -18,7 +18,7 @@
 
 [h2]지원 동물[/h2]
 
-Moo-tor Vehicle의 탈 수 있는 소를 기본으로 지원합니다. Moo-tor Vehicle은 선택 사항이며 이 모드에 포함되어 있지 않습니다.
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url]의 탈 수 있는 소를 기본으로 지원합니다. Moo-tor Vehicle은 선택 사항이며 이 모드에 포함되어 있지 않습니다.
 
 다른 탑승 동물 모드는 공개 레지스트리를 통해 정확한 VehicleType, 현지화된 동물 이름, 선호 치료 위치를 등록할 수 있습니다. 모든 서비스 메시지는 동물 모드가 제공한 이름을 사용하며, 사용할 수 있는 이름이 없으면 “내 동물”을 대신 사용합니다.
 

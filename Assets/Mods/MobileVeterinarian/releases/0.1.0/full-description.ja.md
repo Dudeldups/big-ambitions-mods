@@ -18,7 +18,7 @@
 
 [h2]対応動物[/h2]
 
-Moo-tor Vehicle の騎乗可能な牛に標準対応しています。Moo-tor Vehicle は任意であり、この Mod には同梱されていません。
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] の騎乗可能な牛に標準対応しています。Moo-tor Vehicle は任意であり、この Mod には同梱されていません。
 
 ほかの騎乗動物 Mod は、公開レジストリを通じて正確な VehicleType、ローカライズされた動物名、希望する治療位置を登録できます。サービスのすべてのメッセージには動物 Mod が指定した名前が使われます。使用できる名前が登録されていない場合は「あなたの動物」が使われます。
 

@@ -18,7 +18,7 @@ Le vétérinaire vérifie les deux côtés de l'animal afin de trouver un emplac
 
 [h2]Animaux compatibles[/h2]
 
-La vache montable de Moo-tor Vehicle est prise en charge par défaut. Moo-tor Vehicle est facultatif et n'est pas inclus avec ce mod.
+La vache montable de [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] est prise en charge par défaut. Moo-tor Vehicle est facultatif et n'est pas inclus avec ce mod.
 
 Les autres mods d'animaux montables peuvent enregistrer leur VehicleType exact, le nom localisé de l'animal et la position de traitement souhaitée dans le registre public. Tous les messages du service utilisent le nom fourni par le mod de l'animal ; si l'enregistrement ne fournit aucun nom valable, « votre animal » est utilisé à la place.
 

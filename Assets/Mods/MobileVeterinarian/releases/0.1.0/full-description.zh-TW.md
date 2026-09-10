@@ -18,7 +18,7 @@
 
 [h2]支援的動物[/h2]
 
-預設支援 Moo-tor Vehicle 中可騎乘的乳牛。Moo-tor Vehicle 為選用項目，未包含在本模組中。
+預設支援 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] 中可騎乘的乳牛。Moo-tor Vehicle 為選用項目，未包含在本模組中。
 
 其他騎乘動物模組可透過公開登錄檔登錄準確的 VehicleType、在地化動物名稱和偏好的治療位置。所有服務訊息都會使用動物模組提供的名稱；若登錄時沒有可用名稱，則會使用「你的動物」。
 

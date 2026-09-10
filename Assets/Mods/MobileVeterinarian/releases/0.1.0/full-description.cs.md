@@ -18,7 +18,7 @@ Veterinář zkontroluje obě strany zvířete a vyhledá bezpečné místo. Za z
 
 [h2]Podporovaná zvířata[/h2]
 
-Jízdní kráva z Moo-tor Vehicle je podporována automaticky. Moo-tor Vehicle je volitelný a není součástí tohoto modu.
+Jízdní kráva z [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] je podporována automaticky. Moo-tor Vehicle je volitelný a není součástí tohoto modu.
 
 Jiné mody s jízdními zvířaty mohou prostřednictvím veřejného registru zaregistrovat přesný VehicleType, lokalizovaný název zvířete a preferovanou pozici pro ošetření. Všechny zprávy služby používají název dodaný modem zvířete; pokud registrace neobsahuje použitelný název, použije se „vaše zvíře“.
 

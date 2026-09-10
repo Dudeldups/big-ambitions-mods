@@ -18,7 +18,7 @@ Il veterinario controlla entrambi i lati dell'animale per trovare una posizione 
 
 [h2]Animali supportati[/h2]
 
-La mucca cavalcabile di Moo-tor Vehicle è supportata fin da subito. Moo-tor Vehicle è facoltativo e non è incluso in questo mod.
+La mucca cavalcabile di [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] è supportata fin da subito. Moo-tor Vehicle è facoltativo e non è incluso in questo mod.
 
 Gli altri mod di animali cavalcabili possono registrare il proprio VehicleType esatto, il nome localizzato dell'animale e la posizione di trattamento preferita tramite il registro pubblico. Tutti i messaggi del servizio usano il nome fornito dal mod dell'animale; le registrazioni prive di un nome utilizzabile usano “il tuo animale” come alternativa.
 

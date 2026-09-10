@@ -18,7 +18,7 @@ The veterinarian checks both sides of the animal for a safe standing position. A
 
 [h2]Supported animals[/h2]
 
-The rideable cow from Moo-tor Vehicle is supported out of the box. Moo-tor Vehicle is optional and is not bundled with this mod.
+The rideable cow from [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] is supported out of the box. Moo-tor Vehicle is optional and is not bundled with this mod.
 
 Other rideable-animal mods can register their exact VehicleType, localized animal name and preferred treatment position through the public registry. All service messages insert the name supplied by the animal mod; registrations without a usable name fall back to “your animal.”
 

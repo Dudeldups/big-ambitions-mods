@@ -18,7 +18,7 @@ Veteriner güvenli bir duruş noktası bulmak için hayvanın iki tarafını da 
 
 [h2]Desteklenen hayvanlar[/h2]
 
-Moo-tor Vehicle içindeki binilebilir inek varsayılan olarak desteklenir. Moo-tor Vehicle isteğe bağlıdır ve bu moda dahil değildir.
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] içindeki binilebilir inek varsayılan olarak desteklenir. Moo-tor Vehicle isteğe bağlıdır ve bu moda dahil değildir.
 
 Diğer binilebilir hayvan modları, kesin VehicleType değerlerini, yerelleştirilmiş hayvan adını ve tercih edilen tedavi konumunu herkese açık kayıt sistemi üzerinden kaydedebilir. Tüm hizmet mesajlarında hayvan modunun sağladığı ad kullanılır; kullanılabilir bir ad içermeyen kayıtlarda “hayvanınız” ifadesi kullanılır.
 

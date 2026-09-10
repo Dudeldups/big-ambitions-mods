@@ -18,7 +18,7 @@
 
 [h2]支持的动物[/h2]
 
-默认支持 Moo-tor Vehicle 中可骑乘的奶牛。Moo-tor Vehicle 为可选项目，未包含在本模组中。
+默认支持 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] 中可骑乘的奶牛。Moo-tor Vehicle 为可选项目，未包含在本模组中。
 
 其他骑乘动物模组可通过公共注册表登记准确的 VehicleType、本地化动物名称和首选治疗位置。所有服务消息都会使用动物模组提供的名称；如果登记时未提供可用名称，则会使用“你的动物”。
 

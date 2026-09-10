@@ -18,7 +18,7 @@ Az állatorvos az állat mindkét oldalán biztonságos helyet keres. A játéko
 
 [h2]Támogatott állatok[/h2]
 
-A Moo-tor Vehicle meglovagolható tehene alapból támogatott. A Moo-tor Vehicle opcionális, és ez a mod nem tartalmazza.
+A [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798865703]Moo-tor Vehicle[/url] meglovagolható tehene alapból támogatott. A Moo-tor Vehicle opcionális, és ez a mod nem tartalmazza.
 
 Más, meglovagolható állatokat tartalmazó modok a nyilvános jegyzékben regisztrálhatják a pontos VehicleType értéküket, a lokalizált állatnevet és az előnyben részesített kezelési pozíciót. A szolgáltatás minden üzenete az állat modja által megadott nevet használja; használható név nélkül az „állatod” az alapértelmezés.
 
