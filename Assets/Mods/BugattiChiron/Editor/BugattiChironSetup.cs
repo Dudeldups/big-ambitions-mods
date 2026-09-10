@@ -26,7 +26,7 @@ public static class BugattiChironSetup
     private const string VehicleTypeName =
         "bugattichiron-vehicle:vehicletype_bugattichiron";
     private const float TargetLength = 4.544f;
-    private const float VehicleLinearDrag = 0.027f;
+    private const float VehicleLinearDrag = 0f;
     private const float ForcedInductionPowerMultiplier = 1f;
     private const float DamageDecelerationThreshold = 500f;
     private const float DamageIntensity = 0.6f;

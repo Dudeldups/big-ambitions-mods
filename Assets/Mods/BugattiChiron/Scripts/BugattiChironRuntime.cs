@@ -29,7 +29,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 500f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
-    private const float VehicleLinearDrag = 0.027f;
+    private const float VehicleLinearDrag = 0f;
     private const float ForcedInductionPowerMultiplier = 1f;
     private const float DamageDecelerationThreshold = 500f;
     private const float DamageIntensity = 0.6f;
@@ -56,12 +56,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private static AnimationCurve CreateChironPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.12f, 0.10f),
-            new Keyframe(0.30f, 0.38f),
-            new Keyframe(0.55f, 0.70f),
-            new Keyframe(0.78f, 0.93f),
-            new Keyframe(0.88f, 1f),
-            new Keyframe(1f, 0.82f));
+            new Keyframe(0.12f, 0.07f),
+            new Keyframe(0.20f, 0.16f),
+            new Keyframe(0.30f, 0.305f),
+            new Keyframe(0.55f, 0.56f),
+            new Keyframe(0.78f, 0.79f),
+            new Keyframe(0.90f, 0.92f),
+            new Keyframe(1f, 1f));
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
@@ -354,6 +355,11 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 rigidbody.centerOfMass = new Vector3(0f, 0.26f, 0f);
                 rigidbody.drag = VehicleLinearDrag;
                 rigidbody.angularDrag = 1.35f;
+
+                var aerodynamics = vehicle.GetComponent<BugattiChironAerodynamics>();
+                if (aerodynamics == null)
+                    aerodynamics = vehicle.gameObject.AddComponent<BugattiChironAerodynamics>();
+                aerodynamics.Initialize(rigidbody);
             }
 
             ConfigureWheelControllers(vehicle.gameObject);
@@ -1403,6 +1409,36 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
     }
 }
 
+[DisallowMultipleComponent]
+internal sealed class BugattiChironAerodynamics : MonoBehaviour
+{
+    // F = coefficient * velocity^2. This keeps launch response strong while
+    // reproducing the rapidly increasing load a Chiron sees above 200 km/h.
+    private const float DragForceCoefficient = 0.50f;
+    private const float MinimumDragSpeedMps = 5f;
+
+    private Rigidbody? body;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        var speedSquared = planarVelocity.sqrMagnitude;
+        if (speedSquared < MinimumDragSpeedMps * MinimumDragSpeedMps)
+            return;
+
+        var dragForce = DragForceCoefficient * speedSquared;
+        body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
+    }
+}
+
 [DefaultExecutionOrder(-100)]
 internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
 {
@@ -1415,19 +1451,14 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
         "BridgeJointCollider",
     };
 
-    private VehicleController? vehicle;
-    private ModContext? context;
     private Rigidbody? body;
     private Collider[] bodyColliders = Array.Empty<Collider>();
     private Vector3 velocityBeforeStep;
     private Vector3 angularVelocityBeforeStep;
     private float velocitySampleTime;
-    private int recoveryLogs;
 
-    internal void Initialize(VehicleController controller, ModContext? modContext)
+    internal void Initialize(VehicleController controller, ModContext? _)
     {
-        vehicle = controller;
-        context = modContext;
         body = controller.GetComponent<Rigidbody>();
         var colliderHolder = FindChild(controller.transform, "BodyCollider");
         bodyColliders = colliderHolder != null
@@ -1470,7 +1501,7 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
         if (body == null || other == null || !IsKnownBridgeSeam(other.name))
             return;
 
-        var ignoredPairs = IgnoreBodyCollision(other);
+        IgnoreBodyCollision(other);
         var speedBefore = velocityBeforeStep.magnitude;
         var speedAfter = body.velocity.magnitude;
         var restored = speedBefore >= MinimumVelocityRestoreMps &&
@@ -1482,14 +1513,6 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
             body.angularVelocity = angularVelocityBeforeStep;
         }
 
-        if (recoveryLogs++ < 3)
-        {
-            context?.Logger.Warn(
-                $"BugattiChiron bridge guard vehicle={vehicle?.GetInstanceID()}: late seam contact " +
-                $"collider='{other.name}' before={speedBefore * 3.6f:0.0}kph " +
-                $"after={speedAfter * 3.6f:0.0}kph ignoredPairs={ignoredPairs} " +
-                $"velocityRestored={restored}.");
-        }
     }
 
     private int IgnoreBodyCollision(Collider other)
