@@ -769,8 +769,28 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             var name = material.name;
             if (name.IndexOf("Interior", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("SeatBelt", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("EngineA", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 BMWM4G82Materials.IsCabinGlassMaterial(material))
                 return false;
+        }
+
+        // The imported lower fascias, intake inserts and lamp assemblies span
+        // several generic source materials. Treat every non-cabin BMW mesh at
+        // the front/rear ends as exterior so those attached details follow the
+        // surrounding impact instead of remaining rigid or floating.
+        var vehicle = filter.GetComponentInParent<VehicleController>();
+        if (vehicle != null)
+        {
+            var localCenter = vehicle.transform.InverseTransformPoint(renderer.bounds.center);
+            if (Mathf.Abs(localCenter.z) >= 1.35f)
+                return true;
+        }
+
+        foreach (var material in renderer.sharedMaterials)
+        {
+            if (material == null)
+                continue;
+            var name = material.name;
             if (name.IndexOf("PaintTNR", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("Coloured", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("Carbon1", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -1130,14 +1150,14 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
     private const float DentRadius = 0.54f;
     private const float MaximumDentDepth = 0.18f;
     private const float DepthPerExcessMps = 0.0065f;
-    private const float FrontDentLateralRadius = 0.68f;
-    private const float FrontDentVerticalRadius = 0.54f;
-    private const float FrontDentLongitudinalRadius = 0.76f;
+    private const float FrontDentLateralRadius = 0.78f;
+    private const float FrontDentVerticalRadius = 0.66f;
+    private const float FrontDentLongitudinalRadius = 0.86f;
     private const float MaximumFrontDentDepth = 0.21f;
     private const float FrontDepthPerExcessMps = 0.007f;
-    private const float RearDentLateralRadius = 0.78f;
-    private const float RearDentVerticalRadius = 0.64f;
-    private const float RearDentLongitudinalRadius = 0.90f;
+    private const float RearDentLateralRadius = 0.88f;
+    private const float RearDentVerticalRadius = 0.72f;
+    private const float RearDentLongitudinalRadius = 1.00f;
     private const float MaximumRearDentDepth = 0.28f;
     private const float RearDepthPerExcessMps = 0.008f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
