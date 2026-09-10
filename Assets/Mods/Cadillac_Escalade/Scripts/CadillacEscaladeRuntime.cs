@@ -35,7 +35,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float DeformationRadius = 0.45f;
     private const float DeformationRandomness = 0.012f;
     private const float DamageIntensity = 0.75f;
-    private const float DamageDecelerationThreshold = 400f;
+    private const float DamageDecelerationThreshold = 300f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
@@ -666,7 +666,37 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private static bool IsDeformableExterior(MeshFilter filter)
     {
-        return filter.name.StartsWith("CadillacDamageBody", StringComparison.Ordinal);
+        var name = filter.name;
+        if (name.IndexOf("window", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("glass_windows", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("_int_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("interior", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("screen", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.StartsWith("CadillacWheel", StringComparison.Ordinal) ||
+            name.StartsWith("CadillacBrake", StringComparison.Ordinal) ||
+            name.StartsWith("CadillacFixedCaliper", StringComparison.Ordinal) ||
+            name.StartsWith("polySurface", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return name.StartsWith("CadillacDamageBody", StringComparison.Ordinal) ||
+               ContainsAny(name,
+                   "combined_mesh", "blackout", "black_smooth", "smooth_plastics",
+                   "misc_primer", "bright_chrome", "galvano", "stainless_steel",
+                   "tail_lamp", "rear_etchings", "rear_turn_signals", "chml",
+                   "reflectorGlass", "running_headlight", "running_facia_lamps",
+                   "high_beams", "headlights_etched", "headlight_metals",
+                   "etches_light", "front_emblem", "rear_emblem", "chrome_badges",
+                   "Grille", "Kit2_Coloured", "Light_Geo", "ManufacturerPlate");
+    }
+
+    private static bool ContainsAny(string value, params string[] markers)
+    {
+        foreach (var marker in markers)
+            if (value.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        return false;
     }
 
     private static void ClearCollection(object target, string fieldName)
@@ -993,9 +1023,9 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.64f;
+    private const float DentRadius = 0.82f;
     private const float MaximumDentDepth = 0.34f;
-    private const float DepthPerExcessMps = 0.011f;
+    private const float DepthPerExcessMps = 0.016f;
     private const float FrontDentLateralRadius = 0.82f;
     private const float FrontDentVerticalRadius = 0.68f;
     private const float FrontDentLongitudinalRadius = 0.95f;

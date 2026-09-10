@@ -48,7 +48,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
                 if (!TryConfigure())
                 {
                     if (attempts == 20)
-                        Warn("native engine audio unavailable after 20 attempts; custom audio was not initialized.");
+                        Warn("vehicle audio state unavailable after 20 attempts; custom audio was not initialized.");
                     return;
                 }
             }
@@ -67,26 +67,38 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
+        if (physics == null || context == null)
             return false;
-        originalDistortion = engineSound!.maxDistortion;
+        var engineTemplate = native ??
+                             physics.soundManager.exhaustSourceGO?.GetComponent<AudioSource>() ??
+                             physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
+        if (engineSound != null)
+            originalDistortion = engineSound.maxDistortion;
         audioHost = new GameObject("CadillacEscalade_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
-        audioHost.transform.position = native.transform.position;
-        // Borrow the original Car clip without processing or taking ownership.
-        idleSource = CreateSource(audioHost, native.clip, true);
+        if (engineTemplate != null)
+            audioHost.transform.position = engineTemplate.transform.position;
+        else
+            audioHost.transform.localPosition = new Vector3(0f, 0.70f, 0.55f);
         layers = new AudioSource[6];
+        AudioClip? idleClip = null;
         for (var i = 0; i < EngineNames.Length; i++)
         {
             var clip = LoadClip(EngineNames[i]);
-            layers[i] = CreateSource(audioHost, clip, true);
+            if (i == 0)
+                idleClip = clip;
+            layers[i] = CreateSource(audioHost, clip, true, engineTemplate);
             var loaded = LoadClip(EngineNames[i]+"Load");
-            layers[i + 3] = CreateSource(audioHost, loaded, true);
+            layers[i + 3] = CreateSource(audioHost, loaded, true, engineTemplate);
         }
+        // Use the Escalade low-frequency recording as the idle bed. Dealer and
+        // freshly loaded vehicles do not consistently expose the donor Car
+        // source yet, so custom audio must not depend on that source or clip.
+        idleSource = CreateSource(audioHost, idleClip!, true, engineTemplate);
         crackleClip = CadillacEscaladeCrackleWave.Create();
         var exhaustHost = new GameObject("CadillacEscalade_ExhaustCrackle");
         exhaustHost.transform.SetParent(audioHost.transform, false);
-        crackleSource = CreateSource(exhaustHost, crackleClip, true);
+        crackleSource = CreateSource(exhaustHost, crackleClip, true, engineTemplate);
         ConfigureCrackleFilters(exhaustHost);
         var hornHost = new GameObject("CadillacEscalade_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
@@ -94,7 +106,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         if (otherSource == null || otherSource.outputAudioMixerGroup == null) otherSource = native;
         hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, otherSource);
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
-        engineSound.maxDistortion = 0f;
+        if (engineSound != null)
+            engineSound.maxDistortion = 0f;
         configured = true;
         CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade audio configured vehicle={vehicle.GetInstanceID()}, " +
@@ -102,7 +115,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             $"{CadillacEscaladeAudioModel.EngineBaseVolume + CadillacEscaladeAudioModel.EngineThrottleVolume:0.00}, " +
             $"hornVoices=low/high@{CadillacEscaladeAudioModel.HornLowVolume:0.00}/" +
             $"{CadillacEscaladeAudioModel.HornHighVolume:0.00}, " +
-            $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
+            $"sourceDistance={(native != null ? native.minDistance : 2f):0.0}.." +
+            $"{(native != null ? native.maxDistance : 55f):0.0}, " +
             "exhaust=continuous-subtle-crackle.");
         return true;
     }
@@ -128,29 +142,43 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
 
     private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource? template = null)
     {
-        template ??= native!;
+        template ??= native;
         var source = host.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = loop;
         source.clip = clip;
         source.volume = 0f;
-        source.outputAudioMixerGroup = template.outputAudioMixerGroup;
-        source.spatialBlend = template.spatialBlend;
-        source.minDistance = template.minDistance;
-        source.maxDistance = template.maxDistance;
-        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
-        source.rolloffMode = template.rolloffMode;
+        if (template != null)
+        {
+            source.outputAudioMixerGroup = template.outputAudioMixerGroup;
+            source.spatialBlend = template.spatialBlend;
+            source.minDistance = template.minDistance;
+            source.maxDistance = template.maxDistance;
+            source.SetCustomCurve(
+                AudioSourceCurveType.CustomRolloff,
+                template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+            source.rolloffMode = template.rolloffMode;
+            source.priority = template.priority;
+        }
+        else
+        {
+            source.spatialBlend = 1f;
+            source.minDistance = 2f;
+            source.maxDistance = 55f;
+            source.rolloffMode = AudioRolloffMode.Logarithmic;
+            source.priority = 128;
+        }
         source.dopplerLevel = 0f;
-        source.priority = template.priority;
         return source;
     }
 
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
+        if (physics == null || layers == null || audioHost == null || crackleSource == null ||
             hornSource == null || hornSupportSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
-        audioHost.transform.position = native.transform.position;
+        if (native != null)
+            audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
         crackleSource.transform.position = exhaust != null ? exhaust.transform.position :
             vehicle!.transform.TransformPoint(new Vector3(0f, .4f, -2f));
@@ -171,7 +199,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             if (shouldPause) StopLayers();
             paused = shouldPause;
         }
-        if (controlled)
+        if (controlled && native != null)
         {
             if (!ownsMute) { savedMute = native.mute; ownsMute = true; }
             native.mute = true;

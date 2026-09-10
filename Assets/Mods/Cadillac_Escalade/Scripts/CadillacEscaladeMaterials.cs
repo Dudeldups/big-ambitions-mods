@@ -363,8 +363,11 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_SupportDecals", 0f);
         SetFloat(material, "_ReceivesSSR", 0f);
         SetFloat(material, "_ReceivesSSRTransparent", 0f);
-        SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
-        ConfigureLampRestingEmission(material, name);
+        SetFloat(material, "_TransmissionEnable", 0f);
+        SetFloat(material, "_TransmissionMask", 0f);
+        SetFloat(material, "_RefractionModel", 0f);
+        SetFloat(material, "_EnableBlendModePreserveSpecularLighting", cabinGlass ? 1f : 0f);
+        ConfigureRestingEmission(material, name, cabinGlass);
         if (cabinGlass)
         {
             SetFloat(material, "_Metallic", 0f);
@@ -375,13 +378,17 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
-        SetFloat(material, "_Cull", 0f);
-        SetFloat(material, "_CullMode", 0f);
-        SetFloat(material, "_CullModeForward", 0f);
-        SetFloat(material, "_TransparentCullMode", 0f);
-        SetFloat(material, "_DoubleSidedEnable", 1f);
+        var cullMode = cabinGlass ? (float)CullMode.Back : (float)CullMode.Off;
+        SetFloat(material, "_Cull", cullMode);
+        SetFloat(material, "_CullMode", cullMode);
+        SetFloat(material, "_CullModeForward", cullMode);
+        SetFloat(material, "_TransparentCullMode", cullMode);
+        SetFloat(material, "_DoubleSidedEnable", cabinGlass ? 0f : 1f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.EnableKeyword("_DOUBLESIDED_ON");
+        if (cabinGlass)
+            material.DisableKeyword("_DOUBLESIDED_ON");
+        else
+            material.EnableKeyword("_DOUBLESIDED_ON");
         material.EnableKeyword("_DISABLE_DECALS");
         material.DisableKeyword("_ALPHATEST_ON");
         material.SetOverrideTag("RenderType", "Transparent");
@@ -396,7 +403,7 @@ public static class CadillacEscaladeMaterials
     private static Color GetTransparentTint(string name, bool cabinGlass)
     {
         if (cabinGlass)
-            return new Color(0.82f, 0.88f, 0.94f, 0.28f);
+            return new Color(0.94f, 0.97f, 1f, 0.34f);
         if (Contains(name, "CadillacRearLampLens"))
             return new Color(0.95f, 0.08f, 0.03f, 0.30f);
         if (Contains(name, "CadillacRearLamp"))
@@ -410,10 +417,12 @@ public static class CadillacEscaladeMaterials
         return new Color(0.82f, 0.88f, 0.94f, 0.10f);
     }
 
-    private static void ConfigureLampRestingEmission(Material material, string name)
+    private static void ConfigureRestingEmission(Material material, string name, bool cabinGlass)
     {
         Color emission;
-        if (Contains(name, "CadillacFrontLamp"))
+        if (cabinGlass)
+            emission = new Color(0.08f, 0.095f, 0.11f, 1f);
+        else if (Contains(name, "CadillacFrontLamp"))
             emission = new Color(0.18f, 0.22f, 0.28f, 1f);
         else if (Contains(name, "CadillacRearLamp") &&
                  !Contains(name, "CadillacRearLampLens"))
