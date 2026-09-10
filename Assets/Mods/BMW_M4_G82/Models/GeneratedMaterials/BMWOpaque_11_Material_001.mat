@@ -253,7 +253,7 @@ Material:
     - _IridescenceThickness: 1
     - _LinkDetailsWithBase: 1
     - _MaterialID: 1
-    - _Metallic: 0.25
+    - _Metallic: 0.955431
     - _MetallicRemapMax: 1
     - _MetallicRemapMin: 0
     - _NormalMapSpace: 0
@@ -272,7 +272,7 @@ Material:
     - _RefractionModel: 0
     - _RenderQueueType: 1
     - _RequireSplitLighting: 0
-    - _Smoothness: 0.52
+    - _Smoothness: 0.836952
     - _SmoothnessRemapMax: 1
     - _SmoothnessRemapMin: 0
     - _SpecularAAScreenSpaceVariance: 0.1
@@ -295,8 +295,8 @@ Material:
     - _TexWorldScale: 1
     - _TexWorldScaleEmissive: 1
     - _Thickness: 1
-    - _TransmissionEnable: 1
-    - _TransmissionMask: 1
+    - _TransmissionEnable: 0
+    - _TransmissionMask: 0
     - _TransparentBackfaceEnable: 0
     - _TransparentCullMode: 2
     - _TransparentDepthPostpassEnable: 0
@@ -332,9 +332,9 @@ Material:
     - roughnessFactor: 0.163048
     - transmissionFactor: 0
     m_Colors:
-    - _BaseColor: {r: 0.02, g: 0.16, b: 0.72, a: 1}
+    - _BaseColor: {r: 0, g: 0, b: 0, a: 1}
     - _BaseColorMap_MipInfo: {r: 0, g: 0, b: 0, a: 0}
-    - _Color: {r: 0.02, g: 0.16, b: 0.72, a: 1}
+    - _Color: {r: 0, g: 0, b: 0, a: 1}
     - _DiffusionProfileAsset: {r: 0, g: 0, b: 0, a: 0}
     - _DoubleSidedConstants: {r: -1, g: -1, b: -1, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
@@ -348,7 +348,7 @@ Material:
     - _UVDetailsMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMaskEmissive: {r: 1, g: 0, b: 0, a: 0}
-    - baseColorFactor: {r: 0.02, g: 0.16, b: 0.72, a: 1}
+    - baseColorFactor: {r: 0, g: 0, b: 0, a: 1}
     - baseColorTexture_Rotation: {r: 0, g: 0, b: 0, a: 0}
     - clearcoatNormalTextureRotation: {r: 0, g: 0, b: 0, a: 0}
     - clearcoatRoughnessTexture_Rotation: {r: 0, g: 0, b: 0, a: 0}

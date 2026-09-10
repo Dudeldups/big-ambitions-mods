@@ -137,6 +137,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+        GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
         GlobalEvents.onGameUnloaded += HandleGameUnloaded;
     }
@@ -146,6 +148,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
 
@@ -266,9 +269,16 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private void HandleFullMenuToggle(bool isOpen)
     {
+        if (!isOpen)
+        {
+            ConfigureExistingVehicles(out _);
+            return;
+        }
         if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
     }
+
+    private void HandleVehicleVariablesChanged() => ConfigureExistingVehicles(out _);
 
     private void ScheduleInitialization(string source)
     {
@@ -376,7 +386,11 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         var targetVehicle = vehicle!;
         var instanceId = targetVehicle.GetInstanceID();
         if (!configuredVehicleIds.Add(instanceId))
+        {
+            targetVehicle.GetComponent<BMWM4G82PaintController>()
+                ?.ApplyCurrentColor(source);
             return true;
+        }
 
         try
         {
@@ -400,7 +414,16 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             if (caliperController == null)
                 caliperController = targetVehicle.gameObject.AddComponent<BMWM4G82CaliperController>();
             caliperController.Initialize(targetVehicle, context);
+            var materialOwner = targetVehicle.GetComponent<BMWM4G82RuntimeMaterialOwner>();
+            if (materialOwner == null)
+                materialOwner = targetVehicle.gameObject.AddComponent<BMWM4G82RuntimeMaterialOwner>();
+            var runtimeMaterialCount = materialOwner.Initialize();
             var materialResult = BMWM4G82Materials.FixSolidMaterials(targetVehicle.gameObject);
+            var caliperMaterialCount = BMWM4G82Materials.ApplyCaliperFinish(targetVehicle.gameObject);
+            var paintController = targetVehicle.GetComponent<BMWM4G82PaintController>();
+            if (paintController == null)
+                paintController = targetVehicle.gameObject.AddComponent<BMWM4G82PaintController>();
+            paintController.Initialize(targetVehicle, context);
             var glassController = targetVehicle.GetComponent<BMWM4G82GlassController>();
             if (glassController == null)
                 glassController = targetVehicle.gameObject.AddComponent<BMWM4G82GlassController>();
@@ -439,6 +462,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
                 $"powerCurve=S58-twin-turbo, steeringCalipers=4, " +
                 "wheelGeometry=authored-positive-transform-splits, " +
+                $"runtimeMaterials={runtimeMaterialCount}, caliperMaterials={caliperMaterialCount}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +

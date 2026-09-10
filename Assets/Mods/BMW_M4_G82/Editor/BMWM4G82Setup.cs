@@ -38,6 +38,7 @@ public static class BMWM4G82Setup
     private const float RearTireWidth = 0.285f;
     private const float FrontTireRadius = 0.3376f;
     private const float RearTireRadius = 0.3395f;
+    private const float VisualBodyOffsetY = -0.035f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.05f;
@@ -199,6 +200,9 @@ public static class BMWM4G82Setup
 
             var visual = FindTransform(prefab.transform, "BMWVisual") ??
                          throw new InvalidOperationException("BMW visual root is missing.");
+            if (Math.Abs(visual.localPosition.y - VisualBodyOffsetY) > 0.001f)
+                throw new InvalidOperationException(
+                    $"BMW visual body offset mismatch y={visual.localPosition.y:F3}.");
             var authoredUp = visual.TransformDirection(Vector3.forward).normalized;
             if (Vector3.Dot(authoredUp, prefab.transform.up) < 0.99f)
                 throw new InvalidOperationException(
@@ -217,7 +221,9 @@ public static class BMWM4G82Setup
             var centers = new Dictionary<string, Vector3>();
             var wheelCount = 0;
             var caliperCount = 0;
-            var visibleBlueCalipers = 0;
+            var caliperTriangles = 0;
+            var centerCapCount = 0;
+            var neutralCenterCaps = 0;
             var rollingParts = 0;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
@@ -225,25 +231,39 @@ public static class BMWM4G82Setup
                 {
                     wheelCount++;
                     centers[transform.name] = transform.localPosition;
-                    rollingParts += transform.GetComponentsInChildren<MeshRenderer>(true).Length;
+                    var wheelRenderers = transform.GetComponentsInChildren<MeshRenderer>(true);
+                    rollingParts += wheelRenderers.Length;
+                    foreach (var renderer in wheelRenderers)
+                    {
+                        if (!renderer.name.Contains("Material_001"))
+                            continue;
+                        centerCapCount++;
+                        if (Array.TrueForAll(renderer.sharedMaterials, material =>
+                                material != null && material.HasProperty("_BaseColor") &&
+                                Vector4.Distance(material.GetColor("_BaseColor"), Color.black) < 0.05f))
+                            neutralCenterCaps++;
+                    }
                 }
                 else if (transform.name.StartsWith("BMWFixedCaliper", StringComparison.Ordinal))
                 {
                     caliperCount++;
                     foreach (var renderer in transform.GetComponentsInChildren<MeshRenderer>(true))
-                    foreach (var material in renderer.sharedMaterials)
                     {
-                        if (material != null && material.HasProperty("_BaseColor") &&
-                            Vector4.Distance(material.GetColor("_BaseColor"),
-                                BMWM4G82Materials.CaliperBaseColor) < 0.01f)
-                            visibleBlueCalipers++;
+                        var mesh = renderer.GetComponent<MeshFilter>()?.sharedMesh;
+                        if (mesh == null)
+                            continue;
+                        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
+                            caliperTriangles += mesh.GetTriangles(subMesh).Length / 3;
                     }
                 }
             }
-            if (wheelCount != 4 || caliperCount != 4 || visibleBlueCalipers != 4 || rollingParts < 16)
+            if (wheelCount != 4 || caliperCount != 4 || centerCapCount != 4 ||
+                neutralCenterCaps != 4 || rollingParts < 20 ||
+                caliperTriangles < 1200 || caliperTriangles > 6000)
                 throw new InvalidOperationException(
                     $"BMW wheel assembly incomplete wheels={wheelCount} calipers={caliperCount} " +
-                    $"visibleBlueCalipers={visibleBlueCalipers} rollingParts={rollingParts}.");
+                    $"caliperTriangles={caliperTriangles} centerCaps={centerCapCount}/" +
+                    $"neutral={neutralCenterCaps} rollingParts={rollingParts}.");
 
             if (!centers.TryGetValue("BMWWheelFrontLeft", out var frontLeft) ||
                 !centers.TryGetValue("BMWWheelFrontRight", out var frontRight) ||
@@ -296,20 +316,6 @@ public static class BMWM4G82Setup
                 FindTransform(prefab.transform, "Steering_wheel") == null)
                 throw new InvalidOperationException("BMW damage, lighting, or driver anchors are incomplete.");
 
-            var rearLamp = FindTransform(prefab.transform, "BMW_RearLamp_Source")
-                ?.GetComponent<MeshRenderer>() ??
-                throw new InvalidOperationException("BMW rear lamp renderer is missing.");
-            var rearLampMesh = rearLamp.GetComponent<MeshFilter>()?.sharedMesh ??
-                               throw new InvalidOperationException("BMW rear lamp mesh is missing.");
-            var reverseTriangles = CountFilteredTriangles(prefab.transform, rearLamp,
-                p => p.z < -1.60f && Mathf.Abs(p.x) < 0.42f && p.y < 0.84f);
-            var rearLampTriangles = 0;
-            for (var subMesh = 0; subMesh < rearLampMesh.subMeshCount; subMesh++)
-                rearLampTriangles += rearLampMesh.GetTriangles(subMesh).Length / 3;
-            if (reverseTriangles == 0 || reverseTriangles >= rearLampTriangles / 2)
-                throw new InvalidOperationException(
-                    $"BMW reverse lamp selection is invalid selected={reverseTriangles} total={rearLampTriangles}.");
-
             var materialResult = BMWM4G82Materials.FixSolidMaterials(prefab);
             var roofRenderer = FindTransform(prefab.transform, "BMW_RoofPaint_Source")
                 ?.GetComponent<MeshRenderer>();
@@ -331,8 +337,9 @@ public static class BMWM4G82Setup
                 $"speed={maxSpeed:F0}km/h, power={enginePower:F0}kW, bounds={bounds.size}, " +
                 $"bodyUpright={Vector3.Dot(authoredUp, prefab.transform.up):F2}, spawnConfig=true, " +
                 $"wheelbase={wheelbase:F3}, tracks={frontTrack:F3}/{rearTrack:F3}, " +
-                $"wheels={wheelCount}, fixedCalipers={caliperCount}, rollingParts={rollingParts}, " +
-                $"reverseTriangles={reverseTriangles}/{rearLampTriangles}, " +
+                $"wheels={wheelCount}, fixedCalipers={caliperCount}, " +
+                $"caliperTriangles={caliperTriangles}, centerCaps={centerCapCount}, " +
+                $"rollingParts={rollingParts}, " +
                 $"glass={materialResult.CabinGlassRenderers}, materials={materialResult.RendererCount}.");
         }
         finally
@@ -427,7 +434,7 @@ public static class BMWM4G82Setup
             ConfigureExitMarkers(root);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
-            ConfigureCaliperFinish(root);
+            modelInstance.transform.localPosition += Vector3.up * VisualBodyOffsetY;
             var damageBody = CreateDeformableBody(root, modelInstance);
             ConfigureVehicleDeformation(root, damageBody);
             var fix = BMWM4G82Materials.FixSolidMaterials(root);
@@ -904,6 +911,13 @@ public static class BMWM4G82Setup
         public float Radius { get; }
     }
 
+    private enum WheelVisualPart
+    {
+        Rolling,
+        CenterCap,
+        Caliper,
+    }
+
     private static void CreateWheelCorner(GameObject root, List<MeshRenderer> sources, WheelCorner corner)
     {
         var controller = FindTransform(root.transform, corner.ControllerName) ??
@@ -922,7 +936,8 @@ public static class BMWM4G82Setup
         {
             if (!IsRollingWheelMaterial(source.sharedMaterial))
                 continue;
-            var created = CreateFilteredWheelPart(root, geometry, source, corner, false);
+            var created = CreateFilteredWheelPart(
+                root, geometry, source, corner, WheelVisualPart.Rolling);
             if (created == null)
                 continue;
             rollingParts++;
@@ -932,6 +947,20 @@ public static class BMWM4G82Setup
         if (tireRenderer == null || rollingParts < 4)
             throw new InvalidOperationException(
                 $"BMW {corner.Suffix} rolling assembly is incomplete ({rollingParts} parts).");
+
+        foreach (var source in sources)
+        {
+            if (!IsCaliperMaterial(source.sharedMaterial))
+                continue;
+            if (CreateFilteredWheelPart(
+                    root, geometry, source, corner, WheelVisualPart.CenterCap) == null)
+                continue;
+            rollingParts++;
+            break;
+        }
+        if (rollingParts < 5)
+            throw new InvalidOperationException(
+                $"BMW {corner.Suffix} center cap is missing ({rollingParts} rolling parts).");
 
         geometry.transform.SetParent(mount.transform, true);
         if (!TryGetRendererBounds(tireRenderer.transform, out var tireBounds))
@@ -956,7 +985,8 @@ public static class BMWM4G82Setup
         {
             if (!IsCaliperMaterial(source.sharedMaterial))
                 continue;
-            caliper = CreateFilteredWheelPart(root, caliperGeometry, source, corner, true);
+            caliper = CreateFilteredWheelPart(
+                root, caliperGeometry, source, corner, WheelVisualPart.Caliper);
             if (caliper != null)
                 break;
         }
@@ -972,21 +1002,31 @@ public static class BMWM4G82Setup
     }
 
     private static MeshRenderer? CreateFilteredWheelPart(GameObject root, GameObject holder,
-        MeshRenderer source, WheelCorner corner, bool caliper)
+        MeshRenderer source, WheelCorner corner, WheelVisualPart partKind)
     {
         var filter = source.GetComponent<MeshFilter>();
         if (filter?.sharedMesh == null)
             return null;
+        var wheelFaceThreshold = Mathf.Abs(corner.Position.x) - 0.005f;
         var mesh = CreateFilteredRootSpaceMesh(root.transform, source, vertex =>
-            (corner.Left ? vertex.x < 0f : vertex.x >= 0f) &&
-            (corner.Front ? vertex.z >= 0f : vertex.z < 0f));
+        {
+            if ((corner.Left ? vertex.x >= 0f : vertex.x < 0f) ||
+                (corner.Front ? vertex.z < 0f : vertex.z >= 0f))
+                return false;
+            if (partKind == WheelVisualPart.CenterCap)
+                return Mathf.Abs(vertex.x) >= wheelFaceThreshold;
+            if (partKind == WheelVisualPart.Caliper)
+                return Mathf.Abs(vertex.x) < wheelFaceThreshold;
+            return true;
+        });
         if (mesh == null)
             return null;
 
         if (!AssetDatabase.IsValidFolder(MeshFolder))
             AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMeshes");
         var materialMarker = SanitizeAssetName(source.sharedMaterial?.name ?? source.name);
-        var path = $"{MeshFolder}/BMW_{corner.Suffix}_{materialMarker}.asset";
+        var pathSuffix = partKind == WheelVisualPart.Caliper ? "_Caliper" : string.Empty;
+        var path = $"{MeshFolder}/BMW_{corner.Suffix}_{materialMarker}{pathSuffix}.asset";
         var persistent = AssetDatabase.LoadAssetAtPath<Mesh>(path);
         if (persistent == null)
         {
@@ -1000,7 +1040,9 @@ public static class BMWM4G82Setup
             EditorUtility.SetDirty(persistent);
         }
 
-        var part = new GameObject((caliper ? "BMW_Caliper_" : "BMW_WheelPart_") +
+        var part = new GameObject((partKind == WheelVisualPart.Caliper
+                                      ? "BMW_Caliper_"
+                                      : "BMW_WheelPart_") +
                                   corner.Suffix + "_" + materialMarker);
         part.transform.SetParent(holder.transform, false);
         part.AddComponent<MeshFilter>().sharedMesh = persistent;
@@ -1381,51 +1423,6 @@ public static class BMWM4G82Setup
         if (material.HasProperty("_Smoothness"))
             material.SetFloat("_Smoothness", BMWM4G82Materials.RimSmoothness);
         EditorUtility.SetDirty(material);
-    }
-
-    private static void ConfigureCaliperFinish(GameObject root)
-    {
-        var configured = 0;
-        foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
-        {
-            if (!renderer.name.StartsWith("BMW_Caliper_", StringComparison.Ordinal))
-                continue;
-            foreach (var material in renderer.sharedMaterials)
-            {
-                if (material == null)
-                    continue;
-                BMWM4G82Materials.ApplyCaliperFinish(material);
-                EditorUtility.SetDirty(material);
-                configured++;
-            }
-        }
-        if (configured != 4)
-            throw new InvalidOperationException($"Expected four visible BMW caliper materials, found {configured}.");
-    }
-
-    private static int CountFilteredTriangles(
-        Transform root,
-        MeshRenderer renderer,
-        Func<Vector3, bool> includeTriangleCenter)
-    {
-        var mesh = renderer.GetComponent<MeshFilter>()?.sharedMesh;
-        if (mesh == null)
-            return 0;
-        var vertices = mesh.vertices;
-        var selected = 0;
-        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-        {
-            var triangles = mesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < triangles.Length; index += 3)
-            {
-                var center = root.InverseTransformPoint(renderer.transform.TransformPoint(
-                    (vertices[triangles[index]] + vertices[triangles[index + 1]] +
-                     vertices[triangles[index + 2]]) / 3f));
-                if (includeTriangleCenter(center))
-                    selected++;
-            }
-        }
-        return selected;
     }
 
     private static bool IsCaliperMaterial(Material material) =>
