@@ -33,6 +33,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private Light? rightBeam;
     private MeshRenderer? daylightOverlay;
     private MeshRenderer? headlampOverlay;
+    private MeshRenderer? outerHeadlampOverlay;
     private MeshRenderer? secondaryHeadlampOverlay;
     private MeshRenderer? rearTailOverlay;
     private MeshRenderer? rearBrakeOverlay;
@@ -72,6 +73,13 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
         headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
+        outerHeadlampOverlay = CreateFilteredOverlay(
+            headlampEtching,
+            p => Mathf.Abs(p.x) >= 0.80f && p.y >= 1.30f,
+            "OuterHeadlampSegment",
+            new Color(0.90f, 0.95f, 1f, 1f),
+            6.1f,
+            1.008f);
         secondaryHeadlampOverlay = CreateOverlay(secondaryHeadlamp, "HeadlampSecondary",
             new Color(0.84f, 0.92f, 1f, 1f), 5.8f);
         rearTailOverlay = CreateOverlay(rearStrip, "RearTailSignature",
@@ -80,38 +88,37 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             new Color(1f, 0.008f, 0.001f, 1f), 4.4f, 1.010f);
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 5.4f, 1.012f);
-        reverseOverlay = CreateFilteredOverlay(
-            rearStrip,
-            p => Mathf.Abs(p.x) >= 0.62f && p.y >= 1.10f && p.y <= 1.34f,
-            "ReverseLight",
-            new Color(0.92f, 0.96f, 1f, 1f),
-            4.8f,
-            1.006f);
+        // The source-model names are inverted: rear_turn_signals is the white
+        // reversing element, while the small outer tail-lamp element is amber.
+        reverseOverlay = CreateOverlay(rearBlinkers, "ReverseLight",
+            new Color(0.92f, 0.96f, 1f, 1f), 4.8f, 1.006f);
         var amber = new Color(1f, 0.52f, 0.02f, 1f);
         // Keep the amber signal on the lower edge of the main headlamp instead
         // of recoloring the two white projector/running-light elements.
         leftBlinkerOverlay = CreateFilteredOverlay(headlampEtching,
-            p => p.x <= -0.60f && p.y <= 1.30f,
+            p => p.x <= -0.60f && p.y <= 1.285f,
             "LeftHeadlampIndicator", amber, 6.4f, 1.012f);
         rightBlinkerOverlay = CreateFilteredOverlay(headlampEtching,
-            p => p.x >= 0.60f && p.y <= 1.30f,
+            p => p.x >= 0.60f && p.y <= 1.285f,
             "RightHeadlampIndicator", amber, 6.4f, 1.012f);
         leftFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x <= -0.10f,
             "LeftFenderIndicator", amber, 5.4f, 1.008f);
         rightFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x >= 0.10f,
             "RightFenderIndicator", amber, 5.4f, 1.008f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearBlinkers, p => p.x <= -0.10f,
+        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearStrip,
+            p => p.x <= -0.62f && p.y >= 1.10f && p.y <= 1.34f,
             "RearLeftIndicator", amber, 7.2f, 1.018f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearBlinkers, p => p.x >= 0.10f,
+        rearRightBlinkerOverlay = CreateFilteredOverlay(rearStrip,
+            p => p.x >= 0.62f && p.y >= 1.10f && p.y <= 1.34f,
             "RearRightIndicator", amber, 7.2f, 1.018f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
                 $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
-                $"reverse='{rearStrip?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/7 blinkerOverlays={CountBlinkerOverlays()}/6.");
-        if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 6)
+                $"reverse='{rearBlinkers?.name}' beams={beamCount}/2 " +
+                $"lampOverlays={CountLampOverlays()}/8 blinkerOverlays={CountBlinkerOverlays()}/6.");
+        if (CountLampOverlays() != 8 || beamCount != 2 || CountBlinkerOverlays() != 6)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -324,6 +331,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         // and road beams still follow the game's automatic-light state.
         SetEnabled(daylightOverlay, controlled);
         SetEnabled(headlampOverlay, lightsOn);
+        SetEnabled(outerHeadlampOverlay, lightsOn);
         SetEnabled(secondaryHeadlampOverlay, controlled);
         SetEnabled(rearTailOverlay, controlled && !braking);
         SetEnabled(rearBrakeOverlay, braking);
@@ -351,6 +359,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
 
     private int CountLampOverlays() =>
         (daylightOverlay != null ? 1 : 0) + (headlampOverlay != null ? 1 : 0) +
+        (outerHeadlampOverlay != null ? 1 : 0) +
         (secondaryHeadlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
         (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);

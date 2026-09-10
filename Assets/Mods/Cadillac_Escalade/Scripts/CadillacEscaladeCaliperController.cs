@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using BAModAPI;
+using NWH.WheelController3D;
 using UnityEngine;
 
 [DefaultExecutionOrder(1000)]
@@ -9,10 +10,10 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
 {
     private static readonly string[,] BindingNames =
     {
-        { "CadillacFixedCaliperFrontLeft", "CadillacWheelFrontLeft" },
-        { "CadillacFixedCaliperFrontRight", "CadillacWheelFrontRight" },
-        { "CadillacFixedCaliperRearLeft", "CadillacWheelRearLeft" },
-        { "CadillacFixedCaliperRearRight", "CadillacWheelRearRight" },
+        { "CadillacFixedCaliperFrontLeft", "FrontLeft_WheelController" },
+        { "CadillacFixedCaliperFrontRight", "FrontRight_WheelController" },
+        { "CadillacFixedCaliperRearLeft", "RearLeft_WheelController" },
+        { "CadillacFixedCaliperRearRight", "RearRight_WheelController" },
     };
 
     private readonly List<CaliperBinding> bindings = new List<CaliperBinding>(4);
@@ -26,13 +27,16 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
         for (var index = 0; index < BindingNames.GetLength(0); index++)
         {
             var pivotName = BindingNames[index, 0];
-            var wheelName = BindingNames[index, 1];
+            var controllerName = BindingNames[index, 1];
             var pivot = FindTransform(controller.transform, pivotName) ??
                         throw new InvalidOperationException($"Caliper pivot '{pivotName}' is missing.");
-            var wheel = FindTransform(controller.transform, wheelName) ??
-                        throw new InvalidOperationException($"Wheel visual '{wheelName}' is missing.");
-            CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
-            bindings.Add(new CaliperBinding(pivot, wheel));
+            var controllerTransform = FindTransform(controller.transform, controllerName) ??
+                                      throw new InvalidOperationException(
+                                          $"Wheel controller '{controllerName}' is missing.");
+            var wheelController = controllerTransform.GetComponent<WheelController>() ??
+                                  throw new InvalidOperationException(
+                                      $"Wheel controller component on '{controllerName}' is missing.");
+            bindings.Add(new CaliperBinding(pivot, wheelController));
         }
 
         ApplyBindings();
@@ -49,41 +53,17 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
 
     private void ApplyBindings()
     {
-        var vehicleTransform = vehicle!.transform;
-        var vehicleUp = vehicleTransform.up;
         foreach (var binding in bindings)
         {
-            // Wheel roll occurs around the visual's right axis. That axis keeps
-            // steering and suspension pose while excluding axle spin.
-            var axle = Vector3.ProjectOnPlane(binding.Wheel.right, vehicleUp).normalized;
-            if (axle.sqrMagnitude < 0.5f)
+            // NWH calculates these basis vectors from its steering, camber and
+            // suspension pose before applying axle spin to the rolling visual.
+            var wheel = binding.Controller.wheel;
+            if (wheel.forward.sqrMagnitude < 0.5f || wheel.up.sqrMagnitude < 0.5f)
                 continue;
-            var steeringAngle = Vector3.SignedAngle(vehicleTransform.right, axle, vehicleUp);
-            if (Mathf.Abs(steeringAngle) > 60f)
-                continue;
-
             binding.Pivot.SetPositionAndRotation(
-                binding.Wheel.position,
-                vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f));
+                binding.Controller.WheelPosition,
+                Quaternion.LookRotation(wheel.forward, wheel.up));
         }
-    }
-
-    private static void CenterPivotWithoutMovingGeometry(
-        Transform pivot,
-        Transform wheel,
-        Quaternion chassisRotation)
-    {
-        var childPositions = new Vector3[pivot.childCount];
-        var childRotations = new Quaternion[pivot.childCount];
-        for (var index = 0; index < pivot.childCount; index++)
-        {
-            childPositions[index] = pivot.GetChild(index).position;
-            childRotations[index] = pivot.GetChild(index).rotation;
-        }
-
-        pivot.SetPositionAndRotation(wheel.position, chassisRotation);
-        for (var index = 0; index < pivot.childCount; index++)
-            pivot.GetChild(index).SetPositionAndRotation(childPositions[index], childRotations[index]);
     }
 
     private static Transform? FindTransform(Transform root, string name)
@@ -96,13 +76,13 @@ internal sealed class CadillacEscaladeCaliperController : MonoBehaviour
 
     private sealed class CaliperBinding
     {
-        public CaliperBinding(Transform pivot, Transform wheel)
+        public CaliperBinding(Transform pivot, WheelController controller)
         {
             Pivot = pivot;
-            Wheel = wheel;
+            Controller = controller;
         }
 
         public Transform Pivot { get; }
-        public Transform Wheel { get; }
+        public WheelController Controller { get; }
     }
 }

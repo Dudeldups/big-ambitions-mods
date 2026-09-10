@@ -15,14 +15,14 @@ internal sealed class CadillacEscaladeDriverController : MonoBehaviour
     private const string SteeringWheelName = "Animate_SteeringWheel_033";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 1.00f;
-    private const float BackrestLeanDegrees = -8f;
-    private const float HandHalfSpacing = 0.19f;
+    private const float BackrestLeanDegrees = -11f;
+    private const float HandHalfSpacing = 0.21f;
     private const float HandForwardOffset = -0.025f;
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.08f;
     private const float FootForwardOffset = 0.20f;
     // Pelvis position relative to the Escalade steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.42f, -0.48f);
+    private static readonly Vector3 SeatOffset = new(0.02f, -0.42f, -0.48f);
     private const int MaximumAttempts = 20;
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;
