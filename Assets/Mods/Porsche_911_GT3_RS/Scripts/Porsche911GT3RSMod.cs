@@ -12,6 +12,31 @@ using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(Porsche911GT3RSMod))]
 
+internal static class Porsche911GT3RSDiagnostics
+{
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool PaintDebugEnabled { get; set; } = false;
+    internal static bool DamageDebugEnabled { get; set; } = false;
+
+    internal static void Info(ModContext? context, string message)
+    {
+        if (DebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void PaintInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && PaintDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void DamageInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && DamageDebugEnabled)
+            context?.Logger.Info(message);
+    }
+}
+
 [ModEntryOnInitializationLoad]
 public sealed class Porsche911GT3RSMod : IModBigAmbitions
 {
@@ -45,7 +70,8 @@ public sealed class Porsche911GT3RSMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        context.Logger.Info(
+        Porsche911GT3RSDiagnostics.Info(
+            context,
             $"Porsche911GT3RS: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}.");

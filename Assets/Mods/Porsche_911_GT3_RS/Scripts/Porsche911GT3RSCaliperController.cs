@@ -40,7 +40,8 @@ internal sealed class Porsche911GT3RSCaliperController : MonoBehaviour
         }
 
         ApplyBindings();
-        context?.Logger.Info(
+        Porsche911GT3RSDiagnostics.Info(
+            context,
             $"Porsche911GT3RS steering calipers ready vehicle={controller.GetInstanceID()}, " +
             $"bindings={bindings.Count}, followsSteeringAndSuspension=true, inheritsWheelSpin=false.");
     }

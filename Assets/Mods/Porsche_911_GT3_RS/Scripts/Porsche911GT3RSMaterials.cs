@@ -579,7 +579,8 @@ public sealed class Porsche911GT3RSMaterialController : MonoBehaviour
             rimSlots,
             cabinGlassRenderers,
             cabinGlassRenderersReenabled);
-        context?.Logger.Info(
+        Porsche911GT3RSDiagnostics.Info(
+            context,
             $"Porsche911GT3RS materials vehicle={GetInstanceID()}: cloned " +
             $"{ownedMaterials.Count} materials for {rendererCount} renderers, " +
             $"clearSurfaceVariants={transparentMaterials}, " +
@@ -677,7 +678,8 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
 
         appliedColorName = colorName;
         appliedTint = tint;
-        context?.Logger.Info(
+        Porsche911GT3RSDiagnostics.PaintInfo(
+            context,
             $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: applied " +
             $"color='{colorName}' rgba={tint} to {slots.Count} body slots source='{source}'.");
     }
@@ -702,7 +704,8 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
             }
         }
 
-        context?.Logger.Info(
+        Porsche911GT3RSDiagnostics.PaintInfo(
+            context,
             $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: mapped " +
             $"bodySlots={slots.Count}; glass, lamps, carbon, rims, brakes, and trim excluded.");
         if (slots.Count == 0)

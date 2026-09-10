@@ -96,7 +96,8 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
-        context.Logger.Info(
+        Porsche911GT3RSDiagnostics.Info(
+            context,
             $"Porsche911GT3RS audio configured vehicle={vehicle.GetInstanceID()}, " +
             $"engineLayers=7, engineGain={Porsche911GT3RSAudioModel.EngineBaseVolume:0.00}.." +
             $"{Porsche911GT3RSAudioModel.EngineBaseVolume + Porsche911GT3RSAudioModel.EngineThrottleVolume:0.00}, " +

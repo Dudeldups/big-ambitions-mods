@@ -70,6 +70,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private Coroutine? enteredVehicleActivationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private int cachedPlayerVehicleCount = -1;
     private bool dealerRegistrationReady;
     private bool dealerReadyLogged;
 
@@ -116,6 +117,18 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         UnsubscribeEvents();
     }
 
+    private void Update()
+    {
+        // Dealer purchases do not raise onEnterVehicle. Keep the hot path to
+        // one count comparison and enumerate only after the collection changes.
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var vehicleCount = vehicles?.Count ?? 0;
+        if (vehicleCount == cachedPlayerVehicleCount)
+            return;
+
+        ConfigureExistingVehicles(out _);
+    }
+
     private void SubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
@@ -157,6 +170,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
         configuredVehicleIds.Clear();
+        cachedPlayerVehicleCount = -1;
         dealerRegistrationReady = false;
         dealerReadyLogged = false;
     }
@@ -251,7 +265,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         var isKinematic = rigidbody != null && rigidbody.isKinematic;
         var constraintsAfter = rigidbody?.constraints ?? RigidbodyConstraints.None;
         var physicsEnabled = physics != null && physics.enabled;
-        context?.Logger.Info(
+        Porsche911GT3RSDiagnostics.Info(
+            context,
             $"Porsche911GT3RS: entered-vehicle activation instance={vehicle.GetInstanceID()}, " +
             $"controlled={vehicle.controlledByPlayer}, passes={appliedPasses}/{maximumPasses}, " +
             $"kinematic={wasKinematic}->{isKinematic}, physicsEnabled={physicsWasEnabled}->{physicsEnabled}, " +
@@ -357,7 +372,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             if (ready && !dealerReadyLogged)
             {
                 dealerReadyLogged = true;
-                context?.Logger.Info(
+                Porsche911GT3RSDiagnostics.Info(
+                    context,
                     $"Porsche911GT3RS: available at The Hamptons Axis and Manhattan Luxury Cars " +
                     $"source='{source}'.");
             }
@@ -376,6 +392,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     {
         matchedCount = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
+        cachedPlayerVehicleCount = vehicles?.Count ?? 0;
         if (vehicles == null)
             return;
 
@@ -458,7 +475,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             if (audioController == null)
                 audioController = vehicle.gameObject.AddComponent<Porsche911GT3RSAudioController>();
             audioController.Initialize(vehicle, context);
-            context?.Logger.Info(
+            Porsche911GT3RSDiagnostics.Info(
+                context,
                 $"Porsche911GT3RS: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=7-speed-PDK, rwd=true, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
@@ -600,7 +618,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         // game's collision and Repair() lifecycle to deform and reset it directly.
         damageHandler.meshDeform = false;
 
-        context?.Logger.Info(
+        Porsche911GT3RSDiagnostics.DamageInfo(
+            context,
             $"Porsche911GT3RS damage vehicle={vehicle.GetInstanceID()}: enabled game-native deformation " +
             $"bodyMeshes={deformableBodyMeshes} threshold={DamageDecelerationThreshold / 100f:0.0}mps; " +
             "repairReset=CarController.Repair/event-driven.");
@@ -930,7 +949,8 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 
         if (correctedMeshes == 8)
         {
-            context?.Logger.Info(
+            Porsche911GT3RSDiagnostics.Info(
+                context,
                 $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: inset " +
                 $"{correctedComponents} rim components ({correctedVertices} vertices) by " +
                 $"{RimInsetMeters:F3}m; four tire envelopes retained.");
@@ -1204,14 +1224,16 @@ public sealed class Porsche911GT3RSGlassController : MonoBehaviour
         }
         if (string.Equals(source, "initialize", StringComparison.Ordinal))
         {
-            context?.Logger.Info(
+            Porsche911GT3RSDiagnostics.Info(
+                context,
                 $"Porsche911GT3RS glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
                 "shader=HDRP/Lit, deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {
-            context?.Logger.Info(
+            Porsche911GT3RSDiagnostics.Info(
+                context,
                 $"Porsche911GT3RS glass vehicle={GetInstanceID()}: repaired after " +
                 $"'{source}' renderers={restored}, propertyBlocks={propertyBlocksCleared}.");
         }
@@ -1317,7 +1339,8 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
             }
-            context?.Logger.Info(
+            Porsche911GT3RSDiagnostics.DamageInfo(
+                context,
                 $"Porsche911GT3RS damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
         }
         previousDamage = currentDamage;
@@ -1447,7 +1470,8 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
             {
-                context?.Logger.Info(
+                Porsche911GT3RSDiagnostics.DamageInfo(
+                    context,
                     $"Porsche911GT3RS damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +

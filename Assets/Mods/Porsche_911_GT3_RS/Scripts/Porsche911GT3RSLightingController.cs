@@ -419,8 +419,10 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
     }
 
     private void LogInfo(string message) =>
-        context?.Logger.Info($"Porsche911GT3RS lighting vehicle='{vehicle?.name}' " +
-                             $"instance={vehicle?.GetInstanceID()}: {message}");
+        Porsche911GT3RSDiagnostics.Info(
+            context,
+            $"Porsche911GT3RS lighting vehicle='{vehicle?.name}' " +
+            $"instance={vehicle?.GetInstanceID()}: {message}");
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"Porsche911GT3RS lighting vehicle='{vehicle?.name}' " +

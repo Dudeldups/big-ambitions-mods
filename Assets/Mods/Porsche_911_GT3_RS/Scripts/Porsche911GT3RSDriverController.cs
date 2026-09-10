@@ -473,7 +473,9 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
         target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
 
     private void LogInfo(string message) =>
-        context?.Logger.Info($"Porsche911GT3RS driver vehicle={vehicle?.GetInstanceID()}: {message}");
+        Porsche911GT3RSDiagnostics.Info(
+            context,
+            $"Porsche911GT3RS driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {
