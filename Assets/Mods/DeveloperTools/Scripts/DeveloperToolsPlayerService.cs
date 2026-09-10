@@ -104,7 +104,8 @@ namespace DeveloperTools
             }
 
             message = "Teleported player to " + FormatVector(finalPosition) + ".";
-            context.Logger.Info("DeveloperTools: teleported player to " + FormatVector(finalPosition) + ".");
+            if (DeveloperToolsDiagnostics.Teleport)
+                context.Logger.Info("DeveloperTools: teleported player to " + FormatVector(finalPosition) + ".");
             return true;
         }
 
@@ -135,11 +136,14 @@ namespace DeveloperTools
                 Physics.SyncTransforms();
                 finalPosition = vehicle.transform.position;
                 message = "Teleported occupied vehicle to " + FormatVector(finalPosition) + ".";
-                context.Logger.Info(
-                    "DeveloperTools: teleported occupied vehicle; type=" +
-                    (vehicle.vehicleInstance?.vehicleTypeName ?? "unknown") +
-                    ", requested=" + FormatVector(requested) +
-                    ", final=" + FormatVector(finalPosition) + ".");
+                if (DeveloperToolsDiagnostics.Teleport)
+                {
+                    context.Logger.Info(
+                        "DeveloperTools: teleported occupied vehicle; type=" +
+                        (vehicle.vehicleInstance?.vehicleTypeName ?? "unknown") +
+                        ", requested=" + FormatVector(requested) +
+                        ", final=" + FormatVector(finalPosition) + ".");
+                }
                 return true;
             }
             catch (Exception exception)

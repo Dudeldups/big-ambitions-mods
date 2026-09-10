@@ -58,7 +58,7 @@ namespace DeveloperTools
                 carType.nrOfVehicles = checked(carType.nrOfVehicles * MaximumTrafficMultiplier);
             }
 
-            if (originalPoolCounts.Count > 0)
+            if (originalPoolCounts.Count > 0 && DeveloperToolsDiagnostics.Enabled)
             {
                 context.Logger.Info(
                     $"DeveloperTools: expanded the pre-initialization NPC traffic pool to {pool.GetNumberOfVehicles()} vehicles for density testing.");
@@ -106,7 +106,8 @@ namespace DeveloperTools
                 ApplyMultipliedDensity(true, out message);
             }
 
-            context.Logger.Info("DeveloperTools: " + message);
+            if (DeveloperToolsDiagnostics.Enabled)
+                context.Logger.Info("DeveloperTools: " + message);
             return true;
         }
 
@@ -126,7 +127,8 @@ namespace DeveloperTools
             Manager.SetTrafficDensity(0);
             Manager.ClearTraffic();
             message = "Disabled AI vehicle traffic and cleared active traffic vehicles.";
-            context.Logger.Info("DeveloperTools: " + message);
+            if (DeveloperToolsDiagnostics.Enabled)
+                context.Logger.Info("DeveloperTools: " + message);
             return true;
         }
 
@@ -141,7 +143,8 @@ namespace DeveloperTools
             message = enable
                 ? $"Enabled parked cars and refreshed {laneCount} parking lanes."
                 : $"Disabled parked cars and cleared {laneCount} parking lanes.";
-            context.Logger.Info("DeveloperTools: " + message);
+            if (DeveloperToolsDiagnostics.Enabled)
+                context.Logger.Info("DeveloperTools: " + message);
             return true;
         }
 
