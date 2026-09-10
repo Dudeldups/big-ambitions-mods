@@ -36,6 +36,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float RearTireRadius = 0.36720f;
     private const float FrontTireWidth = 0.275f;
     private const float RearTireWidth = 0.335f;
+    private const float ChassisAndTireDrop = 0.055f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
@@ -446,7 +447,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             var wheelGeometryController = vehicle.GetComponent<Porsche911GT3RSWheelGeometryController>();
             if (wheelGeometryController == null)
                 wheelGeometryController = vehicle.gameObject.AddComponent<Porsche911GT3RSWheelGeometryController>();
-            wheelGeometryController.Initialize(context);
+            wheelGeometryController.Initialize(context, ChassisAndTireDrop);
             var caliperController = vehicle.GetComponent<Porsche911GT3RSCaliperController>();
             if (caliperController == null)
                 caliperController = vehicle.gameObject.AddComponent<Porsche911GT3RSCaliperController>();
@@ -557,12 +558,12 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.32f, 0f);
+                colliders[0].center = new Vector3(0f, 0.32f - ChassisAndTireDrop, 0f);
                 colliders[0].size = new Vector3(1.82f, 0.42f, 4.40f);
             }
             if (colliders.Length > 1)
             {
-                colliders[1].center = new Vector3(0f, 0.78f, -0.08f);
+                colliders[1].center = new Vector3(0f, 0.78f - ChassisAndTireDrop, -0.08f);
                 colliders[1].size = new Vector3(1.62f, 0.72f, 2.70f);
             }
         }
@@ -570,7 +571,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private int ConfigureVisualDamage(VehicleController vehicle)
     {
-        var deformableBodyMeshes = 0;
         foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
         {
             if (component == null || !string.Equals(
@@ -578,13 +578,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                     "VehicleDeformationController",
                     StringComparison.Ordinal))
                 continue;
-            component.enabled = true;
+            component.enabled = false;
             ClearCollection(component, "_deformationQueue");
-            SetFloat(component, "deformationStrength", DeformationStrength);
-            SetFloat(component, "deformationRadius", DeformationRadius);
-            SetFloat(component, "deformationRandomness", DeformationRandomness);
-            if (GetMember(component, "meshFilters") is IList meshFilters)
-                deformableBodyMeshes += meshFilters.Count;
         }
 
         var damageHandler =
@@ -597,7 +592,17 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             return 0;
         }
 
-        if (deformableBodyMeshes == 0)
+        var filters = new List<MeshFilter>();
+        foreach (var filter in vehicle.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null || !IsDeformableExterior(filter))
+                continue;
+            var renderer = filter.GetComponent<MeshRenderer>();
+            if (renderer != null && renderer.enabled)
+                filters.Add(filter);
+        }
+
+        if (filters.Count == 0)
         {
             damageHandler.meshDeform = false;
             context?.Logger.Warn(
@@ -614,16 +619,26 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         damageHandler.deformationRandomness = DeformationRandomness;
         damageHandler.deformationStrength = DeformationStrength;
         damageHandler.deformationVerticesPerFrame = 8000;
-        // PorscheDamageBody is baked into vehicle-root coordinates, allowing the
-        // game's collision and Repair() lifecycle to deform and reset it directly.
+        // Imported panels do not share one root-local coordinate system, so the
+        // model-aware controller deforms the selected outer shell in world space.
         damageHandler.meshDeform = false;
+
+        var visualDamage = vehicle.GetComponent<Porsche911GT3RSVisualDamageController>();
+        if (visualDamage == null)
+            visualDamage = vehicle.gameObject.AddComponent<Porsche911GT3RSVisualDamageController>();
+        visualDamage.Initialize(
+            vehicle,
+            damageHandler,
+            context,
+            filters,
+            DamageDecelerationThreshold / 100f);
 
         Porsche911GT3RSDiagnostics.DamageInfo(
             context,
-            $"Porsche911GT3RS damage vehicle={vehicle.GetInstanceID()}: enabled game-native deformation " +
-            $"bodyMeshes={deformableBodyMeshes} threshold={DamageDecelerationThreshold / 100f:0.0}mps; " +
-            "repairReset=CarController.Repair/event-driven.");
-        return deformableBodyMeshes;
+            $"Porsche911GT3RS damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
+            $"bodyMeshes={filters.Count} threshold={DamageDecelerationThreshold / 100f:0.0}mps; " +
+            "legacy deformation disabled.");
+        return filters.Count;
     }
 
     private static bool IsDeformableExterior(MeshFilter filter)
@@ -642,7 +657,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             HasAncestor(filter.transform, "engine_") ||
             HasAncestor(filter.transform, "underbody") ||
             HasAncestor(filter.transform, "suspension") ||
-            HasMaterial(filter, "carpet", "fabric", "leather", "seatbelt", "gauges", "symbols"))
+            HasMaterial(filter, "carpet", "fabric", "leather", "seatbelt", "gauges"))
             return false;
 
         if (name.StartsWith("PorscheDamageBody", StringComparison.Ordinal))
@@ -904,6 +919,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
 {
     private const float WheelAssemblyInsetMeters = 0.085f;
+    private const float TireComponentDiameterRatio = 0.88f;
     private static readonly string[,] CornerNames =
     {
         { "FrontLeft_WheelController", "PorscheWheelFrontLeft", "PorscheFixedCaliperFrontLeft" },
@@ -911,15 +927,21 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         { "RearLeft_WheelController", "PorscheWheelRearLeft", "PorscheFixedCaliperRearLeft" },
         { "RearRight_WheelController", "PorscheWheelRearRight", "PorscheFixedCaliperRearRight" },
     };
+    private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
     private bool initialized;
 
-    internal int Initialize(ModContext? context)
+    internal int Initialize(ModContext? context, float chassisAndTireDrop)
     {
         if (initialized)
             return CornerNames.GetLength(0);
 
         initialized = true;
+        var visual = FindTransform("PorscheVisual");
+        if (visual != null)
+            visual.position -= transform.up * chassisAndTireDrop;
+
         var correctedCorners = 0;
+        var loweredTireComponents = 0;
         for (var index = 0; index < CornerNames.GetLength(0); index++)
         {
             try
@@ -934,6 +956,8 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 MoveInward(controller);
                 MoveInward(wheel);
                 MoveInward(caliper);
+                BindRollingVisual(controller, wheel);
+                loweredTireComponents += LowerTireEnvelope(wheel, chassisAndTireDrop);
                 correctedCorners++;
             }
             catch (Exception exception)
@@ -950,7 +974,9 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
                 context,
                 $"Porsche911GT3RS wheel geometry vehicle={GetInstanceID()}: moved " +
                 $"{correctedCorners} complete wheel/controller/caliper assemblies inward by " +
-                $"{WheelAssemblyInsetMeters:F3}m.");
+                $"{WheelAssemblyInsetMeters:F3}m; lowered chassis and " +
+                $"{loweredTireComponents} tire components by {chassisAndTireDrop:F3}m; " +
+                "rolling visuals explicitly bound to wheel controllers.");
         }
         else
         {
@@ -978,6 +1004,181 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
         target.position += worldOffset;
     }
 
+    private static void BindRollingVisual(Transform controller, Transform wheel)
+    {
+        foreach (var component in controller.GetComponents<MonoBehaviour>())
+        {
+            if (component == null)
+                continue;
+            var wheelState = GetMember(component, "wheel");
+            if (wheelState == null)
+                continue;
+            SetMember(wheelState, "visual", wheel.gameObject);
+            SetMember(wheelState, "visualTransform", wheel);
+        }
+    }
+
+    private int LowerTireEnvelope(Transform wheel, float drop)
+    {
+        var loweredComponents = 0;
+        foreach (var filter in wheel.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null ||
+                !HasMaterial(filter, "wheels_chrome"))
+                continue;
+
+            var mesh = Instantiate(filter.sharedMesh);
+            mesh.name = filter.sharedMesh.name + "_AlignedTire";
+            filter.sharedMesh = mesh;
+            runtimeMeshes.Add(mesh);
+
+            var vertices = mesh.vertices;
+            var parent = new int[vertices.Length];
+            for (var index = 0; index < parent.Length; index++)
+                parent[index] = index;
+            for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
+            {
+                var triangles = mesh.GetTriangles(subMesh);
+                for (var index = 0; index + 2 < triangles.Length; index += 3)
+                {
+                    Union(parent, triangles[index], triangles[index + 1]);
+                    Union(parent, triangles[index], triangles[index + 2]);
+                }
+            }
+
+            var extents = new Dictionary<int, ComponentExtents>();
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                var root = Find(parent, index);
+                if (!extents.TryGetValue(root, out var component))
+                    component = new ComponentExtents(vertices[index]);
+                else
+                    component.Include(vertices[index]);
+                extents[root] = component;
+            }
+
+            var componentLimit = Mathf.Max(mesh.bounds.size.y, mesh.bounds.size.z) *
+                                 TireComponentDiameterRatio;
+            var displacement = filter.transform.InverseTransformVector(-transform.up * drop);
+            var loweredRoots = new HashSet<int>();
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                var root = Find(parent, index);
+                var component = extents[root];
+                if (Mathf.Max(component.SizeY, component.SizeZ) < componentLimit)
+                    continue;
+                vertices[index] += displacement;
+                loweredRoots.Add(root);
+            }
+            mesh.vertices = vertices;
+            mesh.RecalculateBounds();
+            loweredComponents += loweredRoots.Count;
+        }
+        return loweredComponents;
+    }
+
+    private static bool HasMaterial(MeshFilter filter, string marker)
+    {
+        var renderer = filter.GetComponent<Renderer>();
+        if (renderer == null)
+            return false;
+        foreach (var material in renderer.sharedMaterials)
+            if (material != null &&
+                material.name.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        return false;
+    }
+
+    private static object? GetMember(object target, string name)
+    {
+        var type = target.GetType();
+        while (type != null)
+        {
+            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public |
+                                            BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field.GetValue(target);
+            var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public |
+                                                   BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (property != null)
+                return property.GetValue(target, null);
+            type = type.BaseType;
+        }
+        return null;
+    }
+
+    private static void SetMember(object target, string name, object value)
+    {
+        var type = target.GetType();
+        while (type != null)
+        {
+            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public |
+                                            BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null && field.FieldType.IsInstanceOfType(value))
+            {
+                field.SetValue(target, value);
+                return;
+            }
+            var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public |
+                                                   BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (property?.CanWrite == true && property.PropertyType.IsInstanceOfType(value))
+            {
+                property.SetValue(target, value, null);
+                return;
+            }
+            type = type.BaseType;
+        }
+    }
+
+    private static int Find(int[] parent, int value)
+    {
+        while (parent[value] != value)
+        {
+            parent[value] = parent[parent[value]];
+            value = parent[value];
+        }
+        return value;
+    }
+
+    private static void Union(int[] parent, int left, int right)
+    {
+        var leftRoot = Find(parent, left);
+        var rightRoot = Find(parent, right);
+        if (leftRoot != rightRoot)
+            parent[rightRoot] = leftRoot;
+    }
+
+    private struct ComponentExtents
+    {
+        private float minimumY;
+        private float maximumY;
+        private float minimumZ;
+        private float maximumZ;
+
+        public float SizeY => maximumY - minimumY;
+        public float SizeZ => maximumZ - minimumZ;
+
+        public ComponentExtents(Vector3 vertex)
+        {
+            minimumY = maximumY = vertex.y;
+            minimumZ = maximumZ = vertex.z;
+        }
+
+        public void Include(Vector3 vertex)
+        {
+            minimumY = Mathf.Min(minimumY, vertex.y);
+            maximumY = Mathf.Max(maximumY, vertex.y);
+            minimumZ = Mathf.Min(minimumZ, vertex.z);
+            maximumZ = Mathf.Max(maximumZ, vertex.z);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var mesh in runtimeMeshes)
+            if (mesh != null) Destroy(mesh);
+        runtimeMeshes.Clear();
+    }
 }
 
 [AddComponentMenu("")]

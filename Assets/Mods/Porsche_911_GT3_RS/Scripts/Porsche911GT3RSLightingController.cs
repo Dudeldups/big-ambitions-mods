@@ -61,8 +61,7 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var rearStrip = FindRenderer(renderers, "fascia_mid", "taillight_running");
         var rearLamp = FindRenderer(renderers, "fascia_mid", "brakelight_1");
         var thirdBrake = FindRenderer(renderers, "gt3rs_tailgate", "brakelight_1");
-        var leftBlinker = daylight;
-        var rightBlinker = daylightRight;
+        var frontSignals = FindRenderer(renderers, "gt3rs_bumper_F", "signal_L_bumper");
 
         daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
             new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
@@ -84,22 +83,25 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
         reverseOverlay = CreateFilteredOverlay(
             rearLamp,
-            p => Mathf.Abs(p.x) >= 0.46f && Mathf.Abs(p.x) <= 0.55f,
+            p => Mathf.Abs(p.x) >= 0.46f && Mathf.Abs(p.x) <= 0.545f,
             "ReverseLight",
             new Color(0.92f, 0.96f, 1f, 1f),
             4.8f,
             1.006f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
-        leftBlinkerOverlay = CreateOverlay(leftBlinker, "LeftIndicator", amber, 5.4f, 1.004f);
-        rightBlinkerOverlay = CreateOverlay(rightBlinker, "RightIndicator", amber, 5.4f, 1.004f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearStrip, p => p.x <= -0.25f,
+        leftBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x <= -0.45f,
+            "LeftIndicator", amber, 5.4f, 1.004f);
+        rightBlinkerOverlay = CreateFilteredOverlay(frontSignals, p => p.x >= 0.45f,
+            "RightIndicator", amber, 5.4f, 1.004f);
+        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x <= -0.56f,
             "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearStrip, p => p.x >= 0.25f,
+        rearRightBlinkerOverlay = CreateFilteredOverlay(rearLamp, p => p.x >= 0.56f,
             "RearRightIndicator", amber, 6f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
+                $"signals='{frontSignals?.name}' " +
                 $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
                 $"reverse='{rearLamp?.name}' beams={beamCount}/2 " +
                 $"lampOverlays={CountLampOverlays()}/10 blinkerOverlays={CountBlinkerOverlays()}/4.");

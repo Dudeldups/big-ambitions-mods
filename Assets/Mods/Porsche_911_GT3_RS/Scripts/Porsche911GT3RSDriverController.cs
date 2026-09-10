@@ -15,7 +15,7 @@ internal sealed class Porsche911GT3RSDriverController : MonoBehaviour
     private const string SteeringWheelMarker = "steer_3";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
-    private const float SeatBackLeanDegrees = 6f;
+    private const float SeatBackLeanDegrees = 9f;
     private const float HandHalfSpacing = 0.19f;
     private const float HandForwardOffset = -0.02f;
     private const float HandHeightOffset = 0f;

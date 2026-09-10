@@ -209,7 +209,7 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
                 layers[i].mute = layers[i + 3].mute = controlled && savedMute;
             }
             var crackleLoad = Mathf.SmoothStep(0f, 1f, smoothThrottle);
-            crackleSource.pitch = Mathf.Lerp(.90f, 1.22f, normalized);
+            crackleSource.pitch = Mathf.Lerp(.82f, 1.08f, normalized);
             crackleSource.volume = envelope * master * Mathf.Lerp(
                 Porsche911GT3RSAudioModel.CrackleIdleVolume,
                 Porsche911GT3RSAudioModel.CrackleLoadVolume,
