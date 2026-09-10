@@ -6,7 +6,6 @@ using System.Reflection;
 using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
-using UI.PurchaseVehicle;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
@@ -64,8 +63,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private ModContext? context;
     private bool dealerReady;
     private int cachedPlayerVehicleCount = -1;
-    private VehicleController? previewVehicle;
-    private BugattiChironPaintController? previewPaintController;
     private string vehicleTypeName = string.Empty;
 
     public static BugattiChironRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -94,8 +91,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         configuredVehicleIds.Clear();
         dealerReady = false;
         cachedPlayerVehicleCount = -1;
-        previewVehicle = null;
-        previewPaintController = null;
         Destroy(gameObject);
     }
 
@@ -118,8 +113,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         var currentCount = vehicles?.Count ?? 0;
         if (currentCount != cachedPlayerVehicleCount)
             ConfigureExistingVehicles(out _);
-
-        RefreshPaintPreview();
     }
 
     private void SubscribeEvents()
@@ -165,29 +158,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         configuredVehicleIds.Clear();
         dealerReady = false;
         cachedPlayerVehicleCount = -1;
-        previewVehicle = null;
-        previewPaintController = null;
-    }
-
-    private void RefreshPaintPreview()
-    {
-        if (!PurchaseVehicleUI.IsPanelOpen)
-        {
-            previewVehicle = null;
-            previewPaintController = null;
-            return;
-        }
-
-        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
-        if (!ReferenceEquals(selectedVehicle, previewVehicle))
-        {
-            previewVehicle = selectedVehicle;
-            previewPaintController = IsTargetVehicle(selectedVehicle)
-                ? selectedVehicle!.GetComponent<BugattiChironPaintController>()
-                : null;
-        }
-
-        previewPaintController?.RefreshCurrentColor();
     }
 
     private void HandleGameEvent(string _)
