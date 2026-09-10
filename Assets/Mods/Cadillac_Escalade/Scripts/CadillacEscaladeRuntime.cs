@@ -513,8 +513,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private static void ConfigureExitMarkers(GameObject root)
     {
         SetLocalPosition(root, "Animate_SteeringWheel_033", new Vector3(-0.52f, 1.15f, 0.68f));
-        SetLocalPosition(root, "Driverside", new Vector3(-1.55f, 0.10f, 0.30f));
-        SetLocalPosition(root, "Passengerside", new Vector3(1.55f, 0.10f, 0.30f));
+        SetLocalPosition(root, "Driverside", new Vector3(-1.75f, 0.10f, 0.30f));
+        SetLocalPosition(root, "Passengerside", new Vector3(1.75f, 0.10f, 0.30f));
     }
 
     private static void SetLocalPosition(GameObject root, string childName, Vector3 position)
@@ -966,7 +966,7 @@ public sealed class CadillacEscaladeGlassController : MonoBehaviour
             CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
-                "shader=HDRP/Lit, tint=(0.62,0.68,0.74,0.10), deferredPolling=false.");
+                "shader=HDRP/Lit, tint=(0.82,0.88,0.94,0.28), deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {
