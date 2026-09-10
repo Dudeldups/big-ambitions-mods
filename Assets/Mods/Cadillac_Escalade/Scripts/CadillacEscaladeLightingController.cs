@@ -13,7 +13,6 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private const string SecondaryHeadlampName = "running_facia_lamps";
     private const string RearStripName = "tail_lamp_long";
     private const string ThirdBrakeLightName = "chml_red";
-    private const string ReverseLightName = "reflectorGlass";
     private const string FrontBlinkerName = "amber_lights";
     private const string RearBlinkerName = "rear_turn_signals";
     private const float BlinkerHalfPeriod = 0.42f;
@@ -62,7 +61,6 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         var secondaryHeadlamp = FindRenderer(renderers, SecondaryHeadlampName);
         var rearStrip = FindRenderer(renderers, RearStripName);
         var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
-        var reverseLight = FindRenderer(renderers, ReverseLightName);
         var frontBlinkers = FindRenderer(renderers, FrontBlinkerName);
         var rearBlinkers = FindRenderer(renderers, RearBlinkerName);
 
@@ -79,8 +77,8 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
         reverseOverlay = CreateFilteredOverlay(
-            reverseLight,
-            p => Mathf.Abs(p.x) >= 0.45f && p.y <= 1.10f,
+            rearStrip,
+            p => Mathf.Abs(p.x) >= 0.62f && p.y >= 1.10f && p.y <= 1.34f,
             "ReverseLight",
             new Color(0.92f, 0.96f, 1f, 1f),
             4.8f,
@@ -99,7 +97,7 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
                 $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
-                $"reverse='{reverseLight?.name}' beams={beamCount}/2 " +
+                $"reverse='{rearStrip?.name}' beams={beamCount}/2 " +
                 $"lampOverlays={CountLampOverlays()}/7 blinkerOverlays={CountBlinkerOverlays()}/4.");
         if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");

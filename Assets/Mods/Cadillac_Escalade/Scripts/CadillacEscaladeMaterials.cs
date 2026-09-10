@@ -364,6 +364,7 @@ public static class CadillacEscaladeMaterials
         SetFloat(material, "_ReceivesSSR", 0f);
         SetFloat(material, "_ReceivesSSRTransparent", 0f);
         SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
+        ConfigureLampRestingEmission(material, name);
         if (cabinGlass)
         {
             SetFloat(material, "_Metallic", 0f);
@@ -395,18 +396,40 @@ public static class CadillacEscaladeMaterials
     private static Color GetTransparentTint(string name, bool cabinGlass)
     {
         if (cabinGlass)
-            return new Color(0.62f, 0.68f, 0.74f, 0.10f);
+            return new Color(0.82f, 0.88f, 0.94f, 0.28f);
         if (Contains(name, "CadillacRearLampLens"))
-            return new Color(0.88f, 0.035f, 0.012f, 0.42f);
+            return new Color(0.95f, 0.08f, 0.03f, 0.30f);
         if (Contains(name, "CadillacRearLamp"))
-            return new Color(0.92f, 0.025f, 0.008f, 0.72f);
+            return new Color(1f, 0.08f, 0.025f, 0.52f);
         if (Contains(name, "CadillacAmberLampLens"))
-            return new Color(1f, 0.28f, 0.015f, 0.44f);
+            return new Color(1f, 0.34f, 0.02f, 0.36f);
         if (Contains(name, "CadillacFrontLamp"))
-            return new Color(0.90f, 0.95f, 1f, 0.68f);
+            return new Color(0.95f, 0.98f, 1f, 0.55f);
         if (Contains(name, "CadillacClearLampLens"))
-            return new Color(0.90f, 0.95f, 1f, 0.28f);
+            return new Color(0.95f, 0.98f, 1f, 0.16f);
         return new Color(0.82f, 0.88f, 0.94f, 0.10f);
+    }
+
+    private static void ConfigureLampRestingEmission(Material material, string name)
+    {
+        Color emission;
+        if (Contains(name, "CadillacFrontLamp"))
+            emission = new Color(0.18f, 0.22f, 0.28f, 1f);
+        else if (Contains(name, "CadillacRearLamp") &&
+                 !Contains(name, "CadillacRearLampLens"))
+            emission = new Color(0.20f, 0.004f, 0.001f, 1f);
+        else
+            return;
+
+        // The source light-signature atlas contains deliberately black RGB in
+        // its unlit regions. A restrained emissive floor preserves that alpha
+        // detail while keeping the physical lamp elements readable when the
+        // vehicle is parked and its active light overlays are disabled.
+        SetColor(material, "_EmissiveColor", emission);
+        SetColor(material, "_EmissionColor", emission);
+        SetFloat(material, "_UseEmissiveIntensity", 0f);
+        SetFloat(material, "_EmissiveExposureWeight", 1f);
+        material.EnableKeyword("_EMISSION");
     }
 
     internal static void RestoreCabinGlassMaterial(Material material)

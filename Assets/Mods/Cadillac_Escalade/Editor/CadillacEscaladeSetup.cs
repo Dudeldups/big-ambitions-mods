@@ -44,6 +44,7 @@ public static class CadillacEscaladeSetup
     private const float DeformationStrength = 0.13f;
     private const float DeformationRadius = 0.45f;
     private const float DeformationRandomness = 0.012f;
+    private const float ExitMarkerOffset = 1.75f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
     private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.30f, -0.05f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
@@ -305,8 +306,8 @@ public static class CadillacEscaladeSetup
             var driverExit = FindTransform(prefab.transform, "Driverside");
             var passengerExit = FindTransform(prefab.transform, "Passengerside");
             if (driverExit == null || passengerExit == null ||
-                Vector3.Distance(driverExit.localPosition, new Vector3(-1.55f, 0.10f, 0.30f)) > 0.001f ||
-                Vector3.Distance(passengerExit.localPosition, new Vector3(1.55f, 0.10f, 0.30f)) > 0.001f)
+                Vector3.Distance(driverExit.localPosition, new Vector3(-ExitMarkerOffset, 0.10f, 0.30f)) > 0.001f ||
+                Vector3.Distance(passengerExit.localPosition, new Vector3(ExitMarkerOffset, 0.10f, 0.30f)) > 0.001f)
             {
                 issues.Add("exit-marker-clearance");
             }
@@ -558,7 +559,7 @@ public static class CadillacEscaladeSetup
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)
     {
-        const float driverSide = -1.55f;
+        const float driverSide = -ExitMarkerOffset;
         SetLocalPosition(root, "Animate_SteeringWheel_033", new Vector3(-0.52f, 1.15f, 0.68f));
         SetLocalPosition(root, "Driverside", new Vector3(driverSide, 0.10f, 0.30f));
         SetLocalPosition(root, "Passengerside", new Vector3(-driverSide, 0.10f, 0.30f));

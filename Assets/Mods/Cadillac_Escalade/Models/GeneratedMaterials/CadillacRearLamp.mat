@@ -18,7 +18,8 @@ Material:
   - _ENABLE_FOG_ON_TRANSPARENT
   - _NORMALMAP_TANGENT_SPACE
   - _SURFACE_TYPE_TRANSPARENT
-  m_InvalidKeywords: []
+  m_InvalidKeywords:
+  - _EMISSION
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 1
@@ -304,13 +305,13 @@ Material:
     - roughnessFactor: 0.18133388
     - transmissionFactor: 0
     m_Colors:
-    - _BaseColor: {r: 0.92, g: 0.025, b: 0.008, a: 0.72}
+    - _BaseColor: {r: 1, g: 0.08, b: 0.025, a: 0.52}
     - _BaseColorMap_MipInfo: {r: 0, g: 0, b: 0, a: 0}
-    - _Color: {r: 0.92, g: 0.025, b: 0.008, a: 0.72}
+    - _Color: {r: 1, g: 0.08, b: 0.025, a: 0.52}
     - _DiffusionProfileAsset: {r: 0, g: 0, b: 0, a: 0}
     - _DoubleSidedConstants: {r: -1, g: -1, b: -1, a: 0}
-    - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _EmissiveColor: {r: 0, g: 0, b: 0, a: 1}
+    - _EmissionColor: {r: 0.2, g: 0.004, b: 0.001, a: 1}
+    - _EmissiveColor: {r: 0.2, g: 0.004, b: 0.001, a: 1}
     - _EmissiveColorLDR: {r: 0, g: 0, b: 0, a: 1}
     - _InvPrimScale: {r: 1, g: 1, b: 0, a: 0}
     - _IridescenceThicknessRemap: {r: 0, g: 1, b: 0, a: 0}
