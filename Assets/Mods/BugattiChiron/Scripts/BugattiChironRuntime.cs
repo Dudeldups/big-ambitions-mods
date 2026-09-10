@@ -7,6 +7,7 @@ using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 
@@ -358,6 +359,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
+            ConfigureNavMeshObstacles(vehicle.gameObject);
             ConfigurePowertrain(vehicle.gameObject);
             BugattiChironMaterials.FixSolidMaterials(vehicle.gameObject);
             var glassController = vehicle.GetComponent<BugattiChironGlassController>();
@@ -478,6 +480,93 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
             transform.localPosition = new Vector3(localX, ExitLocalY, ExitLocalZ);
         }
+    }
+
+    private static int ConfigureNavMeshObstacles(GameObject root)
+    {
+        if (!TryGetBodyColliderBounds(root.transform, out var bodyBounds))
+            return 0;
+
+        var normalized = 0;
+        foreach (var obstacle in root.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle == null || obstacle.shape != NavMeshObstacleShape.Box)
+                continue;
+
+            var obstacleTransform = obstacle.transform;
+            var scale = obstacleTransform.lossyScale;
+            if (Mathf.Abs(scale.x) < 0.0001f ||
+                Mathf.Abs(scale.y) < 0.0001f ||
+                Mathf.Abs(scale.z) < 0.0001f)
+            {
+                continue;
+            }
+
+            var rootTransform = root.transform;
+            obstacle.center = obstacleTransform.InverseTransformPoint(
+                rootTransform.TransformPoint(bodyBounds.center));
+            obstacle.size = new Vector3(
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.right) /
+                Mathf.Abs(scale.x),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.up) /
+                Mathf.Abs(scale.y),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.forward) /
+                Mathf.Abs(scale.z));
+            normalized++;
+        }
+
+        return normalized;
+    }
+
+    private static bool TryGetBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || collider.isTrigger)
+                    continue;
+
+                var halfSize = collider.size * 0.5f;
+                for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                for (var z = -1; z <= 1; z += 2)
+                {
+                    var corner = collider.center + Vector3.Scale(
+                        halfSize,
+                        new Vector3(x, y, z));
+                    var rootCorner = root.InverseTransformPoint(
+                        collider.transform.TransformPoint(corner));
+                    if (!found)
+                    {
+                        bounds = new Bounds(rootCorner, Vector3.zero);
+                        found = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(rootCorner);
+                    }
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBodySizeOntoAxis(
+        Vector3 bodySize,
+        Transform root,
+        Vector3 worldAxis)
+    {
+        worldAxis.Normalize();
+        return Mathf.Abs(Vector3.Dot(worldAxis, root.right)) * bodySize.x +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.up)) * bodySize.y +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.forward)) * bodySize.z;
     }
 
     private static bool ConfigurePowertrain(GameObject root)
