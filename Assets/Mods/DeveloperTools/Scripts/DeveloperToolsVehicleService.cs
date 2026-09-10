@@ -132,13 +132,35 @@ namespace DeveloperTools
 
             try
             {
-                controller.Repair();
+                var recoveredMalformedDeformation = false;
+                try
+                {
+                    controller.Repair();
+                }
+                catch (IndexOutOfRangeException)
+                {
+                    // Some modded vehicles have a different number of live mesh
+                    // filters and authored original meshes. The game's reset loop
+                    // indexes both arrays by the live-filter count and throws after
+                    // its saved and physics damage state has already been repaired.
+                    recoveredMalformedDeformation = true;
+                }
+
+                controller.vehicleInstance.damage = 0f;
+                controller.vehicleInstance.deformations?.Clear();
                 foreach (var deformation in controller.GetComponentsInChildren<VehicleDeformationController>(true))
-                    if (deformation != null) deformation.Reset();
+                    if (deformation != null)
+                        recoveredMalformedDeformation |= ResetDeformationSafely(deformation);
 
                 SaveGameManager.MarkChange();
                 GlobalEvents.onVehicleVariablesChanged?.Invoke();
                 message = "Repaired " + Localize(controller.vehicleInstance.vehicleTypeName) + ".";
+                if (recoveredMalformedDeformation && DeveloperToolsDiagnostics.Enabled)
+                {
+                    context.Logger.Info(
+                        "DeveloperTools: repaired a vehicle with mismatched deformation mesh arrays; type=" +
+                        controller.vehicleInstance.vehicleTypeName + ".");
+                }
                 return true;
             }
             catch (Exception exception)
@@ -147,6 +169,20 @@ namespace DeveloperTools
                 context.Logger.Error(exception);
                 return false;
             }
+        }
+
+        private static bool ResetDeformationSafely(VehicleDeformationController deformation)
+        {
+            var meshFilters = deformation.meshFilters ?? Array.Empty<MeshFilter>();
+            var originalMeshes = deformation.originalMeshes ?? Array.Empty<Mesh>();
+            var matchingCount = Math.Min(meshFilters.Length, originalMeshes.Length);
+            for (var index = 0; index < matchingCount; index++)
+            {
+                if (meshFilters[index] != null && originalMeshes[index] != null)
+                    meshFilters[index].mesh = originalMeshes[index];
+            }
+
+            return meshFilters.Length != originalMeshes.Length;
         }
 
         private static VehicleController? FindVehicleController(string? vehicleId)
