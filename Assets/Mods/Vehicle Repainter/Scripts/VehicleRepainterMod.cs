@@ -18,31 +18,130 @@ using UI.Elements;
 using UI.Overlays;
 using UI.PurchaseVehicle;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 [assembly: RegisterModClass(typeof(VehicleRepainter.VehicleRepainterMod))]
 
 namespace VehicleRepainter
 {
-    [ModEntryOnCityLoad]
+    [ModEntryOnInitializationLoad]
     public sealed class VehicleRepainterMod : IModBigAmbitions
     {
         private VehicleRepainterRuntime? runtime;
+        private VehicleRepainterLifecycle? lifecycle;
 
         public string[] RelativeAssetBundlePaths => Array.Empty<string>();
 
         public Task OnLoadAsync(ModContext context)
         {
             runtime = new VehicleRepainterRuntime(context);
-            runtime.Install();
+            lifecycle = VehicleRepainterLifecycle.Initialize(runtime);
             return Task.CompletedTask;
         }
 
         public Task OnUnloadAsync()
         {
+            lifecycle?.Shutdown();
+            lifecycle = null;
             runtime?.Uninstall();
             runtime = null;
             return Task.CompletedTask;
+        }
+    }
+
+    internal sealed class VehicleRepainterLifecycle : MonoBehaviour
+    {
+        private Coroutine? pendingInstall;
+        private VehicleRepainterRuntime? runtime;
+
+        internal static VehicleRepainterLifecycle Initialize(VehicleRepainterRuntime runtime)
+        {
+            var lifecycleObject = new GameObject(nameof(VehicleRepainterLifecycle));
+            DontDestroyOnLoad(lifecycleObject);
+            var lifecycle = lifecycleObject.AddComponent<VehicleRepainterLifecycle>();
+            lifecycle.runtime = runtime;
+            lifecycle.SubscribeGlobalEvents();
+            GlobalEvents.RegisterOnGameLoadedLateCallback(lifecycle.HandleGameLoadedLate);
+            lifecycle.ScheduleInstall("mod-load");
+            return lifecycle;
+        }
+
+        internal void Shutdown()
+        {
+            if (pendingInstall != null)
+            {
+                StopCoroutine(pendingInstall);
+                pendingInstall = null;
+            }
+
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            UnsubscribeGlobalEvents();
+            runtime = null;
+            Destroy(gameObject);
+        }
+
+        private void OnEnable()
+        {
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            SceneManager.sceneLoaded += HandleSceneLoaded;
+            SubscribeGlobalEvents();
+        }
+
+        private void OnDisable()
+        {
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            UnsubscribeGlobalEvents();
+        }
+
+        private void SubscribeGlobalEvents()
+        {
+            GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
+            GlobalEvents.onGameUnloaded += HandleGameUnloaded;
+        }
+
+        private void UnsubscribeGlobalEvents()
+        {
+            GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
+        }
+
+        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            SubscribeGlobalEvents();
+            GlobalEvents.RegisterOnGameLoadedLateCallback(HandleGameLoadedLate);
+            ScheduleInstall($"scene-loaded:{scene.name}");
+        }
+
+        private void HandleGameLoadedLate()
+        {
+            SubscribeGlobalEvents();
+            ScheduleInstall("game-loaded-late");
+        }
+
+        private void HandleGameUnloaded()
+        {
+            if (pendingInstall != null)
+            {
+                StopCoroutine(pendingInstall);
+                pendingInstall = null;
+            }
+
+            runtime?.Uninstall();
+        }
+
+        private void ScheduleInstall(string source)
+        {
+            if (pendingInstall != null)
+                StopCoroutine(pendingInstall);
+
+            pendingInstall = StartCoroutine(InstallAfterSceneSetup(source));
+        }
+
+        private IEnumerator InstallAfterSceneSetup(string source)
+        {
+            yield return null;
+            pendingInstall = null;
+            runtime?.Install(source);
         }
     }
 
@@ -194,14 +293,25 @@ namespace VehicleRepainter
             TraceButton($"Diagnostic mode enabled for modId='{context.ModId}'.");
         }
 
-        internal void Install()
+        internal void Install(string source)
         {
             var uis = InstanceBehavior<UIs>.Instance;
             if (uis == null || uis.overlayUI == null)
             {
-                context.Logger.Error("Could not install: the game's overlay UI is unavailable.");
+                TraceButton($"Deferred installation source='{source}': the game's overlay UI is not ready.");
                 return;
             }
+
+            if (extendedGasStationOverlay != null && overlayUi != null &&
+                ReferenceEquals(overlayUi, uis.overlayUI) &&
+                ReferenceEquals(overlayUi.gasStation, extendedGasStationOverlay))
+            {
+                TraceButton($"Installation already active source='{source}'.");
+                return;
+            }
+
+            if (extendedGasStationOverlay != null || ownedCustomVehicleColors.Count > 0)
+                Uninstall();
 
             if (CurrentStationTriggerField == null || PurchaseButtonField == null ||
                 ColorsGridLayoutGroupField == null || VehicleColorBackingField == null)
@@ -224,7 +334,7 @@ namespace VehicleRepainter
             overlayUi.gasStation = extendedGasStationOverlay;
             ObserveStationTriggers();
             TraceButton(
-                $"Installed gas-station overlay extension; previousOverlay='{originalGasStationOverlay?.GetType().FullName ?? "null"}', " +
+                $"Installed gas-station overlay extension source='{source}'; previousOverlay='{originalGasStationOverlay?.GetType().FullName ?? "null"}', " +
                 $"observedTriggers={observedStationTriggers.Count}.");
         }
 
