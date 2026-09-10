@@ -28,6 +28,7 @@ namespace DeveloperTools
         private const float MaximumAccelerationRunSeconds = 120f;
         private const float Gravity = 9.80665f;
         private const float CollisionSettleSeconds = 0.25f;
+        private const float RevLimiterLogIntervalSeconds = 1f;
         private const float DamageTolerance = 0.0001f;
 
         private static readonly float[] SpeedMilestonesKph =
@@ -66,6 +67,7 @@ namespace DeveloperTools
         private int segmentNumber;
         private int collisionNumber;
         private int collisionCount;
+        private int collisionIncidentCount;
         private int damagingCollisionCount;
         private int shiftCount;
         private float distanceMetres;
@@ -80,6 +82,7 @@ namespace DeveloperTools
         private float cachedMaxLongitudinalSlip;
         private float cachedMaxLateralSlip;
         private float cachedAverageWheelLoad;
+        private float lastRevLimiterLoggedAt;
         private bool failureReported;
 
         public DeveloperToolsVehicleDiagnosticsService(ModContext context) => this.context = context;
@@ -243,7 +246,7 @@ namespace DeveloperTools
             }
             writer = null;
             pendingCollisions.Clear();
-            message = "Vehicle diagnostics stopped. Report: " + completedPath;
+            message = "Vehicle diagnostics stopped. CSV report saved in the VehicleDiagnostics folder.";
         }
 
         private void TryAttachCurrentVehicle()
@@ -280,10 +283,11 @@ namespace DeveloperTools
             lastPosition = body?.position ?? enteredVehicle.transform.position;
             previousGear = physics?.powertrain?.transmission?.Gear ?? 0;
             previousRevLimiter = physics?.powertrain?.engine?.revLimiterActive ?? false;
+            lastRevLimiterLoggedAt = float.NegativeInfinity;
             accelerationArmed = true;
             accelerationRunning = false;
             accelerationRunNumber = 0;
-            collisionCount = damagingCollisionCount = shiftCount = 0;
+            collisionCount = collisionIncidentCount = damagingCollisionCount = shiftCount = 0;
             distanceMetres = topSpeedKph = maximumRpm = 0f;
             maximumAccelerationG = maximumBrakingG = maximumLateralG = airborneSeconds = 0f;
             cachedGroundedWheels = cachedWheelCount = 0;
@@ -322,8 +326,9 @@ namespace DeveloperTools
                 ";max_braking_g=" + Format(maximumBrakingG) +
                 ";max_lateral_g=" + Format(maximumLateralG) +
                 ";airborne_s=" + Format(airborneSeconds) +
-                ";collisions=" + collisionCount +
-                ";damage_applied_collisions=" + damagingCollisionCount +
+                ";collision_contacts=" + collisionCount +
+                ";collision_incidents=" + collisionIncidentCount +
+                ";damage_applied_incidents=" + damagingCollisionCount +
                 ";shifts=" + shiftCount,
                 true);
 
@@ -440,8 +445,13 @@ namespace DeveloperTools
                     true);
                 previousGear = snapshot.Gear;
             }
-            if (snapshot.RevLimiter && !previousRevLimiter)
+            var now = Time.realtimeSinceStartup;
+            if (snapshot.RevLimiter && !previousRevLimiter &&
+                now - lastRevLimiterLoggedAt >= RevLimiterLogIntervalSeconds)
+            {
                 WriteRow("rev_limiter", snapshot, "entered=true", true);
+                lastRevLimiterLoggedAt = now;
+            }
             previousRevLimiter = snapshot.RevLimiter;
         }
 
@@ -599,35 +609,52 @@ namespace DeveloperTools
 
         private void FinalizeSettledCollisions(TelemetrySnapshot snapshot, float now)
         {
-            for (var index = pendingCollisions.Count - 1; index >= 0; index--)
+            while (pendingCollisions.Count > 0 && now >= pendingCollisions[0].SettleAt)
             {
-                if (now < pendingCollisions[index].SettleAt)
-                    continue;
-                FinalizeCollision(pendingCollisions[index], snapshot);
-                pendingCollisions.RemoveAt(index);
+                var incidentLimit = pendingCollisions[0].SettleAt + CollisionSettleSeconds;
+                var incidentCount = 1;
+                while (incidentCount < pendingCollisions.Count &&
+                       pendingCollisions[incidentCount].SettleAt <= incidentLimit)
+                {
+                    incidentCount++;
+                }
+
+                var incident = pendingCollisions.GetRange(0, incidentCount);
+                pendingCollisions.RemoveRange(0, incidentCount);
+                FinalizeCollisionIncident(incident, snapshot);
             }
         }
 
         private void FinalizeAllCollisions(TelemetrySnapshot snapshot)
         {
-            foreach (var pending in pendingCollisions)
-                FinalizeCollision(pending, snapshot);
+            if (pendingCollisions.Count > 0)
+                FinalizeCollisionIncident(pendingCollisions, snapshot);
             pendingCollisions.Clear();
         }
 
-        private void FinalizeCollision(PendingCollision pending, TelemetrySnapshot after)
+        private void FinalizeCollisionIncident(IReadOnlyList<PendingCollision> incident, TelemetrySnapshot after)
         {
-            var savedDelta = after.SavedDamage - pending.BeforeSavedDamage;
-            var physicsDelta = after.PhysicsDamage - pending.BeforePhysicsDamage;
-            var deformationDelta = after.Deformations - pending.BeforeDeformations;
-            var damageApplied = savedDelta > DamageTolerance ||
-                                physicsDelta > DamageTolerance || deformationDelta > 0;
+            if (incident.Count == 0)
+                return;
+
+            var first = incident[0];
+            var savedDelta = after.SavedDamage - first.BeforeSavedDamage;
+            var physicsDelta = after.PhysicsDamage - first.BeforePhysicsDamage;
+            var deformationDelta = after.Deformations - first.BeforeDeformations;
+            var validContacts = incident.Count(item => item.ValidForDamage);
+            var damageApplied = validContacts > 0 &&
+                                (savedDelta > DamageTolerance ||
+                                 physicsDelta > DamageTolerance || deformationDelta > 0);
+            collisionIncidentCount++;
             if (damageApplied) damagingCollisionCount++;
             WriteRow(
                 "collision_result",
                 after,
-                "collision=" + pending.Number +
-                ";valid_for_damage=" + pending.ValidForDamage +
+                "incident=" + collisionIncidentCount +
+                ";contacts=" + incident.Count +
+                ";collision_ids=" + string.Join("|", incident.Select(item => item.Number)) +
+                ";valid_contacts=" + validContacts +
+                ";valid_for_damage=" + (validContacts > 0) +
                 ";damage_applied=" + damageApplied +
                 ";saved_damage_delta=" + Format(savedDelta) +
                 ";physics_damage_delta=" + Format(physicsDelta) +
