@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -203,23 +204,31 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
+        while (BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ConfigureExistingVehicles();
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
         var dealerReady = false;
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= BigfootTruckDealerStock.EnsureVehicleAvailable(
+            dealerReady = BigfootTruckDealerStock.EnsureVehicleAvailable(
                 vehicleTypeName,
                 context,
                 source);
             ConfigureExistingVehicles();
-            if (dealerReady && attempt >= 8)
+            if (dealerReady)
                 break;
             yield return new WaitForSecondsRealtime(InitializationRetryDelay);
         }
 
         initializationCoroutine = null;
         if (!dealerReady)
+        {
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: truck dealer data was not ready source='{source}'.");
+        }
     }
 
     private int ConfigureExistingVehicles()

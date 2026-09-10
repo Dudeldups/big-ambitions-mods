@@ -104,6 +104,37 @@ namespace ModdedVehiclesIntegration
             ReportedProblems.Clear();
         }
 
+        internal static bool EnsureDealerReady(string dealerContactId, ModContext? context)
+        {
+            EnsureApplied(context);
+
+            var registrations = SaveGameManager.Current?.BuildingRegistrations;
+            var registration = registrations?.Find(candidate =>
+                candidate != null &&
+                string.Equals(candidate.BusinessName, dealerContactId, StringComparison.Ordinal));
+            var service = registration?.BuildingCached?.SpecialService;
+            var ready =
+                service != null &&
+                service.dialogType == CallDialogType.VehicleStoreDialog &&
+                service.settings is VehicleStoreSettings;
+
+            if (!ready)
+            {
+                ReportProblemOnce(
+                    "interaction:" + dealerContactId,
+                    $"blocked desk interaction for '{dealerContactId}' because its vehicle-store service is not ready " +
+                    $"(registration={registration != null}, building={registration?.BuildingCached != null}, " +
+                    $"service={service != null}, dialogType={service?.dialogType.ToString() ?? "<none>"}, " +
+                    $"settings={service?.settings?.GetType().Name ?? "<none>"}).",
+                    context);
+                return false;
+            }
+
+            ReportedProblems.Remove("dealer:" + dealerContactId);
+            ReportedProblems.Remove("interaction:" + dealerContactId);
+            return true;
+        }
+
         private static PatchRecord? FindPatch(SpecialService service)
         {
             foreach (var patch in AppliedPatches)
