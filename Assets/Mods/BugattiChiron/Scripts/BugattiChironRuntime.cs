@@ -62,6 +62,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private bool dealerReady;
+    private int cachedPlayerVehicleCount = -1;
     private string vehicleTypeName = string.Empty;
 
     public static BugattiChironRuntime Initialize(ModContext context, string vehicleTypeName)
@@ -89,6 +90,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        cachedPlayerVehicleCount = -1;
         Destroy(gameObject);
     }
 
@@ -103,6 +105,14 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+    }
+
+    private void Update()
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var currentCount = vehicles?.Count ?? 0;
+        if (currentCount != cachedPlayerVehicleCount)
+            ConfigureExistingVehicles(out _);
     }
 
     private void SubscribeEvents()
@@ -144,11 +154,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        cachedPlayerVehicleCount = -1;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
         TryConfigureVehicle(vehicle);
+        vehicle?.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
         vehicle?.GetComponent<BugattiChironGlassController>()?.RestoreAfterVehicleEntered();
     }
 
@@ -167,7 +179,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
+        if (!isOpen)
+        {
+            RefreshExistingVehiclePaint();
+            return;
+        }
+
+        if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
     }
 
@@ -245,6 +263,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     {
         matchedCount = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
+        cachedPlayerVehicleCount = vehicles?.Count ?? 0;
         if (vehicles == null)
             return;
 
@@ -261,6 +280,27 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
             matchedCount++;
             TryConfigureVehicle(vehicle);
+        }
+    }
+
+    private void RefreshExistingVehiclePaint()
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        if (vehicles == null)
+            return;
+
+        foreach (var vehicle in vehicles)
+        {
+            if (vehicle?.vehicleInstance == null ||
+                !string.Equals(
+                    vehicle.vehicleInstance.vehicleTypeName,
+                    vehicleTypeName,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            vehicle.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
         }
     }
 

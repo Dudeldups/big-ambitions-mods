@@ -6,7 +6,6 @@ using Data.VehicleColors;
 using Helpers;
 using UnityEngine;
 
-[DefaultExecutionOrder(150)]
 internal sealed class BugattiChironPaintController : MonoBehaviour
 {
     private const string BodyMaterialMarker = "BugattiOpaque_04_Body";
@@ -50,11 +49,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         ApplyCurrentColor();
     }
 
-    private void LateUpdate()
-    {
-        if (vehicle != null)
-            ApplyCurrentColor();
-    }
+    internal void RefreshCurrentColor() => ApplyCurrentColor();
 
     private void FindPaintSlots()
     {
