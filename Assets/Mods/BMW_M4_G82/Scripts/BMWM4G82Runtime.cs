@@ -29,12 +29,12 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.96f;
-    private const float AntiRollBarForce = 8200f;
-    private const float FrontSuspensionTravel = 0.05f;
-    private const float RearSuspensionTravel = 0.05f;
-    private const float SuspensionBumpRate = 24500f;
-    private const float SuspensionReboundRate = 28000f;
-    private const float SuspensionExtensionSpeed = 4f;
+    private const float AntiRollBarForce = 7200f;
+    private const float FrontSuspensionTravel = 0.07f;
+    private const float RearSuspensionTravel = 0.07f;
+    private const float SuspensionBumpRate = 15000f;
+    private const float SuspensionReboundRate = 17000f;
+    private const float SuspensionExtensionSpeed = 6f;
     private const float MaximumDamagedWheelWobbleAngle = 1.5f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
@@ -43,8 +43,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float DamageDecelerationThreshold = 500f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
-    private static readonly Vector3 DriverExitPosition = new Vector3(-1.72f, 0.20f, 0.15f);
-    private static readonly Vector3 PassengerExitPosition = new Vector3(1.72f, 0.20f, 0.15f);
+    private static readonly Vector3 DriverExitPosition = new Vector3(-2.05f, 0.20f, 0.15f);
+    private static readonly Vector3 PassengerExitPosition = new Vector3(2.05f, 0.20f, 0.15f);
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
 
     private static readonly float[] M4Gears =
@@ -412,6 +412,10 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             ConfigureWheelControllers(targetVehicle.gameObject);
             ConfigureBodyColliders(targetVehicle.gameObject);
             ConfigureExitMarkers(targetVehicle.gameObject);
+            var settlingController = targetVehicle.GetComponent<BMWM4G82SettlingController>();
+            if (settlingController == null)
+                settlingController = targetVehicle.gameObject.AddComponent<BMWM4G82SettlingController>();
+            settlingController.Initialize(targetVehicle);
             var powertrainConfigured = ConfigurePowertrain(targetVehicle.gameObject);
             var caliperController = targetVehicle.GetComponent<BMWM4G82CaliperController>();
             if (caliperController == null)
@@ -559,13 +563,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.33f, 0.08f);
-                colliders[0].size = new Vector3(1.74f, 0.42f, 4.38f);
+                colliders[0].center = new Vector3(0f, 0.38f, 0.08f);
+                colliders[0].size = new Vector3(1.68f, 0.40f, 4.20f);
             }
             if (colliders.Length > 1)
             {
                 colliders[1].center = new Vector3(0f, 0.84f, -0.20f);
-                colliders[1].size = new Vector3(1.46f, 0.64f, 2.34f);
+                colliders[1].size = new Vector3(1.34f, 0.60f, 2.20f);
             }
         }
     }
@@ -1033,19 +1037,19 @@ public sealed class BMWM4G82GlassController : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class BMWM4G82VisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.64f;
-    private const float MaximumDentDepth = 0.34f;
-    private const float DepthPerExcessMps = 0.011f;
-    private const float FrontDentLateralRadius = 0.82f;
-    private const float FrontDentVerticalRadius = 0.68f;
-    private const float FrontDentLongitudinalRadius = 0.95f;
-    private const float MaximumFrontDentDepth = 0.36f;
-    private const float FrontDepthPerExcessMps = 0.012f;
-    private const float RearDentLateralRadius = 0.96f;
-    private const float RearDentVerticalRadius = 0.82f;
-    private const float RearDentLongitudinalRadius = 1.18f;
-    private const float MaximumRearDentDepth = 0.58f;
-    private const float RearDepthPerExcessMps = 0.017f;
+    private const float DentRadius = 0.54f;
+    private const float MaximumDentDepth = 0.18f;
+    private const float DepthPerExcessMps = 0.0065f;
+    private const float FrontDentLateralRadius = 0.68f;
+    private const float FrontDentVerticalRadius = 0.54f;
+    private const float FrontDentLongitudinalRadius = 0.76f;
+    private const float MaximumFrontDentDepth = 0.21f;
+    private const float FrontDepthPerExcessMps = 0.007f;
+    private const float RearDentLateralRadius = 0.78f;
+    private const float RearDentVerticalRadius = 0.64f;
+    private const float RearDentLongitudinalRadius = 0.90f;
+    private const float MaximumRearDentDepth = 0.28f;
+    private const float RearDepthPerExcessMps = 0.008f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
@@ -1137,14 +1141,14 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                 return;
 
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
-            var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.025f, MaximumDentDepth);
+            var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.010f, MaximumDentDepth);
             var frontDentDepth = Mathf.Clamp(
                 excessSpeed * FrontDepthPerExcessMps,
-                0.04f,
+                0.015f,
                 MaximumFrontDentDepth);
             var rearDentDepth = Mathf.Clamp(
                 excessSpeed * RearDepthPerExcessMps,
-                0.04f,
+                0.015f,
                 MaximumRearDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
@@ -1228,7 +1232,18 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                         ? Mathf.Pow(strongestInfluence, 1.35f)
                         : strongestInfluence * strongestInfluence;
                     worldVertex += inwardDirection * (selectedDepth * falloff);
-                    vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
+                    var localVertex = filter.transform.InverseTransformPoint(worldVertex);
+                    if (originalVertices.TryGetValue(filter, out var baseline) &&
+                        vertexIndex < baseline.Length)
+                    {
+                        var cumulativeLimit = selectedEndImpact
+                            ? selectedFrontImpact ? MaximumFrontDentDepth : MaximumRearDentDepth
+                            : MaximumDentDepth;
+                        localVertex = baseline[vertexIndex] + Vector3.ClampMagnitude(
+                            localVertex - baseline[vertexIndex],
+                            cumulativeLimit);
+                    }
+                    vertices[vertexIndex] = localVertex;
                     changedVertices++;
                     meshChanged = true;
                     frontImpact |= selectedEndImpact && selectedFrontImpact;

@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1314803516
+CRC: 2770274140
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 1fd7a627ebdc3c947e3524a89901b06f
+    Hash: b619b46d6dd4c443968230020433cbaf
   TypeTreeHash:
     serializedVersion: 2
     Hash: fe99b56c0570f178da583e93064b5623
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 1fd7a627ebdc3c947e3524a89901b06f
+    Hash: b619b46d6dd4c443968230020433cbaf
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -252,6 +252,7 @@ Assets:
 - Assets/Mods/BMW_M4_G82/THIRD_PARTY_NOTICES.md
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_01_bBMW_M4CompetitionG82TNR0_2021GrilleNoAlpha6A_Material1.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontLeft_BMWOpaque_11_Material_001_Caliper.asset
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWCaliper.mat
 - Assets/Mods/BMW_M4_G82/BMWM4G82.prefab
 - Assets/Mods/BMW_M4_G82/Config/Audio/EngineLowLoad.wav
 - Assets/Mods/BMW_M4_G82/Config/Audio/HornHigh.wav

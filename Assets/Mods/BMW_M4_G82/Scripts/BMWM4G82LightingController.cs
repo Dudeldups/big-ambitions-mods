@@ -29,8 +29,10 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
     private MeshRenderer? leftDaylightOverlay;
     private MeshRenderer? rightDaylightOverlay;
     private MeshRenderer? headlampOverlay;
-    private MeshRenderer? rearTailOverlay;
-    private MeshRenderer? rearBrakeOverlay;
+    private MeshRenderer? rearLeftTailOverlay;
+    private MeshRenderer? rearRightTailOverlay;
+    private MeshRenderer? rearLeftBrakeOverlay;
+    private MeshRenderer? rearRightBrakeOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
     private MeshRenderer? rightBlinkerOverlay;
@@ -64,16 +66,26 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         headlampOverlay = CreateComponentOverlay(lamp,
             IsFrontProjector,
             "HeadlampProjectors", white, 6.2f, 1.004f);
-        rearTailOverlay = CreateComponentOverlay(lamp,
-            component => IsRearOuterSignature(component) || IsRearInnerSignature(component),
-            "RearTailSignature", new Color(0.78f, 0.006f, 0.002f, 1f), 2.5f, 1.003f);
-        rearBrakeOverlay = CreateComponentOverlay(lamp,
-            component => IsRearBrakePanel(component) || IsRearInnerSignature(component),
-            "RearBrakeSignature", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.0035f);
+        rearLeftTailOverlay = CreateComponentOverlay(lamp,
+            component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
+                         component.Bounds.center.x < 0f,
+            "RearLeftTailSignature", new Color(0.78f, 0.006f, 0.002f, 1f), 2.5f, 1.003f);
+        rearRightTailOverlay = CreateComponentOverlay(lamp,
+            component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
+                         component.Bounds.center.x >= 0f,
+            "RearRightTailSignature", new Color(0.78f, 0.006f, 0.002f, 1f), 2.5f, 1.003f);
+        rearLeftBrakeOverlay = CreateComponentOverlay(lamp,
+            component => (IsRearBrakePanel(component) || IsRearInnerSignature(component)) &&
+                         component.Bounds.center.x < 0f,
+            "RearLeftBrakeSignature", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.0035f);
+        rearRightBrakeOverlay = CreateComponentOverlay(lamp,
+            component => (IsRearBrakePanel(component) || IsRearInnerSignature(component)) &&
+                         component.Bounds.center.x >= 0f,
+            "RearRightBrakeSignature", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.0035f);
         reverseOverlay = CreateComponentOverlay(lamp,
             IsRearReverseStrip,
             "ReverseLight", white, 4.6f, 1.004f);
-        var amber = new Color(1f, 0.18f, 0.001f, 1f);
+        var amber = new Color(1f, 0.42f, 0.005f, 1f);
         leftBlinkerOverlay = CreateComponentOverlay(daylight,
             component => IsFront(component) && component.Bounds.center.x < 0f,
             "LeftIndicator", amber, 5.4f, 1.002f);
@@ -81,18 +93,20 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             component => IsFront(component) && component.Bounds.center.x >= 0f,
             "RightIndicator", amber, 5.4f, 1.002f);
         rearLeftBlinkerOverlay = CreateComponentOverlay(lamp,
-            component => IsRearOuterSignature(component) && component.Bounds.center.x < 0f,
-            "RearLeftIndicator", amber, 5.4f, 1.0035f);
+            component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
+                         component.Bounds.center.x < 0f,
+            "RearLeftIndicator", amber, 6.0f, 1.006f);
         rearRightBlinkerOverlay = CreateComponentOverlay(lamp,
-            component => IsRearOuterSignature(component) && component.Bounds.center.x >= 0f,
-            "RearRightIndicator", amber, 5.4f, 1.0035f);
+            component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
+                         component.Bounds.center.x >= 0f,
+            "RearRightIndicator", amber, 6.0f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{lamp?.name}' " +
                 $"rearLens='{rearStrip?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/6 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 6 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"lampOverlays={CountLampOverlays()}/8 blinkerOverlays={CountBlinkerOverlays()}/4.");
+        if (CountLampOverlays() != 8 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -427,8 +441,10 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         SetEnabled(leftDaylightOverlay, false);
         SetEnabled(rightDaylightOverlay, false);
         SetEnabled(headlampOverlay, lightsOn);
-        SetEnabled(rearTailOverlay, lightsOn);
-        SetEnabled(rearBrakeOverlay, braking);
+        SetEnabled(rearLeftTailOverlay, lightsOn && !leftBlinker);
+        SetEnabled(rearRightTailOverlay, lightsOn && !rightBlinker);
+        SetEnabled(rearLeftBrakeOverlay, braking && !leftBlinker);
+        SetEnabled(rearRightBrakeOverlay, braking && !rightBlinker);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
@@ -443,8 +459,9 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
 
     private int CountLampOverlays() =>
         (leftDaylightOverlay != null ? 1 : 0) + (rightDaylightOverlay != null ? 1 : 0) +
-        (headlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
-        (rearBrakeOverlay != null ? 1 : 0) +
+        (headlampOverlay != null ? 1 : 0) +
+        (rearLeftTailOverlay != null ? 1 : 0) + (rearRightTailOverlay != null ? 1 : 0) +
+        (rearLeftBrakeOverlay != null ? 1 : 0) + (rearRightBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>
