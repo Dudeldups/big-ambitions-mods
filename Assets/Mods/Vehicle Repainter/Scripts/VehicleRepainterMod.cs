@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -51,8 +52,23 @@ namespace VehicleRepainter
 
         private static class DebugOptions
         {
+            private const string GlobalDebugMarker = "vehicle-repainter.debug";
+            private const string ButtonDebugMarker = "button-diagnostics.debug";
+
             internal static bool EnableDebugLogging = false;
             internal static bool EnableButtonDiagnostics = false;
+
+            internal static void Configure(string modId)
+            {
+                EnableDebugLogging = false;
+                EnableButtonDiagnostics = false;
+                if (string.IsNullOrWhiteSpace(modId) || !Directory.Exists(modId))
+                    return;
+
+                var configDirectory = Path.Combine(modId, "Config");
+                EnableDebugLogging = File.Exists(Path.Combine(configDirectory, GlobalDebugMarker));
+                EnableButtonDiagnostics = File.Exists(Path.Combine(configDirectory, ButtonDebugMarker));
+            }
         }
 
         private static readonly FieldInfo? CurrentStationTriggerField = typeof(GasStationOverlay).GetField(
@@ -174,6 +190,8 @@ namespace VehicleRepainter
         internal VehicleRepainterRuntime(ModContext context)
         {
             this.context = context;
+            DebugOptions.Configure(context.ModId);
+            TraceButton($"Diagnostic mode enabled for modId='{context.ModId}'.");
         }
 
         internal void Install()
