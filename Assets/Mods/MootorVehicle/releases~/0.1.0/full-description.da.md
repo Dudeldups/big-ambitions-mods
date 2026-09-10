@@ -4,7 +4,7 @@ Hvorfor nøjes med hestekræfter, når du kan få [b]kokræfter[/b]?
 
 [h2]Funktioner[/h2]
 [list]
-[*] Køb og ej koen hos City Cars.
+[*] Køb og ej koen hos City Cars for $1,800.
 [*] Stig op, styr, brems, stig af, parkér og gem den via spillets almindelige køretøjssystem.
 [*] Parkér på fortovet uden parkeringsafgift eller bøder.
 [*] Din figur forbliver synlig under rideturen med en ko-rytterstilling og synlige pakker i hænderne.

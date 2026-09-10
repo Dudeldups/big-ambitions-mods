@@ -4,7 +4,7 @@ De ce să te mulțumești cu cai-putere când poți avea [b]puterea vacii[/b]?
 
 [h2]Caracteristici[/h2]
 [list]
-[*] Cumpără vaca de la City Cars și devino proprietarul ei.
+[*] Cumpără vaca de la City Cars pentru $1,800 și devino proprietarul ei.
 [*] Încalecă, virează, frânează, descălecă, parchează și salvează folosind sistemul standard de vehicule.
 [*] Parchează pe trotuar fără taxe de parcare sau amenzi.
 [*] Personajul rămâne vizibil în timpul deplasării, cu o poziție de călărie și pachetele transportate la vedere.

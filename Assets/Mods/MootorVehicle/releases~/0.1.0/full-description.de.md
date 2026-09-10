@@ -4,7 +4,7 @@ Warum mit Pferdestärken vorliebnehmen, wenn du [b]Kuhstärke[/b] haben kannst?
 
 [h2]Funktionen[/h2]
 [list]
-[*] Kaufe die Kuh bei City Cars und nenne sie dein Eigen.
+[*] Kaufe die Kuh bei City Cars für $1,800 und nenne sie dein Eigen.
 [*] Aufsteigen, lenken, bremsen, absteigen, parken und speichern – alles über das normale Fahrzeugsystem.
 [*] Parke kostenlos und ohne Strafzettel auf dem Gehweg.
 [*] Dein Charakter bleibt beim Reiten sichtbar, mit einer passenden Reitpose und sichtbaren getragenen Paketen.

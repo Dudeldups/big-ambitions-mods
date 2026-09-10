@@ -4,7 +4,7 @@ Miksi tyytyä hevosvoimiin, kun voit saada [b]lehmävoimaa[/b]?
 
 [h2]Ominaisuudet[/h2]
 [list]
-[*] Osta lehmä City Carsilta ja omista se.
+[*] Osta lehmä City Carsilta $1,800 hintaan ja omista se.
 [*] Nouse selkään, ohjaa, jarruta, laskeudu, pysäköi ja tallenna se tavallisen ajoneuvojärjestelmän kautta.
 [*] Pysäköi jalkakäytävälle ilman pysäköintimaksuja tai sakkoja.
 [*] Hahmosi pysyy näkyvissä ratsastamisen aikana lehmänratsastusasennossa, ja kannetut paketit näkyvät käsissä.

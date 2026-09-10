@@ -4,7 +4,7 @@ Waarom genoegen nemen met paardenkracht als je [b]koeienkracht[/b] kunt hebben?
 
 [h2]Functies[/h2]
 [list]
-[*] Koop de koe bij City Cars en word de eigenaar.
+[*] Koop de koe bij City Cars voor $1,800 en word de eigenaar.
 [*] Stap op, stuur, rem, stap af, parkeer en sla haar op via het gewone voertuigsysteem.
 [*] Parkeer op de stoep zonder parkeerkosten of boetes.
 [*] Je personage blijft tijdens het rijden zichtbaar, met een passende rijhouding en zichtbare gedragen pakketten.
