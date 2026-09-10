@@ -165,6 +165,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ?.RestoreAfterVehicleEntered();
         if (vehicle == null || !IsTargetVehicle(vehicle))
             return;
+        vehicle.GetComponent<Porsche911GT3RSPaintController>()
+            ?.ApplyCurrentColor("vehicle-entered");
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
@@ -188,7 +190,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         var physicsWasEnabled = physics != null && physics.enabled;
         var engineWasRunning = physics?.powertrain?.engine?.IsRunning ?? false;
         var gearBefore = physics?.powertrain?.transmission?.Gear ?? 0;
+        var constraintsBefore = rigidbody?.constraints ?? RigidbodyConstraints.None;
         var appliedPasses = 0;
+        var wheelControllersEnabled = 0;
 
         for (var pass = 0; pass < maximumPasses; pass++)
         {
@@ -197,6 +201,15 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 continue;
 
             appliedPasses++;
+            // Dealer purchase finalization can assign the chosen color a frame
+            // after the entry event. This bounded entry sequence catches that
+            // transition without adding a permanent paint polling loop.
+            vehicle.GetComponent<Porsche911GT3RSPaintController>()
+                ?.ApplyCurrentColor($"vehicle-entered-pass-{pass + 1}");
+            // Dealer display vehicles are frozen with Rigidbody constraints,
+            // not only isKinematic. Use the game's own transition so all
+            // vehicle physics state and center-of-mass bookkeeping is restored.
+            vehicle.SetFreeze(false);
             if (physics != null)
                 physics.enabled = true;
             foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
@@ -206,6 +219,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                         "NWH.WheelController3D.WheelController",
                         StringComparison.Ordinal))
                 {
+                    if (!component.enabled)
+                        wheelControllersEnabled++;
                     component.enabled = true;
                 }
             }
@@ -231,11 +246,14 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         var engineRunning = physics?.powertrain?.engine?.IsRunning ?? false;
         var gearAfter = physics?.powertrain?.transmission?.Gear ?? 0;
         var isKinematic = rigidbody != null && rigidbody.isKinematic;
+        var constraintsAfter = rigidbody?.constraints ?? RigidbodyConstraints.None;
         var physicsEnabled = physics != null && physics.enabled;
         context?.Logger.Info(
             $"Porsche911GT3RS: entered-vehicle activation instance={vehicle.GetInstanceID()}, " +
             $"controlled={vehicle.controlledByPlayer}, passes={appliedPasses}/{maximumPasses}, " +
             $"kinematic={wasKinematic}->{isKinematic}, physicsEnabled={physicsWasEnabled}->{physicsEnabled}, " +
+            $"constraints={constraintsBefore}->{constraintsAfter}, " +
+            $"wheelControllersEnabled={wheelControllersEnabled}, " +
             $"engineRunning={engineWasRunning}->{engineRunning}, gear={gearBefore}->{gearAfter}, " +
             $"fuel={vehicle.GetCurrentFuel():F2}.");
     }
@@ -381,11 +399,18 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             if (caliperController == null)
                 caliperController = vehicle.gameObject.AddComponent<Porsche911GT3RSCaliperController>();
             caliperController.Initialize(vehicle, context);
-            var materialResult = Porsche911GT3RSMaterials.FixSolidMaterials(vehicle.gameObject);
+            var materialController = vehicle.GetComponent<Porsche911GT3RSMaterialController>();
+            if (materialController == null)
+                materialController = vehicle.gameObject.AddComponent<Porsche911GT3RSMaterialController>();
+            var materialResult = materialController.Initialize(context);
             var glassController = vehicle.GetComponent<Porsche911GT3RSGlassController>();
             if (glassController == null)
                 glassController = vehicle.gameObject.AddComponent<Porsche911GT3RSGlassController>();
             glassController.Initialize(context);
+            var paintController = vehicle.GetComponent<Porsche911GT3RSPaintController>();
+            if (paintController == null)
+                paintController = vehicle.gameObject.AddComponent<Porsche911GT3RSPaintController>();
+            paintController.Initialize(vehicle, context);
             var lightingController = vehicle.GetComponent<Porsche911GT3RSLightingController>();
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<Porsche911GT3RSLightingController>();
@@ -1067,7 +1092,8 @@ public sealed class Porsche911GT3RSGlassController : MonoBehaviour
             {
                 var source = materials[index];
                 if (source == null ||
-                    !Porsche911GT3RSMaterials.IsCabinGlassMaterial(source))
+                    Porsche911GT3RSMaterials.GetTransparentRole(renderer, source) !=
+                    Porsche911GT3RSTransparentRole.CabinGlass)
                 {
                     continue;
                 }
@@ -1133,7 +1159,8 @@ public sealed class Porsche911GT3RSGlassController : MonoBehaviour
             {
                 var material = materials[index];
                 if (material != null &&
-                    Porsche911GT3RSMaterials.IsCabinGlassMaterial(material))
+                    Porsche911GT3RSMaterials.GetTransparentRole(renderer, material) ==
+                    Porsche911GT3RSTransparentRole.CabinGlass)
                 {
                     renderer.SetPropertyBlock(null, index);
                     Porsche911GT3RSMaterials.RestoreCabinGlassMaterial(material);

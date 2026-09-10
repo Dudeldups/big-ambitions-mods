@@ -2,6 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
+using Data.VehicleColors;
+using Helpers;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -37,6 +40,14 @@ public readonly struct Porsche911GT3RSMaterialFixResult
     public int CabinGlassRenderersReenabled { get; }
 }
 
+internal enum Porsche911GT3RSTransparentRole
+{
+    Authored,
+    CabinGlass,
+    HeadlampLens,
+    OtherClear,
+}
+
 public static class Porsche911GT3RSMaterials
 {
     public const float RimMetallic = 0.65f;
@@ -57,76 +68,10 @@ public static class Porsche911GT3RSMaterials
 
     public static Porsche911GT3RSMaterialFixResult FixSolidMaterials(GameObject vehicle)
     {
-        var canonicalRimMaterial = FindCanonicalRimMaterial(vehicle);
-        var materials = new HashSet<Material>();
-        var rendererCount = 0;
-        var decalMasksCleared = 0;
-        var opaqueMaterialsFixed = 0;
-        var transparentMaterialsFixed = 0;
-        var materialsValidated = 0;
-        var rimSlotsNormalized = 0;
-        var cabinGlassRenderers = 0;
-        var cabinGlassRenderersReenabled = 0;
-
-        foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>(true))
-        {
-            if (!IsPorscheRenderer(renderer.transform))
-                continue;
-
-            rendererCount++;
-            var hasCabinGlass = Array.Exists(
-                renderer.sharedMaterials,
-                material => material != null && IsCabinGlassMaterial(material));
-            if (hasCabinGlass)
-            {
-                cabinGlassRenderers++;
-                if (!renderer.enabled)
-                {
-                    renderer.enabled = true;
-                    cabinGlassRenderersReenabled++;
-                }
-            }
-            foreach (var material in renderer.sharedMaterials)
-            {
-                if (material == null || !materials.Add(material))
-                    continue;
-
-                if (IsTransparentMaterial(material))
-                {
-                    FixTransparentHdrpMaterial(material);
-                    transparentMaterialsFixed++;
-                    continue;
-                }
-
-                RebindToHdrpLit(material);
-                if (FixSolidHdrpMaterial(material))
-                    materialsValidated++;
-                opaqueMaterialsFixed++;
-            }
-
-            rimSlotsNormalized += NormalizeRimRenderer(renderer, canonicalRimMaterial);
-
-            if (!HasOpaqueMaterial(renderer))
-            {
-                renderer.shadowCastingMode = ShadowCastingMode.Off;
-                continue;
-            }
-
-            var previousMask = renderer.renderingLayerMask;
-            renderer.renderingLayerMask &= ~HdrpDecalLayerMask;
-            if (previousMask != renderer.renderingLayerMask)
-                decalMasksCleared++;
-        }
-
-        return new Porsche911GT3RSMaterialFixResult(
-            rendererCount,
-            decalMasksCleared,
-            opaqueMaterialsFixed,
-            transparentMaterialsFixed,
-            materialsValidated,
-            rimSlotsNormalized,
-            cabinGlassRenderers,
-            cabinGlassRenderersReenabled);
+        var controller = vehicle.GetComponent<Porsche911GT3RSMaterialController>();
+        if (controller == null)
+            controller = vehicle.AddComponent<Porsche911GT3RSMaterialController>();
+        return controller.Initialize(null);
     }
 
     private static Material? FindCanonicalRimMaterial(GameObject vehicle)
@@ -306,26 +251,20 @@ public static class Porsche911GT3RSMaterials
         return validated;
     }
 
-    private static void FixTransparentHdrpMaterial(Material material)
+    internal static void PrepareTransparentMaterial(
+        Material material,
+        Porsche911GT3RSTransparentRole role = Porsche911GT3RSTransparentRole.OtherClear)
     {
-        var name = material.name;
-        var cabinGlass = IsCabinGlassMaterial(material);
-        if (cabinGlass)
-        {
-            // The imported glTF glass shader can retain a valid-looking
-            // transparent state while producing no visible pixels in the
-            // game's HDRP build. Cabin glass uses the stock game Lit shader so
-            // its blend state is deterministic on every vehicle instance.
-            RebindToHdrpLit(material);
-        }
+        var cabinGlass = role == Porsche911GT3RSTransparentRole.CabinGlass;
+        // Imported glTF transparency is not reliable in the game's HDRP build.
+        // Exterior clear-surface variants use deterministic per-instance Lit
+        // states. Authored gauges, symbols, and screens never enter this path.
+        RebindToHdrpLit(material);
         var tint = cabinGlass
-            ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
-            : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
-                ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
-                : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                  name.IndexOf("Tail_light", StringComparison.OrdinalIgnoreCase) >= 0
-                    ? new Color(0.72f, 0.025f, 0.008f, 0.16f)
-                    : new Color(0.82f, 0.86f, 0.90f, 0.08f);
+            ? new Color(0.09f, 0.12f, 0.15f, 0.14f)
+            : role == Porsche911GT3RSTransparentRole.HeadlampLens
+                ? new Color(0.78f, 0.84f, 0.90f, 0.035f)
+                : new Color(0.82f, 0.86f, 0.90f, 0.05f);
         SetColor(material, "_BaseColor", tint);
         SetColor(material, "_Color", tint);
         SetColor(material, "baseColorFactor", tint);
@@ -355,13 +294,13 @@ public static class Porsche911GT3RSMaterials
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
-        SetFloat(material, "_Cull", 0f);
-        SetFloat(material, "_CullMode", 0f);
-        SetFloat(material, "_CullModeForward", 0f);
-        SetFloat(material, "_TransparentCullMode", 0f);
-        SetFloat(material, "_DoubleSidedEnable", 1f);
+        SetFloat(material, "_Cull", (float)CullMode.Back);
+        SetFloat(material, "_CullMode", (float)CullMode.Back);
+        SetFloat(material, "_CullModeForward", (float)CullMode.Back);
+        SetFloat(material, "_TransparentCullMode", (float)CullMode.Back);
+        SetFloat(material, "_DoubleSidedEnable", 0f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.EnableKeyword("_DOUBLESIDED_ON");
+        material.DisableKeyword("_DOUBLESIDED_ON");
         material.EnableKeyword("_DISABLE_DECALS");
         material.DisableKeyword("_ALPHATEST_ON");
         material.SetOverrideTag("RenderType", "Transparent");
@@ -375,16 +314,32 @@ public static class Porsche911GT3RSMaterials
 
     internal static void RestoreCabinGlassMaterial(Material material)
     {
-        if (IsCabinGlassMaterial(material))
-            FixTransparentHdrpMaterial(material);
+        PrepareTransparentMaterial(material, Porsche911GT3RSTransparentRole.CabinGlass);
     }
 
-    public static bool IsCabinGlassMaterial(Material material)
+    internal static Porsche911GT3RSTransparentRole GetTransparentRole(
+        Renderer renderer,
+        Material material)
     {
+        if (!IsTransparentMaterial(material))
+            return Porsche911GT3RSTransparentRole.Authored;
+
+        var rendererName = renderer.name;
+        if (rendererName.IndexOf("headlightglass", StringComparison.OrdinalIgnoreCase) >= 0)
+            return Porsche911GT3RSTransparentRole.HeadlampLens;
+        if (rendererName.IndexOf("windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            rendererName.IndexOf("doorglass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            rendererName.IndexOf("quarterglass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            rendererName.IndexOf("backlight", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            rendererName.IndexOf("blackGlass", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return Porsche911GT3RSTransparentRole.CabinGlass;
+        }
+
         var name = material.name;
-        return name.IndexOf("glass.004", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("glass_int", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("blackGlass", StringComparison.OrdinalIgnoreCase) >= 0;
+        return name.IndexOf("glass", StringComparison.OrdinalIgnoreCase) >= 0
+            ? Porsche911GT3RSTransparentRole.OtherClear
+            : Porsche911GT3RSTransparentRole.Authored;
     }
 
     private static string? FirstTextureProperty(Material material, params string[] properties)
@@ -520,6 +475,264 @@ public static class Porsche911GT3RSMaterials
         }
 
         return cachedMethod;
+    }
+}
+
+[AddComponentMenu("")]
+public sealed class Porsche911GT3RSMaterialController : MonoBehaviour
+{
+    private const string RimMaterialMarker = "wheels_chrome_1";
+    private readonly List<Material> ownedMaterials = new List<Material>();
+    private Porsche911GT3RSMaterialFixResult result;
+    private bool initialized;
+
+    internal Porsche911GT3RSMaterialFixResult Initialize(ModContext? context)
+    {
+        if (initialized)
+            return result;
+
+        initialized = true;
+        var clones = new Dictionary<Material, Dictionary<Porsche911GT3RSTransparentRole, Material>>();
+        var rendererCount = 0;
+        var transparentMaterials = 0;
+        var authoredTransparentMaterials = 0;
+        var rimSlots = 0;
+        var cabinGlassRenderers = 0;
+        var cabinGlassRenderersReenabled = 0;
+
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            if (!Porsche911GT3RSMaterials.IsPorscheRenderer(renderer.transform))
+                continue;
+
+            rendererCount++;
+            var materials = renderer.sharedMaterials;
+            var changed = false;
+            var hasCabinGlass = false;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var source = materials[index];
+                if (source == null)
+                    continue;
+
+                var role = Porsche911GT3RSMaterials.GetTransparentRole(renderer, source);
+                if (!clones.TryGetValue(source, out var roleVariants))
+                {
+                    roleVariants = new Dictionary<Porsche911GT3RSTransparentRole, Material>();
+                    clones.Add(source, roleVariants);
+                }
+                if (!roleVariants.TryGetValue(role, out var runtimeMaterial))
+                {
+                    runtimeMaterial = Instantiate(source);
+                    runtimeMaterial.name = source.name + "_PorscheInstance_" + role;
+                    roleVariants.Add(role, runtimeMaterial);
+                    ownedMaterials.Add(runtimeMaterial);
+
+                    if (role != Porsche911GT3RSTransparentRole.Authored)
+                    {
+                        Porsche911GT3RSMaterials.PrepareTransparentMaterial(runtimeMaterial, role);
+                        transparentMaterials++;
+                    }
+                    else if (Porsche911GT3RSMaterials.IsTransparentMaterial(runtimeMaterial))
+                    {
+                        authoredTransparentMaterials++;
+                    }
+                    if (runtimeMaterial.name.IndexOf(
+                            RimMaterialMarker,
+                            StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        SetRimFinish(runtimeMaterial);
+                    }
+                }
+
+                if (role == Porsche911GT3RSTransparentRole.CabinGlass)
+                    hasCabinGlass = true;
+                if (runtimeMaterial.name.IndexOf(
+                        RimMaterialMarker,
+                        StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    rimSlots++;
+                }
+                materials[index] = runtimeMaterial;
+                changed = true;
+            }
+
+            if (changed)
+                renderer.sharedMaterials = materials;
+            if (!hasCabinGlass)
+                continue;
+            cabinGlassRenderers++;
+            if (!renderer.enabled || renderer.forceRenderingOff)
+            {
+                renderer.enabled = true;
+                renderer.forceRenderingOff = false;
+                cabinGlassRenderersReenabled++;
+            }
+        }
+
+        result = new Porsche911GT3RSMaterialFixResult(
+            rendererCount,
+            0,
+            0,
+            transparentMaterials,
+            0,
+            rimSlots,
+            cabinGlassRenderers,
+            cabinGlassRenderersReenabled);
+        context?.Logger.Info(
+            $"Porsche911GT3RS materials vehicle={GetInstanceID()}: cloned " +
+            $"{ownedMaterials.Count} materials for {rendererCount} renderers, " +
+            $"clearSurfaceVariants={transparentMaterials}, " +
+            $"authoredTransparentRetained={authoredTransparentMaterials}, " +
+            $"cabinGlass={cabinGlassRenderers}, " +
+            $"rimSlots={rimSlots}; opaque authored materials retained unchanged.");
+        return result;
+    }
+
+    private static void SetRimFinish(Material material)
+    {
+        if (material.HasProperty("_BaseColor"))
+            material.SetColor("_BaseColor", Porsche911GT3RSMaterials.RimBaseColor);
+        if (material.HasProperty("_Color"))
+            material.SetColor("_Color", Porsche911GT3RSMaterials.RimBaseColor);
+        if (material.HasProperty("baseColorFactor"))
+            material.SetColor("baseColorFactor", Porsche911GT3RSMaterials.RimBaseColor);
+        if (material.HasProperty("_Metallic"))
+            material.SetFloat("_Metallic", Porsche911GT3RSMaterials.RimMetallic);
+        if (material.HasProperty("_Smoothness"))
+            material.SetFloat("_Smoothness", Porsche911GT3RSMaterials.RimSmoothness);
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var material in ownedMaterials)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        ownedMaterials.Clear();
+    }
+}
+
+[AddComponentMenu("")]
+public sealed class Porsche911GT3RSPaintController : MonoBehaviour
+{
+    private const string BodyMaterialMarker = "carPaint";
+    private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
+    private readonly List<PaintSlot> slots = new List<PaintSlot>();
+    private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
+    private VehicleController? vehicle;
+    private ModContext? context;
+    private string appliedColorName = string.Empty;
+    private Color32 appliedTint;
+    private bool initialized;
+
+    internal void Initialize(VehicleController controller, ModContext? modContext)
+    {
+        vehicle = controller;
+        context = modContext;
+        if (!initialized)
+        {
+            initialized = true;
+            FindPaintSlots();
+        }
+        ApplyCurrentColor("initialize");
+    }
+
+    internal void ApplyCurrentColor(string source)
+    {
+        var selected = ResolveVehicleColor();
+        if (selected == null)
+        {
+            context?.Logger.Warn(
+                $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: no vehicle color " +
+                $"was available during '{source}'.");
+            return;
+        }
+
+        var colorName = ((UnityEngine.Object)selected).name;
+        var tint = selected.tint;
+        if (string.Equals(colorName, appliedColorName, StringComparison.Ordinal) &&
+            tint.Equals(appliedTint))
+        {
+            return;
+        }
+
+        var color = (Color)tint;
+        color.a = 1f;
+        foreach (var slot in slots)
+        {
+            properties.Clear();
+            slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
+            if (slot.Material.HasProperty(BaseColor))
+                properties.SetColor(BaseColor, color);
+            if (slot.Material.HasProperty(ColorProperty))
+                properties.SetColor(ColorProperty, color);
+            if (slot.Material.HasProperty(BaseColorFactor))
+                properties.SetColor(BaseColorFactor, color);
+            slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
+        }
+
+        appliedColorName = colorName;
+        appliedTint = tint;
+        context?.Logger.Info(
+            $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: applied " +
+            $"color='{colorName}' rgba={tint} to {slots.Count} body slots source='{source}'.");
+    }
+
+    private void FindPaintSlots()
+    {
+        slots.Clear();
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            if (!Porsche911GT3RSMaterials.IsPorscheRenderer(renderer.transform))
+                continue;
+            var materials = renderer.sharedMaterials;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var material = materials[index];
+                if (material != null && material.name.IndexOf(
+                        BodyMaterialMarker,
+                        StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    slots.Add(new PaintSlot(renderer, material, index));
+                }
+            }
+        }
+
+        context?.Logger.Info(
+            $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: mapped " +
+            $"bodySlots={slots.Count}; glass, lamps, carbon, rims, brakes, and trim excluded.");
+        if (slots.Count == 0)
+            context?.Logger.Warn("Porsche911GT3RS paint mapping found no body material slots.");
+    }
+
+    private VehicleColor? ResolveVehicleColor()
+    {
+        var live = vehicle?.CarFeatures?.VehicleColor;
+        if (live != null)
+            return live;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        return !string.IsNullOrEmpty(colorName) &&
+               VehicleHelper.TryGetVehicleColor(colorName, out var saved)
+            ? saved
+            : null;
+    }
+
+    private readonly struct PaintSlot
+    {
+        internal PaintSlot(Renderer renderer, Material material, int materialIndex)
+        {
+            Renderer = renderer;
+            Material = material;
+            MaterialIndex = materialIndex;
+        }
+
+        internal readonly Renderer Renderer;
+        internal readonly Material Material;
+        internal readonly int MaterialIndex;
     }
 }
 
