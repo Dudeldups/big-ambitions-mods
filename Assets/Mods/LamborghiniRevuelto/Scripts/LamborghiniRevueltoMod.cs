@@ -45,13 +45,6 @@ public sealed class LamborghiniRevueltoMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        if (LamborghiniRevueltoDebug.Enabled)
-        {
-            context.Logger.Info(
-                $"LamborghiniRevuelto: registered '{vehicleType.vehicleTypeName}' " +
-                $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
-                $"enginePower={vehicleType.enginePower:0}.");
-        }
         runtime = LamborghiniRevueltoRuntime.Initialize(context, vehicleType.vehicleTypeName);
         return Task.CompletedTask;
     }
@@ -70,19 +63,6 @@ public sealed class LamborghiniRevueltoMod : IModBigAmbitions
 
         return Task.CompletedTask;
     }
-}
-
-internal static class LamborghiniRevueltoDebug
-{
-    private const bool Global = false;
-    private const bool Paint = false;
-    private const bool Damage = false;
-    private const bool AccelerationTelemetry = false;
-
-    internal static bool Enabled => Global;
-    internal static bool PaintEnabled => Enabled && Paint;
-    internal static bool DamageEnabled => Enabled && Damage;
-    internal static bool AccelerationTelemetryEnabled => Enabled && AccelerationTelemetry;
 }
 
 internal static class LamborghiniRevueltoLuxuryDealerStock
