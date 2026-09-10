@@ -915,7 +915,10 @@ namespace VehicleRepainter
 
                 selectedColorName = colorName;
                 if (updateVisuals && vehicle.CarFeatures != null)
+                {
                     vehicle.CarFeatures.SetColor(vehicleColor);
+                    GameEvent.Invoke("vehicle-repainter:color-preview");
+                }
             }
 
             public void ResetColor()
@@ -932,6 +935,7 @@ namespace VehicleRepainter
                     originalPaint.Restore(vehicle.CarFeatures);
                     if (vehicle.vehicleInstance != null)
                         vehicle.vehicleInstance.vehicleColorName = originalSavedColorName;
+                    GameEvent.Invoke("vehicle-repainter:color-reset");
                 }
 
                 if (movementLocked && vehicle != null)

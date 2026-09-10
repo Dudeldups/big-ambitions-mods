@@ -1,0 +1,274 @@
+ManifestFileVersion: 0
+CRC: 1532064186
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 9df82bb0cf65db4279cf057dc81f3f87
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: df156dd73d9e55c283e9dd6005ca0a10
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 9df82bb0cf65db4279cf057dc81f3f87
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
+- Class: 54
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 82
+  Script: {instanceID: 0}
+- Class: 83
+  Script: {instanceID: 0}
+- Class: 108
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
+- Class: 114
+  Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -333503815, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -690148201, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 417210127, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -221227779, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -2015554182, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 45295712, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1100654092, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1252731450, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -446942681, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 990282183, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1699210082, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1092318927, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1076906312, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1030029083, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1715073321, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -464276067, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 135
+  Script: {instanceID: 0}
+- Class: 198
+  Script: {instanceID: 0}
+- Class: 199
+  Script: {instanceID: 0}
+- Class: 208
+  Script: {instanceID: 0}
+- Class: 241
+  Script: {instanceID: 0}
+- Class: 243
+  Script: {instanceID: 0}
+- Class: 245
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: BigAmbitions
+  ClassName: PlayerActivity.SleepEnvironment
+- AssemblyName: BigAmbitions
+  ClassName: VehicleInstance
+- AssemblyName: DayNightCycle
+  ClassName: BigAmbitions.DayNightCycle.Timestamp
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Brakes
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.EffectManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustFlash
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustSmoke
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightSource
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightsMananger
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SkidmarkManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SurfaceParticleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.VehicleLight
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.GroundDetection
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.SurfaceMap
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Input.VehicleInputHandler
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.FlipOver.FlipOverModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.Fuel.FuelModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.ModuleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.SpeedLimiter.SpeedLimiterModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.ClutchComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.DifferentialComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent/ForcedInduction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Powertrain
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.TransmissionComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroup
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroupSelector
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.WheelComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.AirBrakeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.BlinkerComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.CrashComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineFanComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineRunningComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineStartStopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ExhaustPopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.GearChangeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.HornComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ReverseBeepComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.SuspensionBumpComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TransmissionWhineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboFlutterComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboWhistleComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelSkidComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelTireNoiseComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.StateDefinition
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Steering
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Damper
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Friction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Spring
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Wheel
+- AssemblyName: HGExtensions
+  ClassName: SerializableQuaternion
+- AssemblyName: HGExtensions
+  ClassName: SerializableVector3
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.BoolScalableSettingValue
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.IntScalableSettingValue
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Boolean]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Single]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
+Assets:
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_05_Tail-light-glass-turning.mat
+- Assets/Mods/BugattiChiron/Config/Audio/EngineLowLoad.wav
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_05_Silver.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_01_Rims.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_08_Interior_2.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_12_Interior_1_Darker.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_30_exhaust.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_14_Buttons.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_27_Tail-light-LIGHT.mat
+- Assets/Mods/BugattiChiron/Models/free_bugatti_chiron.glb
+- Assets/Mods/BugattiChiron/BugattiChiron.asset
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_06_Darker_Parts.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_19_seats.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_00_Tire.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_29_Reverse-light_001.mat
+- Assets/Mods/BugattiChiron/Config/Audio/generation.json
+- Assets/Mods/BugattiChiron/Config/Audio/EngineLow.wav
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_24_Headlights-Lights.mat
+- Assets/Mods/BugattiChiron/Config/Audio/EngineHighLoad.wav
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_15_Interior_3.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_01_Windshield.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_04_Tail-light-glass.mat
+- Assets/Mods/BugattiChiron/Config/Audio/EngineHigh.wav
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_13_Interior_1.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_17_Interior-light.mat
+- Assets/Mods/BugattiChiron/Config/Audio/Horn.wav
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_22_Headlights-light.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_04_Body.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_16_Mirror.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_00_Vents-texture.mat
+- Assets/Mods/BugattiChiron/Config/Audio/EngineMidLoad.wav
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_03_Brake_rotor.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_25_Tail-light_holder.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_28_Brake-lights.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_20_Turning_lights_left.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_21_Headlights.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_03_Headlight_glass.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_02_Caliper.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_07_Carbon.mat
+- Assets/Mods/BugattiChiron/Config/Audio/EngineMid.wav
+- Assets/Mods/BugattiChiron/THIRD_PARTY_NOTICES.md
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_10_Logo.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_23_Turning_lights_right.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiTransparent_02_Glass.mat
+- Assets/Mods/BugattiChiron/BugattiChiron.prefab
+- Assets/Mods/BugattiChiron/ATTRIBUTION.md
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_11_Steel.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_31_Headlight-1.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_09_Plastic.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_18_Speedo.mat
+- Assets/Mods/BugattiChiron/Models/GeneratedMaterials/BugattiOpaque_26_Tail-light-insides.mat
+Dependencies: []
