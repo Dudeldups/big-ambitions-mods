@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -65,6 +66,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private bool dealerReady;
     private bool dealerReadyLogged;
 
     public static BMWM4G82Runtime Initialize(ModContext context, string vehicleTypeName)
@@ -79,6 +81,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.dealerReady = false;
+        runtime.dealerReadyLogged = false;
         activeRuntime = runtime;
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
@@ -92,6 +96,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
         if (ReferenceEquals(activeRuntime, this))
             activeRuntime = null;
         Destroy(gameObject);
@@ -154,6 +159,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
         dealerReadyLogged = false;
     }
 
@@ -218,13 +224,15 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (BMWM4G82LuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        if (!dealerReady &&
+            !BusinessLayoutSetHelper.loadingLayouts &&
+            BMWM4G82LuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
             EnsureDealerStock("dealer-entered");
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen)
+        if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
     }
 
@@ -237,14 +245,20 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        var dealerReady = false;
+        while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
+        {
+            ConfigureExistingVehicles(out _);
+            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+        }
+
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            dealerReady |= EnsureDealerStock(source);
+            if (!dealerReady)
+                dealerReady = EnsureDealerStock(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
@@ -271,17 +285,22 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private bool EnsureDealerStock(string source)
     {
+        if (dealerReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
         try
         {
-            var ready = BMWM4G82LuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
-            if (ready && !dealerReadyLogged)
+            dealerReady = BMWM4G82LuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            if (dealerReady && !dealerReadyLogged)
             {
                 dealerReadyLogged = true;
                 context?.Logger.Info(
                     $"BMWM4G82: available at The Hamptons Axis and Manhattan Luxury Cars " +
                     $"source='{source}'.");
             }
-            return ready;
+            return dealerReady;
         }
         catch (Exception exception)
         {
