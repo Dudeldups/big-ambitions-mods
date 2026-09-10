@@ -1462,7 +1462,7 @@ public static class LamborghiniRevueltoSetup
         manifest.LocalesFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(LocalesPath);
         manifest.DependenciesFolder = null;
         manifest.EnumsFile = null;
-        manifest.TargetPlatforms = ModTargetPlatforms.Windows;
+        manifest.TargetPlatforms = ModTargetPlatforms.Windows | ModTargetPlatforms.Mac;
 
         if (manifest.ModAssembly == null || manifest.LocalesFolder == null)
             throw new InvalidOperationException("Lamborghini manifest references could not be assigned.");
