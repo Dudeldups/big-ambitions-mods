@@ -21,6 +21,8 @@ public static class BugattiChironSetup
     private const string LocalesPath = ModRoot + "/Locales";
     private const string WindowsBundlePath =
         ModRoot + "/AssetBundles/Windows/bugattichiron.unity3d";
+    private const string MacBundlePath =
+        ModRoot + "/AssetBundles/Mac/bugattichiron.unity3d";
     private const string VehicleTypeName =
         "bugattichiron-vehicle:vehicletype_bugattichiron";
     private const float TargetLength = 4.544f;
@@ -77,9 +79,15 @@ public static class BugattiChironSetup
 
     public static void VerifyBuiltBundle()
     {
-        var bundle = AssetBundle.LoadFromFile(WindowsBundlePath);
+        VerifyBuiltBundle(WindowsBundlePath);
+        VerifyBuiltBundle(MacBundlePath);
+    }
+
+    private static void VerifyBuiltBundle(string bundlePath)
+    {
+        var bundle = AssetBundle.LoadFromFile(bundlePath);
         if (bundle == null)
-            throw new InvalidOperationException($"Could not load bundle '{WindowsBundlePath}'.");
+            throw new InvalidOperationException($"Could not load bundle '{bundlePath}'.");
 
         try
         {
@@ -1023,7 +1031,7 @@ public static class BugattiChironSetup
         manifest.LocalesFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(LocalesPath);
         manifest.DependenciesFolder = null;
         manifest.EnumsFile = null;
-        manifest.TargetPlatforms = ModTargetPlatforms.Windows;
+        manifest.TargetPlatforms = ModTargetPlatforms.Windows | ModTargetPlatforms.Mac;
 
         if (manifest.ModAssembly == null || manifest.LocalesFolder == null)
             throw new InvalidOperationException("Bugatti manifest references could not be assigned.");
