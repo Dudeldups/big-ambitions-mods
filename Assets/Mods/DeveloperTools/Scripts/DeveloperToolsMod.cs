@@ -7,6 +7,13 @@ using BAModAPI;
 
 namespace DeveloperTools
 {
+    internal static class DeveloperToolsDiagnostics
+    {
+        internal static readonly bool Enabled = false;
+        internal static readonly bool TeleportEnabled = false;
+        internal static bool Teleport => Enabled && TeleportEnabled;
+    }
+
     [ModEntryOnInitializationLoad]
     public sealed class DeveloperToolsMod : IModBigAmbitions
     {
@@ -20,7 +27,8 @@ namespace DeveloperTools
         {
             options.Initialize(context, settings);
             runtime = DeveloperToolsRuntime.Initialize(context, settings);
-            context.Logger.Info("DeveloperTools: loaded. Open the testing UI with " + settings.UiHotkey + ".");
+            if (DeveloperToolsDiagnostics.Enabled)
+                context.Logger.Info("DeveloperTools: loaded. Open the testing UI with " + settings.UiHotkey + ".");
             return Task.CompletedTask;
         }
 

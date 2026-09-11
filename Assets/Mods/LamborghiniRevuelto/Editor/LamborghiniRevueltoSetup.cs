@@ -35,6 +35,10 @@ public static class LamborghiniRevueltoSetup
     private const float RearSuspensionTravel = 0.06f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
+    private static readonly Vector3 FrontContactColliderCenter =
+        new Vector3(0f, 0.67f, 1.68f);
+    private static readonly Vector3 FrontContactColliderSize =
+        new Vector3(1.94f, 0.46f, 1.10f);
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
@@ -771,6 +775,8 @@ public static class LamborghiniRevueltoSetup
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        body.solverIterations = Mathf.Max(body.solverIterations, 12);
+        body.solverVelocityIterations = Mathf.Max(body.solverVelocityIterations, 4);
 
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -832,6 +838,13 @@ public static class LamborghiniRevueltoSetup
         colliders[0].size = new Vector3(1.96f, 0.46f, 4.82f);
         colliders[1].center = new Vector3(0f, 0.78f, -0.18f);
         colliders[1].size = new Vector3(1.72f, 0.62f, 2.62f);
+        var frontContactCollider = colliders.Length > 2
+            ? colliders[2]
+            : holder.gameObject.AddComponent<BoxCollider>();
+        frontContactCollider.center = FrontContactColliderCenter;
+        frontContactCollider.size = FrontContactColliderSize;
+        frontContactCollider.isTrigger = false;
+        frontContactCollider.enabled = true;
     }
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)
@@ -1449,7 +1462,7 @@ public static class LamborghiniRevueltoSetup
         manifest.LocalesFolder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(LocalesPath);
         manifest.DependenciesFolder = null;
         manifest.EnumsFile = null;
-        manifest.TargetPlatforms = ModTargetPlatforms.Windows;
+        manifest.TargetPlatforms = ModTargetPlatforms.Windows | ModTargetPlatforms.Mac;
 
         if (manifest.ModAssembly == null || manifest.LocalesFolder == null)
             throw new InvalidOperationException("Lamborghini manifest references could not be assigned.");

@@ -1,0 +1,272 @@
+ManifestFileVersion: 0
+CRC: 2682476172
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: e982177f276f5a62b2146f7643d3f728
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: d96752700027e8f47bbdb9288a4b0bd8
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: e982177f276f5a62b2146f7643d3f728
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
+- Class: 54
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 82
+  Script: {instanceID: 0}
+- Class: 83
+  Script: {instanceID: 0}
+- Class: 108
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -333503815, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -690148201, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 417210127, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -221227779, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -2015554182, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 45295712, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1100654092, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1252731450, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -446942681, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 990282183, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1699210082, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1092318927, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1076906312, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1030029083, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1715073321, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -464276067, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 135
+  Script: {instanceID: 0}
+- Class: 198
+  Script: {instanceID: 0}
+- Class: 199
+  Script: {instanceID: 0}
+- Class: 208
+  Script: {instanceID: 0}
+- Class: 241
+  Script: {instanceID: 0}
+- Class: 243
+  Script: {instanceID: 0}
+- Class: 245
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: BigAmbitions
+  ClassName: PlayerActivity.SleepEnvironment
+- AssemblyName: BigAmbitions
+  ClassName: VehicleInstance
+- AssemblyName: DayNightCycle
+  ClassName: BigAmbitions.DayNightCycle.Timestamp
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Brakes
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.EffectManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustFlash
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustSmoke
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightSource
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightsMananger
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SkidmarkManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SurfaceParticleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.VehicleLight
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.GroundDetection
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.SurfaceMap
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Input.VehicleInputHandler
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.FlipOver.FlipOverModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.Fuel.FuelModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.ModuleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.SpeedLimiter.SpeedLimiterModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.ClutchComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.DifferentialComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent/ForcedInduction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Powertrain
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.TransmissionComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroup
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroupSelector
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.WheelComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.AirBrakeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.BlinkerComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.CrashComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineFanComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineRunningComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineStartStopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ExhaustPopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.GearChangeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.HornComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ReverseBeepComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.SuspensionBumpComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TransmissionWhineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboFlutterComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboWhistleComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelSkidComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelTireNoiseComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.StateDefinition
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Steering
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Damper
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Friction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Spring
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Wheel
+- AssemblyName: HGExtensions
+  ClassName: SerializableQuaternion
+- AssemblyName: HGExtensions
+  ClassName: SerializableVector3
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Boolean]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Single]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
+Assets:
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_28_Cluster.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_23_Turning_light_inside.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_01_Taillight_glass.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineLowLoad.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_03_Plastic.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_07_Engine.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_25_Steering_wheel.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMeshes/LamborghiniDamageBody.asset
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineMidLoad.wav
+- Assets/Mods/LamborghiniRevuelto/LamborghiniRevuelto.asset
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_22_Body.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_18_Brake_rotor.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_03_Windows.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_24_Interior_color.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_04_Tail_light.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/HornHigh.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_15_Tire.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/generation.json
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_27_Interior_Black.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/Horn.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_19_material.mat
+- Assets/Mods/LamborghiniRevuelto/Config/ATTRIBUTION.txt
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/HornLow.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_20_Turning_light_right.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_13_Interior_black.mat
+- Assets/Mods/LamborghiniRevuelto/LamborghiniRevuelto.prefab
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_14_Tail_light_brake.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_30_Taillight_rear.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineHighLoad.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_00_Headlight_glass_001.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_04_Turning_light_glass.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_08_Sphere.mat
+- Assets/Mods/LamborghiniRevuelto/ATTRIBUTION.md
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_02_Light.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_06_Vents.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineMid.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_26_Start_button_lol.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_01_Inside_Headlight.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_05_Exhaust.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_00_Carbon.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_09_Metal.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_21_Turning_light_Left.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineLow.wav
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_29_mirror.mat
+- Assets/Mods/LamborghiniRevuelto/Config/Audio/EngineHigh.wav
+- Assets/Mods/LamborghiniRevuelto/Config/THIRD_PARTY_NOTICES.txt
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_11_Headlight_ligh_second.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_17_Caliper.mat
+- Assets/Mods/LamborghiniRevuelto/THIRD_PARTY_NOTICES.md
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniTransparent_02_Headlight_glass.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_12_Headlight_light.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_10_Headlight.mat
+- Assets/Mods/LamborghiniRevuelto/Models/GeneratedMaterials/LamborghiniOpaque_16_Logo.mat
+Dependencies: []

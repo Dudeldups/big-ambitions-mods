@@ -11,9 +11,11 @@
   "precompiledReferences": [
     "BigAmbitions.dll",
     "BigAmbitions.InputSystem.dll",
+    "BigAmbitions.Items.dll",
     "BigAmbitions.ModAPI.dll",
     "BigAmbitions.SoundSystem.dll",
-    "HGExtensions.dll"
+    "HGExtensions.dll",
+    "HGPlugins.dll"
   ],
   "autoReferenced": false,
   "defineConstraints": [

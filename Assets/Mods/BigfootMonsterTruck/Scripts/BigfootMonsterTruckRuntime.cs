@@ -41,7 +41,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private Coroutine? initializationCoroutine;
-    private float nextPaintScan;
+    private int observedPlayerVehicleCount = -1;
 
     public static BigfootMonsterTruckRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -58,6 +58,12 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
+        if (BigfootMonsterTruckDebug.Enabled)
+        {
+            context.Logger.Info(
+                "BigfootMonsterTruck: runtime initialized with player-vehicle change detection; " +
+                "recurring global scans disabled.");
+        }
         return runtime;
     }
 
@@ -91,10 +97,17 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (Time.unscaledTime < nextPaintScan)
+        var currentCount = VehicleHelper.AllPlayerVehicles?.Count ?? 0;
+        if (currentCount == observedPlayerVehicleCount)
             return;
-        nextPaintScan = Time.unscaledTime + 1f;
-        EnsurePaintControllers();
+
+        var configured = ConfigureExistingVehicles();
+        if (configured > 0 && BigfootMonsterTruckDebug.VehicleDiscoveryEnabled)
+        {
+            context?.Logger.Info(
+                $"BigfootMonsterTruck: player vehicle list changed count={currentCount}, " +
+                $"configured={configured}.");
+        }
     }
 
     private void OnEnable()
@@ -236,30 +249,15 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         var configured = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
         if (vehicles == null)
+        {
+            observedPlayerVehicleCount = 0;
             return configured;
+        }
+        observedPlayerVehicleCount = vehicles.Count;
         foreach (var vehicle in vehicles)
             if (TryConfigureVehicle(vehicle))
                 configured++;
         return configured;
-    }
-
-    private void EnsurePaintControllers()
-    {
-        foreach (var vehicle in FindObjectsOfType<VehicleController>(true))
-        {
-            if (vehicle == null || vehicle.GetComponent<BigfootMonsterTruckPaintController>() != null)
-                continue;
-            var instanceType = vehicle.vehicleInstance?.vehicleTypeName;
-            var assetType = vehicle.vehicleType?.vehicleTypeName;
-            if (!string.Equals(instanceType, vehicleTypeName, StringComparison.Ordinal) &&
-                !string.Equals(assetType, vehicleTypeName, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var paint = vehicle.gameObject.AddComponent<BigfootMonsterTruckPaintController>();
-            paint.Initialize(vehicle, context);
-        }
     }
 
     private bool TryConfigureVehicle(VehicleController? vehicle)
@@ -664,6 +662,13 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         }
         return null;
     }
+}
+
+internal static class BigfootMonsterTruckDebug
+{
+    internal static readonly bool Enabled = false;
+    internal static readonly bool VehicleDiscovery = false;
+    internal static bool VehicleDiscoveryEnabled => Enabled && VehicleDiscovery;
 }
 
 internal sealed class BigfootMonsterTruckConfigured : MonoBehaviour

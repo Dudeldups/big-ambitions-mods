@@ -46,7 +46,6 @@ internal sealed class LamborghiniRevueltoLightingController : MonoBehaviour
     private bool updateFailureReported;
     private bool wasBlinking;
     private float blinkerPhaseStartedAt;
-    private int lastState = -1;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -90,10 +89,6 @@ internal sealed class LamborghiniRevueltoLightingController : MonoBehaviour
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
-        LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
-                $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
-                $"reverse='{reverseLight?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/7 blinkerOverlays={CountBlinkerOverlays()}/4.");
         if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
@@ -317,14 +312,6 @@ internal sealed class LamborghiniRevueltoLightingController : MonoBehaviour
         SetEnabled(rightBeam, lightsOn);
         if (templateBeam != null)
             templateBeam.enabled = false;
-
-        var state = (controlled ? 1 : 0) | (lightsOn ? 2 : 0) | (braking ? 4 : 0) |
-                    (leftBlinker ? 8 : 0) | (rightBlinker ? 16 : 0) | (reversing ? 32 : 0);
-        if (state == lastState)
-            return;
-        lastState = state;
-        LogInfo($"state playerControlled={controlled} lights={lightsOn} braking={braking} " +
-                $"reverse={reversing} leftBlinker={leftBlinker} rightBlinker={rightBlinker}.");
     }
 
     private int CountLampOverlays() =>
@@ -390,10 +377,6 @@ internal sealed class LamborghiniRevueltoLightingController : MonoBehaviour
     {
         if (material.HasProperty(name)) material.SetFloat(name, value);
     }
-
-    private void LogInfo(string message) =>
-        context?.Logger.Info($"LamborghiniRevuelto lighting vehicle='{vehicle?.name}' " +
-                             $"instance={vehicle?.GetInstanceID()}: {message}");
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"LamborghiniRevuelto lighting vehicle='{vehicle?.name}' " +
