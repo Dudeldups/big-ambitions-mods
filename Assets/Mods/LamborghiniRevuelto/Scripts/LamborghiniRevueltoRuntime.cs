@@ -61,8 +61,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private static AnimationCurve CreateRevueltoPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.23f, 0.16f),
-            new Keyframe(0.55f, 0.34f),
+            new Keyframe(0.23f, 0.17f),
+            new Keyframe(0.55f, 0.36f),
             new Keyframe(0.78f, 0.58f),
             new Keyframe(0.90f, 1f),
             new Keyframe(1f, 0.88f));
@@ -891,11 +891,11 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 [DisallowMultipleComponent]
 internal sealed class LamborghiniRevueltoAerodynamics : MonoBehaviour
 {
-    // Approximate road-load drag with F = coefficient * velocity^2. Applying it
-    // as a force preserves the launch while curbing the overly strong pull above
-    // 200 km/h seen in the diagnostic runs.
-    private const float DragForceCoefficient = 0.50f;
-    private const float MinimumDragSpeedMps = 5f;
+    // Approximate road-load drag with a speed-squared force above the launch
+    // range. This preserves the 0-100 response while curbing the overly strong
+    // pull above 200 km/h seen in the diagnostic runs.
+    private const float DragForceCoefficient = 0.56f;
+    private const float MinimumDragSpeedMps = 25f;
 
     private Rigidbody? body;
 
@@ -911,10 +911,11 @@ internal sealed class LamborghiniRevueltoAerodynamics : MonoBehaviour
 
         var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
         var speedSquared = planarVelocity.sqrMagnitude;
-        if (speedSquared < MinimumDragSpeedMps * MinimumDragSpeedMps)
+        var minimumSpeedSquared = MinimumDragSpeedMps * MinimumDragSpeedMps;
+        if (speedSquared <= minimumSpeedSquared)
             return;
 
-        var dragForce = DragForceCoefficient * speedSquared;
+        var dragForce = DragForceCoefficient * (speedSquared - minimumSpeedSquared);
         body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
     }
 }
