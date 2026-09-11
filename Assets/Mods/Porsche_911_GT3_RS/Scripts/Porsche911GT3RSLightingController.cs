@@ -66,6 +66,8 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             new Color(0.80f, 0.90f, 1f, 1f), 4.8f, 1.018f);
         daylightOverlayRight = CreateOverlay(daylightRight, "DaytimeRunningLightsRight",
             new Color(0.80f, 0.90f, 1f, 1f), 4.8f, 1.018f);
+        OffsetOverlayTowardVehicleEnd(daylightOverlay, true);
+        OffsetOverlayTowardVehicleEnd(daylightOverlayRight, true);
         headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
         headlampOverlayRight = CreateOverlay(headlampRight, "HeadlampProjectorsRight",
@@ -119,8 +121,8 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             amber,
             5.4f,
             1.006f);
-        OffsetOverlayTowardLens(rearLeftBlinkerOverlay);
-        OffsetOverlayTowardLens(rearRightBlinkerOverlay);
+        OffsetOverlayTowardVehicleEnd(rearLeftBlinkerOverlay, false);
+        OffsetOverlayTowardVehicleEnd(rearRightBlinkerOverlay, false);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
@@ -373,8 +375,13 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
         var center = component.Bounds.center;
         if ((left && center.x >= 0f) || (!left && center.x <= 0f))
             return false;
+        // brakelight_1 contains several layered components. The visible amber
+        // L is one of the broad, full-height/depth layers; the thin shallow
+        // components are internal lens sheets and the narrow outer component
+        // is only the reflector.
         return component.Bounds.size.x >= total.size.x * 0.14f &&
-               component.Bounds.size.z <= total.size.z * 0.22f;
+               component.Bounds.size.y >= total.size.y * 0.65f &&
+               component.Bounds.size.z >= total.size.z * 0.55f;
     }
 
     private static bool IsRearBrakeSegment(ConnectedComponent component, Bounds total)
@@ -448,10 +455,12 @@ internal sealed class Porsche911GT3RSLightingController : MonoBehaviour
             : fallback;
     }
 
-    private static void OffsetOverlayTowardLens(MeshRenderer? overlay)
+    private void OffsetOverlayTowardVehicleEnd(MeshRenderer? overlay, bool front)
     {
-        if (overlay != null)
-            overlay.transform.localPosition = new Vector3(0f, 0f, 0.012f);
+        if (overlay == null || vehicle == null)
+            return;
+        overlay.transform.position += (front ? vehicle.transform.forward : -vehicle.transform.forward) *
+                                      0.018f;
     }
 
     private MeshRenderer CreateOverlayObject(MeshRenderer source, Mesh mesh, string suffix,

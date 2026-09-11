@@ -47,6 +47,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         new Vector3(0f, 0.61f, 1.58f);
     private static readonly Vector3 FrontContactColliderSize =
         new Vector3(1.78f, 0.50f, 1.08f);
+    private static readonly Vector3 RearContactColliderCenter =
+        new Vector3(0f, 0.60f, -1.78f);
+    private static readonly Vector3 RearContactColliderSize =
+        new Vector3(1.78f, 0.50f, 1.02f);
 
     private static readonly float[] GT3RSGears =
     {
@@ -573,12 +577,25 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 rigidbody.centerOfMass = StableCenterOfMass;
                 rigidbody.drag = 0f;
                 rigidbody.angularDrag = 1.45f;
+                rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+                rigidbody.solverIterations = Mathf.Max(rigidbody.solverIterations, 12);
+                rigidbody.solverVelocityIterations =
+                    Mathf.Max(rigidbody.solverVelocityIterations, 4);
             }
 
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
-            ConfigureBodyColliders(vehicle.gameObject);
-            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
+            var contactMaterialOwner =
+                vehicle.GetComponent<Porsche911GT3RSContactMaterialOwner>();
+            if (contactMaterialOwner == null)
+            {
+                contactMaterialOwner = vehicle.gameObject
+                    .AddComponent<Porsche911GT3RSContactMaterialOwner>();
+            }
+            ConfigureBodyColliders(
+                vehicle.gameObject,
+                contactMaterialOwner.GetOrCreateMaterial());
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<Porsche911GT3RSCaliperController>();
             if (caliperController == null)
@@ -600,6 +617,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<Porsche911GT3RSLightingController>();
             lightingController.Initialize(vehicle, context);
+            // Lighting overlays are spawned per vehicle. Build the deformation
+            // allowlist only after they exist so illuminated lamp surfaces move
+            // with the surrounding lamp housings after an impact.
+            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var driverController = vehicle.GetComponent<Porsche911GT3RSDriverController>();
             if (driverController == null)
                 driverController = vehicle.gameObject.AddComponent<Porsche911GT3RSDriverController>();
@@ -680,7 +701,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         }
     }
 
-    private static void ConfigureBodyColliders(GameObject root)
+    private static void ConfigureBodyColliders(GameObject root, PhysicMaterial contactMaterial)
     {
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))
         {
@@ -705,6 +726,16 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             frontContactCollider.size = FrontContactColliderSize;
             frontContactCollider.isTrigger = false;
             frontContactCollider.enabled = true;
+            var rearContactCollider = colliders.Length > 3
+                ? colliders[3]
+                : transform.gameObject.AddComponent<BoxCollider>();
+            rearContactCollider.center = RearContactColliderCenter;
+            rearContactCollider.size = RearContactColliderSize;
+            rearContactCollider.isTrigger = false;
+            rearContactCollider.enabled = true;
+
+            foreach (var collider in transform.GetComponents<BoxCollider>())
+                collider.sharedMaterial = contactMaterial;
         }
     }
 
@@ -737,7 +768,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             if (filter == null || filter.sharedMesh == null || !IsDeformableExterior(filter))
                 continue;
             var renderer = filter.GetComponent<MeshRenderer>();
-            if (renderer != null && renderer.enabled)
+            if (renderer != null)
                 filters.Add(filter);
         }
 
@@ -1443,6 +1474,37 @@ public sealed class Porsche911GT3RSCollisionSeparationController : MonoBehaviour
 #endif
 
 [AddComponentMenu("")]
+internal sealed class Porsche911GT3RSContactMaterialOwner : MonoBehaviour
+{
+    private PhysicMaterial? contactMaterial;
+
+    internal PhysicMaterial GetOrCreateMaterial()
+    {
+        if (contactMaterial != null)
+            return contactMaterial;
+
+        // Match the proven Revuelto body contact: low friction lets the rigid
+        // bodies separate naturally after a crash instead of locking together.
+        contactMaterial = new PhysicMaterial("Porsche 911 GT3 RS body contact")
+        {
+            dynamicFriction = 0.05f,
+            staticFriction = 0.05f,
+            frictionCombine = PhysicMaterialCombine.Minimum,
+            bounciness = 0f,
+            bounceCombine = PhysicMaterialCombine.Minimum,
+        };
+        return contactMaterial;
+    }
+
+    private void OnDestroy()
+    {
+        if (contactMaterial != null)
+            Destroy(contactMaterial);
+        contactMaterial = null;
+    }
+}
+
+[AddComponentMenu("")]
 public sealed class Porsche911GT3RSGlassController : MonoBehaviour
 {
     private readonly List<Renderer> cabinGlass = new List<Renderer>();
@@ -1755,6 +1817,12 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
                 var mesh = filter.sharedMesh;
                 var vertices = mesh.vertices;
                 var meshChanged = false;
+                var attachedDetail = IsAttachedExteriorDetail(filter, vertices.Length);
+                var appliedWorldDisplacements = attachedDetail
+                    ? new Vector3[vertices.Length]
+                    : null;
+                var totalWorldDisplacement = Vector3.zero;
+                var changedVerticesInMesh = 0;
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
                     var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
@@ -1822,8 +1890,13 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
                     var falloff = selectedEndImpact
                         ? Mathf.Pow(strongestInfluence, 1.35f)
                         : strongestInfluence * strongestInfluence;
-                    worldVertex += inwardDirection * (selectedDepth * falloff);
+                    var worldDisplacement = inwardDirection * (selectedDepth * falloff);
+                    worldVertex += worldDisplacement;
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
+                    if (appliedWorldDisplacements != null)
+                        appliedWorldDisplacements[vertexIndex] = worldDisplacement;
+                    totalWorldDisplacement += worldDisplacement;
+                    changedVerticesInMesh++;
                     changedVertices++;
                     meshChanged = true;
                     frontImpact |= selectedEndImpact && selectedFrontImpact;
@@ -1832,6 +1905,24 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
 
                 if (!meshChanged)
                     continue;
+                if (attachedDetail && appliedWorldDisplacements != null &&
+                    changedVerticesInMesh > 0)
+                {
+                    // Lamps, badges, vents, fasteners, and similar separate
+                    // pieces must remain attached to the panel. Translate the
+                    // whole small mesh by the sampled regional deformation
+                    // instead of leaving unaffected vertices hovering behind.
+                    var averageDisplacement =
+                        totalWorldDisplacement / changedVerticesInMesh;
+                    for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+                    {
+                        var undeformedWorld = filter.transform.TransformPoint(vertices[vertexIndex]) -
+                                              appliedWorldDisplacements[vertexIndex];
+                        vertices[vertexIndex] = filter.transform.InverseTransformPoint(
+                            undeformedWorld + averageDisplacement);
+                    }
+                    changedVertices += vertices.Length - changedVerticesInMesh;
+                }
                 mesh.vertices = vertices;
                 mesh.RecalculateBounds();
                 changedMeshes++;
@@ -1862,6 +1953,16 @@ public sealed class Porsche911GT3RSVisualDamageController : MonoBehaviour
                 $"Porsche911GT3RS damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
                 $"with {exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    private static bool IsAttachedExteriorDetail(MeshFilter filter, int vertexCount)
+    {
+        var renderer = filter.GetComponent<Renderer>();
+        if (renderer == null)
+            return false;
+        var size = renderer.bounds.size;
+        var longestSide = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+        return vertexCount <= 400 || longestSide <= 0.32f;
     }
 
     private void OnDestroy()

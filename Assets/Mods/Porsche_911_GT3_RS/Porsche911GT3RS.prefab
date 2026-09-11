@@ -8879,11 +8879,12 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.73, y: 0.35025, z: 1.2285}
-  m_LocalScale: {x: 0.86622113, y: 1.1232784, z: 1.0600504}
+  m_LocalScale: {x: 0.88926065, y: 0.95900005, z: 0.9029837}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4026154854699537445}
   - {fileID: 7234711895487804560}
+  - {fileID: 7354799698377017628}
   m_Father: {fileID: 7596831012129327789}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1216703440931463757
@@ -8976,7 +8977,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.73, y: 0.35025, z: 1.2285}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.0265977, y: 0.85375094, z: 0.8518311}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5770030304794241204}
@@ -16729,8 +16730,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 7354799698377017628}
+  m_Children: []
   m_Father: {fileID: 7222329998471469003}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2359472497986201377
@@ -18109,7 +18109,7 @@ GameObject:
   - component: {fileID: 8227469080012607247}
   - component: {fileID: 7435182014463329846}
   m_Layer: 0
-  m_Name: Object_675
+  m_Name: Geometry_PorscheTire_FR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -18123,12 +18123,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2561635186196984505}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0.7071069, y: -0, z: -0, w: 0.70710677}
+  m_LocalPosition: {x: -0.000015556812, y: 0.00032508373, z: 0.002300024}
+  m_LocalScale: {x: -1.3240472, y: -1.1612431, z: -1.0934678}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 246035723717145542}
+  m_Father: {fileID: 1805948254254298401}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &8227469080012607247
 MeshFilter:
@@ -18275,7 +18275,7 @@ GameObject:
   - component: {fileID: 2805044795787193968}
   - component: {fileID: 6555163567395380496}
   m_Layer: 0
-  m_Name: Object_641
+  m_Name: Geometry_PorscheTire_FL
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -18289,12 +18289,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2564380667462815515}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0.7071069, y: -0, z: -0, w: -0.70710677}
+  m_LocalPosition: {x: 0.000015556812, y: 0.00032508373, z: 0.002300024}
+  m_LocalScale: {x: 1.3240472, y: 1.1612431, z: 1.0934678}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 4369850910972705746}
+  m_Father: {fileID: 1205808836720444236}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &2805044795787193968
 MeshFilter:
@@ -22327,11 +22327,12 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.70600003, y: 0.3672, z: -1.2285}
-  m_LocalScale: {x: 1.0552149, y: 1.1776382, z: 1.1113504}
+  m_LocalScale: {x: 1.0832812, y: 1.0054097, z: 0.94668275}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6636415263820294773}
   - {fileID: 289091490044540710}
+  - {fileID: 2462888628268396005}
   m_Father: {fileID: 7596831012129327789}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3114233242133530332
@@ -22394,8 +22395,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 635100480955859743}
+  m_Children: []
   m_Father: {fileID: 6867053817905185977}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3160120262806877802
@@ -29059,6 +29059,7 @@ GameObject:
   - component: {fileID: 4275391280066367312}
   - component: {fileID: 1926118257762380012}
   - component: {fileID: 5920868782107325515}
+  - component: {fileID: 4202232862970979687}
   m_Layer: 12
   m_Name: BodyCollider
   m_TagString: Vehicle
@@ -29144,6 +29145,27 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.78, y: 0.5, z: 1.08}
   m_Center: {x: 0, y: 0.61, z: 1.58}
+--- !u!65 &4202232862970979687
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4077443186382176226}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.78, y: 0.5, z: 1.02}
+  m_Center: {x: 0, y: 0.6, z: -1.78}
 --- !u!1 &4095978869022721907
 GameObject:
   m_ObjectHideFlags: 0
@@ -31441,8 +31463,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 2462888628268396005}
+  m_Children: []
   m_Father: {fileID: 1535909293030174074}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4399602173223346307
@@ -34446,7 +34467,7 @@ GameObject:
   - component: {fileID: 9147771907348669764}
   - component: {fileID: 2715292650647421654}
   m_Layer: 0
-  m_Name: Object_692
+  m_Name: Geometry_PorscheTire_RR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -34460,12 +34481,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4787050968911141437}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0.7071069, y: -0, z: -0, w: 0.70710677}
+  m_LocalPosition: {x: -0.000015556812, y: 0.00032499433, z: 0.0023002625}
+  m_LocalScale: {x: -1.3240472, y: -1.1612431, z: -1.0934678}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1786644251823419287}
+  m_Father: {fileID: 7906707342178761973}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &9147771907348669764
 MeshFilter:
@@ -45932,7 +45953,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.70600003, y: 0.3672, z: -1.2285}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.0265977, y: 0.85375106, z: 0.85183096}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7089479240330418572}
@@ -55499,7 +55520,7 @@ GameObject:
   - component: {fileID: 2902117915290607278}
   - component: {fileID: 6976224878465443882}
   m_Layer: 0
-  m_Name: Object_658
+  m_Name: Geometry_PorscheTire_RL
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -55513,12 +55534,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7141395916918695413}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0.7071069, y: -0, z: -0, w: -0.70710677}
+  m_LocalPosition: {x: 0.000015556812, y: 0.00032499433, z: 0.0023002625}
+  m_LocalScale: {x: 1.3240472, y: 1.1612431, z: 1.0934678}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 3823404491561074374}
+  m_Father: {fileID: 408505999015789775}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &2902117915290607278
 MeshFilter:
@@ -56040,7 +56061,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.73, y: 0.35025, z: 1.2285}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.0265977, y: 0.853751, z: 0.85183096}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 383171862588065101}
@@ -57285,8 +57306,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 8907224713411529317}
+  m_Children: []
   m_Father: {fileID: 3847627273910355090}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7368899347130483967
@@ -59067,7 +59087,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.70600003, y: 0.3672, z: -1.2285}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.0265977, y: 0.85375094, z: 0.851831}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8807879160869518729}
@@ -59196,11 +59216,12 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.73, y: 0.35025, z: 1.2285}
-  m_LocalScale: {x: 0.86622113, y: 1.1232784, z: 1.0600504}
+  m_LocalScale: {x: 0.88926065, y: 0.959, z: 0.90298384}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8467790560790035193}
   - {fileID: 4939753401077961099}
+  - {fileID: 8907224713411529317}
   m_Father: {fileID: 7596831012129327789}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7667337278647316935
@@ -68067,11 +68088,12 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.70600003, y: 0.3672, z: -1.2285}
-  m_LocalScale: {x: 1.0552149, y: 1.1776382, z: 1.1113504}
+  m_LocalScale: {x: 1.0832812, y: 1.0054098, z: 0.9466827}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7238782078056081309}
   - {fileID: 6612700179557080438}
+  - {fileID: 635100480955859743}
   m_Father: {fileID: 7596831012129327789}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8888410919712394295

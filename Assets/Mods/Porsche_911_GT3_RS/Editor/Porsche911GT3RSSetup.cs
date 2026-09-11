@@ -58,6 +58,10 @@ public static class Porsche911GT3RSSetup
         new Vector3(0f, 0.61f, 1.58f);
     private static readonly Vector3 FrontContactColliderSize =
         new Vector3(1.78f, 0.50f, 1.08f);
+    private static readonly Vector3 RearContactColliderCenter =
+        new Vector3(0f, 0.60f, -1.78f);
+    private static readonly Vector3 RearContactColliderSize =
+        new Vector3(1.78f, 0.50f, 1.02f);
 
     private static readonly float[] GT3RSGears =
     {
@@ -111,6 +115,7 @@ public static class Porsche911GT3RSSetup
         {
             ConfigureWheelControllers(root);
             ConfigureBodyColliders(root);
+            RepairTrueTireWheelVisuals(root);
             RepairStaticWheelVisuals(root);
             PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
         }
@@ -865,6 +870,13 @@ public static class Porsche911GT3RSSetup
         frontContactCollider.size = FrontContactColliderSize;
         frontContactCollider.isTrigger = false;
         frontContactCollider.enabled = true;
+        var rearContactCollider = colliders.Length > 3
+            ? colliders[3]
+            : holder.gameObject.AddComponent<BoxCollider>();
+        rearContactCollider.center = RearContactColliderCenter;
+        rearContactCollider.size = RearContactColliderSize;
+        rearContactCollider.isTrigger = false;
+        rearContactCollider.enabled = true;
     }
 
     private static void RepairStaticWheelVisuals(GameObject root)
@@ -882,6 +894,76 @@ public static class Porsche911GT3RSSetup
             controller.localPosition = pair.Value;
             mount.SetParent(root.transform, true);
             mount.localPosition = pair.Value;
+            caliper.localPosition = pair.Value;
+            AssignWheelVisual(controller, mount.gameObject);
+        }
+    }
+
+    private static void RepairTrueTireWheelVisuals(GameObject root)
+    {
+        var tires = new List<Transform>();
+        foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (!HasAncestorNameFragment(renderer.transform, "Scene_-_Root.002") ||
+                HasAncestorNameFragment(renderer.transform, "PorscheWheel"))
+            {
+                continue;
+            }
+            tires.Add(renderer.transform);
+        }
+        if (tires.Count != 4)
+            throw new InvalidOperationException(
+                $"Expected four body-static Porsche tires, found {tires.Count}.");
+
+        foreach (var pair in WheelControllerPositions)
+        {
+            var corner = pair.Key.Replace("_WheelController", string.Empty);
+            var controller = FindTransform(root.transform, pair.Key) ??
+                             throw new InvalidOperationException(
+                                 $"Wheel controller '{pair.Key}' is missing.");
+            var mount = FindTransform(root.transform, "PorscheWheel" + corner) ??
+                        throw new InvalidOperationException(
+                            $"Rolling visual for '{corner}' is missing.");
+            var caliper = FindTransform(root.transform, "PorscheFixedCaliper" + corner) ??
+                          throw new InvalidOperationException(
+                              $"Fixed caliper for '{corner}' is missing.");
+            var tire = FindClosestPart(mount, tires) ??
+                       throw new InvalidOperationException(
+                           $"Rolling visual for '{corner}' has no matching true tire.");
+            tires.Remove(tire);
+
+            var oldScale = mount.localScale;
+            mount.localScale = Vector3.one;
+            if (!TryGetRendererBounds(tire, out var tireBounds) ||
+                tireBounds.size.x <= 0.001f || tireBounds.size.y <= 0.001f ||
+                tireBounds.size.z <= 0.001f)
+            {
+                throw new InvalidOperationException($"True tire for '{corner}' has invalid bounds.");
+            }
+
+            var isFront = pair.Key.StartsWith("Front", StringComparison.Ordinal);
+            var isLeft = pair.Key.IndexOf("Left", StringComparison.Ordinal) >= 0;
+            var radius = isFront ? FrontTireRadius : RearTireRadius;
+            var width = isFront ? FrontTireWidth : RearTireWidth;
+            mount.position = tireBounds.center;
+            tire.SetParent(mount, true);
+            tire.name = "Geometry_PorscheTire_" +
+                        (isFront ? "F" : "R") + (isLeft ? "L" : "R");
+            var fittedScale = new Vector3(
+                width / tireBounds.size.x,
+                (radius * 2f) / tireBounds.size.y,
+                (radius * 2f) / tireBounds.size.z);
+            mount.localScale = fittedScale;
+            mount.localPosition = pair.Value;
+            controller.localPosition = pair.Value;
+
+            // The caliper geometry was detached after the old rim-based fit.
+            // Compensate it by the same scale ratio so it remains correctly
+            // sized beside the newly fitted tire/rim/rotor assembly.
+            caliper.localScale = new Vector3(
+                fittedScale.x / oldScale.x,
+                fittedScale.y / oldScale.y,
+                fittedScale.z / oldScale.z);
             caliper.localPosition = pair.Value;
             AssignWheelVisual(controller, mount.gameObject);
         }
@@ -1083,6 +1165,7 @@ public static class Porsche911GT3RSSetup
     private static void AttachWheelVisuals(GameObject root, GameObject model)
     {
         var wheels = new List<Transform>();
+        var tires = new List<Transform>();
         var brakes = new List<Transform>();
         foreach (var candidate in model.GetComponentsInChildren<Transform>(true))
         {
@@ -1094,18 +1177,32 @@ public static class Porsche911GT3RSSetup
                          "amdb11_brakedisc_", StringComparison.OrdinalIgnoreCase))
                 brakes.Add(candidate);
         }
-        if (wheels.Count != 4 || brakes.Count != 4)
+
+        foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (HasAncestorNameFragment(renderer.transform, "Scene_-_Root.002"))
+                tires.Add(renderer.transform);
+        }
+
+        if (wheels.Count != 4 || tires.Count != 4 || brakes.Count != 4)
             throw new InvalidOperationException(
-                $"Expected four Porsche wheel/brake roots; found wheels={wheels.Count}, brakes={brakes.Count}.");
+                $"Expected four Porsche rolling assemblies; found rims={wheels.Count}, " +
+                $"tires={tires.Count}, brakes={brakes.Count}.");
 
         var wheelCenters = new Dictionary<Transform, Vector3>();
+        var wheelTires = new Dictionary<Transform, Transform>();
+        var unmatchedTires = new List<Transform>(tires);
         var averageZ = 0f;
         foreach (var wheel in wheels)
         {
-            if (!TryGetRendererBounds(wheel, out var wheelBounds))
+            var tire = FindClosestPart(wheel, unmatchedTires) ??
+                       throw new InvalidOperationException($"Rim '{wheel.name}' has no tire mesh.");
+            unmatchedTires.Remove(tire);
+            if (!TryGetRendererBounds(tire, out var tireBounds))
                 throw new InvalidOperationException($"Wheel '{wheel.name}' has no renderer bounds.");
-            var center = root.transform.InverseTransformPoint(wheelBounds.center);
+            var center = root.transform.InverseTransformPoint(tireBounds.center);
             wheelCenters.Add(wheel, center);
+            wheelTires.Add(wheel, tire);
             averageZ += center.z;
         }
         averageZ /= wheels.Count;
@@ -1124,24 +1221,28 @@ public static class Porsche911GT3RSSetup
             var targetCenter = WheelControllerPositions[controllerName];
             controller.localPosition = targetCenter;
 
-            if (!TryGetRendererBounds(wheel, out var sourceBounds) ||
+            var tire = wheelTires[wheel];
+            if (!TryGetRendererBounds(tire, out var sourceBounds) ||
                 sourceBounds.size.x <= 0.001f || sourceBounds.size.y <= 0.001f ||
                 sourceBounds.size.z <= 0.001f)
-                throw new InvalidOperationException($"Wheel '{wheel.name}' has invalid bounds.");
+                throw new InvalidOperationException($"Tire for '{wheel.name}' has invalid bounds.");
             var brake = FindClosestBrake(wheel, brakes) ??
                         throw new InvalidOperationException($"Wheel '{wheel.name}' has no brake assembly.");
             brakes.Remove(brake);
 
             var mount = new GameObject("PorscheWheel" + corner);
             mount.transform.SetParent(root.transform, false);
-            // The complete imported tire/rim group is the NWH rolling visual.
-            // Fit and center it once in the prefab, like the working Lamborghini
-            // and Bugatti vehicles; no runtime pose correction is required.
+            // The GLB stores the visible tire as a separate Scene_-_Root.002
+            // mesh beside the chrome rim hierarchy. Both must share the same
+            // NWH visual mount or the tire remains body-static while steering.
             mount.transform.position = sourceBounds.center;
             wheel.SetParent(mount.transform, true);
+            tire.SetParent(mount.transform, true);
             brake.SetParent(mount.transform, true);
             wheel.name = "Geometry_PorscheWheel_" +
                          (isFront ? "F" : "R") + (isLeft ? "L" : "R");
+            tire.name = "Geometry_PorscheTire_" +
+                        (isFront ? "F" : "R") + (isLeft ? "L" : "R");
             mount.transform.localScale = new Vector3(
                 width / sourceBounds.size.x,
                 (radius * 2f) / sourceBounds.size.y,
@@ -1159,8 +1260,28 @@ public static class Porsche911GT3RSSetup
             AssignWheelVisual(controller, mount);
             Debug.Log(
                 $"Porsche911GT3RS: fitted {corner} authored={authoredCenter} target={targetCenter}, " +
-                $"tire={width:F3}x{radius * 2f:F3}m, brake='{brake.name}'.");
+                $"sourceTire={sourceBounds.size}, tire={width:F3}x{radius * 2f:F3}m, " +
+                $"brake='{brake.name}'.");
         }
+    }
+
+    private static Transform? FindClosestPart(Transform source, List<Transform> parts)
+    {
+        if (!TryGetRendererBounds(source, out var sourceBounds))
+            return null;
+        Transform? closest = null;
+        var closestDistance = float.PositiveInfinity;
+        foreach (var part in parts)
+        {
+            if (!TryGetRendererBounds(part, out var partBounds))
+                continue;
+            var distance = Vector3.Distance(sourceBounds.center, partBounds.center);
+            if (distance >= closestDistance)
+                continue;
+            closest = part;
+            closestDistance = distance;
+        }
+        return closest;
     }
 
     private static Transform? FindClosestBrake(Transform wheel, List<Transform> brakes)
