@@ -688,7 +688,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                ContainsAny(name,
                    "combined_mesh", "blackout", "black_smooth", "smooth_plastics",
                    "painted_black", "panited_gloss", "misc_primer", "bright_chrome",
-                   "galvano", "stainless_steel", "steel_cast", "clear_plastics",
+                   "galvano", "stainless_steel", "steel_cast", "clear_plastic",
                    "LED_Light_Pipe", "rubber",
                    "tail_lamp", "rear_etchings", "rear_turn_signals", "chml",
                    "reflectorGlass", "running_headlight", "running_facia_lamps",
@@ -1089,7 +1089,9 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
     private float impactThresholdMps;
     private float nextCollisionTime;
     private float previousDamage;
+    private float previousSavedDamage;
     private int diagnosticLogs;
+    private Coroutine? repairPowertrainCoroutine;
     private bool initialized;
     private bool failureReported;
 
@@ -1109,6 +1111,7 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
         body = controller.GetComponent<Rigidbody>();
         impactThresholdMps = thresholdMps;
         previousDamage = handler.Damage;
+        previousSavedDamage = controller.vehicleInstance?.damage ?? 0f;
         deformableFilters.Clear();
         originalVertices.Clear();
         runtimeMeshes.Clear();
@@ -1132,7 +1135,10 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
             return;
 
         var currentDamage = damageHandler.Damage;
-        if (previousDamage > 0.001f && currentDamage <= 0.001f)
+        var currentSavedDamage = vehicle?.vehicleInstance?.damage ?? 0f;
+        var repaired = (previousDamage > 0.001f && currentDamage <= 0.001f) ||
+                       (previousSavedDamage > 0.001f && currentSavedDamage <= 0.001f);
+        if (repaired)
         {
             foreach (var pair in originalVertices)
             {
@@ -1146,8 +1152,63 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
             }
             CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
+            if (repairPowertrainCoroutine != null)
+                StopCoroutine(repairPowertrainCoroutine);
+            repairPowertrainCoroutine = StartCoroutine(RestorePowertrainAfterRepair());
         }
         previousDamage = currentDamage;
+        previousSavedDamage = currentSavedDamage;
+    }
+
+    private IEnumerator RestorePowertrainAfterRepair()
+    {
+        // Vanilla repair restores NWH component health but does not restart an
+        // engine that was stopped when the vehicle reached total damage.
+        yield return null;
+        var physics = vehicle?.GetComponent<NWH.VehiclePhysics2.VehicleController>();
+        if (physics == null || damageHandler == null)
+        {
+            repairPowertrainCoroutine = null;
+            yield break;
+        }
+
+        damageHandler.Repair();
+        if (vehicle == null || !vehicle.controlledByPlayer)
+        {
+            repairPowertrainCoroutine = null;
+            yield break;
+        }
+
+        var engine = physics.powertrain.engine;
+        var transmission = physics.powertrain.transmission;
+        engine.StopEngine();
+        transmission.ShiftInto(0, true);
+        transmission.currentGearRatio = 0f;
+        yield return new WaitForSecondsRealtime(0.15f);
+
+        engine.StartEngine();
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            yield return new WaitForSecondsRealtime(0.45f);
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                break;
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
+            if (engine.IsRunning && engine.ignition && engine.canRun && rpm >= 300f)
+            {
+                transmission.ShiftInto(1, true);
+                CadillacEscaladeDiagnostics.Info(context,
+                    $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
+                    $"restarted after repair attempt={attempt}, rpm={rpm:0}.");
+                repairPowertrainCoroutine = null;
+                yield break;
+            }
+            engine.StartEngine();
+        }
+
+        context?.Logger.Warn(
+            $"CadillacEscalade drivetrain vehicle={vehicle?.GetInstanceID()}: " +
+            "engine did not restart after repair.");
+        repairPowertrainCoroutine = null;
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -1300,6 +1361,9 @@ public sealed class CadillacEscaladeVisualDamageController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (repairPowertrainCoroutine != null)
+            StopCoroutine(repairPowertrainCoroutine);
+        repairPowertrainCoroutine = null;
         foreach (var mesh in runtimeMeshes)
             if (mesh != null) Destroy(mesh);
         runtimeMeshes.Clear();
