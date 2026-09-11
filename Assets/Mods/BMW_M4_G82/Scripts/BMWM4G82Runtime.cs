@@ -566,8 +566,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.38f, 0.08f);
-                colliders[0].size = new Vector3(1.68f, 0.40f, 4.20f);
+                colliders[0].center = new Vector3(0f, 0.38f, 0f);
+                colliders[0].size = new Vector3(1.68f, 0.40f, 4.36f);
             }
             if (colliders.Length > 1)
             {
@@ -705,7 +705,12 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 !IsDeformableExterior(filter))
                 continue;
             var renderer = filter.GetComponent<MeshRenderer>();
-            if (renderer != null && renderer.enabled)
+            // Stateful lamp overlays are normally disabled when the vehicle is
+            // first configured. They still need their own per-instance damage
+            // meshes so switching the lights on after a crash cannot reveal an
+            // undeformed surface floating in front of the damaged lamp.
+            if (renderer != null &&
+                (renderer.enabled || filter.name.StartsWith("BMWM4G82_", StringComparison.Ordinal)))
                 filters.Add(filter);
         }
 
@@ -1150,16 +1155,18 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
     private const float DentRadius = 0.54f;
     private const float MaximumDentDepth = 0.18f;
     private const float DepthPerExcessMps = 0.0065f;
-    private const float FrontDentLateralRadius = 0.78f;
-    private const float FrontDentVerticalRadius = 0.66f;
-    private const float FrontDentLongitudinalRadius = 0.86f;
+    private const float FrontDentLateralRadius = 0.95f;
+    private const float FrontDentVerticalRadius = 0.78f;
+    private const float FrontDentLongitudinalRadius = 0.98f;
     private const float MaximumFrontDentDepth = 0.21f;
     private const float FrontDepthPerExcessMps = 0.007f;
-    private const float RearDentLateralRadius = 0.88f;
-    private const float RearDentVerticalRadius = 0.72f;
-    private const float RearDentLongitudinalRadius = 1.00f;
-    private const float MaximumRearDentDepth = 0.28f;
-    private const float RearDepthPerExcessMps = 0.008f;
+    private const float RearDentLateralRadius = 0.98f;
+    private const float RearDentVerticalRadius = 0.80f;
+    private const float RearDentLongitudinalRadius = 1.08f;
+    private const float MaximumRearDentDepth = 0.22f;
+    private const float RearDepthPerExcessMps = 0.0065f;
+    private const float FrontEndFalloffExponent = 1.65f;
+    private const float RearEndFalloffExponent = 1.55f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
@@ -1339,7 +1346,11 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                     if (strongestInfluence <= 0f || inwardDirection.sqrMagnitude < 0.5f)
                         continue;
                     var falloff = selectedEndImpact
-                        ? Mathf.Pow(strongestInfluence, 1.35f)
+                        ? Mathf.Pow(
+                            strongestInfluence,
+                            selectedFrontImpact
+                                ? FrontEndFalloffExponent
+                                : RearEndFalloffExponent)
                         : strongestInfluence * strongestInfluence;
                     worldVertex += inwardDirection * (selectedDepth * falloff);
                     var localVertex = filter.transform.InverseTransformPoint(worldVertex);
