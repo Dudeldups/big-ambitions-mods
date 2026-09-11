@@ -586,6 +586,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             return 0;
         }
 
+        context?.Logger.Info(
+            $"AudiRS6R damage vehicle={vehicleController.GetInstanceID()}: " +
+            $"deformationTargets=[{string.Join(",", deformableFilters.ConvertAll(filter => filter.name))}].");
+
         ClearCollection(damageHandler, "_collisionEvents");
         damageHandler.collisionTimeout = 0.8f;
         damageHandler.damageIntensity = DamageIntensity;
@@ -614,6 +618,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private static bool IsDeformableExterior(string name)
     {
         return string.Equals(name, "Paint", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("B:Base_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Paint_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Coloured_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Carbon1_Geo_", StringComparison.OrdinalIgnoreCase) ||
@@ -1191,16 +1196,18 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class AudiRS6RVisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.58f;
-    private const float MaximumSideDentDepth = 0.24f;
-    private const float DepthPerExcessMps = 0.010f;
+    private const float DentRadius = 0.54f;
+    private const float MinimumSideDentDepth = 0.016f;
+    private const float MaximumSideDentDepth = 0.18f;
+    private const float DepthPerExcessMps = 0.008f;
     private const float EndDentLateralRadius = 0.95f;
     private const float EndDentVerticalRadius = 0.85f;
     private const float EndDentLongitudinalRadius = 1.12f;
     private const float EndDentCenterLowering = 0.18f;
-    private const float MaximumFrontEndDentDepth = 0.36f;
-    private const float MaximumRearEndDentDepth = 0.46f;
-    private const float EndDepthPerExcessMps = 0.014f;
+    private const float MinimumEndDentDepth = 0.028f;
+    private const float MaximumFrontEndDentDepth = 0.27f;
+    private const float MaximumRearEndDentDepth = 0.34f;
+    private const float EndDepthPerExcessMps = 0.011f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
 
@@ -1309,7 +1316,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
             var sideDentDepth = Mathf.Clamp(
                 excessSpeed * DepthPerExcessMps,
-                0.02f,
+                MinimumSideDentDepth,
                 MaximumSideDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var changedMeshes = 0;
@@ -1378,7 +1385,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                         selectedDepth = isEndContact
                             ? Mathf.Clamp(
                                 excessSpeed * EndDepthPerExcessMps,
-                                0.035f,
+                                MinimumEndDentDepth,
                                 selectedFrontEndImpact
                                     ? MaximumFrontEndDentDepth
                                     : MaximumRearEndDentDepth)

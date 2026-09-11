@@ -31,8 +31,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private Light? rightHeadlightBeam;
     private MeshRenderer? leftHeadlightOverlay;
     private MeshRenderer? rightHeadlightOverlay;
-    private MeshRenderer? leftHeadlightLensOverlay;
-    private MeshRenderer? rightHeadlightLensOverlay;
     private MeshRenderer? rearWindowTintOverlay;
     private MeshRenderer? leftTailLightOverlay;
     private MeshRenderer? rightTailLightOverlay;
@@ -86,24 +84,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             copyBaseTexture: false,
             overlayScale: 1.0015f,
             selectHeadlightSignatureComponents: true);
-        // A second modeled lens layer sits ahead of the LED signature. Give that
-        // cover a restrained glow so it no longer masks the illuminated element.
-        leftHeadlightLensOverlay = CreateFunctionalOverlay(
-            outerWindowRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x <= 0f,
-            "LeftHeadlightLens",
-            new Color(0.35f, 0.45f, 0.62f, 1f),
-            intensity: 2.0f,
-            copyBaseTexture: false,
-            overlayScale: 1.001f);
-        rightHeadlightLensOverlay = CreateFunctionalOverlay(
-            outerWindowRenderer,
-            position => position.z >= 1.80f && position.y >= 0.55f && position.y <= 0.80f && position.x > 0f,
-            "RightHeadlightLens",
-            new Color(0.35f, 0.45f, 0.62f, 1f),
-            intensity: 2.0f,
-            copyBaseTexture: false,
-            overlayScale: 1.001f);
         leftTailLightOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.x <= 0f,
             "LeftTailLight", new Color(0.78f, 0.006f, 0.002f, 1f),
@@ -138,18 +118,20 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             frontLampRenderer, position => position.z >= 0f && position.x > 0f,
             "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
         leftRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
-            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
+            frontLampRenderer, position => position.z <= -2.0f && position.x <= 0f,
+            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f,
+            selectRearIndicatorComponents: true);
         rightRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
-            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
+            frontLampRenderer, position => position.z <= -2.0f && position.x > 0f,
+            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f,
+            selectRearIndicatorComponents: true);
 
         initialized = true;
         var lightOverlayCount = CountLightOverlays();
         context?.Logger.Info(
             $"AudiRS6R lighting vehicle={controller.GetInstanceID()}: glassRenderers={glassCount}/2, " +
-            $"headlightBeams={beamCount}/2, emissiveLayers={lightOverlayCount}/13.");
-        if (glassCount != 2 || rearWindowTintOverlay == null || beamCount != 2 || lightOverlayCount != 13)
+            $"headlightBeams={beamCount}/2, emissiveLayers={lightOverlayCount}/11.");
+        if (glassCount != 2 || rearWindowTintOverlay == null || beamCount != 2 || lightOverlayCount != 11)
             LogWarning("Lighting setup is incomplete; inspect the preceding material/overlay diagnostics.");
         if (controller.GetType().GetProperty("ShouldLightsBeOn", InstanceFields) == null)
             LogWarning("ShouldLightsBeOn is unavailable; automatic headlights cannot be read.");
@@ -409,7 +391,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         bool copyBaseTexture = true,
         float overlayScale = 1.0015f,
         bool selectHeadlightSignatureComponents = false,
-        bool selectRearLampSignatureComponents = false)
+        bool selectRearLampSignatureComponents = false,
+        bool selectRearIndicatorComponents = false)
     {
         if (sourceRenderer == null)
         {
@@ -431,7 +414,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                     sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
                 : selectRearLampSignatureComponents
                     ? CreateRearLampSignatureMesh(
-                        sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
+                        sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix, false)
+                    : selectRearIndicatorComponents
+                        ? CreateRearLampSignatureMesh(
+                            sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix, true)
                     : CreateFilteredMesh(
                         sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
             if (overlayMesh == null)
@@ -591,7 +577,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         MeshRenderer sourceRenderer,
         Mesh source,
         Func<Vector3, bool> includeComponentCenter,
-        string suffix)
+        string suffix,
+        bool indicatorOnly)
     {
         var vertices = source.vertices;
         if (vertices.Length == 0 || vehicleController == null)
@@ -671,7 +658,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 componentBounds.min.y >= 0.795f &&
                 componentBounds.max.y <= 0.838f;
 
-            if (!includeComponentCenter(center) || (!isStraightBar && !(isTooth && isRearward)))
+            var isSelectedSignature = indicatorOnly
+                ? isStraightBar
+                : isStraightBar || (isTooth && isRearward);
+            if (!includeComponentCenter(center) || !isSelectedSignature)
             {
                 continue;
             }
@@ -690,7 +680,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             return null;
         }
 
-        if (selectedBars != 2 || selectedTeeth != 50 || selectedTriangles.Count / 3 != 546)
+        if (indicatorOnly && selectedBars == 0)
+        {
+            LogWarning($"rear-indicator-signature suffix='{suffix}' selected no horizontal indicator bars.");
+        }
+        else if (!indicatorOnly &&
+                 (selectedBars != 2 || selectedTeeth != 50 || selectedTriangles.Count / 3 != 546))
         {
             LogWarning($"rear-lamp-signature suffix='{suffix}' expected bars=2 teeth=50 triangles=546 " +
                        $"but selected bars={selectedBars} teeth={selectedTeeth} " +
@@ -821,8 +816,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
         SetRendererState(leftHeadlightOverlay, headlights && !(leftBlinker && blinkerFlash));
         SetRendererState(rightHeadlightOverlay, headlights && !(rightBlinker && blinkerFlash));
-        SetRendererState(leftHeadlightLensOverlay, headlights && !(leftBlinker && blinkerFlash));
-        SetRendererState(rightHeadlightLensOverlay, headlights && !(rightBlinker && blinkerFlash));
         if (headlightBeam != null)
             headlightBeam.enabled = false;
         SetLightState(leftHeadlightBeam, controlledByPlayer && automaticHeadlights);
@@ -842,8 +835,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private int CountLightOverlays() =>
         (leftHeadlightOverlay != null ? 1 : 0) +
         (rightHeadlightOverlay != null ? 1 : 0) +
-        (leftHeadlightLensOverlay != null ? 1 : 0) +
-        (rightHeadlightLensOverlay != null ? 1 : 0) +
         (leftTailLightOverlay != null ? 1 : 0) +
         (rightTailLightOverlay != null ? 1 : 0) +
         (leftBrakeLightOverlay != null ? 1 : 0) +
