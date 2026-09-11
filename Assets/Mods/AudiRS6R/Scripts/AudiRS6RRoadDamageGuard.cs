@@ -195,6 +195,23 @@ internal sealed class AudiRS6RRoadDamageGuard : MonoBehaviour
                objectIdentity.Contains("asphalt") || objectIdentity.Contains("terrain");
     }
 
+    internal bool IsRoadSurfaceCollision(Collision collision)
+    {
+        if (collision == null || collision.contactCount == 0)
+            return false;
+
+        var otherCollider = collision.collider;
+        var otherName = otherCollider != null ? otherCollider.name : string.Empty;
+        var otherPath = otherCollider != null ? GetHierarchyPath(otherCollider.transform) : string.Empty;
+        var tag = otherCollider != null ? otherCollider.tag : string.Empty;
+        var layerName = otherCollider != null
+            ? LayerMask.LayerToName(otherCollider.gameObject.layer)
+            : string.Empty;
+        return IsRoadLike(otherName, otherPath, tag, layerName) &&
+               collision.GetContact(0).normal.y >= RoadSurfaceNormalThreshold &&
+               Vector3.Dot(transform.up, Vector3.up) >= 0.7f;
+    }
+
     private static string GetHierarchyPath(Transform target)
     {
         var path = target.name;
