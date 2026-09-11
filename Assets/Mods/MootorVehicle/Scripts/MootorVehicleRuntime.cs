@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using BAModAPI;
+using BusinessLayoutSets;
 using Helpers;
 using UI.Notification;
 using UnityEngine;
@@ -181,7 +182,7 @@ namespace MootorVehicle
 
         private void HandleFullMenuToggle(bool isOpen)
         {
-            if (!isOpen)
+            if (!isOpen || BusinessLayoutSetHelper.loadingLayouts)
                 return;
 
             if (!MootorVehicleDealerStock.EnsureVehicleAvailable(vehicleTypeName, context))
@@ -198,12 +199,19 @@ namespace MootorVehicle
 
         private IEnumerator InitializeForLifecycle()
         {
+            while (BusinessLayoutSetHelper.loadingLayouts)
+            {
+                EnsureVehiclesConfigured(out _, out _);
+                yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+            }
+
             var previousMatchedCount = -1;
             var stablePasses = 0;
             var dealerReady = false;
             for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
             {
-                dealerReady |= MootorVehicleDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+                if (!dealerReady)
+                    dealerReady = MootorVehicleDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
                 EnsureVehiclesConfigured(out var matchedCount, out _);
 
                 if (dealerReady && matchedCount == previousMatchedCount)
