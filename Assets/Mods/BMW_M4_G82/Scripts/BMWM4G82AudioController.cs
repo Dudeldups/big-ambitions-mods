@@ -48,7 +48,12 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
                 if (!TryConfigure())
                 {
                     if (attempts == 20)
-                        Warn("native engine audio unavailable after 20 attempts; custom audio was not initialized.");
+                        Warn(
+                            "native engine audio unavailable after 20 attempts; " +
+                            $"physics={physics != null}, engineComponent={engineSound != null}, " +
+                            $"source={native != null}, clip={native?.clip != null}, " +
+                            $"mixer={native?.outputAudioMixerGroup != null}, context={context != null}; " +
+                            "custom audio was not initialized.");
                     return;
                 }
             }
@@ -67,7 +72,10 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
+        // Some valid inherited player-vehicle sources route directly to the
+        // AudioListener and therefore have no explicit mixer group. A missing
+        // group must not block the BMW layers from initializing.
+        if (native == null || native.clip == null || context == null)
             return false;
         originalDistortion = engineSound!.maxDistortion;
         audioHost = new GameObject("BMWM4G82_EngineLayers");

@@ -38,6 +38,7 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
     private MeshRenderer? rightBlinkerOverlay;
     private MeshRenderer? rearLeftBlinkerOverlay;
     private MeshRenderer? rearRightBlinkerOverlay;
+    private MeshRenderer? licensePlateOverlay;
     private bool initialized;
     private bool updateFailureReported;
     private bool wasBlinking;
@@ -65,7 +66,7 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             "RightDaytimeRunningLights", white, 4.8f, 1.001f);
         headlampOverlay = CreateComponentOverlay(lamp,
             IsFrontProjector,
-            "HeadlampProjectors", white, 8.0f, 1.010f);
+            "HeadlampProjectors", white, 8.0f, 1.004f, 0.040f);
         rearLeftTailOverlay = CreateComponentOverlay(lamp,
             component => (IsRearOuterSignature(component) || IsRearInnerSignature(component)) &&
                          component.Bounds.center.x < 0f,
@@ -85,6 +86,10 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         reverseOverlay = CreateComponentOverlay(lamp,
             IsRearReverseStrip,
             "ReverseLight", white, 4.6f, 1.004f);
+        licensePlateOverlay = CreateComponentOverlay(lamp,
+            IsRearLicensePlateLight,
+            "LicensePlateLight", new Color(1f, 0.88f, 0.68f, 1f),
+            3.2f, 1.003f, -0.012f);
         var amber = new Color(1f, 0.42f, 0.005f, 1f);
         leftBlinkerOverlay = CreateComponentOverlay(daylight,
             component => IsFront(component) && component.Bounds.center.x < 0f,
@@ -106,8 +111,8 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{lamp?.name}' " +
                 $"rearLens='{rearStrip?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/8 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 8 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"lampOverlays={CountLampOverlays()}/9 blinkerOverlays={CountBlinkerOverlays()}/4.");
+        if (CountLampOverlays() != 9 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -203,12 +208,12 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
             return null;
         }
         return CreateOverlayObject(source, source.GetComponent<MeshFilter>().sharedMesh,
-            suffix, color, intensity, scale);
+            suffix, color, intensity, scale, 0f);
     }
 
     private MeshRenderer? CreateComponentOverlay(MeshRenderer? source,
         Func<LampComponent, bool> includeComponent, string suffix, Color color,
-        float intensity, float scale)
+        float intensity, float scale, float longitudinalOffset = 0f)
     {
         if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
         {
@@ -306,7 +311,14 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         generatedMeshes.Add(mesh);
         LogInfo($"overlay '{suffix}' selected components={selectedComponentCount}/" +
                 $"{componentCount} triangles={selectedTriangles.Count / 3}.");
-        return CreateOverlayObject(source, mesh, suffix, color, intensity, scale);
+        return CreateOverlayObject(
+            source,
+            mesh,
+            suffix,
+            color,
+            intensity,
+            scale,
+            longitudinalOffset);
     }
 
     private static bool IsFront(LampComponent component) => component.Bounds.center.z > 1.60f;
@@ -335,6 +347,13 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         component.TriangleCount <= 82 && Mathf.Abs(component.Bounds.center.x) >= 0.25f &&
         Mathf.Abs(component.Bounds.center.x) <= 0.58f && component.Bounds.size.x >= 0.18f &&
         component.Bounds.size.y <= 0.035f;
+
+    private static bool IsRearLicensePlateLight(LampComponent component) =>
+        IsRear(component) && component.TriangleCount >= 16 &&
+        component.TriangleCount <= 20 && Mathf.Abs(component.Bounds.center.x) >= 0.08f &&
+        Mathf.Abs(component.Bounds.center.x) <= 0.16f && component.Bounds.size.x >= 0.05f &&
+        component.Bounds.size.x <= 0.09f && component.Bounds.size.y <= 0.01f &&
+        component.Bounds.size.z <= 0.05f;
 
     private static void AddTriangleForVertex(
         IDictionary<int, List<int>> trianglesByVertex,
@@ -378,11 +397,13 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
     }
 
     private MeshRenderer CreateOverlayObject(MeshRenderer source, Mesh mesh, string suffix,
-        Color color, float intensity, float scale)
+        Color color, float intensity, float scale, float longitudinalOffset)
     {
         var host = new GameObject("BMWM4G82_" + suffix);
         host.transform.SetParent(source.transform, false);
         host.transform.localScale = Vector3.one * scale;
+        if (vehicle != null && Mathf.Abs(longitudinalOffset) > 0.0001f)
+            host.transform.position += vehicle.transform.forward * longitudinalOffset;
         host.layer = source.gameObject.layer;
         host.AddComponent<MeshFilter>().sharedMesh = mesh;
         var renderer = host.AddComponent<MeshRenderer>();
@@ -446,6 +467,7 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         SetEnabled(rearLeftBrakeOverlay, braking);
         SetEnabled(rearRightBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
+        SetEnabled(licensePlateOverlay, lightsOn);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
         SetEnabled(rearLeftBlinkerOverlay, leftBlinker && flash);
@@ -462,7 +484,7 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         (headlampOverlay != null ? 1 : 0) +
         (rearLeftTailOverlay != null ? 1 : 0) + (rearRightTailOverlay != null ? 1 : 0) +
         (rearLeftBrakeOverlay != null ? 1 : 0) + (rearRightBrakeOverlay != null ? 1 : 0) +
-        (reverseOverlay != null ? 1 : 0);
+        (reverseOverlay != null ? 1 : 0) + (licensePlateOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>
         (leftBlinkerOverlay != null ? 1 : 0) + (rightBlinkerOverlay != null ? 1 : 0) +
