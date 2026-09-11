@@ -1,1 +1,3 @@
-- Fixed cancelling a repaint preview so the vehicle reliably returns to its original color without changing its saved paint.
+- Fixed the Repaint service button sometimes not appearing after loading a save with certain mod combinations.
+- Improved repaint preview and cancellation compatibility for modded vehicles.
+- Updated compatibility with the latest game assemblies.
