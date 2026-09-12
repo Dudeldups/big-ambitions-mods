@@ -7,9 +7,9 @@ internal static class BMWM4G82AudioModel
     internal const float IdlePitch = 1f;
     internal const float HornLowVolume = .92f;
     internal const float HornHighVolume = .56f;
-    internal const float EngineBaseVolume = .40f;
-    internal const float EngineThrottleVolume = .43f;
-    internal const float ShiftPopVolume = 1.00f;
+    internal const float EngineBaseVolume = .44f;
+    internal const float EngineThrottleVolume = .47f;
+    internal const float ShiftPopVolume = 1.12f;
     // Use a substantial but incomplete load blend. The BMW remains distinct
     // from the Lamborghini's fully loaded V12 crossfade while gaining its
     // smoother transition away from the dry/coast layers.

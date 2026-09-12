@@ -901,7 +901,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.11f);
-            SetFloat(transmission, "_downshiftRPM", 2400f);
+            SetFloat(transmission, "_downshiftRPM", 3400f);
             SetFloat(transmission, "_upshiftRPM", 7000f);
             SetInt(transmission, "forwardGearCount", 8);
             SetInt(transmission, "reverseGearCount", 1);
