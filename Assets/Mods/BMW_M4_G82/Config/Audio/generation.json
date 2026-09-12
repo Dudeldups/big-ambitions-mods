@@ -46,8 +46,28 @@
       "method": "deterministic additive twin-turbo inline-six synthesis"
     }
   ],
-  "transients": [],
-  "runtime_layers": [
-    "very-low-gain procedural continuous exhaust crackle"
-  ]
+  "transients": [
+    {
+      "name": "ExhaustPop1.wav",
+      "samples": 9702,
+      "seconds": 0.22,
+      "peak": 0.4517797515587487,
+      "method": "deterministic filtered-noise attack with decaying S58 low-mid body"
+    },
+    {
+      "name": "ExhaustPop2.wav",
+      "samples": 10804,
+      "seconds": 0.24498866213151926,
+      "peak": 0.43518678302496006,
+      "method": "deterministic filtered-noise attack with decaying S58 low-mid body"
+    },
+    {
+      "name": "ExhaustPop3.wav",
+      "samples": 11907,
+      "seconds": 0.27,
+      "peak": 0.524483824301436,
+      "method": "deterministic filtered-noise attack with decaying S58 low-mid body"
+    }
+  ],
+  "runtime_layers": []
 }

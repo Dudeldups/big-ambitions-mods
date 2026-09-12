@@ -43,10 +43,11 @@ public static class BMWM4G82Setup
     private const float VisualBodyOffsetY = -0.035f;
     private const float VehicleLinearDrag = 0.015f;
     private const float CaliperOutboardOffset = 0.060f;
+    private const float CaliperRearwardOffset = -0.020f;
     private const float ForwardTireGrip = 0.50f;
     private const float TireFrictionCircleStrength = 0.82f;
-    private const float BrakeMaxTorque = 24000f;
-    private const float BrakeActuationTime = 0.025f;
+    private const float BrakeMaxTorque = 32000f;
+    private const float BrakeActuationTime = 0.010f;
     private const float MaximumDepenetrationVelocity = 4.5f;
     private const float AntiRollBarForce = 8400f;
     private const float SteeringDegreesPerSecond = 95f;
@@ -60,7 +61,7 @@ public static class BMWM4G82Setup
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 0.32f;
+    private const float DamageIntensity = 0.45f;
     private const float DamageDecelerationThreshold = 500f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.06f, -0.08f);
     private static readonly Vector3 SteeringAnchorPosition = new Vector3(-0.38f, 0.92f, 0.55f);
@@ -1271,10 +1272,11 @@ public static class BMWM4G82Setup
             originalCaliperSources,
             corner);
         // The authored caliper mesh sits behind the fitted wheel face. Move
-        // each original assembly outboard without changing its radial or
-        // longitudinal alignment to the brake disc.
-        caliperGeometry.transform.localPosition = Vector3.right *
-                                                  (corner.Left ? -CaliperOutboardOffset : CaliperOutboardOffset);
+        // each original assembly outboard and 2 cm rearward so the authored
+        // caliper body clears the fitted brake disc on every corner.
+        caliperGeometry.transform.localPosition =
+            Vector3.right * (corner.Left ? -CaliperOutboardOffset : CaliperOutboardOffset) +
+            Vector3.forward * CaliperRearwardOffset;
         caliperGeometry.transform.SetParent(fixedMount.transform, true);
 
         AssignWheelVisual(controller, mount);

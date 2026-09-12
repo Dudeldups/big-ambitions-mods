@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 144586586
+CRC: 2815852074
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: ffeb218947d142d41c713d3f05294532
+    Hash: 48696485ddff4859eb6582b84be07f17
   TypeTreeHash:
     serializedVersion: 2
     Hash: aff9dc73ba0a989f4ff866434e74d42f
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: ffeb218947d142d41c713d3f05294532
+    Hash: 48696485ddff4859eb6582b84be07f17
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -260,12 +260,15 @@ Assets:
 - Assets/Mods/BMW_M4_G82/Config/Audio/generation.json
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontRight_BMWOpaque_11_Material_001.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_13_metalblack.asset
+- Assets/Mods/BMW_M4_G82/Config/Audio/ExhaustPop1.wav
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_07_bBMW_M4CompetitionG82TNR0_2021InteriorA_Material1.mat
-- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_12_disk_001.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearLeft_BMWOpaque_11_Material_001.asset
-- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_15_main.asset
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_12_disk_001.asset
+- Assets/Mods/BMW_M4_G82/Config/Audio/ExhaustPop2.wav
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_04_bBMW_M4CompetitionG82TNR0_2021ManufacturerPlateA_Material1.mat
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_RearRight_BMWOpaque_15_main.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_07_glass.mat
+- Assets/Mods/BMW_M4_G82/Config/Audio/ExhaustPop3.wav
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_00_bBMW_M4CompetitionG82TNR0_2021EngineA_Material1.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWOpaque_17_bBMW_M4CompetitionG82TNR0_2021Base_Material1.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontLeft_BMWOpaque_12_disk_001.asset
@@ -287,8 +290,8 @@ Assets:
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontRight_OriginalCaliper.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMeshes/BMW_FrontLeft_BMWOpaque_15_main.asset
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_08_wmit_red.mat
-- Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_02_bBMW_M4CompetitionG82TNR0_2021BadgeA_Material1.mat
 - Assets/Mods/BMW_M4_G82/Config/Audio/EngineHigh.wav
+- Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_02_bBMW_M4CompetitionG82TNR0_2021BadgeA_Material1.mat
 - Assets/Mods/BMW_M4_G82/Models/bmw_m4_lights.glb
 - Assets/Mods/BMW_M4_G82/Config/Audio/HornLow.wav
 Dependencies: []

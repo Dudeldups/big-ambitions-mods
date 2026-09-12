@@ -32,8 +32,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchCreepTorque = 0f;
     private const float ForwardTireGrip = 0.50f;
     private const float TireFrictionCircleStrength = 0.82f;
-    private const float BrakeMaxTorque = 24000f;
-    private const float BrakeActuationTime = 0.025f;
+    private const float BrakeMaxTorque = 32000f;
+    private const float BrakeActuationTime = 0.010f;
     private const float MaximumDepenetrationVelocity = 4.5f;
     private const float AntiRollBarForce = 8400f;
     private const float SteeringDegreesPerSecond = 95f;
@@ -47,7 +47,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 0.32f;
+    private const float DamageIntensity = 0.45f;
     private const float DamageDecelerationThreshold = 500f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
@@ -1242,6 +1242,9 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
             "Object_24",
             "Object_28",
             "Object_32",
+            // The painted lower bumper/grille surround shares one broad mesh.
+            // Its kidney-frame vertices also sit behind the contact plane.
+            "Object_36",
         };
 
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();

@@ -9,9 +9,7 @@ internal static class BMWM4G82AudioModel
     internal const float HornHighVolume = .56f;
     internal const float EngineBaseVolume = .40f;
     internal const float EngineThrottleVolume = .43f;
-    internal const float CrackleIdleVolume = .0040f;
-    internal const float CrackleLoadVolume = .0065f;
-    internal const float ShiftPopVolume = .70f;
+    internal const float ShiftPopVolume = .96f;
     // Retain part of the cleaner dry recording under acceleration. The load
     // variants alone emphasize a rounded, pulsing exhaust note too strongly.
     internal static float LoadBlend(float throttle) =>

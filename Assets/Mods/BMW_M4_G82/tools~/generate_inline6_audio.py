@@ -73,6 +73,38 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     return normalize(output, 0.115)
 
 
+def exhaust_pop(variant: int) -> list[float]:
+    """Create a short S58-style exhaust report with low-mid body.
+
+    These are deliberately finite one-shots, not a looping noise bed. The
+    variants differ in body pitch and decay so consecutive gear events do not
+    repeat an identical synthetic click.
+    """
+    rng = random.Random(8600 + variant)
+    duration = 0.220 + 0.025 * variant
+    sample_count = round(duration * RATE)
+    body_hz = 82.0 + 11.0 * variant
+    filtered_noise = 0.0
+    output: list[float] = []
+    for index in range(sample_count):
+        time = index / RATE
+        noise = rng.uniform(-1.0, 1.0)
+        filtered_noise = 0.78 * filtered_noise + 0.22 * noise
+        body_phase = math.tau * (body_hz * time + 42.0 * time * time)
+        body = math.sin(body_phase)
+        low_mid = math.sin(math.tau * (205.0 + 23.0 * variant) * time + 0.45)
+        crack = (0.38 * noise + 0.62 * filtered_noise) * math.exp(-time / 0.0105)
+        rumble = (
+            0.78 * body + 0.20 * low_mid + 0.24 * filtered_noise
+        ) * math.exp(-time / (0.052 + 0.004 * variant))
+        attack = math.sin(min(time / 0.001, 1.0) * math.pi / 2.0) ** 2
+        release = math.sin(
+            min((duration - time) / 0.018, 1.0) * math.pi / 2.0
+        ) ** 2
+        output.append((0.72 * crack + rumble) * attack * release)
+    return normalize(output, (0.082, 0.075, 0.088)[variant])
+
+
 def write_wav(path: Path, samples: list[float]) -> dict[str, float | int | str]:
     peak = max(abs(sample) for sample in samples)
     scale = min(0.92 / max(peak, 1e-12), 1.0)
@@ -100,9 +132,7 @@ def main() -> None:
         "recorded_samples": False,
         "layers": [],
         "transients": [],
-        "runtime_layers": [
-            "very-low-gain procedural continuous exhaust crackle"
-        ],
+        "runtime_layers": [],
     }
     for layer_index, (name, frequency) in enumerate(LAYERS):
         report["layers"].append(
@@ -114,6 +144,15 @@ def main() -> None:
                 layer(frequency, True, 500 + layer_index),
             )
         )
+    for variant in range(3):
+        stats = write_wav(
+            OUTPUT / f"ExhaustPop{variant + 1}.wav",
+            exhaust_pop(variant),
+        )
+        stats["method"] = (
+            "deterministic filtered-noise attack with decaying S58 low-mid body"
+        )
+        report["transients"].append(stats)
     (OUTPUT / "generation.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8"
     )
