@@ -11,7 +11,7 @@ internal static class CadillacEscaladeAudioModel
     internal const float EngineBaseVolume = .31f;
     internal const float EngineThrottleVolume = .25f;
     internal const float BurbleIdleVolume = 0f;
-    internal const float BurbleLoadVolume = .21f;
+    internal const float BurbleLoadVolume = .32f;
 
     internal static float LoadBlend(float throttle) =>
         Clamp01((throttle - .18f) / .68f);
