@@ -171,6 +171,19 @@ internal static class BugattiChironPrivateDriverSupport
             context?.Logger.Warn(message);
     }
 
+    internal static void ReportTrafficAppearanceResult(
+        string? colorName,
+        bool paintApplied)
+    {
+        var message =
+            $"BugattiChiron: traffic appearance color='{colorName ?? "<none>"}', " +
+            $"paintApplied={paintApplied}.";
+        if (paintApplied)
+            context?.Logger.Info(message);
+        else
+            context?.Logger.Warn(message);
+    }
+
     internal static bool TryResolveDriverColor(
         string? colorName,
         VehicleColor? liveColor,
@@ -416,6 +429,8 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
     private PrivateDriverVehicle? privateDriver;
     private VehicleComponent? trafficVehicle;
     private bool trafficEventsSubscribed;
+    private bool trafficAppearanceFailureLogged;
+    private bool trafficAppearanceSuccessLogged;
 
     internal void BindWheelVisuals()
     {
@@ -471,10 +486,45 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                 yield break;
             }
 
+            if (frame == InitializationFrameLimit - 1)
+            {
+                ApplyTrafficVehicleColor();
+                initializationCoroutine = null;
+                yield break;
+            }
+
             yield return null;
         }
 
         initializationCoroutine = null;
+    }
+
+    private void ApplyTrafficVehicleColor()
+    {
+        var features = GetComponent<CarFeatures>();
+        var liveColor = features?.VehicleColor;
+        if (liveColor == null)
+        {
+            if (!trafficAppearanceFailureLogged)
+            {
+                trafficAppearanceFailureLogged = true;
+                BugattiChironPrivateDriverSupport.ReportTrafficAppearanceResult(null, false);
+            }
+            return;
+        }
+
+        var paint = GetComponent<BugattiChironPaintController>();
+        if (paint == null)
+            paint = gameObject.AddComponent<BugattiChironPaintController>();
+        paint.InitializeForPrivateDriver(null, liveColor);
+
+        if (!trafficAppearanceSuccessLogged)
+        {
+            trafficAppearanceSuccessLogged = true;
+            BugattiChironPrivateDriverSupport.ReportTrafficAppearanceResult(
+                liveColor.name,
+                paint.HasAppliedColor);
+        }
     }
 
     private void SubscribeTrafficEvents()
