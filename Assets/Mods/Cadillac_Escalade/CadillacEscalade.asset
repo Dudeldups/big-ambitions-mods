@@ -19,9 +19,9 @@ MonoBehaviour:
   itemVersion: 
   maxFuel: 98
   maxCargoCapacity: 24
-  maxSpeed: 171
-  enginePower: 301
-  brakeForce: 23000
+  maxSpeed: 193
+  enginePower: 313
+  brakeForce: 6500
   turnRadius: 35
   damageIntensity: 0.75
   fitsHandTruck: 0

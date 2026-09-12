@@ -2252,7 +2252,7 @@ MonoBehaviour:
   loadRating: 7000
   rollingResistanceTorque: 30
   antiSquat: 0
-  frictionCircleStrength: 0.9
+  frictionCircleStrength: 0.8
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8365382191223974656}
   forceApplicationPointDistance: 0.35
@@ -26628,7 +26628,7 @@ MonoBehaviour:
   loadRating: 7000
   rollingResistanceTorque: 30
   antiSquat: 0
-  frictionCircleStrength: 0.9
+  frictionCircleStrength: 0.8
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8365382191223974656}
   forceApplicationPointDistance: 0.35
@@ -35314,7 +35314,7 @@ MonoBehaviour:
   loadRating: 7000
   rollingResistanceTorque: 30
   antiSquat: 0
-  frictionCircleStrength: 0.9
+  frictionCircleStrength: 0.8
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8365382191223974656}
   forceApplicationPointDistance: 0.35
@@ -39702,7 +39702,7 @@ MonoBehaviour:
   loadRating: 7000
   rollingResistanceTorque: 30
   antiSquat: 0
-  frictionCircleStrength: 0.9
+  frictionCircleStrength: 0.8
   frictionCircleShape: 0.9
   targetRigidbody: {fileID: 8365382191223974656}
   forceApplicationPointDistance: 0.35
@@ -40774,7 +40774,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8558568525728474875}
   serializedVersion: 4
-  m_Mass: 2575
+  m_Mass: 2738
   m_Drag: 0
   m_AngularDrag: 1.8
   m_CenterOfMass: {x: 0, y: 0.22, z: -0.1}
@@ -41031,10 +41031,10 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 18000
+    maxTorque: 6500
     handbrakeType: 0
     handbrakeValue: 0
-    actuationTime: 0.06
+    actuationTime: 0.1
     onBrakesActivate:
       m_PersistentCalls:
         m_Calls: []
@@ -41127,8 +41127,8 @@ MonoBehaviour:
       outputInertia: 0
       inputNameHash: 923778348
       outputNameHash: -1471968074
-      engagementRPM: 1200
-      throttleEngagementOffsetRPM: 500
+      engagementRPM: 1000
+      throttleEngagementOffsetRPM: 350
       clutchInput: 0
       engagementCurve:
         serializedVersion: 2
@@ -41155,7 +41155,7 @@ MonoBehaviour:
         m_PostInfinity: 2
         m_RotationOrder: 4
       controlType: 0
-      engagementRange: 500
+      engagementRange: 700
       slipTorque: 4500
       creepTorque: 0
       creepSpeedLimit: 1
@@ -41213,7 +41213,7 @@ MonoBehaviour:
       slipTorque: 1000
     engine:
       name: Engine
-      inertia: 0.32
+      inertia: 0.45
       inputTorque: 0
       outputTorque: 0
       inputAngularVelocity: 0
@@ -41235,7 +41235,7 @@ MonoBehaviour:
           m_PersistentCalls:
             m_Calls: []
       idleRPM: 600
-      maxPower: 301
+      maxPower: 225
       engineLossPercent: 0.25
       onRevLimiter:
         m_PersistentCalls:
@@ -41263,7 +41263,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.1
-          value: 0.2
+          value: 0.12
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -41271,8 +41271,8 @@ MonoBehaviour:
           inWeight: 0
           outWeight: 0
         - serializedVersion: 3
-          time: 0.35
-          value: 0.55
+          time: 0.3
+          value: 0.4
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -41280,8 +41280,8 @@ MonoBehaviour:
           inWeight: 0
           outWeight: 0
         - serializedVersion: 3
-          time: 0.62
-          value: 0.86
+          time: 0.55
+          value: 0.72
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -41289,8 +41289,8 @@ MonoBehaviour:
           inWeight: 0
           outWeight: 0
         - serializedVersion: 3
-          time: 0.82
-          value: 0.97
+          time: 0.72
+          value: 0.88
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -41298,7 +41298,16 @@ MonoBehaviour:
           inWeight: 0
           outWeight: 0
         - serializedVersion: 3
-          time: 0.92
+          time: 0.88
+          value: 0.98
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.93
           value: 1
           inSlope: 0
           outSlope: 0
@@ -41308,7 +41317,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 1
-          value: 0.88
+          value: 0.9
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -41319,7 +41328,7 @@ MonoBehaviour:
         m_PostInfinity: 2
         m_RotationOrder: 4
       revLimiterCutoffDuration: 0
-      revLimiterRPM: 6200
+      revLimiterRPM: 6000
       stallingEnabled: 0
       startDuration: 0.8
     transmission:
@@ -41334,18 +41343,22 @@ MonoBehaviour:
       inputNameHash: -1222565927
       outputNameHash: -597444048
       holdToKeepInGear: 0
-      finalGearRatio: 3.42
+      finalGearRatio: 3.23
       gearingProfile: {fileID: 0}
       gears:
-      - -3.06
+      - -4.87
       - 0
-      - 4.03
-      - 2.36
-      - 1.53
-      - 1.15
+      - 4.7
+      - 2.99
+      - 2.15
+      - 1.8
+      - 1.52
+      - 1.28
+      - 1
       - 0.85
-      - 0.67
-      forwardGearCount: 6
+      - 0.69
+      - 0.64
+      forwardGearCount: 10
       reverseGearCount: 1
       inclineEffectCoeff: 0
       onDownshift:
@@ -41360,7 +41373,7 @@ MonoBehaviour:
       postShiftBan: 0
       automaticTransmissionDNRShiftType: 0
       dnrSpeedThreshold: 0.1
-      shiftDuration: 0.35
+      shiftDuration: 0.25
       variableShiftIntensity: 0
       ignorePostShiftBanInManual: 1
       variableShiftPoint: 1
@@ -41368,8 +41381,8 @@ MonoBehaviour:
       isPostShiftBanActive: 0
       isShifting: 0
       shiftProgress: 0
-      _downshiftRPM: 1800
-      _upshiftRPM: 5900
+      _downshiftRPM: 1400
+      _upshiftRPM: 5750
       transmissionType: 1
       isSequential: 0
       allowUpshiftGearSkipping: 0
@@ -41700,8 +41713,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   module:
-    active: 0
-    speedLimit: 171
+    active: 1
+    speedLimit: 193
     speedUnits: 1
 --- !u!114 &8841463917174747
 MonoBehaviour:
@@ -41762,8 +41775,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useDefaultMass: 1
   useMassAffectors: 0
-  baseMass: 2575
-  combinedMass: 2575
+  baseMass: 2738
+  combinedMass: 2738
   dimensions: {x: 1.989083, y: 1.414327, z: 4.584719}
   useDefaultCenterOfMass: 0
   centerOfMass: {x: 0, y: 0.22, z: -0.1}
