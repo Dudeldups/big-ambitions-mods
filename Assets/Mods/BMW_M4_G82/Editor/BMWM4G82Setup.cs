@@ -1004,7 +1004,7 @@ public static class BMWM4G82Setup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 8f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.11f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3400f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 4800f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7000f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
                 SetRelativeNumber(serialized, "brakes.maxTorque", BrakeMaxTorque);
