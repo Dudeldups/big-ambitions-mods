@@ -21,6 +21,7 @@ using UI.PurchaseVehicle;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(VehicleRepainter.VehicleRepainterMod))]
 
@@ -732,12 +733,32 @@ namespace VehicleRepainter
             if (gameInstance == null || gameInstance.VehicleInstances == null)
                 return;
 
-            var removedPlayerVehicleRecords = gameInstance.VehicleInstances.RemoveAll(vehicleInstance => vehicleInstance == null);
-            var removedPrivateDriverVehicleRecords = gameInstance.privateDriverVehicleInstances == null
-                ? 0
-                : gameInstance.privateDriverVehicleInstances.RemoveAll(vehicleInstance => vehicleInstance == null);
+            var invalidPlayerVehicleRecords = gameInstance.VehicleInstances
+                .Where(vehicleInstance => !IsValidSavedVehicleRecord(vehicleInstance))
+                .ToArray();
+            var invalidPrivateDriverVehicleRecords = gameInstance.privateDriverVehicleInstances == null
+                ? Array.Empty<VehicleInstance>()
+                : gameInstance.privateDriverVehicleInstances
+                    .Where(vehicleInstance => !IsValidSavedVehicleRecord(vehicleInstance))
+                    .ToArray();
+
+            var removedPlayerVehicleRecords = invalidPlayerVehicleRecords.Length;
+            var removedPrivateDriverVehicleRecords = invalidPrivateDriverVehicleRecords.Length;
             if (removedPlayerVehicleRecords == 0 && removedPrivateDriverVehicleRecords == 0)
+            {
+                if (pass == 4)
+                {
+                    context.Logger.Info(
+                        "Vehicle save recovery scan completed without invalid vehicle records; " +
+                        $"source='{source}', playerVehicleRecords={gameInstance.VehicleInstances.Count}, " +
+                        $"privateDriverVehicleRecords={gameInstance.privateDriverVehicleInstances?.Count ?? 0}.");
+                }
+
                 return;
+            }
+
+            gameInstance.VehicleInstances.RemoveAll(invalidPlayerVehicleRecords.Contains);
+            gameInstance.privateDriverVehicleInstances?.RemoveAll(invalidPrivateDriverVehicleRecords.Contains);
 
             var clearedActiveVehicleId = !string.IsNullOrEmpty(gameInstance.ActiveVehicleId);
             if (clearedActiveVehicleId)
@@ -750,6 +771,22 @@ namespace VehicleRepainter
                 $"removedPrivateDriverVehicleRecords={removedPrivateDriverVehicleRecords}, " +
                 $"clearedActiveVehicleId={clearedActiveVehicleId}. " +
                 "Valid vehicles were preserved; save the game after confirming normal interactions.");
+        }
+
+        private static bool IsValidSavedVehicleRecord(VehicleInstance? vehicleInstance)
+        {
+            if (vehicleInstance == null || string.IsNullOrWhiteSpace(vehicleInstance.id) ||
+                string.IsNullOrWhiteSpace(vehicleInstance.vehicleTypeName))
+                return false;
+
+            try
+            {
+                return VehicleTypeHelper.GetVehicleType(vehicleInstance.vehicleTypeName) != null;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private int RestoreSavedCustomVehicleColors(string source)
