@@ -19,8 +19,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     // NWH applies maxPower much closer to wheel power than SAE crank power.
     // Keep the rated 313 kW on VehicleType, but use the measured road-test
     // calibration here so the 2.7-ton SUV reaches 60 mph in about 6.1 seconds.
-    private const float EnginePowerKw = 225f;
-    private const float BrakeMaxTorque = 6500f;
+    private const float EnginePowerKw = 232f;
+    private const float BrakeMaxTorque = 4000f;
     private const float BrakeActuationTime = 0.10f;
     private const float EngineIdleRpm = 600f;
     private const float EngineLimitRpm = 6000f;
@@ -33,6 +33,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float ClutchEngagementRange = 700f;
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.80f;
+    private const float FrontLateralGrip = 0.54f;
+    private const float RearLateralGrip = 0.58f;
     private const float AntiRollBarForce = 10500f;
     private const float FrontSuspensionTravel = 0.15f;
     private const float RearSuspensionTravel = 0.15f;
@@ -568,6 +570,11 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 var wheel = GetMember(component, "wheel");
                 SetFloat(wheel, "radius", 0.408f);
                 SetFloat(wheel, "width", 0.285f);
+                var sideFriction = GetMember(component, "sideFriction");
+                SetFloat(
+                    sideFriction,
+                    "grip",
+                    isFront ? FrontLateralGrip : RearLateralGrip);
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
             }
         }

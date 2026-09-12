@@ -39,10 +39,12 @@ public static class CadillacEscaladeSetup
     private const float WheelWidth = 0.285f;
     private const float VehicleMass = 2738f;
     private const float RatedEnginePowerKw = 313f;
-    private const float EngineRoadCalibrationPowerKw = 225f;
-    private const float BrakeMaxTorque = 6500f;
+    private const float EngineRoadCalibrationPowerKw = 232f;
+    private const float BrakeMaxTorque = 4000f;
     private const float BrakeActuationTime = 0.10f;
     private const float TireFrictionCircleStrength = 0.80f;
+    private const float FrontLateralGrip = 0.54f;
+    private const float RearLateralGrip = 0.58f;
     private const float AntiRollBarForce = 10500f;
     private const float FrontSuspensionTravel = 0.15f;
     private const float RearSuspensionTravel = 0.15f;
@@ -272,10 +274,27 @@ public static class CadillacEscaladeSetup
 
             var powertrainVerified = false;
             var speedLimiterVerified = false;
+            var verifiedLateralGripCorners = 0;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (component == null)
                     continue;
+
+                if (component.transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
+                {
+                    var wheel = new SerializedObject(component);
+                    var lateralGrip = FindRelativeProperty(wheel, "sideFriction.grip");
+                    var expectedGrip = component.transform.name.StartsWith(
+                        "Front",
+                        StringComparison.Ordinal)
+                        ? FrontLateralGrip
+                        : RearLateralGrip;
+                    if (lateralGrip != null &&
+                        Math.Abs(ReadNumber(lateralGrip) - expectedGrip) < 0.001f)
+                    {
+                        verifiedLateralGripCorners++;
+                    }
+                }
 
                 if (string.Equals(
                         component.GetType().Name,
@@ -330,6 +349,8 @@ public static class CadillacEscaladeSetup
                 issues.Add("2021 powertrain/brakes");
             if (!speedLimiterVerified)
                 issues.Add("193kph speed limiter");
+            if (verifiedLateralGripCorners != 4)
+                issues.Add($"lateralGripCorners={verifiedLateralGripCorners}");
 
             if (wheelMounts != 4) issues.Add($"wheelMounts={wheelMounts}");
             if (rotors != 4) issues.Add($"rotors={rotors}");
@@ -577,6 +598,10 @@ public static class CadillacEscaladeSetup
                 SetRelativeNumber(serialized, "spring.maxForce", 26000f);
                 SetRelativeNumber(serialized, "wheel.radius", WheelRadius);
                 SetRelativeNumber(serialized, "wheel.width", WheelWidth);
+                SetRelativeNumber(
+                    serialized,
+                    "sideFriction.grip",
+                    isFront ? FrontLateralGrip : RearLateralGrip);
                 SetRelativeNumber(serialized, "frictionCircleStrength", TireFrictionCircleStrength);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }
