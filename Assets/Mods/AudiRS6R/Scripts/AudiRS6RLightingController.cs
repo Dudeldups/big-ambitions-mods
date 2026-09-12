@@ -20,6 +20,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
     private readonly List<GameObject> generatedObjects = new();
     private readonly List<Material> generatedMaterials = new();
     private readonly List<Mesh> generatedMeshes = new();
+    private readonly List<OverlayMeshBinding> deformableOverlayBindings = new();
 
     private VehicleController? vehicleController;
     private ModContext? context;
@@ -117,14 +118,19 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             frontLampRenderer, position => position.z >= 0f && position.x > 0f,
             "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
         leftRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x <= 0f,
-            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
+            frontLampRenderer, position => position.z <= -2.0f && position.x <= 0f,
+            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f,
+            selectRearIndicatorComponents: true);
         rightRearBlinkerOverlay = CreateFunctionalOverlay(
-            rearLampRenderer, position => position.y >= 0.70f && position.y < 1.10f && position.x > 0f,
-            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f);
+            frontLampRenderer, position => position.z <= -2.0f && position.x > 0f,
+            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f,
+            selectRearIndicatorComponents: true);
 
         initialized = true;
         var lightOverlayCount = CountLightOverlays();
+        context?.Logger.Info(
+            $"AudiRS6R lighting vehicle={controller.GetInstanceID()}: glassRenderers={glassCount}/2, " +
+            $"headlightBeams={beamCount}/2, emissiveLayers={lightOverlayCount}/11.");
         if (glassCount != 2 || rearWindowTintOverlay == null || beamCount != 2 || lightOverlayCount != 11)
             LogWarning("Lighting setup is incomplete; inspect the preceding material/overlay diagnostics.");
         if (controller.GetType().GetProperty("ShouldLightsBeOn", InstanceFields) == null)
@@ -385,7 +391,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         bool copyBaseTexture = true,
         float overlayScale = 1.0015f,
         bool selectHeadlightSignatureComponents = false,
-        bool selectRearLampSignatureComponents = false)
+        bool selectRearLampSignatureComponents = false,
+        bool selectRearIndicatorComponents = false)
     {
         if (sourceRenderer == null)
         {
@@ -407,7 +414,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                     sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
                 : selectRearLampSignatureComponents
                     ? CreateRearLampSignatureMesh(
-                        sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix)
+                        sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix, false)
+                    : selectRearIndicatorComponents
+                        ? CreateRearLampSignatureMesh(
+                            sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix, true)
                     : CreateFilteredMesh(
                         sourceRenderer, sourceFilter.sharedMesh, includeTriangleCenter, suffix);
             if (overlayMesh == null)
@@ -431,6 +441,7 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
 
             generatedObjects.Add(overlayObject);
             generatedMeshes.Add(overlayMesh);
+            deformableOverlayBindings.Add(new OverlayMeshBinding(sourceFilter, overlayMesh));
             return overlayRenderer;
         }
         catch (Exception ex)
@@ -566,7 +577,8 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         MeshRenderer sourceRenderer,
         Mesh source,
         Func<Vector3, bool> includeComponentCenter,
-        string suffix)
+        string suffix,
+        bool indicatorOnly)
     {
         var vertices = source.vertices;
         if (vertices.Length == 0 || vehicleController == null)
@@ -646,7 +658,10 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
                 componentBounds.min.y >= 0.795f &&
                 componentBounds.max.y <= 0.838f;
 
-            if (!includeComponentCenter(center) || (!isStraightBar && !(isTooth && isRearward)))
+            var isSelectedSignature = indicatorOnly
+                ? isStraightBar
+                : isStraightBar || (isTooth && isRearward);
+            if (!includeComponentCenter(center) || !isSelectedSignature)
             {
                 continue;
             }
@@ -665,7 +680,12 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             return null;
         }
 
-        if (selectedBars != 2 || selectedTeeth != 50 || selectedTriangles.Count / 3 != 546)
+        if (indicatorOnly && selectedBars == 0)
+        {
+            LogWarning($"rear-indicator-signature suffix='{suffix}' selected no horizontal indicator bars.");
+        }
+        else if (!indicatorOnly &&
+                 (selectedBars != 2 || selectedTeeth != 50 || selectedTriangles.Count / 3 != 546))
         {
             LogWarning($"rear-lamp-signature suffix='{suffix}' expected bars=2 teeth=50 triangles=546 " +
                        $"but selected bars={selectedBars} teeth={selectedTeeth} " +
@@ -824,6 +844,38 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
         (rightFrontBlinkerOverlay != null ? 1 : 0) +
         (leftRearBlinkerOverlay != null ? 1 : 0) +
         (rightRearBlinkerOverlay != null ? 1 : 0);
+
+    internal void SynchronizeDeformedSource(MeshFilter sourceFilter, Mesh sourceMesh)
+    {
+        if (sourceFilter == null || sourceMesh == null)
+            return;
+
+        foreach (var binding in deformableOverlayBindings)
+        {
+            if (binding.Source != sourceFilter || binding.Overlay == null ||
+                binding.Overlay.vertexCount != sourceMesh.vertexCount)
+            {
+                continue;
+            }
+
+            binding.Overlay.vertices = sourceMesh.vertices;
+            binding.Overlay.normals = sourceMesh.normals;
+            binding.Overlay.tangents = sourceMesh.tangents;
+            binding.Overlay.RecalculateBounds();
+        }
+    }
+
+    private sealed class OverlayMeshBinding
+    {
+        internal readonly MeshFilter Source;
+        internal readonly Mesh Overlay;
+
+        internal OverlayMeshBinding(MeshFilter source, Mesh overlay)
+        {
+            Source = source;
+            Overlay = overlay;
+        }
+    }
 
     private void LogSurface(string operation, MeshRenderer? renderer)
     {
