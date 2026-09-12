@@ -239,6 +239,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+        Porsche911GT3RSPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        if (context != null)
+            Porsche911GT3RSPrivateDriverSupport.SetContext(context);
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -518,7 +521,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            if (!privateDriverReady && playerVehiclePrefab != null)
+            if (privateDriverRegistrationAllowed &&
+                !privateDriverReady &&
+                playerVehiclePrefab != null)
                 TryPreparePrivateDriverPool(source);
 
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
@@ -627,7 +632,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private bool TryPreparePrivateDriverPool(string source)
     {
-        if (playerVehiclePrefab == null)
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
             return false;
 
         try

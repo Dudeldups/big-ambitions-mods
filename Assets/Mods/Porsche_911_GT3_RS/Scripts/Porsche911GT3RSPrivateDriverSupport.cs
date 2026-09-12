@@ -285,15 +285,10 @@ internal static class Porsche911GT3RSPrivateDriverSupport
         var requiredVisuals = new[]
         {
             "PorscheVisual",
-            "PorscheDamageBody",
             "PorscheWheelFrontLeft",
             "PorscheWheelFrontRight",
             "PorscheWheelRearLeft",
             "PorscheWheelRearRight",
-            "PorscheFixedCaliperFrontLeft",
-            "PorscheFixedCaliperFrontRight",
-            "PorscheFixedCaliperRearLeft",
-            "PorscheFixedCaliperRearRight",
         };
         foreach (var visualName in requiredVisuals)
         {
