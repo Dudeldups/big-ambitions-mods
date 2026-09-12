@@ -150,6 +150,19 @@ internal static class BugattiChironPrivateDriverSupport
         context?.Logger.Info(
             $"BugattiChiron: chauffeur departure resumed after dismissal vehicleIndex={vehicleIndex}.");
 
+    internal static void ReportDeparturePaintResult(
+        string? colorName,
+        bool paintApplied)
+    {
+        var message =
+            $"BugattiChiron: chauffeur departure paint color='{colorName ?? "<none>"}' " +
+            $"paintApplied={paintApplied}.";
+        if (paintApplied)
+            context?.Logger.Info(message);
+        else
+            context?.Logger.Warn(message);
+    }
+
     private static void EnsureContractContains(
         PrivateDriverContract contract,
         string vehicleTypeName)
@@ -424,11 +437,16 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
         float actionValue)
     {
         if (privateDriver == null || trafficVehicle == null ||
-            vehicleIndex != trafficVehicle.GetIndex() || departureCheckCoroutine != null)
+            vehicleIndex != trafficVehicle.GetIndex())
         {
             return;
         }
 
+        // A stop-state event can arrive immediately before DriveAway. Restarting
+        // the bounded check ensures the final event is the one evaluated after
+        // SmartphonePrivateDriverUI has cleared CurrentVehicle.
+        if (departureCheckCoroutine != null)
+            StopCoroutine(departureCheckCoroutine);
         departureCheckCoroutine = StartCoroutine(EnsureDepartureAfterDismissal());
     }
 
@@ -463,6 +481,18 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                 BugattiChironPrivateDriverSupport.ReportDepartureCorrection(
                     trafficVehicle.GetIndex());
             }
+
+            var paint = GetComponent<BugattiChironPaintController>();
+            if (paint != null && privateDriver?.vehicleInstance != null)
+            {
+                var colorName = privateDriver.vehicleInstance.vehicleColorName;
+                paint.InitializeForPrivateDriver(
+                    colorName,
+                    GetComponent<CarFeatures>()?.VehicleColor);
+                BugattiChironPrivateDriverSupport.ReportDeparturePaintResult(
+                    colorName,
+                    paint.HasAppliedColor);
+            }
         }
 
         departureCheckCoroutine = null;
@@ -476,6 +506,14 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
 
     private void OnDisable()
     {
+        var overlayManager =
+            InstanceBehavior<Player.HUD.ItemInfoOverlays.OverlayManager>.Instance;
+        if (overlayManager != null && privateDriver != null &&
+            overlayManager.IsShowingOverlayOverItem(privateDriver))
+        {
+            overlayManager.HideSimpleOverlayAndClearCta();
+        }
+
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         if (departureCheckCoroutine != null)

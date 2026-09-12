@@ -207,6 +207,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         if (!IsTargetVehicle(selectedVehicle))
             return;
 
+        TryConfigureVehicle(selectedVehicle);
         selectedVehicle!
             .GetComponent<BugattiChironPaintController>()
             ?.RefreshCurrentColor();
@@ -221,9 +222,36 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
+        var isTarget = IsTargetVehicle(vehicle);
+        var instanceId = isTarget ? vehicle.GetInstanceID() : 0;
+        var wasConfigured = isTarget && configuredVehicleIds.Contains(instanceId);
         TryConfigureVehicle(vehicle);
         vehicle?.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
         vehicle?.GetComponent<BugattiChironGlassController>()?.RestoreAfterVehicleEntered();
+        if (isTarget && !wasConfigured && configuredVehicleIds.Contains(instanceId))
+            StartCoroutine(EnsureFirstEntryDrivetrainReady(vehicle!));
+    }
+
+    private IEnumerator EnsureFirstEntryDrivetrainReady(VehicleController vehicle)
+    {
+        yield return new WaitForEndOfFrame();
+        if (vehicle == null || !vehicle.controlledByPlayer)
+            yield break;
+
+        var physics = vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>();
+        var engine = physics?.powertrain?.engine;
+        if (engine == null)
+            yield break;
+
+        var requestedStart = !engine.IsRunning && !engine.starterActive && engine.canRun;
+        if (requestedStart)
+            engine.StartEngine();
+
+        context?.Logger.Info(
+            $"BugattiChiron: first-entry drivetrain check vehicle={vehicle.GetInstanceID()}, " +
+            $"requestedStart={requestedStart}, running={engine.IsRunning}, " +
+            $"ignition={engine.ignition}, starterActive={engine.starterActive}, " +
+            $"canRun={engine.canRun}.");
     }
 
     private void HandleBuildingEntered(Address address)
