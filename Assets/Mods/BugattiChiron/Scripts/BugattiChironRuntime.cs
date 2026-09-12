@@ -22,7 +22,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     // catalog specification at 1,103 kW while using this calibrated simulation
     // value brings the measured 0-300 km/h time closer to the Chiron's 13.1 s.
     private const float SimulationEnginePowerKw = 850f;
-    private const float PhysicalBrakeTorque = 4200f;
+    // Calibrated against Bugatti's published 100-0 and 200-0 km/h distances.
+    private const float PhysicalBrakeTorque = 3000f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
