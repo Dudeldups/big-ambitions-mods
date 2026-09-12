@@ -73,11 +73,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.03f),
-            new Keyframe(0.23f, 0.12f),
-            new Keyframe(0.45f, 0.30f),
-            new Keyframe(0.67f, 0.60f),
-            new Keyframe(0.82f, 0.90f),
+            new Keyframe(0.10f, 0.02f),
+            new Keyframe(0.23f, 0.07f),
+            new Keyframe(0.45f, 0.20f),
+            new Keyframe(0.67f, 0.45f),
+            new Keyframe(0.82f, 0.75f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 
@@ -151,6 +151,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
@@ -159,18 +161,35 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+        GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
         GlobalEvents.onGameUnloaded += HandleGameUnloaded;
     }
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
+
+    private void HandleGameEvent(string _)
+    {
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        selectedVehicle!
+            .GetComponent<Porsche911GT3RSPaintController>()
+            ?.ApplyCurrentColor("game-event");
+    }
+
+    private void HandleVehicleVariablesChanged() => ConfigureExistingVehicles(out _);
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
@@ -573,7 +592,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         var instanceId = vehicle.GetInstanceID();
         if (!configuredVehicleIds.Add(instanceId))
+        {
+            vehicle.GetComponent<Porsche911GT3RSPaintController>()
+                ?.ApplyCurrentColor("vehicle-variables-changed");
             return;
+        }
 
         try
         {
@@ -839,6 +862,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     {
         var name = filter.name;
         if (HasAncestor(filter.transform, "gt3rs_tailgate_TwiXeR_992_CSR2_Badge") ||
+            HasAncestor(filter.transform, "Object_119") ||
             HasAncestor(filter.transform, "fascia_glass") ||
             HasAncestor(filter.transform, "fascia_mid") ||
             HasAncestor(filter.transform, "exhausttip_3_") ||

@@ -85,11 +85,11 @@ public static class Porsche911GT3RSSetup
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.03f),
-            new Keyframe(0.23f, 0.12f),
-            new Keyframe(0.45f, 0.30f),
-            new Keyframe(0.67f, 0.60f),
-            new Keyframe(0.82f, 0.90f),
+            new Keyframe(0.10f, 0.02f),
+            new Keyframe(0.23f, 0.07f),
+            new Keyframe(0.45f, 0.20f),
+            new Keyframe(0.67f, 0.45f),
+            new Keyframe(0.82f, 0.75f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 
@@ -127,6 +127,7 @@ public static class Porsche911GT3RSSetup
             ConfigurePowertrain(root);
             RepairTrueTireWheelVisuals(root);
             RepairStaticWheelVisuals(root);
+            ConfigureRendererReferences(root);
             PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
         }
         finally
@@ -437,7 +438,8 @@ public static class Porsche911GT3RSSetup
                         IsCaliperMaterial(material) ||
                         IsInteriorAccentPaintMaterial(material))
                     {
-                        paintRenderers.Add(renderer);
+                        if (!paintRenderers.Contains(renderer))
+                            paintRenderers.Add(renderer);
                         bodyPaintSlots++;
                     }
                     if (IsInteriorAccentPaintMaterial(material)) interiorAccentPaintSlots++;
@@ -1549,7 +1551,8 @@ public static class Porsche911GT3RSSetup
         HasAncestorNameFragment(transform, "backlight_tint");
 
     private static bool IsInteriorAccentPaintMaterial(Material material) =>
-        material.name.IndexOf("_red", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        material.name.IndexOf("stitch", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        material.name.IndexOf("seat_leather_2", StringComparison.OrdinalIgnoreCase) >= 0 ||
         material.name.IndexOf("B60000", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static bool IsRimMaterial(Material material) =>
