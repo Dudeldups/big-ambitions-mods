@@ -12,8 +12,10 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
 {
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new List<AudioClip>();
+    private readonly BMWM4G82ShiftPopGate shiftPopGate = new BMWM4G82ShiftPopGate();
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
+    private Rigidbody? body;
     private ModContext? context;
     private EngineRunningComponent? engineSound;
     private AudioSource? native;
@@ -21,9 +23,12 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
     private AudioSource[]? layers;
     private AudioSource? idleSource;
     private AudioSource? crackleSource;
+    private AudioSource? shiftPopSource;
     private AudioSource? hornSource;
     private AudioSource? hornSupportSource;
     private AudioClip? crackleClip;
+    private AudioClip[]? shiftPopClips;
+    private int nextShiftPopVariant;
     private float originalDistortion;
     private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
     private int attempts;
@@ -78,6 +83,7 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
         if (native == null || native.clip == null || context == null)
             return false;
         originalDistortion = engineSound!.maxDistortion;
+        body = vehicle.GetComponent<Rigidbody>();
         audioHost = new GameObject("BMWM4G82_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
@@ -96,6 +102,15 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
         exhaustHost.transform.SetParent(audioHost.transform, false);
         crackleSource = CreateSource(exhaustHost, crackleClip, true);
         ConfigureCrackleFilters(exhaustHost);
+        shiftPopClips = new AudioClip[3];
+        for (var index = 0; index < shiftPopClips.Length; index++)
+        {
+            shiftPopClips[index] = BMWM4G82ShiftPopWave.Create(index);
+            ownedClips.Add(shiftPopClips[index]);
+        }
+        var shiftPopHost = new GameObject("BMWM4G82_ShiftPops");
+        shiftPopHost.transform.SetParent(audioHost.transform, false);
+        shiftPopSource = CreateSource(shiftPopHost, shiftPopClips[0], false);
         var hornHost = new GameObject("BMWM4G82_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
         var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
@@ -111,7 +126,7 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
             $"hornVoices=low/high@{BMWM4G82AudioModel.HornLowVolume:0.00}/" +
             $"{BMWM4G82AudioModel.HornHighVolume:0.00}, " +
             $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
-            "exhaust=continuous-subtle-crackle.");
+            "exhaust=sparse-continuous-crackle/shift-snap.");
         return true;
     }
 
@@ -156,12 +171,14 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
+            shiftPopSource == null || shiftPopClips == null ||
             hornSource == null || hornSupportSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
         crackleSource.transform.position = exhaust != null ? exhaust.transform.position :
             vehicle!.transform.TransformPoint(new Vector3(0f, .4f, -2f));
+        shiftPopSource.transform.position = crackleSource.transform.position;
         var controlled = vehicle!.controlledByPlayer;
         var engine = physics.powertrain.engine;
         var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
@@ -177,6 +194,8 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
             // Cancel any scheduled start too; resume schedules all held loops
             // together again instead of leaving a pre-start source paused.
             if (shouldPause) StopLayers();
+            shiftPopSource.Stop();
+            shiftPopGate.Reset();
             paused = shouldPause;
         }
         if (controlled)
@@ -185,8 +204,15 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
             native.mute = true;
         }
         else RestoreMute();
+        if (!running)
+        {
+            shiftPopSource.Stop();
+            shiftPopGate.Reset();
+        }
 
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
+        var gear = physics.powertrain.transmission.Gear;
+        var driverThrottle = Mathf.Clamp01(physics.input.Throttle);
         UpdateHorn(controlled && !paused && physics.input.Horn, Mathf.Clamp01(physics.soundManager.masterVolume));
         if (!paused)
         {
@@ -220,7 +246,7 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
             crackleSource.volume = envelope * master * Mathf.Lerp(
                 BMWM4G82AudioModel.CrackleIdleVolume,
                 BMWM4G82AudioModel.CrackleLoadVolume,
-                crackleLoad);
+                .35f * crackleLoad);
             crackleSource.mute = controlled && savedMute;
             if (envelope <= 0f) StopLayers();
             else if (!voicesStarted)
@@ -233,7 +259,30 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
                 crackleSource.PlayScheduled(start);
                 voicesStarted = true;
             }
+            var popEvent = shiftPopGate.Sample(
+                running && !savedMute,
+                Time.time,
+                rawRpm,
+                driverThrottle,
+                gear,
+                body == null ? 0f : body.velocity.magnitude * 3.6f);
+            if (popEvent != BMWM4G82ShiftPopEvent.None)
+                PlayShiftPop(popEvent, master);
         }
+    }
+
+    private void PlayShiftPop(BMWM4G82ShiftPopEvent popEvent, float master)
+    {
+        if (shiftPopSource == null || shiftPopClips == null || shiftPopClips.Length == 0)
+            return;
+        var clip = shiftPopClips[nextShiftPopVariant++ % shiftPopClips.Length];
+        shiftPopSource.pitch = popEvent == BMWM4G82ShiftPopEvent.Downshift
+            ? UnityEngine.Random.Range(.90f, .97f)
+            : UnityEngine.Random.Range(.98f, 1.055f);
+        shiftPopSource.volume = master * BMWM4G82AudioModel.ShiftPopVolume *
+                                shiftPopGate.Intensity;
+        shiftPopSource.mute = savedMute;
+        shiftPopSource.PlayOneShot(clip);
     }
 
     private void UpdateHorn(bool pressed, float master)
@@ -267,6 +316,8 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
         if (idleSource != null) idleSource.Stop();
         if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
         if (crackleSource != null) crackleSource.Stop();
+        if (shiftPopSource != null) shiftPopSource.Stop();
+        shiftPopGate.Reset();
         voicesStarted = false;
     }
 
@@ -303,8 +354,12 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
         layers = null;
         idleSource = null;
         crackleSource = null;
+        shiftPopSource = null;
         hornSource = null;
         hornSupportSource = null;
+        shiftPopClips = null;
+        body = null;
+        nextShiftPopVariant = 0;
         if (crackleClip != null) Destroy(crackleClip);
         crackleClip = null;
         foreach (var clip in ownedClips) if (clip != null) Destroy(clip);
