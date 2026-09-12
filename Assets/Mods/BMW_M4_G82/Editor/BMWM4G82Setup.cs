@@ -41,6 +41,7 @@ public static class BMWM4G82Setup
     private const float FrontTireRadius = 0.3376f;
     private const float RearTireRadius = 0.3395f;
     private const float VisualBodyOffsetY = -0.035f;
+    private const float VehicleLinearDrag = 0.015f;
     private const float CaliperOutboardOffset = 0.045f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
@@ -84,9 +85,12 @@ public static class BMWM4G82Setup
     private static AnimationCurve CreateM4PowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.12f, 0.19f),
-            new Keyframe(0.38f, 0.70f),
-            new Keyframe(0.66f, 0.92f),
+            new Keyframe(0.12f, 0.07f),
+            new Keyframe(0.25f, 0.25f),
+            new Keyframe(0.38f, 0.48f),
+            new Keyframe(0.55f, 0.70f),
+            new Keyframe(0.68f, 0.88f),
+            new Keyframe(0.76f, 0.98f),
             new Keyframe(0.87f, 1f),
             new Keyframe(1f, 0.90f));
 
@@ -445,7 +449,7 @@ public static class BMWM4G82Setup
         SetNumber(serialized, "maxCargoCapacity", 12f);
         SetNumber(serialized, "maxSpeed", 290f);
         SetNumber(serialized, "enginePower", 375f);
-        SetNumber(serialized, "brakeForce", 22000f);
+        SetNumber(serialized, "brakeForce", 7000f);
         SetNumber(serialized, "turnRadius", 25f);
         SetNumber(serialized, "damageIntensity", 0.50f);
         SetBool(serialized, "isATruck", false);
@@ -830,7 +834,7 @@ public static class BMWM4G82Setup
         var body = root.GetComponent<Rigidbody>() ??
                    throw new InvalidOperationException("Reference prefab has no Rigidbody.");
         body.mass = 1775f;
-        body.drag = 0f;
+        body.drag = VehicleLinearDrag;
         body.angularDrag = 1.90f;
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;

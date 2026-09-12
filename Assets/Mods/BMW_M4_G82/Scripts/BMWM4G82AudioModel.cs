@@ -27,11 +27,11 @@ internal static class BMWM4G82AudioModel
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));
 
     internal static float ReferenceHz(int layer) => layer == 0 ? 80f : layer == 1 ? 190f : 380f;
-    // The generated layers already contain upper combustion harmonics. Keeping
-    // their playback fundamentals below the literal firing frequency avoids the
-    // thin electric/RC tone while retaining an inline-six rise through the revs.
+    // The generated layers already contain upper combustion harmonics. Keep the
+    // playback fundamentals in the lower inline-six register so load sounds
+    // growling rather than like a small high-speed electric motor.
     internal static float TargetHz(float normalized) =>
-        (float)(68d * Math.Pow(300d / 68d, Clamp01(normalized)));
+        (float)(60d * Math.Pow(245d / 60d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

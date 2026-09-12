@@ -11,7 +11,7 @@ internal sealed class BMWM4G82AccelerationTelemetry : MonoBehaviour
     private const float MaximumYawDegrees = 5f;
     private const float MaximumLateralMetres = 3f;
     private const float MaximumRunSeconds = 45f;
-    private const float OfficialZeroToHundredSeconds = 2.5f;
+    private const float OfficialZeroToHundredSeconds = 3.5f;
 
     private static readonly float[] MilestonesKph = { 100f, 200f, 300f };
 
