@@ -126,6 +126,12 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var exhaustHost = new GameObject("CadillacEscalade_ExhaustBurble");
         exhaustHost.transform.SetParent(audioHost.transform, false);
         burbleSource = CreateSource(exhaustHost, burbleClip, native);
+        // The source sits at the tailpipes, several metres from an interior
+        // listener. Preserve directionality while keeping the load texture
+        // within its full-volume radius around the vehicle.
+        burbleSource.spatialBlend = Mathf.Min(burbleSource.spatialBlend, .65f);
+        burbleSource.minDistance = Mathf.Max(burbleSource.minDistance, 4f);
+        burbleSource.maxDistance = Mathf.Max(burbleSource.maxDistance, 35f);
         ConfigureBurbleFilters(exhaustHost);
 
         var hornHost = new GameObject("CadillacEscalade_Horn");
