@@ -41,11 +41,15 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private Texture2D? rimPaintTexture;
     private Texture2D? rimInnerPaintTexture;
     private Texture2D? seatPaintTexture;
+    private bool exteriorOnly;
     private bool textureFailureLogged;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
+        explicitVehicleColorName = null;
+        explicitVehicleColor = null;
+        exteriorOnly = false;
         context = modContext;
         FindPaintSlots();
         ApplyCurrentColor();
@@ -61,6 +65,20 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         context = null;
         explicitVehicleColorName = vehicleColorName;
         explicitVehicleColor = vehicleColor;
+        exteriorOnly = false;
+        appliedVehicleColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        ApplyCurrentColor();
+    }
+
+    internal void InitializeForAmbientTraffic(VehicleColor vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = null;
+        explicitVehicleColor = vehicleColor;
+        exteriorOnly = true;
         appliedVehicleColor = null;
         hasAppliedTint = false;
         FindPaintSlots();
@@ -133,9 +151,25 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         selectedColor.a = 1f;
         var useDarkPaintCompensation = IsDarkSaturated(selectedColor);
         var bodyColor = CreateBodyColor(selectedColor);
-        RebuildPaintTextures(tint, selectedColor, bodyColor);
+        if (exteriorOnly)
+            DestroyPaintTextures();
+        else
+            RebuildPaintTextures(tint, selectedColor, bodyColor);
         foreach (var slot in slots)
         {
+            if (exteriorOnly &&
+                slot.Category != PaintCategory.MainBody &&
+                slot.Category != PaintCategory.DarkBody)
+            {
+                // Pooled traffic cars only need the visible two-tone body paint.
+                // Clearing the remaining overrides also removes any detailed
+                // chauffeur paint left on a reused pool object without rebuilding
+                // rim or seat textures on the main thread.
+                properties.Clear();
+                slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
+                continue;
+            }
+
             var color = ColorForCategory(
                 slot.Category,
                 selectedColor,

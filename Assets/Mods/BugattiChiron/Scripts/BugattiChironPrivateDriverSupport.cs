@@ -313,6 +313,7 @@ internal static class BugattiChironPrivateDriverSupport
         }
 
         BugattiChironMaterials.FixSolidMaterials(clone);
+        clone.AddComponent<BugattiChironAmbientTrafficAppearance>();
         var appearance = clone.AddComponent<BugattiChironPrivateDriverAppearance>();
         appearance.BindWheelVisuals();
 
@@ -389,6 +390,56 @@ internal static class BugattiChironPrivateDriverSupport
         for (var index = values.Count - 1; index >= 0; index--)
             if (string.Equals(values[index], target, StringComparison.Ordinal))
                 values.RemoveAt(index);
+    }
+}
+
+[DefaultExecutionOrder(1001)]
+internal sealed class BugattiChironAmbientTrafficAppearance : MonoBehaviour
+{
+    private const int NativeColorAssignmentFrameLimit = 4;
+    private Coroutine? initializationCoroutine;
+
+    private void OnEnable()
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = StartCoroutine(ApplyNativeTrafficColor());
+    }
+
+    private void OnDisable()
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = null;
+    }
+
+    private IEnumerator ApplyNativeTrafficColor()
+    {
+        for (var frame = 0; frame < NativeColorAssignmentFrameLimit; frame++)
+        {
+            // Chauffeur instances retain the separately validated saved-color path.
+            if (GetComponent<PrivateDriverVehicle>() != null)
+            {
+                initializationCoroutine = null;
+                yield break;
+            }
+
+            yield return null;
+        }
+
+        if (GetComponent<PrivateDriverVehicle>() == null)
+        {
+            var liveColor = GetComponent<CarFeatures>()?.VehicleColor;
+            if (liveColor != null)
+            {
+                var paint = GetComponent<BugattiChironPaintController>();
+                if (paint == null)
+                    paint = gameObject.AddComponent<BugattiChironPaintController>();
+                paint.InitializeForAmbientTraffic(liveColor);
+            }
+        }
+
+        initializationCoroutine = null;
     }
 }
 
