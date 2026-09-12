@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 internal static class CadillacEscaladeCrackleWave
@@ -9,8 +10,19 @@ internal static class CadillacEscaladeCrackleWave
 
     internal static AudioClip Create()
     {
-        var pulseTimes = new[] { .30f, 1.30f, 2.40f, 3.50f };
-        var pulseFrequencies = new[] { 46f, 50f, 43f, 48f };
+        // A large naturally aspirated V8 has a distinct loping exhaust texture
+        // under load, not one isolated pop every second. Keep the beats uneven
+        // and separated enough to avoid a rapid sports-car crackle.
+        var intervals = new[] { .16f, .19f, .15f, .21f, .17f, .18f };
+        var pulseFrequencies = new[] { 46f, 51f, 44f, 49f, 47f, 52f };
+        var pulseTimes = new List<float>(24);
+        var pulseTime = .06f;
+        var intervalIndex = 0;
+        while (pulseTime < Duration)
+        {
+            pulseTimes.Add(pulseTime);
+            pulseTime += intervals[intervalIndex++ % intervals.Length];
+        }
         var sampleCount = (int)(SampleRate * Duration);
         var samples = new float[sampleCount];
         uint random = 0x45534341u;
@@ -22,13 +34,13 @@ internal static class CadillacEscaladeCrackleWave
             filteredNoise = Mathf.Lerp(filteredNoise, noise, .16f);
             var time = index / (float)SampleRate;
             var sample = 0f;
-            for (var pulseIndex = 0; pulseIndex < pulseTimes.Length; pulseIndex++)
+            for (var pulseIndex = 0; pulseIndex < pulseTimes.Count; pulseIndex++)
             {
                 var sincePulse = time - pulseTimes[pulseIndex];
                 if (sincePulse < 0f)
                     sincePulse += Duration;
-                var envelope = Mathf.Exp(-sincePulse * 5.5f);
-                var frequency = pulseFrequencies[pulseIndex];
+                var envelope = Mathf.Exp(-sincePulse * 12f);
+                var frequency = pulseFrequencies[pulseIndex % pulseFrequencies.Length];
                 var fundamental = Mathf.Sin(2f * Mathf.PI * frequency * sincePulse);
                 var secondHarmonic = Mathf.Sin(4f * Mathf.PI * frequency * sincePulse + .35f);
                 var thirdHarmonic = Mathf.Sin(6f * Mathf.PI * frequency * sincePulse + .62f);
@@ -36,14 +48,11 @@ internal static class CadillacEscaladeCrackleWave
                           (.46f * fundamental + .34f * secondHarmonic +
                            .12f * thirdHarmonic + .08f * filteredNoise);
             }
-            // The source is mixed below the main engine bed, so give the clip
-            // enough intrinsic level for its slow pulses to survive spatial
-            // attenuation without turning them into sharp exhaust cracks.
-            samples[index] = sample * .45f;
+            samples[index] = sample * .33f;
         }
 
         var clip = AudioClip.Create(
-            "Cadillac Escalade spaced high-displacement V8 exhaust burble",
+            "Cadillac Escalade loping high-displacement V8 load burble",
             sampleCount,
             1,
             SampleRate,
