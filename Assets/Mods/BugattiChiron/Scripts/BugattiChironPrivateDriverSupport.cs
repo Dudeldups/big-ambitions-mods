@@ -13,7 +13,6 @@ internal static class BugattiChironPrivateDriverSupport
 {
     private const string AdvancedContractKey = "ba:private_driver_type_advanced";
     private const string PremiumContractKey = "ba:private_driver_type_premium";
-    private const string AiTemplatePath = "Vehicles/AnselmoAF90";
     private const string AiTemplateCacheKey = "Prefabs/Vehicles/AnselmoAF90.prefab";
     private const string AiPrefabCacheKey = "Prefabs/Vehicles/bugattichiron.prefab";
     private const int PrivateDriverPoolSize = 2;
@@ -135,12 +134,12 @@ internal static class BugattiChironPrivateDriverSupport
 
     internal static void ReportAppearanceResult(
         string? colorName,
-        bool liveColorAvailable,
+        string? liveColorName,
         bool paintApplied)
     {
         var message =
             $"BugattiChiron: chauffeur appearance color='{colorName ?? "<none>"}' " +
-            $"liveColorAvailable={liveColorAvailable}, paintApplied={paintApplied}.";
+            $"liveColor='{liveColorName ?? "<none>"}', paintApplied={paintApplied}.";
         if (paintApplied)
             context?.Logger.Info(message);
         else
@@ -212,7 +211,9 @@ internal static class BugattiChironPrivateDriverSupport
         var cache = GetPrefabCache();
         var template = cache != null && cache.Contains(AiTemplateCacheKey)
             ? cache[AiTemplateCacheKey] as GameObject
-            : PrefabHelper.LoadPrefabAssetByName(AiTemplatePath);
+            : BigAmbitions.SaveSystem.AddressableResolver
+                .LoadAssetAsync<GameObject>(AiTemplateCacheKey)
+                .WaitForCompletion();
         if (template == null)
             return null;
 
@@ -395,28 +396,24 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
             {
                 privateDriver = candidate;
                 trafficVehicle = GetComponent<VehicleComponent>();
-
-                var paint = GetComponent<BugattiChironPaintController>();
-                if (paint == null)
-                    paint = gameObject.AddComponent<BugattiChironPaintController>();
-                var liveColor = GetComponent<CarFeatures>()?.VehicleColor;
-                paint.InitializeForPrivateDriver(
-                    candidate.vehicleInstance.vehicleColorName,
-                    liveColor);
                 SubscribeTrafficEvents();
 
-                // Traffic initialization can assign its own VehicleColor later in
-                // the activation frame. Reapply once after that one-time setup so
-                // pooled destination cars retain the player's saved repaint.
-                yield return new WaitForEndOfFrame();
-                liveColor = GetComponent<CarFeatures>()?.VehicleColor;
-                paint.InitializeForPrivateDriver(
-                    candidate.vehicleInstance.vehicleColorName,
-                    liveColor);
+                // A pooled traffic vehicle can receive a random color during its
+                // first few activation frames. Restore the saved vehicle color at
+                // that exact lifecycle boundary, then stop after this fixed window.
+                var paintApplied = RestoreSavedVehicleColor(false);
+                for (var pass = 1; pass < InitializationFrameLimit; pass++)
+                {
+                    yield return new WaitForEndOfFrame();
+                    paintApplied = RestoreSavedVehicleColor(
+                        pass == InitializationFrameLimit - 1);
+                }
+
+                var liveColorName = GetComponent<CarFeatures>()?.VehicleColor?.name;
                 BugattiChironPrivateDriverSupport.ReportAppearanceResult(
                     candidate.vehicleInstance.vehicleColorName,
-                    liveColor != null,
-                    paint.HasAppliedColor);
+                    liveColorName,
+                    paintApplied);
                 initializationCoroutine = null;
                 yield break;
             }
@@ -486,20 +483,41 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                     trafficVehicle.GetIndex());
             }
 
-            var paint = GetComponent<BugattiChironPaintController>();
-            if (paint != null && privateDriver?.vehicleInstance != null)
+            if (privateDriver?.vehicleInstance != null)
             {
                 var colorName = privateDriver.vehicleInstance.vehicleColorName;
-                paint.InitializeForPrivateDriver(
-                    colorName,
-                    GetComponent<CarFeatures>()?.VehicleColor);
                 BugattiChironPrivateDriverSupport.ReportDeparturePaintResult(
                     colorName,
-                    paint.HasAppliedColor);
+                    RestoreSavedVehicleColor(true));
             }
         }
 
         departureCheckCoroutine = null;
+    }
+
+    private bool RestoreSavedVehicleColor(bool applySpecializedPaint)
+    {
+        if (privateDriver?.vehicleInstance == null)
+            return false;
+
+        var colorName = privateDriver.vehicleInstance.vehicleColorName;
+        var features = GetComponent<CarFeatures>();
+        var restoredBaseColor = false;
+        if (!string.IsNullOrEmpty(colorName) &&
+            VehicleHelper.TryGetVehicleColor(colorName, out var savedColor))
+        {
+            features?.SetColor(savedColor);
+            restoredBaseColor = features != null;
+        }
+
+        if (!applySpecializedPaint)
+            return restoredBaseColor;
+
+        var paint = GetComponent<BugattiChironPaintController>();
+        if (paint == null)
+            paint = gameObject.AddComponent<BugattiChironPaintController>();
+        paint.InitializeForPrivateDriver(colorName, features?.VehicleColor);
+        return paint.HasAppliedColor;
     }
 
     private void LateUpdate()

@@ -228,29 +228,16 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         vehicle?.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
         vehicle?.GetComponent<BugattiChironGlassController>()?.RestoreAfterVehicleEntered();
         if (isTarget)
-            StartCoroutine(EnsureFirstEntryDrivetrainReady(vehicle!));
-    }
-
-    private IEnumerator EnsureFirstEntryDrivetrainReady(VehicleController vehicle)
-    {
-        yield return new WaitForEndOfFrame();
-        if (vehicle == null || !vehicle.controlledByPlayer)
-            yield break;
-
-        var physics = vehicle.GetComponent<NWH.VehiclePhysics2.VehicleController>();
-        var engine = physics?.powertrain?.engine;
-        if (engine == null)
-            yield break;
-
-        var requestedStart = !engine.IsRunning && !engine.starterActive && engine.canRun;
-        if (requestedStart)
-            engine.StartEngine();
-
-        context?.Logger.Info(
-            $"BugattiChiron: first-entry drivetrain check vehicle={vehicle.GetInstanceID()}, " +
-            $"requestedStart={requestedStart}, running={engine.IsRunning}, " +
-            $"ignition={engine.ignition}, starterActive={engine.starterActive}, " +
-            $"canRun={engine.canRun}.");
+        {
+            var engine = vehicle!
+                .GetComponent<NWH.VehiclePhysics2.VehicleController>()
+                ?.powertrain?.engine;
+            if (engine != null && !engine.IsRunning && engine.canRun)
+            {
+                SetBool(engine, "flyingStartEnabled", true);
+                engine.StartEngine();
+            }
+        }
     }
 
     private void HandleBuildingEntered(Address address)
@@ -747,6 +734,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
             SetFloat(engine, "startDuration", EngineStartDuration);
             SetBool(engine, "stallingEnabled", false);
+            SetBool(engine, "flyingStartEnabled", true);
             var forcedInduction = GetMember(engine, "forcedInduction");
             SetBool(forcedInduction, "useForcedInduction", true);
             SetFloat(forcedInduction, "powerGainMultiplier", ForcedInductionPowerMultiplier);
