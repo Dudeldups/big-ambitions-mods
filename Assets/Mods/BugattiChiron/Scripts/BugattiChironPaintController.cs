@@ -30,6 +30,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
     private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private ModContext? context;
     private VehicleColor? appliedVehicleColor;
     private Color32 appliedTint;
@@ -52,14 +53,19 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
     internal void RefreshCurrentColor() => ApplyCurrentColor();
 
-    internal void InitializeForPrivateDriver(string? vehicleColorName)
+    internal void InitializeForPrivateDriver(
+        string? vehicleColorName,
+        VehicleColor? vehicleColor)
     {
         vehicle = null;
         context = null;
         explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
         FindPaintSlots();
         ApplyCurrentColor();
     }
+
+    internal bool HasAppliedColor => hasAppliedTint;
 
     private void FindPaintSlots()
     {
@@ -411,6 +417,9 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
     private VehicleColor? ResolveVehicleColor()
     {
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+
         if (!string.IsNullOrEmpty(explicitVehicleColorName) &&
             VehicleHelper.TryGetVehicleColor(explicitVehicleColorName, out var explicitColor))
         {

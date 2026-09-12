@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
 using Buildings.BuildingTypes.Special.PrivateDriverService;
 using GleyTrafficSystem;
 using Helpers;
@@ -22,6 +23,9 @@ internal static class BugattiChironPrivateDriverSupport
     private static bool previousCacheEntryCaptured;
     private static VehiclePool? modifiedVehiclePool;
     private static CarType? customCarType;
+    private static ModContext? context;
+
+    internal static void SetContext(ModContext modContext) => context = modContext;
 
     internal static bool PrepareTrafficPool(GameObject playerPrefab)
     {
@@ -125,7 +129,26 @@ internal static class BugattiChironPrivateDriverSupport
         customAiPrefab = null;
         previousCachedPrefab = null;
         previousCacheEntryCaptured = false;
+        context = null;
     }
+
+    internal static void ReportAppearanceResult(
+        string? colorName,
+        bool liveColorAvailable,
+        bool paintApplied)
+    {
+        var message =
+            $"BugattiChiron: chauffeur appearance color='{colorName ?? "<none>"}' " +
+            $"liveColorAvailable={liveColorAvailable}, paintApplied={paintApplied}.";
+        if (paintApplied)
+            context?.Logger.Info(message);
+        else
+            context?.Logger.Warn(message);
+    }
+
+    internal static void ReportDepartureCorrection(int vehicleIndex) =>
+        context?.Logger.Info(
+            $"BugattiChiron: chauffeur departure resumed after dismissal vehicleIndex={vehicleIndex}.");
 
     private static void EnsureContractContains(
         PrivateDriverContract contract,
@@ -304,9 +327,9 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
     private const int InitializationFrameLimit = 4;
 
     private static readonly PropertyInfo? CurrentVehicleProperty =
-        typeof(PrivateDriverVehicle).GetProperty(
+        typeof(Player.HUD.SmartphoneUI.SmartphonePrivateDriverUI).GetProperty(
             "CurrentVehicle",
-            BindingFlags.Static | BindingFlags.NonPublic);
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
     private static readonly string[,] WheelNames =
     {
@@ -359,7 +382,14 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                 var paint = GetComponent<BugattiChironPaintController>();
                 if (paint == null)
                     paint = gameObject.AddComponent<BugattiChironPaintController>();
-                paint.InitializeForPrivateDriver(candidate.vehicleInstance.vehicleColorName);
+                var liveColor = GetComponent<CarFeatures>()?.VehicleColor;
+                paint.InitializeForPrivateDriver(
+                    candidate.vehicleInstance.vehicleColorName,
+                    liveColor);
+                BugattiChironPrivateDriverSupport.ReportAppearanceResult(
+                    candidate.vehicleInstance.vehicleColorName,
+                    liveColor != null,
+                    paint.HasAppliedColor);
                 SubscribeTrafficEvents();
                 initializationCoroutine = null;
                 yield break;
@@ -400,8 +430,15 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
         // from the normal stop events used while picking up the player.
         yield return null;
 
+        var privateDriverUi = UI.UIs.Instance?.smartphoneUI?.privateDriverUI;
+        if (privateDriverUi == null || CurrentVehicleProperty == null)
+        {
+            departureCheckCoroutine = null;
+            yield break;
+        }
+
         var currentPrivateDriver =
-            CurrentVehicleProperty?.GetValue(null) as PrivateDriverVehicle;
+            CurrentVehicleProperty.GetValue(privateDriverUi) as PrivateDriverVehicle;
         var dismissed = privateDriver != null && currentPrivateDriver != privateDriver;
         if (dismissed && trafficVehicle != null && trafficVehicle.gameObject.activeInHierarchy)
         {
@@ -414,6 +451,8 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                     SpecialDriveActionTypes.Forward,
                     true);
                 trafficManager.VehicleUpdateWaypoint(trafficVehicle);
+                BugattiChironPrivateDriverSupport.ReportDepartureCorrection(
+                    trafficVehicle.GetIndex());
             }
         }
 

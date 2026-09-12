@@ -95,6 +95,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
         runtime.playerVehiclePrefab = playerVehiclePrefab;
+        BugattiChironPrivateDriverSupport.SetContext(context);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
