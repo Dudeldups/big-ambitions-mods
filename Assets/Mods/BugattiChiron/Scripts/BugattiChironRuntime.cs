@@ -170,14 +170,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     {
         if (string.Equals(eventName, VehicleRepainterColorRestoredEvent, StringComparison.Ordinal))
         {
-            var refreshedCount = RefreshExistingVehiclePaint();
-            if (refreshedCount > 0)
-            {
-                context?.Logger.Info(
-                    $"BugattiChiron: refreshed specialized paint for {refreshedCount} loaded vehicle(s) " +
-                    "after Vehicle Repainter restored saved colors.");
-            }
-
+            RefreshExistingVehiclePaint();
             return;
         }
 
@@ -323,12 +316,11 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         }
     }
 
-    private int RefreshExistingVehiclePaint()
+    private void RefreshExistingVehiclePaint()
     {
-        var refreshedCount = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
         if (vehicles == null)
-            return refreshedCount;
+            return;
 
         foreach (var vehicle in vehicles)
         {
@@ -346,10 +338,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 continue;
 
             paintController.RefreshCurrentColor();
-            refreshedCount++;
         }
-
-        return refreshedCount;
     }
 
     private void TryConfigureVehicle(VehicleController? vehicle)
