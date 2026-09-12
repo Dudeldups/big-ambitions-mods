@@ -13,6 +13,7 @@ using Vehicles.VehicleTypes;
 
 public sealed class BugattiChironRuntime : MonoBehaviour
 {
+    private const string VehicleRepainterColorRestoredEvent = "vehicle-repainter:color-restored";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -165,8 +166,14 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         cachedPlayerVehicleCount = -1;
     }
 
-    private void HandleGameEvent(string _)
+    private void HandleGameEvent(string eventName)
     {
+        if (string.Equals(eventName, VehicleRepainterColorRestoredEvent, StringComparison.Ordinal))
+        {
+            RefreshExistingVehiclePaint();
+            return;
+        }
+
         var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
         if (!IsTargetVehicle(selectedVehicle))
             return;
@@ -326,7 +333,11 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 continue;
             }
 
-            vehicle.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
+            var paintController = vehicle.GetComponent<BugattiChironPaintController>();
+            if (paintController == null)
+                continue;
+
+            paintController.RefreshCurrentColor();
         }
     }
 
