@@ -5,11 +5,13 @@ using System;
 internal static class CadillacEscaladeAudioModel
 {
     internal const float IdlePitch = .86f;
-    internal const float IdleBaseVolume = .15f;
+    internal const float IdleBaseVolume = .18f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
-    internal const float EngineBaseVolume = .16f;
-    internal const float EngineThrottleVolume = .14f;
+    internal const float EngineBaseVolume = .22f;
+    internal const float EngineThrottleVolume = .18f;
+    internal const float BurbleIdleVolume = .045f;
+    internal const float BurbleLoadVolume = .075f;
 
     internal static float LoadBlend(float throttle) =>
         Clamp01((throttle - .18f) / .68f);
@@ -19,6 +21,13 @@ internal static class CadillacEscaladeAudioModel
 
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
+
+    internal static float BurbleVolume(float throttle, float normalizedRpm)
+    {
+        var load = (float)Math.Sqrt(Clamp01(throttle));
+        var highRpmReduction = .35f * Clamp01((normalizedRpm - .55f) / .45f);
+        return (BurbleIdleVolume + BurbleLoadVolume * load) * (1f - highRpmReduction);
+    }
 
     // Let the natural donor bed cover idle and creep. The Cadillac layers fade
     // in progressively from roughly 1,000 to 2,200 RPM instead of producing a

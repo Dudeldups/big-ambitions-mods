@@ -5,11 +5,12 @@ using UnityEngine;
 internal static class CadillacEscaladeCrackleWave
 {
     private const int SampleRate = 44100;
-    private const float Duration = 2f;
+    private const float Duration = 4f;
 
     internal static AudioClip Create()
     {
-        const int pulseCount = 16;
+        var pulseTimes = new[] { .30f, 1.30f, 2.40f, 3.50f };
+        var pulseFrequencies = new[] { 46f, 50f, 43f, 48f };
         var sampleCount = (int)(SampleRate * Duration);
         var samples = new float[sampleCount];
         uint random = 0x45534341u;
@@ -19,15 +20,25 @@ internal static class CadillacEscaladeCrackleWave
             random = random * 1664525u + 1013904223u;
             var noise = ((random >> 8) / 8388607.5f) - 1f;
             filteredNoise = Mathf.Lerp(filteredNoise, noise, .16f);
-            var pulsePosition = index * pulseCount / (float)sampleCount;
-            var pulsePhase = pulsePosition - Mathf.Floor(pulsePosition);
-            var envelope = Mathf.Exp(-pulsePhase * 15f);
-            var texture = Mathf.Sin(2f * Mathf.PI * 185f * index / SampleRate);
-            samples[index] = envelope * (.72f * filteredNoise + .28f * texture) * .22f;
+            var time = index / (float)SampleRate;
+            var sample = 0f;
+            for (var pulseIndex = 0; pulseIndex < pulseTimes.Length; pulseIndex++)
+            {
+                var sincePulse = time - pulseTimes[pulseIndex];
+                if (sincePulse < 0f)
+                    sincePulse += Duration;
+                var envelope = Mathf.Exp(-sincePulse * 7.5f);
+                var frequency = pulseFrequencies[pulseIndex];
+                var fundamental = Mathf.Sin(2f * Mathf.PI * frequency * sincePulse);
+                var secondHarmonic = Mathf.Sin(4f * Mathf.PI * frequency * sincePulse + .35f);
+                sample += envelope *
+                          (.58f * fundamental + .27f * secondHarmonic + .15f * filteredNoise);
+            }
+            samples[index] = sample * .16f;
         }
 
         var clip = AudioClip.Create(
-            "Cadillac Escalade restrained V8 exhaust texture",
+            "Cadillac Escalade spaced high-displacement V8 exhaust burble",
             sampleCount,
             1,
             SampleRate,
@@ -35,7 +46,7 @@ internal static class CadillacEscaladeCrackleWave
         if (!clip.SetData(samples, 0))
         {
             UnityEngine.Object.Destroy(clip);
-            throw new InvalidOperationException("Could not initialize procedural exhaust crackle.");
+            throw new InvalidOperationException("Could not initialize procedural exhaust burble.");
         }
 
         return clip;

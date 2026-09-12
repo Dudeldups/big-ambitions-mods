@@ -59,6 +59,8 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
         SchedulePaintSettlement();
     }
 
+    internal void RefreshCurrentColor() => ApplyCurrentColor(true);
+
     private void SchedulePaintSettlement()
     {
         if (settlementCoroutine != null)
