@@ -1127,7 +1127,7 @@ public static class Porsche911GT3RSSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 7f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 4200f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 5500f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 8850f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
                 SetRelativeNumber(serialized, "brakes.maxTorque", BrakeMaxTorque);
