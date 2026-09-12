@@ -37,7 +37,12 @@ public static class CadillacEscaladeSetup
     private const float BodyVisualLowering = 0.10f;
     private const float WheelRadius = 0.408f;
     private const float WheelWidth = 0.285f;
-    private const float TireFrictionCircleStrength = 0.90f;
+    private const float VehicleMass = 2738f;
+    private const float RatedEnginePowerKw = 313f;
+    private const float EngineRoadCalibrationPowerKw = 225f;
+    private const float BrakeMaxTorque = 6500f;
+    private const float BrakeActuationTime = 0.10f;
+    private const float TireFrictionCircleStrength = 0.80f;
     private const float AntiRollBarForce = 10500f;
     private const float FrontSuspensionTravel = 0.15f;
     private const float RearSuspensionTravel = 0.15f;
@@ -62,25 +67,30 @@ public static class CadillacEscaladeSetup
 
     private static readonly float[] EscaladeGears =
     {
-        -3.06f,
+        -4.87f,
         0f,
-        4.03f,
-        2.36f,
-        1.53f,
-        1.15f,
+        4.70f,
+        2.99f,
+        2.15f,
+        1.80f,
+        1.52f,
+        1.28f,
+        1.00f,
         0.85f,
-        0.67f,
+        0.69f,
+        0.64f,
     };
 
     private static AnimationCurve CreateEscaladePowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.20f),
-            new Keyframe(0.35f, 0.55f),
-            new Keyframe(0.62f, 0.86f),
-            new Keyframe(0.82f, 0.97f),
-            new Keyframe(0.92f, 1f),
-            new Keyframe(1f, 0.88f));
+            new Keyframe(0.10f, 0.12f),
+            new Keyframe(0.30f, 0.40f),
+            new Keyframe(0.55f, 0.72f),
+            new Keyframe(0.72f, 0.88f),
+            new Keyframe(0.88f, 0.98f),
+            new Keyframe(0.93f, 1f),
+            new Keyframe(1f, 0.90f));
 
     [MenuItem("Big Ambitions Mods/Setup Cadillac Escalade")]
     public static void Generate()
@@ -93,7 +103,7 @@ public static class CadillacEscaladeSetup
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         Debug.Log(
             "CadillacEscalade setup complete: generated a fitted Escalade with four " +
-            "independent wheel visuals, six-speed automatic, 40:60 AWD, V8 audio, functional lamp " +
+            "independent wheel visuals, 10-speed automatic, 40:60 AWD, V8 audio, functional lamp " +
             "geometry, colorable body/calipers, and corrected glass materials.");
     }
 
@@ -133,8 +143,8 @@ public static class CadillacEscaladeSetup
             if (Math.Abs(price - 74225f) > 0.5f) issues.Add($"price={price}");
             if (Math.Abs(fuel - 98f) > 0.5f) issues.Add($"fuel={fuel}");
             if (Math.Abs(cargo - 24f) > 0.5f) issues.Add($"cargo={cargo}");
-            if (Math.Abs(speed - 171f) > 0.5f) issues.Add($"speed={speed}");
-            if (Math.Abs(power - 301f) > 0.5f) issues.Add($"power={power}");
+            if (Math.Abs(speed - 193f) > 0.5f) issues.Add($"speed={speed}");
+            if (Math.Abs(power - RatedEnginePowerKw) > 0.5f) issues.Add($"power={power}");
 
             if (!TryGetCadillacRendererBounds(prefab.transform, out var bounds))
                 issues.Add("no Cadillac renderer bounds");
@@ -243,7 +253,7 @@ public static class CadillacEscaladeSetup
             }
 
             var body = prefab.GetComponent<Rigidbody>();
-            if (body == null || Math.Abs(body.mass - 2575f) > 0.5f ||
+            if (body == null || Math.Abs(body.mass - VehicleMass) > 0.5f ||
                 Vector3.Distance(body.centerOfMass, StableCenterOfMass) > 0.001f)
             {
                 issues.Add("mass/center-of-mass");
@@ -260,36 +270,66 @@ public static class CadillacEscaladeSetup
                 issues.Add("body-collider-profile");
             }
 
-            var transmissionVerified = false;
+            var powertrainVerified = false;
+            var speedLimiterVerified = false;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
-                if (component == null ||
-                    !string.Equals(
+                if (component == null)
+                    continue;
+
+                if (string.Equals(
+                        component.GetType().Name,
+                        "SpeedLimiterModuleWrapper",
+                        StringComparison.Ordinal))
+                {
+                    var limiter = FindRelativeProperty(new SerializedObject(component), "module");
+                    var active = limiter?.FindPropertyRelative("active");
+                    speedLimiterVerified =
+                        active?.propertyType == SerializedPropertyType.Boolean &&
+                        active.boolValue &&
+                        Math.Abs(ReadNumber(limiter?.FindPropertyRelative("speedLimit")) - 193f) < 0.5f;
+                    continue;
+                }
+
+                if (!string.Equals(
                         component.GetType().FullName,
                         "NWH.VehiclePhysics2.VehicleController",
                         StringComparison.Ordinal))
-                {
                     continue;
-                }
+
                 var vehicle = new SerializedObject(component);
                 var transmission = FindRelativeProperty(
                     vehicle,
                     "powertrain.transmission");
                 var gears = transmission?.FindPropertyRelative("gears");
-                transmissionVerified =
+                powertrainVerified =
                     Math.Abs(ReadNumber(
-                        transmission?.FindPropertyRelative("finalGearRatio")) - 3.42f) < 0.01f &&
+                        transmission?.FindPropertyRelative("finalGearRatio")) - 3.23f) < 0.01f &&
+                    Math.Abs(ReadNumber(
+                        transmission?.FindPropertyRelative("forwardGearCount")) - 10f) < 0.01f &&
                     gears != null &&
                     gears.isArray &&
                     gears.arraySize == EscaladeGears.Length;
                 var clutch = FindRelativeProperty(vehicle, "powertrain.clutch");
-                transmissionVerified &=
+                powertrainVerified &=
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepSpeedLimit")) - 1f) < 0.01f;
-                break;
+                var engine = FindRelativeProperty(vehicle, "powertrain.engine");
+                powertrainVerified &=
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("maxPower")) -
+                             EngineRoadCalibrationPowerKw) < 0.5f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("revLimiterRPM")) - 6000f) < 0.5f;
+                var brakes = vehicle.FindProperty("brakes");
+                powertrainVerified &=
+                    Math.Abs(ReadNumber(brakes?.FindPropertyRelative("maxTorque")) -
+                             BrakeMaxTorque) < 0.5f &&
+                    Math.Abs(ReadNumber(brakes?.FindPropertyRelative("actuationTime")) -
+                             BrakeActuationTime) < 0.001f;
             }
-            if (!transmissionVerified)
-                issues.Add("six-speed powertrain");
+            if (!powertrainVerified)
+                issues.Add("2021 powertrain/brakes");
+            if (!speedLimiterVerified)
+                issues.Add("193kph speed limiter");
 
             if (wheelMounts != 4) issues.Add($"wheelMounts={wheelMounts}");
             if (rotors != 4) issues.Add($"rotors={rotors}");
@@ -328,7 +368,7 @@ public static class CadillacEscaladeSetup
                 $"straightTires={straightTireMeshes}, fixedCalipers={fixedCalipers}, " +
                 $"glassRenderers={glassRenderers}, " +
                 $"bodyPaintSlots={bodyPaintSlots}, caliperSlots={caliperSlots}, " +
-                "transmission=6-speed-automatic, drivetrain=40:60-AWD.");
+                "transmission=10-speed-automatic, drivetrain=40:60-AWD.");
         }
         finally
         {
@@ -363,9 +403,9 @@ public static class CadillacEscaladeSetup
         SetNumber(serialized, "price", 74225f);
         SetNumber(serialized, "maxFuel", 98f);
         SetNumber(serialized, "maxCargoCapacity", 24f);
-        SetNumber(serialized, "maxSpeed", 171f);
-        SetNumber(serialized, "enginePower", 301f);
-        SetNumber(serialized, "brakeForce", 23000f);
+        SetNumber(serialized, "maxSpeed", 193f);
+        SetNumber(serialized, "enginePower", RatedEnginePowerKw);
+        SetNumber(serialized, "brakeForce", BrakeMaxTorque);
         SetNumber(serialized, "turnRadius", 35f);
         SetNumber(serialized, "damageIntensity", 0.75f);
         SetBool(serialized, "isATruck", false);
@@ -488,7 +528,7 @@ public static class CadillacEscaladeSetup
     {
         var body = root.GetComponent<Rigidbody>() ??
                    throw new InvalidOperationException("Reference prefab has no Rigidbody.");
-        body.mass = 2575f;
+        body.mass = VehicleMass;
         body.drag = 0f;
         body.angularDrag = 1.8f;
         body.centerOfMass = StableCenterOfMass;
@@ -513,8 +553,8 @@ public static class CadillacEscaladeSetup
             var combinedCenter = serialized.FindProperty("combinedCenterOfMass");
             if (combinedCenter?.propertyType == SerializedPropertyType.Vector3)
                 combinedCenter.vector3Value = StableCenterOfMass;
-            SetNumber(serialized, "baseMass", 2575f);
-            SetNumber(serialized, "combinedMass", 2575f);
+            SetNumber(serialized, "baseMass", VehicleMass);
+            SetNumber(serialized, "combinedMass", VehicleMass);
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
     }
@@ -600,30 +640,32 @@ public static class CadillacEscaladeSetup
                     StringComparison.Ordinal))
             {
                 found = true;
-                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 1200f);
-                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 500f);
-                SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 500f);
+                SetRelativeNumber(serialized, "brakes.maxTorque", BrakeMaxTorque);
+                SetRelativeNumber(serialized, "brakes.actuationTime", BrakeActuationTime);
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 1000f);
+                SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 350f);
+                SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 700f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
-                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.32f);
-                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 301f);
+                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.45f);
+                SetRelativeNumber(serialized, "powertrain.engine.maxPower", EngineRoadCalibrationPowerKw);
                 var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
                 if (powerCurve?.propertyType != SerializedPropertyType.AnimationCurve)
                     throw new InvalidOperationException("Reference engine power curve is missing.");
                 powerCurve.animationCurveValue = CreateEscaladePowerCurve();
                 SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 600f);
-                SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6200f);
+                SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6000f);
                 SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.80f);
                 SetRelativeBool(serialized, "powertrain.engine.stallingEnabled", false);
                 SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", false);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.powerGainMultiplier", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0f);
-                SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 3.42f);
-                SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 6f);
+                SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 3.23f);
+                SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 10f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
-                SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.35f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 1800f);
-                SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 5900f);
+                SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.25f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 1400f);
+                SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 5750f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 
                 var wheelGroups = FindRelativeProperty(serialized, "powertrain.wheelGroups");
@@ -647,7 +689,8 @@ public static class CadillacEscaladeSetup
             }
             else if (string.Equals(component.GetType().Name, "SpeedLimiterModuleWrapper", StringComparison.Ordinal))
             {
-                SetRelativeNumber(serialized, "module.speedLimit", 171f);
+                SetRelativeBool(serialized, "module.active", true);
+                SetRelativeNumber(serialized, "module.speedLimit", 193f);
             }
 
             serialized.ApplyModifiedPropertiesWithoutUndo();

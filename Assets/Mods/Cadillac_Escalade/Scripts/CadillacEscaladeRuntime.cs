@@ -15,19 +15,24 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
-    private const float VehicleMass = 2575f;
-    private const float EnginePowerKw = 301f;
+    private const float VehicleMass = 2738f;
+    // NWH applies maxPower much closer to wheel power than SAE crank power.
+    // Keep the rated 313 kW on VehicleType, but use the measured road-test
+    // calibration here so the 2.7-ton SUV reaches 60 mph in about 6.1 seconds.
+    private const float EnginePowerKw = 225f;
+    private const float BrakeMaxTorque = 6500f;
+    private const float BrakeActuationTime = 0.10f;
     private const float EngineIdleRpm = 600f;
-    private const float EngineLimitRpm = 6200f;
-    private const float SpeedLimitKph = 171f;
-    private const float FinalDriveRatio = 3.42f;
-    private const float EngineInertia = 0.32f;
+    private const float EngineLimitRpm = 6000f;
+    private const float SpeedLimitKph = 193f;
+    private const float FinalDriveRatio = 3.23f;
+    private const float EngineInertia = 0.45f;
     private const float EngineStartDuration = 0.80f;
-    private const float ClutchEngagementRpm = 1200f;
-    private const float ClutchThrottleOffsetRpm = 500f;
-    private const float ClutchEngagementRange = 500f;
+    private const float ClutchEngagementRpm = 1000f;
+    private const float ClutchThrottleOffsetRpm = 350f;
+    private const float ClutchEngagementRange = 700f;
     private const float ClutchCreepTorque = 0f;
-    private const float TireFrictionCircleStrength = 0.90f;
+    private const float TireFrictionCircleStrength = 0.80f;
     private const float AntiRollBarForce = 10500f;
     private const float FrontSuspensionTravel = 0.15f;
     private const float RearSuspensionTravel = 0.15f;
@@ -46,25 +51,30 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private static readonly float[] EscaladeGears =
     {
-        -3.06f,
+        -4.87f,
         0f,
-        4.03f,
-        2.36f,
-        1.53f,
-        1.15f,
+        4.70f,
+        2.99f,
+        2.15f,
+        1.80f,
+        1.52f,
+        1.28f,
+        1.00f,
         0.85f,
-        0.67f,
+        0.69f,
+        0.64f,
     };
 
     private static AnimationCurve CreateEscaladePowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.20f),
-            new Keyframe(0.35f, 0.55f),
-            new Keyframe(0.62f, 0.86f),
-            new Keyframe(0.82f, 0.97f),
-            new Keyframe(0.92f, 1f),
-            new Keyframe(1f, 0.88f));
+            new Keyframe(0.10f, 0.12f),
+            new Keyframe(0.30f, 0.40f),
+            new Keyframe(0.55f, 0.72f),
+            new Keyframe(0.72f, 0.88f),
+            new Keyframe(0.88f, 0.98f),
+            new Keyframe(0.93f, 1f),
+            new Keyframe(1f, 0.90f));
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
@@ -419,6 +429,11 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 rigidbody.centerOfMass = StableCenterOfMass;
                 rigidbody.drag = 0f;
                 rigidbody.angularDrag = 1.45f;
+
+                var roadLoad = vehicle.GetComponent<CadillacEscaladeRoadLoad>();
+                if (roadLoad == null)
+                    roadLoad = vehicle.gameObject.AddComponent<CadillacEscaladeRoadLoad>();
+                roadLoad.Initialize(rigidbody);
             }
 
             ConfigureMassProperties(vehicle.gameObject);
@@ -466,7 +481,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
             CadillacEscaladeDiagnostics.Info(context,
                 $"CadillacEscalade: configured vehicle instance={instanceId}, " +
-                $"mass={VehicleMass:0}kg, transmission=6-speed-automatic, awd=40:60, " +
+                $"mass={VehicleMass:0}kg, transmission=10-speed-automatic, awd=40:60, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
@@ -475,7 +490,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
-                $"powerCurve=2012-L92-calibration, steeringCalipers=4, " +
+                $"powerCurve=2021-L87-road-calibration, brakes={BrakeMaxTorque:0}Nm, " +
+                $"steeringCalipers=4, " +
                 $"bakedPositiveWheelMeshes={bakedPositiveWheelMeshes}, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
@@ -726,6 +742,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             }
 
             var powertrain = GetMember(component, "powertrain");
+            var brakes = GetMember(component, "brakes");
+            SetFloat(brakes, "maxTorque", BrakeMaxTorque);
+            SetFloat(brakes, "actuationTime", BrakeActuationTime);
             var clutch = GetMember(powertrain, "clutch");
             SetFloat(clutch, "engagementRPM", ClutchEngagementRpm);
             SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
@@ -747,10 +766,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
-            SetFloat(transmission, "shiftDuration", 0.35f);
-            SetFloat(transmission, "_downshiftRPM", 1800f);
-            SetFloat(transmission, "_upshiftRPM", 5900f);
-            SetInt(transmission, "forwardGearCount", 6);
+            SetFloat(transmission, "shiftDuration", 0.25f);
+            SetFloat(transmission, "_downshiftRPM", 1400f);
+            SetFloat(transmission, "_upshiftRPM", 5750f);
+            SetInt(transmission, "forwardGearCount", 10);
             SetInt(transmission, "reverseGearCount", 1);
             SetInt(transmission, "transmissionType", 1);
             SetFloatArray(transmission, "gears", EscaladeGears);
@@ -767,11 +786,12 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                     string.Equals(other.GetType().Name, "SpeedLimiterModuleWrapper", StringComparison.Ordinal))
                 {
                     var module = GetMember(other, "module");
+                    SetBool(module, "active", true);
                     SetFloat(module, "speedLimit", SpeedLimitKph);
                 }
             }
 
-            return GetInt(transmission, "forwardGearCount") == 6;
+            return GetInt(transmission, "forwardGearCount") == 10;
         }
 
         return false;
@@ -893,6 +913,39 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[DisallowMultipleComponent]
+internal sealed class CadillacEscaladeRoadLoad : MonoBehaviour
+{
+    // 0.5 * air density * Cd (0.34) * estimated frontal area (3.35 m2).
+    // NWH already supplies low-speed tire losses, so aerodynamic resistance is
+    // introduced above urban speeds without double-counting rolling resistance.
+    private const float AerodynamicForceCoefficient = 0.70f;
+    private const float MinimumDragSpeedMps = 20f;
+
+    private Rigidbody? body;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        var speedSquared = planarVelocity.sqrMagnitude;
+        var minimumSpeedSquared = MinimumDragSpeedMps * MinimumDragSpeedMps;
+        if (speedSquared <= minimumSpeedSquared)
+            return;
+
+        var dragForce = AerodynamicForceCoefficient *
+                        (speedSquared - minimumSpeedSquared);
+        body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
     }
 }
 
