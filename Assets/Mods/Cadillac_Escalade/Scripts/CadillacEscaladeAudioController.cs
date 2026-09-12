@@ -126,10 +126,9 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var exhaustHost = new GameObject("CadillacEscalade_ExhaustBurble");
         exhaustHost.transform.SetParent(audioHost.transform, false);
         burbleSource = CreateSource(exhaustHost, burbleClip, native);
-        // The source sits at the tailpipes, several metres from an interior
-        // listener. Preserve directionality while keeping the load texture
-        // within its full-volume radius around the vehicle.
-        burbleSource.spatialBlend = Mathf.Min(burbleSource.spatialBlend, .65f);
+        // Temporary diagnostic mix: make the load layer listener-relative so
+        // distance cannot conceal whether its playback path is active.
+        burbleSource.spatialBlend = 0f;
         burbleSource.minDistance = Mathf.Max(burbleSource.minDistance, 4f);
         burbleSource.maxDistance = Mathf.Max(burbleSource.maxDistance, 35f);
         ConfigureBurbleFilters(exhaustHost);
@@ -177,7 +176,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var lowPass = host.AddComponent<AudioLowPassFilter>();
         // Preserve enough of the second and third harmonics for the slow
         // exhaust pulses to remain audible on ordinary speakers.
-        lowPass.cutoffFrequency = 680f;
+        lowPass.cutoffFrequency = 1200f;
         lowPass.lowpassResonanceQ = 1.05f;
     }
 
@@ -298,7 +297,9 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
                               CadillacEscaladeAudioModel.BurbleVolume(
                                   smoothThrottle,
                                   normalized);
-        burbleSource.mute = controlled && savedMute;
+        // Do not inherit a lifecycle mute from the donor source during the
+        // diagnostic test; master volume and the load envelope still apply.
+        burbleSource.mute = false;
 
         if (envelope <= 0f)
         {

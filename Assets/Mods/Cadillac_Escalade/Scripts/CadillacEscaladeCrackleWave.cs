@@ -48,7 +48,8 @@ internal static class CadillacEscaladeCrackleWave
                           (.46f * fundamental + .34f * secondHarmonic +
                            .12f * thirdHarmonic + .08f * filteredNoise);
             }
-            samples[index] = sample * .33f;
+            // Near-full-scale on purpose for the temporary audibility test.
+            samples[index] = Mathf.Clamp(sample * .85f, -.95f, .95f);
         }
 
         var clip = AudioClip.Create(
