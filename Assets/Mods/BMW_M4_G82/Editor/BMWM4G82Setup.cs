@@ -43,6 +43,7 @@ public static class BMWM4G82Setup
     private const float VisualBodyOffsetY = -0.035f;
     private const float VehicleLinearDrag = 0.015f;
     private const float CaliperOutboardOffset = 0.045f;
+    private const float ForwardTireGrip = 0.62f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.07f;
@@ -449,7 +450,7 @@ public static class BMWM4G82Setup
         SetNumber(serialized, "maxCargoCapacity", 12f);
         SetNumber(serialized, "maxSpeed", 290f);
         SetNumber(serialized, "enginePower", 375f);
-        SetNumber(serialized, "brakeForce", 7000f);
+        SetNumber(serialized, "brakeForce", 4200f);
         SetNumber(serialized, "turnRadius", 25f);
         SetNumber(serialized, "damageIntensity", 0.50f);
         SetBool(serialized, "isATruck", false);
@@ -751,7 +752,12 @@ public static class BMWM4G82Setup
             else if (string.Equals(materialName, "red_glass", StringComparison.OrdinalIgnoreCase))
                 renderer.name = "BMW_RearLamp_Source";
             else if (materialName.IndexOf("glasswindshiled", StringComparison.OrdinalIgnoreCase) >= 0)
-                renderer.name = $"BMW_CabinGlass_{glassIndex++}";
+            {
+                renderer.name = string.Equals(renderer.name, "Object_83", StringComparison.Ordinal)
+                    ? "BMW_CabinGlass_Object_83"
+                    : $"BMW_CabinGlass_{glassIndex}";
+                glassIndex++;
+            }
             else if (materialName.IndexOf("InteriorA", StringComparison.OrdinalIgnoreCase) >= 0)
                 renderer.name = "BMW_Interior_Source";
             else if (materialName.IndexOf("EngineA", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -886,6 +892,7 @@ public static class BMWM4G82Setup
                 SetRelativeNumber(serialized, "damageMaxWobbleAngle", MaximumDamagedWheelWobbleAngle);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? FrontTireRadius : RearTireRadius);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? FrontTireWidth : RearTireWidth);
+                SetRelativeNumber(serialized, "forwardFriction.grip", ForwardTireGrip);
                 SetRelativeNumber(serialized, "frictionCircleStrength", TireFrictionCircleStrength);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }

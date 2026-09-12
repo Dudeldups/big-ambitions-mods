@@ -30,6 +30,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 450f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
+    private const float ForwardTireGrip = 0.62f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.07f;
@@ -62,6 +63,23 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         0.823f,
         0.640f,
     };
+
+    private static readonly HashSet<string> ExplicitDeformableExteriorNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Object_63",
+            "Object_83",
+            // NameKeyRenderers maps source Object_83 (the windshield/cabin
+            // glass shell) to this stable production-prefab name.
+            "BMW_CabinGlass_Object_83",
+            "Object_134",
+            "Object_138",
+            "Object_154",
+            "Object_171",
+            "Object_191",
+            "Object_203",
+            "Object_215",
+        };
 
     private static AnimationCurve CreateM4PowerCurve() =>
         new AnimationCurve(
@@ -539,6 +557,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 SetFloat(wheel, "radius", isFront ? 0.3376f : 0.3395f);
                 SetFloat(wheel, "width", isFront ? 0.275f : 0.285f);
                 SetMember(component, "wheel", wheel);
+                var forwardFriction = GetMember(component, "forwardFriction");
+                SetFloat(forwardFriction, "grip", ForwardTireGrip);
+                SetMember(component, "forwardFriction", forwardFriction);
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
                 SetFloat(component, "suspensionExtensionSpeedCoeff", SuspensionExtensionSpeed);
                 SetFloat(component, "damageMaxWobbleAngle", MaximumDamagedWheelWobbleAngle);
@@ -714,7 +735,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             // meshes so switching the lights on after a crash cannot reveal an
             // undeformed surface floating in front of the damaged lamp.
             if (renderer != null &&
-                (renderer.enabled || filter.name.StartsWith("BMWM4G82_", StringComparison.Ordinal)))
+                (renderer.enabled ||
+                 filter.name.StartsWith("BMWM4G82_", StringComparison.Ordinal) ||
+                 ExplicitDeformableExteriorNames.Contains(filter.name)))
                 filters.Add(filter);
         }
 
@@ -771,6 +794,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             if (current.name.StartsWith("BMWWheel", StringComparison.Ordinal) ||
                 current.name.StartsWith("BMWFixedCaliper", StringComparison.Ordinal))
                 return false;
+        if (ExplicitDeformableExteriorNames.Contains(filter.name))
+            return true;
         foreach (var material in renderer.sharedMaterials)
         {
             if (material == null)

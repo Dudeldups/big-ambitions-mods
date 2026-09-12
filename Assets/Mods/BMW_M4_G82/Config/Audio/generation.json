@@ -14,7 +14,7 @@
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.1603491732091509,
+      "peak": 0.14567867195861112,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
@@ -28,7 +28,7 @@
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.16764012163386727,
+      "peak": 0.14798943060143976,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
@@ -42,7 +42,7 @@
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.17371909985463274,
+      "peak": 0.15359987256298738,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     }
   ],
