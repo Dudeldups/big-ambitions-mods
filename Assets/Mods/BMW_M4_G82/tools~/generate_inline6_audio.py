@@ -30,12 +30,17 @@ def normalize(samples: list[float], target_rms: float) -> list[float]:
 
 def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     rng = random.Random(seed)
-    phases = [rng.random() * math.tau for _ in range(10)]
+    phases = [rng.uniform(-0.18, 0.18) for _ in range(14)]
     amplitudes = (
-        (1.0, 0.62, 0.46, 0.34, 0.25, 0.19, 0.14, 0.10, 0.075, 0.055)
+        (1.0, 0.70, 0.52, 0.39, 0.29, 0.22, 0.17, 0.13, 0.10, 0.078, 0.06, 0.046)
         if loaded
-        else (1.0, 0.36, 0.22, 0.14, 0.10, 0.075, 0.055, 0.04, 0.03, 0.022)
+        else (1.0, 0.44, 0.30, 0.21, 0.15, 0.11, 0.083, 0.062, 0.047, 0.035, 0.026, 0.020)
     )
+    texture_frequencies = [
+        reference_hz * harmonic
+        for harmonic in (6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 13.5, 15.5)
+    ]
+    texture_phases = [rng.random() * math.tau for _ in texture_frequencies]
     output: list[float] = []
     for index in range(COUNT):
         time = index / RATE
@@ -45,19 +50,25 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
             value += amplitude * rolloff * math.sin(
                 math.tau * reference_hz * harmonic * time + phases[harmonic - 1]
             )
-        # A 40 Hz intake pulse gives the 800 rpm idle body without a borrowed recording.
-        value += (0.15 if loaded else 0.07) * math.sin(math.tau * 40.0 * time + phases[0])
+        # Half-order intake/exhaust resonances keep the inline-six body audible
+        # without turning the loop into a smooth organ-like tone.
+        value += (0.17 if loaded else 0.09) * math.sin(
+            math.tau * reference_hz * 0.5 * time + phases[12]
+        )
+        value += (0.14 if loaded else 0.06) * math.sin(
+            math.tau * reference_hz * 1.5 * time + phases[13]
+        )
+        texture = sum(
+            math.sin(math.tau * frequency * time + phase)
+            for frequency, phase in zip(texture_frequencies, texture_phases)
+        ) / len(texture_frequencies)
         if loaded:
-            # Half-order exhaust resonances and stronger saturation add the
-            # coarse, pressurized edge of an S58 under boost without raising
-            # the fundamental back into the toy-like register.
-            value += 0.22 * math.sin(
-                math.tau * reference_hz * 1.5 * time + phases[3]
-            )
-            value += 0.10 * math.sin(
-                math.tau * reference_hz * 2.5 * time + phases[6]
-            )
-            value = math.tanh(value * 1.55)
+            # Asymmetric soft clipping and a restrained high-frequency exhaust
+            # texture make boost sound pressurized and mechanical, not bubbly.
+            value = math.tanh((value + 0.11 * texture) * 1.42)
+            value += 0.055 * texture
+        else:
+            value += 0.025 * texture
         output.append(value)
     return normalize(output, 0.115)
 

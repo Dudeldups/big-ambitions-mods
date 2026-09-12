@@ -43,9 +43,11 @@ public static class BMWM4G82Setup
     private const float VisualBodyOffsetY = -0.035f;
     private const float VehicleLinearDrag = 0.015f;
     private const float CaliperOutboardOffset = 0.045f;
-    private const float ForwardTireGrip = 0.50f;
-    private const float TireFrictionCircleStrength = 0.96f;
-    private const float AntiRollBarForce = 7200f;
+    private const float ForwardTireGrip = 0.54f;
+    private const float TireFrictionCircleStrength = 0.82f;
+    private const float AntiRollBarForce = 8400f;
+    private const float SteeringDegreesPerSecond = 95f;
+    private const float MaximumSteerAngle = 32f;
     private const float FrontSuspensionTravel = 0.07f;
     private const float RearSuspensionTravel = 0.07f;
     private const float SuspensionBumpRate = 15000f;
@@ -57,7 +59,7 @@ public static class BMWM4G82Setup
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 0.32f;
     private const float DamageDecelerationThreshold = 500f;
-    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.06f, -0.08f);
     private static readonly Vector3 SteeringAnchorPosition = new Vector3(-0.38f, 0.92f, 0.55f);
     private static readonly Vector3 DriverExitPosition = new Vector3(-2.05f, 0.20f, 0.15f);
     private static readonly Vector3 PassengerExitPosition = new Vector3(2.05f, 0.20f, 0.15f);
@@ -359,9 +361,10 @@ public static class BMWM4G82Setup
                                throw new InvalidOperationException("BMW body collider holder is missing.");
             var bodyColliders = bodyCollider.GetComponents<BoxCollider>();
             if (bodyColliders.Length != 2 ||
-                Vector3.Distance(bodyColliders[0].center, new Vector3(0f, 0.38f, 0f)) > 0.01f ||
-                Vector3.Distance(bodyColliders[0].size, new Vector3(1.68f, 0.40f, 4.36f)) > 0.01f ||
-                Vector3.Distance(bodyColliders[1].size, new Vector3(1.34f, 0.60f, 2.20f)) > 0.01f)
+                Vector3.Distance(bodyColliders[0].center, new Vector3(0f, 0.40f, 0f)) > 0.01f ||
+                Vector3.Distance(bodyColliders[0].size, new Vector3(1.82f, 0.44f, 4.62f)) > 0.01f ||
+                Vector3.Distance(bodyColliders[1].center, new Vector3(0f, 0.84f, -0.20f)) > 0.01f ||
+                Vector3.Distance(bodyColliders[1].size, new Vector3(1.50f, 0.62f, 2.55f)) > 0.01f)
                 throw new InvalidOperationException("BMW body colliders are incomplete.");
             if (FindTransform(prefab.transform, "BMWDamageBody") == null ||
                 FindTransform(prefab.transform, "BMW_DRL_Source") == null ||
@@ -452,7 +455,7 @@ public static class BMWM4G82Setup
         SetNumber(serialized, "maxCargoCapacity", 12f);
         SetNumber(serialized, "maxSpeed", 290f);
         SetNumber(serialized, "enginePower", 375f);
-        SetNumber(serialized, "brakeForce", 4200f);
+        SetNumber(serialized, "brakeForce", 15000f);
         SetNumber(serialized, "turnRadius", 25f);
         SetNumber(serialized, "damageIntensity", DamageIntensity);
         SetBool(serialized, "isATruck", false);
@@ -997,6 +1000,24 @@ public static class BMWM4G82Setup
                 SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2400f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7000f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
+                SetRelativeNumber(
+                    serialized,
+                    "steering.degreesPerSecondLimit",
+                    SteeringDegreesPerSecond);
+                SetRelativeNumber(
+                    serialized,
+                    "steering.maximumSteerAngle",
+                    MaximumSteerAngle);
+                var steeringSmoothing = FindRelativeProperty(
+                    serialized,
+                    "steering.speedSensitiveSmoothingCurve");
+                if (steeringSmoothing?.propertyType != SerializedPropertyType.AnimationCurve)
+                    throw new InvalidOperationException(
+                        "Reference speed-sensitive steering smoothing curve is missing.");
+                steeringSmoothing.animationCurveValue = new AnimationCurve(
+                    new Keyframe(0f, 0.10f),
+                    new Keyframe(0.30f, 0.17f),
+                    new Keyframe(1f, 0.22f));
 
                 var wheelGroups = FindRelativeProperty(serialized, "powertrain.wheelGroups");
                 if (wheelGroups == null || !wheelGroups.isArray || wheelGroups.arraySize != 2)

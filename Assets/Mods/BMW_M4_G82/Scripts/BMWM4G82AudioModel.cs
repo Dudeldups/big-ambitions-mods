@@ -11,11 +11,11 @@ internal static class BMWM4G82AudioModel
     internal const float EngineThrottleVolume = .43f;
     internal const float CrackleIdleVolume = .0065f;
     internal const float CrackleLoadVolume = .010f;
-    internal const float ShiftPopVolume = .27f;
+    internal const float ShiftPopVolume = .46f;
     // Retain part of the cleaner dry recording under acceleration. The load
     // variants alone emphasize a rounded, pulsing exhaust note too strongly.
     internal static float LoadBlend(float throttle) =>
-        .68f * Clamp01((throttle - .16f) / .76f);
+        .56f * Clamp01((throttle - .16f) / .76f);
     internal static float IdleVolume(float drivingBlend) => .32f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
@@ -32,7 +32,7 @@ internal static class BMWM4G82AudioModel
     // playback fundamentals in the lower inline-six register so load sounds
     // growling rather than like a small high-speed electric motor.
     internal static float TargetHz(float normalized) =>
-        (float)(60d * Math.Pow(245d / 60d, Clamp01(normalized)));
+        (float)(58d * Math.Pow(335d / 58d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

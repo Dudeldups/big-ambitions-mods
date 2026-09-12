@@ -30,9 +30,11 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 450f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
-    private const float ForwardTireGrip = 0.50f;
-    private const float TireFrictionCircleStrength = 0.96f;
-    private const float AntiRollBarForce = 7200f;
+    private const float ForwardTireGrip = 0.54f;
+    private const float TireFrictionCircleStrength = 0.82f;
+    private const float AntiRollBarForce = 8400f;
+    private const float SteeringDegreesPerSecond = 95f;
+    private const float MaximumSteerAngle = 32f;
     private const float FrontSuspensionTravel = 0.07f;
     private const float RearSuspensionTravel = 0.07f;
     private const float SuspensionBumpRate = 15000f;
@@ -48,7 +50,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 DriverExitPosition = new Vector3(-2.05f, 0.20f, 0.15f);
     private static readonly Vector3 PassengerExitPosition = new Vector3(2.05f, 0.20f, 0.15f);
-    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
+    private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.06f, -0.08f);
 
     private static readonly float[] M4Gears =
     {
@@ -899,6 +901,19 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             SetInt(transmission, "transmissionType", 1);
             SetFloatArray(transmission, "gears", M4Gears);
 
+            var steering = GetMember(component, "steering");
+            SetFloat(steering, "degreesPerSecondLimit", SteeringDegreesPerSecond);
+            SetFloat(steering, "maximumSteerAngle", MaximumSteerAngle);
+            SetValue(
+                steering,
+                "speedSensitiveSmoothingCurve",
+                typeof(AnimationCurve),
+                new AnimationCurve(
+                    new Keyframe(0f, 0.10f),
+                    new Keyframe(0.30f, 0.17f),
+                    new Keyframe(1f, 0.22f)));
+            SetMember(component, "steering", steering);
+
             if (GetMember(powertrain, "wheelGroups") is IList wheelGroups)
             {
                 foreach (var wheelGroup in wheelGroups)
@@ -1194,9 +1209,10 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
     private const float FrontDentLateralRadius = 1.08f;
     private const float FrontDentVerticalRadius = 0.94f;
     private const float FrontDentLongitudinalRadius = 1.22f;
-    private const float RecessedFrontTrimLateralRadius = 1.20f;
-    private const float RecessedFrontTrimVerticalRadius = 1.10f;
-    private const float RecessedFrontTrimLongitudinalRadius = 1.72f;
+    private const float RecessedFrontTrimLateralRadius = 1.30f;
+    private const float RecessedFrontTrimVerticalRadius = 1.15f;
+    private const float RecessedFrontTrimLongitudinalRadius = 3.00f;
+    private const float RecessedFrontTrimFalloffExponent = 0.85f;
     private const float MaximumFrontDentDepth = 0.13f;
     private const float FrontDepthPerExcessMps = 0.0038f;
     private const float RearDentLateralRadius = 1.08f;
@@ -1321,6 +1337,7 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
             var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
             var changedMeshes = 0;
             var changedVertices = 0;
+            var changedMeshNames = new List<string>();
             var frontImpact = false;
             var rearImpact = false;
 
@@ -1405,7 +1422,9 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                     var falloff = selectedEndImpact
                         ? Mathf.Pow(
                             strongestInfluence,
-                            selectedFrontImpact
+                            selectedFrontImpact && recessedFrontTrim
+                                ? RecessedFrontTrimFalloffExponent
+                                : selectedFrontImpact
                                 ? FrontEndFalloffExponent
                                 : RearEndFalloffExponent)
                         : strongestInfluence * strongestInfluence;
@@ -1435,6 +1454,7 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
                 changedMeshes++;
+                changedMeshNames.Add(filter.name);
             }
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
@@ -1448,6 +1468,7 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                     $"region={(frontImpact ? "front" : rearImpact ? "rear" : "side")} " +
                     $"depth={(frontImpact ? frontDentDepth : rearImpact ? rearDentDepth : dentDepth):0.000}m " +
                     $"meshes={changedMeshes} vertices={changedVertices} " +
+                    $"changed=[{string.Join(", ", changedMeshNames)}] " +
                     $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
                     $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
             }
