@@ -37,6 +37,12 @@ public static class Porsche911GT3RSSetup
     private const float FrontTireWidth = 0.275f;
     private const float RearTireWidth = 0.335f;
     private const float WheelInset = 0.085f;
+    private const float WheelCenterRideHeightOffset = 0.060f;
+    private const float VehicleLinearDrag = 0.035f;
+    private const float FrontForwardGrip = 0.90f;
+    private const float RearForwardGrip = 0.95f;
+    private const float FrontForwardStiffness = 1.27f;
+    private const float RearForwardStiffness = 1.35f;
     private const float TireFrictionCircleStrength = 1.02f;
     private const float AntiRollBarForce = 9000f;
     private const float FrontSuspensionTravel = 0.075f;
@@ -49,10 +55,10 @@ public static class Porsche911GT3RSSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f + WheelInset, FrontTireRadius, Wheelbase * 0.5f) },
-            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f - WheelInset, FrontTireRadius, Wheelbase * 0.5f) },
-            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f + WheelInset, RearTireRadius, -Wheelbase * 0.5f) },
-            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f - WheelInset, RearTireRadius, -Wheelbase * 0.5f) },
+            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f + WheelInset, FrontTireRadius + WheelCenterRideHeightOffset, Wheelbase * 0.5f) },
+            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f - WheelInset, FrontTireRadius + WheelCenterRideHeightOffset, Wheelbase * 0.5f) },
+            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f + WheelInset, RearTireRadius + WheelCenterRideHeightOffset, -Wheelbase * 0.5f) },
+            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f - WheelInset, RearTireRadius + WheelCenterRideHeightOffset, -Wheelbase * 0.5f) },
         };
     private static readonly Vector3 FrontContactColliderCenter =
         new Vector3(0f, 0.61f, 1.58f);
@@ -79,9 +85,11 @@ public static class Porsche911GT3RSSetup
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.14f),
-            new Keyframe(0.40f, 0.48f),
-            new Keyframe(0.67f, 0.80f),
+            new Keyframe(0.10f, 0.03f),
+            new Keyframe(0.23f, 0.12f),
+            new Keyframe(0.45f, 0.30f),
+            new Keyframe(0.67f, 0.60f),
+            new Keyframe(0.82f, 0.90f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 
@@ -113,8 +121,10 @@ public static class Porsche911GT3RSSetup
         var root = PrefabUtility.LoadPrefabContents(VehiclePrefabPath);
         try
         {
+            ConfigureRootPhysics(root);
             ConfigureWheelControllers(root);
             ConfigureBodyColliders(root);
+            ConfigurePowertrain(root);
             RepairTrueTireWheelVisuals(root);
             RepairStaticWheelVisuals(root);
             PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
@@ -294,7 +304,11 @@ public static class Porsche911GT3RSSetup
             var launchResponseVerified = false;
             var antiRollVerified = false;
             var massCenterVerified = false;
+            var rigidbody = prefab.GetComponent<Rigidbody>();
+            var linearDragVerified = rigidbody != null &&
+                                     Math.Abs(rigidbody.drag - VehicleLinearDrag) < 0.001f;
             var tireFrictionCount = 0;
+            var forwardGripCount = 0;
             var suspensionTravelCount = 0;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
             {
@@ -317,6 +331,24 @@ public static class Porsche911GT3RSSetup
                     Math.Abs(ReadNumber(friction) - TireFrictionCircleStrength) < 0.005f)
                 {
                     tireFrictionCount++;
+                }
+                var forwardFriction = componentSerialized.FindProperty("forwardFriction");
+                var forwardGrip = forwardFriction?.FindPropertyRelative("grip");
+                var forwardStiffness = forwardFriction?.FindPropertyRelative("stiffness");
+                var expectedForwardGrip = component.transform.name.StartsWith(
+                    "Front", StringComparison.Ordinal)
+                    ? FrontForwardGrip
+                    : RearForwardGrip;
+                var expectedForwardStiffness = component.transform.name.StartsWith(
+                    "Front", StringComparison.Ordinal)
+                    ? FrontForwardStiffness
+                    : RearForwardStiffness;
+                if (forwardGrip != null && forwardStiffness != null &&
+                    component.transform.name.EndsWith("_WheelController", StringComparison.Ordinal) &&
+                    Math.Abs(ReadNumber(forwardGrip) - expectedForwardGrip) < 0.005f &&
+                    Math.Abs(ReadNumber(forwardStiffness) - expectedForwardStiffness) < 0.005f)
+                {
+                    forwardGripCount++;
                 }
                 var springTravel = componentSerialized.FindProperty("spring")
                     ?.FindPropertyRelative("maxLength");
@@ -561,7 +593,8 @@ public static class Porsche911GT3RSSetup
                 !luxury ||
                 Math.Abs(bounds.size.z - TargetLength) > 0.02f ||
                 Math.Abs(bounds.size.x - TargetWidth) > 0.04f ||
-                Math.Abs(bounds.size.y - TargetHeight) > 0.02f ||
+                Math.Abs(bounds.size.y -
+                         (TargetHeight - WheelCenterRideHeightOffset)) > 0.02f ||
                 !bodySidesOriented ||
                 !bodyUpright ||
                 !frontFacesVehicleForward ||
@@ -581,8 +614,10 @@ public static class Porsche911GT3RSSetup
                 !transmissionVerified ||
                 !launchResponseVerified ||
                 !massCenterVerified ||
+                !linearDragVerified ||
                 !antiRollVerified ||
                 tireFrictionCount != 4 ||
+                forwardGripCount != 4 ||
                 suspensionTravelCount != 4 ||
                 opaqueMaterials.Count == 0 ||
                 decalSafeMaterials != opaqueMaterials.Count ||
@@ -616,8 +651,10 @@ public static class Porsche911GT3RSSetup
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
                     $"sevenSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
-                    $"massCenter={massCenterVerified}, antiRoll={antiRollVerified}, " +
+                    $"massCenter={massCenterVerified}, linearDrag={linearDragVerified}, " +
+                    $"antiRoll={antiRollVerified}, " +
                     $"tireFrictionCount={tireFrictionCount}, " +
+                    $"forwardGripCount={forwardGripCount}, " +
                     $"suspensionTravelCount={suspensionTravelCount}, " +
                     $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
@@ -797,7 +834,7 @@ public static class Porsche911GT3RSSetup
         var body = root.GetComponent<Rigidbody>() ??
                    throw new InvalidOperationException("Reference prefab has no Rigidbody.");
         body.mass = 1450f;
-        body.drag = 0f;
+        body.drag = VehicleLinearDrag;
         body.angularDrag = 1.45f;
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
@@ -845,6 +882,14 @@ public static class Porsche911GT3RSSetup
                 SetRelativeNumber(serialized, "spring.maxForce", 19000f);
                 SetRelativeNumber(serialized, "wheel.radius", isFront ? FrontTireRadius : RearTireRadius);
                 SetRelativeNumber(serialized, "wheel.width", isFront ? FrontTireWidth : RearTireWidth);
+                SetRelativeNumber(
+                    serialized,
+                    "forwardFriction.grip",
+                    isFront ? FrontForwardGrip : RearForwardGrip);
+                SetRelativeNumber(
+                    serialized,
+                    "forwardFriction.stiffness",
+                    isFront ? FrontForwardStiffness : RearForwardStiffness);
                 SetRelativeNumber(serialized, "frictionCircleStrength", TireFrictionCircleStrength);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }
@@ -910,6 +955,23 @@ public static class Porsche911GT3RSSetup
                 continue;
             }
             tires.Add(renderer.transform);
+        }
+        if (tires.Count == 0)
+        {
+            var attachedTireCount = 0;
+            foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (HasAncestorNameFragment(renderer.transform, "PorscheWheel") &&
+                    HasAncestorNameFragment(renderer.transform, "Geometry_PorscheTire_"))
+                {
+                    attachedTireCount++;
+                }
+            }
+
+            if (attachedTireCount != 4)
+                throw new InvalidOperationException(
+                    $"Expected four attached Porsche tires, found {attachedTireCount}.");
+            return;
         }
         if (tires.Count != 4)
             throw new InvalidOperationException(

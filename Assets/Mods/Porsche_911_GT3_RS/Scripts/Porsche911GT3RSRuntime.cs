@@ -37,6 +37,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float RearTireRadius = 0.36720f;
     private const float FrontTireWidth = 0.275f;
     private const float RearTireWidth = 0.335f;
+    private const float VehicleLinearDrag = 0.035f;
+    private const float FrontForwardGrip = 0.90f;
+    private const float RearForwardGrip = 0.95f;
+    private const float FrontForwardStiffness = 1.27f;
+    private const float RearForwardStiffness = 1.35f;
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
@@ -68,9 +73,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.14f),
-            new Keyframe(0.40f, 0.48f),
-            new Keyframe(0.67f, 0.80f),
+            new Keyframe(0.10f, 0.03f),
+            new Keyframe(0.23f, 0.12f),
+            new Keyframe(0.45f, 0.30f),
+            new Keyframe(0.67f, 0.60f),
+            new Keyframe(0.82f, 0.90f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 
@@ -575,7 +582,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             {
                 rigidbody.mass = VehicleMass;
                 rigidbody.centerOfMass = StableCenterOfMass;
-                rigidbody.drag = 0f;
+                rigidbody.drag = VehicleLinearDrag;
                 rigidbody.angularDrag = 1.45f;
                 rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
                 rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
@@ -682,6 +689,23 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 var wheel = GetMember(component, "wheel");
                 SetFloat(wheel, "radius", isFront ? FrontTireRadius : RearTireRadius);
                 SetFloat(wheel, "width", isFront ? FrontTireWidth : RearTireWidth);
+                var forwardFriction = GetMember(component, "forwardFriction");
+                if (forwardFriction != null)
+                {
+                    SetFloat(
+                        forwardFriction,
+                        "grip",
+                        isFront ? FrontForwardGrip : RearForwardGrip);
+                    SetFloat(
+                        forwardFriction,
+                        "stiffness",
+                        isFront ? FrontForwardStiffness : RearForwardStiffness);
+                    SetValue(
+                        component,
+                        "forwardFriction",
+                        forwardFriction.GetType(),
+                        forwardFriction);
+                }
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
             }
         }
@@ -857,6 +881,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                HasAncestor(filter.transform, "exhausttip_3_") ||
                HasAncestor(filter.transform, "bumperbar_F") ||
                HasAncestor(filter.transform, "bumperbar_R") ||
+               HasAncestor(filter.transform, "TwiXeR_992_radiator") ||
                HasAncestor(filter.transform, "headlight_") ||
                HasAncestor(filter.transform, "headlightglass_") ||
                HasAncestor(filter.transform, "mirror_") ||
