@@ -27609,7 +27609,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 2700
+    maxTorque: 2200
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.06
