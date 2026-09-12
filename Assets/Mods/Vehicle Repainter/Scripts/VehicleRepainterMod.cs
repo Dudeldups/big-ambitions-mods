@@ -707,6 +707,7 @@ namespace VehicleRepainter
 
         internal void RestorePersistenceState(string source, int pass)
         {
+            RepairInvalidVehicleRecords(source, pass);
             if (customVehicleColors.Count == 0)
                 return;
 
@@ -723,6 +724,32 @@ namespace VehicleRepainter
             TracePersistence(
                 $"Load restore pass={pass}, source='{source}', inspected={inspectedVehicleCount}, " +
                 $"restored={restoredVehicleCount}, privateDriverHooksInstalled={privateDriverPaintHooksInstalled}.");
+        }
+
+        private void RepairInvalidVehicleRecords(string source, int pass)
+        {
+            var gameInstance = SaveGameManager.Current;
+            if (gameInstance == null || gameInstance.VehicleInstances == null)
+                return;
+
+            var removedPlayerVehicleRecords = gameInstance.VehicleInstances.RemoveAll(vehicleInstance => vehicleInstance == null);
+            var removedPrivateDriverVehicleRecords = gameInstance.privateDriverVehicleInstances == null
+                ? 0
+                : gameInstance.privateDriverVehicleInstances.RemoveAll(vehicleInstance => vehicleInstance == null);
+            if (removedPlayerVehicleRecords == 0 && removedPrivateDriverVehicleRecords == 0)
+                return;
+
+            var clearedActiveVehicleId = !string.IsNullOrEmpty(gameInstance.ActiveVehicleId);
+            if (clearedActiveVehicleId)
+                gameInstance.ActiveVehicleId = string.Empty;
+
+            SaveGameManager.MarkChange();
+            context.Logger.Warn(
+                "Recovered invalid vehicle records from the loaded save; " +
+                $"source='{source}', pass={pass}, removedPlayerVehicleRecords={removedPlayerVehicleRecords}, " +
+                $"removedPrivateDriverVehicleRecords={removedPrivateDriverVehicleRecords}, " +
+                $"clearedActiveVehicleId={clearedActiveVehicleId}. " +
+                "Valid vehicles were preserved; save the game after confirming normal interactions.");
         }
 
         private int RestoreSavedCustomVehicleColors(string source)
