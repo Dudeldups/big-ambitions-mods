@@ -28,6 +28,7 @@ public static class BugattiChironSetup
     private const float TargetLength = 4.544f;
     private const float VehicleLinearDrag = 0f;
     private const float ForcedInductionPowerMultiplier = 1f;
+    private const float PhysicalBrakeTorque = 9500f;
     private const float DamageDecelerationThreshold = 500f;
     private const float DamageIntensity = 0.6f;
     private const float DeformationRadius = 0.48f;
@@ -476,7 +477,7 @@ public static class BugattiChironSetup
         SetNumber(serialized, "maxCargoCapacity", 4f);
         SetNumber(serialized, "maxSpeed", 420f);
         SetNumber(serialized, "enginePower", 1103f);
-        SetNumber(serialized, "brakeForce", 16000f);
+        SetNumber(serialized, "brakeForce", 30000f);
         SetNumber(serialized, "turnRadius", 30f);
         SetNumber(serialized, "damageIntensity", 0.45f);
         SetBool(serialized, "isATruck", false);
@@ -667,6 +668,7 @@ public static class BugattiChironSetup
                     StringComparison.Ordinal))
             {
                 found = true;
+                SetRelativeNumber(serialized, "brakes.maxTorque", PhysicalBrakeTorque);
                 SetRelativeNumber(serialized, "powertrain.clutch.engagementRPM", 1200f);
                 SetRelativeNumber(serialized, "powertrain.clutch.throttleEngagementOffsetRPM", 500f);
                 SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 500f);

@@ -13,12 +13,13 @@ using Vehicles.VehicleTypes;
 
 public sealed class BugattiChironRuntime : MonoBehaviour
 {
+    private const string VehicleRepainterColorRestoredEvent = "vehicle-repainter:color-restored";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1995f;
     private const float EnginePowerKw = 1103f;
-    private const float VehicleBrakeForce = 16000f;
+    private const float PhysicalBrakeTorque = 9500f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
@@ -167,8 +168,21 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         cachedPlayerVehicleCount = -1;
     }
 
-    private void HandleGameEvent(string _)
+    private void HandleGameEvent(string eventName)
     {
+        if (string.Equals(eventName, VehicleRepainterColorRestoredEvent, StringComparison.Ordinal))
+        {
+            var refreshedCount = RefreshExistingVehiclePaint();
+            if (refreshedCount > 0)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron: refreshed specialized paint for {refreshedCount} loaded vehicle(s) " +
+                    "after Vehicle Repainter restored saved colors.");
+            }
+
+            return;
+        }
+
         var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
         if (!IsTargetVehicle(selectedVehicle))
             return;
@@ -311,11 +325,12 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         }
     }
 
-    private void RefreshExistingVehiclePaint()
+    private int RefreshExistingVehiclePaint()
     {
+        var refreshedCount = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
         if (vehicles == null)
-            return;
+            return refreshedCount;
 
         foreach (var vehicle in vehicles)
         {
@@ -328,8 +343,15 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 continue;
             }
 
-            vehicle.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
+            var paintController = vehicle.GetComponent<BugattiChironPaintController>();
+            if (paintController == null)
+                continue;
+
+            paintController.RefreshCurrentColor();
+            refreshedCount++;
         }
+
+        return refreshedCount;
     }
 
     private void TryConfigureVehicle(VehicleController? vehicle)
@@ -349,8 +371,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         try
         {
-            SetFloat(vehicle.vehicleType, "brakeForce", VehicleBrakeForce);
-
             var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
             if (rigidbody != null)
             {
@@ -601,6 +621,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             }
 
             var powertrain = GetMember(component, "powertrain");
+            var brakes = GetMember(component, "brakes");
+            SetFloat(brakes, "maxTorque", PhysicalBrakeTorque);
             var clutch = GetMember(powertrain, "clutch");
             SetFloat(clutch, "engagementRPM", ClutchEngagementRpm);
             SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
