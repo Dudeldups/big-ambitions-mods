@@ -102,6 +102,11 @@ namespace VehicleRepainter
             UnsubscribeGlobalEvents();
         }
 
+        private void Update()
+        {
+            runtime?.TickInteractionDiagnostics();
+        }
+
         private void SubscribeGlobalEvents()
         {
             GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -187,16 +192,19 @@ namespace VehicleRepainter
         {
             private const string GlobalDebugMarker = "vehicle-repainter.debug";
             private const string ButtonDebugMarker = "button-diagnostics.debug";
+            private const string InteractionDebugMarker = "interaction-diagnostics.debug";
             private const string PersistenceDebugMarker = "color-persistence.debug";
 
             internal static bool EnableDebugLogging = false;
             internal static bool EnableButtonDiagnostics = false;
+            internal static bool EnableInteractionDiagnostics = false;
             internal static bool EnablePersistenceDiagnostics = false;
 
             internal static void Configure(string modId)
             {
                 EnableDebugLogging = false;
                 EnableButtonDiagnostics = false;
+                EnableInteractionDiagnostics = false;
                 EnablePersistenceDiagnostics = false;
                 if (string.IsNullOrWhiteSpace(modId) || !Directory.Exists(modId))
                     return;
@@ -204,6 +212,7 @@ namespace VehicleRepainter
                 var configDirectory = Path.Combine(modId, "Config");
                 EnableDebugLogging = File.Exists(Path.Combine(configDirectory, GlobalDebugMarker));
                 EnableButtonDiagnostics = File.Exists(Path.Combine(configDirectory, ButtonDebugMarker));
+                EnableInteractionDiagnostics = File.Exists(Path.Combine(configDirectory, InteractionDebugMarker));
                 EnablePersistenceDiagnostics = File.Exists(Path.Combine(configDirectory, PersistenceDebugMarker));
             }
         }
@@ -321,6 +330,7 @@ namespace VehicleRepainter
         private readonly HashSet<string> reportedPersistenceFailures = new HashSet<string>(StringComparer.Ordinal);
         private static VehicleRepainterRuntime? activeRuntime;
         private bool privateDriverPaintHooksInstalled;
+        private string? lastInteractionSnapshot;
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
@@ -377,6 +387,8 @@ namespace VehicleRepainter
             ObserveStationTriggers();
             activeRuntime = this;
             EnsurePrivateDriverPaintHooks();
+            lastInteractionSnapshot = null;
+            TraceInteraction($"Installed gas-station overlay extension source='{source}'.");
             TraceButton(
                 $"Installed gas-station overlay extension source='{source}'; previousOverlay='{originalGasStationOverlay?.GetType().FullName ?? "null"}', " +
                 $"observedTriggers={observedStationTriggers.Count}.");
@@ -384,6 +396,7 @@ namespace VehicleRepainter
 
         internal void Uninstall()
         {
+            TraceInteraction("Uninstalling the gas-station overlay extension.");
             if (activeRepaintAsset != null && PurchaseVehicleUI.IsPanelOpen)
                 InstanceBehavior<UIs>.Instance?.playerHUD?.purchaseVehicleUI?.Close();
 
@@ -672,6 +685,8 @@ namespace VehicleRepainter
 
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
             GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+            GlobalEvents.onExitVehicle -= HandleVehicleExited;
+            GlobalEvents.onExitVehicle += HandleVehicleExited;
             return true;
         }
 
@@ -754,6 +769,7 @@ namespace VehicleRepainter
 
         private void HandleVehicleEntered(VehicleController vehicle)
         {
+            TraceInteraction("Received global vehicle-enter event.", vehicle);
             RestoreSavedCustomVehicleColor(vehicle, "vehicle-entered");
         }
 
@@ -836,6 +852,7 @@ namespace VehicleRepainter
         private void ReleaseCustomVehicleColors()
         {
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+            GlobalEvents.onExitVehicle -= HandleVehicleExited;
             foreach (var color in ownedCustomVehicleColors)
             {
                 if (color != null)
@@ -845,6 +862,50 @@ namespace VehicleRepainter
             customVehicleColors.Clear();
             ownedCustomVehicleColors.Clear();
             reportedPersistenceFailures.Clear();
+            lastInteractionSnapshot = null;
+        }
+
+        internal void TickInteractionDiagnostics()
+        {
+            if (!DebugOptions.EnableDebugLogging || !DebugOptions.EnableInteractionDiagnostics)
+                return;
+
+            var snapshot = DescribeInteractionState();
+            if (string.Equals(snapshot, lastInteractionSnapshot, StringComparison.Ordinal))
+                return;
+
+            lastInteractionSnapshot = snapshot;
+            context.Logger.Info($"Vehicle Repainter interaction diagnostic: observed state change; {snapshot}");
+        }
+
+        private void HandleVehicleExited(VehicleController vehicle)
+        {
+            TraceInteraction("Received global vehicle-exit event.", vehicle);
+        }
+
+        private void TraceInteraction(string message, VehicleController? eventVehicle = null)
+        {
+            if (!DebugOptions.EnableDebugLogging || !DebugOptions.EnableInteractionDiagnostics)
+                return;
+
+            context.Logger.Info(
+                $"Vehicle Repainter interaction diagnostic: {message} " +
+                $"eventVehicle='{DescribeVehicle(eventVehicle)}'; {DescribeInteractionState()}");
+        }
+
+        private string DescribeInteractionState()
+        {
+            var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+            var activeOverlay = overlayUi?.gasStation;
+            var currentTrigger = activeOverlay == null ? null : GetCurrentStationTrigger(activeOverlay);
+            return $"selectedVehicle='{DescribeVehicle(selectedVehicle)}', " +
+                   $"usingVehicle={PlayerHelper.IsUsingVehicle}, " +
+                   $"insideMotorVehicle={VehicleHelper.IsInsideMotorVehicle()}, " +
+                   $"purchasePanelOpen={PurchaseVehicleUI.IsPanelOpen}, " +
+                   $"activeRepaintSession={activeRepaintAsset != null}, " +
+                   $"activeOverlay='{activeOverlay?.GetType().FullName ?? "null"}', " +
+                   $"repaintOverlayActive={ReferenceEquals(activeOverlay, extendedGasStationOverlay)}, " +
+                   $"overlayTrigger='{DescribeTrigger(currentTrigger)}'";
         }
 
         private sealed class ExtendedGasStationOverlay : GasStationOverlay, IOverlay
@@ -990,6 +1051,7 @@ namespace VehicleRepainter
                 GlobalEvents.onExitVehicle += HandleVehicleExited;
                 vehicle.SetFreeze(true);
                 movementLocked = true;
+                runtime.TraceInteraction("Started repaint session and froze the serviced vehicle.", vehicle);
             }
 
             internal void ApplyColorGridLayout(PurchaseVehicleUI purchaseUi)
@@ -1086,6 +1148,7 @@ namespace VehicleRepainter
                 if (closed)
                     return;
 
+                runtime.TraceInteraction("Closing repaint session.", vehicle);
                 closed = true;
                 stationTrigger.onExited -= HandleStationExited;
                 GlobalEvents.onExitVehicle -= HandleVehicleExited;
@@ -1105,6 +1168,7 @@ namespace VehicleRepainter
 
                 RestoreGasStationOverlayIfStillRelevant();
                 onClosed(this);
+                runtime.TraceInteraction("Closed repaint session and restored the vehicle/UI state.", vehicle);
             }
 
             public bool Purchase()
@@ -1172,6 +1236,7 @@ namespace VehicleRepainter
                 if (closed || !ReferenceEquals(exitedStation, stationTrigger))
                     return;
 
+                runtime.TraceInteraction("Serviced vehicle exited the repaint station; cancelling session.", vehicle);
                 CancelSession();
             }
 
@@ -1180,6 +1245,7 @@ namespace VehicleRepainter
                 if (closed || !ReferenceEquals(exitedVehicle, vehicle))
                     return;
 
+                runtime.TraceInteraction("Serviced vehicle emitted its exit event; cancelling repaint session.", vehicle);
                 CancelSession();
             }
 
