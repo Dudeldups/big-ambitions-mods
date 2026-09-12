@@ -2237,7 +2237,7 @@ MonoBehaviour:
   sideFriction:
     force: 0
     slip: 0
-    grip: 1.3
+    grip: 0.54
     stiffness: 1.27
     speed: 0
   forwardFriction:
@@ -26613,7 +26613,7 @@ MonoBehaviour:
   sideFriction:
     force: 0
     slip: 0
-    grip: 1.3
+    grip: 0.54
     stiffness: 1.27
     speed: 0
   forwardFriction:
@@ -35299,7 +35299,7 @@ MonoBehaviour:
   sideFriction:
     force: 0
     slip: 0
-    grip: 1.5
+    grip: 0.58
     stiffness: 1.7
     speed: 0
   forwardFriction:
@@ -39687,7 +39687,7 @@ MonoBehaviour:
   sideFriction:
     force: 0
     slip: 0
-    grip: 1.5
+    grip: 0.58
     stiffness: 1.7
     speed: 0
   forwardFriction:
@@ -41031,7 +41031,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 6500
+    maxTorque: 4000
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.1
@@ -41235,7 +41235,7 @@ MonoBehaviour:
           m_PersistentCalls:
             m_Calls: []
       idleRPM: 600
-      maxPower: 225
+      maxPower: 232
       engineLossPercent: 0.25
       onRevLimiter:
         m_PersistentCalls:

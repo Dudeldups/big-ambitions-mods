@@ -14,7 +14,7 @@ solver calibrations derived from the recorded acceleration and braking tests.
 | Curb mass | 2,738 kg / 6,036 lb tested vehicle |
 | Engine | 6.2 L naturally aspirated V8 |
 | Rated power | 313 kW / 420 hp at 5,600 rpm |
-| NWH road calibration | 225 kW effective power |
+| NWH road calibration | 232 kW effective power |
 | Torque | 623 Nm / 460 lb-ft at 4,100 rpm |
 | Idle / limiter calibration | 600 / 6,000 rpm |
 | Drivetrain | 4WD, represented in-game as 40:60 front/rear AWD |
