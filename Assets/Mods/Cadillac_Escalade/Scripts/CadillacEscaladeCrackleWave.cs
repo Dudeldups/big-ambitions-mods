@@ -36,7 +36,10 @@ internal static class CadillacEscaladeCrackleWave
                           (.46f * fundamental + .34f * secondHarmonic +
                            .12f * thirdHarmonic + .08f * filteredNoise);
             }
-            samples[index] = sample * .24f;
+            // The source is mixed below the main engine bed, so give the clip
+            // enough intrinsic level for its slow pulses to survive spatial
+            // attenuation without turning them into sharp exhaust cracks.
+            samples[index] = sample * .45f;
         }
 
         var clip = AudioClip.Create(

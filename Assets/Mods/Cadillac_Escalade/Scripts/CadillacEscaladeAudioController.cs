@@ -171,7 +171,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var lowPass = host.AddComponent<AudioLowPassFilter>();
         // Preserve enough of the second and third harmonics for the slow
         // exhaust pulses to remain audible on ordinary speakers.
-        lowPass.cutoffFrequency = 560f;
+        lowPass.cutoffFrequency = 680f;
         lowPass.lowpassResonanceQ = 1.05f;
     }
 
