@@ -21,7 +21,7 @@ MonoBehaviour:
   maxCargoCapacity: 4
   maxSpeed: 420
   enginePower: 1103
-  brakeForce: 30000
+  brakeForce: 16000
   turnRadius: 30
   damageIntensity: 0.45
   fitsHandTruck: 0

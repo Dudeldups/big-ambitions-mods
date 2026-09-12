@@ -476,7 +476,7 @@ public static class BugattiChironSetup
         SetNumber(serialized, "maxCargoCapacity", 4f);
         SetNumber(serialized, "maxSpeed", 420f);
         SetNumber(serialized, "enginePower", 1103f);
-        SetNumber(serialized, "brakeForce", 30000f);
+        SetNumber(serialized, "brakeForce", 16000f);
         SetNumber(serialized, "turnRadius", 30f);
         SetNumber(serialized, "damageIntensity", 0.45f);
         SetBool(serialized, "isATruck", false);

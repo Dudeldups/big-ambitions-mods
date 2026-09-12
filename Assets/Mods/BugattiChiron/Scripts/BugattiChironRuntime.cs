@@ -18,6 +18,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1995f;
     private const float EnginePowerKw = 1103f;
+    private const float VehicleBrakeForce = 16000f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
@@ -348,6 +349,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         try
         {
+            SetFloat(vehicle.vehicleType, "brakeForce", VehicleBrakeForce);
+
             var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
             if (rigidbody != null)
             {
