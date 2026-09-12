@@ -32,7 +32,7 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     rng = random.Random(seed)
     phases = [rng.random() * math.tau for _ in range(10)]
     amplitudes = (
-        (1.0, 0.48, 0.31, 0.21, 0.15, 0.11, 0.08, 0.06, 0.045, 0.035)
+        (1.0, 0.62, 0.46, 0.34, 0.25, 0.19, 0.14, 0.10, 0.075, 0.055)
         if loaded
         else (1.0, 0.36, 0.22, 0.14, 0.10, 0.075, 0.055, 0.04, 0.03, 0.022)
     )
@@ -48,7 +48,16 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
         # A 40 Hz intake pulse gives the 800 rpm idle body without a borrowed recording.
         value += (0.15 if loaded else 0.07) * math.sin(math.tau * 40.0 * time + phases[0])
         if loaded:
-            value = math.tanh(value * 1.18)
+            # Half-order exhaust resonances and stronger saturation add the
+            # coarse, pressurized edge of an S58 under boost without raising
+            # the fundamental back into the toy-like register.
+            value += 0.22 * math.sin(
+                math.tau * reference_hz * 1.5 * time + phases[3]
+            )
+            value += 0.10 * math.sin(
+                math.tau * reference_hz * 2.5 * time + phases[6]
+            )
+            value = math.tanh(value * 1.55)
         output.append(value)
     return normalize(output, 0.115)
 
