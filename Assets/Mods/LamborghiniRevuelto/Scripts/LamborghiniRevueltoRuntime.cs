@@ -72,6 +72,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private bool dealerReady;
+    private bool privateDriverPoolReady;
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
     private bool privateDriverPreparationExceptionLogged;
@@ -111,6 +112,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
@@ -189,6 +191,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
@@ -288,8 +291,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            if (!privateDriverReady && playerVehiclePrefab != null)
-                TryPreparePrivateDriverPool(source);
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
 
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
             {
@@ -306,6 +309,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
             var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
                                 (!privateDriverRegistrationAllowed || privateDriverReady);
             if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
@@ -364,8 +368,9 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         try
         {
-            if (!TryPreparePrivateDriverPool(source))
+            if (!privateDriverPoolReady && !TryPreparePrivateDriverPool(source))
                 return false;
+            privateDriverPoolReady = true;
 
             privateDriverReady = LamborghiniRevueltoPrivateDriverSupport.EnsureVehicleAvailable(
                 vehicleTypeName,
