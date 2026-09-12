@@ -13,6 +13,7 @@ public static class CadillacEscaladeSetup
     private const string ReferenceAssetPath = "Assets/Mods/AudiRS6R/AudiRS6R.asset";
     private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath = ModRoot + "/Models/cadillac_escalade.glb";
+    private const string LightOverlayModelPath = ModRoot + "/Models/CadillacLightOverlays.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
     private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
     private const string FrontDamageBodyMeshPath =
@@ -57,6 +58,36 @@ public static class CadillacEscaladeSetup
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
     private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.78f, -0.22f);
     private static readonly Vector3 UpperColliderSize = new Vector3(1.72f, 0.74f, 3.42f);
+
+    private const string FrontDrlAnchor =
+        "E:common_etches_light_etchings_common_001_common_etches_light_etchings_common_001_alpha_badges_002_E:alpha_badges_002_0";
+    private const string FrontIndicatorAnchor =
+        "E:common_headlights_etched_headlights_etched_common_001_common_headlights_etched_headlights_etched_common_001_front_lamps_etched_0_E:alpha_badges_002_0";
+    private const string HeadlampAnchor =
+        "E:common_high_beams_high_beam_common_001_common_high_beams_high_beam_common_001_lights_001_E:alpha_badges_002_0";
+    private const string ReverseLightAnchor =
+        "E:swb_bright_chrome_bright_chrome_swb_swb_bright_chrome_bright_chrome_swb_Chrome_Bright_003_SILVER_CHROME_0";
+    private const string ThirdBrakeLightAnchor =
+        "E:swb_chml_red_chml_red_swb_swb_chml_red_chml_red_swb_Glass_Red_Tint_E:Glass_Red_Tint_002_0";
+    private const string RearLightAnchor =
+        "E:swb_rear_etchings_rear_etchings_swb_swb_rear_etchings_rear_etchings_swb_light_etchings_E:alpha_badges_002_0";
+
+    private static readonly string[] LightOverlayReferenceNames =
+    {
+        "CadillacEscalade_Light_DRL_FL",
+        "CadillacEscalade_Light_DRL_FR",
+        "CadillacEscalade_Light_BumperIndicator_FL",
+        "CadillacEscalade_Light_BumperIndicator_FR",
+        "CadillacEscalade_Light_FrontIndicator_FL",
+        "CadillacEscalade_Light_FrontIndicator_FR",
+        "CadillacEscalade_Light_Headlamps",
+        "CadillacEscalade_Light_TailLights",
+        "CadillacEscalade_Light_BrakeLights",
+        "CadillacEscalade_Light_ThirdBrakeLight",
+        "CadillacEscalade_Light_ReverseLights",
+        "CadillacEscalade_Light_RearIndicator_RL",
+        "CadillacEscalade_Light_RearIndicator_RR",
+    };
 
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
@@ -169,6 +200,7 @@ public static class CadillacEscaladeSetup
             var bodyPaintSlots = 0;
             var caliperSlots = 0;
             var centeredPaintBodyMeshes = 0;
+            var lightOverlayReferences = 0;
             foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (string.Equals(transform.name, "CadillacWheelFrontLeft", StringComparison.Ordinal) ||
@@ -207,9 +239,26 @@ public static class CadillacEscaladeSetup
                     if (bodyMesh != null)
                         centeredPaintBodyMeshes++;
                 }
+                if (transform.name.StartsWith("CadillacEscalade_Light_", StringComparison.Ordinal))
+                {
+                    var mesh = transform.GetComponent<MeshFilter>()?.sharedMesh;
+                    var renderer = transform.GetComponent<MeshRenderer>();
+                    if (mesh != null && renderer != null && !renderer.enabled &&
+                        Vector3.Distance(transform.localPosition, Vector3.zero) < 0.0001f &&
+                        Quaternion.Angle(transform.localRotation, Quaternion.identity) < 0.01f &&
+                        Vector3.Distance(transform.localScale, Vector3.one) < 0.0001f)
+                    {
+                        lightOverlayReferences++;
+                    }
+                }
             }
             if (centeredPaintBodyMeshes != 2)
                 issues.Add($"centeredPaintBodyMeshes={centeredPaintBodyMeshes}");
+            if (lightOverlayReferences != LightOverlayReferenceNames.Length)
+                issues.Add($"lightOverlayReferences={lightOverlayReferences}");
+            foreach (var overlayName in LightOverlayReferenceNames)
+                if (FindTransform(prefab.transform, overlayName) == null)
+                    issues.Add($"missingLightOverlay={overlayName}");
 
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
@@ -389,6 +438,7 @@ public static class CadillacEscaladeSetup
                 $"straightTires={straightTireMeshes}, fixedCalipers={fixedCalipers}, " +
                 $"glassRenderers={glassRenderers}, " +
                 $"bodyPaintSlots={bodyPaintSlots}, caliperSlots={caliperSlots}, " +
+                $"lightOverlays={lightOverlayReferences}, " +
                 "transmission=10-speed-automatic, drivetrain=40:60-AWD.");
         }
         finally
@@ -475,6 +525,7 @@ public static class CadillacEscaladeSetup
             NormalizeModel(modelInstance);
             ConfigureExitMarkers(root, modelInstance);
             AssignPersistentMaterials(modelInstance);
+            var lightOverlaysConfigured = CreateLightOverlayReferences(root, modelInstance);
             AttachWheelVisuals(root, modelInstance);
             var damageBodies = CreateDeformableBodies(root, modelInstance);
             ConfigureVehicleDeformation(root, damageBodies);
@@ -492,6 +543,7 @@ public static class CadillacEscaladeSetup
                 $"cabinGlass={fix.CabinGlassRenderers}/" +
                 $"reenabled={fix.CabinGlassRenderersReenabled}, " +
                 $"rimMaterialsConfigured={rimMaterialsConfigured}, " +
+                $"lightOverlaysConfigured={lightOverlaysConfigured}, " +
                 $"hdrpValidated={fix.MaterialsValidated}.");
 
             var result = PrefabUtility.SaveAsPrefabAsset(root, VehiclePrefabPath);
@@ -543,6 +595,116 @@ public static class CadillacEscaladeSetup
     {
         foreach (var light in model.GetComponentsInChildren<Light>(true))
             UnityEngine.Object.DestroyImmediate(light.gameObject);
+    }
+
+    private static int CreateLightOverlayReferences(GameObject vehicleRoot, GameObject model)
+    {
+        var overlayModel = AssetDatabase.LoadAssetAtPath<GameObject>(LightOverlayModelPath);
+        if (overlayModel == null)
+            throw new InvalidOperationException(
+                $"Cadillac light overlay GLB did not import at '{LightOverlayModelPath}'.");
+
+        var frontDrlAnchor = FindTransform(model.transform, FrontDrlAnchor) ??
+                             throw new InvalidOperationException(
+                                 $"Cadillac light anchor '{FrontDrlAnchor}' is missing.");
+        var frontIndicatorAnchor = FindTransform(model.transform, FrontIndicatorAnchor) ??
+                                   throw new InvalidOperationException(
+                                       $"Cadillac light anchor '{FrontIndicatorAnchor}' is missing.");
+        var headlampAnchor = FindTransform(model.transform, HeadlampAnchor) ??
+                             throw new InvalidOperationException(
+                                 $"Cadillac light anchor '{HeadlampAnchor}' is missing.");
+        var reverseAnchor = FindTransform(model.transform, ReverseLightAnchor) ??
+                            throw new InvalidOperationException(
+                                $"Cadillac light anchor '{ReverseLightAnchor}' is missing.");
+        var thirdBrakeAnchor = FindTransform(model.transform, ThirdBrakeLightAnchor) ??
+                               throw new InvalidOperationException(
+                                   $"Cadillac light anchor '{ThirdBrakeLightAnchor}' is missing.");
+        var rearAnchor = FindTransform(model.transform, RearLightAnchor) ??
+                         throw new InvalidOperationException(
+                             $"Cadillac light anchor '{RearLightAnchor}' is missing.");
+
+        var drlLeft = FindLightOverlayMesh(overlayModel, "VehicleLightRef_DRL_Indicator_FL");
+        var drlRight = FindLightOverlayMesh(overlayModel, "VehicleLightRef_DRL_Indicator_FR");
+        var frontIndicatorLeft = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Indicator_FL");
+        var frontIndicatorRight = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Indicator_FR");
+        var headlamps = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Front_lights");
+        var reverse = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Reverse_light");
+        var thirdBrake = FindLightOverlayMesh(overlayModel, "VehicleLightRef_3rd_brake_light");
+        var brakeLights = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Brake_lights");
+        var rearIndicatorLeft = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Indicator_RL");
+        var rearIndicatorRight = FindLightOverlayMesh(overlayModel, "VehicleLightRef_Indicator_RR");
+
+        var references = new List<Transform>
+        {
+            CreateLightOverlayReference(frontDrlAnchor, drlLeft, LightOverlayReferenceNames[0]),
+            CreateLightOverlayReference(frontDrlAnchor, drlRight, LightOverlayReferenceNames[1]),
+            CreateLightOverlayReference(frontDrlAnchor, drlLeft, LightOverlayReferenceNames[2]),
+            CreateLightOverlayReference(frontDrlAnchor, drlRight, LightOverlayReferenceNames[3]),
+            CreateLightOverlayReference(frontIndicatorAnchor, frontIndicatorLeft, LightOverlayReferenceNames[4]),
+            CreateLightOverlayReference(frontIndicatorAnchor, frontIndicatorRight, LightOverlayReferenceNames[5]),
+            CreateLightOverlayReference(headlampAnchor, headlamps, LightOverlayReferenceNames[6]),
+            CreateLightOverlayReference(rearAnchor, brakeLights, LightOverlayReferenceNames[7]),
+            CreateLightOverlayReference(rearAnchor, brakeLights, LightOverlayReferenceNames[8]),
+            CreateLightOverlayReference(thirdBrakeAnchor, thirdBrake, LightOverlayReferenceNames[9]),
+            CreateLightOverlayReference(reverseAnchor, reverse, LightOverlayReferenceNames[10]),
+            CreateLightOverlayReference(rearAnchor, rearIndicatorLeft, LightOverlayReferenceNames[11]),
+            CreateLightOverlayReference(rearAnchor, rearIndicatorRight, LightOverlayReferenceNames[12]),
+        };
+
+        for (var index = 0; index < references.Count; index++)
+        {
+            var expectedFront = index <= 6;
+            var center = vehicleRoot.transform.InverseTransformPoint(
+                references[index].TransformPoint(
+                    references[index].GetComponent<MeshFilter>().sharedMesh.bounds.center));
+            if ((expectedFront && center.z < 1.5f) || (!expectedFront && center.z > -1.5f))
+            {
+                throw new InvalidOperationException(
+                    $"Cadillac light overlay '{references[index].name}' is outside its expected " +
+                    $"{(expectedFront ? "front" : "rear")} region at {center}.");
+            }
+        }
+
+        return references.Count;
+    }
+
+    private static Mesh FindLightOverlayMesh(GameObject overlayModel, string name)
+    {
+        foreach (var filter in overlayModel.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter.sharedMesh != null &&
+                (string.Equals(filter.name, name, StringComparison.Ordinal) ||
+                 string.Equals(filter.sharedMesh.name, name, StringComparison.Ordinal)))
+            {
+                return filter.sharedMesh;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Cadillac light overlay mesh '{name}' is missing from '{LightOverlayModelPath}'.");
+    }
+
+    private static Transform CreateLightOverlayReference(Transform anchor, Mesh mesh, string name)
+    {
+        var existing = anchor.Find(name);
+        if (existing != null)
+            UnityEngine.Object.DestroyImmediate(existing.gameObject);
+
+        var host = new GameObject(name);
+        host.transform.SetParent(anchor, false);
+        host.transform.localPosition = Vector3.zero;
+        host.transform.localRotation = Quaternion.identity;
+        host.transform.localScale = Vector3.one;
+        host.layer = anchor.gameObject.layer;
+        host.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var renderer = host.AddComponent<MeshRenderer>();
+        var sourceRenderer = anchor.GetComponent<MeshRenderer>();
+        if (sourceRenderer != null)
+            renderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.enabled = false;
+        return host.transform;
     }
 
     private static void ConfigureRootPhysics(GameObject root)

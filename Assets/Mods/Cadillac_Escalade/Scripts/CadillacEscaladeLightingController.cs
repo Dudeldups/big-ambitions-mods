@@ -8,21 +8,31 @@ using UnityEngine.Rendering;
 
 internal sealed class CadillacEscaladeLightingController : MonoBehaviour
 {
-    private const string DaylightName = "running_headlight";
-    private const string HeadlampName = "high_beams";
-    private const string HeadlampEtchingName = "headlights_etched";
-    private const string SecondaryHeadlampName = "running_facia_lamps";
-    private const string RearStripName = "tail_lamp_long";
-    private const string ThirdBrakeLightName = "chml_glass";
-    private const string FrontBlinkerName = "amber_lights";
-    private const string RearBlinkerName = "rear_turn_signals";
+    private const string DrlLeftName = "CadillacEscalade_Light_DRL_FL";
+    private const string DrlRightName = "CadillacEscalade_Light_DRL_FR";
+    private const string BumperIndicatorLeftName =
+        "CadillacEscalade_Light_BumperIndicator_FL";
+    private const string BumperIndicatorRightName =
+        "CadillacEscalade_Light_BumperIndicator_FR";
+    private const string FrontIndicatorLeftName =
+        "CadillacEscalade_Light_FrontIndicator_FL";
+    private const string FrontIndicatorRightName =
+        "CadillacEscalade_Light_FrontIndicator_FR";
+    private const string HeadlampsName = "CadillacEscalade_Light_Headlamps";
+    private const string TailLightsName = "CadillacEscalade_Light_TailLights";
+    private const string BrakeLightsName = "CadillacEscalade_Light_BrakeLights";
+    private const string ThirdBrakeLightName = "CadillacEscalade_Light_ThirdBrakeLight";
+    private const string ReverseLightsName = "CadillacEscalade_Light_ReverseLights";
+    private const string RearIndicatorLeftName =
+        "CadillacEscalade_Light_RearIndicator_RL";
+    private const string RearIndicatorRightName =
+        "CadillacEscalade_Light_RearIndicator_RR";
     private const float BlinkerHalfPeriod = 0.42f;
     private static readonly BindingFlags InstanceMembers =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
     private readonly List<GameObject> generatedObjects = new List<GameObject>();
     private readonly List<Material> generatedMaterials = new List<Material>();
-    private readonly List<Mesh> generatedMeshes = new List<Mesh>();
     private VehicleController? vehicle;
     private ModContext? context;
     private object? brakes;
@@ -31,19 +41,17 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     private Light? templateBeam;
     private Light? leftBeam;
     private Light? rightBeam;
-    private MeshRenderer? daylightOverlay;
+    private MeshRenderer? leftDrlOverlay;
+    private MeshRenderer? rightDrlOverlay;
     private MeshRenderer? headlampOverlay;
-    private MeshRenderer? outerHeadlampOverlay;
-    private MeshRenderer? secondaryHeadlampOverlay;
     private MeshRenderer? rearTailOverlay;
-    private MeshRenderer? rearOuterTailOverlay;
     private MeshRenderer? rearBrakeOverlay;
     private MeshRenderer? thirdBrakeOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
     private MeshRenderer? rightBlinkerOverlay;
-    private MeshRenderer? leftFenderBlinkerOverlay;
-    private MeshRenderer? rightFenderBlinkerOverlay;
+    private MeshRenderer? leftBumperBlinkerOverlay;
+    private MeshRenderer? rightBumperBlinkerOverlay;
     private MeshRenderer? rearLeftBlinkerOverlay;
     private MeshRenderer? rearRightBlinkerOverlay;
     private bool initialized;
@@ -61,81 +69,34 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         LocateStateSources();
 
         var renderers = controller.GetComponentsInChildren<MeshRenderer>(true);
-        var daylight = FindRenderer(renderers, DaylightName);
-        var headlamp = FindRenderer(renderers, HeadlampName);
-        var headlampEtching = FindRenderer(renderers, HeadlampEtchingName);
-        var secondaryHeadlamp = FindRenderer(renderers, SecondaryHeadlampName);
-        var rearStrip = FindRenderer(renderers, RearStripName);
-        var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
-        var frontBlinkers = FindRenderer(renderers, FrontBlinkerName);
-        var rearBlinkers = FindRenderer(renderers, RearBlinkerName);
-
-        daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
-            new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
-        headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
-            new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
-        outerHeadlampOverlay = CreateFilteredOverlay(
-            headlampEtching,
-            p => Mathf.Abs(p.x) >= 0.80f && p.y >= 1.285f,
-            "OuterHeadlampSegment",
-            new Color(0.90f, 0.95f, 1f, 1f),
-            6.1f,
-            1.008f);
-        secondaryHeadlampOverlay = CreateOverlay(secondaryHeadlamp, "HeadlampSecondary",
-            new Color(0.84f, 0.92f, 1f, 1f), 5.8f);
-        rearTailOverlay = CreateFilteredOverlay(
-            rearStrip,
-            p => p.y > 1.10f,
-            "RearTailSignature",
-            new Color(0.78f, 0.006f, 0.002f, 1f),
-            2.8f,
-            1.006f);
-        rearOuterTailOverlay = CreateOverlay(rearBlinkers, "RearOuterTailSignature",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f, 1.006f);
-        rearBrakeOverlay = CreateFilteredOverlay(
-            rearStrip,
-            p => p.y > 1.10f,
-            "RearBrakeSignature",
-            new Color(1f, 0.008f, 0.001f, 1f),
-            4.4f,
-            1.010f);
-        thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
-            new Color(1f, 0.008f, 0.001f, 1f), 5.4f, 1.012f);
-        reverseOverlay = CreateFilteredOverlay(
-            rearStrip,
-            p => Mathf.Abs(p.x) >= 0.62f && p.y <= 1.10f,
-            "ReverseLight",
-            new Color(0.92f, 0.96f, 1f, 1f),
-            4.8f,
-            1.014f);
-        var amber = new Color(1f, 0.52f, 0.02f, 1f);
-        // Keep the amber signal on the lower edge of the main headlamp instead
-        // of recoloring the two white projector/running-light elements.
-        leftBlinkerOverlay = CreateFilteredOverlay(headlampEtching,
-            p => p.x <= -0.60f && p.y <= 1.285f,
-            "LeftHeadlampIndicator", amber, 6.4f, 1.012f);
-        rightBlinkerOverlay = CreateFilteredOverlay(headlampEtching,
-            p => p.x >= 0.60f && p.y <= 1.285f,
-            "RightHeadlampIndicator", amber, 6.4f, 1.012f);
-        leftFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x <= -0.10f,
-            "LeftFenderIndicator", amber, 5.4f, 1.008f);
-        rightFenderBlinkerOverlay = CreateFilteredOverlay(frontBlinkers, p => p.x >= 0.10f,
-            "RightFenderIndicator", amber, 5.4f, 1.008f);
-        rearLeftBlinkerOverlay = CreateFilteredOverlay(rearBlinkers,
-            p => p.x <= -0.10f,
-            "RearLeftIndicator", amber, 7.2f, 1.018f);
-        rearRightBlinkerOverlay = CreateFilteredOverlay(rearBlinkers,
-            p => p.x >= 0.10f,
-            "RearRightIndicator", amber, 7.2f, 1.018f);
+        var white = new Color(0.86f, 0.93f, 1f, 1f);
+        var red = new Color(1f, 0.006f, 0.001f, 1f);
+        var amber = new Color(1f, 0.42f, 0.005f, 1f);
+        leftDrlOverlay = PrepareOverlay(renderers, DrlLeftName, white, 4.8f);
+        rightDrlOverlay = PrepareOverlay(renderers, DrlRightName, white, 4.8f);
+        leftBumperBlinkerOverlay =
+            PrepareOverlay(renderers, BumperIndicatorLeftName, amber, 6.2f);
+        rightBumperBlinkerOverlay =
+            PrepareOverlay(renderers, BumperIndicatorRightName, amber, 6.2f);
+        leftBlinkerOverlay = PrepareOverlay(renderers, FrontIndicatorLeftName, amber, 6.2f);
+        rightBlinkerOverlay = PrepareOverlay(renderers, FrontIndicatorRightName, amber, 6.2f);
+        headlampOverlay = PrepareOverlay(renderers, HeadlampsName, white, 6.2f);
+        rearTailOverlay = PrepareOverlay(renderers, TailLightsName,
+            new Color(0.72f, 0.002f, 0.001f, 1f), 2.2f);
+        rearBrakeOverlay = PrepareOverlay(renderers, BrakeLightsName, red, 4.8f);
+        thirdBrakeOverlay = PrepareOverlay(renderers, ThirdBrakeLightName, red, 5.2f);
+        reverseOverlay = PrepareOverlay(renderers, ReverseLightsName, white, 4.8f);
+        rearLeftBlinkerOverlay =
+            PrepareOverlay(renderers, RearIndicatorLeftName, amber, 6.5f);
+        rearRightBlinkerOverlay =
+            PrepareOverlay(renderers, RearIndicatorRightName, amber, 6.5f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
-        LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
-                $"rear='{rearStrip?.name}' thirdBrake='{thirdBrake?.name}' " +
-                $"reverse='{rearStrip?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/9 blinkerOverlays={CountBlinkerOverlays()}/6.");
-        if (CountLampOverlays() != 9 || beamCount != 2 || CountBlinkerOverlays() != 6)
-            LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
+        LogInfo($"initialized labeled lamp overlays={CountLampOverlays()}/7 " +
+                $"indicator overlays={CountBlinkerOverlays()}/6 beams={beamCount}/2.");
+        if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 6)
+            LogWarning("labeled lighting setup is incomplete; inspect overlay asset binding.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
         ApplyState();
@@ -221,84 +182,23 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         return light;
     }
 
-    private MeshRenderer? CreateOverlay(MeshRenderer? source, string suffix, Color color,
-        float intensity, float scale = 1.002f)
+    private MeshRenderer? PrepareOverlay(
+        IEnumerable<MeshRenderer> renderers,
+        string name,
+        Color color,
+        float intensity)
     {
-        if (source == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
+        var renderer = FindRenderer(renderers, name);
+        if (renderer?.GetComponent<MeshFilter>()?.sharedMesh == null)
         {
-            LogWarning($"overlay '{suffix}' source is missing.");
+            LogWarning($"labeled overlay '{name}' is missing or has no mesh.");
             return null;
         }
-        return CreateOverlayObject(source, source.GetComponent<MeshFilter>().sharedMesh,
-            suffix, color, intensity, scale);
-    }
 
-    private MeshRenderer? CreateFilteredOverlay(MeshRenderer? source,
-        Func<Vector3, bool> includeTriangleCenter, string suffix, Color color,
-        float intensity, float scale)
-    {
-        if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
-        {
-            LogWarning($"filtered overlay '{suffix}' source is missing.");
-            return null;
-        }
-        var sourceMesh = source.GetComponent<MeshFilter>().sharedMesh;
-        var vertices = sourceMesh.vertices;
-        var triangles = new List<int>();
-        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
-        {
-            var sourceTriangles = sourceMesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
-            {
-                var a = sourceTriangles[index];
-                var b = sourceTriangles[index + 1];
-                var c = sourceTriangles[index + 2];
-                var center = vehicle.transform.InverseTransformPoint(source.transform.TransformPoint(
-                    (vertices[a] + vertices[b] + vertices[c]) / 3f));
-                if (!includeTriangleCenter(center))
-                    continue;
-                triangles.Add(a);
-                triangles.Add(b);
-                triangles.Add(c);
-            }
-        }
-        if (triangles.Count == 0)
-        {
-            LogWarning($"filtered overlay '{suffix}' selected no triangles.");
-            return null;
-        }
-        var mesh = new Mesh
-        {
-            name = sourceMesh.name + "_" + suffix,
-            indexFormat = sourceMesh.indexFormat,
-            vertices = vertices,
-            normals = sourceMesh.normals,
-            tangents = sourceMesh.tangents,
-            colors32 = sourceMesh.colors32,
-            uv = sourceMesh.uv,
-            uv2 = sourceMesh.uv2
-        };
-        mesh.SetTriangles(triangles, 0, true);
-        mesh.RecalculateBounds();
-        generatedMeshes.Add(mesh);
-        return CreateOverlayObject(source, mesh, suffix, color, intensity, scale);
-    }
-
-    private MeshRenderer CreateOverlayObject(MeshRenderer source, Mesh mesh, string suffix,
-        Color color, float intensity, float scale)
-    {
-        var host = new GameObject("CadillacEscalade_" + suffix);
-        host.transform.SetParent(source.transform, false);
-        host.transform.localScale = Vector3.one * scale;
-        host.layer = source.gameObject.layer;
-        host.AddComponent<MeshFilter>().sharedMesh = mesh;
-        var renderer = host.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = CreateUnlitMaterial(host.name + " Material", color, intensity);
-        renderer.renderingLayerMask = source.renderingLayerMask;
+        renderer.sharedMaterial = CreateUnlitMaterial(name + " Material", color, intensity);
         renderer.shadowCastingMode = ShadowCastingMode.Off;
         renderer.receiveShadows = false;
         renderer.enabled = false;
-        generatedObjects.Add(host);
         return renderer;
     }
 
@@ -317,11 +217,19 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
         SetColor(material, "baseColorFactor", hdrColor);
         SetColor(material, "_EmissiveColor", hdrColor);
         SetColor(material, "_EmissionColor", hdrColor);
-        SetFloat(material, "_SurfaceType", 0f);
-        SetFloat(material, "_ZWrite", 1f);
+        SetFloat(material, "_SurfaceType", 1f);
+        SetFloat(material, "_BlendMode", 0f);
+        SetFloat(material, "_SrcBlend", 1f);
+        SetFloat(material, "_DstBlend", 10f);
+        SetFloat(material, "_ZWrite", 0f);
+        SetFloat(material, "_ZTestMode", 4f);
+        SetFloat(material, "_ZTestGBuffer", 4f);
         SetFloat(material, "_Cull", 0f);
+        SetFloat(material, "_CullMode", 0f);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.EnableKeyword("_BLENDMODE_ALPHA");
         material.EnableKeyword("_EMISSION");
-        material.renderQueue = 2450;
+        material.renderQueue = 3000;
         generatedMaterials.Add(material);
         return material;
     }
@@ -342,22 +250,20 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = blinking;
 
-        // The two authored running-light signatures are daytime lamps and must
-        // remain visible whenever this is the controlled vehicle. Projectors
-        // and road beams still follow the game's automatic-light state.
-        SetEnabled(daylightOverlay, controlled);
+        // The bumper signatures share physical geometry with the indicators.
+        // Suppress the corresponding white DRL for the entire time its signal
+        // is selected, including the dark half of the amber blink cycle.
+        SetEnabled(leftDrlOverlay, controlled && !leftBlinker);
+        SetEnabled(rightDrlOverlay, controlled && !rightBlinker);
         SetEnabled(headlampOverlay, lightsOn);
-        SetEnabled(outerHeadlampOverlay, lightsOn);
-        SetEnabled(secondaryHeadlampOverlay, controlled);
         SetEnabled(rearTailOverlay, lightsOn && !braking);
-        SetEnabled(rearOuterTailOverlay, lightsOn);
         SetEnabled(rearBrakeOverlay, braking);
         SetEnabled(thirdBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
-        SetEnabled(leftFenderBlinkerOverlay, leftBlinker && flash);
-        SetEnabled(rightFenderBlinkerOverlay, rightBlinker && flash);
+        SetEnabled(leftBumperBlinkerOverlay, leftBlinker && flash);
+        SetEnabled(rightBumperBlinkerOverlay, rightBlinker && flash);
         SetEnabled(rearLeftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rearRightBlinkerOverlay, rightBlinker && flash);
         SetEnabled(leftBeam, lightsOn);
@@ -375,24 +281,22 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
     }
 
     private int CountLampOverlays() =>
-        (daylightOverlay != null ? 1 : 0) + (headlampOverlay != null ? 1 : 0) +
-        (outerHeadlampOverlay != null ? 1 : 0) +
-        (secondaryHeadlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
-        (rearOuterTailOverlay != null ? 1 : 0) +
+        (leftDrlOverlay != null ? 1 : 0) + (rightDrlOverlay != null ? 1 : 0) +
+        (headlampOverlay != null ? 1 : 0) + (rearTailOverlay != null ? 1 : 0) +
         (rearBrakeOverlay != null ? 1 : 0) + (thirdBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>
         (leftBlinkerOverlay != null ? 1 : 0) + (rightBlinkerOverlay != null ? 1 : 0) +
-        (leftFenderBlinkerOverlay != null ? 1 : 0) +
-        (rightFenderBlinkerOverlay != null ? 1 : 0) +
+        (leftBumperBlinkerOverlay != null ? 1 : 0) +
+        (rightBumperBlinkerOverlay != null ? 1 : 0) +
         (rearLeftBlinkerOverlay != null ? 1 : 0) + (rearRightBlinkerOverlay != null ? 1 : 0);
 
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string name)
     {
         foreach (var renderer in renderers)
             if (renderer != null &&
-                renderer.name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
+                string.Equals(renderer.name, name, StringComparison.Ordinal))
                 return renderer;
         return null;
     }
@@ -459,7 +363,5 @@ internal sealed class CadillacEscaladeLightingController : MonoBehaviour
             if (generatedObject != null) Destroy(generatedObject);
         foreach (var generatedMaterial in generatedMaterials)
             if (generatedMaterial != null) Destroy(generatedMaterial);
-        foreach (var generatedMesh in generatedMeshes)
-            if (generatedMesh != null) Destroy(generatedMesh);
     }
 }
