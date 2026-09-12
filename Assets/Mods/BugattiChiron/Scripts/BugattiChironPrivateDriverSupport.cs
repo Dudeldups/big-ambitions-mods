@@ -60,7 +60,7 @@ internal static class BugattiChironPrivateDriverSupport
             nrOfVehicles = PrivateDriverPoolSize,
             canBeRandomlyParked = false,
             hasParkedVersion = false,
-            canBeAiDriven = false,
+            canBeAiDriven = true,
         };
         var existing = pool.trafficCars ?? Array.Empty<CarType>();
         var expanded = new CarType[existing.Length + 1];
