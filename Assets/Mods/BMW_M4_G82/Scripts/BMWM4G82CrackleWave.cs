@@ -11,7 +11,7 @@ internal static class BMWM4G82CrackleWave
     {
         // A sparse loop supplies a quiet mechanical texture at every load.
         // Gear changes use separate, deliberately stronger transients.
-        const int pulseCount = 9;
+        const int pulseCount = 6;
         var sampleCount = (int)(SampleRate * Duration);
         var samples = new float[sampleCount];
         uint random = 0x53353842u;
@@ -25,7 +25,7 @@ internal static class BMWM4G82CrackleWave
             var pulsePhase = pulsePosition - Mathf.Floor(pulsePosition);
             var envelope = Mathf.Exp(-pulsePhase * 18f);
             var texture = Mathf.Sin(2f * Mathf.PI * 410f * index / SampleRate);
-            samples[index] = envelope * (.88f * filteredNoise + .12f * texture) * .16f;
+            samples[index] = envelope * (.88f * filteredNoise + .12f * texture) * .10f;
         }
 
         var clip = AudioClip.Create(

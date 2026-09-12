@@ -7,42 +7,42 @@
       "name": "EngineLow.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.20343093854509817,
+      "peak": 0.20413635241071065,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.16915832671178074,
+      "peak": 0.16897790481575733,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
       "name": "EngineMid.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.19370350659019422,
+      "peak": 0.1934175827650537,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.1686284169078604,
+      "peak": 0.16640039001140344,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
       "name": "EngineHigh.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.20235335082167172,
+      "peak": 0.20124907391408697,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     },
     {
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.16443696741230007,
+      "peak": 0.16291100925612997,
       "method": "deterministic additive twin-turbo inline-six synthesis"
     }
   ],

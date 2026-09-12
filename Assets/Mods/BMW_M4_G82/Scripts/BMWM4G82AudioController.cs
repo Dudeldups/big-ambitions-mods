@@ -133,10 +133,10 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
     private static void ConfigureCrackleFilters(GameObject host)
     {
         var lowPass = host.AddComponent<AudioLowPassFilter>();
-        lowPass.cutoffFrequency = 4800f;
+        lowPass.cutoffFrequency = 3000f;
         lowPass.lowpassResonanceQ = 1.05f;
         var highPass = host.AddComponent<AudioHighPassFilter>();
-        highPass.cutoffFrequency = 420f;
+        highPass.cutoffFrequency = 260f;
         highPass.highpassResonanceQ = 1.02f;
         var distortion = host.AddComponent<AudioDistortionFilter>();
         distortion.distortionLevel = .015f;
@@ -242,7 +242,7 @@ internal sealed class BMWM4G82AudioController : MonoBehaviour
                 layers[i].mute = layers[i + 3].mute = controlled && savedMute;
             }
             var crackleLoad = Mathf.SmoothStep(0f, 1f, smoothThrottle);
-            crackleSource.pitch = Mathf.Lerp(.90f, 1.22f, normalized);
+            crackleSource.pitch = Mathf.Lerp(.88f, 1.05f, normalized);
             crackleSource.volume = envelope * master * Mathf.Lerp(
                 BMWM4G82AudioModel.CrackleIdleVolume,
                 BMWM4G82AudioModel.CrackleLoadVolume,

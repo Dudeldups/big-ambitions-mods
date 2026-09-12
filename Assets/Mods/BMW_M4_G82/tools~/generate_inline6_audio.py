@@ -38,7 +38,7 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     )
     texture_frequencies = [
         reference_hz * harmonic
-        for harmonic in (6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 13.5, 15.5)
+        for harmonic in (5.5, 6.5, 7.5, 8.5, 9.5, 10.5)
     ]
     texture_phases = [rng.random() * math.tau for _ in texture_frequencies]
     output: list[float] = []
@@ -65,10 +65,10 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
         if loaded:
             # Asymmetric soft clipping and a restrained high-frequency exhaust
             # texture make boost sound pressurized and mechanical, not bubbly.
-            value = math.tanh((value + 0.11 * texture) * 1.42)
-            value += 0.055 * texture
+            value = math.tanh((value + 0.055 * texture) * 1.38)
+            value += 0.018 * texture
         else:
-            value += 0.025 * texture
+            value += 0.012 * texture
         output.append(value)
     return normalize(output, 0.115)
 

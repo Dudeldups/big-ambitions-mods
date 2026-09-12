@@ -42,9 +42,12 @@ public static class BMWM4G82Setup
     private const float RearTireRadius = 0.3395f;
     private const float VisualBodyOffsetY = -0.035f;
     private const float VehicleLinearDrag = 0.015f;
-    private const float CaliperOutboardOffset = 0.045f;
-    private const float ForwardTireGrip = 0.54f;
+    private const float CaliperOutboardOffset = 0.060f;
+    private const float ForwardTireGrip = 0.50f;
     private const float TireFrictionCircleStrength = 0.82f;
+    private const float BrakeMaxTorque = 24000f;
+    private const float BrakeActuationTime = 0.025f;
+    private const float MaximumDepenetrationVelocity = 4.5f;
     private const float AntiRollBarForce = 8400f;
     private const float SteeringDegreesPerSecond = 95f;
     private const float MaximumSteerAngle = 32f;
@@ -455,7 +458,7 @@ public static class BMWM4G82Setup
         SetNumber(serialized, "maxCargoCapacity", 12f);
         SetNumber(serialized, "maxSpeed", 290f);
         SetNumber(serialized, "enginePower", 375f);
-        SetNumber(serialized, "brakeForce", 15000f);
+        SetNumber(serialized, "brakeForce", BrakeMaxTorque);
         SetNumber(serialized, "turnRadius", 25f);
         SetNumber(serialized, "damageIntensity", DamageIntensity);
         SetBool(serialized, "isATruck", false);
@@ -850,7 +853,7 @@ public static class BMWM4G82Setup
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        body.maxDepenetrationVelocity = 12f;
+        body.maxDepenetrationVelocity = MaximumDepenetrationVelocity;
         body.solverIterations = Math.Max(body.solverIterations, 12);
         body.solverVelocityIterations = Math.Max(body.solverVelocityIterations, 4);
 
@@ -981,7 +984,10 @@ public static class BMWM4G82Setup
                 SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.14f);
-                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 375f);
+                // NWH applies maxPower at the driven wheels. Retain the
+                // 375 kW VehicleType specification, but account for drivetrain
+                // loss here so the simulated car matches BMW's measured times.
+                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 350f);
                 var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
                 if (powerCurve?.propertyType != SerializedPropertyType.AnimationCurve)
                     throw new InvalidOperationException("Reference engine power curve is missing.");
@@ -1000,6 +1006,8 @@ public static class BMWM4G82Setup
                 SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2400f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7000f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
+                SetRelativeNumber(serialized, "brakes.maxTorque", BrakeMaxTorque);
+                SetRelativeNumber(serialized, "brakes.actuationTime", BrakeActuationTime);
                 SetRelativeNumber(
                     serialized,
                     "steering.degreesPerSecondLimit",

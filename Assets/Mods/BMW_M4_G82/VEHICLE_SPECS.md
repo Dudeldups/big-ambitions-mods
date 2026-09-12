@@ -19,6 +19,8 @@ M xDrive technical data.
 | Reverse / final drive | 3.478 / 3.154 |
 | Tires, front / rear | 275/35 ZR19 / 285/30 ZR20 |
 | 0–100 km/h | 3.5 s |
+| 0–200 km/h | 11.8 s |
+| 100–0 km/h, warm | 30.4 m / 12.7 m/s² |
 | Top speed | 250 km/h; 290 km/h with M Driver's Package |
 | Launch MSRP reference | USD 74,700 plus destination for the Competition RWD; mod price USD 79,795 for the xDrive target |
 
@@ -28,6 +30,8 @@ Primary references:
   https://www.press.bmwgroup.com/middle-east/article/attachment/T0333031EN/479621
 - BMW Group PressClub, September 2020 launch release and pricing:
   https://www.press.bmwgroup.com/usa/article/detail/T0317577EN_US/the-new-2021-bmw-m3-sedan-and-m4-coupe
+- AUTO BILD instrumented M4 Competition xDrive Supertest (warm braking):
+  https://www.autobild.de/artikel/supertest-bmw-m4-coupe-competition-xdrive-26483843.html
 
 The 800 rpm idle value is a tuning assumption because the cited BMW technical
 sheet specifies the 7,200 rpm redline but does not publish a nominal idle speed.

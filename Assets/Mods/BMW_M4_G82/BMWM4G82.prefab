@@ -5195,7 +5195,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 0.54
+    grip: 0.5
     stiffness: 1.7
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
@@ -8517,7 +8517,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 0.54
+    grip: 0.5
     stiffness: 1.7
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
@@ -21751,7 +21751,7 @@ Transform:
   m_GameObject: {fileID: 4953134332522093776}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.7575, y: -0.3395, z: 1.0222099}
+  m_LocalPosition: {x: -0.7425, y: -0.3395, z: 1.0222099}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -33067,7 +33067,7 @@ Transform:
   m_GameObject: {fileID: 6669411569376979595}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.7575, y: -0.3395, z: 1.0222099}
+  m_LocalPosition: {x: 0.7425, y: -0.3395, z: 1.0222099}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -37423,7 +37423,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 0.54
+    grip: 0.5
     stiffness: 1.27
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
@@ -37649,7 +37649,7 @@ Transform:
   m_GameObject: {fileID: 7555690032740173636}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.7635, y: -0.3376, z: -1.5346617}
+  m_LocalPosition: {x: -0.7485, y: -0.3376, z: -1.5346617}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -38489,7 +38489,7 @@ Transform:
   m_GameObject: {fileID: 7713293667327473383}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.7635, y: -0.3376, z: -1.5346617}
+  m_LocalPosition: {x: 0.7485, y: -0.3376, z: -1.5346617}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -42555,10 +42555,10 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 18000
+    maxTorque: 24000
     handbrakeType: 0
     handbrakeValue: 0
-    actuationTime: 0.06
+    actuationTime: 0.025
     onBrakesActivate:
       m_PersistentCalls:
         m_Calls: []
@@ -42759,7 +42759,7 @@ MonoBehaviour:
           m_PersistentCalls:
             m_Calls: []
       idleRPM: 800
-      maxPower: 375
+      maxPower: 350
       engineLossPercent: 0.25
       onRevLimiter:
         m_PersistentCalls:
@@ -44525,7 +44525,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 0.54
+    grip: 0.5
     stiffness: 1.27
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,

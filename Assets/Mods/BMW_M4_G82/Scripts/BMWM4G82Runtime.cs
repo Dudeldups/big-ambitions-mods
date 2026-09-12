@@ -19,7 +19,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1775f;
     private const float VehicleLinearDrag = 0.015f;
-    private const float EnginePowerKw = 375f;
+    private const float EnginePowerKw = 350f;
     private const float EngineIdleRpm = 800f;
     private const float EngineLimitRpm = 7200f;
     private const float SpeedLimitKph = 290f;
@@ -30,8 +30,11 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 450f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
-    private const float ForwardTireGrip = 0.54f;
+    private const float ForwardTireGrip = 0.50f;
     private const float TireFrictionCircleStrength = 0.82f;
+    private const float BrakeMaxTorque = 24000f;
+    private const float BrakeActuationTime = 0.025f;
+    private const float MaximumDepenetrationVelocity = 4.5f;
     private const float AntiRollBarForce = 8400f;
     private const float SteeringDegreesPerSecond = 95f;
     private const float MaximumSteerAngle = 32f;
@@ -433,7 +436,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 rigidbody.angularDrag = 1.90f;
                 rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
                 rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-                rigidbody.maxDepenetrationVelocity = 12f;
+                rigidbody.maxDepenetrationVelocity = MaximumDepenetrationVelocity;
                 rigidbody.solverIterations = Math.Max(rigidbody.solverIterations, 12);
                 rigidbody.solverVelocityIterations = Math.Max(
                     rigidbody.solverVelocityIterations,
@@ -872,6 +875,10 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             }
 
             var powertrain = GetMember(component, "powertrain");
+            var brakes = GetMember(component, "brakes");
+            SetFloat(brakes, "maxTorque", BrakeMaxTorque);
+            SetFloat(brakes, "actuationTime", BrakeActuationTime);
+            SetMember(component, "brakes", brakes);
             var clutch = GetMember(powertrain, "clutch");
             SetFloat(clutch, "engagementRPM", ClutchEngagementRpm);
             SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
