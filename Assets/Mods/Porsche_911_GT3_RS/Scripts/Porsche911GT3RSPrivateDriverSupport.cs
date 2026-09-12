@@ -285,6 +285,7 @@ internal static class Porsche911GT3RSPrivateDriverSupport
         var requiredVisuals = new[]
         {
             "PorscheVisual",
+            "PorscheDamageBody",
             "PorscheWheelFrontLeft",
             "PorscheWheelFrontRight",
             "PorscheWheelRearLeft",
