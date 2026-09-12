@@ -5,13 +5,13 @@ using System;
 internal static class CadillacEscaladeAudioModel
 {
     internal const float IdlePitch = .86f;
-    internal const float IdleBaseVolume = .22f;
+    internal const float IdleBaseVolume = .18f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
     internal const float EngineBaseVolume = .31f;
     internal const float EngineThrottleVolume = .25f;
-    internal const float BurbleIdleVolume = .055f;
-    internal const float BurbleLoadVolume = .155f;
+    internal const float BurbleIdleVolume = 0f;
+    internal const float BurbleLoadVolume = .21f;
 
     internal static float LoadBlend(float throttle) =>
         Clamp01((throttle - .18f) / .68f);
@@ -24,11 +24,11 @@ internal static class CadillacEscaladeAudioModel
 
     internal static float BurbleVolume(float throttle, float normalizedRpm)
     {
-        var load = (float)Math.Sqrt(Clamp01(throttle));
-        // Retain most of the exhaust pulse under acceleration. The old 35%
-        // high-RPM cut made the burble disappear exactly when engine load rose.
-        var highRpmReduction = .12f * Clamp01((normalizedRpm - .68f) / .32f);
-        return (BurbleIdleVolume + BurbleLoadVolume * load) * (1f - highRpmReduction);
+        // This is an acceleration layer, not an idle loop: keep it silent at
+        // closed throttle and emphasize the low/mid-RPM load of the large V8.
+        var load = (float)Math.Sqrt(Clamp01((throttle - .08f) / .72f));
+        var highRpmReduction = .55f * Clamp01((normalizedRpm - .45f) / .40f);
+        return BurbleLoadVolume * load * (1f - highRpmReduction);
     }
 
     // Let the natural donor bed cover idle and creep. The Cadillac layers fade
