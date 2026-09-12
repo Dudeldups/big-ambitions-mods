@@ -39,8 +39,8 @@ public static class Porsche911GT3RSSetup
     private const float WheelInset = 0.085f;
     private const float WheelCenterRideHeightOffset = 0.060f;
     private const float VehicleLinearDrag = 0.035f;
-    private const float VehicleBrakeForce = 9000f;
-    private const float BrakeMaxTorque = 6500f;
+    private const float VehicleBrakeForce = 3500f;
+    private const float BrakeMaxTorque = 3500f;
     private const float FrontForwardGrip = 0.90f;
     private const float RearForwardGrip = 0.95f;
     private const float FrontForwardStiffness = 1.27f;
