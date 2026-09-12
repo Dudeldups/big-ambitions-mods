@@ -3,17 +3,16 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
+using UnityEngine.SceneManagement;
 
 namespace CameraTools
 {
     public sealed partial class CameraToolsRuntime
     {
-        private const float CityFogProfileScanIntervalSeconds = 2f;
-
         private readonly List<CityFogState> cityFogStates = new List<CityFogState>();
         private readonly HashSet<int> trackedCityFogIds = new HashSet<int>();
         private bool cityFogSuppressionApplied;
-        private float nextCityFogProfileScanTime;
+        private bool cityFogProfileScanPending = true;
 
         private void UpdateCityFogSuppression()
         {
@@ -29,10 +28,10 @@ namespace CameraTools
                 return;
             }
 
-            if (!cityFogSuppressionApplied || Time.unscaledTime >= nextCityFogProfileScanTime)
+            if (!cityFogSuppressionApplied || cityFogProfileScanPending)
             {
                 CaptureNewCityFogProfiles();
-                nextCityFogProfileScanTime = Time.unscaledTime + CityFogProfileScanIntervalSeconds;
+                cityFogProfileScanPending = false;
             }
 
             foreach (var state in cityFogStates)
@@ -42,16 +41,21 @@ namespace CameraTools
                 return;
 
             cityFogSuppressionApplied = true;
+            context?.Logger.Info($"CameraTools: outdoor city fog disabled; trackedProfiles={cityFogStates.Count}.");
         }
 
         private void CaptureNewCityFogProfiles()
         {
-            foreach (var volume in Resources.FindObjectsOfTypeAll<Volume>())
+            var addedProfiles = 0;
+            foreach (var volume in VolumeManager.instance.GetVolumes(-1))
             {
                 if (volume == null)
                     continue;
 
-                var profile = volume.profile;
+                // Reading Volume.profile can clone a shared profile. Repeated global resource
+                // scans therefore created work and allocations every two seconds. VolumeManager
+                // gives us only active registered volumes, and sharedProfile avoids that clone.
+                var profile = volume.sharedProfile ?? volume.profile;
                 if (profile == null || !profile.TryGet<Fog>(out var fog) || fog == null)
                     continue;
 
@@ -60,7 +64,16 @@ namespace CameraTools
                     continue;
 
                 cityFogStates.Add(new CityFogState(fog));
+                addedProfiles++;
             }
+
+            context?.Logger.Info(
+                $"CameraTools: city fog profile scan completed after activation or scene load; addedProfiles={addedProfiles}, trackedProfiles={cityFogStates.Count}.");
+        }
+
+        private void HandleCityFogSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            cityFogProfileScanPending = true;
         }
 
         private static bool IsPlayerInFogPreservingInterior()
@@ -87,7 +100,7 @@ namespace CameraTools
         private void RestoreCityFogState()
         {
             RestoreCityFogEnabledValues(clearTrackedProfiles: true);
-            nextCityFogProfileScanTime = 0f;
+            cityFogProfileScanPending = true;
         }
 
         private void RestoreCityFogEnabledValues(bool clearTrackedProfiles)
@@ -124,8 +137,10 @@ namespace CameraTools
                 if (fog == null)
                     return;
 
-                fog.enabled.overrideState = true;
-                fog.enabled.value = false;
+                if (!fog.enabled.overrideState)
+                    fog.enabled.overrideState = true;
+                if (fog.enabled.value)
+                    fog.enabled.value = false;
             }
 
             public void RestoreFog()
@@ -133,8 +148,10 @@ namespace CameraTools
                 if (fog == null)
                     return;
 
-                fog.enabled.value = enabledValue;
-                fog.enabled.overrideState = enabledOverrideState;
+                if (fog.enabled.value != enabledValue)
+                    fog.enabled.value = enabledValue;
+                if (fog.enabled.overrideState != enabledOverrideState)
+                    fog.enabled.overrideState = enabledOverrideState;
             }
         }
     }
