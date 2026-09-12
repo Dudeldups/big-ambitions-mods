@@ -27,14 +27,16 @@ internal static class CadillacEscaladeCrackleWave
                 var sincePulse = time - pulseTimes[pulseIndex];
                 if (sincePulse < 0f)
                     sincePulse += Duration;
-                var envelope = Mathf.Exp(-sincePulse * 7.5f);
+                var envelope = Mathf.Exp(-sincePulse * 5.5f);
                 var frequency = pulseFrequencies[pulseIndex];
                 var fundamental = Mathf.Sin(2f * Mathf.PI * frequency * sincePulse);
                 var secondHarmonic = Mathf.Sin(4f * Mathf.PI * frequency * sincePulse + .35f);
+                var thirdHarmonic = Mathf.Sin(6f * Mathf.PI * frequency * sincePulse + .62f);
                 sample += envelope *
-                          (.58f * fundamental + .27f * secondHarmonic + .15f * filteredNoise);
+                          (.46f * fundamental + .34f * secondHarmonic +
+                           .12f * thirdHarmonic + .08f * filteredNoise);
             }
-            samples[index] = sample * .16f;
+            samples[index] = sample * .24f;
         }
 
         var clip = AudioClip.Create(
