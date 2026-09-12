@@ -301,6 +301,13 @@ internal static class BugattiChironPrivateDriverSupport
 [DefaultExecutionOrder(1000)]
 internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
 {
+    private const int InitializationFrameLimit = 4;
+
+    private static readonly PropertyInfo? CurrentVehicleProperty =
+        typeof(PrivateDriverVehicle).GetProperty(
+            "CurrentVehicle",
+            BindingFlags.Static | BindingFlags.NonPublic);
+
     private static readonly string[,] WheelNames =
     {
         { "BugattiWheelFrontLeft", "FL" },
@@ -310,6 +317,11 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
     };
 
     private readonly List<WheelBinding> wheelBindings = new(4);
+    private Coroutine? initializationCoroutine;
+    private Coroutine? departureCheckCoroutine;
+    private PrivateDriverVehicle? privateDriver;
+    private VehicleComponent? trafficVehicle;
+    private bool trafficEventsSubscribed;
 
     internal void BindWheelVisuals()
     {
@@ -326,20 +338,111 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
 
     private void Awake() => BindWheelVisuals();
 
-    private void Start()
+    private void OnEnable()
     {
-        var privateDriver = GetComponent<PrivateDriverVehicle>();
-        var colorName = privateDriver?.vehicleInstance?.vehicleColorName;
-        var paint = GetComponent<BugattiChironPaintController>();
-        if (paint == null)
-            paint = gameObject.AddComponent<BugattiChironPaintController>();
-        paint.InitializeForPrivateDriver(colorName);
+        BindWheelVisuals();
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = StartCoroutine(InitializePrivateDriverState());
+    }
+
+    private IEnumerator InitializePrivateDriverState()
+    {
+        for (var frame = 0; frame < InitializationFrameLimit; frame++)
+        {
+            var candidate = GetComponent<PrivateDriverVehicle>();
+            if (candidate != null && candidate.vehicleInstance != null)
+            {
+                privateDriver = candidate;
+                trafficVehicle = GetComponent<VehicleComponent>();
+
+                var paint = GetComponent<BugattiChironPaintController>();
+                if (paint == null)
+                    paint = gameObject.AddComponent<BugattiChironPaintController>();
+                paint.InitializeForPrivateDriver(candidate.vehicleInstance.vehicleColorName);
+                SubscribeTrafficEvents();
+                initializationCoroutine = null;
+                yield break;
+            }
+
+            yield return null;
+        }
+
+        initializationCoroutine = null;
+    }
+
+    private void SubscribeTrafficEvents()
+    {
+        if (trafficEventsSubscribed)
+            return;
+        AIEvents.onChangeDrivingState += HandleDrivingStateChanged;
+        trafficEventsSubscribed = true;
+    }
+
+    private void HandleDrivingStateChanged(
+        int vehicleIndex,
+        SpecialDriveActionTypes action,
+        float actionValue)
+    {
+        if (privateDriver == null || trafficVehicle == null ||
+            vehicleIndex != trafficVehicle.GetIndex() || departureCheckCoroutine != null)
+        {
+            return;
+        }
+
+        departureCheckCoroutine = StartCoroutine(EnsureDepartureAfterDismissal());
+    }
+
+    private IEnumerator EnsureDepartureAfterDismissal()
+    {
+        // DismissPrivateDriver clears CurrentVehicle only after DriveAway raises
+        // its traffic-state event. Waiting one frame distinguishes that event
+        // from the normal stop events used while picking up the player.
+        yield return null;
+
+        var currentPrivateDriver =
+            CurrentVehicleProperty?.GetValue(null) as PrivateDriverVehicle;
+        var dismissed = privateDriver != null && currentPrivateDriver != privateDriver;
+        if (dismissed && trafficVehicle != null && trafficVehicle.gameObject.activeInHierarchy)
+        {
+            trafficVehicle.presetPath = null;
+            var trafficManager = TrafficManager.Instance;
+            if (trafficManager != null)
+            {
+                trafficManager.SetVehicleAction(
+                    trafficVehicle,
+                    SpecialDriveActionTypes.Forward,
+                    true);
+                trafficManager.VehicleUpdateWaypoint(trafficVehicle);
+            }
+        }
+
+        departureCheckCoroutine = null;
     }
 
     private void LateUpdate()
     {
         foreach (var binding in wheelBindings)
             binding.Apply(transform);
+    }
+
+    private void OnDisable()
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        if (departureCheckCoroutine != null)
+            StopCoroutine(departureCheckCoroutine);
+        initializationCoroutine = null;
+        departureCheckCoroutine = null;
+
+        if (trafficEventsSubscribed)
+        {
+            AIEvents.onChangeDrivingState -= HandleDrivingStateChanged;
+            trafficEventsSubscribed = false;
+        }
+
+        privateDriver = null;
+        trafficVehicle = null;
     }
 
     private static Transform? FindTransform(Transform root, string name)
