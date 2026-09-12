@@ -61,6 +61,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         context = null;
         explicitVehicleColorName = vehicleColorName;
         explicitVehicleColor = vehicleColor;
+        appliedVehicleColor = null;
+        hasAppliedTint = false;
         FindPaintSlots();
         ApplyCurrentColor();
     }
