@@ -8,6 +8,7 @@ using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
 using Services;
+using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(Porsche911GT3RSMod))]
@@ -46,6 +47,8 @@ public sealed class Porsche911GT3RSMod : IModBigAmbitions
     private const string BundleKey = "AssetBundles/porsche911gt3rs.unity3d";
     private const string VehicleAssetPath =
         "Assets/Mods/Porsche_911_GT3_RS/Porsche911GT3RS.asset";
+    private const string VehiclePrefabPath =
+        "Assets/Mods/Porsche_911_GT3_RS/Porsche911GT3RS.prefab";
 
     private VehicleType? vehicleType;
     private Porsche911GT3RSRuntime? runtime;
@@ -69,13 +72,24 @@ public sealed class Porsche911GT3RSMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"Porsche911GT3RS: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            return Task.CompletedTask;
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
         Porsche911GT3RSDiagnostics.Info(
             context,
             $"Porsche911GT3RS: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}.");
-        runtime = Porsche911GT3RSRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = Porsche911GT3RSRuntime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 

@@ -91,8 +91,15 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private int cachedPlayerVehicleCount = -1;
     private bool dealerRegistrationReady;
     private bool dealerReadyLogged;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
+    private GameObject? playerVehiclePrefab;
 
-    public static Porsche911GT3RSRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static Porsche911GT3RSRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<Porsche911GT3RSRuntime>();
         if (runtime == null)
@@ -104,6 +111,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
+        Porsche911GT3RSPrivateDriverSupport.SetContext(context);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -122,6 +131,13 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerRegistrationReady = false;
+        dealerReadyLogged = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
+        Porsche911GT3RSPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         Destroy(gameObject);
     }
 
@@ -201,6 +217,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -219,6 +236,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         cachedPlayerVehicleCount = -1;
         dealerRegistrationReady = false;
         dealerReadyLogged = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -466,16 +486,20 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (!isOpen || dealerRegistrationReady)
+        if (!isOpen)
             return;
 
-        if (BusinessLayoutSetHelper.loadingLayouts)
+        if (!dealerRegistrationReady && BusinessLayoutSetHelper.loadingLayouts)
         {
             ScheduleInitialization("full-menu");
-            return;
+        }
+        else if (!dealerRegistrationReady)
+        {
+            EnsureDealerStock("full-menu");
         }
 
-        EnsureDealerStock("full-menu");
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void ScheduleInitialization(string source)
@@ -487,12 +511,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        while (BusinessLayoutSetHelper.loadingLayouts)
-        {
-            ConfigureExistingVehicles(out _);
-            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
-        }
-
         var dealerReady = dealerRegistrationReady;
         var previousMatchedCount = -1;
         var stablePasses = 0;
@@ -500,18 +518,32 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverReady && playerVehiclePrefab != null)
+                TryPreparePrivateDriverPool(source);
+
+            while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
+            {
+                ConfigureExistingVehicles(out var waitingMatchedCount);
+                maximumMatchedCount = Math.Max(maximumMatchedCount, waitingMatchedCount);
+                yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+            }
+
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                EnsurePrivateDriverSupport(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady &&
+                                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -523,6 +555,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"Porsche911GT3RS: luxury dealer stock not ready source='{source}', " +
                 $"matchedVehicles={maximumMatchedCount}.");
+        }
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        {
+            context?.Logger.Warn(
+                $"Porsche911GT3RS: private-driver support not ready source='{source}'.");
         }
     }
 
@@ -552,6 +589,62 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"Porsche911GT3RS: dealer stock update failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverReady)
+            return true;
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            if (!TryPreparePrivateDriverPool(source))
+                return false;
+
+            privateDriverReady = Porsche911GT3RSPrivateDriverSupport.EnsureVehicleAvailable(
+                vehicleTypeName,
+                playerVehiclePrefab);
+            if (privateDriverReady)
+            {
+                Porsche911GT3RSDiagnostics.Info(
+                    context,
+                    $"Porsche911GT3RS: private-driver support registered source='{source}'.");
+            }
+            return privateDriverReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"Porsche911GT3RS: private-driver registration failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return Porsche911GT3RSPrivateDriverSupport.PrepareTrafficPool(
+                playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                context?.Logger.Warn(
+                    $"Porsche911GT3RS: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+                privateDriverPreparationExceptionLogged = true;
+            }
+
             return false;
         }
     }

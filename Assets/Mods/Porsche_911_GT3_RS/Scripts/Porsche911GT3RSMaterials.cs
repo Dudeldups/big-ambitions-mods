@@ -626,9 +626,12 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
     private readonly List<Material> ownedPanelMaterials = new List<Material>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private ModContext? context;
     private string appliedColorName = string.Empty;
     private Color32 appliedTint;
+    private bool hasAppliedTint;
     private bool initialized;
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
@@ -643,6 +646,26 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
         ApplyCurrentColor("initialize");
     }
 
+    internal void InitializeForPrivateDriver(
+        string? vehicleColorName,
+        VehicleColor? vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
+        appliedColorName = string.Empty;
+        hasAppliedTint = false;
+        if (!initialized)
+        {
+            initialized = true;
+            FindPaintSlots();
+        }
+        ApplyCurrentColor("private-driver");
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint;
+
     internal void ApplyCurrentColor(string source)
     {
         var selected = ResolveVehicleColor();
@@ -656,7 +679,8 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
 
         var colorName = ((UnityEngine.Object)selected).name;
         var tint = selected.tint;
-        if (string.Equals(colorName, appliedColorName, StringComparison.Ordinal) &&
+        if (hasAppliedTint &&
+            string.Equals(colorName, appliedColorName, StringComparison.Ordinal) &&
             tint.Equals(appliedTint))
         {
             return;
@@ -683,6 +707,7 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
 
         appliedColorName = colorName;
         appliedTint = tint;
+        hasAppliedTint = true;
         Porsche911GT3RSDiagnostics.PaintInfo(
             context,
             $"Porsche911GT3RS paint vehicle={vehicle?.GetInstanceID()}: applied " +
@@ -809,7 +834,10 @@ public sealed class Porsche911GT3RSPaintController : MonoBehaviour
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;
-        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName ??
+                        explicitVehicleColorName;
         return !string.IsNullOrEmpty(colorName) &&
                VehicleHelper.TryGetVehicleColor(colorName, out var saved)
             ? saved
