@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
 using Buildings.BuildingTypes.Special.PrivateDriverService;
+using Data.VehicleColors;
 using GleyTrafficSystem;
 using Helpers;
 using UnityEngine;
@@ -18,6 +19,8 @@ internal static class BugattiChironPrivateDriverSupport
     private const int PrivateDriverPoolSize = 2;
 
     private static readonly List<PrivateDriverContract> ModifiedContracts = new(2);
+    private static readonly Dictionary<string, VehicleColor> CapturedVehicleColors =
+        new(StringComparer.Ordinal);
     private static GameObject? customAiPrefab;
     private static UnityEngine.Object? previousCachedPrefab;
     private static bool previousCacheEntryCaptured;
@@ -101,6 +104,11 @@ internal static class BugattiChironPrivateDriverSupport
         }
         ModifiedContracts.Clear();
 
+        foreach (var capturedColor in CapturedVehicleColors.Values)
+            if (capturedColor != null)
+                UnityEngine.Object.Destroy(capturedColor);
+        CapturedVehicleColors.Clear();
+
         if (modifiedVehiclePool != null && customCarType != null)
         {
             var existing = modifiedVehiclePool.trafficCars ?? Array.Empty<CarType>();
@@ -161,6 +169,51 @@ internal static class BugattiChironPrivateDriverSupport
             context?.Logger.Info(message);
         else
             context?.Logger.Warn(message);
+    }
+
+    internal static bool TryResolveDriverColor(
+        string? colorName,
+        VehicleColor? liveColor,
+        out VehicleColor? resolvedColor)
+    {
+        resolvedColor = null;
+        if (string.IsNullOrEmpty(colorName))
+            return false;
+        var resolvedName = colorName!;
+
+        if (liveColor != null &&
+            string.Equals(liveColor.name, resolvedName, StringComparison.Ordinal))
+        {
+            resolvedColor = CaptureVehicleColor(resolvedName, liveColor);
+            return true;
+        }
+
+        if (VehicleHelper.TryGetVehicleColor(resolvedName, out var registeredColor) &&
+            registeredColor != null)
+        {
+            resolvedColor = CaptureVehicleColor(resolvedName, registeredColor);
+            return true;
+        }
+
+        return CapturedVehicleColors.TryGetValue(resolvedName, out resolvedColor) &&
+               resolvedColor != null;
+    }
+
+    private static VehicleColor CaptureVehicleColor(string colorName, VehicleColor source)
+    {
+        if (!CapturedVehicleColors.TryGetValue(colorName, out var captured) || captured == null)
+        {
+            captured = ScriptableObject.CreateInstance<VehicleColor>();
+            captured.name = colorName;
+            captured.hideFlags = HideFlags.DontSave;
+            CapturedVehicleColors[colorName] = captured;
+        }
+
+        captured.randomWeight = source.randomWeight;
+        captured.tint = source.tint;
+        captured.fresnelColor = source.fresnelColor;
+        captured.fresnelPower = source.fresnelPower;
+        return captured;
     }
 
     private static void EnsureContractContains(
@@ -503,8 +556,11 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
         var colorName = privateDriver.vehicleInstance.vehicleColorName;
         var features = GetComponent<CarFeatures>();
         var restoredBaseColor = false;
-        if (!string.IsNullOrEmpty(colorName) &&
-            VehicleHelper.TryGetVehicleColor(colorName, out var savedColor))
+        if (BugattiChironPrivateDriverSupport.TryResolveDriverColor(
+                colorName,
+                features?.VehicleColor,
+                out var savedColor) &&
+            savedColor != null)
         {
             features?.SetColor(savedColor);
             restoredBaseColor = features != null;

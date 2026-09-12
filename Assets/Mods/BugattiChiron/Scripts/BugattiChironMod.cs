@@ -55,6 +55,7 @@ public sealed class BugattiChironMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        vehicleType.autoParkSupported = true;
         ModdingAPI.RegisterModVehicleType(vehicleType);
         runtime = BugattiChironRuntime.Initialize(
             context,
