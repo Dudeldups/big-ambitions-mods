@@ -55,6 +55,7 @@ namespace DeveloperTools
         private string selectedVanillaVehicleId = string.Empty;
         private string selectedModdedVehicleId = string.Empty;
         private string selectedVehicleColorName = string.Empty;
+        private string selectedRecolorColorName = string.Empty;
         private string selectedItemId = string.Empty;
         private string itemSearch = string.Empty;
         private string itemAmount = "1";
@@ -121,6 +122,8 @@ namespace DeveloperTools
             SelectFirstAvailable(vehicles.ModdedEntries, ref selectedModdedVehicleId);
             if (vehicles.ColorEntries.All(entry => entry.Name != selectedVehicleColorName))
                 selectedVehicleColorName = vehicles.GetDefaultRedColorName();
+            if (vehicles.RecolorColorEntries.All(entry => entry.Name != selectedRecolorColorName))
+                selectedRecolorColorName = vehicles.GetDefaultRecolorColorName();
             if (items.Entries.Count > 0 && items.Entries.All(entry => entry.Id != selectedItemId))
                 selectedItemId = items.Entries[0].Id;
             SetCoordinatesFromPlayer();
@@ -322,6 +325,8 @@ namespace DeveloperTools
             Divider();
             GUILayout.Label("City Map Teleport", GUI.skin.box);
             GUILayout.Label("Double-click a non-UI location while the city map is open. On foot, the landing point is snapped to nearby navigation/ground geometry. In a vehicle, it is snapped to a nearby drivable road; destinations outside the road network are rejected.");
+            Divider();
+            DrawVehicleRecolor();
             GUILayout.EndScrollView();
             GUILayout.Space(4f);
             GUILayout.Label("Status: " + status, GUI.skin.box);
@@ -438,7 +443,7 @@ namespace DeveloperTools
         private void DrawVehicleColorPicker()
         {
             var selected = vehicles.ColorEntries.FirstOrDefault(entry => entry.Name == selectedVehicleColorName);
-            GUILayout.Label("Vehicle Color: " + (selected?.Name ?? "Unavailable"));
+            GUILayout.Label("Vehicle Color: " + (selected?.DisplayName ?? "Unavailable"));
             if (vehicles.ColorEntries.Count == 0)
             {
                 GUILayout.Label("No registered vehicle colors are available.", GUI.skin.box);
@@ -456,7 +461,7 @@ namespace DeveloperTools
                 GUI.backgroundColor = entry.Tint;
                 var marker = entry.Name == selectedVehicleColorName ? "✓" : string.Empty;
                 if (GUILayout.Button(
-                        new GUIContent(marker, entry.Name),
+                        new GUIContent(marker, entry.DisplayName),
                         GUILayout.Width(VehicleColorSwatchWidth),
                         GUILayout.Height(VehicleColorSwatchHeight)))
                 {
@@ -471,6 +476,50 @@ namespace DeveloperTools
             }
             GUI.backgroundColor = previousBackgroundColor;
             GUILayout.EndVertical();
+        }
+
+        private void DrawVehicleRecolor()
+        {
+            GUILayout.Label("Vehicle Recolor", GUI.skin.box);
+            GUILayout.Label("Extended test palette for the current or last spawned vehicle.");
+            var selected = vehicles.RecolorColorEntries
+                .FirstOrDefault(entry => entry.Name == selectedRecolorColorName);
+            GUILayout.Label("Selected Color: " + (selected?.DisplayName ?? "Unavailable"));
+            if (vehicles.RecolorColorEntries.Count == 0)
+            {
+                GUILayout.Label("No vehicle colors are available.", GUI.skin.box);
+                return;
+            }
+
+            var previousBackgroundColor = GUI.backgroundColor;
+            GUILayout.BeginVertical(GUI.skin.box);
+            for (var index = 0; index < vehicles.RecolorColorEntries.Count; index++)
+            {
+                if (index % VehicleColorColumns == 0)
+                    GUILayout.BeginHorizontal();
+
+                var entry = vehicles.RecolorColorEntries[index];
+                GUI.backgroundColor = entry.Tint;
+                var marker = entry.Name == selectedRecolorColorName ? "✓" : string.Empty;
+                if (GUILayout.Button(
+                        new GUIContent(marker, entry.DisplayName),
+                        GUILayout.Width(VehicleColorSwatchWidth),
+                        GUILayout.Height(VehicleColorSwatchHeight)))
+                {
+                    selectedRecolorColorName = entry.Name;
+                }
+
+                if (index % VehicleColorColumns == VehicleColorColumns - 1 ||
+                    index == vehicles.RecolorColorEntries.Count - 1)
+                {
+                    GUILayout.EndHorizontal();
+                }
+            }
+            GUI.backgroundColor = previousBackgroundColor;
+            GUILayout.EndVertical();
+
+            if (GUILayout.Button("Recolor Vehicle"))
+                vehicles.RecolorVehicle(selectedRecolorColorName, out status);
         }
 
         private void DrawMoney()

@@ -22,13 +22,46 @@ namespace DeveloperTools
         private readonly List<CatalogEntry> vanillaEntries = new List<CatalogEntry>();
         private readonly List<CatalogEntry> moddedEntries = new List<CatalogEntry>();
         private readonly List<VehicleColorEntry> colorEntries = new List<VehicleColorEntry>();
+        private readonly List<VehicleColorEntry> recolorColorEntries = new List<VehicleColorEntry>();
+        private readonly Dictionary<string, VehicleColor> developerColors =
+            new Dictionary<string, VehicleColor>(StringComparer.Ordinal);
+        private readonly List<VehicleColor> ownedDeveloperColors = new List<VehicleColor>();
         private readonly ModContext context;
         private string lastSpawnedVehicleId = string.Empty;
+
+        private static readonly DeveloperColorDefinition[] AdditionalRecolorColors =
+        {
+            new DeveloperColorDefinition("DeveloperTools_Onyx", "Onyx", new Color32(20, 23, 28, 255), new Color32(70, 78, 90, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Graphite", "Graphite", new Color32(65, 68, 72, 255), new Color32(125, 130, 138, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Pearl", "Pearl", new Color32(215, 220, 225, 255), new Color32(255, 255, 255, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Cream", "Cream", new Color32(250, 225, 175, 255), new Color32(255, 245, 215, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Burgundy", "Burgundy", new Color32(105, 16, 38, 255), new Color32(185, 65, 90, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Scarlet", "Scarlet", new Color32(220, 30, 20, 255), new Color32(255, 105, 80, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Coral", "Coral", new Color32(238, 83, 74, 255), new Color32(255, 160, 140, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Tangerine", "Tangerine", new Color32(245, 125, 25, 255), new Color32(255, 190, 95, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Copper", "Copper", new Color32(166, 79, 45, 255), new Color32(235, 145, 95, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Gold", "Gold", new Color32(196, 145, 35, 255), new Color32(255, 220, 115, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Lemon", "Lemon", new Color32(240, 225, 35, 255), new Color32(255, 250, 120, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Lime", "Lime", new Color32(104, 190, 35, 255), new Color32(180, 255, 100, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Forest", "Forest", new Color32(25, 85, 40, 255), new Color32(80, 170, 100, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Emerald", "Emerald", new Color32(0, 120, 72, 255), new Color32(70, 220, 145, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Turquoise", "Turquoise", new Color32(0, 157, 154, 255), new Color32(80, 240, 230, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Cyan", "Cyan", new Color32(0, 174, 239, 255), new Color32(95, 225, 255, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_SkyBlue", "Sky Blue", new Color32(85, 180, 240, 255), new Color32(165, 225, 255, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Azure", "Azure", new Color32(0, 112, 221, 255), new Color32(90, 185, 255, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_MidnightBlue", "Midnight Blue", new Color32(15, 30, 70, 255), new Color32(60, 90, 160, 255), 2f),
+            new DeveloperColorDefinition("DeveloperTools_Violet", "Violet", new Color32(105, 66, 180, 255), new Color32(175, 135, 255, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Lavender", "Lavender", new Color32(170, 125, 215, 255), new Color32(225, 190, 255, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Magenta", "Magenta", new Color32(194, 0, 151, 255), new Color32(255, 90, 225, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_HotPink", "Hot Pink", new Color32(255, 80, 165, 255), new Color32(255, 170, 215, 255), 1f),
+            new DeveloperColorDefinition("DeveloperTools_Rose", "Rose", new Color32(230, 70, 125, 255), new Color32(255, 150, 190, 255), 1f)
+        };
 
         public DeveloperToolsVehicleService(ModContext context) => this.context = context;
         public IReadOnlyList<CatalogEntry> VanillaEntries => vanillaEntries;
         public IReadOnlyList<CatalogEntry> ModdedEntries => moddedEntries;
         public IReadOnlyList<VehicleColorEntry> ColorEntries => colorEntries;
+        public IReadOnlyList<VehicleColorEntry> RecolorColorEntries => recolorColorEntries;
 
         public void Refresh()
         {
@@ -171,6 +204,82 @@ namespace DeveloperTools
             }
         }
 
+        public bool RecolorVehicle(string colorName, out string message)
+        {
+            EnsureDeveloperColors();
+            var controller = InstanceBehavior<GameManager>.Instance?.selectedVehicle ??
+                             FindVehicleController(SaveGameManager.Current?.ActiveVehicleId) ??
+                             FindVehicleController(lastSpawnedVehicleId);
+            if (controller?.vehicleInstance == null || controller.CarFeatures == null)
+            {
+                message = "Enter a vehicle or spawn one before recoloring it.";
+                return false;
+            }
+
+            if (!TryResolveColor(colorName, out var color))
+            {
+                message = "The selected vehicle color is no longer available.";
+                return false;
+            }
+
+            try
+            {
+                controller.vehicleInstance.vehicleColorName = colorName;
+                controller.CarFeatures.SetColor(color);
+                SaveGameManager.MarkChange();
+                GlobalEvents.onVehicleVariablesChanged?.Invoke();
+                GameEvent.Invoke("developer-tools:vehicle-recolor");
+                var displayName = recolorColorEntries
+                    .FirstOrDefault(entry => entry.Name == colorName)?.DisplayName ?? colorName;
+                message = "Recolored " + Localize(controller.vehicleInstance.vehicleTypeName) +
+                          " to " + displayName + ".";
+                context.Logger.Info(
+                    "DeveloperTools: recolored vehicle type=" + controller.vehicleInstance.vehicleTypeName +
+                    ", id=" + controller.vehicleInstance.id +
+                    ", color=" + colorName +
+                    ", extended=" + developerColors.ContainsKey(colorName) + ".");
+                return true;
+            }
+            catch (Exception exception)
+            {
+                message = "Vehicle recolor failed: " + exception.GetBaseException().Message;
+                context.Logger.Error(exception);
+                return false;
+            }
+        }
+
+        public void RestoreDeveloperColor(VehicleController controller)
+        {
+            EnsureDeveloperColors();
+            if (controller?.vehicleInstance == null || controller.CarFeatures == null ||
+                !developerColors.TryGetValue(controller.vehicleInstance.vehicleColorName, out var color))
+                return;
+
+            try
+            {
+                controller.CarFeatures.SetColor(color);
+                GameEvent.Invoke("developer-tools:vehicle-recolor-restored");
+            }
+            catch (Exception exception)
+            {
+                context.Logger.Warn(
+                    "DeveloperTools: could not restore extended vehicle color type=" +
+                    controller.vehicleInstance.vehicleTypeName +
+                    ", id=" + controller.vehicleInstance.id +
+                    ", color=" + controller.vehicleInstance.vehicleColorName +
+                    ": " + exception.GetBaseException().Message);
+            }
+        }
+
+        public void Shutdown()
+        {
+            foreach (var color in ownedDeveloperColors)
+                if (color != null) UnityEngine.Object.Destroy(color);
+            ownedDeveloperColors.Clear();
+            developerColors.Clear();
+            recolorColorEntries.Clear();
+        }
+
         private static bool ResetDeformationSafely(VehicleDeformationController deformation)
         {
             var meshFilters = deformation.meshFilters ?? Array.Empty<MeshFilter>();
@@ -248,12 +357,18 @@ namespace DeveloperTools
         }
 
         public string GetDefaultRedColorName()
+            => GetClosestRedColorName(colorEntries);
+
+        public string GetDefaultRecolorColorName()
+            => GetClosestRedColorName(recolorColorEntries);
+
+        private static string GetClosestRedColorName(IReadOnlyCollection<VehicleColorEntry> entries)
         {
-            if (colorEntries.Count == 0)
+            if (entries.Count == 0)
                 return string.Empty;
 
             var target = Color.red;
-            return colorEntries
+            return entries
                 .OrderBy(entry =>
                 {
                     var difference = (Vector4)entry.Tint - (Vector4)target;
@@ -265,20 +380,36 @@ namespace DeveloperTools
         private void RefreshColors()
         {
             colorEntries.Clear();
+            recolorColorEntries.Clear();
             var colors = InstanceBehavior<GlobalReferences>.Instance?.vehicleColors;
-            if (colors == null)
-                return;
-
             var originalIndex = 0;
-            foreach (var color in colors.Where(value => value != null))
+            if (colors != null)
             {
-                var name = ((UnityEngine.Object)color).name;
-                if (string.IsNullOrWhiteSpace(name) || colorEntries.Any(entry => entry.Name == name))
-                    continue;
-                colorEntries.Add(new VehicleColorEntry(name, color.tint, originalIndex++));
+                foreach (var color in colors.Where(value => value != null))
+                {
+                    var name = ((UnityEngine.Object)color).name;
+                    if (string.IsNullOrWhiteSpace(name) || colorEntries.Any(entry => entry.Name == name))
+                        continue;
+                    var entry = new VehicleColorEntry(name, name, color.tint, originalIndex++);
+                    colorEntries.Add(entry);
+                    recolorColorEntries.Add(entry);
+                }
             }
 
+            EnsureDeveloperColors();
+            foreach (var definition in AdditionalRecolorColors)
+            {
+                if (developerColors.TryGetValue(definition.Name, out var color))
+                {
+                    recolorColorEntries.Add(new VehicleColorEntry(
+                        definition.Name,
+                        definition.DisplayName,
+                        color.tint,
+                        originalIndex++));
+                }
+            }
             colorEntries.Sort(CompareColors);
+            recolorColorEntries.Sort(CompareColors);
         }
 
         private static string ApplyRegisteredColor(
@@ -294,6 +425,29 @@ namespace DeveloperTools
             controller.CarFeatures.SetColor(color);
             return colorName;
         }
+
+        private void EnsureDeveloperColors()
+        {
+            if (developerColors.Count > 0)
+                return;
+
+            foreach (var definition in AdditionalRecolorColors)
+            {
+                var color = ScriptableObject.CreateInstance<VehicleColor>();
+                ((UnityEngine.Object)color).name = definition.Name;
+                color.tint = definition.Tint;
+                color.fresnelColor = definition.FresnelColor;
+                color.fresnelPower = definition.FresnelPower;
+                color.randomWeight = 0f;
+                color.hideFlags = HideFlags.HideAndDontSave;
+                developerColors[definition.Name] = color;
+                ownedDeveloperColors.Add(color);
+            }
+        }
+
+        private bool TryResolveColor(string colorName, out VehicleColor color) =>
+            developerColors.TryGetValue(colorName, out color) ||
+            VehicleHelper.TryGetVehicleColor(colorName, out color);
 
         private static string Localize(string id)
         {
@@ -353,9 +507,10 @@ namespace DeveloperTools
 
     internal sealed class VehicleColorEntry
     {
-        public VehicleColorEntry(string name, Color tint, int originalIndex)
+        public VehicleColorEntry(string name, string displayName, Color tint, int originalIndex)
         {
             Name = name;
+            DisplayName = displayName;
             Tint = tint;
             OriginalIndex = originalIndex;
             Color.RGBToHSV(tint, out var hue, out var saturation, out var value);
@@ -366,11 +521,35 @@ namespace DeveloperTools
         }
 
         public string Name { get; }
+        public string DisplayName { get; }
         public Color Tint { get; }
         public int Group { get; }
         public float Hue { get; }
         public float Saturation { get; }
         public float Value { get; }
         public int OriginalIndex { get; }
+    }
+
+    internal readonly struct DeveloperColorDefinition
+    {
+        internal DeveloperColorDefinition(
+            string name,
+            string displayName,
+            Color32 tint,
+            Color32 fresnelColor,
+            float fresnelPower)
+        {
+            Name = name;
+            DisplayName = displayName;
+            Tint = tint;
+            FresnelColor = fresnelColor;
+            FresnelPower = fresnelPower;
+        }
+
+        internal string Name { get; }
+        internal string DisplayName { get; }
+        internal Color32 Tint { get; }
+        internal Color32 FresnelColor { get; }
+        internal float FresnelPower { get; }
     }
 }
