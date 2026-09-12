@@ -13,6 +13,7 @@ using Vehicles.VehicleTypes;
 
 public sealed class BugattiChironRuntime : MonoBehaviour
 {
+    private const string VehicleRepainterColorRestoredEvent = "vehicle-repainter:color-restored";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -165,8 +166,21 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         cachedPlayerVehicleCount = -1;
     }
 
-    private void HandleGameEvent(string _)
+    private void HandleGameEvent(string eventName)
     {
+        if (string.Equals(eventName, VehicleRepainterColorRestoredEvent, StringComparison.Ordinal))
+        {
+            var refreshedCount = RefreshExistingVehiclePaint();
+            if (refreshedCount > 0)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron: refreshed specialized paint for {refreshedCount} loaded vehicle(s) " +
+                    "after Vehicle Repainter restored saved colors.");
+            }
+
+            return;
+        }
+
         var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
         if (!IsTargetVehicle(selectedVehicle))
             return;
@@ -309,11 +323,12 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         }
     }
 
-    private void RefreshExistingVehiclePaint()
+    private int RefreshExistingVehiclePaint()
     {
+        var refreshedCount = 0;
         var vehicles = VehicleHelper.AllPlayerVehicles;
         if (vehicles == null)
-            return;
+            return refreshedCount;
 
         foreach (var vehicle in vehicles)
         {
@@ -326,8 +341,15 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 continue;
             }
 
-            vehicle.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
+            var paintController = vehicle.GetComponent<BugattiChironPaintController>();
+            if (paintController == null)
+                continue;
+
+            paintController.RefreshCurrentColor();
+            refreshedCount++;
         }
+
+        return refreshedCount;
     }
 
     private void TryConfigureVehicle(VehicleController? vehicle)

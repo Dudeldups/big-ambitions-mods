@@ -181,6 +181,7 @@ namespace VehicleRepainter
     internal sealed class VehicleRepainterRuntime
     {
         internal const float RepaintPrice = 800f;
+        private const string CustomColorRestoredEvent = "vehicle-repainter:color-restored";
 
         private static class DebugOptions
         {
@@ -704,6 +705,13 @@ namespace VehicleRepainter
             EnsurePrivateDriverPaintHooks();
             var inspectedVehicleCount = VehicleHelper.AllPlayerVehicles.Count;
             var restoredVehicleCount = RestoreSavedCustomVehicleColors(source);
+            if (restoredVehicleCount > 0)
+            {
+                GameEvent.Invoke(CustomColorRestoredEvent);
+                TracePersistence(
+                    $"Broadcast '{CustomColorRestoredEvent}' after restoring {restoredVehicleCount} vehicle(s).");
+            }
+
             TracePersistence(
                 $"Load restore pass={pass}, source='{source}', inspected={inspectedVehicleCount}, " +
                 $"restored={restoredVehicleCount}, privateDriverHooksInstalled={privateDriverPaintHooksInstalled}.");
