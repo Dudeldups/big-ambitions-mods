@@ -75,6 +75,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private bool dealerReady;
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
     private int cachedPlayerVehicleCount = -1;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -96,7 +97,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
         runtime.playerVehiclePrefab = playerVehiclePrefab;
         BugattiChironPrivateDriverSupport.SetContext(context);
-        BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -112,6 +112,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         dealerReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         cachedPlayerVehicleCount = -1;
         BugattiChironPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
         playerVehiclePrefab = null;
@@ -165,8 +166,6 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         SubscribeEvents();
-        if (playerVehiclePrefab != null)
-            BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
         ScheduleInitialization($"scene-loaded:{scene.name}");
     }
 
@@ -186,6 +185,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         dealerReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         cachedPlayerVehicleCount = -1;
     }
 
@@ -296,7 +296,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
             if (!privateDriverReady && playerVehiclePrefab != null)
-                BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
+                TryPreparePrivateDriverPool(source);
 
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
             {
@@ -371,6 +371,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         try
         {
+            if (!TryPreparePrivateDriverPool(source))
+                return false;
+
             privateDriverReady = BugattiChironPrivateDriverSupport.EnsureVehicleAvailable(
                 vehicleTypeName,
                 playerVehiclePrefab);
@@ -381,6 +384,29 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"BugattiChiron: private-driver registration failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+                privateDriverPreparationExceptionLogged = true;
+            }
+
             return false;
         }
     }

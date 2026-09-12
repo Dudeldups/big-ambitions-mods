@@ -14,6 +14,7 @@ internal static class BugattiChironPrivateDriverSupport
     private const string AdvancedContractKey = "ba:private_driver_type_advanced";
     private const string PremiumContractKey = "ba:private_driver_type_premium";
     private const string AiTemplatePath = "Vehicles/AnselmoAF90";
+    private const string AiTemplateCacheKey = "Prefabs/Vehicles/AnselmoAF90.prefab";
     private const string AiPrefabCacheKey = "Prefabs/Vehicles/bugattichiron.prefab";
     private const int PrivateDriverPoolSize = 2;
 
@@ -208,7 +209,10 @@ internal static class BugattiChironPrivateDriverSupport
 
     private static GameObject? CreateAiPrefab(GameObject playerPrefab)
     {
-        var template = PrefabHelper.LoadPrefabAssetByName(AiTemplatePath);
+        var cache = GetPrefabCache();
+        var template = cache != null && cache.Contains(AiTemplateCacheKey)
+            ? cache[AiTemplateCacheKey] as GameObject
+            : PrefabHelper.LoadPrefabAssetByName(AiTemplatePath);
         if (template == null)
             return null;
 
