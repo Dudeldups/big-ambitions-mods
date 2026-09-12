@@ -91,6 +91,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private int cachedPlayerVehicleCount = -1;
     private bool dealerRegistrationReady;
     private bool dealerReadyLogged;
+    private bool privateDriverPoolReady;
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
     private bool privateDriverPreparationExceptionLogged;
@@ -133,6 +134,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         configuredVehicleIds.Clear();
         dealerRegistrationReady = false;
         dealerReadyLogged = false;
+        privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
@@ -236,12 +238,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         cachedPlayerVehicleCount = -1;
         dealerRegistrationReady = false;
         dealerReadyLogged = false;
+        privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
-        Porsche911GT3RSPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
-        if (context != null)
-            Porsche911GT3RSPrivateDriverSupport.SetContext(context);
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -521,10 +521,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            if (privateDriverRegistrationAllowed &&
-                !privateDriverReady &&
-                playerVehiclePrefab != null)
-                TryPreparePrivateDriverPool(source);
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
 
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
             {
@@ -541,6 +539,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
             var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
                                 (!privateDriverRegistrationAllowed || privateDriverReady);
             if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
@@ -607,8 +606,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         try
         {
-            if (!TryPreparePrivateDriverPool(source))
+            if (!privateDriverPoolReady && !TryPreparePrivateDriverPool(source))
                 return false;
+            privateDriverPoolReady = true;
 
             privateDriverReady = Porsche911GT3RSPrivateDriverSupport.EnsureVehicleAvailable(
                 vehicleTypeName,
@@ -632,7 +632,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private bool TryPreparePrivateDriverPool(string source)
     {
-        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+        if (playerVehiclePrefab == null)
             return false;
 
         try
