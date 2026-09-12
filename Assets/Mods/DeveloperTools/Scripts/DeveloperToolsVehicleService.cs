@@ -251,8 +251,12 @@ namespace DeveloperTools
         public void RestoreDeveloperColor(VehicleController controller)
         {
             EnsureDeveloperColors();
-            if (controller?.vehicleInstance == null || controller.CarFeatures == null ||
-                !developerColors.TryGetValue(controller.vehicleInstance.vehicleColorName, out var color))
+            if (controller?.vehicleInstance == null || controller.CarFeatures == null)
+                return;
+
+            var colorName = controller.vehicleInstance.vehicleColorName;
+            if (string.IsNullOrWhiteSpace(colorName) ||
+                !developerColors.TryGetValue(colorName, out var color))
                 return;
 
             try
@@ -266,7 +270,7 @@ namespace DeveloperTools
                     "DeveloperTools: could not restore extended vehicle color type=" +
                     controller.vehicleInstance.vehicleTypeName +
                     ", id=" + controller.vehicleInstance.id +
-                    ", color=" + controller.vehicleInstance.vehicleColorName +
+                    ", color=" + colorName +
                     ": " + exception.GetBaseException().Message);
             }
         }
@@ -445,9 +449,13 @@ namespace DeveloperTools
             }
         }
 
-        private bool TryResolveColor(string colorName, out VehicleColor color) =>
-            developerColors.TryGetValue(colorName, out color) ||
-            VehicleHelper.TryGetVehicleColor(colorName, out color);
+        private bool TryResolveColor(string colorName, out VehicleColor color)
+        {
+            color = null!;
+            return !string.IsNullOrWhiteSpace(colorName) &&
+                   (developerColors.TryGetValue(colorName, out color) ||
+                    VehicleHelper.TryGetVehicleColor(colorName, out color));
+        }
 
         private static string Localize(string id)
         {
