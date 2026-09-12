@@ -2,7 +2,7 @@
 
 Usage:
   blender --background --factory-startup --python export_labeled_lights.py -- \
-    BMW_M4_Lights_Work.blend bmw_m4_lights.glb
+    BMW_M4_Lights_Work.blend bmw_m4_lights.glb bmw_m4.glb
 """
 
 import bpy
@@ -40,7 +40,7 @@ def group_vertices(source, group):
     return result
 
 
-def create_group_object(source, group_name, output_name):
+def create_group_object(source, placement_source, group_name, output_name):
     group = source.vertex_groups.get(group_name)
     if group is None:
         raise RuntimeError(f"Missing vertex group {source.name}/{group_name}")
@@ -77,7 +77,9 @@ def create_group_object(source, group_name, output_name):
         polygon.use_smooth = source_polygon.use_smooth
 
     target = bpy.data.objects.new(output_name, mesh)
-    target.matrix_world = source.matrix_world.copy()
+    # Keep only Object_67/Object_71-local mesh coordinates. Unity binds each
+    # extracted mesh to its matching production renderer transform, avoiding
+    # any dependence on the subset GLB's generated root hierarchy.
     bpy.context.scene.collection.objects.link(target)
     print(
         f"BMW_LIGHT_EXPORT object={output_name} "
@@ -90,15 +92,53 @@ def main():
     separator = sys.argv.index("--")
     source_path = os.path.abspath(sys.argv[separator + 1])
     output_path = os.path.abspath(sys.argv[separator + 2])
+    reference_path = os.path.abspath(sys.argv[separator + 3])
     bpy.ops.wm.open_mainfile(filepath=source_path)
 
-    generated = []
-    for object_name, group_mapping in GROUPS.items():
+    labeled_sources = {}
+    for object_name in GROUPS:
         source = bpy.data.objects.get(object_name)
         if source is None or source.type != "MESH":
             raise RuntimeError(f"Missing mesh object {object_name}")
+        labeled_sources[object_name] = source
+
+    for obj in bpy.context.scene.objects:
+        obj.select_set(False)
+    bpy.ops.import_scene.gltf(filepath=reference_path)
+    imported_objects = list(bpy.context.selected_objects)
+
+    placement_sources = {}
+    for object_name in GROUPS:
+        candidates = [
+            obj
+            for obj in imported_objects
+            if obj.type == "MESH"
+            and (obj.name == object_name or obj.name.startswith(object_name + "."))
+        ]
+        if len(candidates) != 1:
+            raise RuntimeError(
+                f"Production GLB requires one imported {object_name}, found "
+                f"{[obj.name for obj in candidates]}"
+            )
+        placement_sources[object_name] = candidates[0]
+        print(
+            f"BMW_LIGHT_REFERENCE object={object_name} "
+            f"imported={candidates[0].name} vertices={len(candidates[0].data.vertices)}"
+        )
+
+    generated = []
+    for object_name, group_mapping in GROUPS.items():
+        source = labeled_sources[object_name]
+        placement_source = placement_sources[object_name]
+        if len(source.data.vertices) != len(placement_source.data.vertices):
+            raise RuntimeError(
+                f"Vertex count mismatch for {object_name}: labeled="
+                f"{len(source.data.vertices)} production={len(placement_source.data.vertices)}"
+            )
         for group_name, output_name in group_mapping.items():
-            generated.append(create_group_object(source, group_name, output_name))
+            generated.append(
+                create_group_object(source, placement_source, group_name, output_name)
+            )
 
     for obj in bpy.context.scene.objects:
         obj.select_set(obj in generated)

@@ -41,6 +41,7 @@ public static class BMWM4G82Setup
     private const float FrontTireRadius = 0.3376f;
     private const float RearTireRadius = 0.3395f;
     private const float VisualBodyOffsetY = -0.035f;
+    private const float CaliperOutboardOffset = 0.045f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.07f;
@@ -623,10 +624,12 @@ public static class BMWM4G82Setup
             lightingInstance,
             PrefabUnpackMode.Completely,
             InteractionMode.AutomatedAction);
-        lightingInstance.name = "BMWExactLightingSources";
-        lightingInstance.transform.localPosition = model.transform.localPosition;
-        lightingInstance.transform.localRotation = model.transform.localRotation;
-        lightingInstance.transform.localScale = model.transform.localScale;
+        lightingInstance.name = "BMWExactLightingImport";
+
+        var lampAnchor = FindTransform(model.transform, "BMW_Lamp_Source") ??
+                         throw new InvalidOperationException("BMW production lamp anchor is missing.");
+        var drlAnchor = FindTransform(model.transform, "BMW_DRL_Source") ??
+                        throw new InvalidOperationException("BMW production DRL anchor is missing.");
 
         var requiredNames = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -643,22 +646,50 @@ public static class BMWM4G82Setup
             "BMWLightRef_FrontInnerDrl",
         };
         var foundNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var renderer in lightingInstance.GetComponentsInChildren<MeshRenderer>(true))
+        foreach (var importedRenderer in lightingInstance.GetComponentsInChildren<MeshRenderer>(true))
         {
-            if (!requiredNames.Contains(renderer.name))
+            if (!requiredNames.Contains(importedRenderer.name))
                 continue;
-            if (!foundNames.Add(renderer.name))
+            if (!foundNames.Add(importedRenderer.name))
                 throw new InvalidOperationException(
-                    $"BMW labeled lighting model contains duplicate renderer '{renderer.name}'.");
-            if (renderer.GetComponent<MeshFilter>()?.sharedMesh == null)
+                    $"BMW labeled lighting model contains duplicate renderer '{importedRenderer.name}'.");
+            var mesh = importedRenderer.GetComponent<MeshFilter>()?.sharedMesh;
+            if (mesh == null)
                 throw new InvalidOperationException(
-                    $"BMW labeled lighting renderer '{renderer.name}' has no mesh.");
+                    $"BMW labeled lighting renderer '{importedRenderer.name}' has no mesh.");
+
+            // The extracted mesh vertices remain in the same Object_67 or
+            // Object_71 local coordinates as the production model. Parenting
+            // an identity source under that exact renderer transform avoids
+            // importing and normalizing the subset GLB hierarchy a second
+            // time, which previously moved the DRLs above the roof and the
+            // rear sources away from the vehicle.
+            var anchor = importedRenderer.name.StartsWith(
+                "BMWLightRef_FrontOuterDrl", StringComparison.Ordinal) ||
+                         string.Equals(importedRenderer.name, "BMWLightRef_FrontInnerDrl",
+                             StringComparison.Ordinal)
+                ? drlAnchor
+                : lampAnchor;
+            var source = new GameObject(importedRenderer.name);
+            source.transform.SetParent(anchor, false);
+            source.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = source.AddComponent<MeshRenderer>();
 
             renderer.enabled = false;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             renderer.sharedMaterials = Array.Empty<Material>();
+
+            if (!TryGetRendererBounds(renderer.transform, out var bounds))
+                throw new InvalidOperationException(
+                    $"BMW labeled lighting renderer '{renderer.name}' has no bounds.");
+            ValidateExactLightingBounds(renderer.name, bounds);
+            Debug.Log(
+                $"BMWM4G82: validated labeled light '{renderer.name}' " +
+                $"center={bounds.center} size={bounds.size}.");
         }
+
+        UnityEngine.Object.DestroyImmediate(lightingInstance);
 
         if (foundNames.Count != requiredNames.Count)
         {
@@ -670,6 +701,25 @@ public static class BMWM4G82Setup
         Debug.Log(
             $"BMWM4G82: attached exact labeled lighting meshes={foundNames.Count}/" +
             $"{requiredNames.Count} from '{LightingModelPath}'.");
+    }
+
+    private static void ValidateExactLightingBounds(string name, Bounds bounds)
+    {
+        var isFront = name.StartsWith("BMWLightRef_Front", StringComparison.Ordinal);
+        var isRear = name.StartsWith("BMWLightRef_Rear", StringComparison.Ordinal);
+        var isMirror = name.StartsWith("BMWLightRef_Mirror", StringComparison.Ordinal);
+        var insideVehicle = Math.Abs(bounds.center.x) < TargetWidth * 0.7f &&
+                            bounds.min.y > -0.15f && bounds.max.y < TargetHeight + 0.35f &&
+                            bounds.min.z > -TargetLength * 0.65f &&
+                            bounds.max.z < TargetLength * 0.65f;
+        var longitudinallyCorrect =
+            (isFront && bounds.center.z > TargetLength * 0.28f) ||
+            (isRear && bounds.center.z < -TargetLength * 0.28f) ||
+            (isMirror && Math.Abs(bounds.center.z) < TargetLength * 0.32f);
+        if (!insideVehicle || !longitudinallyCorrect)
+            throw new InvalidOperationException(
+                $"BMW labeled lighting renderer '{name}' is outside its expected vehicle region: " +
+                $"center={bounds.center} min={bounds.min} max={bounds.max}.");
     }
 
     private static void NameKeyRenderers(GameObject model)
@@ -1175,6 +1225,11 @@ public static class BMWM4G82Setup
             caliperGeometry,
             originalCaliperSources,
             corner);
+        // The authored caliper mesh sits behind the fitted wheel face. Move
+        // each original assembly outboard without changing its radial or
+        // longitudinal alignment to the brake disc.
+        caliperGeometry.transform.localPosition = Vector3.right *
+                                                  (corner.Left ? -CaliperOutboardOffset : CaliperOutboardOffset);
         caliperGeometry.transform.SetParent(fixedMount.transform, true);
 
         AssignWheelVisual(controller, mount);
