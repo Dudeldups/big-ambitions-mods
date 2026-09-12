@@ -10,6 +10,7 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class CadillacEscaladeAudioController : MonoBehaviour
 {
+    private const int MaxConfigurationAttempts = 60;
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new List<AudioClip>(8);
     private VehicleController? vehicle;
@@ -53,20 +54,34 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         {
             if (!configured)
             {
-                if (attempts >= 20 || Time.unscaledTime < nextAttempt)
+                if (attempts >= MaxConfigurationAttempts || Time.unscaledTime < nextAttempt)
                     return;
 
                 attempts++;
                 nextAttempt = Time.unscaledTime + .5f;
                 if (!TryConfigure())
                 {
-                    if (attempts == 20)
-                        Warn("vehicle audio state unavailable after 20 attempts; Cadillac engine layers were not initialized.");
+                    if (attempts == MaxConfigurationAttempts)
+                        Warn($"vehicle audio state unavailable after {MaxConfigurationAttempts} attempts; Cadillac engine layers were not initialized.");
                     return;
                 }
             }
 
             UpdatePlayback();
+        }
+        catch (NullReferenceException ex)
+        {
+            // NWH finishes some sound, input, and powertrain references after
+            // the vehicle component has already started updating. Treat that
+            // lifecycle gap as retriable instead of permanently falling back
+            // to the native engine recording on the first frame.
+            Cleanup();
+            nextAttempt = Time.unscaledTime + .5f;
+            if (attempts >= MaxConfigurationAttempts)
+            {
+                failed = true;
+                Warn($"layered audio remained unavailable after {MaxConfigurationAttempts} attempts; native Car sound restored: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
@@ -79,19 +94,19 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private bool TryConfigure()
     {
         physics = vehicle!.GetComponent<PhysicsVehicle>();
-        engineSound = physics?.soundManager.engineRunningComponent;
-        native = engineSound?.source;
-        if (physics == null || engineSound == null || native == null || native.clip == null ||
-            native.outputAudioMixerGroup == null || context == null)
+        if (physics == null || context == null || physics.soundManager == null ||
+            physics.powertrain == null || physics.powertrain.engine == null || physics.input == null)
             return false;
 
-        originalDistortion = engineSound.maxDistortion;
-        engineSound.maxDistortion = 0f;
+        engineSound = physics.soundManager.engineRunningComponent;
+        native = engineSound?.source;
+        if (engineSound == null || native == null || native.clip == null ||
+            native.outputAudioMixerGroup == null)
+            return false;
 
         audioHost = new GameObject("CadillacEscalade_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
-        ConfigureEngineFilters(audioHost);
 
         // Keep a restrained copy of the donor recording only as a smooth idle
         // bed. The six Cadillac V8 clips own the sound once RPM rises.
@@ -103,6 +118,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             layers[i + EngineNames.Length] =
                 CreateSource(audioHost, LoadClip(EngineNames[i] + "Load"), native);
         }
+        ConfigureEngineFilters(audioHost);
 
         var hornHost = new GameObject("CadillacEscalade_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
@@ -112,6 +128,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         hornSource = CreateSource(hornHost, LoadClip("HornLow"), hornTemplate);
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), hornTemplate);
 
+        originalDistortion = engineSound.maxDistortion;
+        engineSound.maxDistortion = 0f;
         configured = true;
         CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade audio configured vehicle={vehicle.GetInstanceID()}, " +
@@ -154,9 +172,9 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         source.spatialBlend = template.spatialBlend;
         source.minDistance = template.minDistance;
         source.maxDistance = template.maxDistance;
-        source.SetCustomCurve(
-            AudioSourceCurveType.CustomRolloff,
-            template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+        var rolloffCurve = template.GetCustomCurve(AudioSourceCurveType.CustomRolloff);
+        if (rolloffCurve != null && rolloffCurve.length > 0)
+            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, rolloffCurve);
         source.rolloffMode = template.rolloffMode;
         source.priority = template.priority;
         source.dopplerLevel = 0f;
