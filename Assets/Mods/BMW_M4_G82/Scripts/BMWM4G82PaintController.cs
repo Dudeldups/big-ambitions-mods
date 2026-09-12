@@ -16,6 +16,7 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
+    private readonly List<PaintSlot> caliperSlots = new List<PaintSlot>();
     private readonly List<InteriorSlot> interiorSlots = new List<InteriorSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private Texture2D? interiorSourceTexture;
@@ -63,6 +64,20 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
             slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
         }
 
+        // The original Sketchfab calipers use their own material rather than
+        // PaintTNR, so they must explicitly follow the configured vehicle
+        // color. Preserve the metallic/smoothness finish already installed by
+        // BMWM4G82Materials while replacing only its color properties.
+        foreach (var slot in caliperSlots)
+        {
+            properties.Clear();
+            slot.Renderer.GetPropertyBlock(properties, slot.MaterialIndex);
+            if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
+            if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
+            if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
+            slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
+        }
+
         ApplyInteriorAccent(color);
 
         appliedColor = selected;
@@ -71,13 +86,14 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
         context?.Logger.Info(
             $"BMWM4G82 paint vehicle={vehicle?.GetInstanceID()}: applied " +
             $"color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
-            $"slots={slots.Count} source='{source}'.");
+            $"bodySlots={slots.Count} caliperSlots={caliperSlots.Count} source='{source}'.");
         return slots.Count > 0;
     }
 
     private void FindPaintSlots()
     {
         slots.Clear();
+        caliperSlots.Clear();
         interiorSlots.Clear();
         interiorSourceTexture = null;
         interiorSourcePixels = null;
@@ -89,7 +105,9 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
                 var material = materials[index];
                 if (material == null)
                     continue;
-                if (IsPaintMaterial(material.name))
+                if (BMWM4G82Materials.IsCaliperRenderer(renderer.transform))
+                    caliperSlots.Add(new PaintSlot(renderer, material, index));
+                else if (IsPaintMaterial(material.name))
                     slots.Add(new PaintSlot(renderer, material, index));
                 else if (material.name.IndexOf(
                              InteriorMaterialMarker,
