@@ -28,7 +28,8 @@ public static class BugattiChironSetup
     private const float TargetLength = 4.544f;
     private const float VehicleLinearDrag = 0f;
     private const float ForcedInductionPowerMultiplier = 1f;
-    private const float PhysicalBrakeTorque = 9500f;
+    private const float SimulationEnginePowerKw = 850f;
+    private const float PhysicalBrakeTorque = 4200f;
     private const float DamageDecelerationThreshold = 500f;
     private const float DamageIntensity = 0.6f;
     private const float DeformationRadius = 0.48f;
@@ -675,7 +676,10 @@ public static class BugattiChironSetup
                 SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.12f);
-                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 1103f);
+                SetRelativeNumber(
+                    serialized,
+                    "powertrain.engine.maxPower",
+                    SimulationEnginePowerKw);
                 SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 900f);
                 SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 6700f);
                 SetRelativeNumber(serialized, "powertrain.engine.startDuration", 0.5f);

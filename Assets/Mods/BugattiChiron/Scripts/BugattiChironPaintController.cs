@@ -29,6 +29,7 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
+    private string? explicitVehicleColorName;
     private ModContext? context;
     private VehicleColor? appliedVehicleColor;
     private Color32 appliedTint;
@@ -50,6 +51,15 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     }
 
     internal void RefreshCurrentColor() => ApplyCurrentColor();
+
+    internal void InitializeForPrivateDriver(string? vehicleColorName)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        FindPaintSlots();
+        ApplyCurrentColor();
+    }
 
     private void FindPaintSlots()
     {
@@ -401,6 +411,12 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
     private VehicleColor? ResolveVehicleColor()
     {
+        if (!string.IsNullOrEmpty(explicitVehicleColorName) &&
+            VehicleHelper.TryGetVehicleColor(explicitVehicleColorName, out var explicitColor))
+        {
+            return explicitColor;
+        }
+
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;
