@@ -23,6 +23,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float EngineLimitRpm = 9500f;
     private const float SpeedLimitKph = 355f;
     private const float FinalDriveRatio = 3.15f;
+    private const float DownshiftRpm = 6500f;
     private const float EngineInertia = 0.09f;
     private const float EngineStartDuration = 0.42f;
     private const float ClutchEngagementRpm = 1400f;
@@ -853,7 +854,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.065f);
-            SetFloat(transmission, "_downshiftRPM", 3600f);
+            SetFloat(transmission, "_downshiftRPM", DownshiftRpm);
             SetFloat(transmission, "_upshiftRPM", 9250f);
             SetInt(transmission, "forwardGearCount", 8);
             SetInt(transmission, "reverseGearCount", 1);
