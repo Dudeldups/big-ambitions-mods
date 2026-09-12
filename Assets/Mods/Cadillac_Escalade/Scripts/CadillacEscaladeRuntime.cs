@@ -453,8 +453,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<CadillacEscaladeLightingController>();
             lightingController.Initialize(vehicle, context);
-            // Lighting creates per-instance emissive meshes. Capture them only
-            // after creation so collision deformation cannot leave them floating.
+            // Lighting assigns per-instance emissive materials to the labeled
+            // overlay meshes. Capture them afterward so crash deformation keeps
+            // every illuminated face attached to its source lamp geometry.
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var driverController = vehicle.GetComponent<CadillacEscaladeDriverController>();
             if (driverController == null)

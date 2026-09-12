@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1164326541
+CRC: 1791882855
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: f1fcc60b73caab4a7d6ccb7b46638469
+    Hash: 380758dcbe5079fbe91395e05f67fa1f
   TypeTreeHash:
     serializedVersion: 2
     Hash: 76f04403e1ddab2d85ac3996a68fa2ed
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: f1fcc60b73caab4a7d6ccb7b46638469
+    Hash: 380758dcbe5079fbe91395e05f67fa1f
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -231,12 +231,14 @@ Assets:
 - Assets/Mods/Cadillac_Escalade/Config/Audio/HornHigh.wav
 - Assets/Mods/Cadillac_Escalade/Config/THIRD_PARTY_NOTICES.txt
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_metal_002.mat
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_chassis.mat
+- Assets/Mods/Cadillac_Escalade/Models/CadillacLightOverlays.glb
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontRightPart01.asset
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/Cadillac_chassis.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacTire.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelRearRightPart02.asset
-- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRimBlack.mat
+- Assets/Mods/Cadillac_Escalade/Models/CadillacLightOverlays.json
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacCabinGlass.mat
+- Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRimBlack.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacAlphaBadges.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMaterials/CadillacRimChrome.mat
 - Assets/Mods/Cadillac_Escalade/Models/GeneratedMeshes/CadillacWheelFrontLeftPart02.asset
