@@ -92,9 +92,9 @@ internal sealed class BMWM4G82LightingController : MonoBehaviour
         headlampOverlay = CreateOverlay(frontHeadlights,
             "HeadlampProjectors", white, 8.0f, 1.001f, 0.040f);
         rearTailOverlay = CreateOverlay(rearRunningLights,
-            "RearRunningLights", new Color(0.78f, 0.006f, 0.002f, 1f), 2.5f, 1.002f);
+            "RearRunningLights", new Color(0.45f, 0f, 0f, 1f), 2.0f, 1.002f);
         rearBrakeOverlay = CreateOverlay(rearBrakeLights,
-            "RearBrakeLights", new Color(1f, 0.008f, 0.001f, 1f), 4.2f, 1.002f);
+            "RearBrakeLights", new Color(0.62f, 0f, 0f, 1f), 3.6f, 1.002f);
         reverseOverlay = CreateOverlay(rearReverseLights,
             "ReverseLights", white, 4.6f, 1.002f);
         licensePlateOverlay = CreateComponentOverlay(lamp,

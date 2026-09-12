@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1222040988
+CRC: 3415522366
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 33bbd3f78842638ca3b577f081f25913
+    Hash: 8380fcd67da6af678a02a195948259a2
   TypeTreeHash:
     serializedVersion: 2
-    Hash: fe99b56c0570f178da583e93064b5623
+    Hash: aff9dc73ba0a989f4ff866434e74d42f
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 33bbd3f78842638ca3b577f081f25913
+    Hash: 8380fcd67da6af678a02a195948259a2
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -93,12 +93,6 @@ ClassTypes:
 - Class: 199
   Script: {instanceID: 0}
 - Class: 208
-  Script: {instanceID: 0}
-- Class: 241
-  Script: {instanceID: 0}
-- Class: 243
-  Script: {instanceID: 0}
-- Class: 245
   Script: {instanceID: 0}
 SerializeReferenceClassIdentifiers:
 - AssemblyName: BigAmbitions

@@ -18,6 +18,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1775f;
+    private const float VehicleLinearDrag = 0.015f;
     private const float EnginePowerKw = 375f;
     private const float EngineIdleRpm = 800f;
     private const float EngineLimitRpm = 7200f;
@@ -65,9 +66,12 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private static AnimationCurve CreateM4PowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.12f, 0.19f),
-            new Keyframe(0.38f, 0.70f),
-            new Keyframe(0.66f, 0.92f),
+            new Keyframe(0.12f, 0.07f),
+            new Keyframe(0.25f, 0.25f),
+            new Keyframe(0.38f, 0.48f),
+            new Keyframe(0.55f, 0.70f),
+            new Keyframe(0.68f, 0.88f),
+            new Keyframe(0.76f, 0.98f),
             new Keyframe(0.87f, 1f),
             new Keyframe(1f, 0.90f));
 
@@ -405,7 +409,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             {
                 rigidbody.mass = VehicleMass;
                 rigidbody.centerOfMass = StableCenterOfMass;
-                rigidbody.drag = 0f;
+                rigidbody.drag = VehicleLinearDrag;
                 rigidbody.angularDrag = 1.90f;
             }
 
