@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1574713518
+CRC: 2961094746
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: dc94db0c2c573e7b406899eee21a17c9
+    Hash: 5ccd0d1e1f23f07fe7e491f9a09b5909
   TypeTreeHash:
     serializedVersion: 2
     Hash: fe99b56c0570f178da583e93064b5623
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: dc94db0c2c573e7b406899eee21a17c9
+    Hash: 5ccd0d1e1f23f07fe7e491f9a09b5909
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -295,5 +295,6 @@ Assets:
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_08_wmit_red.mat
 - Assets/Mods/BMW_M4_G82/Models/GeneratedMaterials/BMWTransparent_02_bBMW_M4CompetitionG82TNR0_2021BadgeA_Material1.mat
 - Assets/Mods/BMW_M4_G82/Config/Audio/EngineHigh.wav
+- Assets/Mods/BMW_M4_G82/Models/bmw_m4_lights.glb
 - Assets/Mods/BMW_M4_G82/Config/Audio/HornLow.wav
 Dependencies: []

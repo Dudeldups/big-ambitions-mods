@@ -13,6 +13,7 @@ public static class BMWM4G82Setup
     private const string ReferenceAssetPath = "Assets/Mods/AudiRS6R/AudiRS6R.asset";
     private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath = ModRoot + "/Models/bmw_m4.glb";
+    private const string LightingModelPath = ModRoot + "/Models/bmw_m4_lights.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
     private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
     private const string DamageBodyMeshPath =
@@ -160,6 +161,12 @@ public static class BMWM4G82Setup
                 "BMWFixedCaliperRearLeft", "BMWFixedCaliperRearRight",
                 "BMW_Interior_Source", "BMW_EngineDetails_Source",
                 "BMW_DashboardDisplay_Source",
+                "BMWLightRef_FrontHeadlights", "BMWLightRef_MirrorTurnSignalLeft",
+                "BMWLightRef_MirrorTurnSignalRight", "BMWLightRef_RearBrakeLights",
+                "BMWLightRef_RearIndicatorLeft", "BMWLightRef_RearIndicatorRight",
+                "BMWLightRef_RearReverseLights", "BMWLightRef_RearRunningLights",
+                "BMWLightRef_FrontOuterDrlIndicatorLeft",
+                "BMWLightRef_FrontOuterDrlIndicatorRight", "BMWLightRef_FrontInnerDrl",
             };
             foreach (var requiredName in requiredUniqueNames)
             {
@@ -457,10 +464,13 @@ public static class BMWM4G82Setup
     {
         var source = AssetDatabase.LoadAssetAtPath<GameObject>(ReferencePrefabPath);
         var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+        var lightingModel = AssetDatabase.LoadAssetAtPath<GameObject>(LightingModelPath);
         if (source == null)
             throw new InvalidOperationException("Audi RS6R reference prefab was not found.");
         if (model == null)
             throw new InvalidOperationException("BMW GLB did not import as a prefab.");
+        if (lightingModel == null)
+            throw new InvalidOperationException("BMW labeled lighting GLB did not import as a prefab.");
 
         var root = UnityEngine.Object.Instantiate(source);
         root.name = "BMWM4G82";
@@ -495,6 +505,7 @@ public static class BMWM4G82Setup
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
             modelInstance.transform.localPosition += Vector3.up * VisualBodyOffsetY;
+            AttachExactLightingSources(modelInstance, lightingModel);
             var damageBody = CreateDeformableBody(root, modelInstance);
             ConfigureVehicleDeformation(root, damageBody);
             var fix = BMWM4G82Materials.FixSolidMaterials(root);
@@ -596,6 +607,69 @@ public static class BMWM4G82Setup
         if (sourceIndex != 2)
             throw new InvalidOperationException(
                 $"BMW requires two authored Material.002 caliper sources, found {sourceIndex}.");
+    }
+
+    private static void AttachExactLightingSources(GameObject model, GameObject lightingModel)
+    {
+        var parent = model.transform.parent;
+        if (parent == null)
+            throw new InvalidOperationException("BMW visual root has no vehicle parent.");
+        var lightingInstance = PrefabUtility.InstantiatePrefab(
+            lightingModel, parent) as GameObject;
+        if (lightingInstance == null)
+            throw new InvalidOperationException("Could not instantiate the BMW labeled lighting model.");
+
+        PrefabUtility.UnpackPrefabInstance(
+            lightingInstance,
+            PrefabUnpackMode.Completely,
+            InteractionMode.AutomatedAction);
+        lightingInstance.name = "BMWExactLightingSources";
+        lightingInstance.transform.localPosition = model.transform.localPosition;
+        lightingInstance.transform.localRotation = model.transform.localRotation;
+        lightingInstance.transform.localScale = model.transform.localScale;
+
+        var requiredNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "BMWLightRef_FrontHeadlights",
+            "BMWLightRef_MirrorTurnSignalLeft",
+            "BMWLightRef_MirrorTurnSignalRight",
+            "BMWLightRef_RearBrakeLights",
+            "BMWLightRef_RearIndicatorLeft",
+            "BMWLightRef_RearIndicatorRight",
+            "BMWLightRef_RearReverseLights",
+            "BMWLightRef_RearRunningLights",
+            "BMWLightRef_FrontOuterDrlIndicatorLeft",
+            "BMWLightRef_FrontOuterDrlIndicatorRight",
+            "BMWLightRef_FrontInnerDrl",
+        };
+        var foundNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var renderer in lightingInstance.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (!requiredNames.Contains(renderer.name))
+                continue;
+            if (!foundNames.Add(renderer.name))
+                throw new InvalidOperationException(
+                    $"BMW labeled lighting model contains duplicate renderer '{renderer.name}'.");
+            if (renderer.GetComponent<MeshFilter>()?.sharedMesh == null)
+                throw new InvalidOperationException(
+                    $"BMW labeled lighting renderer '{renderer.name}' has no mesh.");
+
+            renderer.enabled = false;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sharedMaterials = Array.Empty<Material>();
+        }
+
+        if (foundNames.Count != requiredNames.Count)
+        {
+            requiredNames.ExceptWith(foundNames);
+            throw new InvalidOperationException(
+                "BMW labeled lighting model is missing: " + string.Join(", ", requiredNames));
+        }
+
+        Debug.Log(
+            $"BMWM4G82: attached exact labeled lighting meshes={foundNames.Count}/" +
+            $"{requiredNames.Count} from '{LightingModelPath}'.");
     }
 
     private static void NameKeyRenderers(GameObject model)
