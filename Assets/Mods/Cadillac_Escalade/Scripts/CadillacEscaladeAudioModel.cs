@@ -5,13 +5,13 @@ using System;
 internal static class CadillacEscaladeAudioModel
 {
     internal const float IdlePitch = .86f;
-    internal const float IdleBaseVolume = .18f;
+    internal const float IdleBaseVolume = .22f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
-    internal const float EngineBaseVolume = .22f;
-    internal const float EngineThrottleVolume = .18f;
-    internal const float BurbleIdleVolume = .045f;
-    internal const float BurbleLoadVolume = .075f;
+    internal const float EngineBaseVolume = .31f;
+    internal const float EngineThrottleVolume = .25f;
+    internal const float BurbleIdleVolume = .055f;
+    internal const float BurbleLoadVolume = .155f;
 
     internal static float LoadBlend(float throttle) =>
         Clamp01((throttle - .18f) / .68f);
@@ -25,7 +25,9 @@ internal static class CadillacEscaladeAudioModel
     internal static float BurbleVolume(float throttle, float normalizedRpm)
     {
         var load = (float)Math.Sqrt(Clamp01(throttle));
-        var highRpmReduction = .35f * Clamp01((normalizedRpm - .55f) / .45f);
+        // Retain most of the exhaust pulse under acceleration. The old 35%
+        // high-RPM cut made the burble disappear exactly when engine load rose.
+        var highRpmReduction = .12f * Clamp01((normalizedRpm - .68f) / .32f);
         return (BurbleIdleVolume + BurbleLoadVolume * load) * (1f - highRpmReduction);
     }
 
