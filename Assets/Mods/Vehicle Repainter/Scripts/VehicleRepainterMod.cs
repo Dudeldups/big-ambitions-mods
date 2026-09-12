@@ -102,11 +102,6 @@ namespace VehicleRepainter
             UnsubscribeGlobalEvents();
         }
 
-        private void Update()
-        {
-            runtime?.TickInteractionDiagnostics();
-        }
-
         private void SubscribeGlobalEvents()
         {
             GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -330,7 +325,6 @@ namespace VehicleRepainter
         private readonly HashSet<string> reportedPersistenceFailures = new HashSet<string>(StringComparer.Ordinal);
         private static VehicleRepainterRuntime? activeRuntime;
         private bool privateDriverPaintHooksInstalled;
-        private string? lastInteractionSnapshot;
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
@@ -387,7 +381,6 @@ namespace VehicleRepainter
             ObserveStationTriggers();
             activeRuntime = this;
             EnsurePrivateDriverPaintHooks();
-            lastInteractionSnapshot = null;
             TraceInteraction($"Installed gas-station overlay extension source='{source}'.");
             TraceButton(
                 $"Installed gas-station overlay extension source='{source}'; previousOverlay='{originalGasStationOverlay?.GetType().FullName ?? "null"}', " +
@@ -770,6 +763,7 @@ namespace VehicleRepainter
         private void HandleVehicleEntered(VehicleController vehicle)
         {
             TraceInteraction("Received global vehicle-enter event.", vehicle);
+            TraceInteractionNextFrame("Vehicle state one frame after the global vehicle-enter event.", vehicle);
             RestoreSavedCustomVehicleColor(vehicle, "vehicle-entered");
         }
 
@@ -862,25 +856,12 @@ namespace VehicleRepainter
             customVehicleColors.Clear();
             ownedCustomVehicleColors.Clear();
             reportedPersistenceFailures.Clear();
-            lastInteractionSnapshot = null;
-        }
-
-        internal void TickInteractionDiagnostics()
-        {
-            if (!DebugOptions.EnableDebugLogging || !DebugOptions.EnableInteractionDiagnostics)
-                return;
-
-            var snapshot = DescribeInteractionState();
-            if (string.Equals(snapshot, lastInteractionSnapshot, StringComparison.Ordinal))
-                return;
-
-            lastInteractionSnapshot = snapshot;
-            context.Logger.Info($"Vehicle Repainter interaction diagnostic: observed state change; {snapshot}");
         }
 
         private void HandleVehicleExited(VehicleController vehicle)
         {
             TraceInteraction("Received global vehicle-exit event.", vehicle);
+            TraceInteractionNextFrame("Vehicle state one frame after the global vehicle-exit event.", vehicle);
         }
 
         private void TraceInteraction(string message, VehicleController? eventVehicle = null)
@@ -891,6 +872,20 @@ namespace VehicleRepainter
             context.Logger.Info(
                 $"Vehicle Repainter interaction diagnostic: {message} " +
                 $"eventVehicle='{DescribeVehicle(eventVehicle)}'; {DescribeInteractionState()}");
+        }
+
+        private void TraceInteractionNextFrame(string message, VehicleController? eventVehicle)
+        {
+            if (!DebugOptions.EnableDebugLogging || !DebugOptions.EnableInteractionDiagnostics || overlayUi == null)
+                return;
+
+            overlayUi.StartCoroutine(TraceInteractionAfterFrame(message, eventVehicle));
+        }
+
+        private IEnumerator TraceInteractionAfterFrame(string message, VehicleController? eventVehicle)
+        {
+            yield return null;
+            TraceInteraction(message, eventVehicle);
         }
 
         private string DescribeInteractionState()
