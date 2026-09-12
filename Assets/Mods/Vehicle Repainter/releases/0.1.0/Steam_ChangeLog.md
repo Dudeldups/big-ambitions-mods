@@ -1,1 +1,3 @@
-- Fixed cancelling a repaint preview so the vehicle reliably returns to its original color without changing its saved paint.
+- Fixed custom vehicle colors reverting after reloading a save.
+- Fixed repainted vehicles changing color when summoned through the private driver service.
+- Improved compatibility with modded vehicles that use specialized paint rendering, including the Bugatti Chiron.
