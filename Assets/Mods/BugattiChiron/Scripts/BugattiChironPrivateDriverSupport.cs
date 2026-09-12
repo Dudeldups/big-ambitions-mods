@@ -21,15 +21,12 @@ internal static class BugattiChironPrivateDriverSupport
     private static readonly List<PrivateDriverContract> ModifiedContracts = new(2);
     private static readonly Dictionary<string, VehicleColor> CapturedVehicleColors =
         new(StringComparer.Ordinal);
-    private static readonly HashSet<string> ReportedTrafficAppearanceColors =
-        new(StringComparer.Ordinal);
     private static GameObject? customAiPrefab;
     private static UnityEngine.Object? previousCachedPrefab;
     private static bool previousCacheEntryCaptured;
     private static VehiclePool? modifiedVehiclePool;
     private static CarType? customCarType;
     private static ModContext? context;
-    private static bool trafficAppearanceFailureLogged;
 
     internal static void SetContext(ModContext modContext) => context = modContext;
 
@@ -63,7 +60,7 @@ internal static class BugattiChironPrivateDriverSupport
             nrOfVehicles = PrivateDriverPoolSize,
             canBeRandomlyParked = false,
             hasParkedVersion = false,
-            canBeAiDriven = true,
+            canBeAiDriven = false,
         };
         var existing = pool.trafficCars ?? Array.Empty<CarType>();
         var expanded = new CarType[existing.Length + 1];
@@ -111,8 +108,6 @@ internal static class BugattiChironPrivateDriverSupport
             if (capturedColor != null)
                 UnityEngine.Object.Destroy(capturedColor);
         CapturedVehicleColors.Clear();
-        ReportedTrafficAppearanceColors.Clear();
-        trafficAppearanceFailureLogged = false;
 
         if (modifiedVehiclePool != null && customCarType != null)
         {
@@ -169,34 +164,6 @@ internal static class BugattiChironPrivateDriverSupport
     {
         var message =
             $"BugattiChiron: chauffeur departure paint color='{colorName ?? "<none>"}' " +
-            $"paintApplied={paintApplied}.";
-        if (paintApplied)
-            context?.Logger.Info(message);
-        else
-            context?.Logger.Warn(message);
-    }
-
-    internal static void ReportTrafficAppearanceResult(
-        string? colorName,
-        bool paintApplied)
-    {
-        if (paintApplied)
-        {
-            if (string.IsNullOrEmpty(colorName))
-                return;
-            var resolvedColorName = colorName!;
-            if (!ReportedTrafficAppearanceColors.Add(resolvedColorName))
-                return;
-        }
-        else
-        {
-            if (trafficAppearanceFailureLogged)
-                return;
-            trafficAppearanceFailureLogged = true;
-        }
-
-        var message =
-            $"BugattiChiron: traffic appearance color='{colorName ?? "<none>"}', " +
             $"paintApplied={paintApplied}.";
         if (paintApplied)
             context?.Logger.Info(message);
@@ -504,36 +471,10 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                 yield break;
             }
 
-            if (frame == InitializationFrameLimit - 1)
-            {
-                ApplyTrafficVehicleColor();
-                initializationCoroutine = null;
-                yield break;
-            }
-
             yield return null;
         }
 
         initializationCoroutine = null;
-    }
-
-    private void ApplyTrafficVehicleColor()
-    {
-        var features = GetComponent<CarFeatures>();
-        var liveColor = features?.VehicleColor;
-        if (liveColor == null)
-        {
-            BugattiChironPrivateDriverSupport.ReportTrafficAppearanceResult(null, false);
-            return;
-        }
-
-        var paint = GetComponent<BugattiChironPaintController>();
-        if (paint == null)
-            paint = gameObject.AddComponent<BugattiChironPaintController>();
-        paint.InitializeForTraffic(liveColor);
-        BugattiChironPrivateDriverSupport.ReportTrafficAppearanceResult(
-            liveColor.name,
-            paint.HasAppliedColor);
     }
 
     private void SubscribeTrafficEvents()

@@ -25,8 +25,6 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private static readonly int BaseColorTexture = Shader.PropertyToID("baseColorTexture");
     private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
     private static readonly int Metallic = Shader.PropertyToID("_Metallic");
-    private static readonly Dictionary<Color32, SharedPaintTextureSet> SharedTrafficPaintTextures =
-        new Dictionary<Color32, SharedPaintTextureSet>();
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
@@ -43,16 +41,11 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private Texture2D? rimPaintTexture;
     private Texture2D? rimInnerPaintTexture;
     private Texture2D? seatPaintTexture;
-    private bool ownsPaintTextures;
-    private bool useSharedTrafficPaintTextures;
     private bool textureFailureLogged;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
-        explicitVehicleColorName = null;
-        explicitVehicleColor = null;
-        useSharedTrafficPaintTextures = false;
         context = modContext;
         FindPaintSlots();
         ApplyCurrentColor();
@@ -68,31 +61,10 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         context = null;
         explicitVehicleColorName = vehicleColorName;
         explicitVehicleColor = vehicleColor;
-        useSharedTrafficPaintTextures = false;
         appliedVehicleColor = null;
         hasAppliedTint = false;
         FindPaintSlots();
         ApplyCurrentColor();
-    }
-
-    internal void InitializeForTraffic(VehicleColor vehicleColor)
-    {
-        vehicle = null;
-        context = null;
-        explicitVehicleColorName = null;
-        explicitVehicleColor = vehicleColor;
-        useSharedTrafficPaintTextures = true;
-        appliedVehicleColor = null;
-        hasAppliedTint = false;
-        FindPaintSlots();
-        ApplyCurrentColor();
-    }
-
-    internal static void ClearSharedTrafficTextureCache()
-    {
-        foreach (var textures in SharedTrafficPaintTextures.Values)
-            textures.Destroy();
-        SharedTrafficPaintTextures.Clear();
     }
 
     internal bool HasAppliedColor => hasAppliedTint;
@@ -316,18 +288,6 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         DestroyPaintTextures();
         try
         {
-            if (useSharedTrafficPaintTextures &&
-                SharedTrafficPaintTextures.TryGetValue(tint, out var sharedTextures))
-            {
-                rimPaintTexture = sharedTextures.Rim;
-                rimInnerPaintTexture = sharedTextures.RimInner;
-                seatPaintTexture = sharedTextures.Seat;
-                ownsPaintTextures = false;
-                textureFailureLogged = false;
-                return;
-            }
-
-            ownsPaintTextures = true;
             if (rimSourceTexture != null)
                 rimPaintTexture = CreateRimPaintTexture(rimSourceTexture, selectedColor);
             if (rimInnerSourceTexture != null)
@@ -336,15 +296,6 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
                     "BugattiChiron_RimInnerPaint");
             if (seatSourceTexture != null)
                 seatPaintTexture = CreateSeatPaintTexture(seatSourceTexture, bodyColor);
-
-            if (useSharedTrafficPaintTextures)
-            {
-                SharedTrafficPaintTextures[tint] = new SharedPaintTextureSet(
-                    rimPaintTexture,
-                    rimInnerPaintTexture,
-                    seatPaintTexture);
-                ownsPaintTextures = false;
-            }
             textureFailureLogged = false;
         }
         catch (Exception exception)
@@ -453,46 +404,18 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
     private void DestroyPaintTextures()
     {
-        if (ownsPaintTextures)
-        {
-            if (rimPaintTexture != null)
-                Destroy(rimPaintTexture);
-            if (rimInnerPaintTexture != null)
-                Destroy(rimInnerPaintTexture);
-            if (seatPaintTexture != null)
-                Destroy(seatPaintTexture);
-        }
+        if (rimPaintTexture != null)
+            Destroy(rimPaintTexture);
+        if (rimInnerPaintTexture != null)
+            Destroy(rimInnerPaintTexture);
+        if (seatPaintTexture != null)
+            Destroy(seatPaintTexture);
         rimPaintTexture = null;
         rimInnerPaintTexture = null;
         seatPaintTexture = null;
-        ownsPaintTextures = false;
     }
 
     private void OnDestroy() => DestroyPaintTextures();
-
-    private readonly struct SharedPaintTextureSet
-    {
-        internal readonly Texture2D? Rim;
-        internal readonly Texture2D? RimInner;
-        internal readonly Texture2D? Seat;
-
-        internal SharedPaintTextureSet(Texture2D? rim, Texture2D? rimInner, Texture2D? seat)
-        {
-            Rim = rim;
-            RimInner = rimInner;
-            Seat = seat;
-        }
-
-        internal void Destroy()
-        {
-            if (Rim != null)
-                UnityEngine.Object.Destroy(Rim);
-            if (RimInner != null)
-                UnityEngine.Object.Destroy(RimInner);
-            if (Seat != null)
-                UnityEngine.Object.Destroy(Seat);
-        }
-    }
 
     private VehicleColor? ResolveVehicleColor()
     {

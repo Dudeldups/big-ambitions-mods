@@ -68,7 +68,6 @@ public sealed class BugattiChironMod : IModBigAmbitions
     {
         runtime?.Shutdown();
         runtime = null;
-        BugattiChironPaintController.ClearSharedTrafficTextureCache();
 
         if (vehicleType != null)
         {
