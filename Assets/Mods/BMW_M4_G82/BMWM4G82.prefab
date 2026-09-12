@@ -43338,7 +43338,7 @@ MonoBehaviour:
   - Wheel
   - ExitTrigger
   collisionTimeout: 0.8
-  damageIntensity: 0.45
+  damageIntensity: 0.62
   decelerationThreshold: 500
   deformationIgnoreTags:
   - Wheel

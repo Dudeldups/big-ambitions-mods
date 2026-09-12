@@ -23,7 +23,7 @@ MonoBehaviour:
   enginePower: 375
   brakeForce: 32000
   turnRadius: 25
-  damageIntensity: 0.45
+  damageIntensity: 0.62
   fitsHandTruck: 0
   fitsFlatbed: 0
   autoParkSupported: 1

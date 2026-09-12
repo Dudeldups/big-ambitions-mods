@@ -9,18 +9,19 @@ internal static class BMWM4G82AudioModel
     internal const float HornHighVolume = .56f;
     internal const float EngineBaseVolume = .40f;
     internal const float EngineThrottleVolume = .43f;
-    internal const float ShiftPopVolume = .96f;
-    // Retain part of the cleaner dry recording under acceleration. The load
-    // variants alone emphasize a rounded, pulsing exhaust note too strongly.
+    internal const float ShiftPopVolume = 1.00f;
+    // Use a substantial but incomplete load blend. The BMW remains distinct
+    // from the Lamborghini's fully loaded V12 crossfade while gaining its
+    // smoother transition away from the dry/coast layers.
     internal static float LoadBlend(float throttle) =>
-        .50f * Clamp01((throttle - .16f) / .76f);
+        .72f * Clamp01((throttle - .13f) / .74f);
     internal static float IdleVolume(float drivingBlend) => .32f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
-    // Fade the inherited low-speed idle bed out quickly; the synthesized
-    // six-cylinder layers carry the audible engine character.
+    // Fade the inherited Car idle bed out before it can interfere with the
+    // inline-six layers through the lower driving range.
     internal static float DrivingBlend(float rpm, float idle, float limiter) =>
-        Clamp01((rpm - idle - .04f * limiter) / Math.Max(1f, .18f * limiter));
+        Clamp01((rpm - idle - .02f * limiter) / Math.Max(1f, .12f * limiter));
 
     internal static float Normalize(float rpm, float idle, float limiter) =>
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));

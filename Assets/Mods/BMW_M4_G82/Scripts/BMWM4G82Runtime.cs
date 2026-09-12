@@ -47,7 +47,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 0.45f;
+    private const float DamageIntensity = 0.62f;
     private const float DamageDecelerationThreshold = 500f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
@@ -1236,15 +1236,11 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
     private static readonly HashSet<string> RecessedFrontTrimNames =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            // Recessed kidney-grille frames and left/right intake geometry.
-            // Their vertices sit substantially behind the bumper contact plane,
-            // so they need the extended front influence used below.
-            "Object_24",
-            "Object_28",
-            "Object_32",
-            // The painted lower bumper/grille surround shares one broad mesh.
-            // Its kidney-frame vertices also sit behind the contact plane.
-            "Object_36",
+            // Blender isolation confirms these are the large kidney-grille
+            // assembly and its forward grille detail. Their vertices sit well
+            // behind the bumper contact plane and need the extended influence.
+            "Object_16",
+            "Object_20",
         };
 
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();

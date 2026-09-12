@@ -61,7 +61,7 @@ public static class BMWM4G82Setup
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 0.45f;
+    private const float DamageIntensity = 0.62f;
     private const float DamageDecelerationThreshold = 500f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.06f, -0.08f);
     private static readonly Vector3 SteeringAnchorPosition = new Vector3(-0.38f, 0.92f, 0.55f);

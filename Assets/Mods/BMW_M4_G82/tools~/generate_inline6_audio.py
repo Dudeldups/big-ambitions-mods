@@ -30,17 +30,12 @@ def normalize(samples: list[float], target_rms: float) -> list[float]:
 
 def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     rng = random.Random(seed)
-    phases = [rng.uniform(-0.18, 0.18) for _ in range(14)]
+    phases = [rng.random() * math.tau for _ in range(12)]
     amplitudes = (
-        (1.0, 0.70, 0.52, 0.39, 0.29, 0.22, 0.17, 0.13, 0.10, 0.078, 0.06, 0.046)
+        (1.0, 0.56, 0.38, 0.27, 0.20, 0.15, 0.11, 0.08, 0.058, 0.042)
         if loaded
-        else (1.0, 0.44, 0.30, 0.21, 0.15, 0.11, 0.083, 0.062, 0.047, 0.035, 0.026, 0.020)
+        else (1.0, 0.38, 0.25, 0.17, 0.12, 0.085, 0.06, 0.043, 0.031, 0.023)
     )
-    texture_frequencies = [
-        reference_hz * harmonic
-        for harmonic in (5.5, 6.5, 7.5, 8.5, 9.5, 10.5)
-    ]
-    texture_phases = [rng.random() * math.tau for _ in texture_frequencies]
     output: list[float] = []
     for index in range(COUNT):
         time = index / RATE
@@ -50,25 +45,23 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
             value += amplitude * rolloff * math.sin(
                 math.tau * reference_hz * harmonic * time + phases[harmonic - 1]
             )
-        # Half-order intake/exhaust resonances keep the inline-six body audible
-        # without turning the loop into a smooth organ-like tone.
-        value += (0.17 if loaded else 0.09) * math.sin(
-            math.tau * reference_hz * 0.5 * time + phases[12]
+        # Retain BMW-specific inline-six half-order resonances, but keep them
+        # below the main harmonic stack so they add body without rasp.
+        value += (0.12 if loaded else 0.05) * math.sin(
+            math.tau * reference_hz * 0.5 * time + phases[10]
         )
-        value += (0.14 if loaded else 0.06) * math.sin(
-            math.tau * reference_hz * 1.5 * time + phases[13]
+        value += (0.09 if loaded else 0.035) * math.sin(
+            math.tau * reference_hz * 1.5 * time + phases[11]
         )
-        texture = sum(
-            math.sin(math.tau * frequency * time + phase)
-            for frequency, phase in zip(texture_frequencies, texture_phases)
-        ) / len(texture_frequencies)
+        # A smooth 62 Hz intake pulse borrows the Lamborghini's clean low-body
+        # architecture, retuned for the S58 rather than copying its V12 voice.
+        value += (0.13 if loaded else 0.05) * math.sin(
+            math.tau * 62.0 * time + phases[0]
+        )
         if loaded:
-            # Asymmetric soft clipping and a restrained high-frequency exhaust
-            # texture make boost sound pressurized and mechanical, not bubbly.
-            value = math.tanh((value + 0.055 * texture) * 1.38)
-            value += 0.018 * texture
-        else:
-            value += 0.012 * texture
+            # Gentle saturation preserves boost/load density without the raw,
+            # rusty upper texture produced by the previous dense stack.
+            value = math.tanh(value * 1.20)
         output.append(value)
     return normalize(output, 0.115)
 
@@ -102,7 +95,7 @@ def exhaust_pop(variant: int) -> list[float]:
             min((duration - time) / 0.018, 1.0) * math.pi / 2.0
         ) ** 2
         output.append((0.72 * crack + rumble) * attack * release)
-    return normalize(output, (0.082, 0.075, 0.088)[variant])
+    return normalize(output, (0.095, 0.088, 0.102)[variant])
 
 
 def write_wav(path: Path, samples: list[float]) -> dict[str, float | int | str]:
