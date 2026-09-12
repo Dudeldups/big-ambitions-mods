@@ -43,7 +43,7 @@ public static class BMWM4G82Setup
     private const float VisualBodyOffsetY = -0.035f;
     private const float VehicleLinearDrag = 0.015f;
     private const float CaliperOutboardOffset = 0.045f;
-    private const float ForwardTireGrip = 0.62f;
+    private const float ForwardTireGrip = 0.50f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.07f;
@@ -55,6 +55,8 @@ public static class BMWM4G82Setup
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
+    private const float DamageIntensity = 0.32f;
+    private const float DamageDecelerationThreshold = 500f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
     private static readonly Vector3 SteeringAnchorPosition = new Vector3(-0.38f, 0.92f, 0.55f);
     private static readonly Vector3 DriverExitPosition = new Vector3(-2.05f, 0.20f, 0.15f);
@@ -452,7 +454,7 @@ public static class BMWM4G82Setup
         SetNumber(serialized, "enginePower", 375f);
         SetNumber(serialized, "brakeForce", 4200f);
         SetNumber(serialized, "turnRadius", 25f);
-        SetNumber(serialized, "damageIntensity", 0.50f);
+        SetNumber(serialized, "damageIntensity", DamageIntensity);
         SetBool(serialized, "isATruck", false);
         SetBool(serialized, "isHandVehicle", false);
         SetBool(serialized, "fitsHandTruck", false);
@@ -845,6 +847,9 @@ public static class BMWM4G82Setup
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        body.maxDepenetrationVelocity = 12f;
+        body.solverIterations = Math.Max(body.solverIterations, 12);
+        body.solverVelocityIterations = Math.Max(body.solverVelocityIterations, 4);
 
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -907,10 +912,10 @@ public static class BMWM4G82Setup
         if (colliders.Length < 2)
             throw new InvalidOperationException("Reference vehicle requires two body colliders.");
 
-        colliders[0].center = new Vector3(0f, 0.38f, 0f);
-        colliders[0].size = new Vector3(1.68f, 0.40f, 4.36f);
+        colliders[0].center = new Vector3(0f, 0.40f, 0f);
+        colliders[0].size = new Vector3(1.82f, 0.44f, 4.62f);
         colliders[1].center = new Vector3(0f, 0.84f, -0.20f);
-        colliders[1].size = new Vector3(1.34f, 0.60f, 2.20f);
+        colliders[1].size = new Vector3(1.50f, 0.62f, 2.55f);
     }
 
     private static void CreateSteeringAnchor(GameObject root)
@@ -1755,16 +1760,33 @@ public static class BMWM4G82Setup
     private static void ConfigureVehicleDeformation(GameObject root, MeshFilter bodyFilter)
     {
         var configured = false;
+        var damageHandlerConfigured = false;
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
-            if (component == null ||
-                !string.Equals(
+            if (component == null)
+                continue;
+
+            if (string.Equals(
+                    component.GetType().Name,
+                    "DamageHandler",
+                    StringComparison.Ordinal))
+            {
+                var damageSerialized = new SerializedObject(component);
+                SetNumber(damageSerialized, "damageIntensity", DamageIntensity);
+                SetNumber(
+                    damageSerialized,
+                    "decelerationThreshold",
+                    DamageDecelerationThreshold);
+                damageSerialized.ApplyModifiedPropertiesWithoutUndo();
+                damageHandlerConfigured = true;
+                continue;
+            }
+
+            if (!string.Equals(
                     component.GetType().Name,
                     "VehicleDeformationController",
                     StringComparison.Ordinal))
-            {
                 continue;
-            }
 
             var serialized = new SerializedObject(component);
             var meshFilters = serialized.FindProperty("meshFilters");
@@ -1786,6 +1808,8 @@ public static class BMWM4G82Setup
 
         if (!configured)
             throw new InvalidOperationException("Vehicle deformation controller is missing.");
+        if (!damageHandlerConfigured)
+            throw new InvalidOperationException("Vehicle damage handler is missing.");
     }
 
     private static bool IsBodyPaintMaterial(Material material) =>

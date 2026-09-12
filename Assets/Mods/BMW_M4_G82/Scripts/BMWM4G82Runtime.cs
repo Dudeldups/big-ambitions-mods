@@ -30,7 +30,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float ClutchThrottleOffsetRpm = 450f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
-    private const float ForwardTireGrip = 0.62f;
+    private const float ForwardTireGrip = 0.50f;
     private const float TireFrictionCircleStrength = 0.96f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.07f;
@@ -42,7 +42,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float DeformationStrength = 0.17f;
     private const float DeformationRadius = 0.24f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 1f;
+    private const float DamageIntensity = 0.32f;
     private const float DamageDecelerationThreshold = 500f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
@@ -429,6 +429,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 rigidbody.centerOfMass = StableCenterOfMass;
                 rigidbody.drag = VehicleLinearDrag;
                 rigidbody.angularDrag = 1.90f;
+                rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+                rigidbody.maxDepenetrationVelocity = 12f;
+                rigidbody.solverIterations = Math.Max(rigidbody.solverIterations, 12);
+                rigidbody.solverVelocityIterations = Math.Max(
+                    rigidbody.solverVelocityIterations,
+                    4);
             }
 
             ConfigureMassProperties(targetVehicle.gameObject);
@@ -591,13 +598,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.38f, 0f);
-                colliders[0].size = new Vector3(1.68f, 0.40f, 4.36f);
+                colliders[0].center = new Vector3(0f, 0.40f, 0f);
+                colliders[0].size = new Vector3(1.82f, 0.44f, 4.62f);
             }
             if (colliders.Length > 1)
             {
                 colliders[1].center = new Vector3(0f, 0.84f, -0.20f);
-                colliders[1].size = new Vector3(1.34f, 0.60f, 2.20f);
+                colliders[1].size = new Vector3(1.50f, 0.62f, 2.55f);
             }
         }
     }
@@ -1181,24 +1188,38 @@ public sealed class BMWM4G82GlassController : MonoBehaviour
 [AddComponentMenu("")]
 public sealed class BMWM4G82VisualDamageController : MonoBehaviour
 {
-    private const float DentRadius = 0.54f;
-    private const float MaximumDentDepth = 0.18f;
-    private const float DepthPerExcessMps = 0.0065f;
-    private const float FrontDentLateralRadius = 0.95f;
-    private const float FrontDentVerticalRadius = 0.78f;
-    private const float FrontDentLongitudinalRadius = 0.98f;
-    private const float MaximumFrontDentDepth = 0.21f;
-    private const float FrontDepthPerExcessMps = 0.007f;
-    private const float RearDentLateralRadius = 0.98f;
-    private const float RearDentVerticalRadius = 0.80f;
-    private const float RearDentLongitudinalRadius = 1.08f;
-    private const float MaximumRearDentDepth = 0.22f;
-    private const float RearDepthPerExcessMps = 0.0065f;
+    private const float DentRadius = 0.58f;
+    private const float MaximumDentDepth = 0.13f;
+    private const float DepthPerExcessMps = 0.0042f;
+    private const float FrontDentLateralRadius = 1.08f;
+    private const float FrontDentVerticalRadius = 0.94f;
+    private const float FrontDentLongitudinalRadius = 1.22f;
+    private const float RecessedFrontTrimLateralRadius = 1.20f;
+    private const float RecessedFrontTrimVerticalRadius = 1.10f;
+    private const float RecessedFrontTrimLongitudinalRadius = 1.72f;
+    private const float MaximumFrontDentDepth = 0.13f;
+    private const float FrontDepthPerExcessMps = 0.0038f;
+    private const float RearDentLateralRadius = 1.08f;
+    private const float RearDentVerticalRadius = 0.94f;
+    private const float RearDentLongitudinalRadius = 1.28f;
+    private const float MaximumRearDentDepth = 0.14f;
+    private const float RearDepthPerExcessMps = 0.0037f;
     private const float FrontEndFalloffExponent = 1.65f;
     private const float RearEndFalloffExponent = 1.55f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
-    private const float CollisionCooldown = 0.5f;
+    private const float CollisionCooldown = 0.75f;
     private const int MaximumDiagnosticLogs = 6;
+
+    private static readonly HashSet<string> RecessedFrontTrimNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            // Recessed kidney-grille frames and left/right intake geometry.
+            // Their vertices sit substantially behind the bumper contact plane,
+            // so they need the extended front influence used below.
+            "Object_24",
+            "Object_28",
+            "Object_32",
+        };
 
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
     private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
@@ -1287,14 +1308,14 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                 return;
 
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
-            var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.010f, MaximumDentDepth);
+            var dentDepth = Mathf.Clamp(excessSpeed * DepthPerExcessMps, 0.006f, MaximumDentDepth);
             var frontDentDepth = Mathf.Clamp(
                 excessSpeed * FrontDepthPerExcessMps,
-                0.015f,
+                0.010f,
                 MaximumFrontDentDepth);
             var rearDentDepth = Mathf.Clamp(
                 excessSpeed * RearDepthPerExcessMps,
-                0.015f,
+                0.010f,
                 MaximumRearDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
@@ -1310,6 +1331,7 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                 var mesh = filter.sharedMesh;
                 var vertices = mesh.vertices;
                 var meshChanged = false;
+                var recessedFrontTrim = RecessedFrontTrimNames.Contains(filter.name);
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
                     var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
@@ -1331,13 +1353,19 @@ public sealed class BMWM4G82VisualDamageController : MonoBehaviour
                         {
                             var localDelta = transform.InverseTransformVector(worldVertex - contact.point);
                             var lateralRadius = isFrontContact
-                                ? FrontDentLateralRadius
+                                ? recessedFrontTrim
+                                    ? RecessedFrontTrimLateralRadius
+                                    : FrontDentLateralRadius
                                 : RearDentLateralRadius;
                             var verticalRadius = isFrontContact
-                                ? FrontDentVerticalRadius
+                                ? recessedFrontTrim
+                                    ? RecessedFrontTrimVerticalRadius
+                                    : FrontDentVerticalRadius
                                 : RearDentVerticalRadius;
                             var longitudinalRadius = isFrontContact
-                                ? FrontDentLongitudinalRadius
+                                ? recessedFrontTrim
+                                    ? RecessedFrontTrimLongitudinalRadius
+                                    : FrontDentLongitudinalRadius
                                 : RearDentLongitudinalRadius;
                             var normalizedDistance = Mathf.Sqrt(
                                 localDelta.x * localDelta.x /
