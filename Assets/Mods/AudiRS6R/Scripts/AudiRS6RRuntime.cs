@@ -625,9 +625,12 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                name.StartsWith("B:Kit2_Carbon2M_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Grille", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Grille", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("B:Kit2_Interior_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Light_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Badge_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:ManufacturerPlate_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("B:WindowInside_Geo_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("B:Window_Geo_lodA_B:", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(name, "B:Window_Geo_lodA_red_glass_0", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -1203,11 +1206,14 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
     private const float EndDentLateralRadius = 0.95f;
     private const float EndDentVerticalRadius = 0.85f;
     private const float EndDentLongitudinalRadius = 1.12f;
-    private const float EndDentCenterLowering = 0.18f;
-    private const float MinimumEndDentDepth = 0.028f;
-    private const float MaximumFrontEndDentDepth = 0.27f;
-    private const float MaximumRearEndDentDepth = 0.34f;
-    private const float EndDepthPerExcessMps = 0.011f;
+    private const float FrontDentCenterLowering = 0.08f;
+    private const float RearDentCenterLowering = 0.18f;
+    private const float MinimumFrontEndDentDepth = 0.030f;
+    private const float MinimumRearEndDentDepth = 0.018f;
+    private const float MaximumFrontEndDentDepth = 0.31f;
+    private const float MaximumRearEndDentDepth = 0.20f;
+    private const float FrontEndDepthPerExcessMps = 0.012f;
+    private const float RearEndDepthPerExcessMps = 0.0075f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
 
@@ -1320,6 +1326,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                 MaximumSideDentDepth);
             var center = body != null ? body.worldCenterOfMass : transform.position;
             var changedMeshes = 0;
+            var changedMeshNames = new List<string>();
             var maximumDisplacement = 0f;
             var region = "side";
 
@@ -1345,6 +1352,9 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                         var isEndContact =
                             Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
                             Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
+                        var isFrontEndContact = isEndContact && localContact.z >= 0f;
+                        if (!CanDeformAtContact(filter.name, isEndContact, isFrontEndContact))
+                            continue;
                         float influence;
                         Vector3 candidateDirection;
                         if (isEndContact)
@@ -1353,7 +1363,10 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                             // collision contact. Lowering this ellipsoid keeps the
                             // fascia inside the dent instead of only folding the
                             // painted panel above it.
-                            var influenceCenter = contact.point - transform.up * EndDentCenterLowering;
+                            var centerLowering = isFrontEndContact
+                                ? FrontDentCenterLowering
+                                : RearDentCenterLowering;
+                            var influenceCenter = contact.point - transform.up * centerLowering;
                             var localDelta = transform.InverseTransformVector(worldVertex - influenceCenter);
                             var normalizedDistance = Mathf.Sqrt(
                                 localDelta.x * localDelta.x /
@@ -1381,11 +1394,15 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                             continue;
                         strongestInfluence = influence;
                         inwardDirection = candidateDirection;
-                        selectedFrontEndImpact = isEndContact && localContact.z >= 0f;
+                        selectedFrontEndImpact = isFrontEndContact;
                         selectedDepth = isEndContact
                             ? Mathf.Clamp(
-                                excessSpeed * EndDepthPerExcessMps,
-                                MinimumEndDentDepth,
+                                excessSpeed * (selectedFrontEndImpact
+                                    ? FrontEndDepthPerExcessMps
+                                    : RearEndDepthPerExcessMps),
+                                selectedFrontEndImpact
+                                    ? MinimumFrontEndDentDepth
+                                    : MinimumRearEndDentDepth,
                                 selectedFrontEndImpact
                                     ? MaximumFrontEndDentDepth
                                     : MaximumRearEndDentDepth)
@@ -1430,6 +1447,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                 mesh.RecalculateTangents();
                 SynchronizeLighting(filter, mesh);
                 changedMeshes++;
+                changedMeshNames.Add(filter.name);
             }
 
             if (changedMeshes > 0)
@@ -1437,7 +1455,8 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                 context?.Logger.Info(
                     $"AudiRS6R damage vehicle={vehicle?.GetInstanceID()}: region={region}, " +
                     $"impact={collision.relativeVelocity.magnitude:0.0}mps, meshes={changedMeshes}, " +
-                    $"maxDisplacement={maximumDisplacement:0.000}m.");
+                    $"maxDisplacement={maximumDisplacement:0.000}m, " +
+                    $"targets=[{string.Join(",", changedMeshNames)}].");
             }
         }
         catch (Exception exception)
@@ -1449,6 +1468,23 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                 $"AudiRS6R damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
                 $"with {exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    private static bool CanDeformAtContact(
+        string meshName,
+        bool isEndContact,
+        bool isFrontEndContact)
+    {
+        if (meshName.StartsWith("B:Kit2_Interior_Geo_", StringComparison.OrdinalIgnoreCase) ||
+            meshName.StartsWith("B:WindowInside_Geo_", StringComparison.OrdinalIgnoreCase))
+        {
+            return isEndContact && !isFrontEndContact;
+        }
+
+        if (meshName.StartsWith("B:Window_Geo_lodA_B:", StringComparison.OrdinalIgnoreCase))
+            return isEndContact;
+
+        return true;
     }
 
     private void SynchronizeLighting(MeshFilter filter, Mesh mesh)
