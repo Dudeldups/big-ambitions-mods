@@ -28,7 +28,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
     private const float FinalDriveRatio = 3.2f;
-    private const float DownshiftRpm = 3200f;
+    // Match the aggressive 60%-of-redline kickdown used by the game's
+    // performance-car transmission while retaining the Chiron's 6,700 RPM limit.
+    private const float DownshiftRpm = 4000f;
     private const float EngineInertia = 0.12f;
     private const float EngineStartDuration = 0.5f;
     private const float ClutchEngagementRpm = 1200f;
