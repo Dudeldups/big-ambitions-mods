@@ -386,11 +386,20 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
                 paint.InitializeForPrivateDriver(
                     candidate.vehicleInstance.vehicleColorName,
                     liveColor);
+                SubscribeTrafficEvents();
+
+                // Traffic initialization can assign its own VehicleColor later in
+                // the activation frame. Reapply once after that one-time setup so
+                // pooled destination cars retain the player's saved repaint.
+                yield return new WaitForEndOfFrame();
+                liveColor = GetComponent<CarFeatures>()?.VehicleColor;
+                paint.InitializeForPrivateDriver(
+                    candidate.vehicleInstance.vehicleColorName,
+                    liveColor);
                 BugattiChironPrivateDriverSupport.ReportAppearanceResult(
                     candidate.vehicleInstance.vehicleColorName,
                     liveColor != null,
                     paint.HasAppliedColor);
-                SubscribeTrafficEvents();
                 initializationCoroutine = null;
                 yield break;
             }
