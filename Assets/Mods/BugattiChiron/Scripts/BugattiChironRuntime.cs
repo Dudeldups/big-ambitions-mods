@@ -96,6 +96,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
         runtime.playerVehiclePrefab = playerVehiclePrefab;
         BugattiChironPrivateDriverSupport.SetContext(context);
+        BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -223,12 +224,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private void HandleVehicleEntered(VehicleController vehicle)
     {
         var isTarget = IsTargetVehicle(vehicle);
-        var instanceId = isTarget ? vehicle.GetInstanceID() : 0;
-        var wasConfigured = isTarget && configuredVehicleIds.Contains(instanceId);
         TryConfigureVehicle(vehicle);
         vehicle?.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
         vehicle?.GetComponent<BugattiChironGlassController>()?.RestoreAfterVehicleEntered();
-        if (isTarget && !wasConfigured && configuredVehicleIds.Contains(instanceId))
+        if (isTarget)
             StartCoroutine(EnsureFirstEntryDrivetrainReady(vehicle!));
     }
 
@@ -296,6 +295,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverReady && playerVehiclePrefab != null)
+                BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
+
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
             {
                 ConfigureExistingVehicles(out var waitingMatchedCount);
