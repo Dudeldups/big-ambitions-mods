@@ -21,8 +21,10 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private GameObject? audioHost;
     private AudioSource[]? layers;
     private AudioSource? idleSource;
+    private AudioSource? burbleSource;
     private AudioSource? hornSource;
     private AudioSource? hornSupportSource;
+    private AudioClip? burbleClip;
     private float originalDistortion;
     private bool savedMute;
     private bool ownsMute;
@@ -120,6 +122,12 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         }
         ConfigureEngineFilters(audioHost);
 
+        burbleClip = CadillacEscaladeCrackleWave.Create();
+        var exhaustHost = new GameObject("CadillacEscalade_ExhaustBurble");
+        exhaustHost.transform.SetParent(audioHost.transform, false);
+        burbleSource = CreateSource(exhaustHost, burbleClip, native);
+        ConfigureBurbleFilters(exhaustHost);
+
         var hornHost = new GameObject("CadillacEscalade_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
         var hornTemplate = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
@@ -137,7 +145,9 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             $"{CadillacEscaladeAudioModel.EngineBaseVolume + CadillacEscaladeAudioModel.EngineThrottleVolume:0.00}, " +
             $"idleGain={CadillacEscaladeAudioModel.IdleBaseVolume:0.00}, " +
             $"hornVoices=low/high@{CadillacEscaladeAudioModel.HornLowVolume:0.00}/" +
-            $"{CadillacEscaladeAudioModel.HornHighVolume:0.00}, exhaustCrackle=false.");
+            $"{CadillacEscaladeAudioModel.HornHighVolume:0.00}, " +
+            $"exhaustBurble={CadillacEscaladeAudioModel.BurbleIdleVolume:0.000}.." +
+            $"{CadillacEscaladeAudioModel.BurbleIdleVolume + CadillacEscaladeAudioModel.BurbleLoadVolume:0.000}.");
         return true;
     }
 
@@ -151,6 +161,16 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var lowPass = host.AddComponent<AudioLowPassFilter>();
         lowPass.cutoffFrequency = 2500f;
         lowPass.lowpassResonanceQ = 1f;
+    }
+
+    private static void ConfigureBurbleFilters(GameObject host)
+    {
+        var highPass = host.AddComponent<AudioHighPassFilter>();
+        highPass.cutoffFrequency = 30f;
+        highPass.highpassResonanceQ = 1f;
+        var lowPass = host.AddComponent<AudioLowPassFilter>();
+        lowPass.cutoffFrequency = 420f;
+        lowPass.lowpassResonanceQ = 1.05f;
     }
 
     private AudioClip LoadClip(string name)
@@ -184,10 +204,15 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || native == null || layers == null || audioHost == null ||
-            idleSource == null || hornSource == null || hornSupportSource == null)
+            idleSource == null || burbleSource == null || hornSource == null ||
+            hornSupportSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
 
         audioHost.transform.position = native.transform.position;
+        var exhaust = physics.soundManager.exhaustSourceGO;
+        burbleSource.transform.position = exhaust != null
+            ? exhaust.transform.position
+            : vehicle!.transform.TransformPoint(new Vector3(0f, .42f, -2.35f));
         var controlled = vehicle!.controlledByPlayer;
         var engine = physics.powertrain.engine;
         var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
@@ -260,6 +285,13 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             layers[i].mute = layers[i + EngineNames.Length].mute = controlled && savedMute;
         }
 
+        burbleSource.pitch = Mathf.Lerp(.90f, .98f, normalized);
+        burbleSource.volume = envelope * master *
+                              CadillacEscaladeAudioModel.BurbleVolume(
+                                  smoothThrottle,
+                                  normalized);
+        burbleSource.mute = controlled && savedMute;
+
         if (envelope <= 0f)
         {
             StopLayers();
@@ -270,6 +302,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             idleSource.PlayScheduled(start);
             foreach (var source in layers)
                 source.PlayScheduled(start);
+            burbleSource.PlayScheduled(start);
             voicesStarted = true;
         }
     }
@@ -293,6 +326,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     {
         if (idleSource != null)
             idleSource.enabled = true;
+        if (burbleSource != null)
+            burbleSource.enabled = true;
         if (layers != null)
             foreach (var source in layers)
                 if (source != null)
@@ -344,6 +379,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             foreach (var source in layers)
                 if (source != null)
                     source.Stop();
+        if (burbleSource != null)
+            burbleSource.Stop();
         voicesStarted = false;
     }
 
@@ -378,9 +415,13 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         audioHost = null;
         layers = null;
         idleSource = null;
+        burbleSource = null;
         hornSource = null;
         hornSupportSource = null;
         native = null;
+        if (burbleClip != null)
+            Destroy(burbleClip);
+        burbleClip = null;
         foreach (var clip in ownedClips)
             if (clip != null)
                 Destroy(clip);

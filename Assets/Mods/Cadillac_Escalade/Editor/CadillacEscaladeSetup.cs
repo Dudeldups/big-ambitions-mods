@@ -375,6 +375,8 @@ public static class CadillacEscaladeSetup
                         transmission?.FindPropertyRelative("finalGearRatio")) - 3.23f) < 0.01f &&
                     Math.Abs(ReadNumber(
                         transmission?.FindPropertyRelative("forwardGearCount")) - 10f) < 0.01f &&
+                    Math.Abs(ReadNumber(
+                        transmission?.FindPropertyRelative("_downshiftRPM")) - 3500f) < 0.5f &&
                     gears != null &&
                     gears.isArray &&
                     gears.arraySize == EscaladeGears.Length;
@@ -439,7 +441,7 @@ public static class CadillacEscaladeSetup
                 $"glassRenderers={glassRenderers}, " +
                 $"bodyPaintSlots={bodyPaintSlots}, caliperSlots={caliperSlots}, " +
                 $"lightOverlays={lightOverlayReferences}, " +
-                "transmission=10-speed-automatic, drivetrain=40:60-AWD.");
+                "transmission=10-speed-automatic@3500rpm-downshift, drivetrain=40:60-AWD.");
         }
         finally
         {
@@ -851,7 +853,7 @@ public static class CadillacEscaladeSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 10f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.25f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 1400f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3500f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 5750f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 

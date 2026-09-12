@@ -42388,7 +42388,7 @@ MonoBehaviour:
       isPostShiftBanActive: 0
       isShifting: 0
       shiftProgress: 0
-      _downshiftRPM: 1400
+      _downshiftRPM: 3500
       _upshiftRPM: 5750
       transmissionType: 1
       isSequential: 0

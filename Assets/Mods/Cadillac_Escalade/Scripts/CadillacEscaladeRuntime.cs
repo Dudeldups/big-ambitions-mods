@@ -12,6 +12,12 @@ using Vehicles.VehicleTypes;
 
 public sealed class CadillacEscaladeRuntime : MonoBehaviour
 {
+    private const string VehicleRepainterColorRestoredEvent =
+        "vehicle-repainter:color-restored";
+    private const string VehicleRepainterColorPreviewEvent =
+        "vehicle-repainter:color-preview";
+    private const string VehicleRepainterColorResetEvent =
+        "vehicle-repainter:color-reset";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -26,6 +32,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float EngineLimitRpm = 6000f;
     private const float SpeedLimitKph = 193f;
     private const float FinalDriveRatio = 3.23f;
+    private const float DownshiftRpm = 3500f;
     private const float EngineInertia = 0.45f;
     private const float EngineStartDuration = 0.80f;
     private const float ClutchEngagementRpm = 1000f;
@@ -145,6 +152,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
@@ -157,6 +166,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -189,6 +199,32 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         ResetPlayerVehicleSnapshot();
         dealerReady = false;
         dealerReadyLogged = false;
+    }
+
+    private void HandleGameEvent(string eventName)
+    {
+        if (string.Equals(eventName, VehicleRepainterColorRestoredEvent,
+                StringComparison.Ordinal))
+        {
+            RefreshExistingVehiclePaint();
+            return;
+        }
+
+        if (!string.Equals(eventName, VehicleRepainterColorPreviewEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, VehicleRepainterColorResetEvent,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        selectedVehicle!
+            .GetComponent<CadillacEscaladePaintController>()
+            ?.RefreshCurrentColor();
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -407,6 +443,23 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         cachedTargetVehicleCount = matchedCount;
     }
 
+    private void RefreshExistingVehiclePaint()
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        if (vehicles == null)
+            return;
+
+        foreach (var vehicle in vehicles)
+        {
+            if (!IsTargetVehicle(vehicle))
+                continue;
+
+            vehicle
+                .GetComponent<CadillacEscaladePaintController>()
+                ?.RefreshCurrentColor();
+        }
+    }
+
     private void TryConfigureVehicle(VehicleController? vehicle)
     {
         if (!IsTargetVehicle(vehicle) || vehicle == null)
@@ -493,6 +546,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
+                $"downshift={DownshiftRpm:0}rpm, " +
                 $"powerCurve=2021-L87-road-calibration, brakes={BrakeMaxTorque:0}Nm, " +
                 $"steeringCalipers=4, " +
                 $"bakedPositiveWheelMeshes={bakedPositiveWheelMeshes}, " +
@@ -775,7 +829,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.25f);
-            SetFloat(transmission, "_downshiftRPM", 1400f);
+            SetFloat(transmission, "_downshiftRPM", DownshiftRpm);
             SetFloat(transmission, "_upshiftRPM", 5750f);
             SetInt(transmission, "forwardGearCount", 10);
             SetInt(transmission, "reverseGearCount", 1);
