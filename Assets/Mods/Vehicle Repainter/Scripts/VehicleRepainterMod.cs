@@ -739,24 +739,28 @@ namespace VehicleRepainter
 
         private bool RestoreSavedCustomVehicleColor(VehicleController? vehicle, string source)
         {
-            if (vehicle == null || vehicle.vehicleInstance == null ||
-                !customVehicleColors.TryGetValue(vehicle.vehicleInstance.vehicleColorName, out var color))
+            if (vehicle == null || vehicle.vehicleInstance == null)
+                return false;
+
+            var vehicleInstance = vehicle.vehicleInstance;
+            var colorName = vehicleInstance.vehicleColorName;
+            if (string.IsNullOrEmpty(colorName) || !customVehicleColors.TryGetValue(colorName, out var color))
                 return false;
 
             if (vehicle.CarFeatures == null)
             {
                 WarnPersistenceFailureOnce(
-                    $"player:{vehicle.vehicleInstance.id}:missing-car-features",
-                    $"Could not restore custom color '{vehicle.vehicleInstance.vehicleColorName}' for " +
-                    $"vehicle id='{vehicle.vehicleInstance.id}', type='{vehicle.vehicleInstance.vehicleTypeName}', " +
+                    $"player:{vehicleInstance.id}:missing-car-features",
+                    $"Could not restore custom color '{colorName}' for " +
+                    $"vehicle id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', " +
                     $"source='{source}' because CarFeatures is unavailable.");
                 return false;
             }
 
             vehicle.CarFeatures.SetColor(color);
             TracePersistence(
-                $"Restored custom color '{vehicle.vehicleInstance.vehicleColorName}' for player vehicle " +
-                $"id='{vehicle.vehicleInstance.id}', type='{vehicle.vehicleInstance.vehicleTypeName}', source='{source}'.");
+                $"Restored custom color '{colorName}' for player vehicle " +
+                $"id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', source='{source}'.");
             return true;
         }
 
@@ -818,7 +822,8 @@ namespace VehicleRepainter
             }
 
             var vehicleInstance = privateDriverVehicle.vehicleInstance;
-            if (!customVehicleColors.TryGetValue(vehicleInstance.vehicleColorName, out var color))
+            var colorName = vehicleInstance.vehicleColorName;
+            if (string.IsNullOrEmpty(colorName) || !customVehicleColors.TryGetValue(colorName, out var color))
                 return;
 
             var carFeatures = privateDriverVehicle.GetComponent<CarFeatures>();
@@ -826,14 +831,14 @@ namespace VehicleRepainter
             {
                 WarnPersistenceFailureOnce(
                     $"private-driver:{vehicleInstance.id}:missing-car-features",
-                    $"Could not restore custom color '{vehicleInstance.vehicleColorName}' for private-driver " +
+                    $"Could not restore custom color '{colorName}' for private-driver " +
                     $"vehicle id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}' because CarFeatures is unavailable.");
                 return;
             }
 
             carFeatures.SetColor(color);
             TracePersistence(
-                $"Restored custom color '{vehicleInstance.vehicleColorName}' for private-driver vehicle " +
+                $"Restored custom color '{colorName}' for private-driver vehicle " +
                 $"id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', source='{source}'.");
         }
 
