@@ -27609,7 +27609,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 10000
+    maxTorque: 6500
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.06
@@ -27841,7 +27841,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.1
-          value: 0.03
+          value: 0.023
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -27850,7 +27850,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.23
-          value: 0.1
+          value: 0.078
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -27859,7 +27859,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.45
-          value: 0.26
+          value: 0.215
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -27868,7 +27868,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.67
-          value: 0.56
+          value: 0.48
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -27877,7 +27877,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.82
-          value: 0.68
+          value: 0.5
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -27886,7 +27886,7 @@ MonoBehaviour:
           outWeight: 0
         - serializedVersion: 3
           time: 0.9
-          value: 0.79
+          value: 0.64
           inSlope: 0
           outSlope: 0
           tangentMode: 0

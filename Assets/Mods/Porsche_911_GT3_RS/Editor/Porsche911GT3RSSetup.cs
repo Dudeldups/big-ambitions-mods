@@ -39,8 +39,8 @@ public static class Porsche911GT3RSSetup
     private const float WheelInset = 0.085f;
     private const float WheelCenterRideHeightOffset = 0.060f;
     private const float VehicleLinearDrag = 0.035f;
-    private const float VehicleBrakeForce = 14000f;
-    private const float BrakeMaxTorque = 10000f;
+    private const float VehicleBrakeForce = 9000f;
+    private const float BrakeMaxTorque = 6500f;
     private const float FrontForwardGrip = 0.90f;
     private const float RearForwardGrip = 0.95f;
     private const float FrontForwardStiffness = 1.27f;
@@ -87,12 +87,12 @@ public static class Porsche911GT3RSSetup
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.03f),
-            new Keyframe(0.23f, 0.10f),
-            new Keyframe(0.45f, 0.26f),
-            new Keyframe(0.67f, 0.56f),
-            new Keyframe(0.82f, 0.68f),
-            new Keyframe(0.90f, 0.79f),
+            new Keyframe(0.10f, 0.023f),
+            new Keyframe(0.23f, 0.078f),
+            new Keyframe(0.45f, 0.215f),
+            new Keyframe(0.67f, 0.48f),
+            new Keyframe(0.82f, 0.50f),
+            new Keyframe(0.90f, 0.64f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 

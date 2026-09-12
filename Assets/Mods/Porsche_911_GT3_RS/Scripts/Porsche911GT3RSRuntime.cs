@@ -73,12 +73,12 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.03f),
-            new Keyframe(0.23f, 0.10f),
-            new Keyframe(0.45f, 0.26f),
-            new Keyframe(0.67f, 0.56f),
-            new Keyframe(0.82f, 0.68f),
-            new Keyframe(0.90f, 0.79f),
+            new Keyframe(0.10f, 0.023f),
+            new Keyframe(0.23f, 0.078f),
+            new Keyframe(0.45f, 0.215f),
+            new Keyframe(0.67f, 0.48f),
+            new Keyframe(0.82f, 0.50f),
+            new Keyframe(0.90f, 0.64f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 
@@ -613,6 +613,15 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 rigidbody.solverIterations = Mathf.Max(rigidbody.solverIterations, 12);
                 rigidbody.solverVelocityIterations =
                     Mathf.Max(rigidbody.solverVelocityIterations, 4);
+
+                var highwaySeamGuard =
+                    vehicle.GetComponent<Porsche911GT3RSHighwaySeamGuard>();
+                if (highwaySeamGuard == null)
+                {
+                    highwaySeamGuard = vehicle.gameObject
+                        .AddComponent<Porsche911GT3RSHighwaySeamGuard>();
+                }
+                highwaySeamGuard.Initialize(rigidbody);
             }
 
             ConfigureMassProperties(vehicle.gameObject);
@@ -1409,7 +1418,6 @@ public sealed class Porsche911GT3RSWheelGeometryController : MonoBehaviour
     }
 }
 
-[AddComponentMenu("")]
 public sealed class Porsche911GT3RSCollisionSeparationController : MonoBehaviour
 {
     private const float MinimumPenetration = 0.025f;
@@ -1522,6 +1530,98 @@ public sealed class Porsche911GT3RSCollisionSeparationController : MonoBehaviour
     }
 }
 #endif
+
+[AddComponentMenu("")]
+[DefaultExecutionOrder(-100)]
+[DisallowMultipleComponent]
+internal sealed class Porsche911GT3RSHighwaySeamGuard : MonoBehaviour
+{
+    private const float MinimumSpeedMps = 40f;
+    private const float MaximumSampleAgeSeconds = 0.1f;
+    private const float MinimumUpwardContactNormal = 0.9f;
+    private static readonly string[] KnownHighwaySurfaceNames =
+    {
+        "HamptonsAvenue_Highway",
+        "HighwayAvenue_Highway",
+        "X_IntersectionAASAAS_Highway",
+    };
+
+    private Rigidbody? body;
+    private Vector3 velocityBeforeStep;
+    private Vector3 angularVelocityBeforeStep;
+    private float velocitySampleTime;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        if (planarVelocity.sqrMagnitude < MinimumSpeedMps * MinimumSpeedMps)
+            return;
+
+        velocityBeforeStep = body.velocity;
+        angularVelocityBeforeStep = body.angularVelocity;
+        velocitySampleTime = Time.unscaledTime;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void CorrectKnownHighwaySeam(Collision collision)
+    {
+        if (collision == null || body == null)
+            return;
+
+        var other = collision.collider;
+        if (other == null ||
+            Time.unscaledTime - velocitySampleTime > MaximumSampleAgeSeconds ||
+            !IsKnownHighwaySurface(other.name) || !HasUpwardContact(collision))
+        {
+            return;
+        }
+
+        var correctedVelocity = body.velocity;
+        if (correctedVelocity.y <= velocityBeforeStep.y)
+            return;
+
+        correctedVelocity.y = velocityBeforeStep.y;
+        body.velocity = correctedVelocity;
+        body.angularVelocity = angularVelocityBeforeStep;
+    }
+
+    private static bool HasUpwardContact(Collision collision)
+    {
+        for (var index = 0; index < collision.contactCount; index++)
+        {
+            if (collision.GetContact(index).normal.y >= MinimumUpwardContactNormal)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsKnownHighwaySurface(string objectName)
+    {
+        foreach (var surfaceName in KnownHighwaySurfaceNames)
+        {
+            if (objectName.IndexOf(surfaceName, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
+    }
+}
 
 [AddComponentMenu("")]
 internal sealed class Porsche911GT3RSContactMaterialOwner : MonoBehaviour
