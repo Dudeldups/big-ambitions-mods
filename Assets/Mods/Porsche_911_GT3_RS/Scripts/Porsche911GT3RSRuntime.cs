@@ -73,11 +73,12 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.02f),
-            new Keyframe(0.23f, 0.07f),
-            new Keyframe(0.45f, 0.20f),
-            new Keyframe(0.67f, 0.45f),
-            new Keyframe(0.82f, 0.75f),
+            new Keyframe(0.10f, 0.03f),
+            new Keyframe(0.23f, 0.10f),
+            new Keyframe(0.45f, 0.26f),
+            new Keyframe(0.67f, 0.56f),
+            new Keyframe(0.82f, 0.68f),
+            new Keyframe(0.90f, 0.79f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 

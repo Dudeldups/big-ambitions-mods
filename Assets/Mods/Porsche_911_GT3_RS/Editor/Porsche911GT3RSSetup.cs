@@ -39,6 +39,8 @@ public static class Porsche911GT3RSSetup
     private const float WheelInset = 0.085f;
     private const float WheelCenterRideHeightOffset = 0.060f;
     private const float VehicleLinearDrag = 0.035f;
+    private const float VehicleBrakeForce = 14000f;
+    private const float BrakeMaxTorque = 10000f;
     private const float FrontForwardGrip = 0.90f;
     private const float RearForwardGrip = 0.95f;
     private const float FrontForwardStiffness = 1.27f;
@@ -85,11 +87,12 @@ public static class Porsche911GT3RSSetup
     private static AnimationCurve CreateGT3RSPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.10f, 0.02f),
-            new Keyframe(0.23f, 0.07f),
-            new Keyframe(0.45f, 0.20f),
-            new Keyframe(0.67f, 0.45f),
-            new Keyframe(0.82f, 0.75f),
+            new Keyframe(0.10f, 0.03f),
+            new Keyframe(0.23f, 0.10f),
+            new Keyframe(0.45f, 0.26f),
+            new Keyframe(0.67f, 0.56f),
+            new Keyframe(0.82f, 0.68f),
+            new Keyframe(0.90f, 0.79f),
             new Keyframe(0.94f, 1f),
             new Keyframe(1f, 0.94f));
 
@@ -118,6 +121,7 @@ public static class Porsche911GT3RSSetup
     public static void RepairPrefabAndBuild()
     {
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        ConfigureVehicleTypePerformance();
         var root = PrefabUtility.LoadPrefabContents(VehiclePrefabPath);
         try
         {
@@ -159,6 +163,7 @@ public static class Porsche911GT3RSSetup
             var maxFuel = ReadNumber(vehicleSerialized.FindProperty("maxFuel"));
             var maxSpeed = ReadNumber(vehicleSerialized.FindProperty("maxSpeed"));
             var enginePower = ReadNumber(vehicleSerialized.FindProperty("enginePower"));
+            var brakeForce = ReadNumber(vehicleSerialized.FindProperty("brakeForce"));
             var luxury = vehicleSerialized.FindProperty("isLuxuryCar")?.boolValue ?? true;
 
             var visual = FindTransform(prefab.transform, "PorscheVisual") ??
@@ -303,6 +308,7 @@ public static class Porsche911GT3RSSetup
 
             var transmissionVerified = false;
             var launchResponseVerified = false;
+            var brakeSystemVerified = false;
             var antiRollVerified = false;
             var massCenterVerified = false;
             var rigidbody = prefab.GetComponent<Rigidbody>();
@@ -374,6 +380,9 @@ public static class Porsche911GT3RSSetup
                 }
 
                 var serialized = new SerializedObject(component);
+                brakeSystemVerified = Math.Abs(ReadNumber(
+                    serialized.FindProperty("brakes")?.FindPropertyRelative("maxTorque")) -
+                    BrakeMaxTorque) < 0.5f;
                 var powertrain = serialized.FindProperty("powertrain");
                 var wheelGroups = powertrain?.FindPropertyRelative("wheelGroups");
                 antiRollVerified = wheelGroups != null && wheelGroups.isArray && wheelGroups.arraySize == 2;
@@ -592,6 +601,7 @@ public static class Porsche911GT3RSSetup
                 Math.Abs(maxFuel - 64f) > 0.5f ||
                 Math.Abs(maxSpeed - 296f) > 0.5f ||
                 Math.Abs(enginePower - 386f) > 0.5f ||
+                Math.Abs(brakeForce - VehicleBrakeForce) > 0.5f ||
                 !luxury ||
                 Math.Abs(bounds.size.z - TargetLength) > 0.02f ||
                 Math.Abs(bounds.size.x - TargetWidth) > 0.04f ||
@@ -615,6 +625,7 @@ public static class Porsche911GT3RSSetup
                 !headlightTemplateValid ||
                 !transmissionVerified ||
                 !launchResponseVerified ||
+                !brakeSystemVerified ||
                 !massCenterVerified ||
                 !linearDragVerified ||
                 !antiRollVerified ||
@@ -637,7 +648,7 @@ public static class Porsche911GT3RSSetup
             {
                 throw new InvalidOperationException(
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
-                    $"speed={maxSpeed}, power={enginePower}, luxury={luxury}, " +
+                    $"speed={maxSpeed}, power={enginePower}, brakeForce={brakeForce}, luxury={luxury}, " +
                     $"bounds={bounds.size}, bodySidesOriented={bodySidesOriented}, " +
                     $"bodyUpright={bodyUpright}, frontForward={frontFacesVehicleForward}, " +
                     $"windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
@@ -653,6 +664,7 @@ public static class Porsche911GT3RSSetup
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
                     $"sevenSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
+                    $"brakeSystem={brakeSystemVerified}, " +
                     $"massCenter={massCenterVerified}, linearDrag={linearDragVerified}, " +
                     $"antiRoll={antiRollVerified}, " +
                     $"tireFrictionCount={tireFrictionCount}, " +
@@ -671,13 +683,14 @@ public static class Porsche911GT3RSSetup
 
             Debug.Log(
                 $"Porsche911GT3RS bundle verified: price={price}, speed={maxSpeed}, " +
-                $"power={enginePower}, bounds={bounds.size}, wheels=4, sevenSpeed=true, rwd=true, " +
+                $"power={enginePower}, brakeForce={brakeForce}, bounds={bounds.size}, " +
+                $"wheels=4, sevenSpeed=true, rwd=true, " +
                 $"fixedCalipers=4, steeringCaliperPivots=true, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
                 $"damageBody=outer-shell-only, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
-                $"launchResponse=true, " +
+                $"launchResponse=true, brakeTorque={BrakeMaxTorque:F0}, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
@@ -719,7 +732,7 @@ public static class Porsche911GT3RSSetup
         SetNumber(serialized, "maxCargoCapacity", 2f);
         SetNumber(serialized, "maxSpeed", 296f);
         SetNumber(serialized, "enginePower", 386f);
-        SetNumber(serialized, "brakeForce", 25000f);
+        SetNumber(serialized, "brakeForce", VehicleBrakeForce);
         SetNumber(serialized, "turnRadius", 26f);
         SetNumber(serialized, "damageIntensity", 0.38f);
         SetBool(serialized, "isATruck", false);
@@ -733,6 +746,20 @@ public static class Porsche911GT3RSSetup
         serialized.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(target);
         return target;
+    }
+
+    private static void ConfigureVehicleTypePerformance()
+    {
+        var vehicleType = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(VehicleAssetPath);
+        if (vehicleType == null)
+            throw new InvalidOperationException("Porsche VehicleType asset was not found.");
+
+        var serialized = new SerializedObject(vehicleType);
+        SetNumber(serialized, "maxSpeed", 296f);
+        SetNumber(serialized, "enginePower", 386f);
+        SetNumber(serialized, "brakeForce", VehicleBrakeForce);
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(vehicleType);
     }
 
     private static void CreateVehiclePrefab(UnityEngine.Object vehicleType)
@@ -1103,6 +1130,7 @@ public static class Porsche911GT3RSSetup
                 SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3200f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 8850f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
+                SetRelativeNumber(serialized, "brakes.maxTorque", BrakeMaxTorque);
 
                 var wheelGroups = FindRelativeProperty(serialized, "powertrain.wheelGroups");
                 if (wheelGroups == null || !wheelGroups.isArray || wheelGroups.arraySize != 2)
