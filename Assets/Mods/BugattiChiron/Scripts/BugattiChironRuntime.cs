@@ -56,13 +56,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private static AnimationCurve CreateChironPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.12f, 0.07f),
-            new Keyframe(0.20f, 0.16f),
-            new Keyframe(0.30f, 0.305f),
-            new Keyframe(0.55f, 0.56f),
-            new Keyframe(0.78f, 0.79f),
-            new Keyframe(0.90f, 0.92f),
-            new Keyframe(1f, 1f));
+            new Keyframe(0.12f, 0.065f),
+            new Keyframe(0.20f, 0.145f),
+            new Keyframe(0.30f, 0.28f),
+            new Keyframe(0.55f, 0.515f),
+            new Keyframe(0.78f, 0.73f),
+            new Keyframe(0.90f, 0.85f),
+            new Keyframe(1f, 0.99f));
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
@@ -360,6 +360,15 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 if (aerodynamics == null)
                     aerodynamics = vehicle.gameObject.AddComponent<BugattiChironAerodynamics>();
                 aerodynamics.Initialize(rigidbody);
+
+                var highwaySeamGuard =
+                    vehicle.GetComponent<BugattiChironHighwaySeamGuard>();
+                if (highwaySeamGuard == null)
+                {
+                    highwaySeamGuard = vehicle.gameObject
+                        .AddComponent<BugattiChironHighwaySeamGuard>();
+                }
+                highwaySeamGuard.Initialize(rigidbody);
             }
 
             ConfigureWheelControllers(vehicle.gameObject);
@@ -1436,6 +1445,97 @@ internal sealed class BugattiChironAerodynamics : MonoBehaviour
 
         var dragForce = DragForceCoefficient * speedSquared;
         body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
+    }
+}
+
+[DefaultExecutionOrder(-100)]
+[DisallowMultipleComponent]
+internal sealed class BugattiChironHighwaySeamGuard : MonoBehaviour
+{
+    private const float MinimumSpeedMps = 40f;
+    private const float MaximumSampleAgeSeconds = 0.1f;
+    private const float MinimumUpwardContactNormal = 0.9f;
+    private static readonly string[] KnownHighwaySurfaceNames =
+    {
+        "HamptonsAvenue_Highway",
+        "HighwayAvenue_Highway",
+        "X_IntersectionAASAAS_Highway",
+    };
+
+    private Rigidbody? body;
+    private Vector3 velocityBeforeStep;
+    private Vector3 angularVelocityBeforeStep;
+    private float velocitySampleTime;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        if (planarVelocity.sqrMagnitude < MinimumSpeedMps * MinimumSpeedMps)
+            return;
+
+        velocityBeforeStep = body.velocity;
+        angularVelocityBeforeStep = body.angularVelocity;
+        velocitySampleTime = Time.unscaledTime;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void CorrectKnownHighwaySeam(Collision collision)
+    {
+        if (collision == null || body == null)
+            return;
+
+        var other = collision.collider;
+        if (other == null ||
+            Time.unscaledTime - velocitySampleTime > MaximumSampleAgeSeconds ||
+            !IsKnownHighwaySurface(other.name) || !HasUpwardContact(collision))
+        {
+            return;
+        }
+
+        var correctedVelocity = body.velocity;
+        if (correctedVelocity.y <= velocityBeforeStep.y)
+            return;
+
+        correctedVelocity.y = velocityBeforeStep.y;
+        body.velocity = correctedVelocity;
+        body.angularVelocity = angularVelocityBeforeStep;
+    }
+
+    private static bool HasUpwardContact(Collision collision)
+    {
+        for (var index = 0; index < collision.contactCount; index++)
+        {
+            if (collision.GetContact(index).normal.y >= MinimumUpwardContactNormal)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsKnownHighwaySurface(string objectName)
+    {
+        foreach (var surfaceName in KnownHighwaySurfaceNames)
+        {
+            if (objectName.IndexOf(surfaceName, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
     }
 }
 
