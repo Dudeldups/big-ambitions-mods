@@ -419,14 +419,14 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
     private VehicleColor? ResolveVehicleColor()
     {
-        if (explicitVehicleColor != null)
-            return explicitVehicleColor;
-
         if (!string.IsNullOrEmpty(explicitVehicleColorName) &&
             VehicleHelper.TryGetVehicleColor(explicitVehicleColorName, out var explicitColor))
         {
             return explicitColor;
         }
+
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
 
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
