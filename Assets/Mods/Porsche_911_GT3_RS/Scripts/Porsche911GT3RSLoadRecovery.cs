@@ -1,6 +1,5 @@
 #nullable enable
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
 using BigAmbitions.Items;
@@ -9,7 +8,6 @@ using CameraControllers;
 using GamePrompt.Runtime.Scripts;
 using Helpers;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 // Build 3675 can run the Steam valuation goal in GameManager.Awake before
 // initialization-scope mods register saved vehicle types. The exception aborts
@@ -23,6 +21,8 @@ internal static class Porsche911GT3RSLoadRecovery
         "ForceUpdateAchievementsOnSteam", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly FieldInfo? PersonalGoalsField = typeof(GameManager).GetField(
         "personalGoals", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+    private static readonly FieldInfo? IndoorPlacementCameraField = typeof(GameManager).GetField(
+        "indoorPlacementCamera", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
     private static GameManager? attemptedManager;
     private static GameManager? recoveredManager;
 
@@ -52,10 +52,11 @@ internal static class Porsche911GT3RSLoadRecovery
 
         // Multiple sentinels keep this from replaying an earlier, unrelated Awake
         // failure or overwriting a successfully initialized city.
+        var indoorPlacementCamera = IndoorPlacementCameraField?.GetValue(manager) as Component;
         if (ExitBuildingMethod == null || RefreshAchievementsMethod == null ||
             PersonalGoalsField?.GetValue(manager) == null ||
             InteriorDesignerHelper.TimeOfDayController != null ||
-            manager.indoorPlacementCamera == null || manager.timeOfDayController == null ||
+            indoorPlacementCamera == null || manager.timeOfDayController == null ||
             !manager.gameObject.activeInHierarchy || save.VehicleInstances == null)
         {
             context.Logger.Warn("Porsche911GT3RS: startup recovery skipped: native initialization state differs from the supported interrupted-Awake path.");
@@ -83,7 +84,7 @@ internal static class Porsche911GT3RSLoadRecovery
         {
             var exitCallback = (Action<Address>)Delegate.CreateDelegate(
                 typeof(Action<Address>), manager, ExitBuildingMethod);
-            var placement = manager.indoorPlacementCamera.GetComponentInParent<PlacementCam>();
+            var placement = indoorPlacementCamera.GetComponentInParent<PlacementCam>();
             if (placement == null)
                 throw new InvalidOperationException("Native placement camera is unavailable.");
 
@@ -129,18 +130,6 @@ internal static class Porsche911GT3RSLoadRecovery
         if (!recoveredManager.isActiveAndEnabled || !InputHelper.IsInitialized())
             context.Logger.Warn($"Porsche911GT3RS: recovered city is not ready for input: " +
                 $"managerActive={recoveredManager.isActiveAndEnabled}, inputInitialized={InputHelper.IsInitialized()}.");
-        if (!Porsche911GT3RSDiagnostics.DebugEnabled || !Porsche911GT3RSDiagnostics.LoadRecoveryDebugEnabled)
-            return;
-        var events = EventSystem.current;
-        var hits = new List<RaycastResult>();
-        if (events != null)
-            events.RaycastAll(new PointerEventData(events) { position = new Vector2(Screen.width / 2f, Screen.height / 2f) }, hits);
-        var top = hits.Count == 0 ? "<none>" : hits[0].gameObject.name;
-        Porsche911GT3RSDiagnostics.LoadRecoveryInfo(context, $"Porsche911GT3RS: post-load input state: " +
-            $"managerActive={recoveredManager.isActiveAndEnabled}, inputInitialized={InputHelper.IsInitialized()}, " +
-            $"eventSystem={events != null}, " +
-            $"enabled={events != null && events.isActiveAndEnabled}, module='{events?.currentInputModule?.GetType().Name ?? "<none>"}', " +
-            $"centerUiHit='{top}', loading={UI.Load.LoadScene.isLoading}, nativeAwakeTail={HasNativeExitCallback(recoveredManager)}.");
     }
 
     private static bool HasNativeExitCallback(GameManager manager)
