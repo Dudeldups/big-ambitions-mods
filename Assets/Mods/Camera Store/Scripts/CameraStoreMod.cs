@@ -14,6 +14,7 @@ namespace CameraStore
     {
         private readonly CameraStoreItemRegistration itemRegistration = new();
         private readonly CameraStoreBusinessRegistration businessRegistration = new();
+        private readonly CameraStorePrefabResolver prefabResolver = new();
 
         public string[] RelativeAssetBundlePaths => new[] { CameraStoreIds.BundleKey };
 
@@ -25,14 +26,18 @@ namespace CameraStore
                 if (bundle == null)
                     throw new InvalidOperationException($"Camera Store bundle not found: {CameraStoreIds.BundleKey}");
 
+                prefabResolver.Apply(bundle);
                 itemRegistration.LoadAndRegister(bundle);
                 businessRegistration.LoadAndRegister(bundle);
-                context.Logger.Info("Camera Store registered 8 products, 2 fixtures, and its business type.");
+                context.Logger.Info(
+                    "Camera Store registered 8 products, 2 fixtures, their stable-ID prefab mappings, " +
+                    "and its business type.");
             }
             catch (Exception exception)
             {
                 businessRegistration.Unregister();
                 itemRegistration.Unregister();
+                prefabResolver.Restore();
                 context.Logger.Error(exception);
                 throw;
             }
@@ -44,6 +49,7 @@ namespace CameraStore
         {
             businessRegistration.Unregister();
             itemRegistration.Unregister();
+            prefabResolver.Restore();
             return Task.CompletedTask;
         }
     }
@@ -51,6 +57,7 @@ namespace CameraStore
     [ModEntryOnCityLoad]
     public sealed class CameraStoreCityMod : IModBigAmbitions
     {
+        private readonly CameraStoreFurnitureRetailerIntegration furnitureRetailerIntegration = new();
         private readonly CameraStoreImporterIntegration importerIntegration = new();
         private readonly CameraStoreShelfIntegration shelfIntegration = new();
 
@@ -62,18 +69,30 @@ namespace CameraStore
             {
                 // City services and item caches can settle over several initialization continuations.
                 // Each integration is idempotent, so a short bounded retry handles both new and loaded saves.
+                var furnitureRetailersReady = false;
                 for (var attempt = 0; attempt < 6; attempt++)
                 {
                     shelfIntegration.Apply();
                     importerIntegration.Apply();
+                    var furnitureRetailersReadyThisAttempt = furnitureRetailerIntegration.Apply();
+                    furnitureRetailersReady |= furnitureRetailersReadyThisAttempt;
+
                     if (attempt < 5)
                         await Task.Yield();
                 }
 
-                context.Logger.Info("Camera Store products added to BlueStone Imports and retail fixtures.");
+                if (!furnitureRetailersReady)
+                    throw new InvalidOperationException(
+                        "Camera Store could not find AJ Pederson & Son, Essentials Appliances, and Hampton Supplies.");
+
+                context.Logger.Info(
+                    "Camera Store products added to BlueStone Imports and retail fixtures; " +
+                    "Camera Display and Accessories Shelf added to AJ Pederson & Son, Essentials Appliances, " +
+                    "and Hampton Supplies.");
             }
             catch (Exception exception)
             {
+                furnitureRetailerIntegration.Restore();
                 importerIntegration.Restore();
                 shelfIntegration.Restore();
                 context.Logger.Error(exception);
@@ -83,6 +102,7 @@ namespace CameraStore
 
         public Task OnUnloadAsync()
         {
+            furnitureRetailerIntegration.Restore();
             importerIntegration.Restore();
             shelfIntegration.Restore();
             return Task.CompletedTask;
