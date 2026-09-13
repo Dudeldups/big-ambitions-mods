@@ -45,6 +45,7 @@ def layer(reference_hz: float, loaded: bool) -> list[float]:
         loping_phase = math.tau * (reference_hz / 10.0) * time
         primary_lobe = 0.5 + 0.5 * math.sin(loping_phase + 0.18)
         secondary_lobe = 0.5 + 0.5 * math.sin(loping_phase * 0.5 + 0.82)
+        primary_burble = primary_lobe**1.35
         value = 0.0
         for harmonic, amplitude in enumerate(amplitudes, 1):
             rolloff = math.exp(-((reference_hz * harmonic) / 5200.0) ** 2)
@@ -62,10 +63,10 @@ def layer(reference_hz: float, loaded: bool) -> list[float]:
             # All modulation frequencies are ratios of reference_hz, so the
             # texture stays phase-speed matched as Unity pitches and crossfades
             # the low, mid, and high engine layers.
-            loping_gain = 0.68 + 0.22 * primary_lobe + 0.10 * secondary_lobe
+            loping_gain = 0.52 + 0.34 * primary_burble + 0.14 * secondary_lobe
             value *= loping_gain
-            value += 0.14 * primary_lobe * subharmonic
-            value += 0.055 * secondary_lobe * math.sin(
+            value += 0.24 * primary_burble * subharmonic
+            value += 0.065 * secondary_lobe * math.sin(
                 math.tau * (reference_hz * 1.5) * time + 0.41
             )
         output.append(value)
@@ -99,7 +100,7 @@ def main() -> None:
         "recorded_samples": False,
         "layers": [],
         "transients": [],
-        "load_texture": "RPM-locked loping exhaust modulation embedded in each loaded engine band",
+        "load_texture": "pronounced RPM-locked loping exhaust modulation embedded in each loaded engine band",
         "runtime_layers": [
             "independent 320 Hz and 400 Hz road-horn reeds",
         ],
