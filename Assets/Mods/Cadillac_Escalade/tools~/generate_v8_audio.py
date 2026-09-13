@@ -35,10 +35,11 @@ def combustion_layer(reference_hz: float) -> list[float]:
     pulse_spacing = RATE / reference_hz
     tail_samples = round(RATE * 3.8 / reference_hz)
 
-    # The uneven eight-fire energy pattern supplies the audible cross-plane
-    # cadence. Long overlapping tails keep that cadence continuous instead of
-    # creating the silence and clipping heard with a separate transient layer.
-    firing_gains = (1.00, 0.72, 0.94, 0.64, 1.02, 0.69, 0.90, 0.61)
+    # One broad energy swell across all eight fires supplies the audible
+    # cross-plane cadence without producing two short "bubbles" per cycle.
+    # Long overlapping tails keep the trough continuously energized instead
+    # of creating the silence heard with a separate transient layer.
+    firing_gains = (1.00, 0.93, 0.82, 0.70, 0.64, 0.69, 0.80, 0.92)
     timing_offsets = (0.0, 0.034, -0.022, 0.046, -0.030, 0.020, -0.016, 0.028)
 
     for pulse in range(pulse_count):

@@ -14,7 +14,7 @@
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.33184125262322545,
+      "peak": 0.31257803441279003,
       "method": "phase-aligned OHV V8 combustion-pulse synthesis"
     },
     {
@@ -28,7 +28,7 @@
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.33205517785960115,
+      "peak": 0.31510262304451625,
       "method": "phase-aligned OHV V8 combustion-pulse synthesis"
     },
     {
@@ -42,7 +42,7 @@
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.33134360730291545,
+      "peak": 0.3149777734837545,
       "method": "phase-aligned OHV V8 combustion-pulse synthesis"
     }
   ],
