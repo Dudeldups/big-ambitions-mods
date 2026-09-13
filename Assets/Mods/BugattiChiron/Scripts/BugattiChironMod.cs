@@ -17,6 +17,18 @@ using Vehicles.VehicleTypes;
 [assembly: RegisterModClass(typeof(BugattiChironMainMenuRegistration))]
 [assembly: RegisterModClass(typeof(BugattiChironCityRegistration))]
 
+internal static class BugattiChironDiagnostics
+{
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
+
+    internal static void LoadRecoveryInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && LoadRecoveryDebugEnabled)
+            context?.Logger.Info(message);
+    }
+}
+
 [ModEntryOnInitializationLoad]
 public sealed class BugattiChironMod : IModBigAmbitions
 {
