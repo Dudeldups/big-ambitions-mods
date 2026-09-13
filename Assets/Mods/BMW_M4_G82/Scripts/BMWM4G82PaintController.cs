@@ -24,6 +24,8 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
     private Texture2D? paintedInteriorTexture;
     private VehicleController? vehicle;
     private ModContext? context;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
     private bool hasAppliedTint;
@@ -35,11 +37,30 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
         {
             vehicle = controller;
             context = modContext;
+            explicitVehicleColorName = null;
+            explicitVehicleColor = null;
             FindPaintSlots();
             initialized = true;
         }
 
         ApplyCurrentColor("vehicle-configured", true);
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint && slots.Count > 0;
+
+    internal void InitializeForPrivateDriver(
+        string? colorName,
+        VehicleColor? resolvedColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = colorName;
+        explicitVehicleColor = resolvedColor;
+        appliedColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        initialized = true;
+        ApplyCurrentColor("private-driver", true);
     }
 
     internal bool ApplyCurrentColor(string source, bool force = false)
@@ -272,7 +293,10 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;
-        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName ??
+                        explicitVehicleColorName;
         return !string.IsNullOrEmpty(colorName) && VehicleHelper.TryGetVehicleColor(colorName, out var saved)
             ? saved
             : null;

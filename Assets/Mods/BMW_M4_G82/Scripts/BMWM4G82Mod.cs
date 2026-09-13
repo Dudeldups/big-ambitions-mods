@@ -73,7 +73,10 @@ public sealed class BMWM4G82Mod : IModBigAmbitions
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}, " +
             $"purchasePrefab='Vehicles/PlayerVehicles/{PurchasePrefabName}'.");
-        runtime = BMWM4G82Runtime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = BMWM4G82Runtime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 

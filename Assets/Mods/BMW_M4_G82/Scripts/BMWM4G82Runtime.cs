@@ -105,8 +105,15 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private string vehicleTypeName = string.Empty;
     private bool dealerReady;
     private bool dealerReadyLogged;
+    private bool privateDriverPoolReady;
+    private bool privateDriverContractReady;
+    private bool privateDriverRegistrationAllowed;
+    private GameObject? playerVehiclePrefab;
 
-    public static BMWM4G82Runtime Initialize(ModContext context, string vehicleTypeName)
+    public static BMWM4G82Runtime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<BMWM4G82Runtime>();
         if (runtime == null)
@@ -118,8 +125,12 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
         runtime.dealerReady = false;
         runtime.dealerReadyLogged = false;
+        runtime.privateDriverPoolReady = false;
+        runtime.privateDriverContractReady = false;
+        runtime.privateDriverRegistrationAllowed = false;
         activeRuntime = runtime;
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
@@ -137,6 +148,12 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         powertrainReadinessCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        dealerReadyLogged = false;
+        privateDriverPoolReady = false;
+        privateDriverContractReady = false;
+        privateDriverRegistrationAllowed = false;
+        BMWM4G82PrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         if (ReferenceEquals(activeRuntime, this))
             activeRuntime = null;
         Destroy(gameObject);
@@ -193,6 +210,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -207,6 +225,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         configuredVehicleIds.Clear();
         dealerReady = false;
         dealerReadyLogged = false;
+        privateDriverPoolReady = false;
+        privateDriverContractReady = false;
+        privateDriverRegistrationAllowed = false;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -293,9 +314,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (!dealerReady &&
-            !BusinessLayoutSetHelper.loadingLayouts &&
-            BMWM4G82LuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        if (dealerReady ||
+            !BMWM4G82LuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+            return;
+
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            ScheduleInitialization("dealer-entered");
+        else
             EnsureDealerStock("dealer-entered");
     }
 
@@ -306,8 +331,13 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             ConfigureExistingVehicles(out _);
             return;
         }
-        if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
+        if (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
+            ScheduleInitialization("full-menu");
+        else if (!dealerReady)
             EnsureDealerStock("full-menu");
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverContractReady || !privateDriverPoolReady))
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void HandleVehicleVariablesChanged() => ConfigureExistingVehicles(out _);
@@ -321,6 +351,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
+        if (!privateDriverPoolReady && playerVehiclePrefab != null)
+            privateDriverPoolReady = TryPreparePrivateDriverPool();
+
         while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
         {
             ConfigureExistingVehicles(out _);
@@ -333,18 +366,26 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool();
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverContractReady)
+                EnsurePrivateDriverSupport(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
+                                (!privateDriverRegistrationAllowed ||
+                                 privateDriverContractReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -383,6 +424,50 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             context?.Logger.Warn(
                 $"BMWM4G82: dealer stock update failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverContractReady && privateDriverPoolReady)
+            return true;
+        if (!privateDriverRegistrationAllowed)
+            return false;
+
+        if (!privateDriverContractReady)
+            privateDriverContractReady = TryRegisterPrivateDriverContracts();
+        if (!privateDriverPoolReady && playerVehiclePrefab != null)
+            privateDriverPoolReady = TryPreparePrivateDriverPool();
+
+        return privateDriverContractReady && privateDriverPoolReady;
+    }
+
+    private bool TryRegisterPrivateDriverContracts()
+    {
+        try
+        {
+            return BMWM4G82PrivateDriverSupport.EnsureVehicleAvailable(
+                vehicleTypeName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool()
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return BMWM4G82PrivateDriverSupport.PrepareTrafficPool(
+                playerVehiclePrefab);
+        }
+        catch
+        {
             return false;
         }
     }
