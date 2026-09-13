@@ -13,6 +13,18 @@ using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(LamborghiniRevueltoMod))]
 
+internal static class LamborghiniRevueltoDiagnostics
+{
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
+
+    internal static void LoadRecoveryInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && LoadRecoveryDebugEnabled)
+            context?.Logger.Info(message);
+    }
+}
+
 [ModEntryOnInitializationLoad]
 public sealed class LamborghiniRevueltoMod : IModBigAmbitions
 {
