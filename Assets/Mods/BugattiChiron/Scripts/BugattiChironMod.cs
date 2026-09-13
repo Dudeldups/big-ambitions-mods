@@ -1,6 +1,8 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using BAModAPI;
 using BAModAPI.Services;
@@ -8,9 +10,24 @@ using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
 using Services;
+using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(BugattiChironMod))]
+[assembly: RegisterModClass(typeof(BugattiChironMainMenuRegistration))]
+[assembly: RegisterModClass(typeof(BugattiChironCityRegistration))]
+
+internal static class BugattiChironDiagnostics
+{
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
+
+    internal static void LoadRecoveryInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && LoadRecoveryDebugEnabled)
+            context?.Logger.Info(message);
+    }
+}
 
 [ModEntryOnInitializationLoad]
 public sealed class BugattiChironMod : IModBigAmbitions
@@ -18,9 +35,11 @@ public sealed class BugattiChironMod : IModBigAmbitions
     internal const string VehicleTypeName =
         "bugattichiron-vehicle:vehicletype_bugattichiron";
 
-    private const string BundleKey = "AssetBundles/bugattichiron.unity3d";
-    private const string VehicleAssetPath =
+    internal const string BundleKey = "AssetBundles/bugattichiron.unity3d";
+    internal const string VehicleAssetPath =
         "Assets/Mods/BugattiChiron/BugattiChiron.asset";
+    internal const string VehiclePrefabPath =
+        "Assets/Mods/BugattiChiron/BugattiChiron.prefab";
 
     private VehicleType? vehicleType;
     private BugattiChironRuntime? runtime;
@@ -44,8 +63,29 @@ public sealed class BugattiChironMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
-        ModdingAPI.RegisterModVehicleType(vehicleType);
-        runtime = BugattiChironRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            return Task.CompletedTask;
+        }
+
+        vehicleType.autoParkSupported = true;
+        if (!BugattiChironVehicleTypeRegistration.EnsureRegistered(vehicleType))
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: failed to register vehicle type '{vehicleType.vehicleTypeName}'.");
+        }
+        BugattiChironVehicleTypeRegistration.EnsurePlayerPrefabRegistered(
+            context,
+            vehiclePrefab,
+            "initialization-load");
+
+        runtime = BugattiChironRuntime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 
@@ -62,6 +102,193 @@ public sealed class BugattiChironMod : IModBigAmbitions
         }
 
         return Task.CompletedTask;
+    }
+}
+
+[ModEntryMainMenu]
+public sealed class BugattiChironMainMenuRegistration : IModBigAmbitions
+{
+    private ModContext? context;
+    private VehicleType? vehicleType;
+    private GameObject? vehiclePrefab;
+
+    public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+
+    public Task OnLoadAsync(ModContext modContext)
+    {
+        context = modContext;
+        vehicleType = BugattiChironVehicleTypeRegistration.LoadVehicleType(modContext);
+        vehiclePrefab = BugattiChironVehicleTypeRegistration.LoadVehiclePrefab(modContext);
+        BugattiChironVehicleTypeRegistration.EnsureRegistered(
+            modContext,
+            vehicleType,
+            "main-menu-load");
+        BugattiChironVehicleTypeRegistration.EnsurePlayerPrefabRegistered(
+            modContext,
+            vehiclePrefab,
+            "main-menu-load");
+        return Task.CompletedTask;
+    }
+
+    public Task OnUnloadAsync()
+    {
+        // MainMenu is unloaded before the city scenes are loaded. Rebinding here
+        // guarantees saved Bugatti instances can resolve their VehicleType from
+        // GameManager.Awake onward, without a runtime poll or delayed repair.
+        if (context != null)
+        {
+            vehicleType ??= BugattiChironVehicleTypeRegistration.LoadVehicleType(context);
+            BugattiChironVehicleTypeRegistration.EnsureRegistered(
+                context,
+                vehicleType,
+                "main-menu-unload");
+            vehiclePrefab ??= BugattiChironVehicleTypeRegistration.LoadVehiclePrefab(context);
+            BugattiChironVehicleTypeRegistration.EnsurePlayerPrefabRegistered(
+                context,
+                vehiclePrefab,
+                "main-menu-unload");
+        }
+
+        context = null;
+        vehicleType = null;
+        vehiclePrefab = null;
+        return Task.CompletedTask;
+    }
+}
+
+[ModEntryOnCityLoad]
+public sealed class BugattiChironCityRegistration : IModBigAmbitions
+{
+    public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+
+    public Task OnLoadAsync(ModContext context)
+    {
+        var vehicleType = BugattiChironVehicleTypeRegistration.LoadVehicleType(context);
+        BugattiChironVehicleTypeRegistration.EnsureRegistered(
+            context,
+            vehicleType,
+            "city-load-fallback");
+        BugattiChironVehicleTypeRegistration.EnsurePlayerPrefabRegistered(
+            context,
+            BugattiChironVehicleTypeRegistration.LoadVehiclePrefab(context),
+            "city-load-fallback");
+
+        return Task.CompletedTask;
+    }
+
+    public Task OnUnloadAsync() => Task.CompletedTask;
+}
+
+internal static class BugattiChironVehicleTypeRegistration
+{
+    private const string PlayerPrefabCacheKey =
+        "Prefabs/Vehicles/PlayerVehicles/bugattichiron.prefab";
+
+    internal static VehicleType? LoadVehicleType(ModContext context)
+    {
+        var bundle = AssetService.GetBundle(context.ModId, BugattiChironMod.BundleKey);
+        if (bundle == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: vehicle bundle '{BugattiChironMod.BundleKey}' was unavailable during lifecycle registration.");
+            return null;
+        }
+
+        var loadedVehicleType = bundle.LoadAsset<VehicleType>(BugattiChironMod.VehicleAssetPath);
+        if (loadedVehicleType == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: vehicle type '{BugattiChironMod.VehicleAssetPath}' was unavailable during lifecycle registration.");
+            return null;
+        }
+
+        loadedVehicleType.autoParkSupported = true;
+        return loadedVehicleType;
+    }
+
+    internal static GameObject? LoadVehiclePrefab(ModContext context)
+    {
+        var bundle = AssetService.GetBundle(context.ModId, BugattiChironMod.BundleKey);
+        if (bundle == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: vehicle bundle '{BugattiChironMod.BundleKey}' was unavailable during lifecycle prefab registration.");
+            return null;
+        }
+
+        var loadedVehiclePrefab = bundle.LoadAsset<GameObject>(BugattiChironMod.VehiclePrefabPath);
+        if (loadedVehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: vehicle prefab '{BugattiChironMod.VehiclePrefabPath}' was unavailable during lifecycle registration.");
+        }
+
+        return loadedVehiclePrefab;
+    }
+
+    internal static bool EnsurePlayerPrefabRegistered(
+        ModContext context,
+        GameObject? vehiclePrefab,
+        string source)
+    {
+        if (vehiclePrefab == null)
+            return false;
+
+        var cacheField = typeof(Helpers.PrefabHelper).GetField(
+            "PrefabCache",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        var cache = cacheField?.GetValue(null) as IDictionary;
+        if (cache == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: player prefab cache unavailable source='{source}'.");
+            return false;
+        }
+
+        if (!cache.Contains(PlayerPrefabCacheKey) ||
+            !ReferenceEquals(cache[PlayerPrefabCacheKey], vehiclePrefab))
+        {
+            cache[PlayerPrefabCacheKey] = vehiclePrefab;
+            context.Logger.Info(
+                $"BugattiChiron: player prefab rebound before city activation source='{source}'.");
+        }
+
+        return ReferenceEquals(cache[PlayerPrefabCacheKey], vehiclePrefab);
+    }
+
+    internal static bool EnsureRegistered(
+        ModContext context,
+        VehicleType? vehicleType,
+        string source)
+    {
+        if (vehicleType == null)
+            return false;
+
+        var wasRegistered = VehicleTypeHelper.GetVehicleType(vehicleType.vehicleTypeName) != null;
+        var ready = EnsureRegistered(vehicleType);
+        if (!ready)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: vehicle type registration failed source='{source}'.");
+        }
+        else if (!wasRegistered)
+        {
+            context.Logger.Info(
+                $"BugattiChiron: vehicle type rebound before city activation source='{source}'.");
+        }
+
+        return ready;
+    }
+
+    internal static bool EnsureRegistered(VehicleType vehicleType)
+    {
+        var current = VehicleTypeHelper.GetVehicleType(vehicleType.vehicleTypeName);
+        if (current != null && VehicleTypeHelper.IsModVehicleType(vehicleType.vehicleTypeName))
+            return true;
+
+        ModdingAPI.RegisterModVehicleType(vehicleType);
+        return VehicleTypeHelper.GetVehicleType(vehicleType.vehicleTypeName) != null &&
+               VehicleTypeHelper.IsModVehicleType(vehicleType.vehicleTypeName);
     }
 }
 
