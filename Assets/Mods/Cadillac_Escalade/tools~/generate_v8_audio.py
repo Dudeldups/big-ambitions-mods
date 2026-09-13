@@ -45,11 +45,19 @@ def layer(reference_hz: float, loaded: bool) -> list[float]:
         loping_phase = math.tau * (reference_hz / 10.0) * time
         primary_lobe = 0.5 + 0.5 * math.sin(loping_phase + 0.18)
         secondary_lobe = 0.5 + 0.5 * math.sin(loping_phase * 0.5 + 0.82)
-        primary_burble = primary_lobe**1.35
+        primary_burble = primary_lobe**1.55
         value = 0.0
         for harmonic, amplitude in enumerate(amplitudes, 1):
             rolloff = math.exp(-((reference_hz * harmonic) / 5200.0) ** 2)
-            value += amplitude * rolloff * math.sin(
+            harmonic_gain = 1.0
+            if loaded:
+                if harmonic == 1:
+                    harmonic_gain = 0.92 + 0.08 * primary_burble
+                elif harmonic <= 4:
+                    harmonic_gain = 0.70 + 0.40 * primary_burble
+                else:
+                    harmonic_gain = 0.82 + 0.18 * secondary_lobe
+            value += amplitude * harmonic_gain * rolloff * math.sin(
                 math.tau * reference_hz * harmonic * time + phases[harmonic - 1]
             )
         # A periodic intake/exhaust pressure pulse gives the large OHV V8 its
@@ -57,18 +65,13 @@ def layer(reference_hz: float, loaded: bool) -> list[float]:
         subharmonic = math.sin(
             math.tau * (reference_hz / 2.0) * time + 0.24
         )
-        value += (0.20 if loaded else 0.10) * subharmonic
+        value += (0.14 if loaded else 0.10) * subharmonic
         if loaded:
-            # Embed the loping exhaust character into this RPM band itself.
-            # All modulation frequencies are ratios of reference_hz, so the
-            # texture stays phase-speed matched as Unity pitches and crossfades
-            # the low, mid, and high engine layers.
-            loping_gain = 0.52 + 0.34 * primary_burble + 0.14 * secondary_lobe
+            # Shape the existing engine harmonics rather than adding another
+            # audible oscillator. The ratios keep the smooth tonal bloom locked
+            # to RPM through all low, mid, and high crossfades.
+            loping_gain = 0.80 + 0.14 * primary_burble + 0.06 * secondary_lobe
             value *= loping_gain
-            value += 0.24 * primary_burble * subharmonic
-            value += 0.065 * secondary_lobe * math.sin(
-                math.tau * (reference_hz * 1.5) * time + 0.41
-            )
         output.append(value)
     return normalize(output, 0.115)
 
@@ -100,7 +103,7 @@ def main() -> None:
         "recorded_samples": False,
         "layers": [],
         "transients": [],
-        "load_texture": "pronounced RPM-locked loping exhaust modulation embedded in each loaded engine band",
+        "load_texture": "RPM-locked harmonic-bloom burble shaped inside each loaded engine waveform",
         "runtime_layers": [
             "independent 320 Hz and 400 Hz road-horn reeds",
         ],

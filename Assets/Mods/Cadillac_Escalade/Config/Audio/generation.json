@@ -14,7 +14,7 @@
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.274467254064099,
+      "peak": 0.23726472449786598,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
@@ -28,7 +28,7 @@
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.27309302372238303,
+      "peak": 0.23357976710665934,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
@@ -42,12 +42,12 @@
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.26982827282244776,
+      "peak": 0.22444667920724895,
       "method": "deterministic additive OHV V8 synthesis"
     }
   ],
   "transients": [],
-  "load_texture": "pronounced RPM-locked loping exhaust modulation embedded in each loaded engine band",
+  "load_texture": "RPM-locked harmonic-bloom burble shaped inside each loaded engine waveform",
   "runtime_layers": [
     "independent 320 Hz and 400 Hz road-horn reeds"
   ]
