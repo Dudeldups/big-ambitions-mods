@@ -24,29 +24,31 @@ internal static class Porsche911GT3RSLoadRecovery
     private static readonly FieldInfo? PersonalGoalsField = typeof(GameManager).GetField(
         "personalGoals", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
     private static GameManager? attemptedManager;
+    private static GameManager? recoveredManager;
 
-    internal static void CompleteInterruptedLoad(ModContext? context)
+    internal static bool CompleteInterruptedLoad(ModContext? context)
     {
         var manager = InstanceBehavior<GameManager>.Instance;
         var save = SaveGameManager.Current;
         if (manager == null || save?.privateDriverVehicleInstances == null || context == null ||
             ReferenceEquals(attemptedManager, manager))
-            return;
+            return false;
 
         var hasPorsche = false;
         foreach (var vehicle in save.privateDriverVehicleInstances)
             hasPorsche |= vehicle != null && string.Equals(vehicle.vehicleTypeName,
                 Porsche911GT3RSMod.VehicleTypeName, StringComparison.Ordinal);
         if (!hasPorsche)
-            return;
+            return false;
 
         attemptedManager = manager;
         var exitRegistered = HasNativeExitCallback(manager);
-        context.Logger.Info($"Porsche911GT3RS: chauffeur save startup check: " +
+        Porsche911GT3RSDiagnostics.LoadRecoveryInfo(context, $"Porsche911GT3RS: chauffeur save startup check: " +
+            $"managerEnabled={manager.enabled}, inputInitialized={InputHelper.IsInitialized()}, " +
             $"nativeAwakeTail={exitRegistered}, interiorReady={InteriorDesignerHelper.TimeOfDayController != null}, " +
             $"playerRecords={save.VehicleInstances?.Count ?? 0}, chauffeurRecords={save.privateDriverVehicleInstances.Count}.");
         if (exitRegistered)
-            return;
+            return false;
 
         // Multiple sentinels keep this from replaying an earlier, unrelated Awake
         // failure or overwriting a successfully initialized city.
@@ -54,10 +56,10 @@ internal static class Porsche911GT3RSLoadRecovery
             PersonalGoalsField?.GetValue(manager) == null ||
             InteriorDesignerHelper.TimeOfDayController != null ||
             manager.indoorPlacementCamera == null || manager.timeOfDayController == null ||
-            save.VehicleInstances == null)
+            !manager.gameObject.activeInHierarchy || save.VehicleInstances == null)
         {
             context.Logger.Warn("Porsche911GT3RS: startup recovery skipped: native initialization state differs from the supported interrupted-Awake path.");
-            return;
+            return false;
         }
 
         foreach (var vehicle in save.VehicleInstances)
@@ -65,7 +67,7 @@ internal static class Porsche911GT3RSLoadRecovery
             if (vehicle == null || vehicle.VehicleType == null)
             {
                 context.Logger.Warn($"Porsche911GT3RS: startup recovery stopped: player vehicle type still unresolved: '{vehicle?.vehicleTypeName ?? "<null record>"}'.");
-                return;
+                return false;
             }
         }
         foreach (var vehicle in save.privateDriverVehicleInstances)
@@ -73,7 +75,7 @@ internal static class Porsche911GT3RSLoadRecovery
             if (vehicle == null || vehicle.VehicleType == null)
             {
                 context.Logger.Warn($"Porsche911GT3RS: startup recovery stopped: chauffeur vehicle type still unresolved: '{vehicle?.vehicleTypeName ?? "<null record>"}'.");
-                return;
+                return false;
             }
         }
 
@@ -97,28 +99,48 @@ internal static class Porsche911GT3RSLoadRecovery
             GamePromptManager.StartCollecting();
             InteriorDesignerHelper.Init(manager.timeOfDayController, placement, false);
             TutorialHelper.Init();
-            context.Logger.Info("Porsche911GT3RS: completed interrupted city initialization after vehicle registration; native valuation, exit callback, interior state and tutorial initialization succeeded.");
+
+            // Unity disables a MonoBehaviour whose Awake throws. Completing its
+            // fields alone leaves Update (clock, Escape and mouse interaction)
+            // stopped. Re-enable only after the guarded recovery fully succeeds.
+            // Unity runs any pending Start itself; never invoke Start manually or
+            // replay Awake, which would duplicate native initialization/listeners.
+            var wasDisabled = !manager.enabled;
+            manager.enabled = true;
+            recoveredManager = manager;
+            context.Logger.Warn($"Porsche911GT3RS: recovered interrupted city startup after vehicle registration; " +
+                $"managerWasDisabled={wasDisabled}, managerEnabled={manager.enabled}. Native Start/Update can resume.");
+            return true;
         }
         catch (Exception exception)
         {
             var failure = exception is TargetInvocationException invocation && invocation.InnerException != null
                 ? invocation.InnerException : exception;
             context.Logger.Warn($"Porsche911GT3RS: interrupted-load recovery failed: {failure}");
+            return false;
         }
     }
 
     internal static void ReportInputState(ModContext? context)
     {
-        if (context == null || attemptedManager == null)
+        if (context == null || recoveredManager == null ||
+            recoveredManager != InstanceBehavior<GameManager>.Instance)
+            return;
+        if (!recoveredManager.isActiveAndEnabled || !InputHelper.IsInitialized())
+            context.Logger.Warn($"Porsche911GT3RS: recovered city is not ready for input: " +
+                $"managerActive={recoveredManager.isActiveAndEnabled}, inputInitialized={InputHelper.IsInitialized()}.");
+        if (!Porsche911GT3RSDiagnostics.DebugEnabled || !Porsche911GT3RSDiagnostics.LoadRecoveryDebugEnabled)
             return;
         var events = EventSystem.current;
         var hits = new List<RaycastResult>();
         if (events != null)
             events.RaycastAll(new PointerEventData(events) { position = new Vector2(Screen.width / 2f, Screen.height / 2f) }, hits);
         var top = hits.Count == 0 ? "<none>" : hits[0].gameObject.name;
-        context.Logger.Info($"Porsche911GT3RS: post-load input state: eventSystem={events != null}, " +
+        Porsche911GT3RSDiagnostics.LoadRecoveryInfo(context, $"Porsche911GT3RS: post-load input state: " +
+            $"managerActive={recoveredManager.isActiveAndEnabled}, inputInitialized={InputHelper.IsInitialized()}, " +
+            $"eventSystem={events != null}, " +
             $"enabled={events != null && events.isActiveAndEnabled}, module='{events?.currentInputModule?.GetType().Name ?? "<none>"}', " +
-            $"centerUiHit='{top}', loading={UI.Load.LoadScene.isLoading}, nativeAwakeTail={HasNativeExitCallback(attemptedManager)}.");
+            $"centerUiHit='{top}', loading={UI.Load.LoadScene.isLoading}, nativeAwakeTail={HasNativeExitCallback(recoveredManager)}.");
     }
 
     private static bool HasNativeExitCallback(GameManager manager)

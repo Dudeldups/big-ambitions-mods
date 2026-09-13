@@ -219,8 +219,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
-        Porsche911GT3RSLoadRecovery.CompleteInterruptedLoad(context);
-        StartCoroutine(ReportLoadedInputState());
+        if (Porsche911GT3RSLoadRecovery.CompleteInterruptedLoad(context))
+            StartCoroutine(ReportLoadedInputState());
         privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
