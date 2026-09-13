@@ -76,6 +76,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private bool dealerReady;
+    private bool privateDriverPoolReady;
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
     private bool privateDriverPreparationExceptionLogged;
@@ -113,6 +114,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
@@ -186,6 +188,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
@@ -259,7 +262,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
-        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
             EnsurePrivateDriverSupport("full-menu");
     }
 
@@ -278,8 +282,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
-            if (!privateDriverReady && playerVehiclePrefab != null)
-                TryPreparePrivateDriverPool(source);
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
 
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
             {
@@ -297,6 +301,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
             var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
                                 (!privateDriverRegistrationAllowed || privateDriverReady);
             if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
@@ -321,6 +326,11 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         {
             context?.Logger.Warn(
                 $"BugattiChiron: private-driver support not ready source='{source}'.");
+        }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"BugattiChiron: private-driver traffic pool not ready source='{source}'.");
         }
     }
 
@@ -347,20 +357,22 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private bool EnsurePrivateDriverSupport(string source)
     {
-        if (privateDriverReady)
+        if (privateDriverReady && privateDriverPoolReady)
             return true;
         if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
             return false;
 
         try
         {
-            if (!TryPreparePrivateDriverPool(source))
-                return false;
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
 
-            privateDriverReady = BugattiChironPrivateDriverSupport.EnsureVehicleAvailable(
-                vehicleTypeName,
-                playerVehiclePrefab);
-            return privateDriverReady;
+            if (!privateDriverReady)
+            {
+                privateDriverReady = BugattiChironPrivateDriverSupport.EnsureVehicleAvailable(
+                    vehicleTypeName);
+            }
+            return privateDriverReady && privateDriverPoolReady;
         }
         catch (Exception exception)
         {
