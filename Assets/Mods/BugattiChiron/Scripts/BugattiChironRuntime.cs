@@ -18,19 +18,26 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1995f;
-    private const float EnginePowerKw = 1103f;
+    // NWH's simplified drivetrain has lower losses than the real car. Keeping the
+    // catalog specification at 1,103 kW while using this calibrated simulation
+    // value brings the measured 0-300 km/h time closer to the Chiron's 13.1 s.
+    private const float SimulationEnginePowerKw = 850f;
+    // Calibrated against Bugatti's published 100-0 and 200-0 km/h distances.
+    private const float PhysicalBrakeTorque = 3000f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 6700f;
     private const float SpeedLimitKph = 420f;
     private const float FinalDriveRatio = 3.2f;
-    private const float DownshiftRpm = 3200f;
+    // Match the aggressive 60%-of-redline kickdown used by the game's
+    // performance-car transmission while retaining the Chiron's 6,700 RPM limit.
+    private const float DownshiftRpm = 4000f;
     private const float EngineInertia = 0.12f;
     private const float EngineStartDuration = 0.5f;
     private const float ClutchEngagementRpm = 1200f;
     private const float ClutchThrottleOffsetRpm = 500f;
     private const float ClutchEngagementRange = 500f;
     private const float ClutchCreepTorque = 0f;
-    private const float VehicleLinearDrag = 0.027f;
+    private const float VehicleLinearDrag = 0f;
     private const float ForcedInductionPowerMultiplier = 1f;
     private const float DamageDecelerationThreshold = 500f;
     private const float DamageIntensity = 0.6f;
@@ -57,21 +64,30 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private static AnimationCurve CreateChironPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.12f, 0.10f),
-            new Keyframe(0.30f, 0.38f),
-            new Keyframe(0.55f, 0.70f),
-            new Keyframe(0.78f, 0.93f),
-            new Keyframe(0.88f, 1f),
-            new Keyframe(1f, 0.82f));
+            new Keyframe(0.12f, 0.065f),
+            new Keyframe(0.20f, 0.145f),
+            new Keyframe(0.30f, 0.28f),
+            new Keyframe(0.55f, 0.515f),
+            new Keyframe(0.78f, 0.73f),
+            new Keyframe(0.90f, 0.85f),
+            new Keyframe(1f, 0.99f));
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private bool dealerReady;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
     private int cachedPlayerVehicleCount = -1;
     private string vehicleTypeName = string.Empty;
+    private GameObject? playerVehiclePrefab;
 
-    public static BugattiChironRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static BugattiChironRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<BugattiChironRuntime>();
         if (runtime == null)
@@ -83,6 +99,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
+        BugattiChironPrivateDriverSupport.SetContext(context);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -96,7 +114,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         cachedPlayerVehicleCount = -1;
+        BugattiChironPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         Destroy(gameObject);
     }
 
@@ -153,6 +177,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -163,6 +188,10 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         cachedPlayerVehicleCount = -1;
     }
 
@@ -178,6 +207,7 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         if (!IsTargetVehicle(selectedVehicle))
             return;
 
+        TryConfigureVehicle(selectedVehicle);
         selectedVehicle!
             .GetComponent<BugattiChironPaintController>()
             ?.RefreshCurrentColor();
@@ -192,9 +222,21 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
+        var isTarget = IsTargetVehicle(vehicle);
         TryConfigureVehicle(vehicle);
         vehicle?.GetComponent<BugattiChironPaintController>()?.RefreshCurrentColor();
         vehicle?.GetComponent<BugattiChironGlassController>()?.RestoreAfterVehicleEntered();
+        if (isTarget)
+        {
+            var engine = vehicle!
+                .GetComponent<NWH.VehiclePhysics2.VehicleController>()
+                ?.powertrain?.engine;
+            if (engine != null && !engine.IsRunning && engine.canRun)
+            {
+                SetBool(engine, "flyingStartEnabled", true);
+                engine.StartEngine();
+            }
+        }
     }
 
     private void HandleBuildingEntered(Address address)
@@ -220,6 +262,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void ScheduleInitialization(string source)
@@ -237,6 +282,9 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
             while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
             {
                 ConfigureExistingVehicles(out var waitingMatchedCount);
@@ -246,17 +294,22 @@ public sealed class BugattiChironRuntime : MonoBehaviour
 
             if (!dealerReady)
                 EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                EnsurePrivateDriverSupport(source);
 
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
+                                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -268,6 +321,16 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"BugattiChiron: luxury dealer stock not ready source='{source}', " +
                 $"matchedVehicles={maximumMatchedCount}.");
+        }
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        {
+            context?.Logger.Warn(
+                $"BugattiChiron: private-driver support not ready source='{source}'.");
+        }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"BugattiChiron: private-driver traffic pool not ready source='{source}'.");
         }
     }
 
@@ -288,6 +351,57 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"BugattiChiron: dealer stock update failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverReady && privateDriverPoolReady)
+            return true;
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
+            if (!privateDriverReady)
+            {
+                privateDriverReady = BugattiChironPrivateDriverSupport.EnsureVehicleAvailable(
+                    vehicleTypeName);
+            }
+            return privateDriverReady && privateDriverPoolReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"BugattiChiron: private-driver registration failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return BugattiChironPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+                privateDriverPreparationExceptionLogged = true;
+            }
+
             return false;
         }
     }
@@ -365,6 +479,20 @@ public sealed class BugattiChironRuntime : MonoBehaviour
                 rigidbody.centerOfMass = new Vector3(0f, 0.26f, 0f);
                 rigidbody.drag = VehicleLinearDrag;
                 rigidbody.angularDrag = 1.35f;
+
+                var aerodynamics = vehicle.GetComponent<BugattiChironAerodynamics>();
+                if (aerodynamics == null)
+                    aerodynamics = vehicle.gameObject.AddComponent<BugattiChironAerodynamics>();
+                aerodynamics.Initialize(rigidbody);
+
+                var highwaySeamGuard =
+                    vehicle.GetComponent<BugattiChironHighwaySeamGuard>();
+                if (highwaySeamGuard == null)
+                {
+                    highwaySeamGuard = vehicle.gameObject
+                        .AddComponent<BugattiChironHighwaySeamGuard>();
+                }
+                highwaySeamGuard.Initialize(rigidbody);
             }
 
             ConfigureWheelControllers(vehicle.gameObject);
@@ -594,6 +722,8 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             }
 
             var powertrain = GetMember(component, "powertrain");
+            var brakes = GetMember(component, "brakes");
+            SetFloat(brakes, "maxTorque", PhysicalBrakeTorque);
             var clutch = GetMember(powertrain, "clutch");
             SetFloat(clutch, "engagementRPM", ClutchEngagementRpm);
             SetFloat(clutch, "throttleEngagementOffsetRPM", ClutchThrottleOffsetRpm);
@@ -602,12 +732,13 @@ public sealed class BugattiChironRuntime : MonoBehaviour
             SetFloat(clutch, "creepSpeedLimit", 1f);
             var engine = GetMember(powertrain, "engine");
             SetFloat(engine, "inertia", EngineInertia);
-            SetFloat(engine, "maxPower", EnginePowerKw);
+            SetFloat(engine, "maxPower", SimulationEnginePowerKw);
             SetValue(engine, "powerCurve", typeof(AnimationCurve), CreateChironPowerCurve());
             SetFloat(engine, "idleRPM", EngineIdleRpm);
             SetFloat(engine, "revLimiterRPM", EngineLimitRpm);
             SetFloat(engine, "startDuration", EngineStartDuration);
             SetBool(engine, "stallingEnabled", false);
+            SetBool(engine, "flyingStartEnabled", true);
             var forcedInduction = GetMember(engine, "forcedInduction");
             SetBool(forcedInduction, "useForcedInduction", true);
             SetFloat(forcedInduction, "powerGainMultiplier", ForcedInductionPowerMultiplier);
@@ -1414,6 +1545,127 @@ internal sealed class BugattiChironAiVehiclePinRecovery : MonoBehaviour
     }
 }
 
+[DisallowMultipleComponent]
+internal sealed class BugattiChironAerodynamics : MonoBehaviour
+{
+    // F = coefficient * velocity^2. This keeps launch response strong while
+    // reproducing the rapidly increasing load a Chiron sees above 200 km/h.
+    private const float DragForceCoefficient = 0.50f;
+    private const float MinimumDragSpeedMps = 5f;
+
+    private Rigidbody? body;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        var speedSquared = planarVelocity.sqrMagnitude;
+        if (speedSquared < MinimumDragSpeedMps * MinimumDragSpeedMps)
+            return;
+
+        var dragForce = DragForceCoefficient * speedSquared;
+        body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
+    }
+}
+
+[DefaultExecutionOrder(-100)]
+[DisallowMultipleComponent]
+internal sealed class BugattiChironHighwaySeamGuard : MonoBehaviour
+{
+    private const float MinimumSpeedMps = 40f;
+    private const float MaximumSampleAgeSeconds = 0.1f;
+    private const float MinimumUpwardContactNormal = 0.9f;
+    private static readonly string[] KnownHighwaySurfaceNames =
+    {
+        "HamptonsAvenue_Highway",
+        "HighwayAvenue_Highway",
+        "X_IntersectionAASAAS_Highway",
+    };
+
+    private Rigidbody? body;
+    private Vector3 velocityBeforeStep;
+    private Vector3 angularVelocityBeforeStep;
+    private float velocitySampleTime;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        if (planarVelocity.sqrMagnitude < MinimumSpeedMps * MinimumSpeedMps)
+            return;
+
+        velocityBeforeStep = body.velocity;
+        angularVelocityBeforeStep = body.angularVelocity;
+        velocitySampleTime = Time.unscaledTime;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void CorrectKnownHighwaySeam(Collision collision)
+    {
+        if (collision == null || body == null)
+            return;
+
+        var other = collision.collider;
+        if (other == null ||
+            Time.unscaledTime - velocitySampleTime > MaximumSampleAgeSeconds ||
+            !IsKnownHighwaySurface(other.name) || !HasUpwardContact(collision))
+        {
+            return;
+        }
+
+        var correctedVelocity = body.velocity;
+        if (correctedVelocity.y <= velocityBeforeStep.y)
+            return;
+
+        correctedVelocity.y = velocityBeforeStep.y;
+        body.velocity = correctedVelocity;
+        body.angularVelocity = angularVelocityBeforeStep;
+    }
+
+    private static bool HasUpwardContact(Collision collision)
+    {
+        for (var index = 0; index < collision.contactCount; index++)
+        {
+            if (collision.GetContact(index).normal.y >= MinimumUpwardContactNormal)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsKnownHighwaySurface(string objectName)
+    {
+        foreach (var surfaceName in KnownHighwaySurfaceNames)
+        {
+            if (objectName.IndexOf(surfaceName, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
+    }
+}
+
 [DefaultExecutionOrder(-100)]
 internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
 {
@@ -1426,19 +1678,14 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
         "BridgeJointCollider",
     };
 
-    private VehicleController? vehicle;
-    private ModContext? context;
     private Rigidbody? body;
     private Collider[] bodyColliders = Array.Empty<Collider>();
     private Vector3 velocityBeforeStep;
     private Vector3 angularVelocityBeforeStep;
     private float velocitySampleTime;
-    private int recoveryLogs;
 
-    internal void Initialize(VehicleController controller, ModContext? modContext)
+    internal void Initialize(VehicleController controller, ModContext? _)
     {
-        vehicle = controller;
-        context = modContext;
         body = controller.GetComponent<Rigidbody>();
         var colliderHolder = FindChild(controller.transform, "BodyCollider");
         bodyColliders = colliderHolder != null
@@ -1481,7 +1728,7 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
         if (body == null || other == null || !IsKnownBridgeSeam(other.name))
             return;
 
-        var ignoredPairs = IgnoreBodyCollision(other);
+        IgnoreBodyCollision(other);
         var speedBefore = velocityBeforeStep.magnitude;
         var speedAfter = body.velocity.magnitude;
         var restored = speedBefore >= MinimumVelocityRestoreMps &&
@@ -1493,14 +1740,6 @@ internal sealed class BugattiChironBridgeSeamGuard : MonoBehaviour
             body.angularVelocity = angularVelocityBeforeStep;
         }
 
-        if (recoveryLogs++ < 3)
-        {
-            context?.Logger.Warn(
-                $"BugattiChiron bridge guard vehicle={vehicle?.GetInstanceID()}: late seam contact " +
-                $"collider='{other.name}' before={speedBefore * 3.6f:0.0}kph " +
-                $"after={speedAfter * 3.6f:0.0}kph ignoredPairs={ignoredPairs} " +
-                $"velocityRestored={restored}.");
-        }
     }
 
     private int IgnoreBodyCollision(Collider other)

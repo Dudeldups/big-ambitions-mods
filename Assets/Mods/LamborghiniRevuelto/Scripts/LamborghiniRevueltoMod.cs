@@ -8,6 +8,7 @@ using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
 using Services;
+using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(LamborghiniRevueltoMod))]
@@ -21,6 +22,8 @@ public sealed class LamborghiniRevueltoMod : IModBigAmbitions
     private const string BundleKey = "AssetBundles/lamborghinirevuelto.unity3d";
     private const string VehicleAssetPath =
         "Assets/Mods/LamborghiniRevuelto/LamborghiniRevuelto.asset";
+    private const string VehiclePrefabPath =
+        "Assets/Mods/LamborghiniRevuelto/LamborghiniRevuelto.prefab";
 
     private VehicleType? vehicleType;
     private LamborghiniRevueltoRuntime? runtime;
@@ -44,8 +47,19 @@ public sealed class LamborghiniRevueltoMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"LamborghiniRevuelto: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            return Task.CompletedTask;
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        runtime = LamborghiniRevueltoRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = LamborghiniRevueltoRuntime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 

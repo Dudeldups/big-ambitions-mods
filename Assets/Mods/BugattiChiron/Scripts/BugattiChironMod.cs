@@ -8,6 +8,7 @@ using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
 using Services;
+using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(BugattiChironMod))]
@@ -21,6 +22,8 @@ public sealed class BugattiChironMod : IModBigAmbitions
     private const string BundleKey = "AssetBundles/bugattichiron.unity3d";
     private const string VehicleAssetPath =
         "Assets/Mods/BugattiChiron/BugattiChiron.asset";
+    private const string VehiclePrefabPath =
+        "Assets/Mods/BugattiChiron/BugattiChiron.prefab";
 
     private VehicleType? vehicleType;
     private BugattiChironRuntime? runtime;
@@ -44,8 +47,20 @@ public sealed class BugattiChironMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            return Task.CompletedTask;
+        }
+
+        vehicleType.autoParkSupported = true;
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        runtime = BugattiChironRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = BugattiChironRuntime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 
