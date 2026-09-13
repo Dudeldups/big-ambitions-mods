@@ -15,7 +15,7 @@ MonoBehaviour:
   database: {fileID: 0}
   tags: []
   vehicleTypeName: porsche911gt3rs-vehicle:vehicletype_porsche911gt3rs
-  price: 223800
+  price: 250000
   itemVersion: 
   maxFuel: 64
   maxCargoCapacity: 2
