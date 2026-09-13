@@ -18,6 +18,8 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private ModContext? context;
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
@@ -32,6 +34,22 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
     }
 
     public void RefreshColor() => ApplyCurrentColor();
+
+    internal void InitializeForPrivateDriver(
+        string? vehicleColorName,
+        VehicleColor? vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
+        appliedColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        ApplyCurrentColor();
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint;
 
     private void FindPaintSlots()
     {
@@ -111,7 +129,10 @@ internal sealed class LamborghiniRevueltoPaintController : MonoBehaviour
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;
-        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName ??
+                        explicitVehicleColorName;
         return !string.IsNullOrEmpty(colorName) && VehicleHelper.TryGetVehicleColor(colorName, out var saved)
             ? saved
             : null;

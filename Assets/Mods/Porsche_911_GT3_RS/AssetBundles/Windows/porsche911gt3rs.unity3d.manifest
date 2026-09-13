@@ -1,0 +1,329 @@
+ManifestFileVersion: 0
+CRC: 802830434
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 42b57339e6ccfee273382125feba5454
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: df156dd73d9e55c283e9dd6005ca0a10
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 42b57339e6ccfee273382125feba5454
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
+- Class: 54
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 82
+  Script: {instanceID: 0}
+- Class: 83
+  Script: {instanceID: 0}
+- Class: 108
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
+- Class: 114
+  Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -333503815, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -690148201, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 417210127, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -221227779, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -2015554182, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 45295712, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1100654092, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1252731450, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -446942681, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 990282183, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1699210082, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: -1092318927, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1076906312, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1030029083, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1715073321, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -464276067, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 135
+  Script: {instanceID: 0}
+- Class: 198
+  Script: {instanceID: 0}
+- Class: 199
+  Script: {instanceID: 0}
+- Class: 208
+  Script: {instanceID: 0}
+- Class: 241
+  Script: {instanceID: 0}
+- Class: 243
+  Script: {instanceID: 0}
+- Class: 245
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: BigAmbitions
+  ClassName: PlayerActivity.SleepEnvironment
+- AssemblyName: BigAmbitions
+  ClassName: VehicleInstance
+- AssemblyName: DayNightCycle
+  ClassName: BigAmbitions.DayNightCycle.Timestamp
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Brakes
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.EffectManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustFlash
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.ExhaustSmoke
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightSource
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.LightsMananger
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SkidmarkManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.SurfaceParticleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Effects.VehicleLight
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.GroundDetection
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.GroundDetection.SurfaceMap
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Input.VehicleInputHandler
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.FlipOver.FlipOverModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.Fuel.FuelModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.ModuleManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Modules.SpeedLimiter.SpeedLimiterModule
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.ClutchComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.DifferentialComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.EngineComponent/ForcedInduction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Powertrain
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.TransmissionComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroup
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.Wheel.WheelGroupSelector
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Powertrain.WheelComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.AirBrakeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.BlinkerComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.CrashComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineFanComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineRunningComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.EngineStartStopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ExhaustPopComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.GearChangeComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.HornComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.ReverseBeepComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.SuspensionBumpComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TransmissionWhineComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboFlutterComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.TurboWhistleComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelSkidComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundComponents.WheelTireNoiseComponent
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Sound.SoundManager
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.StateDefinition
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.VehiclePhysics2.Steering
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Damper
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Friction
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Spring
+- AssemblyName: ExternalPlugins
+  ClassName: NWH.WheelController3D.Wheel
+- AssemblyName: HGExtensions
+  ClassName: SerializableQuaternion
+- AssemblyName: HGExtensions
+  ClassName: SerializableVector3
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.BoolScalableSettingValue
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.IntScalableSettingValue
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Boolean]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[System.Single]
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
+Assets:
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_46_TwiXeR_992_plastic_004.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/2023_porsche_911_gt3_rs_992.glb
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_39_TwiXeR_992_ID01_plastic_lgl_010101FF.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_45_TwiXeR_992_ID03_stitch_001_111111FF_006.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_80_amdb11_brake_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_71_TwiXeR_992_plastic_mgl_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/THIRD_PARTY_NOTICES.md
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_74_TwiXeR_992_ID08_fabric_002_B60000FF_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_72_TwiXeR_992_seat_leather_2_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_32_TwiXeR_992_int_chrome_005.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_31_TwiXeR_992_rubbertrim_008.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_48_TwiXeR_992_ID04_plastic_textured_001shifterassy_a_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_55_TwiXeR_992_plastic_2_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/HornHigh.wav
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/EngineHigh.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_66_TwiXeR_992_taillight_running_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_03_TwiXeR_992_carbon_roof_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_43_TwiXeR_992_chrome_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_58_TwiXeR_992_dash_clock_1_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/generation.json
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_05_TwiXeR_992_antichrome_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_78_amdb11_caliper_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_06_TwiXeR_992_gauges_screen_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Porsche911GT3RS.prefab
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_01_TwiXeR_992_carPaint_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_27_TwiXeR_992_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_63_TwiXeR_992_ID04_plastic_textured_001_060606FF_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_21_TwiXeR_992_seatbelt_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_53_TwiXeR_992_gps_screen_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_77_Scene_-_Root_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_19_TwiXeR_992_rivet_001_747474FF_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_61_TwiXeR_992_plastic_mgl_060606FF_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_26_TwiXeR_992_wheels_chrome_1.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/ATTRIBUTION.txt
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_17_TwiXeR_992_ID08_fabric_002_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/EngineLowLoad.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_10_TwiXeR_992_plastic_mgl_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/EngineLow.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_23_TwiXeR_992_gauges_chrome_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/THIRD_PARTY_NOTICES.txt
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_15_TwiXeR_992_symbols_1_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_13_TwiXeR_992_carpet_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_28_TwiXeR_992_exhausttip_antichrome_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_33_TwiXeR_992_ID03_stitch_001vents_a_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_36_TwiXeR_992_ID06_stitch_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_79_amdb11_misc_chrome_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_64_TwiXeR_992_ID05_leather_coarse_mgl_171717FF_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_02_TwiXeR_992_symbols_1_003_0.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_59_TwiXeR_992_gauges_chrome_2_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_29_TwiXeR_992_ID08_fabric_002_FFFFFFFF_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/HornLow.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_00_TwiXeR_992_glass_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/VEHICLE_SPECS.md
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_02_TwiXeR_992_headlight_1_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_35_TwiXeR_992_Interior_D.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/EngineMid.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_12_TwiXeR_992_ID04_plastic_textured_001_060606FF_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_06_TwiXeR_992_symbols_004.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/EngineHighLoad.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_70_TwiXeR_992_headlight_high_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_50_TwiXeR_992_ID05_leather_coarse_mglvents_a_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_68_TwiXeR_992_plastic_smooth_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_20_TwiXeR_992_headlight_1_001_2.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMeshes/PorscheDamageBody.asset
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_40_TwiXeR_992_symbols_6.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_11_TwiXeR_992_symbols_004_0.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_14_TwiXeR_992_speakers_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_56_TwiXeR_992_gauges_1_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_01_TwiXeR_992_blackGlass_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_51_TwiXeR_992_seat_leather_004.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_07_TwiXeR_992_antichrome_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_42_TwiXeR_992_rubbertrim_011.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_73_TwiXeR_992_ID05_leather_coarse_mgl_FFFFFFFF_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_16_TwiXeR_992_symbols_004_1.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_22_TwiXeR_992_plastic_1_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_47_TwiXeR_992_ID03_stitch_001vents_a_004.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_65_TwiXeR_992_speakers_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_52_TwiXeR_992_ID02_leather_MGL_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_67_TwiXeR_992_brakelight_1_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_18_TwiXeR_992_symbols_004_2.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_00_TwiXeR_992_plastic_mgl_060606FF_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_30_TwiXeR_992_engine_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_57_TwiXeR_992_gauges_9000_001_0.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_69_TwiXeR_992_led_lights_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_60_TwiXeR_992_int_chrome_007.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_62_TwiXeR_992_ID09_rubbertrim_FFFFFFFF_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_04_TwiXeR_992_glass_int_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_75_TwiXeR_992_symbols_3_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_05_TwiXeR_992_headlight_1_001_0.mat
+- Assets/Mods/Porsche_911_GT3_RS/ATTRIBUTION.md
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_54_TwiXeR_992_upper_leather_004.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheTransparent_03_TwiXeR_992_glass_004.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_37_TwiXeR_992_ID03_stitch_001_111111FF_005.mat
+- Assets/Mods/Porsche_911_GT3_RS/Porsche911GT3RS.asset
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_34_TwiXeR_992_rubbertrim_009.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_24_TwiXeR_992_int_chrome_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_09_TwiXeR_992_headlight_1_001_1.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_08_TwiXeR_992_red_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_38_TwiXeR_992_carpet_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_04_TwiXeR_992_metal_radiator_002.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_44_TwiXeR_992_gauges_9000_001.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_76_TwiXeR_992_carPaint_008.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_49_TwiXeR_992_ID08_fabric_002centerconsolestructure_a_003.mat
+- Assets/Mods/Porsche_911_GT3_RS/Config/Audio/EngineMidLoad.wav
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_25_TwiXeR_992_GT3RS_black.mat
+- Assets/Mods/Porsche_911_GT3_RS/Models/GeneratedMaterials/PorscheOpaque_41_TwiXeR_992_ID05_leather_coarse_mglshifterassy_a_2_002.mat
+Dependencies: []

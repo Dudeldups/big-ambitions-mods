@@ -29,6 +29,8 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private ModContext? context;
     private VehicleColor? appliedVehicleColor;
     private Color32 appliedTint;
@@ -39,17 +41,51 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
     private Texture2D? rimPaintTexture;
     private Texture2D? rimInnerPaintTexture;
     private Texture2D? seatPaintTexture;
+    private bool exteriorOnly;
     private bool textureFailureLogged;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
+        explicitVehicleColorName = null;
+        explicitVehicleColor = null;
+        exteriorOnly = false;
         context = modContext;
         FindPaintSlots();
         ApplyCurrentColor();
     }
 
     internal void RefreshCurrentColor() => ApplyCurrentColor();
+
+    internal void InitializeForPrivateDriver(
+        string? vehicleColorName,
+        VehicleColor? vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
+        exteriorOnly = false;
+        appliedVehicleColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        ApplyCurrentColor();
+    }
+
+    internal void InitializeForAmbientTraffic(VehicleColor vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = null;
+        explicitVehicleColor = vehicleColor;
+        exteriorOnly = true;
+        appliedVehicleColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        ApplyCurrentColor();
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint;
 
     private void FindPaintSlots()
     {
@@ -115,9 +151,25 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
         selectedColor.a = 1f;
         var useDarkPaintCompensation = IsDarkSaturated(selectedColor);
         var bodyColor = CreateBodyColor(selectedColor);
-        RebuildPaintTextures(tint, selectedColor, bodyColor);
+        if (exteriorOnly)
+            DestroyPaintTextures();
+        else
+            RebuildPaintTextures(tint, selectedColor, bodyColor);
         foreach (var slot in slots)
         {
+            if (exteriorOnly &&
+                slot.Category != PaintCategory.MainBody &&
+                slot.Category != PaintCategory.DarkBody)
+            {
+                // Pooled traffic cars only need the visible two-tone body paint.
+                // Clearing the remaining overrides also removes any detailed
+                // chauffeur paint left on a reused pool object without rebuilding
+                // rim or seat textures on the main thread.
+                properties.Clear();
+                slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
+                continue;
+            }
+
             var color = ColorForCategory(
                 slot.Category,
                 selectedColor,
@@ -401,6 +453,15 @@ internal sealed class BugattiChironPaintController : MonoBehaviour
 
     private VehicleColor? ResolveVehicleColor()
     {
+        if (!string.IsNullOrEmpty(explicitVehicleColorName) &&
+            VehicleHelper.TryGetVehicleColor(explicitVehicleColorName, out var explicitColor))
+        {
+            return explicitColor;
+        }
+
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;

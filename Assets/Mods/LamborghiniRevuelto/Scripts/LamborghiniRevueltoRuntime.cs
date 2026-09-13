@@ -23,6 +23,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float EngineLimitRpm = 9500f;
     private const float SpeedLimitKph = 355f;
     private const float FinalDriveRatio = 3.15f;
+    private const float DownshiftRpm = 6500f;
     private const float EngineInertia = 0.09f;
     private const float EngineStartDuration = 0.42f;
     private const float ClutchEngagementRpm = 1400f;
@@ -70,12 +71,21 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private ModContext? context;
+    private bool dealerReady;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
     private string vehicleTypeName = string.Empty;
     private int observedPlayerVehicleCount = -1;
+    private GameObject? playerVehiclePrefab;
     private VehicleController? previewVehicle;
     private LamborghiniRevueltoPaintController? previewPaintController;
 
-    public static LamborghiniRevueltoRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static LamborghiniRevueltoRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<LamborghiniRevueltoRuntime>();
         if (runtime == null)
@@ -87,6 +97,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
+        LamborghiniRevueltoPrivateDriverSupport.SetContext(context);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -99,8 +111,15 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         previewVehicle = null;
         previewPaintController = null;
+        LamborghiniRevueltoPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         Destroy(gameObject);
     }
 
@@ -161,6 +180,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -170,6 +190,11 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         observedPlayerVehicleCount = -1;
         previewVehicle = null;
         previewPaintController = null;
@@ -230,14 +255,24 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (LamborghiniRevueltoLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        if (!dealerReady &&
+            !BusinessLayoutSetHelper.loadingLayouts &&
+            LamborghiniRevueltoLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        {
             EnsureDealerStock("dealer-entered");
+        }
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen)
+        if (!isOpen)
+            return;
+
+        if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void HandleVehicleVariablesChanged() => ConfigureExistingVehicles(out _);
@@ -251,31 +286,39 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        while (BusinessLayoutSetHelper.loadingLayouts)
-        {
-            ConfigureExistingVehicles(out _);
-            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
-        }
-
-        var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
+            while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
+            {
+                ConfigureExistingVehicles(out var waitingMatchedCount);
+                maximumMatchedCount = Math.Max(maximumMatchedCount, waitingMatchedCount);
+                yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+            }
+
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                EnsurePrivateDriverSupport(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
+                                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -288,19 +331,93 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"LamborghiniRevuelto: luxury dealer stock not ready source='{source}', " +
                 $"matchedVehicles={maximumMatchedCount}.");
         }
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver support not ready source='{source}'.");
+        }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver traffic pool not ready source='{source}'.");
+        }
     }
 
     private bool EnsureDealerStock(string source)
     {
+        if (dealerReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
         try
         {
-            return LamborghiniRevueltoLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            dealerReady = LamborghiniRevueltoLuxuryDealerStock.EnsureVehicleAvailable(
+                vehicleTypeName);
+            return dealerReady;
         }
         catch (Exception exception)
         {
             context?.Logger.Warn(
                 $"LamborghiniRevuelto: dealer stock update failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverReady && privateDriverPoolReady)
+            return true;
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
+            if (!privateDriverReady)
+            {
+                privateDriverReady = LamborghiniRevueltoPrivateDriverSupport.EnsureVehicleAvailable(
+                    vehicleTypeName);
+                if (privateDriverReady)
+                {
+                    context?.Logger.Info(
+                        $"LamborghiniRevuelto: private-driver support registered source='{source}'.");
+                }
+            }
+            return privateDriverReady && privateDriverPoolReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver registration failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return LamborghiniRevueltoPrivateDriverSupport.PrepareTrafficPool(
+                playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                context?.Logger.Warn(
+                    $"LamborghiniRevuelto: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+                privateDriverPreparationExceptionLogged = true;
+            }
+
             return false;
         }
     }
@@ -749,7 +866,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.065f);
-            SetFloat(transmission, "_downshiftRPM", 3600f);
+            SetFloat(transmission, "_downshiftRPM", DownshiftRpm);
             SetFloat(transmission, "_upshiftRPM", 9250f);
             SetInt(transmission, "forwardGearCount", 8);
             SetInt(transmission, "reverseGearCount", 1);
