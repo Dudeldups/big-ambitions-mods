@@ -22,6 +22,8 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
     private MaterialPropertyBlock properties = null!;
     private VehicleController? vehicle;
     private ModContext? context;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private Coroutine? settlementCoroutine;
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
@@ -49,6 +51,8 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
             properties = new MaterialPropertyBlock();
         vehicle = controller;
         context = modContext;
+        explicitVehicleColorName = null;
+        explicitVehicleColor = null;
         FindPaintSlots();
         ApplyCurrentColor();
         SchedulePaintSettlement();
@@ -60,6 +64,24 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
     }
 
     internal void RefreshCurrentColor() => ApplyCurrentColor(true);
+
+    internal void InitializeForPrivateDriver(
+        string? vehicleColorName,
+        VehicleColor? vehicleColor)
+    {
+        if (properties == null)
+            properties = new MaterialPropertyBlock();
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
+        appliedColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        ApplyCurrentColor(true);
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint;
 
     private void SchedulePaintSettlement()
     {
@@ -205,7 +227,10 @@ public sealed class CadillacEscaladePaintController : MonoBehaviour
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;
-        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName ??
+                        explicitVehicleColorName;
         return !string.IsNullOrEmpty(colorName) && VehicleHelper.TryGetVehicleColor(colorName, out var saved)
             ? saved
             : null;
