@@ -128,7 +128,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         burbleSource = CreateSource(exhaustHost, burbleClip, native);
         // Keep the low exhaust texture consistent between cabin and chase
         // cameras; the main engine layers still provide spatial direction.
-        burbleSource.spatialBlend = 0f;
+        burbleSource.spatialBlend = .25f;
         burbleSource.minDistance = Mathf.Max(burbleSource.minDistance, 4f);
         burbleSource.maxDistance = Mathf.Max(burbleSource.maxDistance, 35f);
         ConfigureBurbleFilters(exhaustHost);
@@ -176,7 +176,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var lowPass = host.AddComponent<AudioLowPassFilter>();
         // Preserve enough of the second and third harmonics for the slow
         // exhaust pulses to remain audible on ordinary speakers.
-        lowPass.cutoffFrequency = 1200f;
+        lowPass.cutoffFrequency = 760f;
         lowPass.lowpassResonanceQ = 1.05f;
     }
 
