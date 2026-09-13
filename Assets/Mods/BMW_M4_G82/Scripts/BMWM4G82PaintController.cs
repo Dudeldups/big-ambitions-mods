@@ -14,12 +14,6 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
-    private static readonly int NativeVehicleTint =
-        Shader.PropertyToID("Color_3d0f0cdbe6b74be28a1a5be5bab71dea");
-    private static readonly int NativeVehicleFresnelColor =
-        Shader.PropertyToID("Color_f78fac473bac467092fb27521e9f71ea");
-    private static readonly int NativeVehicleFresnelPower =
-        Shader.PropertyToID("Vector1_481fa2a8a5e94165a039319bfd512b76");
 
     private readonly List<PaintSlot> slots = new List<PaintSlot>();
     private readonly List<PaintSlot> caliperSlots = new List<PaintSlot>();
@@ -88,12 +82,6 @@ internal sealed class BMWM4G82PaintController : MonoBehaviour
             if (slot.Material.HasProperty(BaseColor)) properties.SetColor(BaseColor, color);
             if (slot.Material.HasProperty(ColorProperty)) properties.SetColor(ColorProperty, color);
             if (slot.Material.HasProperty(BaseColorFactor)) properties.SetColor(BaseColorFactor, color);
-            if (slot.Material.HasProperty(NativeVehicleTint))
-                properties.SetColor(NativeVehicleTint, color);
-            if (slot.Material.HasProperty(NativeVehicleFresnelColor))
-                properties.SetColor(NativeVehicleFresnelColor, selected.fresnelColor);
-            if (slot.Material.HasProperty(NativeVehicleFresnelPower))
-                properties.SetFloat(NativeVehicleFresnelPower, selected.fresnelPower);
             slot.Renderer.SetPropertyBlock(properties, slot.MaterialIndex);
         }
 

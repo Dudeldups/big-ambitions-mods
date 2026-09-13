@@ -12,7 +12,6 @@ public readonly struct BMWM4G82MaterialFixResult
         int decalMasksCleared,
         int opaqueMaterialsFixed,
         int transparentMaterialsFixed,
-        int vehiclePaintMaterials,
         int materialsValidated,
         int rimSlotsNormalized,
         int cabinGlassRenderers,
@@ -22,7 +21,6 @@ public readonly struct BMWM4G82MaterialFixResult
         DecalMasksCleared = decalMasksCleared;
         OpaqueMaterialsFixed = opaqueMaterialsFixed;
         TransparentMaterialsFixed = transparentMaterialsFixed;
-        VehiclePaintMaterials = vehiclePaintMaterials;
         MaterialsValidated = materialsValidated;
         RimSlotsNormalized = rimSlotsNormalized;
         CabinGlassRenderers = cabinGlassRenderers;
@@ -33,7 +31,6 @@ public readonly struct BMWM4G82MaterialFixResult
     public int DecalMasksCleared { get; }
     public int OpaqueMaterialsFixed { get; }
     public int TransparentMaterialsFixed { get; }
-    public int VehiclePaintMaterials { get; }
     public int MaterialsValidated { get; }
     public int RimSlotsNormalized { get; }
     public int CabinGlassRenderers { get; }
@@ -49,14 +46,6 @@ public static class BMWM4G82Materials
 
     private const uint HdrpDecalLayerMask = 0x0000FF00u;
     private const string RimMaterialMarker = "_main";
-    private const string BodyPaintMaterialMarker = "PaintTNR";
-    private const string VehiclePaintShaderName = "Shader Graphs/SH_Vehicle";
-    private const string NativeVehicleTintProperty =
-        "Color_3d0f0cdbe6b74be28a1a5be5bab71dea";
-    private const string NativeVehicleFresnelColorProperty =
-        "Color_f78fac473bac467092fb27521e9f71ea";
-    private const string NativeVehicleFresnelPowerProperty =
-        "Vector1_481fa2a8a5e94165a039319bfd512b76";
     private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
     private static readonly int BaseColorFactorProperty = Shader.PropertyToID("baseColorFactor");
@@ -80,7 +69,6 @@ public static class BMWM4G82Materials
         var decalMasksCleared = 0;
         var opaqueMaterialsFixed = 0;
         var transparentMaterialsFixed = 0;
-        var vehiclePaintMaterials = 0;
         var materialsValidated = 0;
         var rimSlotsNormalized = 0;
         var cabinGlassRenderers = 0;
@@ -112,19 +100,6 @@ public static class BMWM4G82Materials
                 if (IsTexturedDecalMaterial(material))
                 {
                     FixTexturedCutoutMaterial(material);
-                    opaqueMaterialsFixed++;
-                    continue;
-                }
-
-                // The game and Vehicle Repainter change a vehicle through
-                // CarFeatures.SetColor(), which writes the SH_Vehicle tint
-                // property. HDRP/Lit does not consume that property, so keep
-                // the BMW's actual paint surfaces on the native vehicle-paint
-                // shader rather than silently converting them with the rest
-                // of the imported model.
-                if (IsBodyPaintMaterial(material) && ConfigureVehiclePaintMaterial(material))
-                {
-                    vehiclePaintMaterials++;
                     opaqueMaterialsFixed++;
                     continue;
                 }
@@ -161,7 +136,6 @@ public static class BMWM4G82Materials
             decalMasksCleared,
             opaqueMaterialsFixed,
             transparentMaterialsFixed,
-            vehiclePaintMaterials,
             materialsValidated,
             rimSlotsNormalized,
             cabinGlassRenderers,
@@ -271,11 +245,6 @@ public static class BMWM4G82Materials
         return false;
     }
 
-    internal static bool IsBodyPaintMaterial(Material material) =>
-        material != null && material.name.IndexOf(
-            BodyPaintMaterialMarker,
-            StringComparison.OrdinalIgnoreCase) >= 0;
-
     public static bool IsTransparentMaterial(Material material)
     {
         var name = material.name;
@@ -375,26 +344,6 @@ public static class BMWM4G82Materials
         SetFloat(material, "_NormalScale", normalScale);
         SetFloat(material, "_Metallic", metallic);
         SetFloat(material, "_Smoothness", 1f - Mathf.Clamp01(roughness));
-    }
-
-    private static bool ConfigureVehiclePaintMaterial(Material material)
-    {
-        var vehiclePaintShader = Shader.Find(VehiclePaintShaderName);
-        if (vehiclePaintShader == null)
-            return false;
-
-        if (material.shader != vehiclePaintShader)
-            material.shader = vehiclePaintShader;
-
-        // These defaults are superseded by the per-vehicle property block.
-        // Keeping the material opaque and non-transparent preserves the BMW's
-        // painted roof/body appearance before CarFeatures applies its color.
-        SetColor(material, NativeVehicleTintProperty, Color.white);
-        SetColor(material, NativeVehicleFresnelColorProperty, Color.black);
-        SetFloat(material, NativeVehicleFresnelPowerProperty, 2.04f);
-        material.renderQueue = (int)RenderQueue.Geometry;
-        material.SetOverrideTag("RenderType", "Opaque");
-        return true;
     }
 
     private static bool FixSolidHdrpMaterial(Material material)
