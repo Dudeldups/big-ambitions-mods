@@ -15,6 +15,7 @@ namespace DeveloperTools
         private DeveloperToolsMapTeleport? mapTeleport;
         private DeveloperToolsTimeService? timeService;
         private DeveloperToolsTrafficService? trafficService;
+        private DeveloperToolsVehicleService? vehicleService;
         private DeveloperToolsVehicleDiagnosticsService? vehicleDiagnostics;
 
         public static DeveloperToolsRuntime Initialize(ModContext context, DeveloperToolsSettings settings)
@@ -31,11 +32,12 @@ namespace DeveloperTools
             runtime.playerService = new DeveloperToolsPlayerService(context);
             runtime.timeService = new DeveloperToolsTimeService(context);
             runtime.trafficService = new DeveloperToolsTrafficService(context);
+            runtime.vehicleService = new DeveloperToolsVehicleService(context);
             runtime.vehicleDiagnostics = new DeveloperToolsVehicleDiagnosticsService(context);
             runtime.trafficService.PrepareTrafficPoolCapacity();
             runtime.overlay = new DeveloperToolsOverlay(
                 context,
-                new DeveloperToolsVehicleService(context),
+                runtime.vehicleService,
                 new DeveloperToolsItemService(context),
                 runtime.playerService,
                 runtime.timeService,
@@ -52,6 +54,7 @@ namespace DeveloperTools
             GlobalEvents.onEnterVehicle -= HandleEnterVehicle;
             GlobalEvents.onExitVehicle -= HandleExitVehicle;
             vehicleDiagnostics?.Shutdown();
+            vehicleService?.Shutdown();
             overlay?.Shutdown();
             timeService?.Shutdown();
             trafficService?.Shutdown();
@@ -96,8 +99,11 @@ namespace DeveloperTools
                 StartCoroutine(trafficService.ReapplyTrafficAfterHourlyUpdate());
         }
 
-        private void HandleEnterVehicle(VehicleController vehicle) =>
+        private void HandleEnterVehicle(VehicleController vehicle)
+        {
+            vehicleService?.RestoreDeveloperColor(vehicle);
             vehicleDiagnostics?.HandleEnterVehicle(vehicle);
+        }
 
         private void HandleExitVehicle(VehicleController vehicle) =>
             vehicleDiagnostics?.HandleExitVehicle(vehicle);

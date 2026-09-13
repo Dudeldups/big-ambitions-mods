@@ -15,7 +15,7 @@ namespace DeveloperTools
     {
         private const int WindowId = 734921;
         private const float WindowWidth = 760f;
-        private const float WindowHeight = 820f;
+        private const float WindowHeight = 1200f;
         private const float VehicleDropdownHeight = 270f;
         private const int VehicleColorColumns = 12;
         private const float VehicleColorSwatchWidth = 48f;
@@ -39,6 +39,7 @@ namespace DeveloperTools
         private MethodInfo? actionEnableMethod;
         private GameObject? uiInputBlocker;
         private GUISkin? customSkin;
+        private GUIStyle? vehicleColorSwatchStyle;
         private Rect windowRect = new Rect(40f, 30f, WindowWidth, WindowHeight);
         private Vector2 mainScroll;
         private Vector2 vanillaVehicleScroll;
@@ -55,6 +56,7 @@ namespace DeveloperTools
         private string selectedVanillaVehicleId = string.Empty;
         private string selectedModdedVehicleId = string.Empty;
         private string selectedVehicleColorName = string.Empty;
+        private string selectedRecolorColorName = string.Empty;
         private string selectedItemId = string.Empty;
         private string itemSearch = string.Empty;
         private string itemAmount = "1";
@@ -121,6 +123,8 @@ namespace DeveloperTools
             SelectFirstAvailable(vehicles.ModdedEntries, ref selectedModdedVehicleId);
             if (vehicles.ColorEntries.All(entry => entry.Name != selectedVehicleColorName))
                 selectedVehicleColorName = vehicles.GetDefaultRedColorName();
+            if (vehicles.RecolorColorEntries.All(entry => entry.Name != selectedRecolorColorName))
+                selectedRecolorColorName = vehicles.GetDefaultRecolorColorName();
             if (items.Entries.Count > 0 && items.Entries.All(entry => entry.Id != selectedItemId))
                 selectedItemId = items.Entries[0].Id;
             SetCoordinatesFromPlayer();
@@ -162,6 +166,7 @@ namespace DeveloperTools
             if (customSkin != null)
                 UnityEngine.Object.Destroy(customSkin);
             customSkin = null;
+            vehicleColorSwatchStyle = null;
             if (uiInputBlocker != null)
                 UnityEngine.Object.Destroy(uiInputBlocker);
             uiInputBlocker = null;
@@ -322,6 +327,8 @@ namespace DeveloperTools
             Divider();
             GUILayout.Label("City Map Teleport", GUI.skin.box);
             GUILayout.Label("Double-click a non-UI location while the city map is open. On foot, the landing point is snapped to nearby navigation/ground geometry. In a vehicle, it is snapped to a nearby drivable road; destinations outside the road network are rejected.");
+            Divider();
+            DrawVehicleRecolor();
             GUILayout.EndScrollView();
             GUILayout.Space(4f);
             GUILayout.Label("Status: " + status, GUI.skin.box);
@@ -438,7 +445,7 @@ namespace DeveloperTools
         private void DrawVehicleColorPicker()
         {
             var selected = vehicles.ColorEntries.FirstOrDefault(entry => entry.Name == selectedVehicleColorName);
-            GUILayout.Label("Vehicle Color: " + (selected?.Name ?? "Unavailable"));
+            GUILayout.Label("Vehicle Color: " + (selected?.DisplayName ?? "Unavailable"));
             if (vehicles.ColorEntries.Count == 0)
             {
                 GUILayout.Label("No registered vehicle colors are available.", GUI.skin.box);
@@ -446,6 +453,7 @@ namespace DeveloperTools
             }
 
             var previousBackgroundColor = GUI.backgroundColor;
+            var previousContentColor = GUI.contentColor;
             GUILayout.BeginVertical(GUI.skin.box);
             for (var index = 0; index < vehicles.ColorEntries.Count; index++)
             {
@@ -454,9 +462,11 @@ namespace DeveloperTools
 
                 var entry = vehicles.ColorEntries[index];
                 GUI.backgroundColor = entry.Tint;
+                GUI.contentColor = GetContrastingTextColor(entry.Tint);
                 var marker = entry.Name == selectedVehicleColorName ? "✓" : string.Empty;
                 if (GUILayout.Button(
-                        new GUIContent(marker, entry.Name),
+                        new GUIContent(marker, entry.DisplayName),
+                        vehicleColorSwatchStyle!,
                         GUILayout.Width(VehicleColorSwatchWidth),
                         GUILayout.Height(VehicleColorSwatchHeight)))
                 {
@@ -470,7 +480,56 @@ namespace DeveloperTools
                 }
             }
             GUI.backgroundColor = previousBackgroundColor;
+            GUI.contentColor = previousContentColor;
             GUILayout.EndVertical();
+        }
+
+        private void DrawVehicleRecolor()
+        {
+            GUILayout.Label("Vehicle Recolor", GUI.skin.box);
+            GUILayout.Label("Extended test palette for the current or last spawned vehicle.");
+            var selected = vehicles.RecolorColorEntries
+                .FirstOrDefault(entry => entry.Name == selectedRecolorColorName);
+            GUILayout.Label("Selected Color: " + (selected?.DisplayName ?? "Unavailable"));
+            if (vehicles.RecolorColorEntries.Count == 0)
+            {
+                GUILayout.Label("No vehicle colors are available.", GUI.skin.box);
+                return;
+            }
+
+            var previousBackgroundColor = GUI.backgroundColor;
+            var previousContentColor = GUI.contentColor;
+            GUILayout.BeginVertical(GUI.skin.box);
+            for (var index = 0; index < vehicles.RecolorColorEntries.Count; index++)
+            {
+                if (index % VehicleColorColumns == 0)
+                    GUILayout.BeginHorizontal();
+
+                var entry = vehicles.RecolorColorEntries[index];
+                GUI.backgroundColor = entry.Tint;
+                GUI.contentColor = GetContrastingTextColor(entry.Tint);
+                var marker = entry.Name == selectedRecolorColorName ? "✓" : string.Empty;
+                if (GUILayout.Button(
+                        new GUIContent(marker, entry.DisplayName),
+                        vehicleColorSwatchStyle!,
+                        GUILayout.Width(VehicleColorSwatchWidth),
+                        GUILayout.Height(VehicleColorSwatchHeight)))
+                {
+                    selectedRecolorColorName = entry.Name;
+                }
+
+                if (index % VehicleColorColumns == VehicleColorColumns - 1 ||
+                    index == vehicles.RecolorColorEntries.Count - 1)
+                {
+                    GUILayout.EndHorizontal();
+                }
+            }
+            GUI.backgroundColor = previousBackgroundColor;
+            GUI.contentColor = previousContentColor;
+            GUILayout.EndVertical();
+
+            if (GUILayout.Button("Recolor Vehicle"))
+                vehicles.RecolorVehicle(selectedRecolorColorName, out status);
         }
 
         private void DrawMoney()
@@ -684,6 +743,12 @@ namespace DeveloperTools
                 new Color(0.25f, 0.56f, 0.90f, 1f),
                 new Color(0.14f, 0.36f, 0.64f, 1f));
             customSkin.button.fixedHeight = 30f;
+            vehicleColorSwatchStyle = CreateInteractiveStyle(
+                GUI.skin.button,
+                Color.white,
+                new Color(0.9f, 0.9f, 0.9f, 1f),
+                new Color(0.75f, 0.75f, 0.75f, 1f));
+            vehicleColorSwatchStyle.fixedHeight = VehicleColorSwatchHeight;
             customSkin.textField = CreateInteractiveStyle(
                 GUI.skin.textField,
                 new Color(0.055f, 0.065f, 0.085f, 1f),
@@ -764,6 +829,12 @@ namespace DeveloperTools
             texture.Apply();
             ownedTextures.Add(texture);
             return texture;
+        }
+
+        private static Color GetContrastingTextColor(Color background)
+        {
+            var luminance = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
+            return luminance > 0.55f ? Color.black : Color.white;
         }
     }
 }
