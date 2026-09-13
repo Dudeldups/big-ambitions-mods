@@ -180,8 +180,17 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        if (LamborghiniRevueltoLoadRecovery.CompleteInterruptedLoad(context))
+            StartCoroutine(ReportLoadedInputState());
         privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
+    }
+
+    private IEnumerator ReportLoadedInputState()
+    {
+        // The native loading screen fades out for 0.8 seconds after this event.
+        yield return new WaitForSecondsRealtime(2f);
+        LamborghiniRevueltoLoadRecovery.ReportInputState(context);
     }
 
     private void HandleGameUnloaded()
