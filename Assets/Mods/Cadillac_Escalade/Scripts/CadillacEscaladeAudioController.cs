@@ -40,6 +40,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private float envelope;
     private float driveBlend;
     private float loadBlend;
+    private float burbleBlend;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -176,7 +177,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var lowPass = host.AddComponent<AudioLowPassFilter>();
         // Preserve enough of the second and third harmonics for the slow
         // exhaust pulses to remain audible on ordinary speakers.
-        lowPass.cutoffFrequency = 760f;
+        lowPass.cutoffFrequency = 680f;
         lowPass.lowpassResonanceQ = 1.05f;
     }
 
@@ -274,12 +275,23 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             driveBlend,
             CadillacEscaladeAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM),
             Time.deltaTime * 3f);
+        var targetBurbleBlend = CadillacEscaladeAudioModel.BurbleBlend(
+            smoothThrottle,
+            normalized);
+        burbleBlend = Mathf.MoveTowards(
+            burbleBlend,
+            targetBurbleBlend,
+            Time.deltaTime * (targetBurbleBlend > burbleBlend ? 5f : 1.35f));
 
         idleSource.pitch = CadillacEscaladeAudioModel.IdlePitch;
         idleSource.volume = envelope * master * CadillacEscaladeAudioModel.IdleVolume(driveBlend);
         idleSource.mute = controlled && savedMute;
 
-        var gain = envelope * master * CadillacEscaladeAudioModel.EngineVolume(smoothThrottle) * driveBlend;
+        // Crossfade the regular load recording under the loping V8 texture so
+        // both sources form one RPM-locked note instead of competing layers.
+        var gain = envelope * master *
+                   CadillacEscaladeAudioModel.EngineVolume(smoothThrottle, burbleBlend) *
+                   driveBlend;
         loadBlend = CadillacEscaladeAudioModel.LoadBlend(smoothThrottle);
         for (var i = 0; i < EngineNames.Length; i++)
         {
@@ -292,11 +304,9 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             layers[i].mute = layers[i + EngineNames.Length].mute = controlled && savedMute;
         }
 
-        burbleSource.pitch = Mathf.Lerp(.90f, .98f, normalized);
+        burbleSource.pitch = CadillacEscaladeAudioModel.BurblePitch(normalized);
         burbleSource.volume = envelope * master *
-                              CadillacEscaladeAudioModel.BurbleVolume(
-                                  smoothThrottle,
-                                  normalized);
+                              CadillacEscaladeAudioModel.BurbleVolume(burbleBlend);
         // The donor source can be lifecycle-muted while the replacement mix is
         // active. Master volume and the load envelope control this source.
         burbleSource.mute = false;
@@ -405,6 +415,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         smoothThrottle = 0f;
         driveBlend = 0f;
         loadBlend = 0f;
+        burbleBlend = 0f;
         paused = false;
         wasControlled = false;
     }
