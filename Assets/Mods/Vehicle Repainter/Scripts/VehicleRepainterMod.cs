@@ -156,6 +156,8 @@ namespace VehicleRepainter
         private readonly ModContext context;
         private readonly Dictionary<string, VehicleColor> customVehicleColors =
             new Dictionary<string, VehicleColor>(StringComparer.Ordinal);
+        private readonly Dictionary<int, string> restoredCustomVehicleColorsByControllerId =
+            new Dictionary<int, string>();
         private readonly List<VehicleColor> ownedCustomVehicleColors = new List<VehicleColor>();
         private readonly List<GasStationTrigger> observedStationTriggers = new List<GasStationTrigger>();
         private OverlayUI? overlayUi;
@@ -194,7 +196,8 @@ namespace VehicleRepainter
             extendedGasStationOverlay = new ExtendedGasStationOverlay(this);
             overlayUi.gasStation = extendedGasStationOverlay;
             ObserveStationTriggers();
-            pendingSavedColorRestore = overlayUi.StartCoroutine(RestoreSavedCustomVehicleColorsWhenReady());
+            GlobalEvents.RegisterOnGameLoadedLateCallback(HandleGameLoadedLate);
+            pendingSavedColorRestore = overlayUi.StartCoroutine(WatchForSavedCustomVehicleColors());
         }
 
         internal void Uninstall()
@@ -434,45 +437,59 @@ namespace VehicleRepainter
             return restoredVehicleCount;
         }
 
-        private IEnumerator RestoreSavedCustomVehicleColorsWhenReady()
+        private void HandleGameLoadedLate()
         {
-            const int attempts = 20;
-            const float retryDelaySeconds = 0.25f;
-            var previousVehicleCount = -1;
-            var totalRestoredVehicleCount = 0;
+            var restoredVehicleCount = RestoreSavedCustomVehicleColors();
+            context.Logger.Info(
+                $"Game-loaded custom-color restore: playerVehicles={VehicleHelper.AllPlayerVehicles.Count}, " +
+                $"restored={restoredVehicleCount}.");
+        }
 
-            for (var attempt = 0; attempt < attempts; attempt++)
+        private IEnumerator WatchForSavedCustomVehicleColors()
+        {
+            const float scanIntervalSeconds = 0.5f;
+            var pass = 0;
+
+            while (true)
             {
                 var playerVehicleCount = VehicleHelper.AllPlayerVehicles.Count;
                 var restoredVehicleCount = RestoreSavedCustomVehicleColors();
-                totalRestoredVehicleCount += restoredVehicleCount;
 
-                if (attempt == 0 || restoredVehicleCount > 0 || playerVehicleCount != previousVehicleCount)
+                if (pass == 0 || restoredVehicleCount > 0)
                 {
                     context.Logger.Info(
-                        $"Saved custom-color restore pass {attempt + 1}/{attempts}: " +
+                        $"Saved custom-color state scan pass {pass + 1}: " +
                         $"playerVehicles={playerVehicleCount}, restored={restoredVehicleCount}.");
                 }
 
-                previousVehicleCount = playerVehicleCount;
-                yield return new WaitForSecondsRealtime(retryDelaySeconds);
+                pass++;
+                yield return new WaitForSecondsRealtime(scanIntervalSeconds);
             }
-
-            pendingSavedColorRestore = null;
-            context.Logger.Info(
-                $"Saved custom-color restore completed: attempts={attempts}, " +
-                $"totalRestoredPasses={totalRestoredVehicleCount}.");
         }
 
         private bool RestoreSavedCustomVehicleColor(VehicleController? vehicle)
         {
-            if (vehicle == null || vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
+            if (vehicle == null)
+                return false;
+
+            var controllerId = vehicle.GetInstanceID();
+            if (vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
                 !customVehicleColors.TryGetValue(vehicle.vehicleInstance.vehicleColorName, out var color))
+            {
+                restoredCustomVehicleColorsByControllerId.Remove(controllerId);
+                return false;
+            }
+
+            if (restoredCustomVehicleColorsByControllerId.TryGetValue(
+                    controllerId,
+                    out var restoredColorName) &&
+                string.Equals(restoredColorName, vehicle.vehicleInstance.vehicleColorName, StringComparison.Ordinal))
             {
                 return false;
             }
 
             vehicle.CarFeatures.SetColor(color);
+            restoredCustomVehicleColorsByControllerId[controllerId] = vehicle.vehicleInstance.vehicleColorName;
             return true;
         }
 
@@ -484,6 +501,7 @@ namespace VehicleRepainter
         private void ReleaseCustomVehicleColors()
         {
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+            restoredCustomVehicleColorsByControllerId.Clear();
             foreach (var color in ownedCustomVehicleColors)
             {
                 if (color != null)
