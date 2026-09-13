@@ -307,6 +307,12 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             yield return new WaitForSecondsRealtime(0.15f);
         }
 
+        if (!vehicle.controlledByPlayer)
+        {
+            powertrainReadinessCoroutine = null;
+            yield break;
+        }
+
         var finalRpm = engine.RPMPercent * engine.revLimiterRPM;
         context?.Logger.Warn(
             $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +

@@ -1,10 +1,11 @@
 # Cadillac Escalade vehicle calibration
 
-The replacement model depicts a standard-wheelbase 2021 Cadillac Escalade.
-Its body, drivetrain metadata, and physics calibration follow the fifth-
-generation 6.2 L 4WD vehicle. NWH applies its `maxPower` value more directly
-than crank-rated output, so runtime wheel-power and brake-torque values are
-solver calibrations derived from the recorded acceleration and braking tests.
+The replacement model depicts a standard-wheelbase 2021 Cadillac Escalade
+Premium Luxury 4WD. Its body, drivetrain metadata, and physics calibration
+follow the fifth-generation 6.2 L 4WD vehicle. NWH applies its `maxPower` value
+more directly than crank-rated output, so runtime wheel-power and brake-torque
+values are solver calibrations derived from the recorded acceleration and
+braking tests.
 
 | Property | Calibration |
 | --- | --- |
@@ -22,18 +23,23 @@ solver calibrations derived from the recorded acceleration and braking tests.
 | Gear ratios | R 4.87; 1 4.70; 2 2.99; 3 2.15; 4 1.80; 5 1.52; 6 1.28; 7 1.00; 8 0.85; 9 0.69; 10 0.64 |
 | Final drive | 3.23 |
 | Tires | P275/50R22; 0.408 m loaded simulation radius |
+| Fuel tank | 91 L / 24 US gal |
 | Governed top speed | 193 km/h / 120 mph |
 | Acceleration target | approximately 6.1-6.2 seconds 0-60 mph |
 | Braking target | approximately 35.7-37.2 m / 117-122 ft from 60 mph |
 | Roadholding target | approximately 0.71 g |
-| Period MSRP target | USD 74,225 |
+| Period MSRP target | USD 86,195 for Premium Luxury 4WD |
 
 Sources used for calibration:
 
 - Cadillac 2021 Escalade specifications (L87, 10L80, 3.23 axle):
   https://s3.observador.pt/wp-content/uploads/2022/02/09190421/2021-escalade-specifications-chart-update-060321.pdf
-- Cadillac 2021 Escalade brochure:
-  https://brochures.cadillac.com/2021/escalade/
+- Official Cadillac 2021 Escalade brochure:
+  https://www.cadillac.com/content/dam/cadillac/na/us/english/index/downloads/vehiclebrochures/brochures/2021/my2021-escalade-pdf-brochure-v2.pdf
+- Official Cadillac 2021 Escalade trim walk:
+  https://media.cadillac.com/content/dam/Media/design/brands/Cadillac/escalade/Escalade-Trim-Walk.pdf
+- 2021 Premium Luxury 4WD Monroney label (USD 86,195 base MSRP):
+  https://assets.ctfassets.net/x8mrk904j4k6/4Jc9UDy8qtllhGQWfxJxuP/a45bdc59b35dff03c7842d084528879d/window-sticker.pdf
 - MotorTrend standard-wheelbase acceleration and mass comparison:
   https://www.motortrend.com/features/2021-cadillac-escalade-esv-pros-cons-vs-bmw-mercedes
 - MotorTrend Escalade/Navigator instrumented comparison:
