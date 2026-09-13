@@ -39,6 +39,8 @@ public static class CadillacEscaladeSetup
     private const float WheelRadius = 0.408f;
     private const float WheelWidth = 0.285f;
     private const float VehicleMass = 2738f;
+    private const float PeriodMsrp = 86195f;
+    private const float FuelCapacityLitres = 91f;
     private const float RatedEnginePowerKw = 313f;
     private const float EngineRoadCalibrationPowerKw = 232f;
     private const float BrakeMaxTorque = 4000f;
@@ -173,11 +175,17 @@ public static class CadillacEscaladeSetup
             var cargo = ReadNumber(serialized.FindProperty("maxCargoCapacity"));
             var speed = ReadNumber(serialized.FindProperty("maxSpeed"));
             var power = ReadNumber(serialized.FindProperty("enginePower"));
-            if (Math.Abs(price - 74225f) > 0.5f) issues.Add($"price={price}");
-            if (Math.Abs(fuel - 98f) > 0.5f) issues.Add($"fuel={fuel}");
+            var fitsHandTruck = serialized.FindProperty("fitsHandTruck");
+            if (Math.Abs(price - PeriodMsrp) > 0.5f) issues.Add($"price={price}");
+            if (Math.Abs(fuel - FuelCapacityLitres) > 0.5f) issues.Add($"fuel={fuel}");
             if (Math.Abs(cargo - 24f) > 0.5f) issues.Add($"cargo={cargo}");
             if (Math.Abs(speed - 193f) > 0.5f) issues.Add($"speed={speed}");
             if (Math.Abs(power - RatedEnginePowerKw) > 0.5f) issues.Add($"power={power}");
+            if (fitsHandTruck?.propertyType != SerializedPropertyType.Boolean ||
+                !fitsHandTruck.boolValue)
+            {
+                issues.Add("fitsHandTruck=false");
+            }
 
             if (!TryGetCadillacRendererBounds(prefab.transform, out var bounds))
                 issues.Add("no Cadillac renderer bounds");
@@ -473,8 +481,8 @@ public static class CadillacEscaladeSetup
         target.name = "CadillacEscalade";
         var serialized = new SerializedObject(target);
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
-        SetNumber(serialized, "price", 74225f);
-        SetNumber(serialized, "maxFuel", 98f);
+        SetNumber(serialized, "price", PeriodMsrp);
+        SetNumber(serialized, "maxFuel", FuelCapacityLitres);
         SetNumber(serialized, "maxCargoCapacity", 24f);
         SetNumber(serialized, "maxSpeed", 193f);
         SetNumber(serialized, "enginePower", RatedEnginePowerKw);
@@ -483,7 +491,7 @@ public static class CadillacEscaladeSetup
         SetNumber(serialized, "damageIntensity", 0.75f);
         SetBool(serialized, "isATruck", false);
         SetBool(serialized, "isHandVehicle", false);
-        SetBool(serialized, "fitsHandTruck", false);
+        SetBool(serialized, "fitsHandTruck", true);
         SetBool(serialized, "fitsFlatbed", false);
         SetBool(serialized, "autoParkSupported", true);
         SetBool(serialized, "hasRadio", true);

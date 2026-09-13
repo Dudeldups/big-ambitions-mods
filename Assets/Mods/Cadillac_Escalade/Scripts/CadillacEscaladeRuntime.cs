@@ -90,12 +90,20 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private Coroutine? powertrainReadinessCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private GameObject? playerVehiclePrefab;
     private bool dealerReady;
     private bool dealerReadyLogged;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
     private int cachedPlayerVehicleCount = -1;
     private int cachedTargetVehicleCount;
 
-    public static CadillacEscaladeRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static CadillacEscaladeRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<CadillacEscaladeRuntime>();
         if (runtime == null)
@@ -107,6 +115,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
         runtime.ResetPlayerVehicleSnapshot();
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
@@ -122,6 +131,12 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        CadillacEscaladePrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         configuredVehicleIds.Clear();
         ResetPlayerVehicleSnapshot();
         Destroy(gameObject);
@@ -184,6 +199,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         SubscribeEvents();
         ResetPlayerVehicleSnapshot();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -199,6 +215,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         ResetPlayerVehicleSnapshot();
         dealerReady = false;
         dealerReadyLogged = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
     }
 
     private void HandleGameEvent(string eventName)
@@ -307,6 +327,12 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             yield return new WaitForSecondsRealtime(0.15f);
         }
 
+        if (!vehicle.controlledByPlayer)
+        {
+            powertrainReadinessCoroutine = null;
+            yield break;
+        }
+
         var finalRpm = engine.RPMPercent * engine.revLimiterRPM;
         context?.Logger.Warn(
             $"CadillacEscalade drivetrain vehicle={vehicle.GetInstanceID()}: " +
@@ -344,6 +370,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
+        if (!privateDriverPoolReady)
+            privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
         while (BusinessLayoutSetHelper.loadingLayouts)
         {
             ConfigurePlayerVehiclesIfChanged(out var matchedCount);
@@ -353,18 +382,26 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                privateDriverReady = EnsurePrivateDriverSupport(source);
             ConfigurePlayerVehiclesIfChanged(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady =
+                dealerReady &&
+                privateDriverPoolReady &&
+                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -376,6 +413,16 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"CadillacEscalade: luxury dealer stock not ready source='{source}', " +
                 $"matchedVehicles={maximumMatchedCount}.");
+        }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"CadillacEscalade: private-driver traffic pool not ready source='{source}'.");
+        }
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        {
+            context?.Logger.Warn(
+                $"CadillacEscalade: private-driver contracts not ready source='{source}'.");
         }
     }
 
@@ -404,6 +451,71 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"CadillacEscalade: dealer stock update failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverReady)
+            return true;
+        if (playerVehiclePrefab == null)
+            return false;
+
+        if (!privateDriverPoolReady)
+            privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+        if (!privateDriverPoolReady)
+            return false;
+
+        try
+        {
+            privateDriverReady =
+                CadillacEscaladePrivateDriverSupport.EnsureVehicleAvailable(vehicleTypeName);
+            if (privateDriverReady)
+            {
+                CadillacEscaladeDiagnostics.Info(context,
+                    $"CadillacEscalade: available to advanced and premium private drivers " +
+                    $"source='{source}'.");
+            }
+            return privateDriverReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"CadillacEscalade: private-driver contract update failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (privateDriverPoolReady)
+            return true;
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            var ready =
+                CadillacEscaladePrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
+            if (ready)
+            {
+                privateDriverPreparationExceptionLogged = false;
+                CadillacEscaladeDiagnostics.Info(context,
+                    $"CadillacEscalade: private-driver traffic pool ready source='{source}'.");
+            }
+            return ready;
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                privateDriverPreparationExceptionLogged = true;
+                context?.Logger.Warn(
+                    $"CadillacEscalade: private-driver traffic preparation failed " +
+                    $"source='{source}': {exception.GetType().Name}: {exception.Message}");
+            }
             return false;
         }
     }

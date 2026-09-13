@@ -8,6 +8,7 @@ using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
 using Services;
+using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(CadillacEscaladeMod))]
@@ -21,6 +22,8 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
     private const string BundleKey = "AssetBundles/cadillacescalade.unity3d";
     private const string VehicleAssetPath =
         "Assets/Mods/Cadillac_Escalade/CadillacEscalade.asset";
+    private const string VehiclePrefabPath =
+        "Assets/Mods/Cadillac_Escalade/CadillacEscalade.prefab";
 
     private VehicleType? vehicleType;
     private CadillacEscaladeRuntime? runtime;
@@ -44,12 +47,24 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"CadillacEscalade: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            vehicleType = null;
+            return Task.CompletedTask;
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
         CadillacEscaladeDiagnostics.Info(context,
             $"CadillacEscalade: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}.");
-        runtime = CadillacEscaladeRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = CadillacEscaladeRuntime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 
