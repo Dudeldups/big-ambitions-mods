@@ -11,9 +11,7 @@ internal static class CadillacEscaladeAudioModel
     internal const float EngineBaseVolume = .31f;
     internal const float EngineThrottleVolume = .25f;
     internal const float BurbleIdleVolume = 0f;
-    // Deliberately extreme diagnostic level. Once the playback path is proven
-    // in game this must be brought back to a production mix value.
-    internal const float BurbleLoadVolume = 1f;
+    internal const float BurbleLoadVolume = .90f;
 
     internal static float LoadBlend(float throttle) =>
         Clamp01((throttle - .18f) / .68f);
