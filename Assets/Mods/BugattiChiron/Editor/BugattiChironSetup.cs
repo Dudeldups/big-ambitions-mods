@@ -475,7 +475,7 @@ public static class BugattiChironSetup
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
         SetNumber(serialized, "price", 2400000f);
         SetNumber(serialized, "maxFuel", 100f);
-        SetNumber(serialized, "maxCargoCapacity", 4f);
+        SetNumber(serialized, "maxCargoCapacity", 12f);
         SetNumber(serialized, "maxSpeed", 420f);
         SetNumber(serialized, "enginePower", 1103f);
         SetNumber(serialized, "brakeForce", 30000f);

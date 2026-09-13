@@ -72,6 +72,7 @@ public sealed class BugattiChironMod : IModBigAmbitions
         }
 
         vehicleType.autoParkSupported = true;
+        vehicleType.maxCargoCapacity = 12;
         if (!BugattiChironVehicleTypeRegistration.EnsureRegistered(vehicleType))
         {
             context.Logger.Warn(
@@ -203,6 +204,7 @@ internal static class BugattiChironVehicleTypeRegistration
         }
 
         loadedVehicleType.autoParkSupported = true;
+        loadedVehicleType.maxCargoCapacity = 12;
         return loadedVehicleType;
     }
 
