@@ -914,7 +914,7 @@ public static class LamborghiniRevueltoSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 8f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3600f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 6500f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 9250f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 

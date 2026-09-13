@@ -121,7 +121,7 @@ After the third-party payload has been prepared, build/install with:
 .\tools\BuildAndInstall.ps1
 ```
 
-The wrapper supplies the separately installed `LIB_BaComputerGames.dll` as a **compile-only** reference to the normal SDK external builder and removes that temporary reference afterwards. MCG itself is not bundled into MCG_Doom.
+The wrapper supplies the separately installed `LIB_BaComputerGames.dll` as a **compile-only** reference to the normal SDK external builder and retains it in the ignored SDK dependency folder so Unity can resolve the `MCG_Doom.asmdef` between builds. MCG itself is not bundled into MCG_Doom.
 
 The SDK external build copies `Config/`, so both `doom1.wad` and `Config/Doom/Audio/TimGM6mb.sf2` are installed into `ModsLocal` with the mod.
 

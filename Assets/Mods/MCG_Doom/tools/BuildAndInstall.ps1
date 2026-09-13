@@ -224,10 +224,9 @@ try {
 }
 finally {
     if ($copiedReference) {
-        Remove-Item -LiteralPath $CompileReference -Force -ErrorAction SilentlyContinue
         if ($null -ne $backupReference -and (Test-Path -LiteralPath $backupReference -PathType Leaf)) {
-            Move-Item -LiteralPath $backupReference -Destination $CompileReference -Force
+            Remove-Item -LiteralPath $backupReference -Force -ErrorAction SilentlyContinue
         }
-        Write-Host "[MCG_Doom] Removed temporary compile-only MCG reference."
+        Write-Host "[MCG_Doom] Retained the ignored MCG compile reference for Unity assembly resolution."
     }
 }
