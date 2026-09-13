@@ -1,0 +1,54 @@
+{
+  "engine": "6.2 litre naturally aspirated OHV V8",
+  "firing_frequency": "four combustion events per crankshaft revolution",
+  "recorded_samples": false,
+  "layers": [
+    {
+      "name": "EngineLow.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.22506802126985387,
+      "method": "deterministic additive OHV V8 synthesis"
+    },
+    {
+      "name": "EngineLowLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.15344066702783188,
+      "method": "deterministic additive OHV V8 synthesis"
+    },
+    {
+      "name": "EngineMid.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.2535426088525896,
+      "method": "deterministic additive OHV V8 synthesis"
+    },
+    {
+      "name": "EngineMidLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.16065921471924655,
+      "method": "deterministic additive OHV V8 synthesis"
+    },
+    {
+      "name": "EngineHigh.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.22922825185453943,
+      "method": "deterministic additive OHV V8 synthesis"
+    },
+    {
+      "name": "EngineHighLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.16736554027865624,
+      "method": "deterministic additive OHV V8 synthesis"
+    }
+  ],
+  "transients": [],
+  "runtime_layers": [
+    "spaced low-frequency high-displacement exhaust burble",
+    "independent 320 Hz and 400 Hz road-horn reeds"
+  ]
+}
