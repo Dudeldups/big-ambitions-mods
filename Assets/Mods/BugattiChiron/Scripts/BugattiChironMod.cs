@@ -12,6 +12,7 @@ using UnityEngine;
 using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(BugattiChironMod))]
+[assembly: RegisterModClass(typeof(BugattiChironCityRegistration))]
 
 [ModEntryOnInitializationLoad]
 public sealed class BugattiChironMod : IModBigAmbitions
@@ -19,14 +20,19 @@ public sealed class BugattiChironMod : IModBigAmbitions
     internal const string VehicleTypeName =
         "bugattichiron-vehicle:vehicletype_bugattichiron";
 
-    private const string BundleKey = "AssetBundles/bugattichiron.unity3d";
-    private const string VehicleAssetPath =
+    internal const string BundleKey = "AssetBundles/bugattichiron.unity3d";
+    internal const string VehicleAssetPath =
         "Assets/Mods/BugattiChiron/BugattiChiron.asset";
     private const string VehiclePrefabPath =
         "Assets/Mods/BugattiChiron/BugattiChiron.prefab";
 
     private VehicleType? vehicleType;
     private BugattiChironRuntime? runtime;
+
+    public BugattiChironMod()
+    {
+        BugattiChironAchievementLoadGuard.Install();
+    }
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
@@ -56,7 +62,14 @@ public sealed class BugattiChironMod : IModBigAmbitions
         }
 
         vehicleType.autoParkSupported = true;
-        ModdingAPI.RegisterModVehicleType(vehicleType);
+        BugattiChironAchievementLoadGuard.Configure(context, vehicleType);
+        if (!BugattiChironVehicleTypeRegistration.EnsureRegistered(vehicleType))
+        {
+            context.Logger.Warn(
+                $"BugattiChiron: failed to register vehicle type '{vehicleType.vehicleTypeName}'.");
+        }
+
+        BugattiChironAchievementLoadGuard.ResumeIfReady();
         runtime = BugattiChironRuntime.Initialize(
             context,
             vehicleType.vehicleTypeName,
@@ -66,6 +79,7 @@ public sealed class BugattiChironMod : IModBigAmbitions
 
     public Task OnUnloadAsync()
     {
+        BugattiChironAchievementLoadGuard.Shutdown();
         runtime?.Shutdown();
         runtime = null;
 
@@ -77,6 +91,42 @@ public sealed class BugattiChironMod : IModBigAmbitions
         }
 
         return Task.CompletedTask;
+    }
+}
+
+[ModEntryOnCityLoad]
+public sealed class BugattiChironCityRegistration : IModBigAmbitions
+{
+    public string[] RelativeAssetBundlePaths => Array.Empty<string>();
+
+    public Task OnLoadAsync(ModContext context)
+    {
+        var bundle = AssetService.GetBundle(context.ModId, BugattiChironMod.BundleKey);
+        var vehicleType = bundle?.LoadAsset<VehicleType>(BugattiChironMod.VehicleAssetPath);
+        if (vehicleType != null)
+        {
+            vehicleType.autoParkSupported = true;
+            BugattiChironAchievementLoadGuard.Configure(context, vehicleType);
+            BugattiChironVehicleTypeRegistration.EnsureRegistered(vehicleType);
+            BugattiChironAchievementLoadGuard.ResumeIfReady();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task OnUnloadAsync() => Task.CompletedTask;
+}
+
+internal static class BugattiChironVehicleTypeRegistration
+{
+    internal static bool EnsureRegistered(VehicleType vehicleType)
+    {
+        var current = VehicleTypeHelper.GetVehicleType(vehicleType.vehicleTypeName);
+        if (current != null)
+            return true;
+
+        ModdingAPI.RegisterModVehicleType(vehicleType);
+        return VehicleTypeHelper.GetVehicleType(vehicleType.vehicleTypeName) != null;
     }
 }
 
