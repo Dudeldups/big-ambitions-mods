@@ -501,7 +501,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             EnsureDealerStock("full-menu");
         }
 
-        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
             EnsurePrivateDriverSupport("full-menu");
     }
 
@@ -565,6 +566,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"Porsche911GT3RS: private-driver support not ready source='{source}'.");
         }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"Porsche911GT3RS: private-driver traffic pool not ready source='{source}'.");
+        }
     }
 
     private bool EnsureDealerStock(string source)
@@ -599,27 +605,28 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private bool EnsurePrivateDriverSupport(string source)
     {
-        if (privateDriverReady)
+        if (privateDriverReady && privateDriverPoolReady)
             return true;
         if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
             return false;
 
         try
         {
-            if (!privateDriverPoolReady && !TryPreparePrivateDriverPool(source))
-                return false;
-            privateDriverPoolReady = true;
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
 
-            privateDriverReady = Porsche911GT3RSPrivateDriverSupport.EnsureVehicleAvailable(
-                vehicleTypeName,
-                playerVehiclePrefab);
+            if (!privateDriverReady)
+            {
+                privateDriverReady = Porsche911GT3RSPrivateDriverSupport.EnsureVehicleAvailable(
+                    vehicleTypeName);
+            }
             if (privateDriverReady)
             {
                 Porsche911GT3RSDiagnostics.Info(
                     context,
                     $"Porsche911GT3RS: private-driver support registered source='{source}'.");
             }
-            return privateDriverReady;
+            return privateDriverReady && privateDriverPoolReady;
         }
         catch (Exception exception)
         {

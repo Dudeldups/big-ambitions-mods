@@ -16,6 +16,7 @@ internal static class Porsche911GT3RSPrivateDriverSupport
     private const string PremiumContractKey = "ba:private_driver_type_premium";
     private const string AiTemplateCacheKey = "Prefabs/Vehicles/AnselmoAF90.prefab";
     private const string AiPrefabCacheKey = "Prefabs/Vehicles/porsche911gt3rs.prefab";
+    private const string AiCarTypeName = "Porsche911GT3RSPrivateDriver";
     private const int PrivateDriverPoolSize = 2;
 
     private static readonly List<PrivateDriverContract> ModifiedContracts =
@@ -36,20 +37,30 @@ internal static class Porsche911GT3RSPrivateDriverSupport
         if (playerPrefab == null || !EnsureAiPrefab(playerPrefab) || customAiPrefab == null)
             return false;
 
-        var trafficComponent = UnityEngine.Object.FindAnyObjectByType<TrafficComponent>();
-        var pool = trafficComponent?.vehiclePool;
+        var trafficComponent = TrafficComponent.Instance;
+        if (trafficComponent == null)
+            return false;
+        var pool = trafficComponent.vehiclePool;
         if (pool == null)
             return false;
 
         var existing = pool.trafficCars ?? Array.Empty<CarType>();
         foreach (var carType in existing)
         {
-            if (carType != null && ReferenceEquals(carType.vehiclePrefab, customAiPrefab))
-            {
-                modifiedVehiclePool = pool;
-                customCarType = carType;
-                return true;
-            }
+            if (carType == null ||
+                (!ReferenceEquals(carType.vehiclePrefab, customAiPrefab) &&
+                 !string.Equals(carType.name, AiCarTypeName, StringComparison.Ordinal)))
+                continue;
+
+            carType.name = AiCarTypeName;
+            carType.vehiclePrefab = customAiPrefab;
+            carType.nrOfVehicles = PrivateDriverPoolSize;
+            carType.canBeRandomlyParked = false;
+            carType.hasParkedVersion = false;
+            carType.canBeAiDriven = true;
+            modifiedVehiclePool = pool;
+            customCarType = carType;
+            return true;
         }
 
         if (TrafficManager.IsInitialized)
@@ -57,7 +68,7 @@ internal static class Porsche911GT3RSPrivateDriverSupport
 
         customCarType = new CarType
         {
-            name = "Porsche911GT3RSPrivateDriver",
+            name = AiCarTypeName,
             vehiclePrefab = customAiPrefab,
             nrOfVehicles = PrivateDriverPoolSize,
             canBeRandomlyParked = false,
@@ -72,11 +83,9 @@ internal static class Porsche911GT3RSPrivateDriverSupport
         return true;
     }
 
-    internal static bool EnsureVehicleAvailable(string vehicleTypeName, GameObject playerPrefab)
+    internal static bool EnsureVehicleAvailable(string vehicleTypeName)
     {
-        if (string.IsNullOrWhiteSpace(vehicleTypeName) || playerPrefab == null)
-            return false;
-        if (!EnsureAiPrefab(playerPrefab) || !IsTrafficPrefabAvailable())
+        if (string.IsNullOrWhiteSpace(vehicleTypeName))
             return false;
 
         var contracts = PrivateDriverHelpers.GetContracts();
@@ -249,9 +258,6 @@ internal static class Porsche911GT3RSPrivateDriverSupport
         cache[AiPrefabCacheKey] = customAiPrefab;
         return true;
     }
-
-    private static bool IsTrafficPrefabAvailable() =>
-        customAiPrefab != null && modifiedVehiclePool != null && customCarType != null;
 
     private static GameObject? CreateAiPrefab(GameObject playerPrefab)
     {
@@ -441,6 +447,7 @@ internal sealed class Porsche911GT3RSPrivateDriverAppearance : MonoBehaviour
 
     private readonly List<WheelBinding> wheelBindings = new List<WheelBinding>(4);
     private readonly List<CaliperBinding> caliperBindings = new List<CaliperBinding>(4);
+    private bool wheelVisualsBound;
     private Coroutine? initializationCoroutine;
     private Coroutine? departureCheckCoroutine;
     private PrivateDriverVehicle? privateDriver;
@@ -449,6 +456,9 @@ internal sealed class Porsche911GT3RSPrivateDriverAppearance : MonoBehaviour
 
     internal void BindWheelVisuals()
     {
+        if (wheelVisualsBound)
+            return;
+
         wheelBindings.Clear();
         caliperBindings.Clear();
         for (var index = 0; index < WheelNames.GetLength(0); index++)
@@ -464,6 +474,7 @@ internal sealed class Porsche911GT3RSPrivateDriverAppearance : MonoBehaviour
         BindCaliper("PorscheFixedCaliperFrontRight", "PorscheWheelFrontRight");
         BindCaliper("PorscheFixedCaliperRearLeft", "PorscheWheelRearLeft");
         BindCaliper("PorscheFixedCaliperRearRight", "PorscheWheelRearRight");
+        wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);
     }
 
     private void BindCaliper(string caliperName, string wheelName)
@@ -655,25 +666,41 @@ internal sealed class Porsche911GT3RSPrivateDriverAppearance : MonoBehaviour
     {
         private readonly Transform visual;
         private readonly Transform source;
-        private readonly Vector3 initialVisualPosition;
+        private readonly Vector3 initialVisualCenter;
         private readonly Vector3 initialSourcePosition;
+        private readonly Vector3 visualCenter;
         private readonly Quaternion rotationOffset;
 
         internal WheelBinding(Transform root, Transform visual, Transform source)
         {
             this.visual = visual;
             this.source = source;
-            initialVisualPosition = root.InverseTransformPoint(visual.position);
+            var center = GetRendererCenter(visual);
+            initialVisualCenter = root.InverseTransformPoint(center);
             initialSourcePosition = root.InverseTransformPoint(source.position);
+            visualCenter = visual.InverseTransformPoint(center);
             rotationOffset = Quaternion.Inverse(source.rotation) * visual.rotation;
         }
 
         internal void Apply(Transform root)
         {
             var sourcePosition = root.InverseTransformPoint(source.position);
-            visual.position = root.TransformPoint(
-                initialVisualPosition + sourcePosition - initialSourcePosition);
+            var targetCenter = root.TransformPoint(
+                initialVisualCenter + sourcePosition - initialSourcePosition);
             visual.rotation = source.rotation * rotationOffset;
+            visual.position += targetCenter - visual.TransformPoint(visualCenter);
+        }
+
+        private static Vector3 GetRendererCenter(Transform root)
+        {
+            var renderers = root.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+                return root.position;
+
+            var bounds = renderers[0].bounds;
+            for (var index = 1; index < renderers.Length; index++)
+                bounds.Encapsulate(renderers[index].bounds);
+            return bounds.center;
         }
     }
 
