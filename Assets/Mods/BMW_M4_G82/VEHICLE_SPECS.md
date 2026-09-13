@@ -22,7 +22,7 @@ M xDrive technical data.
 | 0–200 km/h | 11.8 s |
 | 100–0 km/h, warm | 30.4 m / 12.7 m/s² |
 | Top speed | 250 km/h; 290 km/h with M Driver's Package |
-| Launch MSRP reference | USD 74,700 plus destination for the Competition RWD; mod price USD 79,795 for the xDrive target |
+| Pricing reference | Current M4 Competition xDrive MSRP USD 91,700; mod price USD 135,000 for the fitted premium widebody/aero build |
 
 Primary references:
 
@@ -32,6 +32,10 @@ Primary references:
   https://www.press.bmwgroup.com/usa/article/detail/T0317577EN_US/the-new-2021-bmw-m3-sedan-and-m4-coupe
 - AUTO BILD instrumented M4 Competition xDrive Supertest (warm braking):
   https://www.autobild.de/artikel/supertest-bmw-m4-coupe-competition-xdrive-26483843.html
+- BMW USA current M4 model range and MSRP:
+  https://www.bmwusa.com/vehicles/m-series/bmw-4-series-m-models/bmw-m4-coupe.html
+- ADRO G82 M4 widebody kit, including vented hood, skirts, diffuser, and swan-neck wing:
+  https://officialadro.shop/products/bmw-g82-m4-prepreg-carbon-fiber-widebody-kit-complete
 
 The 800 rpm idle value is a tuning assumption because the cited BMW technical
 sheet specifies the 7,200 rpm redline but does not publish a nominal idle speed.

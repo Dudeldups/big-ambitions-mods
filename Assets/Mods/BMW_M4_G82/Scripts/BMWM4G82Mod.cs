@@ -37,6 +37,10 @@ public sealed class BMWM4G82Mod : IModBigAmbitions
     private const string VehiclePrefabAssetPath =
         "Assets/Mods/BMW_M4_G82/BMWM4G82.prefab";
     private const string PurchasePrefabName = "bmwm4g82";
+    // This is a finished premium widebody/aero build, not a base M4. Apply the
+    // dealer value before registration so every stock and private-driver path
+    // uses the same price without mutating a shared saved VehicleType.
+    private const float PremiumBuildPrice = 135000f;
 
     private VehicleType? vehicleType;
     private BMWM4G82Runtime? runtime;
@@ -79,6 +83,7 @@ public sealed class BMWM4G82Mod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        vehicleType.price = PremiumBuildPrice;
         ModdingAPI.RegisterModVehicleType(vehicleType);
         context.Logger.Info(
             $"BMWM4G82: registered '{vehicleType.vehicleTypeName}' " +
