@@ -166,16 +166,23 @@ namespace VehicleRepainter
 
         private IEnumerator RestorePersistenceAfterLoad(string source)
         {
-            runtime?.RestorePersistenceState(source, 1);
+            const float scanIntervalSeconds = 0.5f;
+            object? observedSaveGame = null;
+            var pass = 1;
 
-            var delays = new[] { 0.5f, 1.5f, 3f };
-            for (var index = 0; index < delays.Length; index++)
+            while (true)
             {
-                yield return new WaitForSecondsRealtime(delays[index]);
-                runtime?.RestorePersistenceState(source, index + 2);
-            }
+                var currentSaveGame = (object?)SaveGameManager.Current;
+                if (!ReferenceEquals(currentSaveGame, observedSaveGame))
+                {
+                    observedSaveGame = currentSaveGame;
+                    pass = 1;
+                }
 
-            pendingPersistenceRestore = null;
+                runtime?.RestorePersistenceState(source, pass);
+                pass++;
+                yield return new WaitForSecondsRealtime(scanIntervalSeconds);
+            }
         }
     }
 
@@ -324,6 +331,8 @@ namespace VehicleRepainter
         private readonly List<GasStationTrigger> observedStationTriggers = new List<GasStationTrigger>();
         private readonly HashSet<string> reportedButtonFailures = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> reportedPersistenceFailures = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<int, string> restoredCustomVehicleColorsByControllerId =
+            new Dictionary<int, string>();
         private static VehicleRepainterRuntime? activeRuntime;
         private bool privateDriverPaintHooksInstalled;
         private OverlayUI? overlayUi;
@@ -708,7 +717,8 @@ namespace VehicleRepainter
 
         internal void RestorePersistenceState(string source, int pass)
         {
-            RepairInvalidVehicleRecords(source, pass);
+            if (pass <= 4)
+                RepairInvalidVehicleRecords(source, pass);
             if (customVehicleColors.Count == 0)
                 return;
 
@@ -809,7 +819,10 @@ namespace VehicleRepainter
             var vehicleInstance = vehicle.vehicleInstance;
             var colorName = vehicleInstance.vehicleColorName;
             if (string.IsNullOrEmpty(colorName) || !customVehicleColors.TryGetValue(colorName, out var color))
+            {
+                restoredCustomVehicleColorsByControllerId.Remove(vehicle.GetInstanceID());
                 return false;
+            }
 
             if (vehicle.CarFeatures == null)
             {
@@ -821,7 +834,13 @@ namespace VehicleRepainter
                 return false;
             }
 
+            var controllerId = vehicle.GetInstanceID();
+            if (restoredCustomVehicleColorsByControllerId.TryGetValue(controllerId, out var restoredColorName) &&
+                string.Equals(restoredColorName, colorName, StringComparison.Ordinal))
+                return false;
+
             vehicle.CarFeatures.SetColor(color);
+            restoredCustomVehicleColorsByControllerId[controllerId] = colorName;
             TracePersistence(
                 $"Restored custom color '{colorName}' for player vehicle " +
                 $"id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', source='{source}'.");
@@ -924,6 +943,7 @@ namespace VehicleRepainter
 
             customVehicleColors.Clear();
             ownedCustomVehicleColors.Clear();
+            restoredCustomVehicleColorsByControllerId.Clear();
             reportedPersistenceFailures.Clear();
         }
 
