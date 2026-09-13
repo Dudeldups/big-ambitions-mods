@@ -21,10 +21,8 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private GameObject? audioHost;
     private AudioSource[]? layers;
     private AudioSource? idleSource;
-    private AudioSource? burbleSource;
     private AudioSource? hornSource;
     private AudioSource? hornSupportSource;
-    private AudioClip? burbleClip;
     private float originalDistortion;
     private bool savedMute;
     private bool ownsMute;
@@ -40,7 +38,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private float envelope;
     private float driveBlend;
     private float loadBlend;
-    private float burbleBlend;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -123,17 +120,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         }
         ConfigureEngineFilters(audioHost);
 
-        burbleClip = CadillacEscaladeCrackleWave.Create();
-        var exhaustHost = new GameObject("CadillacEscalade_ExhaustBurble");
-        exhaustHost.transform.SetParent(audioHost.transform, false);
-        burbleSource = CreateSource(exhaustHost, burbleClip, native);
-        // Keep the low exhaust texture consistent between cabin and chase
-        // cameras; the main engine layers still provide spatial direction.
-        burbleSource.spatialBlend = .25f;
-        burbleSource.minDistance = Mathf.Max(burbleSource.minDistance, 4f);
-        burbleSource.maxDistance = Mathf.Max(burbleSource.maxDistance, 35f);
-        ConfigureBurbleFilters(exhaustHost);
-
         var hornHost = new GameObject("CadillacEscalade_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
         var hornTemplate = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
@@ -152,8 +138,7 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             $"idleGain={CadillacEscaladeAudioModel.IdleBaseVolume:0.00}, " +
             $"hornVoices=low/high@{CadillacEscaladeAudioModel.HornLowVolume:0.00}/" +
             $"{CadillacEscaladeAudioModel.HornHighVolume:0.00}, " +
-            $"exhaustBurble={CadillacEscaladeAudioModel.BurbleIdleVolume:0.000}.." +
-            $"{CadillacEscaladeAudioModel.BurbleIdleVolume + CadillacEscaladeAudioModel.BurbleLoadVolume:0.000}.");
+            "loadTexture=embedded-rpm-locked-v8-burble.");
         return true;
     }
 
@@ -167,18 +152,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         var lowPass = host.AddComponent<AudioLowPassFilter>();
         lowPass.cutoffFrequency = 2500f;
         lowPass.lowpassResonanceQ = 1f;
-    }
-
-    private static void ConfigureBurbleFilters(GameObject host)
-    {
-        var highPass = host.AddComponent<AudioHighPassFilter>();
-        highPass.cutoffFrequency = 30f;
-        highPass.highpassResonanceQ = 1f;
-        var lowPass = host.AddComponent<AudioLowPassFilter>();
-        // Preserve enough of the second and third harmonics for the slow
-        // exhaust pulses to remain audible on ordinary speakers.
-        lowPass.cutoffFrequency = 680f;
-        lowPass.lowpassResonanceQ = 1.05f;
     }
 
     private AudioClip LoadClip(string name)
@@ -212,15 +185,10 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || native == null || layers == null || audioHost == null ||
-            idleSource == null || burbleSource == null || hornSource == null ||
-            hornSupportSource == null)
+            idleSource == null || hornSource == null || hornSupportSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
 
         audioHost.transform.position = native.transform.position;
-        var exhaust = physics.soundManager.exhaustSourceGO;
-        burbleSource.transform.position = exhaust != null
-            ? exhaust.transform.position
-            : vehicle!.transform.TransformPoint(new Vector3(0f, .42f, -2.35f));
         var controlled = vehicle!.controlledByPlayer;
         var engine = physics.powertrain.engine;
         var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
@@ -275,23 +243,12 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             driveBlend,
             CadillacEscaladeAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM),
             Time.deltaTime * 3f);
-        var targetBurbleBlend = CadillacEscaladeAudioModel.BurbleBlend(
-            smoothThrottle,
-            normalized);
-        burbleBlend = Mathf.MoveTowards(
-            burbleBlend,
-            targetBurbleBlend,
-            Time.deltaTime * (targetBurbleBlend > burbleBlend ? 5f : 1.35f));
-
         idleSource.pitch = CadillacEscaladeAudioModel.IdlePitch;
         idleSource.volume = envelope * master * CadillacEscaladeAudioModel.IdleVolume(driveBlend);
         idleSource.mute = controlled && savedMute;
 
-        // Crossfade the regular load recording under the loping V8 texture so
-        // both sources form one RPM-locked note instead of competing layers.
         var gain = envelope * master *
-                   CadillacEscaladeAudioModel.EngineVolume(smoothThrottle, burbleBlend) *
-                   driveBlend;
+                   CadillacEscaladeAudioModel.EngineVolume(smoothThrottle) * driveBlend;
         loadBlend = CadillacEscaladeAudioModel.LoadBlend(smoothThrottle);
         for (var i = 0; i < EngineNames.Length; i++)
         {
@@ -304,13 +261,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             layers[i].mute = layers[i + EngineNames.Length].mute = controlled && savedMute;
         }
 
-        burbleSource.pitch = CadillacEscaladeAudioModel.BurblePitch(normalized);
-        burbleSource.volume = envelope * master *
-                              CadillacEscaladeAudioModel.BurbleVolume(burbleBlend);
-        // The donor source can be lifecycle-muted while the replacement mix is
-        // active. Master volume and the load envelope control this source.
-        burbleSource.mute = false;
-
         if (envelope <= 0f)
         {
             StopLayers();
@@ -321,7 +271,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             idleSource.PlayScheduled(start);
             foreach (var source in layers)
                 source.PlayScheduled(start);
-            burbleSource.PlayScheduled(start);
             voicesStarted = true;
         }
     }
@@ -345,8 +294,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
     {
         if (idleSource != null)
             idleSource.enabled = true;
-        if (burbleSource != null)
-            burbleSource.enabled = true;
         if (layers != null)
             foreach (var source in layers)
                 if (source != null)
@@ -398,8 +345,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
             foreach (var source in layers)
                 if (source != null)
                     source.Stop();
-        if (burbleSource != null)
-            burbleSource.Stop();
         voicesStarted = false;
     }
 
@@ -415,7 +360,6 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         smoothThrottle = 0f;
         driveBlend = 0f;
         loadBlend = 0f;
-        burbleBlend = 0f;
         paused = false;
         wasControlled = false;
     }
@@ -435,13 +379,9 @@ internal sealed class CadillacEscaladeAudioController : MonoBehaviour
         audioHost = null;
         layers = null;
         idleSource = null;
-        burbleSource = null;
         hornSource = null;
         hornSupportSource = null;
         native = null;
-        if (burbleClip != null)
-            Destroy(burbleClip);
-        burbleClip = null;
         foreach (var clip in ownedClips)
             if (clip != null)
                 Destroy(clip);

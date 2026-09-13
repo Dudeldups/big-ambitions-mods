@@ -28,8 +28,11 @@ def normalize(samples: list[float], target_rms: float) -> list[float]:
     return [sample * target_rms / max(rms, 1e-12) for sample in centered]
 
 
-def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
-    rng = random.Random(seed)
+def layer(reference_hz: float, loaded: bool) -> list[float]:
+    # Every reference band uses the same harmonic phases. Once pitched to the
+    # requested engine frequency, adjacent sources can crossfade as one wave
+    # instead of producing phase cancellation or a second audible note.
+    rng = random.Random(6200)
     phases = [rng.random() * math.tau for _ in range(12)]
     amplitudes = (
         (1.0, 0.58, 0.38, 0.27, 0.20, 0.15, 0.11, 0.085, 0.065, 0.05, 0.04, 0.03)
@@ -39,6 +42,9 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
     output: list[float] = []
     for index in range(COUNT):
         time = index / RATE
+        loping_phase = math.tau * (reference_hz / 10.0) * time
+        primary_lobe = 0.5 + 0.5 * math.sin(loping_phase + 0.18)
+        secondary_lobe = 0.5 + 0.5 * math.sin(loping_phase * 0.5 + 0.82)
         value = 0.0
         for harmonic, amplitude in enumerate(amplitudes, 1):
             rolloff = math.exp(-((reference_hz * harmonic) / 5200.0) ** 2)
@@ -47,9 +53,21 @@ def layer(reference_hz: float, loaded: bool, seed: int) -> list[float]:
             )
         # A periodic intake/exhaust pressure pulse gives the large OHV V8 its
         # low-frequency body without embedding a recorded sample.
-        value += (0.24 if loaded else 0.12) * math.sin(math.tau * 40.0 * time + phases[0])
+        subharmonic = math.sin(
+            math.tau * (reference_hz / 2.0) * time + 0.24
+        )
+        value += (0.20 if loaded else 0.10) * subharmonic
         if loaded:
-            value = math.tanh(value * 1.28)
+            # Embed the loping exhaust character into this RPM band itself.
+            # All modulation frequencies are ratios of reference_hz, so the
+            # texture stays phase-speed matched as Unity pitches and crossfades
+            # the low, mid, and high engine layers.
+            loping_gain = 0.68 + 0.22 * primary_lobe + 0.10 * secondary_lobe
+            value *= loping_gain
+            value += 0.14 * primary_lobe * subharmonic
+            value += 0.055 * secondary_lobe * math.sin(
+                math.tau * (reference_hz * 1.5) * time + 0.41
+            )
         output.append(value)
     return normalize(output, 0.115)
 
@@ -81,19 +99,19 @@ def main() -> None:
         "recorded_samples": False,
         "layers": [],
         "transients": [],
+        "load_texture": "RPM-locked loping exhaust modulation embedded in each loaded engine band",
         "runtime_layers": [
-            "very-low-gain procedural exhaust texture",
             "independent 320 Hz and 400 Hz road-horn reeds",
         ],
     }
-    for layer_index, (name, frequency) in enumerate(LAYERS):
+    for name, frequency in LAYERS:
         report["layers"].append(
-            write_wav(OUTPUT / f"{name}.wav", layer(frequency, False, 400 + layer_index))
+            write_wav(OUTPUT / f"{name}.wav", layer(frequency, False))
         )
         report["layers"].append(
             write_wav(
                 OUTPUT / f"{name}Load.wav",
-                layer(frequency, True, 500 + layer_index),
+                layer(frequency, True),
             )
         )
     (OUTPUT / "generation.json").write_text(

@@ -7,48 +7,48 @@
       "name": "EngineLow.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.22506802126985387,
+      "peak": 0.1874535752470281,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.15344066702783188,
+      "peak": 0.2389591359271091,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
       "name": "EngineMid.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.2535426088525896,
+      "peak": 0.18733056846203183,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.16065921471924655,
+      "peak": 0.23689579242004763,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
       "name": "EngineHigh.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.22922825185453943,
+      "peak": 0.18789345250581596,
       "method": "deterministic additive OHV V8 synthesis"
     },
     {
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.16736554027865624,
+      "peak": 0.235735440718688,
       "method": "deterministic additive OHV V8 synthesis"
     }
   ],
   "transients": [],
+  "load_texture": "RPM-locked loping exhaust modulation embedded in each loaded engine band",
   "runtime_layers": [
-    "spaced low-frequency high-displacement exhaust burble",
     "independent 320 Hz and 400 Hz road-horn reeds"
   ]
 }
