@@ -18,6 +18,7 @@ internal static class Porsche911GT3RSDiagnostics
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool DamageDebugEnabled { get; set; } = false;
+    internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
 
     internal static void Info(ModContext? context, string message)
     {
@@ -34,6 +35,12 @@ internal static class Porsche911GT3RSDiagnostics
     internal static void DamageInfo(ModContext? context, string message)
     {
         if (DebugEnabled && DamageDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void LoadRecoveryInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && LoadRecoveryDebugEnabled)
             context?.Logger.Info(message);
     }
 }
