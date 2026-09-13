@@ -15,7 +15,7 @@ namespace DeveloperTools
     {
         private const int WindowId = 734921;
         private const float WindowWidth = 760f;
-        private const float WindowHeight = 820f;
+        private const float WindowHeight = 1200f;
         private const float VehicleDropdownHeight = 270f;
         private const int VehicleColorColumns = 12;
         private const float VehicleColorSwatchWidth = 48f;
