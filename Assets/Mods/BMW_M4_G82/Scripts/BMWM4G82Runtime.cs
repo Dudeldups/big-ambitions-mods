@@ -14,6 +14,12 @@ using Vehicles.VehicleTypes;
 public sealed class BMWM4G82Runtime : MonoBehaviour
 {
     private static BMWM4G82Runtime? activeRuntime;
+    private const string VehicleRepainterColorRestoredEvent =
+        "vehicle-repainter:color-restored";
+    private const string VehicleRepainterColorPreviewEvent =
+        "vehicle-repainter:color-preview";
+    private const string VehicleRepainterColorResetEvent =
+        "vehicle-repainter:color-reset";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -180,6 +186,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
@@ -194,6 +202,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -237,6 +246,48 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         privateDriverPoolReady = false;
         privateDriverContractReady = false;
         privateDriverRegistrationAllowed = false;
+    }
+
+    private void HandleGameEvent(string eventName)
+    {
+        if (string.Equals(eventName, VehicleRepainterColorRestoredEvent,
+                StringComparison.Ordinal))
+        {
+            RefreshExistingVehiclePaint();
+            return;
+        }
+
+        if (!string.Equals(eventName, VehicleRepainterColorPreviewEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, VehicleRepainterColorResetEvent,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        selectedVehicle!
+            .GetComponent<BMWM4G82PaintController>()
+            ?.ApplyCurrentColor("vehicle-repainter", true);
+    }
+
+    private void RefreshExistingVehiclePaint()
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        if (vehicles == null)
+            return;
+
+        foreach (var vehicle in vehicles)
+        {
+            if (!IsTargetVehicle(vehicle))
+                continue;
+
+            vehicle!.GetComponent<BMWM4G82PaintController>()
+                ?.ApplyCurrentColor("vehicle-repainter-restored", true);
+        }
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
