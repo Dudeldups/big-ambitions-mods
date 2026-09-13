@@ -14,8 +14,8 @@
       "name": "EngineLowLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.23726472449786598,
-      "method": "deterministic additive OHV V8 synthesis"
+      "peak": 0.33184125262322545,
+      "method": "phase-aligned OHV V8 combustion-pulse synthesis"
     },
     {
       "name": "EngineMid.wav",
@@ -28,8 +28,8 @@
       "name": "EngineMidLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.23357976710665934,
-      "method": "deterministic additive OHV V8 synthesis"
+      "peak": 0.33205517785960115,
+      "method": "phase-aligned OHV V8 combustion-pulse synthesis"
     },
     {
       "name": "EngineHigh.wav",
@@ -42,12 +42,12 @@
       "name": "EngineHighLoad.wav",
       "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.22444667920724895,
-      "method": "deterministic additive OHV V8 synthesis"
+      "peak": 0.33134360730291545,
+      "method": "phase-aligned OHV V8 combustion-pulse synthesis"
     }
   ],
   "transients": [],
-  "load_texture": "RPM-locked harmonic-bloom burble shaped inside each loaded engine waveform",
+  "load_texture": "phase-aligned eight-pulse OHV V8 combustion cycle used as each loaded engine waveform",
   "runtime_layers": [
     "independent 320 Hz and 400 Hz road-horn reeds"
   ]

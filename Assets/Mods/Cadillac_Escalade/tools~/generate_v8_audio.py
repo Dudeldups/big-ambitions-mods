@@ -28,36 +28,71 @@ def normalize(samples: list[float], target_rms: float) -> list[float]:
     return [sample * target_rms / max(rms, 1e-12) for sample in centered]
 
 
+def combustion_layer(reference_hz: float) -> list[float]:
+    """Build one coherent, phase-aligned OHV V8 load waveform."""
+    output = [0.0] * COUNT
+    pulse_count = round(reference_hz * SECONDS)
+    pulse_spacing = RATE / reference_hz
+    tail_samples = round(RATE * 3.8 / reference_hz)
+
+    # The uneven eight-fire energy pattern supplies the audible cross-plane
+    # cadence. Long overlapping tails keep that cadence continuous instead of
+    # creating the silence and clipping heard with a separate transient layer.
+    firing_gains = (1.00, 0.72, 0.94, 0.64, 1.02, 0.69, 0.90, 0.61)
+    timing_offsets = (0.0, 0.034, -0.022, 0.046, -0.030, 0.020, -0.016, 0.028)
+
+    for pulse in range(pulse_count):
+        cycle = pulse % len(firing_gains)
+        start = round(
+            pulse * pulse_spacing + timing_offsets[cycle] * pulse_spacing
+        )
+        pulse_gain = firing_gains[cycle]
+        for offset in range(tail_samples):
+            cycle_time = offset * reference_hz / RATE
+            attack = 1.0 - math.exp(-cycle_time * 20.0)
+            decay = math.exp(-cycle_time * 1.55)
+            envelope = attack * decay
+            resonance = (
+                0.70 * math.sin(math.tau * 1.45 * cycle_time)
+                + 0.23 * math.sin(math.tau * 3.05 * cycle_time + 0.18)
+                + 0.07 * math.sin(math.tau * 4.55 * cycle_time + 0.37)
+            )
+            sample_index = (start + offset) % COUNT
+            output[sample_index] += pulse_gain * envelope * resonance
+
+    return normalize(output, 0.115)
+
+
 def layer(reference_hz: float, loaded: bool) -> list[float]:
+    if loaded:
+        return combustion_layer(reference_hz)
+
     # Every reference band uses the same harmonic phases. Once pitched to the
     # requested engine frequency, adjacent sources can crossfade as one wave
     # instead of producing phase cancellation or a second audible note.
     rng = random.Random(6200)
     phases = [rng.random() * math.tau for _ in range(12)]
     amplitudes = (
-        (1.0, 0.58, 0.38, 0.27, 0.20, 0.15, 0.11, 0.085, 0.065, 0.05, 0.04, 0.03)
-        if loaded
-        else (1.0, 0.43, 0.27, 0.18, 0.13, 0.095, 0.07, 0.052, 0.04, 0.03, 0.024, 0.018)
+        1.0,
+        0.43,
+        0.27,
+        0.18,
+        0.13,
+        0.095,
+        0.07,
+        0.052,
+        0.04,
+        0.03,
+        0.024,
+        0.018,
     )
     output: list[float] = []
     for index in range(COUNT):
         time = index / RATE
-        loping_phase = math.tau * (reference_hz / 10.0) * time
-        primary_lobe = 0.5 + 0.5 * math.sin(loping_phase + 0.18)
-        secondary_lobe = 0.5 + 0.5 * math.sin(loping_phase * 0.5 + 0.82)
-        primary_burble = primary_lobe**1.55
         value = 0.0
         for harmonic, amplitude in enumerate(amplitudes, 1):
             rolloff = math.exp(-((reference_hz * harmonic) / 5200.0) ** 2)
-            harmonic_gain = 1.0
-            if loaded:
-                if harmonic == 1:
-                    harmonic_gain = 0.92 + 0.08 * primary_burble
-                elif harmonic <= 4:
-                    harmonic_gain = 0.70 + 0.40 * primary_burble
-                else:
-                    harmonic_gain = 0.82 + 0.18 * secondary_lobe
-            value += amplitude * harmonic_gain * rolloff * math.sin(
+            value += amplitude * rolloff * math.sin(
                 math.tau * reference_hz * harmonic * time + phases[harmonic - 1]
             )
         # A periodic intake/exhaust pressure pulse gives the large OHV V8 its
@@ -65,13 +100,7 @@ def layer(reference_hz: float, loaded: bool) -> list[float]:
         subharmonic = math.sin(
             math.tau * (reference_hz / 2.0) * time + 0.24
         )
-        value += (0.14 if loaded else 0.10) * subharmonic
-        if loaded:
-            # Shape the existing engine harmonics rather than adding another
-            # audible oscillator. The ratios keep the smooth tonal bloom locked
-            # to RPM through all low, mid, and high crossfades.
-            loping_gain = 0.80 + 0.14 * primary_burble + 0.06 * secondary_lobe
-            value *= loping_gain
+        value += 0.10 * subharmonic
         output.append(value)
     return normalize(output, 0.115)
 
@@ -91,7 +120,11 @@ def write_wav(path: Path, samples: list[float]) -> dict[str, float | int | str]:
         "samples": len(samples),
         "seconds": len(samples) / RATE,
         "peak": peak * scale,
-        "method": "deterministic additive OHV V8 synthesis",
+        "method": (
+            "phase-aligned OHV V8 combustion-pulse synthesis"
+            if path.stem.endswith("Load")
+            else "deterministic additive OHV V8 synthesis"
+        ),
     }
 
 
@@ -103,7 +136,10 @@ def main() -> None:
         "recorded_samples": False,
         "layers": [],
         "transients": [],
-        "load_texture": "RPM-locked harmonic-bloom burble shaped inside each loaded engine waveform",
+        "load_texture": (
+            "phase-aligned eight-pulse OHV V8 combustion cycle used as each "
+            "loaded engine waveform"
+        ),
         "runtime_layers": [
             "independent 320 Hz and 400 Hz road-horn reeds",
         ],
