@@ -1,7 +1,10 @@
 {
   "name": "BugattiChiron",
   "rootNamespace": "",
-  "references": [],
+  "references": [
+    "Cinemachine",
+    "Unity.ResourceManager"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
