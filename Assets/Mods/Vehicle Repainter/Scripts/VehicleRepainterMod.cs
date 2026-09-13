@@ -163,6 +163,7 @@ namespace VehicleRepainter
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
         private RepaintPurchasableAsset? activeRepaintAsset;
         private Coroutine? pendingRepairOverlayRefresh;
+        private Coroutine? pendingSavedColorRestore;
 
         internal VehicleRepainterRuntime(ModContext context)
         {
@@ -193,6 +194,7 @@ namespace VehicleRepainter
             extendedGasStationOverlay = new ExtendedGasStationOverlay(this);
             overlayUi.gasStation = extendedGasStationOverlay;
             ObserveStationTriggers();
+            pendingSavedColorRestore = overlayUi.StartCoroutine(RestoreSavedCustomVehicleColorsWhenReady());
         }
 
         internal void Uninstall()
@@ -233,7 +235,11 @@ namespace VehicleRepainter
             if (pendingRepairOverlayRefresh != null && overlayUi != null)
                 overlayUi.StopCoroutine(pendingRepairOverlayRefresh);
 
+            if (pendingSavedColorRestore != null && overlayUi != null)
+                overlayUi.StopCoroutine(pendingSavedColorRestore);
+
             pendingRepairOverlayRefresh = null;
+            pendingSavedColorRestore = null;
             foreach (var trigger in observedStationTriggers)
             {
                 if (trigger != null)
@@ -385,7 +391,10 @@ namespace VehicleRepainter
             if (dealerColors.Length != registeredColors.Count)
                 globalReferences.vehicleColors = dealerColors;
 
-            RestoreSavedCustomVehicleColors();
+            var restoredVehicleCount = RestoreSavedCustomVehicleColors();
+            context.Logger.Info(
+                $"Custom vehicle colors initialized: registered={customVehicleColors.Count}, " +
+                $"initiallyRestored={restoredVehicleCount}, playerVehicles={VehicleHelper.AllPlayerVehicles.Count}.");
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
             GlobalEvents.onEnterVehicle += HandleVehicleEntered;
             return true;
@@ -423,6 +432,36 @@ namespace VehicleRepainter
             }
 
             return restoredVehicleCount;
+        }
+
+        private IEnumerator RestoreSavedCustomVehicleColorsWhenReady()
+        {
+            const int attempts = 20;
+            const float retryDelaySeconds = 0.25f;
+            var previousVehicleCount = -1;
+            var totalRestoredVehicleCount = 0;
+
+            for (var attempt = 0; attempt < attempts; attempt++)
+            {
+                var playerVehicleCount = VehicleHelper.AllPlayerVehicles.Count;
+                var restoredVehicleCount = RestoreSavedCustomVehicleColors();
+                totalRestoredVehicleCount += restoredVehicleCount;
+
+                if (attempt == 0 || restoredVehicleCount > 0 || playerVehicleCount != previousVehicleCount)
+                {
+                    context.Logger.Info(
+                        $"Saved custom-color restore pass {attempt + 1}/{attempts}: " +
+                        $"playerVehicles={playerVehicleCount}, restored={restoredVehicleCount}.");
+                }
+
+                previousVehicleCount = playerVehicleCount;
+                yield return new WaitForSecondsRealtime(retryDelaySeconds);
+            }
+
+            pendingSavedColorRestore = null;
+            context.Logger.Info(
+                $"Saved custom-color restore completed: attempts={attempts}, " +
+                $"totalRestoredPasses={totalRestoredVehicleCount}.");
         }
 
         private bool RestoreSavedCustomVehicleColor(VehicleController? vehicle)
