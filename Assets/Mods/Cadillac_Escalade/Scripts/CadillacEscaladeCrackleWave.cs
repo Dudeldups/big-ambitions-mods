@@ -13,8 +13,10 @@ internal static class CadillacEscaladeCrackleWave
         // A large naturally aspirated V8 has a distinct loping exhaust texture
         // under load, not one isolated pop every second. Keep the beats uneven
         // and separated enough to avoid a rapid sports-car crackle.
-        var intervals = new[] { .16f, .19f, .15f, .21f, .17f, .18f };
-        var pulseFrequencies = new[] { 46f, 51f, 44f, 49f, 47f, 52f };
+        var intervals = new[]
+            { .16f, .19f, .15f, .21f, .17f, .18f, .20f, .14f, .18f, .17f, .22f, .16f };
+        var pulseFrequencies = new[] { 46f, 51f, 44f, 49f, 47f, 52f, 45f, 50f };
+        var pulseAmplitudes = new[] { .90f, 1f, .82f, .95f, .87f, 1.04f, .85f, .97f };
         var pulseTimes = new List<float>(24);
         var pulseTime = .06f;
         var intervalIndex = 0;
@@ -42,16 +44,20 @@ internal static class CadillacEscaladeCrackleWave
                 // Let adjacent beats overlap. A large V8 exhaust retains body
                 // between firing accents instead of dropping into digital-
                 // sounding silence before every following beat.
-                var envelope = Mathf.Exp(-sincePulse * 6f);
+                var envelope = (1f - Mathf.Exp(-sincePulse * 32f)) *
+                               Mathf.Exp(-sincePulse * 6.5f) *
+                               pulseAmplitudes[pulseIndex % pulseAmplitudes.Length];
                 var frequency = pulseFrequencies[pulseIndex % pulseFrequencies.Length];
                 var fundamental = Mathf.Sin(2f * Mathf.PI * frequency * sincePulse);
-                var secondHarmonic = Mathf.Sin(4f * Mathf.PI * frequency * sincePulse + .35f);
-                var thirdHarmonic = Mathf.Sin(6f * Mathf.PI * frequency * sincePulse + .62f);
+                var secondHarmonic = Mathf.Sin(4f * Mathf.PI * frequency * sincePulse + .20f);
+                var thirdHarmonic = Mathf.Sin(6f * Mathf.PI * frequency * sincePulse + .35f);
                 sample += envelope *
-                          (.46f * fundamental + .34f * secondHarmonic +
-                           .12f * thirdHarmonic + .08f * filteredNoise);
+                          (.62f * fundamental + .23f * secondHarmonic +
+                           .07f * thirdHarmonic + .08f * filteredNoise);
             }
-            samples[index] = Mathf.Clamp(sample * .60f, -.90f, .90f);
+            // The smooth onset and conservative scale keep the generated clip
+            // comfortably below full scale without a hard limiter.
+            samples[index] = sample * .65f;
         }
 
         var clip = AudioClip.Create(
