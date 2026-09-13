@@ -270,7 +270,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
-        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
             EnsurePrivateDriverSupport("full-menu");
     }
 
@@ -335,6 +336,11 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"LamborghiniRevuelto: private-driver support not ready source='{source}'.");
         }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver traffic pool not ready source='{source}'.");
+        }
     }
 
     private bool EnsureDealerStock(string source)
@@ -361,26 +367,27 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private bool EnsurePrivateDriverSupport(string source)
     {
-        if (privateDriverReady)
+        if (privateDriverReady && privateDriverPoolReady)
             return true;
         if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
             return false;
 
         try
         {
-            if (!privateDriverPoolReady && !TryPreparePrivateDriverPool(source))
-                return false;
-            privateDriverPoolReady = true;
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
 
-            privateDriverReady = LamborghiniRevueltoPrivateDriverSupport.EnsureVehicleAvailable(
-                vehicleTypeName,
-                playerVehiclePrefab);
-            if (privateDriverReady)
+            if (!privateDriverReady)
             {
-                context?.Logger.Info(
-                    $"LamborghiniRevuelto: private-driver support registered source='{source}'.");
+                privateDriverReady = LamborghiniRevueltoPrivateDriverSupport.EnsureVehicleAvailable(
+                    vehicleTypeName);
+                if (privateDriverReady)
+                {
+                    context?.Logger.Info(
+                        $"LamborghiniRevuelto: private-driver support registered source='{source}'.");
+                }
             }
-            return privateDriverReady;
+            return privateDriverReady && privateDriverPoolReady;
         }
         catch (Exception exception)
         {

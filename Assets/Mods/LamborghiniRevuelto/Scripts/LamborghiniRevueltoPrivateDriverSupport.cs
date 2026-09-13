@@ -16,6 +16,7 @@ internal static class LamborghiniRevueltoPrivateDriverSupport
     private const string PremiumContractKey = "ba:private_driver_type_premium";
     private const string AiTemplateCacheKey = "Prefabs/Vehicles/AnselmoAF90.prefab";
     private const string AiPrefabCacheKey = "Prefabs/Vehicles/lamborghinirevuelto.prefab";
+    private const string AiCarTypeName = "LamborghiniRevueltoPrivateDriver";
     private const int PrivateDriverPoolSize = 2;
 
     private static readonly List<PrivateDriverContract> ModifiedContracts =
@@ -36,20 +37,30 @@ internal static class LamborghiniRevueltoPrivateDriverSupport
         if (playerPrefab == null || !EnsureAiPrefab(playerPrefab) || customAiPrefab == null)
             return false;
 
-        var trafficComponent = UnityEngine.Object.FindAnyObjectByType<TrafficComponent>();
-        var pool = trafficComponent?.vehiclePool;
+        var trafficComponent = TrafficComponent.Instance;
+        if (trafficComponent == null)
+            return false;
+        var pool = trafficComponent.vehiclePool;
         if (pool == null)
             return false;
 
         var existing = pool.trafficCars ?? Array.Empty<CarType>();
         foreach (var carType in existing)
         {
-            if (carType != null && ReferenceEquals(carType.vehiclePrefab, customAiPrefab))
-            {
-                modifiedVehiclePool = pool;
-                customCarType = carType;
-                return true;
-            }
+            if (carType == null ||
+                (!ReferenceEquals(carType.vehiclePrefab, customAiPrefab) &&
+                 !string.Equals(carType.name, AiCarTypeName, StringComparison.Ordinal)))
+                continue;
+
+            carType.name = AiCarTypeName;
+            carType.vehiclePrefab = customAiPrefab;
+            carType.nrOfVehicles = PrivateDriverPoolSize;
+            carType.canBeRandomlyParked = false;
+            carType.hasParkedVersion = false;
+            carType.canBeAiDriven = true;
+            modifiedVehiclePool = pool;
+            customCarType = carType;
+            return true;
         }
 
         if (TrafficManager.IsInitialized)
@@ -57,7 +68,7 @@ internal static class LamborghiniRevueltoPrivateDriverSupport
 
         customCarType = new CarType
         {
-            name = "LamborghiniRevueltoPrivateDriver",
+            name = AiCarTypeName,
             vehiclePrefab = customAiPrefab,
             nrOfVehicles = PrivateDriverPoolSize,
             canBeRandomlyParked = false,
@@ -72,11 +83,9 @@ internal static class LamborghiniRevueltoPrivateDriverSupport
         return true;
     }
 
-    internal static bool EnsureVehicleAvailable(string vehicleTypeName, GameObject playerPrefab)
+    internal static bool EnsureVehicleAvailable(string vehicleTypeName)
     {
-        if (string.IsNullOrWhiteSpace(vehicleTypeName) || playerPrefab == null)
-            return false;
-        if (!EnsureAiPrefab(playerPrefab) || !IsTrafficPrefabAvailable())
+        if (string.IsNullOrWhiteSpace(vehicleTypeName))
             return false;
 
         var contracts = PrivateDriverHelpers.GetContracts();
@@ -249,9 +258,6 @@ internal static class LamborghiniRevueltoPrivateDriverSupport
         cache[AiPrefabCacheKey] = customAiPrefab;
         return true;
     }
-
-    private static bool IsTrafficPrefabAvailable() =>
-        customAiPrefab != null && modifiedVehiclePool != null && customCarType != null;
 
     private static GameObject? CreateAiPrefab(GameObject playerPrefab)
     {
