@@ -30,10 +30,10 @@ internal static class BMWM4G82AudioModel
     // The generated layers already contain upper combustion harmonics. Keep the
     // playback fundamentals in the lower inline-six register so load sounds
     // growling rather than like a small high-speed electric motor. The full
-    // curve is pitched about seventeen percent below the original mapping
-    // while retaining its RPM response and gain staging.
+    // curve is pitched ten percent below the previous mapping while retaining
+    // its RPM response and gain staging.
     internal static float TargetHz(float normalized) =>
-        (float)(48d * Math.Pow(240d / 48d, Clamp01(normalized)));
+        (float)(52.2d * Math.Pow(261d / 52.2d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)
