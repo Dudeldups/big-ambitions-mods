@@ -44,20 +44,20 @@ internal static class CadillacEscaladeCrackleWave
                 // Let adjacent beats overlap. A large V8 exhaust retains body
                 // between firing accents instead of dropping into digital-
                 // sounding silence before every following beat.
-                var envelope = (1f - Mathf.Exp(-sincePulse * 32f)) *
-                               Mathf.Exp(-sincePulse * 6.5f) *
+                var envelope = (1f - Mathf.Exp(-sincePulse * 24f)) *
+                               Mathf.Exp(-sincePulse * 5.8f) *
                                pulseAmplitudes[pulseIndex % pulseAmplitudes.Length];
                 var frequency = pulseFrequencies[pulseIndex % pulseFrequencies.Length];
                 var fundamental = Mathf.Sin(2f * Mathf.PI * frequency * sincePulse);
                 var secondHarmonic = Mathf.Sin(4f * Mathf.PI * frequency * sincePulse + .20f);
                 var thirdHarmonic = Mathf.Sin(6f * Mathf.PI * frequency * sincePulse + .35f);
                 sample += envelope *
-                          (.62f * fundamental + .23f * secondHarmonic +
-                           .07f * thirdHarmonic + .08f * filteredNoise);
+                          (.70f * fundamental + .18f * secondHarmonic +
+                           .04f * thirdHarmonic + .06f * filteredNoise);
             }
             // The smooth onset and conservative scale keep the generated clip
             // comfortably below full scale without a hard limiter.
-            samples[index] = sample * .65f;
+            samples[index] = sample * .55f;
         }
 
         var clip = AudioClip.Create(
