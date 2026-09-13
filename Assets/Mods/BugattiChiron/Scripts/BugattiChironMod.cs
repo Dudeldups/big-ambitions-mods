@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using BAModAPI;
 using BAModAPI.Services;
+using BigAmbitions.SaveSystem;
 using BigAmbitions.Items;
 using Blueprints;
 using BusinessLayoutSets;
@@ -103,6 +104,10 @@ public sealed class BugattiChironMainMenuRegistration : IModBigAmbitions
             modContext,
             vehicleType,
             "main-menu-load");
+        BugattiChironVehicleTypeRegistration.RegisterForNextVehicleTypeLoad(
+            modContext,
+            vehicleType,
+            "city-addressables");
         return Task.CompletedTask;
     }
 
@@ -147,6 +152,33 @@ public sealed class BugattiChironCityRegistration : IModBigAmbitions
 
 internal static class BugattiChironVehicleTypeRegistration
 {
+    private const string VehicleTypesAddressableLabel = "VehicleTypes";
+
+    internal static void RegisterForNextVehicleTypeLoad(
+        ModContext context,
+        VehicleType? vehicleType,
+        string source)
+    {
+        if (vehicleType == null)
+            return;
+
+        // AddressableLoader invokes registered callbacks only after every load
+        // in the batch has completed and before the remaining city Awake calls.
+        // The loader clears this job after invoking it, so this is a one-shot
+        // lifecycle callback rather than a runtime registration poll.
+        AddressableLoader.Register<VehicleType>(
+            VehicleTypesAddressableLabel,
+            _ =>
+            {
+                var wasRegistered = VehicleTypeHelper.GetVehicleType(
+                    vehicleType.vehicleTypeName) != null;
+                var ready = EnsureRegistered(vehicleType);
+                context.Logger.Info(
+                    $"BugattiChiron: pre-city vehicle registry callback source='{source}' " +
+                    $"wasRegistered={wasRegistered}, ready={ready}.");
+            });
+    }
+
     internal static VehicleType? LoadVehicleType(ModContext context)
     {
         var bundle = AssetService.GetBundle(context.ModId, BugattiChironMod.BundleKey);
