@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
+using Data.VehicleColors;
+using Helpers;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -516,15 +518,37 @@ internal static class AudiRS6RMaterials
 
 internal sealed class AudiRS6RMaterialController : MonoBehaviour
 {
+    private const string PaintRendererName = "Paint";
+    private const float LowLightPaintContribution = 0.075f;
+    private static readonly int EmissiveColor = Shader.PropertyToID("_EmissiveColor");
+    private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
+    private static readonly int EmissiveExposureWeight = Shader.PropertyToID("_EmissiveExposureWeight");
+
     private bool applied;
     private readonly List<Material> ownedWheelMaterials = new List<Material>();
+    private readonly MaterialPropertyBlock paintProperties = new MaterialPropertyBlock();
+    private VehicleController? vehicle;
+    private ModContext? context;
+    private Renderer? paintRenderer;
+    private Material? sourcePaintMaterial;
+    private Material? ownedPaintMaterial;
+    private VehicleColor? appliedVehicleColor;
+    private Color32 appliedTint;
+    private bool hasAppliedTint;
 
     internal void Initialize(VehicleController vehicle, ModContext? context)
     {
         if (applied)
+        {
+            RefreshPaint();
             return;
+        }
 
+        this.vehicle = vehicle;
+        this.context = context;
         var result = AudiRS6RMaterials.FixSolidVehicleMaterials(vehicle.gameObject, ownedWheelMaterials);
+        ConfigurePaintRenderer();
+        RefreshPaint();
         applied = true;
         if (result.WheelRendererCount == 0 || result.WheelMaterialCloneCount == 0 ||
             result.TransparentMaterialsProtected == 0)
@@ -535,8 +559,96 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
         }
     }
 
+    internal void RefreshPaint()
+    {
+        if (paintRenderer == null || ownedPaintMaterial == null)
+            return;
+
+        var selected = ResolveVehicleColor();
+        if (selected == null)
+            return;
+        var tint = (Color32)selected.tint;
+        if (hasAppliedTint && ReferenceEquals(selected, appliedVehicleColor) && tint.Equals(appliedTint))
+            return;
+
+        var selectedColor = (Color)tint;
+        selectedColor.a = 1f;
+        var lowLightColor = new Color(
+            selectedColor.r * LowLightPaintContribution,
+            selectedColor.g * LowLightPaintContribution,
+            selectedColor.b * LowLightPaintContribution,
+            1f);
+        paintProperties.Clear();
+        paintRenderer.GetPropertyBlock(paintProperties, 0);
+        if (ownedPaintMaterial.HasProperty(EmissiveColor))
+            paintProperties.SetColor(EmissiveColor, lowLightColor);
+        if (ownedPaintMaterial.HasProperty(EmissionColor))
+            paintProperties.SetColor(EmissionColor, lowLightColor);
+        if (ownedPaintMaterial.HasProperty(EmissiveExposureWeight))
+            paintProperties.SetFloat(EmissiveExposureWeight, 0.65f);
+        paintRenderer.SetPropertyBlock(paintProperties, 0);
+
+        appliedVehicleColor = selected;
+        appliedTint = tint;
+        hasAppliedTint = true;
+    }
+
+    private void ConfigurePaintRenderer()
+    {
+        foreach (var renderer in vehicle!.GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer == null || !string.Equals(renderer.name, PaintRendererName, StringComparison.Ordinal))
+                continue;
+
+            var materials = renderer.sharedMaterials;
+            if (materials.Length == 0 || materials[0] == null)
+                break;
+
+            paintRenderer = renderer;
+            sourcePaintMaterial = materials[0];
+            ownedPaintMaterial = new Material(sourcePaintMaterial)
+            {
+                name = sourcePaintMaterial.name + " Audi Low-Light Paint"
+            };
+            ownedPaintMaterial.EnableKeyword("_EMISSION");
+            materials[0] = ownedPaintMaterial;
+            renderer.sharedMaterials = materials;
+            context?.Logger.Info(
+                $"AudiRS6R paint vehicle={vehicle.GetInstanceID()}: renderer='{renderer.name}', " +
+                $"shader='{ownedPaintMaterial.shader?.name ?? "missing"}', " +
+                $"emissiveColor={ownedPaintMaterial.HasProperty(EmissiveColor)}, " +
+                $"emissionColor={ownedPaintMaterial.HasProperty(EmissionColor)}.");
+            return;
+        }
+
+        context?.Logger.Warn(
+            $"AudiRS6R paint vehicle={vehicle?.GetInstanceID()}: exact Paint renderer/material was not found.");
+    }
+
+    private VehicleColor? ResolveVehicleColor()
+    {
+        var live = vehicle?.CarFeatures?.VehicleColor;
+        if (live != null)
+            return live;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        return !string.IsNullOrEmpty(colorName) && VehicleHelper.TryGetVehicleColor(colorName, out var saved)
+            ? saved
+            : null;
+    }
+
     private void OnDestroy()
     {
+        if (paintRenderer != null && sourcePaintMaterial != null)
+        {
+            var materials = paintRenderer.sharedMaterials;
+            if (materials.Length > 0 && materials[0] == ownedPaintMaterial)
+            {
+                materials[0] = sourcePaintMaterial;
+                paintRenderer.sharedMaterials = materials;
+            }
+        }
+        if (ownedPaintMaterial != null)
+            Destroy(ownedPaintMaterial);
         foreach (var material in ownedWheelMaterials)
             if (material != null) Destroy(material);
         ownedWheelMaterials.Clear();

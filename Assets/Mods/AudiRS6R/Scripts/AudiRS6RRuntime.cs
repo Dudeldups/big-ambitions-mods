@@ -100,6 +100,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void SubscribeGlobalEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
@@ -114,6 +116,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private void UnsubscribeGlobalEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onBuildingRegistrationChange -= HandleBuildingRegistrationChanged;
@@ -146,6 +149,22 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private void HandleVehicleEntered(VehicleController vehicleController)
     {
         TryConfigureVehicle(vehicleController);
+        vehicleController?.GetComponent<AudiRS6RMaterialController>()?.RefreshPaint();
+    }
+
+    private void HandleGameEvent(string _)
+    {
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (selectedVehicle?.vehicleInstance == null ||
+            !string.Equals(
+                selectedVehicle.vehicleInstance.vehicleTypeName,
+                vehicleTypeName,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        selectedVehicle.GetComponent<AudiRS6RMaterialController>()?.RefreshPaint();
     }
 
     private void HandleBuildingEntered(Address address)
@@ -161,7 +180,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private void HandleFullMenuToggle(bool isOpen)
     {
         if (!isOpen)
+        {
+            RefreshExistingVehiclePaint();
             return;
+        }
 
         if (!AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context))
             context?.Logger.Warn("AudiRS6R: luxury dealer catalog was not ready when the full menu opened.");
@@ -425,6 +447,27 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         return configuredCount;
     }
 
+    private void RefreshExistingVehiclePaint()
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        if (vehicles == null)
+            return;
+
+        foreach (var vehicle in vehicles)
+        {
+            if (vehicle?.vehicleInstance == null ||
+                !string.Equals(
+                    vehicle.vehicleInstance.vehicleTypeName,
+                    vehicleTypeName,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            vehicle.GetComponent<AudiRS6RMaterialController>()?.RefreshPaint();
+        }
+    }
+
     private static int ConfigureNavMeshObstacles(GameObject root)
     {
         if (!TryGetBodyColliderBounds(root.transform, out var bodyBounds))
@@ -619,6 +662,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     {
         return string.Equals(name, "Paint", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Base_Geo_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("B:Engine_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Paint_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Coloured_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Carbon1_Geo_", StringComparison.OrdinalIgnoreCase) ||
@@ -626,6 +670,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                name.StartsWith("B:Grille", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Grille", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Interior_Geo_", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("B:Kit2_Textured_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Light_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Badge_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:ManufacturerPlate_", StringComparison.OrdinalIgnoreCase) ||
@@ -1210,9 +1255,9 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
     private const float RearDentCenterLowering = 0.18f;
     private const float MinimumFrontEndDentDepth = 0.030f;
     private const float MinimumRearEndDentDepth = 0.018f;
-    private const float MaximumFrontEndDentDepth = 0.31f;
+    private const float MaximumFrontEndDentDepth = 0.285f;
     private const float MaximumRearEndDentDepth = 0.20f;
-    private const float FrontEndDepthPerExcessMps = 0.012f;
+    private const float FrontEndDepthPerExcessMps = 0.011f;
     private const float RearEndDepthPerExcessMps = 0.0075f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
@@ -1483,6 +1528,12 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
 
         if (meshName.StartsWith("B:Window_Geo_lodA_B:", StringComparison.OrdinalIgnoreCase))
             return isEndContact;
+
+        if (meshName.StartsWith("B:Engine_Geo_", StringComparison.OrdinalIgnoreCase) ||
+            meshName.StartsWith("B:Kit2_Textured_Geo_", StringComparison.OrdinalIgnoreCase))
+        {
+            return isFrontEndContact;
+        }
 
         return true;
     }

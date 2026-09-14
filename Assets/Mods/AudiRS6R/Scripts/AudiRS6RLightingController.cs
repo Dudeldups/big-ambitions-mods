@@ -112,18 +112,30 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             rearLampRenderer, position => position.y >= 1.10f,
             "CenterBrakeLight", new Color(1f, 0.008f, 0.001f, 1f), intensity: 5.0f);
         leftFrontBlinkerOverlay = CreateFunctionalOverlay(
-            frontLampRenderer, position => position.z >= 0f && position.x <= 0f,
-            "FrontLeftBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
+            frontLampRenderer,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.x <= 0f,
+            "FrontLeftBlinker", new Color(1f, 0.42f, 0f, 1f),
+            intensity: 3.0f,
+            copyBaseTexture: false,
+            overlayScale: 1.004f,
+            selectHeadlightSignatureComponents: true);
         rightFrontBlinkerOverlay = CreateFunctionalOverlay(
-            frontLampRenderer, position => position.z >= 0f && position.x > 0f,
-            "FrontRightBlinker", new Color(1f, 0.14f, 0.002f, 1f), overlayScale: 1.004f);
+            frontLampRenderer,
+            position => position.z >= 1.80f && position.y >= 0.55f && position.x > 0f,
+            "FrontRightBlinker", new Color(1f, 0.42f, 0f, 1f),
+            intensity: 3.0f,
+            copyBaseTexture: false,
+            overlayScale: 1.004f,
+            selectHeadlightSignatureComponents: true);
         leftRearBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z <= -2.0f && position.x <= 0f,
-            "RearLeftBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f,
+            "RearLeftBlinker", new Color(1f, 0.42f, 0f, 1f), intensity: 3.0f,
+            copyBaseTexture: false, overlayScale: 1.004f,
             selectRearIndicatorComponents: true);
         rightRearBlinkerOverlay = CreateFunctionalOverlay(
             frontLampRenderer, position => position.z <= -2.0f && position.x > 0f,
-            "RearRightBlinker", new Color(1f, 0.12f, 0.001f, 1f), overlayScale: 1.004f,
+            "RearRightBlinker", new Color(1f, 0.42f, 0f, 1f), intensity: 3.0f,
+            copyBaseTexture: false, overlayScale: 1.004f,
             selectRearIndicatorComponents: true);
 
         initialized = true;
