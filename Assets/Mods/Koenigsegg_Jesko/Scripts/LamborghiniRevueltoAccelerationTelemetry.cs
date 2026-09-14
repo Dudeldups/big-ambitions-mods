@@ -1,4 +1,5 @@
 #nullable enable
+using System.Reflection;
 using BAModAPI;
 using UnityEngine;
 using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
@@ -11,6 +12,7 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
     private const float MaximumYawDegrees = 5f;
     private const float MaximumLateralMetres = 3f;
     private const float MaximumRunSeconds = 45f;
+    private const float MaximumBrakingRunSeconds = 20f;
     private const float OfficialZeroToHundredSeconds = 2.5f;
 
     private static readonly float[] MilestonesKph = { 100f, 200f, 300f };
@@ -29,6 +31,9 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
     private float zeroToHundred = -1f;
     private int nextMilestone;
     private bool running;
+    private bool brakingRun;
+    private float brakingElapsed;
+    private float brakingStartSpeedKph;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -48,11 +53,30 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
             return;
 
         var throttle = Mathf.Clamp01(physics.input.Throttle);
+        var brake = ReadFloatMember(physics.input, "Brake");
         var speedKph = body.velocity.magnitude * 3.6f;
         if (!vehicle.controlledByPlayer)
         {
             if (running)
                 Finish("driver-exited", speedKph);
+            if (brakingRun)
+                FinishBraking("driver-exited", speedKph);
+            previousThrottle = throttle;
+            previousSpeedKph = speedKph;
+            return;
+        }
+
+        if (brakingRun)
+        {
+            UpdateBraking(brake, speedKph);
+            previousThrottle = throttle;
+            previousSpeedKph = speedKph;
+            return;
+        }
+
+        if (!running && speedKph >= 100f && brake >= 0.85f && throttle <= 0.35f)
+        {
+            StartBraking(speedKph);
             previousThrottle = throttle;
             previousSpeedKph = speedKph;
             return;
@@ -165,10 +189,64 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
         running = false;
     }
 
+    private void StartBraking(float speedKph)
+    {
+        brakingRun = true;
+        brakingElapsed = 0f;
+        brakingStartSpeedKph = speedKph;
+        maximumYaw = maximumLateral = 0f;
+        context?.Logger.Info(
+            $"KoenigseggJesko braking run started vehicle={vehicle!.GetInstanceID()}, " +
+            $"speed={speedKph:0.0}kmh. Hold full brake in a straight line.");
+    }
+
+    private void UpdateBraking(float brake, float speedKph)
+    {
+        brakingElapsed += Time.fixedDeltaTime;
+        if (speedKph <= 1f)
+        {
+            FinishBraking("0kmh-complete", speedKph);
+            return;
+        }
+
+        if (brake < 0.70f)
+        {
+            FinishBraking("brake-released", speedKph);
+            return;
+        }
+
+        if (brakingElapsed >= MaximumBrakingRunSeconds)
+            FinishBraking("timeout", speedKph);
+    }
+
+    private void FinishBraking(string reason, float speedKph)
+    {
+        context?.Logger.Info(
+            $"KoenigseggJesko braking run ended vehicle={vehicle?.GetInstanceID()}, " +
+            $"reason={reason}, startSpeed={brakingStartSpeedKph:0.0}kmh, " +
+            $"100to0={brakingElapsed:0.000}s, endSpeed={speedKph:0.0}kmh. " +
+            "No official 100-to-0 benchmark was assumed.");
+        brakingRun = false;
+    }
+
+    private static float ReadFloatMember(object target, string name)
+    {
+        var type = target.GetType();
+        var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (field?.GetValue(target) is float fieldValue)
+            return Mathf.Clamp01(fieldValue);
+        var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (property?.GetValue(target) is float propertyValue)
+            return Mathf.Clamp01(propertyValue);
+        return 0f;
+    }
+
     private void OnDisable()
     {
         if (running)
             Finish("component-disabled", body == null ? 0f : body.velocity.magnitude * 3.6f);
+        if (brakingRun)
+            FinishBraking("component-disabled", body == null ? 0f : body.velocity.magnitude * 3.6f);
         previousThrottle = 0f;
     }
 }

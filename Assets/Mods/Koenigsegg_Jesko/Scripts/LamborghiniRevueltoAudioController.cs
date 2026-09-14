@@ -190,6 +190,10 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
                 KoenigseggJeskoAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM), Time.deltaTime * 4f);
             var gain = envelope * master * KoenigseggJeskoAudioModel.EngineVolume(smoothThrottle) *
                        Mathf.Sqrt(driveBlend);
+            // Keep the overall engine level unchanged under load, while
+            // restoring a more present, low-frequency idle bed. The high-RPM
+            // register is controlled by AudioModel.TargetHz below.
+            gain *= Mathf.Lerp(1.28f, 1f, normalized);
             loadBlend = KoenigseggJeskoAudioModel.LoadBlend(smoothThrottle);
             for (var i = 0; i < EngineNames.Length; i++)
             {

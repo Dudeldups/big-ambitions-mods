@@ -37,6 +37,8 @@ public static class KoenigseggJeskoSetup
     private const float RearWheelOutset = 0f;
     private const float FrontWheelForwardOffset = 0.06f;
     private const float RearWheelForwardOffset = 0.12f;
+    private const float WheelRearwardOffset = -0.02f;
+    private const float FrontWheelHeightOffset = 0.02f;
     private const float WheelGroundingOffset = -0.04f;
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
@@ -519,7 +521,7 @@ public static class KoenigseggJeskoSetup
             if (Math.Abs(price - 3000000f) > 0.5f ||
                 Math.Abs(maxFuel - 72f) > 0.5f ||
                 Math.Abs(maxSpeed - 480f) > 0.5f ||
-                Math.Abs(enginePower - 1280f) > 0.5f ||
+                Math.Abs(enginePower - 760f) > 0.5f ||
                 !luxury ||
                 bounds.size.z < 4.50f || bounds.size.z > 4.72f ||
                 bounds.size.x < 1.98f || bounds.size.x > 2.08f ||
@@ -684,6 +686,7 @@ public static class KoenigseggJeskoSetup
                 InteractionMode.AutomatedAction);
             modelInstance.name = "KoenigseggVisual";
             DisableFallbackChassis(modelInstance);
+            DisableBonnetCameraGeometry(modelInstance);
             RemoveModelLights(modelInstance);
             NormalizeModel(modelInstance);
             ConfigureExitMarkers(root, modelInstance);
@@ -768,6 +771,23 @@ public static class KoenigseggJeskoSetup
             Debug.LogWarning("KoenigseggJesko: no LOD_B_CHASSIS fallback was found in the imported model.");
         else
             Debug.Log($"KoenigseggJesko: disabled {disabled} fallback LOD_B chassis object(s).");
+    }
+
+    private static void DisableBonnetCameraGeometry(GameObject model)
+    {
+        var disabled = 0;
+        foreach (var transform in model.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            transform.gameObject.SetActive(false);
+            foreach (var renderer in transform.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = false;
+            disabled++;
+        }
+
+        Debug.Log($"KoenigseggJesko: disabled bonnet-camera geometry groups={disabled}.");
     }
 
     private static void ConfigureRootPhysics(GameObject root)
@@ -1044,8 +1064,9 @@ public static class KoenigseggJeskoSetup
             var forwardOffset = isFront ? FrontWheelForwardOffset : RearWheelForwardOffset;
             controller.localPosition = new Vector3(
                 authoredCenter.x + side * outset,
-                radius + WheelGroundingOffset,
-                authoredCenter.z + forwardOffset);
+                radius + WheelGroundingOffset +
+                    (isFront ? FrontWheelHeightOffset : 0f),
+                authoredCenter.z + forwardOffset + WheelRearwardOffset);
             var mount = new GameObject(
                 "KoenigseggWheel" +
                 pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
@@ -1053,7 +1074,8 @@ public static class KoenigseggJeskoSetup
             mount.transform.localPosition =
                 new Vector3(
                     controller.localPosition.x,
-                    radius + WheelGroundingOffset,
+                    radius + WheelGroundingOffset +
+                        (isFront ? FrontWheelHeightOffset : 0f),
                     controller.localPosition.z);
 
             // Preserve the GLB's side-specific hierarchy and rotation. Resetting
@@ -1098,9 +1120,7 @@ public static class KoenigseggJeskoSetup
             fixedCaliper.transform.SetParent(root.transform, false);
             fixedCaliper.transform.position = mount.transform.position;
             fixedCaliper.transform.rotation = root.transform.rotation;
-            caliper.SetParent(fixedCaliper.transform, false);
-            caliper.localPosition = Vector3.zero;
-            caliper.localRotation = Quaternion.identity;
+            caliper.SetParent(fixedCaliper.transform, true);
             caliper.name = "Jesko_Caliper_" + pair.Key;
 
             AssignWheelVisual(controller, mount);
@@ -1162,7 +1182,8 @@ public static class KoenigseggJeskoSetup
         MeshRenderer? sourceRenderer = null;
         foreach (var renderer in modelInstance.GetComponentsInChildren<MeshRenderer>(true))
         {
-            if (renderer.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (renderer.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                renderer.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
             {
                 sourceRenderer = renderer;
                 break;

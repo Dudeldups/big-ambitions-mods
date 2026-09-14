@@ -86,13 +86,13 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         secondaryHeadlampOverlay = CreateDirectionalFilteredOverlay(secondaryHeadlamp,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "HeadlampSecondary", new Color(0.84f, 0.92f, 1f, 1f), 3.8f, 1.001f);
-        // TAILLIGHT_LENS_* is the outer cover, not the emissive running-light
-        // insert. Use the dedicated inner BRAKES_* surfaces for both red
-        // states so the lens itself remains transparent/non-emissive.
-        rearTailLeftOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
+        // The large outer rear signatures are the running lights. The separate
+        // BRAKES_* meshes are the inner brake sections; neither the lower
+        // reflectors nor the rear bumper strip is used for the tail state.
+        rearTailLeftOverlay = CreateDirectionalFilteredOverlay(tailLeft,
             (center, normal) => normal.z < -0.45f,
             "RearTailSignatureLeft", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
-        rearTailRightOverlay = CreateDirectionalFilteredOverlay(brakeRight,
+        rearTailRightOverlay = CreateDirectionalFilteredOverlay(tailRight,
             (center, normal) => normal.z < -0.45f,
             "RearTailSignatureRight", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
         brakeLeftOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
@@ -114,10 +114,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         rightBlinkerOverlay = CreateDirectionalFilteredOverlay(rightBlinker,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "RightIndicator", amber, 4.5f, 1.003f);
-        rearLeftBlinkerOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
+        rearLeftBlinkerOverlay = CreateDirectionalFilteredOverlay(tailLeft,
             (center, normal) => normal.z < -0.45f,
             "RearLeftIndicator", amber, 5.2f, 1.005f);
-        rearRightBlinkerOverlay = CreateDirectionalFilteredOverlay(brakeRight,
+        rearRightBlinkerOverlay = CreateDirectionalFilteredOverlay(tailRight,
             (center, normal) => normal.z < -0.45f,
             "RearRightIndicator", amber, 5.2f, 1.005f);
         var beamCount = ConfigureHeadlightBeams();

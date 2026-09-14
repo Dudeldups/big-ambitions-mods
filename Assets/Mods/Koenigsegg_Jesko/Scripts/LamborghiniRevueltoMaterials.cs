@@ -330,7 +330,7 @@ public static class KoenigseggJeskoMaterials
             RebindToHdrpLit(material);
         }
         var tint = cabinGlass
-            ? new Color(0.18f, 0.23f, 0.28f, 0.16f)
+            ? new Color(0.42f, 0.54f, 0.66f, 0.22f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -340,6 +340,17 @@ public static class KoenigseggJeskoMaterials
         SetColor(material, "_BaseColor", tint);
         SetColor(material, "_Color", tint);
         SetColor(material, "baseColorFactor", tint);
+        if (cabinGlass)
+        {
+            // The imported Glass_Blask material can carry a black glTF base
+            // value into the runtime bundle. The vehicle has no glass texture
+            // to preserve here, so explicitly remove all possible base maps
+            // and let HDRP render the transparent tint below. This also avoids
+            // camera-angle-dependent disappearance from the source shader.
+            SetTexture(material, "_BaseColorMap", null, Vector2.one, Vector2.zero);
+            SetTexture(material, "_MainTex", null, Vector2.one, Vector2.zero);
+            SetTexture(material, "baseColorTexture", null, Vector2.one, Vector2.zero);
+        }
         SetFloat(material, "transmissionFactor", 0f);
         SetFloat(material, "_SurfaceType", 1f);
         SetFloat(material, "_BlendMode", 0f);

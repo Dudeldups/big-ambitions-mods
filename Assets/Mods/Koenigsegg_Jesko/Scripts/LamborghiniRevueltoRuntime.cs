@@ -41,18 +41,18 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.327f, 1.3543513f) },
-            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.327f, 1.3543511f) },
-            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.2889924f) },
-            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.2889926f) },
-            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.327f, 1.3543513f) },
-            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.327f, 1.3543511f) },
-            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2889924f) },
-            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.2889926f) },
-            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.327f, 1.3543513f) },
-            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.327f, 1.3543511f) },
-            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2889924f) },
-            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.2889926f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.3343513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.3343511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3089924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3089926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.3343513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.3343511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3089924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3089926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.3343513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.347f, 1.3343511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3089924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.3089926f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -425,8 +425,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
             var disabledFallbackChassis = DisableFallbackChassis(vehicle.gameObject);
+            var disabledBonnetCamera = DisableBonnetCameraGeometry(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
             var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
+            var repairedBodyShell = RepairDamageBodyFromMainShell(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
@@ -473,6 +475,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
                 $"navMeshObstacles={normalizedNavMeshObstacles}, " +
                 $"disabledFallbackChassis={disabledFallbackChassis}, " +
+                $"disabledBonnetCamera={disabledBonnetCamera}, " +
+                $"mainBodyShellRepaired={repairedBodyShell}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
@@ -590,6 +594,73 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             disabled++;
         }
         return disabled;
+    }
+
+    private static int DisableBonnetCameraGeometry(GameObject root)
+    {
+        var disabled = 0;
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            transform.gameObject.SetActive(false);
+            foreach (var renderer in transform.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = false;
+            disabled++;
+        }
+
+        return disabled;
+    }
+
+    private bool RepairDamageBodyFromMainShell(GameObject root)
+    {
+        MeshFilter? damageFilter = null;
+        MeshRenderer? damageRenderer = null;
+        foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (!string.Equals(filter.name, "KoenigseggDamageBody", StringComparison.Ordinal))
+                continue;
+            damageFilter = filter;
+            damageRenderer = filter.GetComponent<MeshRenderer>();
+            break;
+        }
+
+        MeshRenderer? sourceRenderer = null;
+        foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (renderer.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) < 0 ||
+                renderer.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                (damageFilter != null && renderer.transform.IsChildOf(damageFilter.transform)))
+                continue;
+            sourceRenderer = renderer;
+            break;
+        }
+
+        var sourceFilter = sourceRenderer?.GetComponent<MeshFilter>();
+        if (damageFilter == null || damageRenderer == null ||
+            sourceRenderer == null || sourceFilter?.sharedMesh == null)
+        {
+            context?.Logger.Warn(
+                $"KoenigseggJesko body vehicle={root.GetInstanceID()}: " +
+                "normal BODY_mm_ext shell was not found; retained existing damage body.");
+            return false;
+        }
+
+        try
+        {
+            var owner = root.GetComponent<KoenigseggJeskoDamageBodyMeshController>() ??
+                        root.AddComponent<KoenigseggJeskoDamageBodyMeshController>();
+            owner.Initialize(root, damageFilter, damageRenderer, sourceFilter, sourceRenderer, context);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"KoenigseggJesko body vehicle={root.GetInstanceID()}: " +
+                $"normal shell repair failed: {exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
     }
 
     private static void ConfigureExitMarkers(GameObject root)
@@ -1005,6 +1076,89 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[AddComponentMenu("")]
+internal sealed class KoenigseggJeskoDamageBodyMeshController : MonoBehaviour
+{
+    private Mesh? runtimeMesh;
+    private bool initialized;
+
+    internal void Initialize(
+        GameObject root,
+        MeshFilter damageFilter,
+        MeshRenderer damageRenderer,
+        MeshFilter sourceFilter,
+        MeshRenderer sourceRenderer,
+        ModContext? context)
+    {
+        if (initialized)
+            return;
+
+        var sourceMesh = sourceFilter.sharedMesh;
+        if (sourceMesh == null)
+            throw new InvalidOperationException("Normal body shell has no mesh.");
+
+        runtimeMesh = Instantiate(sourceMesh);
+        runtimeMesh.name = "KoenigseggDamageBody_RuntimeMainShell";
+        var sourceToRoot = root.transform.worldToLocalMatrix *
+                           sourceFilter.transform.localToWorldMatrix;
+        var vertices = runtimeMesh.vertices;
+        for (var index = 0; index < vertices.Length; index++)
+            vertices[index] = sourceToRoot.MultiplyPoint3x4(vertices[index]);
+        runtimeMesh.vertices = vertices;
+
+        var normals = runtimeMesh.normals;
+        if (normals.Length == vertices.Length)
+        {
+            var normalMatrix = sourceToRoot.inverse.transpose;
+            for (var index = 0; index < normals.Length; index++)
+                normals[index] = normalMatrix.MultiplyVector(normals[index]).normalized;
+            runtimeMesh.normals = normals;
+        }
+
+        var tangents = runtimeMesh.tangents;
+        if (tangents.Length == vertices.Length)
+        {
+            var tangentMatrix = sourceToRoot;
+            for (var index = 0; index < tangents.Length; index++)
+            {
+                var tangent = tangents[index];
+                var direction = tangentMatrix.MultiplyVector(
+                    new Vector3(tangent.x, tangent.y, tangent.z)).normalized;
+                tangents[index] = new Vector4(direction.x, direction.y, direction.z, tangent.w);
+            }
+            runtimeMesh.tangents = tangents;
+        }
+
+        runtimeMesh.RecalculateBounds();
+        runtimeMesh.UploadMeshData(false);
+        damageFilter.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+        damageFilter.transform.localScale = Vector3.one;
+        damageFilter.sharedMesh = runtimeMesh;
+        damageRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+        damageRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+        damageRenderer.receiveShadows = sourceRenderer.receiveShadows;
+        damageRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
+        damageRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+        damageRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
+        damageRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
+        damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+        sourceRenderer.enabled = false;
+        sourceRenderer.sharedMaterials = Array.Empty<Material>();
+        initialized = true;
+        context?.Logger.Info(
+            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: replaced stale damage shell " +
+            $"with normal source='{sourceRenderer.name}', vertices={vertices.Length}, " +
+            "bonnet-camera geometry excluded.");
+    }
+
+    private void OnDestroy()
+    {
+        if (runtimeMesh != null)
+            Destroy(runtimeMesh);
+        runtimeMesh = null;
     }
 }
 

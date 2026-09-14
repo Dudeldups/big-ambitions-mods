@@ -87,17 +87,17 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
         Transform wheel,
         Quaternion chassisRotation)
     {
-        pivot.SetPositionAndRotation(wheel.position, chassisRotation);
+        var childPositions = new Vector3[pivot.childCount];
+        var childRotations = new Quaternion[pivot.childCount];
         for (var index = 0; index < pivot.childCount; index++)
         {
-            // The GLB caliper vertices are already authored around the wheel
-            // center. Keeping the imported child offset/rotation here moves
-            // the entire caliper above the car when the fixed pivot follows
-            // the wheel. Preserve only the authored mesh scale.
-            var child = pivot.GetChild(index);
-            child.localPosition = Vector3.zero;
-            child.localRotation = Quaternion.identity;
+            childPositions[index] = pivot.GetChild(index).position;
+            childRotations[index] = pivot.GetChild(index).rotation;
         }
+
+        pivot.SetPositionAndRotation(wheel.position, chassisRotation);
+        for (var index = 0; index < pivot.childCount; index++)
+            pivot.GetChild(index).SetPositionAndRotation(childPositions[index], childRotations[index]);
     }
 
     private static Transform? FindTransform(Transform root, string name)
