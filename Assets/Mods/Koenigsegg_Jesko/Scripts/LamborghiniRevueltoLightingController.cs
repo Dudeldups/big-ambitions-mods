@@ -80,21 +80,27 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             center => Mathf.Abs(center.x) > 0.64f && center.z > 1.50f,
             "DaytimeRunningLights",
             new Color(0.80f, 0.90f, 1f, 1f), 5.2f, 1.002f);
-        headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
-            new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
-        secondaryHeadlampOverlay = CreateOverlay(secondaryHeadlamp, "HeadlampSecondary",
-            new Color(0.84f, 0.92f, 1f, 1f), 5.8f);
+        headlampOverlay = CreateDirectionalFilteredOverlay(headlamp,
+            (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
+            "HeadlampProjectors", new Color(0.90f, 0.95f, 1f, 1f), 4.2f, 1.001f);
+        secondaryHeadlampOverlay = CreateDirectionalFilteredOverlay(secondaryHeadlamp,
+            (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
+            "HeadlampSecondary", new Color(0.84f, 0.92f, 1f, 1f), 3.8f, 1.001f);
         // TAILLIGHT_LENS_* is the outer cover, not the emissive running-light
         // insert. Use the dedicated inner BRAKES_* surfaces for both red
         // states so the lens itself remains transparent/non-emissive.
-        rearTailLeftOverlay = CreateOverlay(brakeLeft, "RearTailSignatureLeft",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 1.7f, 1.003f);
-        rearTailRightOverlay = CreateOverlay(brakeRight, "RearTailSignatureRight",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 1.7f, 1.003f);
-        brakeLeftOverlay = CreateOverlay(brakeLeft, "RearBrakeSignatureLeft",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
-        brakeRightOverlay = CreateOverlay(brakeRight, "RearBrakeSignatureRight",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
+        rearTailLeftOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
+            (center, normal) => normal.z < -0.45f,
+            "RearTailSignatureLeft", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
+        rearTailRightOverlay = CreateDirectionalFilteredOverlay(brakeRight,
+            (center, normal) => normal.z < -0.45f,
+            "RearTailSignatureRight", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
+        brakeLeftOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
+            (center, normal) => normal.z < -0.45f,
+            "RearBrakeSignatureLeft", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
+        brakeRightOverlay = CreateDirectionalFilteredOverlay(brakeRight,
+            (center, normal) => normal.z < -0.45f,
+            "RearBrakeSignatureRight", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
         reverseOverlay = CreateFilteredOverlay(reverseLight,
@@ -102,10 +108,18 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             "ReverseLight",
             new Color(0.92f, 0.96f, 1f, 1f), 4.8f, 1.002f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
-        leftBlinkerOverlay = CreateOverlay(leftBlinker, "LeftIndicator", amber, 5.4f, 1.004f);
-        rightBlinkerOverlay = CreateOverlay(rightBlinker, "RightIndicator", amber, 5.4f, 1.004f);
-        rearLeftBlinkerOverlay = CreateOverlay(brakeLeft, "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateOverlay(brakeRight, "RearRightIndicator", amber, 6f, 1.006f);
+        leftBlinkerOverlay = CreateDirectionalFilteredOverlay(leftBlinker,
+            (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
+            "LeftIndicator", amber, 4.5f, 1.003f);
+        rightBlinkerOverlay = CreateDirectionalFilteredOverlay(rightBlinker,
+            (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
+            "RightIndicator", amber, 4.5f, 1.003f);
+        rearLeftBlinkerOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
+            (center, normal) => normal.z < -0.45f,
+            "RearLeftIndicator", amber, 5.2f, 1.005f);
+        rearRightBlinkerOverlay = CreateDirectionalFilteredOverlay(brakeRight,
+            (center, normal) => normal.z < -0.45f,
+            "RearRightIndicator", amber, 5.2f, 1.005f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;
@@ -218,6 +232,14 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         Func<Vector3, bool> includeTriangleCenter, string suffix, Color color,
         float intensity, float scale)
     {
+        return CreateDirectionalFilteredOverlay(source,
+            (center, normal) => includeTriangleCenter(center), suffix, color, intensity, scale);
+    }
+
+    private MeshRenderer? CreateDirectionalFilteredOverlay(MeshRenderer? source,
+        Func<Vector3, Vector3, bool> includeTriangle, string suffix, Color color,
+        float intensity, float scale)
+    {
         if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
         {
             LogWarning($"filtered overlay '{suffix}' source is missing.");
@@ -234,9 +256,14 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
                 var a = sourceTriangles[index];
                 var b = sourceTriangles[index + 1];
                 var c = sourceTriangles[index + 2];
+                var localA = vertices[a];
+                var localB = vertices[b];
+                var localC = vertices[c];
                 var center = vehicle.transform.InverseTransformPoint(source.transform.TransformPoint(
-                    (vertices[a] + vertices[b] + vertices[c]) / 3f));
-                if (!includeTriangleCenter(center))
+                    (localA + localB + localC) / 3f));
+                var normal = vehicle.transform.InverseTransformDirection(source.transform.TransformDirection(
+                    Vector3.Cross(localB - localA, localC - localA).normalized));
+                if (!includeTriangle(center, normal))
                     continue;
                 triangles.Add(a);
                 triangles.Add(b);

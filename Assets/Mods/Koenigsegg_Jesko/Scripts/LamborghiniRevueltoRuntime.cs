@@ -41,18 +41,18 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.307f, 1.3743513f) },
-            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.307f, 1.3743511f) },
-            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.2689924f) },
-            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.2689926f) },
-            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.307f, 1.3743513f) },
-            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.307f, 1.3743511f) },
-            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2689924f) },
-            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.2689926f) },
-            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.307f, 1.3743513f) },
-            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.307f, 1.3743511f) },
-            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2689924f) },
-            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.2689926f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.327f, 1.3543513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.327f, 1.3543511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.2889924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.2889926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.327f, 1.3543513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.327f, 1.3543511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2889924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.2889926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.327f, 1.3543513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.327f, 1.3543511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2889924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.2889926f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -1207,6 +1207,9 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
                 restored++;
             renderer.enabled = true;
             renderer.forceRenderingOff = false;
+            renderer.allowOcclusionWhenDynamic = false;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
             if (renderer.HasPropertyBlock())
             {
                 renderer.SetPropertyBlock(null);

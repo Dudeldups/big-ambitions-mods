@@ -35,8 +35,8 @@ public static class KoenigseggJeskoSetup
     private const float RearSuspensionTravel = 0.06f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
-    private const float FrontWheelForwardOffset = 0.08f;
-    private const float RearWheelForwardOffset = 0.14f;
+    private const float FrontWheelForwardOffset = 0.06f;
+    private const float RearWheelForwardOffset = 0.12f;
     private const float WheelGroundingOffset = -0.04f;
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
@@ -46,10 +46,10 @@ public static class KoenigseggJeskoSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.806f, 0.307f, 1.374f) },
-            { "FrontRight_WheelController", new Vector3(0.806f, 0.307f, 1.374f) },
-            { "RearLeft_WheelController", new Vector3(-0.767f, 0.331f, -1.269f) },
-            { "RearRight_WheelController", new Vector3(0.767f, 0.331f, -1.269f) },
+            { "FrontLeft_WheelController", new Vector3(-0.806f, 0.327f, 1.354f) },
+            { "FrontRight_WheelController", new Vector3(0.806f, 0.327f, 1.354f) },
+            { "RearLeft_WheelController", new Vector3(-0.767f, 0.331f, -1.289f) },
+            { "RearRight_WheelController", new Vector3(0.767f, 0.331f, -1.289f) },
         };
 
     private static readonly float[] JeskoGears =
