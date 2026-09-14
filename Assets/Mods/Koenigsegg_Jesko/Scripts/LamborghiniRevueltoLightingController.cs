@@ -8,12 +8,14 @@ using UnityEngine.Rendering;
 
 internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
 {
-    private const string DaylightName = "HEADLIGHT_LENS_LEFT_mm_lights";
+    private const string DaylightName = "BODY_mm_lights";
     private const string HeadlampName = "HEADLIGHT_LENS_LEFT_mm_lights";
     private const string SecondaryHeadlampName = "HEADLIGHT_LENS_RIGHT_mm_lights";
     private const string RearStripName = "REARBUMPER_mm_lights";
     private const string TailLeftName = "TAILLIGHT_LENS_LEFT_mm_lights";
     private const string TailRightName = "TAILLIGHT_LENS_RIGHT_mm_lights";
+    private const string BrakeLeftName = "BRAKES_LEFT_mm_lights";
+    private const string BrakeRightName = "BRAKES_RIGHT_mm_lights";
     private const string ThirdBrakeLightName = "REARBUMPER_mm_lights";
     private const string ReverseLightName = "REARBUMPER_mm_lights";
     private const string LeftBlinkerName = "HEADLIGHT_LENS_LEFT_mm_lights";
@@ -38,8 +40,8 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
     private MeshRenderer? secondaryHeadlampOverlay;
     private MeshRenderer? rearTailLeftOverlay;
     private MeshRenderer? rearTailRightOverlay;
-    private MeshRenderer? rearBrakeLeftOverlay;
-    private MeshRenderer? rearBrakeRightOverlay;
+    private MeshRenderer? brakeLeftOverlay;
+    private MeshRenderer? brakeRightOverlay;
     private MeshRenderer? thirdBrakeOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
@@ -67,13 +69,17 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         var rearStrip = FindRenderer(renderers, RearStripName);
         var tailLeft = FindRenderer(renderers, TailLeftName);
         var tailRight = FindRenderer(renderers, TailRightName);
+        var brakeLeft = FindRenderer(renderers, BrakeLeftName);
+        var brakeRight = FindRenderer(renderers, BrakeRightName);
         var thirdBrake = FindRenderer(renderers, ThirdBrakeLightName);
         var reverseLight = FindRenderer(renderers, ReverseLightName);
         var leftBlinker = FindRenderer(renderers, LeftBlinkerName);
         var rightBlinker = FindRenderer(renderers, RightBlinkerName);
 
-        daylightOverlay = CreateOverlay(daylight, "DaytimeRunningLights",
-            new Color(0.80f, 0.90f, 1f, 1f), 5.2f);
+        daylightOverlay = CreateFilteredOverlay(daylight,
+            center => Mathf.Abs(center.x) > 0.64f && center.z > 1.50f,
+            "DaytimeRunningLights",
+            new Color(0.80f, 0.90f, 1f, 1f), 5.2f, 1.002f);
         headlampOverlay = CreateOverlay(headlamp, "HeadlampProjectors",
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
         secondaryHeadlampOverlay = CreateOverlay(secondaryHeadlamp, "HeadlampSecondary",
@@ -82,14 +88,16 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
         rearTailRightOverlay = CreateOverlay(tailRight, "RearTailSignatureRight",
             new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
-        rearBrakeLeftOverlay = CreateOverlay(tailLeft, "RearBrakeSignatureLeft",
+        brakeLeftOverlay = CreateOverlay(brakeLeft, "RearBrakeSignatureLeft",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
-        rearBrakeRightOverlay = CreateOverlay(tailRight, "RearBrakeSignatureRight",
+        brakeRightOverlay = CreateOverlay(brakeRight, "RearBrakeSignatureRight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
         thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
-        reverseOverlay = CreateOverlay(reverseLight, "ReverseLight",
-            new Color(0.92f, 0.96f, 1f, 1f), 4.8f);
+        reverseOverlay = CreateFilteredOverlay(reverseLight,
+            center => Mathf.Abs(center.x) < 0.24f && center.y > 0.50f,
+            "ReverseLight",
+            new Color(0.92f, 0.96f, 1f, 1f), 4.8f, 1.002f);
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
         leftBlinkerOverlay = CreateOverlay(leftBlinker, "LeftIndicator", amber, 5.4f, 1.004f);
         rightBlinkerOverlay = CreateOverlay(rightBlinker, "RightIndicator", amber, 5.4f, 1.004f);
@@ -100,10 +108,11 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         initialized = true;
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
                 $"rear='{rearStrip?.name}' tail='{tailLeft?.name}/{tailRight?.name}' " +
+                $"brake='{brakeLeft?.name}/{brakeRight?.name}' " +
                 $"thirdBrake='{thirdBrake?.name}' " +
                 $"reverse='{reverseLight?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/9 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 9 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"lampOverlays={CountLampOverlays()}/10 blinkerOverlays={CountBlinkerOverlays()}/4.");
+        if (CountLampOverlays() != 10 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -299,6 +308,8 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
     {
         var controlled = vehicle != null && vehicle.controlledByPlayer;
         var lightsOn = controlled && GetBoolProperty(vehicle, "ShouldLightsBeOn");
+        // The Jesko DRL signature is independent of the headlamp/night-light state.
+        var drlOn = controlled;
         var braking = controlled &&
                       (GetBoolProperty(brakes, "IsBraking") || GetBoolMethod(brakes, "IsBraking"));
         var leftBlinker = controlled && GetBoolField(blinkers, "_isLeftBlinkerOn");
@@ -311,13 +322,13 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = blinking;
 
-        SetEnabled(daylightOverlay, lightsOn);
+        SetEnabled(daylightOverlay, drlOn);
         SetEnabled(headlampOverlay, lightsOn);
         SetEnabled(secondaryHeadlampOverlay, lightsOn);
-        SetEnabled(rearTailLeftOverlay, lightsOn && !braking);
-        SetEnabled(rearTailRightOverlay, lightsOn && !braking);
-        SetEnabled(rearBrakeLeftOverlay, braking);
-        SetEnabled(rearBrakeRightOverlay, braking);
+        SetEnabled(rearTailLeftOverlay, lightsOn);
+        SetEnabled(rearTailRightOverlay, lightsOn);
+        SetEnabled(brakeLeftOverlay, braking);
+        SetEnabled(brakeRightOverlay, braking);
         SetEnabled(thirdBrakeOverlay, braking);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
@@ -331,10 +342,12 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
 
         var state = (controlled ? 1 : 0) | (lightsOn ? 2 : 0) | (braking ? 4 : 0) |
                     (leftBlinker ? 8 : 0) | (rightBlinker ? 16 : 0) | (reversing ? 32 : 0);
+        if (drlOn)
+            state |= 64;
         if (state == lastState)
             return;
         lastState = state;
-        LogInfo($"state playerControlled={controlled} lights={lightsOn} braking={braking} " +
+        LogInfo($"state playerControlled={controlled} drl={drlOn} lights={lightsOn} braking={braking} " +
                 $"reverse={reversing} leftBlinker={leftBlinker} rightBlinker={rightBlinker}.");
     }
 
@@ -342,7 +355,7 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         (daylightOverlay != null ? 1 : 0) + (headlampOverlay != null ? 1 : 0) +
         (secondaryHeadlampOverlay != null ? 1 : 0) +
         (rearTailLeftOverlay != null ? 1 : 0) + (rearTailRightOverlay != null ? 1 : 0) +
-        (rearBrakeLeftOverlay != null ? 1 : 0) + (rearBrakeRightOverlay != null ? 1 : 0) +
+        (brakeLeftOverlay != null ? 1 : 0) + (brakeRightOverlay != null ? 1 : 0) +
         (thirdBrakeOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 

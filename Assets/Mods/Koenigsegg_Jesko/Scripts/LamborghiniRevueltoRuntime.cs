@@ -407,6 +407,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
+            var disabledFallbackChassis = DisableFallbackChassis(vehicle.gameObject);
+            ConfigureExitMarkers(vehicle.gameObject);
             var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
@@ -452,6 +454,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
                 $"navMeshObstacles={normalizedNavMeshObstacles}, " +
+                $"disabledFallbackChassis={disabledFallbackChassis}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
@@ -535,6 +538,44 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 colliders[1].size = new Vector3(1.72f, 0.62f, 2.62f);
             }
         }
+    }
+
+    private static int DisableFallbackChassis(GameObject root)
+    {
+        var disabled = 0;
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.IndexOf("LOD_B_CHASSIS", StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            transform.gameObject.SetActive(false);
+            foreach (var renderer in transform.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = false;
+            disabled++;
+        }
+        return disabled;
+    }
+
+    private static void ConfigureExitMarkers(GameObject root)
+    {
+        const float driverSide = -1.45f;
+        const float passengerSide = 1.45f;
+        var configured = 0;
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (string.Equals(transform.name, "Driverside", StringComparison.Ordinal))
+            {
+                transform.localPosition = new Vector3(driverSide, 0.1f, 0f);
+                configured++;
+            }
+            else if (string.Equals(transform.name, "Passengerside", StringComparison.Ordinal))
+            {
+                transform.localPosition = new Vector3(passengerSide, 0.1f, 0f);
+                configured++;
+            }
+        }
+
+        if (configured != 2)
+            Debug.LogWarning($"KoenigseggJesko: expected two exit markers, configured={configured}.");
     }
 
     private static int ConfigureNavMeshObstacles(GameObject root)

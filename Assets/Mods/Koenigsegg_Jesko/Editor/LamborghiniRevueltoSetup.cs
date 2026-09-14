@@ -680,6 +680,7 @@ public static class KoenigseggJeskoSetup
                 PrefabUnpackMode.Completely,
                 InteractionMode.AutomatedAction);
             modelInstance.name = "KoenigseggVisual";
+            DisableFallbackChassis(modelInstance);
             RemoveModelLights(modelInstance);
             NormalizeModel(modelInstance);
             ConfigureExitMarkers(root, modelInstance);
@@ -745,6 +746,25 @@ public static class KoenigseggJeskoSetup
     {
         foreach (var light in model.GetComponentsInChildren<Light>(true))
             UnityEngine.Object.DestroyImmediate(light.gameObject);
+    }
+
+    private static void DisableFallbackChassis(GameObject model)
+    {
+        var disabled = 0;
+        foreach (var transform in model.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.IndexOf("LOD_B_CHASSIS", StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            transform.gameObject.SetActive(false);
+            foreach (var renderer in transform.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = false;
+            disabled++;
+        }
+
+        if (disabled == 0)
+            Debug.LogWarning("KoenigseggJesko: no LOD_B_CHASSIS fallback was found in the imported model.");
+        else
+            Debug.Log($"KoenigseggJesko: disabled {disabled} fallback LOD_B chassis object(s).");
     }
 
     private static void ConfigureRootPhysics(GameObject root)
@@ -1201,6 +1221,9 @@ public static class KoenigseggJeskoSetup
             layer = sourceRenderer.gameObject.layer,
         };
         damageBody.transform.SetParent(root.transform, false);
+        damageBody.transform.localPosition = Vector3.zero;
+        damageBody.transform.localRotation = Quaternion.identity;
+        damageBody.transform.localScale = Vector3.one;
         var damageFilter = damageBody.AddComponent<MeshFilter>();
         damageFilter.sharedMesh = persistentMesh;
         var damageRenderer = damageBody.AddComponent<MeshRenderer>();

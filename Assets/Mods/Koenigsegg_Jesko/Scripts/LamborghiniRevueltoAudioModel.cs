@@ -7,8 +7,8 @@ internal static class KoenigseggJeskoAudioModel
     internal const float IdlePitch = 1f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
-    internal const float EngineBaseVolume = .48f;
-    internal const float EngineThrottleVolume = .47f;
+    internal const float EngineBaseVolume = .34f;
+    internal const float EngineThrottleVolume = .38f;
     internal const float CrackleIdleVolume = .009f;
     internal const float CrackleLoadVolume = .024f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
@@ -16,18 +16,18 @@ internal static class KoenigseggJeskoAudioModel
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the inherited low-speed idle bed out quickly; the synthesized
-    // twelve-cylinder layers carry the audible engine character.
+    // flat-plane V8 layers carry the audible engine character.
     internal static float DrivingBlend(float rpm, float idle, float limiter) =>
-        Clamp01((rpm - idle - .015f * limiter) / Math.Max(1f, .09f * limiter));
+        .12f + .88f * Clamp01((rpm - idle - .015f * limiter) / Math.Max(1f, .09f * limiter));
 
     internal static float Normalize(float rpm, float idle, float limiter) =>
         Clamp01((rpm - idle) / Math.Max(1f, limiter - idle));
 
-    internal static float ReferenceHz(int layer) => layer == 0 ? 100f : layer == 1 ? 350f : 750f;
-    // Keep the naturally aspirated V8 bright under load without pitching the
-    // synthesized combustion layers into the toy-like register.
+    internal static float ReferenceHz(int layer) => layer == 0 ? 90f : layer == 1 ? 180f : 360f;
+    // Keep the turbocharged V8 in a low, physical register while retaining
+    // enough upper harmonics for a supercar character under load.
     internal static float TargetHz(float normalized) =>
-        (float)(75d * Math.Pow(300d / 75d, Clamp01(normalized)));
+        (float)(60d * Math.Pow(430d / 60d, Clamp01(normalized)));
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

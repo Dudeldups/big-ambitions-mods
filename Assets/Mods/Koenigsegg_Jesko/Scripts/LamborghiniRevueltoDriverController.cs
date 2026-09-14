@@ -62,11 +62,15 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     private string? lastFailure;
     private readonly Collider[] exitOverlapBuffer = new Collider[24];
     private Coroutine? exitRecoveryCoroutine;
+    private NavMeshObstacle[]? exitObstacles;
+    private bool[]? exitObstacleStates;
+    private bool exitObstaclesDisabled;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
         context = modContext;
+        exitObstacles = controller.GetComponentsInChildren<NavMeshObstacle>(true);
     }
 
     private void LateUpdate()
@@ -85,6 +89,7 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
             {
                 RemoveDriver();
                 LogInfo("exited; seated model removed.");
+                DisableExitObstacles();
                 ScheduleExitRecovery();
             }
             else
@@ -530,6 +535,51 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
         if (exitRecoveryCoroutine != null)
             StopCoroutine(exitRecoveryCoroutine);
         exitRecoveryCoroutine = null;
+        RestoreExitObstacles();
+    }
+
+    private void DisableExitObstacles()
+    {
+        if (exitObstaclesDisabled || exitObstacles == null || exitObstacles.Length == 0)
+            return;
+
+        exitObstacleStates = new bool[exitObstacles.Length];
+        var disabled = 0;
+        for (var index = 0; index < exitObstacles.Length; index++)
+        {
+            var obstacle = exitObstacles[index];
+            exitObstacleStates[index] = obstacle != null && obstacle.enabled;
+            if (obstacle == null || !obstacle.enabled)
+                continue;
+            obstacle.enabled = false;
+            disabled++;
+        }
+
+        exitObstaclesDisabled = disabled > 0;
+        if (exitObstaclesDisabled)
+            LogInfo($"temporarily disabled {disabled} NavMesh obstacle(s) for exit recovery.");
+    }
+
+    private void RestoreExitObstacles()
+    {
+        if (!exitObstaclesDisabled || exitObstacles == null || exitObstacleStates == null)
+            return;
+
+        var restored = 0;
+        for (var index = 0; index < exitObstacles.Length && index < exitObstacleStates.Length; index++)
+        {
+            var obstacle = exitObstacles[index];
+            if (obstacle == null)
+                continue;
+            obstacle.enabled = exitObstacleStates[index];
+            if (exitObstacleStates[index])
+                restored++;
+        }
+
+        exitObstaclesDisabled = false;
+        exitObstacleStates = null;
+        if (restored > 0)
+            LogInfo($"restored {restored} NavMesh obstacle(s) after exit recovery.");
     }
 
     private IEnumerator RecoverInvalidExitPlacement()
@@ -538,31 +588,38 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
             yield return null;
 
         exitRecoveryCoroutine = null;
-        if (vehicle == null || vehicle.controlledByPlayer)
-            yield break;
-
-        var player = PlayerHelper.PlayerController;
-        if (player == null)
-            yield break;
-
-        var playerRoot = player.transform;
-        var agents = playerRoot.GetComponentsInChildren<NavMeshAgent>(true);
-        if (agents.Length == 0 ||
-            (HasUsableAgent(agents) && IsExitCapsuleClear(playerRoot.position, playerRoot)))
+        try
         {
-            yield break;
-        }
+            if (vehicle == null || vehicle.controlledByPlayer)
+                yield break;
 
-        if (!TryFindSafeExitPosition(playerRoot, out var safePosition))
+            var player = PlayerHelper.PlayerController;
+            if (player == null)
+                yield break;
+
+            var playerRoot = player.transform;
+            var agents = playerRoot.GetComponentsInChildren<NavMeshAgent>(true);
+            if (agents.Length == 0 ||
+                (HasUsableAgent(agents) && IsExitCapsuleClear(playerRoot.position, playerRoot)))
+            {
+                yield break;
+            }
+
+            if (!TryFindSafeExitPosition(playerRoot, out var safePosition))
+            {
+                context?.Logger.Warn(
+                    $"player exit was blocked or off NavMesh at {playerRoot.position:F3}; " +
+                    "no clear recovery point was found.");
+                yield break;
+            }
+
+            PlacePlayerAtSafeExit(playerRoot, agents, safePosition);
+            LogInfo($"recovered player exit to clear NavMesh position {safePosition:F3}.");
+        }
+        finally
         {
-            context?.Logger.Warn(
-                $"player exit was blocked or off NavMesh at {playerRoot.position:F3}; " +
-                "no clear recovery point was found.");
-            yield break;
+            RestoreExitObstacles();
         }
-
-        PlacePlayerAtSafeExit(playerRoot, agents, safePosition);
-        LogInfo($"recovered player exit to clear NavMesh position {safePosition:F3}.");
     }
 
     private static bool HasUsableAgent(IReadOnlyList<NavMeshAgent> agents)
@@ -677,6 +734,7 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     private void OnDisable()
     {
         StopExitRecovery();
+        RestoreExitObstacles();
         RemoveDriver();
         occupied = false;
     }
@@ -684,6 +742,7 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     private void OnDestroy()
     {
         StopExitRecovery();
+        RestoreExitObstacles();
         RemoveDriver();
     }
 }
