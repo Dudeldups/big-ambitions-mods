@@ -47,8 +47,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
-    private const float WarehouseExitEntranceSearchRadius = 12f;
-    private const float WarehouseExitTriggerClearance = 0.25f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.08f, -0.28f);
     private static readonly Vector3 FrontContactColliderCenter =
         new Vector3(0f, 0.61f, 1.58f);
@@ -89,7 +87,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private Coroutine? enteredVehicleActivationCoroutine;
     private int enteredVehicleActivationInstanceId;
     private Coroutine? exitedPlayerRecoveryCoroutine;
-    private Coroutine? warehouseExitRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private int cachedPlayerVehicleCount = -1;
@@ -136,9 +133,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
-        if (warehouseExitRecoveryCoroutine != null)
-            StopCoroutine(warehouseExitRecoveryCoroutine);
-        warehouseExitRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         dealerRegistrationReady = false;
         dealerReadyLogged = false;
@@ -186,8 +180,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
-        GlobalEvents.onExitBuilding -= HandleBuildingExited;
-        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
@@ -202,7 +194,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
-        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -260,9 +251,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
-        if (warehouseExitRecoveryCoroutine != null)
-            StopCoroutine(warehouseExitRecoveryCoroutine);
-        warehouseExitRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         cachedPlayerVehicleCount = -1;
         dealerRegistrationReady = false;
@@ -442,8 +430,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         const int maximumPasses = 30;
         yield return null;
 
-        var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
-        var physics = vehicle.GetComponent<PhysicsVehicle>();
+        var rigidbody = vehicle.GetComponent<Rigidbody>() ??
+                        vehicle.GetComponentInChildren<Rigidbody>(true) ??
+                        vehicle.GetComponentInParent<Rigidbody>();
+        var physics = vehicle.GetComponent<PhysicsVehicle>() ??
+                      vehicle.GetComponentInChildren<PhysicsVehicle>(true);
         var wasKinematic = rigidbody != null && rigidbody.isKinematic;
         var physicsWasEnabled = physics != null && physics.enabled;
         var engineWasRunning = physics?.powertrain?.engine?.IsRunning ?? false;
@@ -467,9 +458,20 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             // Dealer display vehicles are frozen with Rigidbody constraints,
             // not only isKinematic. Use the game's own transition so all
             // vehicle physics state and center-of-mass bookkeeping is restored.
-            vehicle.SetFreeze(false);
+            // A dealer-purchased instance can be entered before the NWH
+            // controller has completed its usual disable/enable handoff.
+            // Re-run that native lifecycle once; its CarController listeners
+            // restore the wheel API and clear the frozen rigidbody state.
+            // Do not repeat this each physics frame -- that would reset a car
+            // the player is already driving.
+            if (physics != null && physics.enabled)
+            {
+                physics.enabled = false;
+                yield return new WaitForFixedUpdate();
+            }
             if (physics != null)
                 physics.enabled = true;
+            vehicle.SetFreeze(false);
             foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (component != null && string.Equals(
@@ -495,6 +497,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 engine.StartEngine();
             if (transmission != null && transmission.Gear == 0)
                 transmission.ShiftInto(1, true);
+
+            break;
         }
 
         enteredVehicleActivationCoroutine = null;
@@ -537,173 +541,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         EnsureDealerStock("dealer-entered");
     }
-
-    private void HandleBuildingExited(Address address)
-    {
-        if (address == null ||
-            !string.Equals(
-                BuildingHelper.GetBuilding(address)?.BuildingType,
-                "ba:buildingtype_warehouse",
-                StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        if (warehouseExitRecoveryCoroutine != null)
-            StopCoroutine(warehouseExitRecoveryCoroutine);
-        warehouseExitRecoveryCoroutine = StartCoroutine(RecoverWarehouseExit());
-    }
-
-    private IEnumerator RecoverWarehouseExit()
-    {
-        // The native exit event can run before the exterior vehicle has its
-        // final position. Keep only this entrance's trigger off during that
-        // bounded transition, then clear every vehicle-layer collider.
-        yield return new WaitForEndOfFrame();
-
-        var vehicle = VehicleHelper.GetCurrentVehicleBase();
-        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
-        {
-            warehouseExitRecoveryCoroutine = null;
-            yield break;
-        }
-
-        var entrance = FindClosestDriveInEntrance(vehicle.transform.position, out var distance);
-        if (entrance == null || distance > WarehouseExitEntranceSearchRadius ||
-            !TryGetWarehouseEnterTriggerBounds(entrance, out var triggerBounds))
-        {
-            warehouseExitRecoveryCoroutine = null;
-            yield break;
-        }
-
-        var entryTriggerColliders = new List<Collider>();
-        foreach (var trigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
-        foreach (var collider in trigger.GetComponents<Collider>())
-        {
-            if (collider == null || !collider.enabled || !collider.isTrigger)
-                continue;
-
-            entryTriggerColliders.Add(collider);
-            collider.enabled = false;
-        }
-
-        try
-        {
-            yield return new WaitForFixedUpdate();
-            if (!TryGetWorldVehicleColliderBounds(vehicle, out var vehicleBounds))
-                yield break;
-
-            var outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
-            if (outward.sqrMagnitude < 0.0001f)
-                yield break;
-            outward.Normalize();
-
-            var triggerMaximum = Vector3.Dot(triggerBounds.center, outward) +
-                                 ProjectBoundsExtent(triggerBounds.extents, outward);
-            var vehicleMinimum = Vector3.Dot(vehicleBounds.center, outward) -
-                                 ProjectBoundsExtent(vehicleBounds.extents, outward);
-            var correctionDistance = triggerMaximum + WarehouseExitTriggerClearance - vehicleMinimum;
-            if (correctionDistance > 0f)
-            {
-                vehicle.transform.position += outward * correctionDistance;
-                Physics.SyncTransforms();
-            }
-
-            yield return new WaitForFixedUpdate();
-        }
-        finally
-        {
-            foreach (var collider in entryTriggerColliders)
-                if (collider != null)
-                    collider.enabled = true;
-
-            Physics.SyncTransforms();
-            warehouseExitRecoveryCoroutine = null;
-        }
-    }
-
-    private static DriveInEntrance? FindClosestDriveInEntrance(
-        Vector3 vehiclePosition,
-        out float distance)
-    {
-        DriveInEntrance? nearest = null;
-        var nearestDistanceSquared = float.PositiveInfinity;
-        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
-        {
-            if (entrance == null)
-                continue;
-
-            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
-            if (distanceSquared >= nearestDistanceSquared)
-                continue;
-
-            nearest = entrance;
-            nearestDistanceSquared = distanceSquared;
-        }
-
-        distance = nearest == null ? float.PositiveInfinity : Mathf.Sqrt(nearestDistanceSquared);
-        return nearest;
-    }
-
-    private static bool TryGetWarehouseEnterTriggerBounds(
-        DriveInEntrance entrance,
-        out Bounds bounds)
-    {
-        bounds = default;
-        var found = false;
-        foreach (var trigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
-        foreach (var collider in trigger.GetComponents<Collider>())
-        {
-            if (collider == null || !collider.enabled || !collider.isTrigger)
-                continue;
-
-            if (!found)
-            {
-                bounds = collider.bounds;
-                found = true;
-            }
-            else
-            {
-                bounds.Encapsulate(collider.bounds);
-            }
-        }
-
-        return found;
-    }
-
-    private static bool TryGetWorldVehicleColliderBounds(
-        VehicleController vehicle,
-        out Bounds bounds)
-    {
-        bounds = default;
-        var found = false;
-        foreach (var collider in vehicle.GetComponentsInChildren<Collider>(true))
-        {
-            if (collider == null || !collider.enabled || collider.isTrigger ||
-                collider.gameObject.layer != LayerHelper.VehiclesLayerIndex ||
-                collider.bounds.size.sqrMagnitude < 0.0001f)
-            {
-                continue;
-            }
-
-            if (!found)
-            {
-                bounds = collider.bounds;
-                found = true;
-            }
-            else
-            {
-                bounds.Encapsulate(collider.bounds);
-            }
-        }
-
-        return found;
-    }
-
-    private static float ProjectBoundsExtent(Vector3 extents, Vector3 worldAxis) =>
-        Mathf.Abs(worldAxis.x) * extents.x +
-        Mathf.Abs(worldAxis.y) * extents.y +
-        Mathf.Abs(worldAxis.z) * extents.z;
 
     private void HandleFullMenuToggle(bool isOpen)
     {
@@ -960,6 +797,14 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ConfigureBodyColliders(
                 vehicle.gameObject,
                 contactMaterialOwner.GetOrCreateMaterial());
+            var warehouseBounds =
+                vehicle.GetComponent<Porsche911GT3RSWarehouseBoundsController>();
+            if (warehouseBounds == null)
+            {
+                warehouseBounds = vehicle.gameObject
+                    .AddComponent<Porsche911GT3RSWarehouseBoundsController>();
+            }
+            warehouseBounds.Initialize();
             var warehouseEntry = vehicle.GetComponent<Porsche911GT3RSWarehouseEntryController>();
             if (warehouseEntry == null)
             {
