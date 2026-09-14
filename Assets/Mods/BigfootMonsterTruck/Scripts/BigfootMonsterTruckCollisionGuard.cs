@@ -740,7 +740,7 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
             direction = Vector3.forward;
 
         var obstacleHeight = Mathf.Clamp(obstacleBounds.size.y, 0.08f, MaximumBridgeHeight);
-        var rampRun = Mathf.Clamp(1.85f + obstacleHeight * 0.95f, 2.10f, 2.65f);
+        var rampRun = Mathf.Clamp(1.1f + obstacleHeight * 0.75f, 1.35f, 2.15f);
         var bridgeWidth = Mathf.Clamp(
             Mathf.Max(2.95f, Mathf.Min(obstacleBounds.size.x, obstacleBounds.size.z) + 0.6f),
             2.95f,
@@ -806,12 +806,12 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
         var points = new[]
         {
             new Vector3(-halfWidth, 0f, -rampRun),
-            new Vector3(-halfWidth, height, -0.60f),
-            new Vector3(-halfWidth, height, 0.60f),
+            new Vector3(-halfWidth, height, -0.22f),
+            new Vector3(-halfWidth, height, 0.22f),
             new Vector3(-halfWidth, 0f, rampRun),
             new Vector3(halfWidth, 0f, -rampRun),
-            new Vector3(halfWidth, height, -0.60f),
-            new Vector3(halfWidth, height, 0.60f),
+            new Vector3(halfWidth, height, -0.22f),
+            new Vector3(halfWidth, height, 0.22f),
             new Vector3(halfWidth, 0f, rampRun),
         };
         mesh.vertices = points;
