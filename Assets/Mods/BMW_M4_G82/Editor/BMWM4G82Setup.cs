@@ -536,6 +536,7 @@ public static class BMWM4G82Setup
                 $"decalMasksCleared={fix.DecalMasksCleared}, " +
                 $"opaqueFixed={fix.OpaqueMaterialsFixed}, " +
                 $"transparentFixed={fix.TransparentMaterialsFixed}, " +
+                $"bodyPaintNormalized={fix.BodyPaintMaterialsNormalized}, " +
                 $"cabinGlass={fix.CabinGlassRenderers}/" +
                 $"reenabled={fix.CabinGlassRenderersReenabled}, " +
                 $"rimMaterialsConfigured={rimMaterialsConfigured}, " +
