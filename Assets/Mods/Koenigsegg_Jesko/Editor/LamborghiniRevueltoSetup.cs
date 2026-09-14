@@ -632,7 +632,7 @@ public static class KoenigseggJeskoSetup
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
         SetNumber(serialized, "price", 3000000f);
         SetNumber(serialized, "maxFuel", 72f);
-        SetNumber(serialized, "maxCargoCapacity", 4f);
+        SetNumber(serialized, "maxCargoCapacity", 2f);
         SetNumber(serialized, "maxSpeed", 480f);
         SetNumber(serialized, "enginePower", 1280f);
         SetNumber(serialized, "brakeForce", 32000f);
@@ -825,12 +825,16 @@ public static class KoenigseggJeskoSetup
         var steeringWheel = FindTransformWithNameFragment(model.transform, "STEERING_WHEEL") ??
                             throw new InvalidOperationException("Model steering wheel is missing.");
         var steeringPosition = root.transform.InverseTransformPoint(steeringWheel.position);
-        var driverSide = steeringPosition.x < 0f ? -1.45f : 1.45f;
+        // The supplied Jesko is left-hand drive. Keep the marker on the
+        // steering-wheel side even if a stale reference prefab had opposite
+        // marker positions when this setup script is rerun.
+        const float driverSide = -1.45f;
+        const float passengerSide = 1.45f;
         SetLocalPosition(root, "Driverside", new Vector3(driverSide, 0.1f, 0f));
-        SetLocalPosition(root, "Passengerside", new Vector3(-driverSide, 0.1f, 0f));
+        SetLocalPosition(root, "Passengerside", new Vector3(passengerSide, 0.1f, 0f));
         Debug.Log(
             $"KoenigseggJesko: steering wheel x={steeringPosition.x:F3}; " +
-            $"driver exit x={driverSide:F2}.");
+            $"driver exit x={driverSide:F2}; passenger exit x={passengerSide:F2}.");
     }
 
     private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)

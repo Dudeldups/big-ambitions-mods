@@ -19,7 +19,6 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
     private AudioSource? native;
     private GameObject? audioHost;
     private AudioSource[]? layers;
-    private AudioSource? idleSource;
     private AudioSource? crackleSource;
     private AudioSource? hornSource;
     private AudioSource? hornSupportSource;
@@ -67,14 +66,12 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
+        if (native == null || native.outputAudioMixerGroup == null || context == null)
             return false;
         originalDistortion = engineSound!.maxDistortion;
         audioHost = new GameObject("KoenigseggJesko_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
-        // Borrow the original Car clip without processing or taking ownership.
-        idleSource = CreateSource(audioHost, native.clip, true);
         layers = new AudioSource[6];
         for (var i = 0; i < EngineNames.Length; i++)
         {
@@ -98,7 +95,8 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
         configured = true;
         context.Logger.Info(
             $"KoenigseggJesko audio configured vehicle={vehicle.GetInstanceID()}, " +
-            $"engineLayers=7, engineGain={KoenigseggJeskoAudioModel.EngineBaseVolume:0.00}.." +
+            $"engineLayers=6, nativeExampleClipSuppressed=true, " +
+            $"engineGain={KoenigseggJeskoAudioModel.EngineBaseVolume:0.00}.." +
             $"{KoenigseggJeskoAudioModel.EngineBaseVolume + KoenigseggJeskoAudioModel.EngineThrottleVolume:0.00}, " +
             $"hornVoices=low/high@{KoenigseggJeskoAudioModel.HornLowVolume:0.00}/" +
             $"{KoenigseggJeskoAudioModel.HornHighVolume:0.00}, " +
@@ -148,7 +146,7 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
     private void UpdatePlayback()
     {
         if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
-            hornSource == null || hornSupportSource == null || idleSource == null)
+            hornSource == null || hornSupportSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         audioHost.transform.position = native.transform.position;
         var exhaust = physics.soundManager.exhaustSourceGO;
@@ -190,9 +188,6 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
             var master = Mathf.Clamp01(physics.soundManager.masterVolume);
             driveBlend = Mathf.MoveTowards(driveBlend,
                 KoenigseggJeskoAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM), Time.deltaTime * 4f);
-            idleSource.pitch = KoenigseggJeskoAudioModel.IdlePitch;
-            idleSource.volume = envelope * master * KoenigseggJeskoAudioModel.IdleVolume(driveBlend);
-            idleSource.mute = controlled && savedMute;
             var gain = envelope * master * KoenigseggJeskoAudioModel.EngineVolume(smoothThrottle) *
                        Mathf.Sqrt(driveBlend);
             loadBlend = KoenigseggJeskoAudioModel.LoadBlend(smoothThrottle);
@@ -220,7 +215,6 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
                 // Start all layers on the same DSP boundary. An inaudible layer
                 // keeps advancing so bringing it into the blend never restarts it.
                 var start = AudioSettings.dspTime + .03d;
-                idleSource.PlayScheduled(start);
                 foreach (var source in layers) source.PlayScheduled(start);
                 crackleSource.PlayScheduled(start);
                 voicesStarted = true;
@@ -256,7 +250,6 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
 
     private void StopLayers()
     {
-        if (idleSource != null) idleSource.Stop();
         if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
         if (crackleSource != null) crackleSource.Stop();
         voicesStarted = false;
@@ -293,7 +286,6 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
         if (audioHost != null) Destroy(audioHost);
         audioHost = null;
         layers = null;
-        idleSource = null;
         crackleSource = null;
         hornSource = null;
         hornSupportSource = null;

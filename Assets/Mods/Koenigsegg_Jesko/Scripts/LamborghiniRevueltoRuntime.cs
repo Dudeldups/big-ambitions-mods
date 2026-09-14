@@ -65,7 +65,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
-    private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -105,9 +104,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
-        if (exitedPlayerRecoveryCoroutine != null)
-            StopCoroutine(exitedPlayerRecoveryCoroutine);
-        exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         privateDriverPoolReady = false;
         privateDriverReady = false;
@@ -147,8 +143,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
-        GlobalEvents.onExitVehicle -= HandleVehicleExited;
-        GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -160,7 +154,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private void UnsubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
-        GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -184,9 +177,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
-        if (exitedPlayerRecoveryCoroutine != null)
-            StopCoroutine(exitedPlayerRecoveryCoroutine);
-        exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         cachedPlayerVehicleCount = -1;
         dealerReadyLogged = false;
@@ -204,157 +194,12 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ?.RestoreAfterVehicleEntered();
     }
 
-    private void HandleVehicleExited(VehicleController vehicle)
-    {
-        if (!IsTargetVehicle(vehicle))
-            return;
-
-        if (exitedPlayerRecoveryCoroutine != null)
-            StopCoroutine(exitedPlayerRecoveryCoroutine);
-        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
-        context?.Logger.Info(
-            $"KoenigseggJesko: scheduled bounded player-exit safety check " +
-            $"vehicle={vehicle.GetInstanceID()}.");
-    }
-
     private bool IsTargetVehicle(VehicleController? vehicle) =>
         vehicle?.vehicleInstance != null &&
         string.Equals(
             vehicle.vehicleInstance.vehicleTypeName,
             vehicleTypeName,
             StringComparison.Ordinal);
-
-    private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
-    {
-        // Let the game's exit animation and controller placement finish first.
-        yield return null;
-        yield return new WaitForEndOfFrame();
-
-        var root = PlayerHelper.PlayerController?.transform;
-        if (root == null)
-        {
-            exitedPlayerRecoveryCoroutine = null;
-            yield break;
-        }
-
-        var agents = root.GetComponentsInChildren<NavMeshAgent>(true);
-        var needsRecovery = false;
-        foreach (var agent in agents)
-            needsRecovery |= agent != null && agent.enabled && !agent.isOnNavMesh;
-        needsRecovery |= !IsPlayerExitClear(root, root.position);
-        if (!needsRecovery)
-        {
-            exitedPlayerRecoveryCoroutine = null;
-            yield break;
-        }
-
-        if (!TryFindClearExitPosition(root, exitedVehicle, out var target))
-        {
-            context?.Logger.Warn(
-                $"KoenigseggJesko: player-exit recovery found no clear NavMesh position " +
-                $"vehicle={exitedVehicle.GetInstanceID()}.");
-            exitedPlayerRecoveryCoroutine = null;
-            yield break;
-        }
-
-        var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
-        var controllerStates = Array.ConvertAll(
-            characterControllers,
-            controller => controller != null && controller.enabled);
-        var agentStates = Array.ConvertAll(agents, agent => agent != null && agent.enabled);
-        try
-        {
-            foreach (var controller in characterControllers)
-                if (controller != null)
-                    controller.enabled = false;
-            foreach (var agent in agents)
-                if (agent != null)
-                    agent.enabled = false;
-
-            root.position = target;
-            Physics.SyncTransforms();
-        }
-        finally
-        {
-            for (var index = 0; index < agents.Length; index++)
-            {
-                var agent = agents[index];
-                if (agent == null)
-                    continue;
-                agent.enabled = agentStates[index];
-                if (agent.enabled && agent.isOnNavMesh)
-                {
-                    agent.Warp(target);
-                    agent.ResetPath();
-                }
-            }
-
-            for (var index = 0; index < characterControllers.Length; index++)
-                if (characterControllers[index] != null)
-                    characterControllers[index].enabled = controllerStates[index];
-            Physics.SyncTransforms();
-        }
-
-        context?.Logger.Info(
-            $"KoenigseggJesko: player-exit recovery moved player to a clear NavMesh " +
-            $"position vehicle={exitedVehicle.GetInstanceID()} target={target}.");
-        exitedPlayerRecoveryCoroutine = null;
-    }
-
-    private static bool TryFindClearExitPosition(
-        Transform playerRoot,
-        VehicleController exitedVehicle,
-        out Vector3 target)
-    {
-        var vehicleTransform = exitedVehicle.transform;
-        var candidates = new[]
-        {
-            playerRoot.position,
-            vehicleTransform.position - vehicleTransform.right * 2.10f,
-            vehicleTransform.position + vehicleTransform.right * 2.10f,
-            vehicleTransform.position - vehicleTransform.forward * 2.45f,
-            vehicleTransform.position + vehicleTransform.forward * 2.45f,
-            vehicleTransform.position - vehicleTransform.right * 2.10f -
-                vehicleTransform.forward * 1.35f,
-            vehicleTransform.position + vehicleTransform.right * 2.10f -
-                vehicleTransform.forward * 1.35f,
-            vehicleTransform.position - vehicleTransform.right * 2.50f +
-                vehicleTransform.forward * 1.15f,
-            vehicleTransform.position + vehicleTransform.right * 2.50f +
-                vehicleTransform.forward * 1.15f,
-        };
-
-        foreach (var candidate in candidates)
-        {
-            if (!NavMesh.SamplePosition(candidate, out var hit, 1.25f, NavMesh.AllAreas))
-                continue;
-            var sampled = hit.position + Vector3.up * 0.05f;
-            if (!IsPlayerExitClear(playerRoot, sampled))
-                continue;
-            target = sampled;
-            return true;
-        }
-
-        target = default;
-        return false;
-    }
-
-    private static bool IsPlayerExitClear(Transform playerRoot, Vector3 position)
-    {
-        var overlaps = Physics.OverlapCapsule(
-            position + Vector3.up * 0.42f,
-            position + Vector3.up * 1.55f,
-            0.30f,
-            ~0,
-            QueryTriggerInteraction.Ignore);
-        foreach (var overlap in overlaps)
-        {
-            if (overlap == null || overlap.transform.IsChildOf(playerRoot))
-                continue;
-            return false;
-        }
-        return true;
-    }
 
     private void HandleBuildingEntered(Address address)
     {
@@ -562,6 +407,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ConfigureMassProperties(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
+            var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
             var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
@@ -605,6 +451,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
+                $"navMeshObstacles={normalizedNavMeshObstacles}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
@@ -688,6 +535,93 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 colliders[1].size = new Vector3(1.72f, 0.62f, 2.62f);
             }
         }
+    }
+
+    private static int ConfigureNavMeshObstacles(GameObject root)
+    {
+        if (!TryGetBodyColliderBounds(root.transform, out var bodyBounds))
+            return 0;
+
+        var normalized = 0;
+        foreach (var obstacle in root.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle == null || obstacle.shape != NavMeshObstacleShape.Box)
+                continue;
+
+            var obstacleTransform = obstacle.transform;
+            var scale = obstacleTransform.lossyScale;
+            if (Mathf.Abs(scale.x) < 0.0001f ||
+                Mathf.Abs(scale.y) < 0.0001f ||
+                Mathf.Abs(scale.z) < 0.0001f)
+            {
+                continue;
+            }
+
+            var rootTransform = root.transform;
+            obstacle.center = obstacleTransform.InverseTransformPoint(
+                rootTransform.TransformPoint(bodyBounds.center));
+            obstacle.size = new Vector3(
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.right) /
+                Mathf.Abs(scale.x),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.up) /
+                Mathf.Abs(scale.y),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.forward) /
+                Mathf.Abs(scale.z));
+            normalized++;
+        }
+
+        return normalized;
+    }
+
+    private static bool TryGetBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || collider.isTrigger)
+                    continue;
+
+                var halfSize = collider.size * 0.5f;
+                for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                for (var z = -1; z <= 1; z += 2)
+                {
+                    var corner = collider.center + Vector3.Scale(
+                        halfSize,
+                        new Vector3(x, y, z));
+                    var rootCorner = root.InverseTransformPoint(
+                        collider.transform.TransformPoint(corner));
+                    if (!found)
+                    {
+                        bounds = new Bounds(rootCorner, Vector3.zero);
+                        found = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(rootCorner);
+                    }
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBodySizeOntoAxis(
+        Vector3 bodySize,
+        Transform root,
+        Vector3 worldAxis)
+    {
+        worldAxis.Normalize();
+        return Mathf.Abs(Vector3.Dot(worldAxis, root.right)) * bodySize.x +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.up)) * bodySize.y +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.forward)) * bodySize.z;
     }
 
     private int ConfigureVisualDamage(VehicleController vehicle)

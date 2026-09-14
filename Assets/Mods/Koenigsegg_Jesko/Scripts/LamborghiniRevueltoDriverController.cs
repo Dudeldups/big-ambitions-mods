@@ -1,11 +1,13 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
 using UnityEngine.Animations;
+using UnityEngine.AI;
 using UnityEngine.Playables;
 using UnityEngine.Rendering;
 
@@ -20,6 +22,23 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     private const float HandHeightOffset = 0.018f;
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
+    private const int ExitRecoveryDelayFrames = 3;
+    private const float ExitNavMeshProbeRadius = 1.25f;
+    private const float ExitGroundOffset = 0.05f;
+    private const float ExitCapsuleRadius = 0.28f;
+    private const float ExitCapsuleBottom = 0.34f;
+    private const float ExitCapsuleTop = 1.62f;
+    private static readonly Vector2[] SafeExitOffsets =
+    {
+        new(-1.75f, 0f),
+        new(1.75f, 0f),
+        new(-2.10f, 0.85f),
+        new(2.10f, 0.85f),
+        new(-2.10f, -0.85f),
+        new(2.10f, -0.85f),
+        new(0f, 2.85f),
+        new(0f, -2.85f),
+    };
     // Pelvis position relative to the Jesko steering-wheel pivot, in vehicle axes.
     private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.65f);
     private const int MaximumAttempts = 20;
@@ -41,6 +60,8 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     private int attempts;
     private float nextAttempt;
     private string? lastFailure;
+    private readonly Collider[] exitOverlapBuffer = new Collider[24];
+    private Coroutine? exitRecoveryCoroutine;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -64,9 +85,11 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
             {
                 RemoveDriver();
                 LogInfo("exited; seated model removed.");
+                ScheduleExitRecovery();
             }
             else
             {
+                StopExitRecovery();
                 LogInfo("occupied; preparing current player appearance.");
             }
         }
@@ -496,12 +519,172 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
         ownedAssets.Clear();
     }
 
+    private void ScheduleExitRecovery()
+    {
+        StopExitRecovery();
+        exitRecoveryCoroutine = StartCoroutine(RecoverInvalidExitPlacement());
+    }
+
+    private void StopExitRecovery()
+    {
+        if (exitRecoveryCoroutine != null)
+            StopCoroutine(exitRecoveryCoroutine);
+        exitRecoveryCoroutine = null;
+    }
+
+    private IEnumerator RecoverInvalidExitPlacement()
+    {
+        for (var frame = 0; frame < ExitRecoveryDelayFrames; frame++)
+            yield return null;
+
+        exitRecoveryCoroutine = null;
+        if (vehicle == null || vehicle.controlledByPlayer)
+            yield break;
+
+        var player = PlayerHelper.PlayerController;
+        if (player == null)
+            yield break;
+
+        var playerRoot = player.transform;
+        var agents = playerRoot.GetComponentsInChildren<NavMeshAgent>(true);
+        if (agents.Length == 0 ||
+            (HasUsableAgent(agents) && IsExitCapsuleClear(playerRoot.position, playerRoot)))
+        {
+            yield break;
+        }
+
+        if (!TryFindSafeExitPosition(playerRoot, out var safePosition))
+        {
+            context?.Logger.Warn(
+                $"player exit was blocked or off NavMesh at {playerRoot.position:F3}; " +
+                "no clear recovery point was found.");
+            yield break;
+        }
+
+        PlacePlayerAtSafeExit(playerRoot, agents, safePosition);
+        LogInfo($"recovered player exit to clear NavMesh position {safePosition:F3}.");
+    }
+
+    private static bool HasUsableAgent(IReadOnlyList<NavMeshAgent> agents)
+    {
+        foreach (var agent in agents)
+            if (agent != null && agent.enabled && agent.isOnNavMesh)
+                return true;
+        return false;
+    }
+
+    private bool TryFindSafeExitPosition(Transform playerRoot, out Vector3 safePosition)
+    {
+        safePosition = playerRoot.position;
+        if (vehicle == null)
+            return false;
+
+        var right = Vector3.ProjectOnPlane(vehicle.transform.right, Vector3.up).normalized;
+        var forward = Vector3.ProjectOnPlane(vehicle.transform.forward, Vector3.up).normalized;
+        if (right.sqrMagnitude < 0.9f || forward.sqrMagnitude < 0.9f)
+            return false;
+
+        var bestDistance = float.PositiveInfinity;
+        var found = false;
+        foreach (var offset in SafeExitOffsets)
+        {
+            var requested = vehicle.transform.position + right * offset.x + forward * offset.y;
+            requested.y = playerRoot.position.y;
+            if (!NavMesh.SamplePosition(
+                    requested,
+                    out var hit,
+                    ExitNavMeshProbeRadius,
+                    NavMesh.AllAreas))
+            {
+                continue;
+            }
+
+            var candidate = hit.position + Vector3.up * ExitGroundOffset;
+            if (!IsExitCapsuleClear(candidate, playerRoot))
+                continue;
+
+            var distance = (candidate - playerRoot.position).sqrMagnitude;
+            if (distance >= bestDistance)
+                continue;
+            bestDistance = distance;
+            safePosition = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool IsExitCapsuleClear(Vector3 position, Transform playerRoot)
+    {
+        var overlapCount = Physics.OverlapCapsuleNonAlloc(
+            position + Vector3.up * ExitCapsuleBottom,
+            position + Vector3.up * ExitCapsuleTop,
+            ExitCapsuleRadius,
+            exitOverlapBuffer,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Ignore);
+        for (var index = 0; index < overlapCount; index++)
+        {
+            var collider = exitOverlapBuffer[index];
+            exitOverlapBuffer[index] = null!;
+            if (collider == null || collider.transform.IsChildOf(playerRoot))
+                continue;
+            return false;
+        }
+        return overlapCount < exitOverlapBuffer.Length;
+    }
+
+    private static void PlacePlayerAtSafeExit(
+        Transform playerRoot,
+        IReadOnlyList<NavMeshAgent> agents,
+        Vector3 safePosition)
+    {
+        var characterControllers = playerRoot.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = new bool[characterControllers.Length];
+        for (var index = 0; index < characterControllers.Length; index++)
+        {
+            var controller = characterControllers[index];
+            controllerStates[index] = controller != null && controller.enabled;
+            if (controller != null)
+                controller.enabled = false;
+        }
+
+        foreach (var agent in agents)
+            if (agent != null)
+                agent.enabled = false;
+
+        playerRoot.position = safePosition;
+        Physics.SyncTransforms();
+
+        foreach (var agent in agents)
+        {
+            if (agent == null)
+                continue;
+            agent.enabled = true;
+            if (agent.isOnNavMesh)
+            {
+                agent.Warp(safePosition);
+                agent.ResetPath();
+            }
+        }
+
+        for (var index = 0; index < characterControllers.Length; index++)
+            if (characterControllers[index] != null)
+                characterControllers[index].enabled = controllerStates[index];
+        Physics.SyncTransforms();
+    }
+
     private void OnDisable()
     {
+        StopExitRecovery();
         RemoveDriver();
         occupied = false;
     }
 
-    private void OnDestroy() => RemoveDriver();
+    private void OnDestroy()
+    {
+        StopExitRecovery();
+        RemoveDriver();
+    }
 }
 
