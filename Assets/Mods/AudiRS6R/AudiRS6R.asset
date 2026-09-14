@@ -19,7 +19,7 @@ MonoBehaviour:
   itemVersion: 
   isATruck: 0
   isHandVehicle: 0
-  maxFuel: 62
+  maxFuel: 73
   maxCargoCapacity: 16
   maxSpeed: 320
   enginePower: 544

@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 3502325257
+CRC: 991753121
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 863ab5ccfc79e9db3c2a8b7e3649131a
+    Hash: 2413cb1364782ad0eff0c99e6c39091d
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 6191264d946ba63d56c4068dd762ab3e
+    Hash: e77f2ca94acf5a1bb8fe23c9f1dad8ad
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 863ab5ccfc79e9db3c2a8b7e3649131a
+    Hash: 2413cb1364782ad0eff0c99e6c39091d
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -28,6 +28,8 @@ ClassTypes:
   Script: {instanceID: 0}
 - Class: 48
   Script: {instanceID: 0}
+- Class: 49
+  Script: {instanceID: 0}
 - Class: 54
   Script: {instanceID: 0}
 - Class: 65
@@ -39,13 +41,9 @@ ClassTypes:
 - Class: 108
   Script: {instanceID: 0}
 - Class: 114
-  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+  Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
   Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
-- Class: 114
-  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
-- Class: 114
-  Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
   Script: {fileID: -333503815, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
@@ -71,8 +69,6 @@ ClassTypes:
 - Class: 114
   Script: {fileID: -1092318927, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
-  Script: {fileID: 11500000, guid: 877e1507ae8d81c40bf1b94c1a86036f, type: 3}
-- Class: 114
   Script: {fileID: 1076906312, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
 - Class: 114
   Script: {fileID: -1030029083, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
@@ -81,7 +77,13 @@ ClassTypes:
 - Class: 114
   Script: {fileID: -464276067, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
 - Class: 114
+  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
   Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 877e1507ae8d81c40bf1b94c1a86036f, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
 - Class: 115
   Script: {instanceID: 0}
 - Class: 135
@@ -221,26 +223,40 @@ SerializeReferenceClassIdentifiers:
   ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
 Assets:
 - Assets/Mods/AudiRS6R/Textures/Generic_white.png
+- Assets/Mods/AudiRS6R/Config/Audio/EngineLowLoad.wav
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_01_alt2.wav
 - Assets/Mods/AudiRS6R/Audio/CarWashLoop.wav
+- Assets/Mods/AudiRS6R/VEHICLE_SPECS.md
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_07_alt2.wav
 - Assets/Mods/AudiRS6R/New Lens Flare (SRP).asset
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_04_alt2.wav
+- Assets/Mods/AudiRS6R/Config/Audio/ExhaustPop3.wav
+- Assets/Mods/AudiRS6R/Config/Audio/ExhaustPop2.wav
+- Assets/Mods/AudiRS6R/Config/Audio/EngineMid.wav
 - Assets/Mods/AudiRS6R/Textures/Generic_Normal_Flat.png
 - Assets/Mods/AudiRS6R/Models/SM_HonzaCar_DirtAlbedo.png
 - Assets/Mods/AudiRS6R/Models/ColMesh_HonzaCar.fbx
 - Assets/Mods/AudiRS6R/AudiRS6R.asset
+- Assets/Mods/AudiRS6R/Config/Audio/generation.json
+- Assets/Mods/AudiRS6R/Config/Audio/Horn.wav
 - Assets/Mods/AudiRS6R/Textures/Generic_MetAOSmooth_Neutral.png
+- Assets/Mods/AudiRS6R/THIRD_PARTY_NOTICES.md
 - Assets/Mods/AudiRS6R/Audio/CarWash_Ending.wav
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_02_alt2.wav
 - Assets/Mods/AudiRS6R/Audio/VehicleAudioMixer.mixer
 - Assets/Mods/AudiRS6R/Models/2020_abt_sportline_audi_rs6-r.glb
 - Assets/Mods/AudiRS6R/Models/M_Generic_Paint.mat
 - Assets/Mods/AudiRS6R/AudiRS6R.prefab
-- Assets/Mods/AudiRS6R/Models/SM_HonzaCar_DirtMaskMap.png
+- Assets/Mods/AudiRS6R/Config/Audio/EngineHighLoad.wav
+- Assets/Mods/AudiRS6R/Config/Audio/EngineLow.wav
+- Assets/Mods/AudiRS6R/ATTRIBUTION.md
+- Assets/Mods/AudiRS6R/Config/Audio/EngineHigh.wav
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_06_alt2.wav
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_05_alt2.wav
+- Assets/Mods/AudiRS6R/Models/SM_HonzaCar_DirtMaskMap.png
+- Assets/Mods/AudiRS6R/Config/Audio/ExhaustPop1.wav
 - Assets/Mods/AudiRS6R/AudiRS6R.index
 - Assets/Mods/AudiRS6R/Audio/Car_Crash_03_alt2.wav
 - Assets/Mods/AudiRS6R/Audio/Car.wav
+- Assets/Mods/AudiRS6R/Config/Audio/EngineMidLoad.wav
 Dependencies: []

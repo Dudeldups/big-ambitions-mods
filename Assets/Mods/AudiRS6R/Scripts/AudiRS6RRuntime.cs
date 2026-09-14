@@ -54,8 +54,19 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private Coroutine? initializationCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private GameObject? playerVehiclePrefab;
+    private int cachedPlayerVehicleCount = -1;
+    private bool dealerReady;
+    private bool dealerReadyLogged;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
 
-    public static AudiRS6RRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static AudiRS6RRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<AudiRS6RRuntime>();
         if (runtime == null)
@@ -67,6 +78,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
+        AudiRS6RPrivateDriverSupport.SetContext(context);
         runtime.SubscribeGlobalEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -81,6 +94,15 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             initializationCoroutine = null;
         }
 
+        cachedPlayerVehicleCount = -1;
+        dealerReady = false;
+        dealerReadyLogged = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
+        AudiRS6RPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         RemoveVehicleRuntimeComponents();
         Destroy(gameObject);
     }
@@ -98,6 +120,18 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         UnsubscribeGlobalEvents();
     }
 
+    private void Update()
+    {
+        // Dealer purchases do not necessarily raise onEnterVehicle. Keep the
+        // hot path to a count comparison and enumerate only when it changes.
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var vehicleCount = vehicles?.Count ?? 0;
+        if (vehicleCount == cachedPlayerVehicleCount)
+            return;
+
+        EnsureVehiclesConfigured(out _, out _);
+    }
+
     private void SubscribeGlobalEvents()
     {
         GameEvent.onGameEventTriggered -= HandleGameEvent;
@@ -108,6 +142,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onBuildingRegistrationChange -= HandleBuildingRegistrationChanged;
         GlobalEvents.onBuildingRegistrationChange += HandleBuildingRegistrationChanged;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+        GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -120,6 +156,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onBuildingRegistrationChange -= HandleBuildingRegistrationChanged;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
@@ -134,6 +171,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeGlobalEvents();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -144,7 +182,16 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
             initializationCoroutine = null;
         }
+        cachedPlayerVehicleCount = -1;
+        dealerReady = false;
+        dealerReadyLogged = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
     }
+
+    private void HandleVehicleVariablesChanged() => EnsureVehiclesConfigured(out _, out _);
 
     private void HandleVehicleEntered(VehicleController vehicleController)
     {
@@ -185,8 +232,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             return;
         }
 
-        if (!AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context))
-            context?.Logger.Warn("AudiRS6R: luxury dealer catalog was not ready when the full menu opened.");
+        if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
+            EnsureDealerStock("full-menu");
+        if (privateDriverRegistrationAllowed && (!privateDriverReady || !privateDriverPoolReady))
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void RefreshDealerStockForAddress(Address address, string source)
@@ -198,7 +247,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         if (!AudiRS6RLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
             return;
 
-        var ready = AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+        var ready = EnsureDealerStock(source);
         if (!ready)
             context?.Logger.Warn($"AudiRS6R: luxury dealer catalog was not ready source='{source}'.");
     }
@@ -213,13 +262,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        while (BusinessLayoutSetHelper.loadingLayouts)
-        {
-            EnsureVehiclesConfigured(out _, out _);
-            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
-        }
-
-        var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var attempts = 0;
@@ -229,19 +271,26 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
             attempts = attempt;
-            if (!dealerReady)
-                dealerReady = AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+            if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
+                EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                EnsurePrivateDriverSupport(source);
             EnsureVehiclesConfigured(out var matchedCount, out var configuredThisPass);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
             configuredCount += configuredThisPass;
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
+                                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
 
             previousMatchedCount = matchedCount;
-            if (dealerReady && stablePasses >= RequiredStableInitializationPasses)
+            if (servicesReady && stablePasses >= RequiredStableInitializationPasses)
                 break;
 
             if (attempt < InitializationRetryCount)
@@ -255,6 +304,72 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 $"AudiRS6R: lifecycle initialization did not find dealer stock source='{source}', " +
                 $"attempts={attempts}, matchedVehicles={maximumMatchedCount}, configuredVehicles={configuredCount}.");
         }
+        if (!privateDriverPoolReady)
+            context?.Logger.Warn($"AudiRS6R: private-driver traffic pool was not ready source='{source}'.");
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+            context?.Logger.Warn($"AudiRS6R: private-driver contract registration was not ready source='{source}'.");
+    }
+
+    private bool EnsureDealerStock(string source)
+    {
+        if (dealerReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
+        try
+        {
+            dealerReady = AudiRS6RLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName, context);
+            if (dealerReady && !dealerReadyLogged)
+            {
+                dealerReadyLogged = true;
+                context?.Logger.Info($"AudiRS6R: dealer registration ready source='{source}'.");
+            }
+            return dealerReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"AudiRS6R: dealer registration failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+            return false;
+
+        if (!privateDriverPoolReady)
+            privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+        if (!privateDriverReady)
+            privateDriverReady = AudiRS6RPrivateDriverSupport.EnsureVehicleAvailable(vehicleTypeName);
+        if (privateDriverReady && privateDriverPoolReady)
+            context?.Logger.Info($"AudiRS6R: private-driver support ready source='{source}'.");
+        return privateDriverReady && privateDriverPoolReady;
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return AudiRS6RPrivateDriverSupport.PrepareTrafficPool(playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                privateDriverPreparationExceptionLogged = true;
+                context?.Logger.Warn(
+                    $"AudiRS6R: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+            }
+            return false;
+        }
     }
 
     private void EnsureVehiclesConfigured(out int matchedCount, out int configuredCount)
@@ -265,6 +380,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             return;
 
         var allPlayerVehicles = VehicleHelper.AllPlayerVehicles;
+        cachedPlayerVehicleCount = allPlayerVehicles?.Count ?? 0;
         if (allPlayerVehicles == null)
             return;
 

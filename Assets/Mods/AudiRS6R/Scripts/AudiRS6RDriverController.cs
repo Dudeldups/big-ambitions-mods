@@ -471,14 +471,17 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
 
         var playerRoot = player.transform;
         var agents = playerRoot.GetComponentsInChildren<NavMeshAgent>(true);
-        if (agents.Length == 0 || HasUsableAgent(agents))
+        var hasUsableAgent = HasUsableAgent(agents);
+        var exitIsClear = IsExitCapsuleClear(playerRoot.position, playerRoot);
+        if ((agents.Length == 0 || hasUsableAgent) && exitIsClear)
             yield break;
 
         if (!TryFindSafeExitPosition(playerRoot, out var safePosition))
         {
             context?.Logger.Warn(
                 $"AudiRS6R driver vehicle={vehicle.GetInstanceID()}: " +
-                $"player exit was off NavMesh at {playerRoot.position:F3}, and no clear recovery point was found.");
+                $"player exit was off NavMesh or obstructed at {playerRoot.position:F3}, " +
+                "and no clear recovery point was found.");
             yield break;
         }
 
@@ -569,29 +572,40 @@ internal sealed class AudiRS6RDriverController : MonoBehaviour
                 controller.enabled = false;
         }
 
-        foreach (var agent in agents)
+        var agentStates = new bool[agents.Count];
+        for (var index = 0; index < agents.Count; index++)
+        {
+            var agent = agents[index];
+            agentStates[index] = agent != null && agent.enabled;
             if (agent != null)
                 agent.enabled = false;
-
-        playerRoot.position = safePosition;
-        Physics.SyncTransforms();
-
-        foreach (var agent in agents)
-        {
-            if (agent == null)
-                continue;
-            agent.enabled = true;
-            if (agent.isOnNavMesh)
-            {
-                agent.Warp(safePosition);
-                agent.ResetPath();
-            }
         }
 
-        for (var index = 0; index < characterControllers.Length; index++)
-            if (characterControllers[index] != null)
-                characterControllers[index].enabled = controllerStates[index];
-        Physics.SyncTransforms();
+        try
+        {
+            playerRoot.position = safePosition;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Count; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(safePosition);
+                    agent.ResetPath();
+                }
+            }
+
+            for (var index = 0; index < characterControllers.Length; index++)
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            Physics.SyncTransforms();
+        }
     }
 
     private void OnDisable()

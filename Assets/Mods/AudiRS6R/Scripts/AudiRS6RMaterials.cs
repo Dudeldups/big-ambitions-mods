@@ -57,7 +57,7 @@ internal static class AudiRS6RMaterials
 
     internal static AudiRS6RMaterialFixResult FixSolidVehicleMaterials(
         GameObject vehicleRoot,
-        ICollection<Material> ownedWheelMaterials)
+        ICollection<Material> ownedMaterials)
     {
         var visualRoot = FindImportedVisualRoot(vehicleRoot);
         var bodyRenderers = visualRoot != null
@@ -69,6 +69,7 @@ internal static class AudiRS6RMaterials
             if (renderer != null && IsWheelVisual(renderer.transform)) wheelRenderers.Add(renderer);
         var wheelRendererSet = new HashSet<Renderer>(wheelRenderers);
         var isolatedWheelMaterials = new Dictionary<Material, Material>();
+        var isolatedBodyMaterials = new Dictionary<Material, Material>();
 
         var rendererSet = new HashSet<Renderer>();
         var renderers = new List<Renderer>(bodyRenderers.Length + wheelRenderers.Count);
@@ -105,7 +106,7 @@ internal static class AudiRS6RMaterials
                 wheelMaterialCloneCount += CloneWheelMaterialsWithoutDecals(
                     renderer,
                     isolatedWheelMaterials,
-                    ownedWheelMaterials);
+                    ownedMaterials);
                 continue;
             }
 
@@ -113,10 +114,25 @@ internal static class AudiRS6RMaterials
                 continue;
 
             var hasSolidMaterial = false;
-            foreach (var material in renderer.sharedMaterials)
+            var sourceMaterials = renderer.sharedMaterials;
+            var runtimeMaterials = new Material[sourceMaterials.Length];
+            for (var materialIndex = 0; materialIndex < sourceMaterials.Length; materialIndex++)
             {
-                if (material == null)
+                var sourceMaterial = sourceMaterials[materialIndex];
+                if (sourceMaterial == null)
                     continue;
+
+                if (!isolatedBodyMaterials.TryGetValue(sourceMaterial, out var material))
+                {
+                    material = new Material(sourceMaterial)
+                    {
+                        name = sourceMaterial.name + " Audi Instance",
+                        hideFlags = HideFlags.DontSave,
+                    };
+                    isolatedBodyMaterials.Add(sourceMaterial, material);
+                    ownedMaterials.Add(material);
+                }
+                runtimeMaterials[materialIndex] = material;
 
                 if (IsTransparentOrCutout(material))
                 {
@@ -157,6 +173,8 @@ internal static class AudiRS6RMaterials
                     : originalShaderName + "->" + finalShaderName);
             }
 
+            renderer.sharedMaterials = runtimeMaterials;
+
             if (hasSolidMaterial)
                 solidRendererCount++;
         }
@@ -173,6 +191,20 @@ internal static class AudiRS6RMaterials
             transparentMaterialsProtected,
             hdrpMaterialsValidated,
             string.Join("|", orderedShaderNames));
+    }
+
+    internal static void PreparePaintMaterial(Material material)
+    {
+        RebindToHdrpLit(material);
+        FixSolidHdrpMaterial(material);
+        SetFloat(material, "_Metallic", 0.18f);
+        SetFloat(material, "_Smoothness", 0.72f);
+        SetFloat(material, "_CoatMask", 0.22f);
+        SetFloat(material, "_CoatSmoothness", 0.88f);
+        SetFloat(material, "_EmissiveIntensity", 0f);
+        SetColor(material, "_EmissiveColor", Color.black);
+        SetColor(material, "_EmissionColor", Color.black);
+        material.DisableKeyword("_EMISSION");
     }
 
     private static GameObject? FindImportedVisualRoot(GameObject vehicleRoot)
@@ -238,7 +270,11 @@ internal static class AudiRS6RMaterials
 
             if (!isolatedWheelMaterials.TryGetValue(source, out var clone))
             {
-                clone = new Material(source) { name = source.name + " Audi Wheel No Decals" };
+                clone = new Material(source)
+                {
+                    name = source.name + " Audi Wheel No Decals",
+                    hideFlags = HideFlags.DontSave,
+                };
                 RebindToHdrpLit(clone);
                 FixSolidHdrpMaterial(clone);
                 isolatedWheelMaterials.Add(source, clone);
@@ -350,6 +386,7 @@ internal static class AudiRS6RMaterials
 
         var normalTextureProperty = FirstTextureProperty(material, "normalTexture", "_NormalMap");
         var normalTexture = normalTextureProperty != null ? material.GetTexture(normalTextureProperty) : null;
+        var maskTexture = material.HasProperty("_MaskMap") ? material.GetTexture("_MaskMap") : null;
         var normalScale = GetFloat(material, "normalTexture_scale", "normalScale", "_NormalScale", 1f);
         var metallic = GetFloat(material, "metallicFactor", "_Metallic", null, 0f);
         var roughness = GetFloat(material, "roughnessFactor", null, null, 1f);
@@ -358,6 +395,7 @@ internal static class AudiRS6RMaterials
         SetColor(material, "_BaseColor", baseColor);
         SetTexture(material, "_BaseColorMap", baseTexture, baseScale, baseOffset);
         SetTexture(material, "_NormalMap", normalTexture, Vector2.one, Vector2.zero);
+        SetTexture(material, "_MaskMap", maskTexture, Vector2.one, Vector2.zero);
         SetFloat(material, "_NormalScale", normalScale);
         SetFloat(material, "_Metallic", metallic);
         SetFloat(material, "_Smoothness", 1f - Mathf.Clamp01(roughness));
@@ -519,19 +557,20 @@ internal static class AudiRS6RMaterials
 internal sealed class AudiRS6RMaterialController : MonoBehaviour
 {
     private const string PaintRendererName = "Paint";
-    private const float LowLightPaintContribution = 0.075f;
-    private static readonly int EmissiveColor = Shader.PropertyToID("_EmissiveColor");
-    private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
-    private static readonly int EmissiveExposureWeight = Shader.PropertyToID("_EmissiveExposureWeight");
+    private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int BaseColorFactor = Shader.PropertyToID("baseColorFactor");
 
     private bool applied;
-    private readonly List<Material> ownedWheelMaterials = new List<Material>();
+    private readonly List<Material> ownedMaterials = new List<Material>();
     private readonly MaterialPropertyBlock paintProperties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
     private ModContext? context;
     private Renderer? paintRenderer;
     private Material? sourcePaintMaterial;
     private Material? ownedPaintMaterial;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private VehicleColor? appliedVehicleColor;
     private Color32 appliedTint;
     private bool hasAppliedTint;
@@ -546,7 +585,7 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
 
         this.vehicle = vehicle;
         this.context = context;
-        var result = AudiRS6RMaterials.FixSolidVehicleMaterials(vehicle.gameObject, ownedWheelMaterials);
+        var result = AudiRS6RMaterials.FixSolidVehicleMaterials(vehicle.gameObject, ownedMaterials);
         ConfigurePaintRenderer();
         RefreshPaint();
         applied = true;
@@ -558,6 +597,29 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
                 "opaque or transparent HDRP material protection was incomplete; ground decals may still project onto the vehicle.");
         }
     }
+
+    internal void InitializeForPrivateDriver(string? vehicleColorName, VehicleColor? vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
+        hasAppliedTint = false;
+        if (!applied)
+        {
+            AudiRS6RMaterials.FixSolidVehicleMaterials(gameObject, ownedMaterials);
+            ConfigurePaintRenderer();
+            applied = true;
+        }
+        RefreshPaint();
+    }
+
+    internal void InitializeForAmbientTraffic(VehicleColor vehicleColor)
+    {
+        InitializeForPrivateDriver(vehicleColor.name, vehicleColor);
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint;
 
     internal void RefreshPaint()
     {
@@ -573,19 +635,14 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
-        var lowLightColor = new Color(
-            selectedColor.r * LowLightPaintContribution,
-            selectedColor.g * LowLightPaintContribution,
-            selectedColor.b * LowLightPaintContribution,
-            1f);
         paintProperties.Clear();
         paintRenderer.GetPropertyBlock(paintProperties, 0);
-        if (ownedPaintMaterial.HasProperty(EmissiveColor))
-            paintProperties.SetColor(EmissiveColor, lowLightColor);
-        if (ownedPaintMaterial.HasProperty(EmissionColor))
-            paintProperties.SetColor(EmissionColor, lowLightColor);
-        if (ownedPaintMaterial.HasProperty(EmissiveExposureWeight))
-            paintProperties.SetFloat(EmissiveExposureWeight, 0.65f);
+        if (ownedPaintMaterial.HasProperty(BaseColor))
+            paintProperties.SetColor(BaseColor, selectedColor);
+        if (ownedPaintMaterial.HasProperty(ColorProperty))
+            paintProperties.SetColor(ColorProperty, selectedColor);
+        if (ownedPaintMaterial.HasProperty(BaseColorFactor))
+            paintProperties.SetColor(BaseColorFactor, selectedColor);
         paintRenderer.SetPropertyBlock(paintProperties, 0);
 
         appliedVehicleColor = selected;
@@ -608,16 +665,16 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
             sourcePaintMaterial = materials[0];
             ownedPaintMaterial = new Material(sourcePaintMaterial)
             {
-                name = sourcePaintMaterial.name + " Audi Low-Light Paint"
+                name = sourcePaintMaterial.name + " Audi HDRP Paint",
+                hideFlags = HideFlags.DontSave,
             };
-            ownedPaintMaterial.EnableKeyword("_EMISSION");
+            AudiRS6RMaterials.PreparePaintMaterial(ownedPaintMaterial);
             materials[0] = ownedPaintMaterial;
             renderer.sharedMaterials = materials;
             context?.Logger.Info(
-                $"AudiRS6R paint vehicle={vehicle.GetInstanceID()}: renderer='{renderer.name}', " +
+                $"AudiRS6R paint vehicle={vehicle?.GetInstanceID()}: renderer='{renderer.name}', " +
                 $"shader='{ownedPaintMaterial.shader?.name ?? "missing"}', " +
-                $"emissiveColor={ownedPaintMaterial.HasProperty(EmissiveColor)}, " +
-                $"emissionColor={ownedPaintMaterial.HasProperty(EmissionColor)}.");
+                $"perInstance=true, emissive=false.");
             return;
         }
 
@@ -630,7 +687,9 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;
-        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        if (explicitVehicleColor != null)
+            return explicitVehicleColor;
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName ?? explicitVehicleColorName;
         return !string.IsNullOrEmpty(colorName) && VehicleHelper.TryGetVehicleColor(colorName, out var saved)
             ? saved
             : null;
@@ -649,8 +708,8 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
         }
         if (ownedPaintMaterial != null)
             Destroy(ownedPaintMaterial);
-        foreach (var material in ownedWheelMaterials)
+        foreach (var material in ownedMaterials)
             if (material != null) Destroy(material);
-        ownedWheelMaterials.Clear();
+        ownedMaterials.Clear();
     }
 }
