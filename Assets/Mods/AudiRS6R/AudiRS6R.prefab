@@ -16309,7 +16309,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 1750
+    maxTorque: 1790
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.06
@@ -16491,7 +16491,7 @@ MonoBehaviour:
       slipTorque: 1000
     engine:
       name: Engine
-      inertia: 0.2
+      inertia: 0.45
       inputTorque: 0
       outputTorque: 0
       inputAngularVelocity: 0
@@ -25919,7 +25919,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 0.75
+    grip: 1.5
     stiffness: 1.7
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
@@ -31360,7 +31360,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 0.75
+    grip: 1.5
     stiffness: 1.7
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
