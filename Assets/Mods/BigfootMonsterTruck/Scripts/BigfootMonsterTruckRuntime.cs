@@ -11,6 +11,10 @@ using UnityEngine.SceneManagement;
 
 public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 {
+    private const string VehicleRepainterColorRestoredEvent =
+        "vehicle-repainter:color-restored";
+    private const string DeveloperToolsColorRestoredEvent =
+        "developer-tools:vehicle-recolor-restored";
     private const int InitializationRetryCount = 24;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 6500f;
@@ -258,8 +262,15 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         previewPaintController?.RefreshPreviewColor();
     }
 
-    private void HandleGameEvent(string _)
+    private void HandleGameEvent(string eventName)
     {
+        if (string.Equals(eventName, VehicleRepainterColorRestoredEvent, StringComparison.Ordinal) ||
+            string.Equals(eventName, DeveloperToolsColorRestoredEvent, StringComparison.Ordinal))
+        {
+            RefreshExistingVehiclePaint($"paint-restored:{eventName}");
+            return;
+        }
+
         if (!PurchaseVehicleUI.IsPanelOpen)
             return;
 
@@ -270,6 +281,32 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         selectedVehicle!
             .GetComponent<BigfootMonsterTruckPaintController>()
             ?.RefreshPreviewColor();
+    }
+
+    private void RefreshExistingVehiclePaint(string source)
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        if (vehicles == null)
+            return;
+
+        var restored = 0;
+        foreach (var vehicle in vehicles)
+        {
+            if (!IsTargetVehicle(vehicle))
+                continue;
+
+            if (vehicle!.GetComponent<BigfootMonsterTruckPaintController>()
+                    ?.RefreshSavedColor(source, true) == true)
+            {
+                restored++;
+            }
+        }
+
+        if (restored > 0)
+        {
+            context?.Logger.Info(
+                $"BigfootMonsterTruck paint: restored {restored} truck(s) after '{source}'.");
+        }
     }
 
     private void ScheduleInitialization(string source)

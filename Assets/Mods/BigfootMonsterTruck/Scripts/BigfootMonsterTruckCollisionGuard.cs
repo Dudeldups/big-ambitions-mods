@@ -35,8 +35,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float ParkedContactMaximumDescentSpeed = 0.75f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
-    private const float MaximumClimbableSceneryHeight = 1.05f;
-    private const float MaximumClimbableScenerySpan = 8f;
+    private const float MaximumBypassableSceneryHeight = 1.05f;
+    private const float MaximumBypassableScenerySpan = 8f;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
@@ -46,7 +46,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private ModContext? context;
     private NWH.VehiclePhysics2.VehicleController? physicsVehicle;
     private Rigidbody? vehicleBody;
-    private BigfootMonsterTruckSceneryRamp? sceneryRamp;
+    private BigfootMonsterTruckSceneryBypass? sceneryBypass;
     private UnityAction<Collision>? collisionListener;
     private float approvedDamage;
     private float suppressDamageUntil;
@@ -70,10 +70,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             BindingFlags.Instance | BindingFlags.NonPublic);
         approvedDamage = controller.vehicleInstance?.damage ?? 0f;
         vehicleBody = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
-        sceneryRamp = controller.GetComponent<BigfootMonsterTruckSceneryRamp>();
-        if (sceneryRamp == null)
-            sceneryRamp = controller.gameObject.AddComponent<BigfootMonsterTruckSceneryRamp>();
-        sceneryRamp.Initialize(controller, context);
+        sceneryBypass = controller.GetComponent<BigfootMonsterTruckSceneryBypass>();
+        if (sceneryBypass == null)
+            sceneryBypass = controller.gameObject.AddComponent<BigfootMonsterTruckSceneryBypass>();
+        sceneryBypass.Initialize(controller, context);
         SnapshotApprovedDeformations();
         if (controller is CarController car && car.vehicleController != null)
         {
@@ -211,7 +211,13 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 ? FindParkedVehicle(collision.collider)
                 : null;
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
+            {
+                if (TryGetBypassableScenery(collision.collider, out var sceneryBounds))
+                {
+                    SuppressSceneryDamage(collision.collider, sceneryBounds);
+                }
                 return;
+            }
 
             var isHeavy = otherPlayerVehicle != null
                 ? IsHeavyVehicle(otherPlayerVehicle)
@@ -251,21 +257,27 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             var parkedVehicle = otherPlayerVehicle == null && trafficVehicle == null
                 ? FindParkedVehicle(collision.collider)
                 : null;
-            Collider? climbableScenery = null;
+            Collider? bypassableScenery = null;
             var sceneryBounds = default(Bounds);
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
             {
-                if (!TryGetClimbableScenery(collision.collider, out sceneryBounds))
+                if (!TryGetBypassableScenery(collision.collider, out sceneryBounds))
                     return;
-                climbableScenery = collision.collider;
+                bypassableScenery = collision.collider;
             }
-            if (climbableScenery == null &&
+            if (bypassableScenery == null &&
                 (otherPlayerVehicle != null
                     ? IsTooHeavyToClimb(otherPlayerVehicle)
                     : trafficVehicle != null
                         ? IsTooHeavyToClimbIdentity(trafficVehicle.name)
                         : IsTooHeavyToClimbIdentity(parkedVehicle!.name)))
                 return;
+
+            if (bypassableScenery != null)
+            {
+                SuppressSceneryDamage(bypassableScenery, sceneryBounds);
+                return;
+            }
 
             var driveInput = physicsVehicle.input.Vertical;
             var driveIntensity = Mathf.Abs(driveInput);
@@ -294,19 +306,6 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 collision,
                 vehicle.transform,
                 driveDirection);
-            if (climbableScenery != null)
-            {
-                // Static props use a short-lived physical wedge ahead of the
-                // appropriate end of the truck. The Rigidbody and wheel system
-                // then resolve the climb; no velocity edits or upward pulls are
-                // applied to scenery contacts.
-                if (!tireContact && !leadingEdgeContact)
-                    return;
-                latchedClimbUntil = 0f;
-                sceneryRamp?.Arm(driveDirection, climbableScenery, sceneryBounds);
-                return;
-            }
-
             var latchedClimb = (tireContact || leadingEdgeContact) &&
                                forwardSpeed < LatchedClimbTriggerSpeed;
             if (latchedClimb)
@@ -390,8 +389,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         parkedContactVehicleId = 0;
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
-        sceneryRamp?.Dispose();
-        sceneryRamp = null;
+        sceneryBypass?.Dispose();
+        sceneryBypass = null;
         physicsVehicle = null;
         vehicleBody = null;
         collisionListener = null;
@@ -489,7 +488,16 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         return null;
     }
 
-    private static bool TryGetClimbableScenery(Collider collider, out Bounds bounds)
+    private void SuppressSceneryDamage(Collider collider, Bounds bounds)
+    {
+        suppressDamageUntil = Mathf.Max(
+            suppressDamageUntil,
+            Time.unscaledTime + SmallVehicleSuppressionWindow);
+        ClearPendingDeformationQueue();
+        sceneryBypass?.Arm(collider, bounds);
+    }
+
+    private static bool TryGetBypassableScenery(Collider collider, out Bounds bounds)
     {
         bounds = default;
         if (collider == null || collider.isTrigger || collider is TerrainCollider ||
@@ -504,8 +512,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         // short wall segments) while excluding terrain, buildings and long
         // barriers. Dynamic objects remain under the game's normal physics.
         return bounds.size.y > 0.05f &&
-               bounds.size.y <= MaximumClimbableSceneryHeight &&
-               span <= MaximumClimbableScenerySpan;
+               bounds.size.y <= MaximumBypassableSceneryHeight &&
+               span <= MaximumBypassableScenerySpan;
     }
 
     private static bool IsHeavyVehicle(VehicleController other)
@@ -593,21 +601,13 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     }
 }
 
-internal sealed class BigfootMonsterTruckSceneryRamp : MonoBehaviour
+internal sealed class BigfootMonsterTruckSceneryBypass : MonoBehaviour
 {
-    private const float RampHoldDuration = 0.30f;
-    private const float RampHalfWidth = 1.45f;
-    private const float RampOuterZ = 2.90f;
-    private const float RampInnerZ = 1.55f;
-    private const float RampFloorHeight = 0.16f;
-    private const float RampInnerHeight = 1.02f;
+    private const float BypassDuration = 1.5f;
 
     private VehicleController? vehicle;
     private ModContext? context;
-    private MeshCollider? forwardRamp;
-    private MeshCollider? reverseRamp;
-    private Mesh? forwardMesh;
-    private Mesh? reverseMesh;
+    private readonly List<ColliderPair> ignoredPairs = new();
     private float activeUntil;
     private int lastObstacleId;
     private float nextLogTime;
@@ -616,29 +616,35 @@ internal sealed class BigfootMonsterTruckSceneryRamp : MonoBehaviour
     {
         vehicle = controller;
         context = modContext;
-        if (forwardRamp != null && reverseRamp != null)
-            return;
-
-        forwardRamp = CreateRamp("BigfootSceneryRampForward", false, out forwardMesh);
-        reverseRamp = CreateRamp("BigfootSceneryRampReverse", true, out reverseMesh);
     }
 
-    internal void Arm(float driveDirection, Collider obstacle, Bounds obstacleBounds)
+    internal void Arm(Collider obstacle, Bounds obstacleBounds)
     {
-        var ramp = driveDirection >= 0f ? forwardRamp : reverseRamp;
-        if (ramp == null || obstacle == null)
+        if (vehicle == null || obstacle == null)
             return;
 
-        ramp.enabled = true;
-        activeUntil = Time.unscaledTime + RampHoldDuration;
+        if (lastObstacleId != obstacle.GetInstanceID())
+        {
+            RestoreCollisions();
+            foreach (var vehicleCollider in vehicle.GetComponentsInChildren<Collider>(true))
+            {
+                if (vehicleCollider == null || vehicleCollider.isTrigger)
+                    continue;
+
+                Physics.IgnoreCollision(vehicleCollider, obstacle, true);
+                ignoredPairs.Add(new ColliderPair(vehicleCollider, obstacle));
+            }
+        }
+
+        activeUntil = Time.unscaledTime + BypassDuration;
         var obstacleId = obstacle.GetInstanceID();
         if (obstacleId != lastObstacleId || Time.unscaledTime >= nextLogTime)
         {
             lastObstacleId = obstacleId;
             nextLogTime = Time.unscaledTime + 1f;
             context?.Logger.Info(
-                $"BigfootMonsterTruck scenery ramp vehicle={vehicle?.GetInstanceID()}: " +
-                $"engaged for '{obstacle.name}' size={obstacleBounds.size:F2}.");
+                $"BigfootMonsterTruck scenery bypass vehicle={vehicle.GetInstanceID()}: " +
+                $"passing through '{obstacle.name}' size={obstacleBounds.size:F2}.");
         }
     }
 
@@ -646,79 +652,36 @@ internal sealed class BigfootMonsterTruckSceneryRamp : MonoBehaviour
     {
         if (Time.unscaledTime <= activeUntil)
             return;
-        if (forwardRamp != null)
-            forwardRamp.enabled = false;
-        if (reverseRamp != null)
-            reverseRamp.enabled = false;
+        RestoreCollisions();
     }
 
     internal void Dispose()
     {
         activeUntil = 0f;
-        if (forwardRamp != null)
-            Destroy(forwardRamp.gameObject);
-        if (reverseRamp != null)
-            Destroy(reverseRamp.gameObject);
-        if (forwardMesh != null)
-            Destroy(forwardMesh);
-        if (reverseMesh != null)
-            Destroy(reverseMesh);
-        forwardRamp = null;
-        reverseRamp = null;
-        forwardMesh = null;
-        reverseMesh = null;
+        RestoreCollisions();
     }
 
-    private MeshCollider? CreateRamp(string name, bool reverse, out Mesh? mesh)
+    private void RestoreCollisions()
     {
-        mesh = null;
-        if (vehicle == null)
-            return null;
-
-        var rampObject = new GameObject(name)
+        foreach (var pair in ignoredPairs)
         {
-            layer = vehicle.gameObject.layer,
-            hideFlags = HideFlags.DontSave,
-        };
-        rampObject.transform.SetParent(vehicle.transform, false);
-        if (reverse)
-            rampObject.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-
-        mesh = CreateRampMesh(name + " Mesh");
-        var collider = rampObject.AddComponent<MeshCollider>();
-        collider.sharedMesh = mesh;
-        collider.convex = true;
-        collider.enabled = false;
-        return collider;
+            if (pair.VehicleCollider != null && pair.ObstacleCollider != null)
+                Physics.IgnoreCollision(pair.VehicleCollider, pair.ObstacleCollider, false);
+        }
+        ignoredPairs.Clear();
+        lastObstacleId = 0;
     }
 
-    private static Mesh CreateRampMesh(string name)
+    private readonly struct ColliderPair
     {
-        var mesh = new Mesh
+        internal readonly Collider VehicleCollider;
+        internal readonly Collider ObstacleCollider;
+
+        internal ColliderPair(Collider vehicleCollider, Collider obstacleCollider)
         {
-            name = name,
-            hideFlags = HideFlags.DontSave,
-        };
-        mesh.vertices = new[]
-        {
-            new Vector3(-RampHalfWidth, RampFloorHeight, RampOuterZ),
-            new Vector3(RampHalfWidth, RampFloorHeight, RampOuterZ),
-            new Vector3(-RampHalfWidth, RampInnerHeight, RampInnerZ),
-            new Vector3(RampHalfWidth, RampInnerHeight, RampInnerZ),
-            new Vector3(-RampHalfWidth, RampFloorHeight, RampInnerZ),
-            new Vector3(RampHalfWidth, RampFloorHeight, RampInnerZ),
-        };
-        mesh.triangles = new[]
-        {
-            0, 1, 2, 1, 3, 2,
-            0, 4, 1, 1, 4, 5,
-            2, 3, 4, 3, 5, 4,
-            0, 2, 4,
-            1, 5, 3,
-        };
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-        return mesh;
+            VehicleCollider = vehicleCollider;
+            ObstacleCollider = obstacleCollider;
+        }
     }
 
     private void OnDestroy() => Dispose();
