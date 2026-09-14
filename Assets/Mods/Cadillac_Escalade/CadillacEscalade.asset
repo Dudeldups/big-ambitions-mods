@@ -25,7 +25,7 @@ MonoBehaviour:
   turnRadius: 35
   damageIntensity: 0.75
   fitsHandTruck: 1
-  fitsFlatbed: 0
+  fitsFlatbed: 1
   autoParkSupported: 1
   taxDeductible: 0
   hasRadio: 1
