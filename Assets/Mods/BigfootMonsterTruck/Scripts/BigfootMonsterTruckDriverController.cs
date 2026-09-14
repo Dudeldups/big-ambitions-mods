@@ -1,11 +1,13 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
 using UnityEngine.Animations;
+using UnityEngine.AI;
 using UnityEngine.Playables;
 using UnityEngine.Rendering;
 
@@ -20,8 +22,26 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
     private const float HandRaise = 0.14f;
     private const float HandForward = 0.07f;
     private const int MaximumAttempts = 20;
+    private const int ExitRecoveryDelayFrames = 3;
+    private const float ExitNavMeshProbeRadius = 1.5f;
+    private const float ExitGroundOffset = 0.05f;
+    private const float ExitCapsuleRadius = 0.30f;
+    private const float ExitCapsuleBottom = 0.38f;
+    private const float ExitCapsuleTop = 1.60f;
+    private static readonly Vector2[] SafeExitOffsets =
+    {
+        new(-3.15f, 0f),
+        new(3.15f, 0f),
+        new(-3.45f, 1.35f),
+        new(3.45f, 1.35f),
+        new(-3.45f, -1.35f),
+        new(3.45f, -1.35f),
+        new(0f, 3.60f),
+        new(0f, -3.60f),
+    };
 
     private readonly List<UnityEngine.Object> ownedAssets = new();
+    private readonly Collider[] exitOverlapBuffer = new Collider[24];
     private VehicleController? vehicle;
     private ModContext? context;
     private Transform? seatAnchor;
@@ -38,6 +58,7 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
     private int attempts;
     private float nextAttempt;
     private string? lastFailure;
+    private Coroutine? exitRecoveryCoroutine;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -61,7 +82,10 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
             if (!occupied)
             {
                 RemoveDriver();
+                ScheduleExitRecovery();
             }
+            else
+                StopExitRecovery();
         }
 
         if (!occupied)
@@ -395,6 +419,175 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
         return result;
     }
 
+    private void ScheduleExitRecovery()
+    {
+        StopExitRecovery();
+        exitRecoveryCoroutine = StartCoroutine(RecoverInvalidExitPlacement());
+    }
+
+    private void StopExitRecovery()
+    {
+        if (exitRecoveryCoroutine != null)
+            StopCoroutine(exitRecoveryCoroutine);
+        exitRecoveryCoroutine = null;
+    }
+
+    private IEnumerator RecoverInvalidExitPlacement()
+    {
+        for (var frame = 0; frame < ExitRecoveryDelayFrames; frame++)
+            yield return null;
+
+        exitRecoveryCoroutine = null;
+        if (vehicle == null || vehicle.controlledByPlayer)
+            yield break;
+
+        var player = PlayerHelper.PlayerController;
+        if (player == null)
+            yield break;
+
+        var playerRoot = player.transform;
+        var agents = playerRoot.GetComponentsInChildren<NavMeshAgent>(true);
+        var requiresRecovery =
+            (agents.Length > 0 && !HasUsableAgent(agents)) ||
+            !IsExitCapsuleClear(playerRoot.position, playerRoot);
+        if (!requiresRecovery)
+            yield break;
+
+        if (!TryFindSafeExitPosition(playerRoot, out var safePosition))
+        {
+            context?.Logger.Warn(
+                $"BigfootMonsterTruck exit recovery vehicle={vehicle.GetInstanceID()}: " +
+                $"player was off NavMesh or obstructed, but no clear recovery point was found.");
+            yield break;
+        }
+
+        PlacePlayerAtSafeExit(playerRoot, agents, safePosition);
+        context?.Logger.Info(
+            $"BigfootMonsterTruck exit recovery vehicle={vehicle.GetInstanceID()}: " +
+            $"moved player to a clear NavMesh position {safePosition:F3}.");
+    }
+
+    private static bool HasUsableAgent(IReadOnlyList<NavMeshAgent> agents)
+    {
+        foreach (var agent in agents)
+            if (agent != null && agent.enabled && agent.isOnNavMesh)
+                return true;
+        return false;
+    }
+
+    private bool TryFindSafeExitPosition(Transform playerRoot, out Vector3 safePosition)
+    {
+        safePosition = playerRoot.position;
+        if (vehicle == null)
+            return false;
+
+        var right = Vector3.ProjectOnPlane(vehicle.transform.right, Vector3.up).normalized;
+        var forward = Vector3.ProjectOnPlane(vehicle.transform.forward, Vector3.up).normalized;
+        if (right.sqrMagnitude < 0.9f || forward.sqrMagnitude < 0.9f)
+            return false;
+
+        var bestDistance = float.PositiveInfinity;
+        var found = false;
+        foreach (var offset in SafeExitOffsets)
+        {
+            var requested = vehicle.transform.position + right * offset.x + forward * offset.y;
+            requested.y = playerRoot.position.y;
+            if (!NavMesh.SamplePosition(
+                    requested,
+                    out var hit,
+                    ExitNavMeshProbeRadius,
+                    NavMesh.AllAreas))
+            {
+                continue;
+            }
+
+            var candidate = hit.position + Vector3.up * ExitGroundOffset;
+            if (!IsExitCapsuleClear(candidate, playerRoot))
+                continue;
+
+            var distance = (candidate - playerRoot.position).sqrMagnitude;
+            if (distance >= bestDistance)
+                continue;
+            bestDistance = distance;
+            safePosition = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool IsExitCapsuleClear(Vector3 position, Transform playerRoot)
+    {
+        var bottom = position + Vector3.up * ExitCapsuleBottom;
+        var top = position + Vector3.up * ExitCapsuleTop;
+        var overlapCount = Physics.OverlapCapsuleNonAlloc(
+            bottom,
+            top,
+            ExitCapsuleRadius,
+            exitOverlapBuffer,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Ignore);
+        for (var index = 0; index < overlapCount; index++)
+        {
+            var collider = exitOverlapBuffer[index];
+            exitOverlapBuffer[index] = null!;
+            if (collider == null || collider.transform.IsChildOf(playerRoot))
+                continue;
+            return false;
+        }
+        return overlapCount < exitOverlapBuffer.Length;
+    }
+
+    private static void PlacePlayerAtSafeExit(
+        Transform playerRoot,
+        IReadOnlyList<NavMeshAgent> agents,
+        Vector3 safePosition)
+    {
+        var characterControllers = playerRoot.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = new bool[characterControllers.Length];
+        for (var index = 0; index < characterControllers.Length; index++)
+        {
+            var controller = characterControllers[index];
+            controllerStates[index] = controller != null && controller.enabled;
+            if (controller != null)
+                controller.enabled = false;
+        }
+
+        var agentStates = new bool[agents.Count];
+        for (var index = 0; index < agents.Count; index++)
+        {
+            var agent = agents[index];
+            agentStates[index] = agent != null && agent.enabled;
+            if (agent != null)
+                agent.enabled = false;
+        }
+
+        try
+        {
+            playerRoot.position = safePosition;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Count; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(safePosition);
+                    agent.ResetPath();
+                }
+            }
+            for (var index = 0; index < characterControllers.Length; index++)
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            Physics.SyncTransforms();
+        }
+    }
+
     private void RemoveDriver()
     {
         if (poseGraph.IsValid())
@@ -417,9 +610,14 @@ internal sealed class BigfootMonsterTruckDriverController : MonoBehaviour
 
     private void OnDisable()
     {
+        StopExitRecovery();
         RemoveDriver();
         occupied = false;
     }
 
-    private void OnDestroy() => RemoveDriver();
+    private void OnDestroy()
+    {
+        StopExitRecovery();
+        RemoveDriver();
+    }
 }

@@ -35,6 +35,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float ParkedContactMaximumDescentSpeed = 0.75f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
+    private const float MaximumClimbableSceneryHeight = 1.15f;
+    private const float MaximumClimbableScenerySpan = 7f;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
@@ -244,13 +246,20 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             var parkedVehicle = otherPlayerVehicle == null && trafficVehicle == null
                 ? FindParkedVehicle(collision.collider)
                 : null;
+            Collider? climbableScenery = null;
+            var sceneryBounds = default(Bounds);
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
-                return;
-            if (otherPlayerVehicle != null
+            {
+                if (!TryGetClimbableScenery(collision.collider, out sceneryBounds))
+                    return;
+                climbableScenery = collision.collider;
+            }
+            if (climbableScenery == null &&
+                (otherPlayerVehicle != null
                     ? IsTooHeavyToClimb(otherPlayerVehicle)
                     : trafficVehicle != null
                         ? IsTooHeavyToClimbIdentity(trafficVehicle.name)
-                        : IsTooHeavyToClimbIdentity(parkedVehicle!.name))
+                        : IsTooHeavyToClimbIdentity(parkedVehicle!.name)))
                 return;
 
             var driveInput = physicsVehicle.input.Vertical;
@@ -288,7 +297,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                     ? otherPlayerVehicle.GetInstanceID()
                     : trafficVehicle != null
                         ? trafficVehicle.GetInstanceID()
-                        : parkedVehicle!.GetInstanceID();
+                        : parkedVehicle != null
+                            ? parkedVehicle.GetInstanceID()
+                            : climbableScenery!.GetInstanceID();
                 var newLatch = Time.unscaledTime > latchedClimbUntil ||
                                latchedClimbVehicleId != otherInstanceId;
                 if (newLatch)
@@ -297,6 +308,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                         worldDriveDirection,
                         Vector3.up).normalized;
                     latchedClimbVehicleId = otherInstanceId;
+                    if (climbableScenery != null)
+                    {
+                        context?.Logger.Info(
+                            $"BigfootMonsterTruck scenery climb vehicle={vehicle.GetInstanceID()}: " +
+                            $"armed on '{climbableScenery.name}' size={sceneryBounds.size:F2}.");
+                    }
                 }
                 latchedClimbUntil = Time.unscaledTime + LatchedClimbDuration;
             }
@@ -304,7 +321,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 ? otherPlayerVehicle.transform.position
                 : trafficVehicle != null
                     ? trafficVehicle.transform.position
-                    : parkedVehicle!.position;
+                    : parkedVehicle != null
+                        ? parkedVehicle.position
+                        : sceneryBounds.center;
             var otherLocal = vehicle.transform.InverseTransformPoint(otherPosition);
             // Once a tire is on the vehicle, keep pulling even after its center passes
             // behind the front axle. Stopping here was what stranded cars beneath the truck.
@@ -458,6 +477,24 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             if (transform.gameObject.layer == parkedVehiclesLayer)
                 return transform;
         return null;
+    }
+
+    private static bool TryGetClimbableScenery(Collider collider, out Bounds bounds)
+    {
+        bounds = default;
+        if (collider == null || collider.isTrigger || collider is TerrainCollider ||
+            collider.attachedRigidbody != null)
+        {
+            return false;
+        }
+
+        bounds = collider.bounds;
+        var span = Mathf.Max(bounds.size.x, bounds.size.z);
+        // This admits low static props (benches, bollards and short wall
+        // segments) while excluding terrain, buildings and long barriers.
+        return bounds.size.y > 0.05f &&
+               bounds.size.y <= MaximumClimbableSceneryHeight &&
+               span <= MaximumClimbableScenerySpan;
     }
 
     private static bool IsHeavyVehicle(VehicleController other)
