@@ -12,7 +12,7 @@ internal static class KoenigseggJeskoAudioModel
     internal const float CrackleIdleVolume = .009f;
     internal const float CrackleLoadVolume = .024f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);
-    internal static float IdleVolume(float drivingBlend) => .40f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
+    internal static float IdleVolume(float drivingBlend) => .45f * (float)Math.Sqrt(1f - Clamp01(drivingBlend));
     internal static float EngineVolume(float throttle) =>
         EngineBaseVolume + EngineThrottleVolume * Clamp01(throttle);
     // Fade the inherited low-speed idle bed out quickly; the synthesized
@@ -26,8 +26,14 @@ internal static class KoenigseggJeskoAudioModel
     internal static float ReferenceHz(int layer) => layer == 0 ? 90f : layer == 1 ? 180f : 360f;
     // Keep the turbocharged V8 in a low, physical register while retaining
     // enough upper harmonics for a supercar character under load.
-    internal static float TargetHz(float normalized) =>
-        (float)(50d * Math.Pow(220d / 50d, Clamp01(normalized)));
+    internal static float TargetHz(float normalized)
+    {
+        var position = Clamp01(normalized);
+        var target = (float)(50d * Math.Pow(220d / 50d, position));
+        var highRpmBlend = Clamp01((position - .68f) / .32f);
+        highRpmBlend = highRpmBlend * highRpmBlend * (3f - 2f * highRpmBlend);
+        return target * (1f - .18f * highRpmBlend);
+    }
     internal static float Pitch(float normalized, int layer) => TargetHz(normalized) / ReferenceHz(layer);
 
     internal static float Weight(float normalized, int layer)

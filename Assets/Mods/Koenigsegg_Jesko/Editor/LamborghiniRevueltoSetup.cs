@@ -597,7 +597,7 @@ public static class KoenigseggJeskoSetup
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
-                $"damageBody=outer-shell-only, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
+                $"damageBody=runtime-end-assembly, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +

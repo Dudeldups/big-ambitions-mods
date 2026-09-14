@@ -8,14 +8,14 @@ using UnityEngine.Rendering;
 
 internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
 {
-    private const string DaylightName = "BODY_mm_lights";
+    private const string DaylightName = "CHASSIS_mm_lights";
     private const string HeadlampName = "HEADLIGHT_LENS_LEFT_mm_lights";
     private const string SecondaryHeadlampName = "HEADLIGHT_LENS_RIGHT_mm_lights";
     private const string RearStripName = "REARBUMPER_mm_lights";
     private const string TailLeftName = "TAILLIGHT_LENS_LEFT_mm_lights";
     private const string TailRightName = "TAILLIGHT_LENS_RIGHT_mm_lights";
-    private const string BrakeLeftName = "BRAKES_LEFT_mm_lights";
-    private const string BrakeRightName = "BRAKES_RIGHT_mm_lights";
+    private const string BrakeLeftName = "TAILLIGHT_LENS_LEFT_mm_lights";
+    private const string BrakeRightName = "TAILLIGHT_LENS_RIGHT_mm_lights";
     private const string ThirdBrakeLightName = "REARBUMPER_mm_lights";
     private const string ReverseLightName = "REARBUMPER_mm_lights";
     private const string LeftBlinkerName = "HEADLIGHT_LENS_LEFT_mm_lights";
@@ -86,23 +86,26 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         secondaryHeadlampOverlay = CreateDirectionalFilteredOverlay(secondaryHeadlamp,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "HeadlampSecondary", new Color(0.84f, 0.92f, 1f, 1f), 3.8f, 1.001f);
-        // The large outer rear signatures are the running lights. The separate
-        // BRAKES_* meshes are the inner brake sections; neither the lower
-        // reflectors nor the rear bumper strip is used for the tail state.
-        rearTailLeftOverlay = CreateDirectionalFilteredOverlay(tailLeft,
-            (center, normal) => normal.z < -0.45f,
+        // Each tail lens is an eight-component mesh: the three broad outer
+        // components are the red running/indicator signature, while the small
+        // inner components are the actual brake elements. Keep the lower
+        // bumper reflectors out of all three states.
+        rearTailLeftOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
+            bounds => bounds.size.x >= 0.20f,
             "RearTailSignatureLeft", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
-        rearTailRightOverlay = CreateDirectionalFilteredOverlay(tailRight,
-            (center, normal) => normal.z < -0.45f,
+        rearTailRightOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
+            bounds => bounds.size.x >= 0.20f,
             "RearTailSignatureRight", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
-        brakeLeftOverlay = CreateDirectionalFilteredOverlay(brakeLeft,
-            (center, normal) => normal.z < -0.45f,
+        brakeLeftOverlay = CreateConnectedComponentFilteredOverlay(brakeLeft,
+            bounds => bounds.size.x >= 0.04f && bounds.size.x < 0.20f,
             "RearBrakeSignatureLeft", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
-        brakeRightOverlay = CreateDirectionalFilteredOverlay(brakeRight,
-            (center, normal) => normal.z < -0.45f,
+        brakeRightOverlay = CreateConnectedComponentFilteredOverlay(brakeRight,
+            bounds => bounds.size.x >= 0.04f && bounds.size.x < 0.20f,
             "RearBrakeSignatureRight", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
-        thirdBrakeOverlay = CreateOverlay(thirdBrake, "ThirdBrakeLight",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f);
+        thirdBrakeOverlay = CreateFilteredOverlay(thirdBrake,
+            center => Mathf.Abs(center.x) < 0.15f && center.y > 0.58f,
+            "ThirdBrakeLight",
+            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
         reverseOverlay = CreateFilteredOverlay(reverseLight,
             center => Mathf.Abs(center.x) < 0.24f && center.y > 0.50f,
             "ReverseLight",
@@ -114,11 +117,11 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         rightBlinkerOverlay = CreateDirectionalFilteredOverlay(rightBlinker,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "RightIndicator", amber, 4.5f, 1.003f);
-        rearLeftBlinkerOverlay = CreateDirectionalFilteredOverlay(tailLeft,
-            (center, normal) => normal.z < -0.45f,
+        rearLeftBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
+            bounds => bounds.size.x >= 0.20f,
             "RearLeftIndicator", amber, 5.2f, 1.005f);
-        rearRightBlinkerOverlay = CreateDirectionalFilteredOverlay(tailRight,
-            (center, normal) => normal.z < -0.45f,
+        rearRightBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
+            bounds => bounds.size.x >= 0.20f,
             "RearRightIndicator", amber, 5.2f, 1.005f);
         var beamCount = ConfigureHeadlightBeams();
 
@@ -234,6 +237,106 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
     {
         return CreateDirectionalFilteredOverlay(source,
             (center, normal) => includeTriangleCenter(center), suffix, color, intensity, scale);
+    }
+
+    private MeshRenderer? CreateConnectedComponentFilteredOverlay(
+        MeshRenderer? source,
+        Func<Bounds, bool> includeComponent,
+        string suffix,
+        Color color,
+        float intensity,
+        float scale)
+    {
+        if (source == null || vehicle == null || source.GetComponent<MeshFilter>()?.sharedMesh == null)
+        {
+            LogWarning($"component-filtered overlay '{suffix}' source is missing.");
+            return null;
+        }
+
+        var sourceMesh = source.GetComponent<MeshFilter>().sharedMesh;
+        var vertices = sourceMesh.vertices;
+        var parents = new int[vertices.Length];
+        for (var index = 0; index < parents.Length; index++)
+            parents[index] = index;
+
+        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
+        {
+            var sourceTriangles = sourceMesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+            {
+                Union(parents, sourceTriangles[index], sourceTriangles[index + 1]);
+                Union(parents, sourceTriangles[index], sourceTriangles[index + 2]);
+            }
+        }
+
+        var componentBounds = new Dictionary<int, Bounds>();
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            var root = FindRoot(parents, index);
+            if (!componentBounds.TryGetValue(root, out var bounds))
+                componentBounds[root] = new Bounds(vertices[index], Vector3.zero);
+            else
+                bounds.Encapsulate(vertices[index]);
+        }
+
+        var selectedRoots = new HashSet<int>();
+        foreach (var pair in componentBounds)
+            if (includeComponent(pair.Value))
+                selectedRoots.Add(pair.Key);
+
+        var triangles = new List<int>();
+        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
+        {
+            var sourceTriangles = sourceMesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+            {
+                if (!selectedRoots.Contains(FindRoot(parents, sourceTriangles[index])))
+                    continue;
+                triangles.Add(sourceTriangles[index]);
+                triangles.Add(sourceTriangles[index + 1]);
+                triangles.Add(sourceTriangles[index + 2]);
+            }
+        }
+
+        if (triangles.Count == 0)
+        {
+            LogWarning($"component-filtered overlay '{suffix}' selected no components.");
+            return null;
+        }
+
+        var mesh = new Mesh
+        {
+            name = sourceMesh.name + "_" + suffix,
+            indexFormat = sourceMesh.indexFormat,
+            vertices = vertices,
+            normals = sourceMesh.normals,
+            tangents = sourceMesh.tangents,
+            colors32 = sourceMesh.colors32,
+            uv = sourceMesh.uv,
+            uv2 = sourceMesh.uv2
+        };
+        mesh.SetTriangles(triangles, 0, true);
+        mesh.RecalculateBounds();
+        generatedMeshes.Add(mesh);
+        return CreateOverlayObject(source, mesh, suffix, color, intensity, scale);
+    }
+
+    private static int FindRoot(int[] parents, int value)
+    {
+        while (parents[value] != value)
+        {
+            parents[value] = parents[parents[value]];
+            value = parents[value];
+        }
+        return value;
+    }
+
+    private static void Union(int[] parents, int left, int right)
+    {
+        var leftRoot = FindRoot(parents, left);
+        var rightRoot = FindRoot(parents, right);
+        if (leftRoot != rightRoot)
+            parents[rightRoot] = leftRoot;
     }
 
     private MeshRenderer? CreateDirectionalFilteredOverlay(MeshRenderer? source,

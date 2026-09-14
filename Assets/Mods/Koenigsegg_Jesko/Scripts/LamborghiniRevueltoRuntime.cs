@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
+using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 {
@@ -80,7 +81,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             new Keyframe(1f, 0.94f));
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
+    private readonly HashSet<int> configurationReadinessWarnings = new HashSet<int>();
     private Coroutine? initializationCoroutine;
+    private Coroutine? enteredVehicleActivationCoroutine;
+    private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -121,6 +125,13 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        configurationReadinessWarnings.Clear();
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        enteredVehicleActivationCoroutine = null;
+        exitedPlayerRecoveryCoroutine = null;
         privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
@@ -152,13 +163,15 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (vehicleCount == cachedPlayerVehicleCount)
             return;
         cachedPlayerVehicleCount = vehicleCount;
-        ConfigureExistingVehicles(out _);
+        ScheduleInitialization("player-vehicle-count-changed");
     }
 
     private void SubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -170,6 +183,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private void UnsubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -194,6 +208,13 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        configurationReadinessWarnings.Clear();
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        enteredVehicleActivationCoroutine = null;
+        exitedPlayerRecoveryCoroutine = null;
         cachedPlayerVehicleCount = -1;
         dealerReadyLogged = false;
         dealerReady = false;
@@ -205,9 +226,194 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
-        TryConfigureVehicle(vehicle);
+        if (IsTargetVehicle(vehicle) && !TryConfigureVehicle(vehicle))
+            ScheduleInitialization("vehicle-entered-fallback");
         vehicle?.GetComponent<KoenigseggJeskoGlassController>()
             ?.RestoreAfterVehicleEntered();
+        if (vehicle == null || !IsTargetVehicle(vehicle))
+            return;
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+        enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
+    }
+
+    private void HandleVehicleExited(VehicleController vehicle)
+    {
+        if (!IsTargetVehicle(vehicle))
+            return;
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
+    }
+
+    private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
+    {
+        const int maximumPasses = 4;
+        yield return null;
+
+        var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
+        var physics = vehicle.GetComponent<PhysicsVehicle>();
+        for (var pass = 0; pass < maximumPasses; pass++)
+        {
+            yield return new WaitForFixedUpdate();
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                continue;
+
+            vehicle.SetFreeze(false);
+            if (physics != null)
+                physics.enabled = true;
+            foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (component != null && string.Equals(
+                        component.GetType().FullName,
+                        "NWH.WheelController3D.WheelController",
+                        StringComparison.Ordinal))
+                {
+                    component.enabled = true;
+                }
+            }
+            if (rigidbody != null)
+            {
+                rigidbody.isKinematic = false;
+                rigidbody.WakeUp();
+            }
+
+            var engine = physics?.powertrain?.engine;
+            var transmission = physics?.powertrain?.transmission;
+            if (engine != null && !engine.IsRunning)
+                engine.StartEngine();
+            if (transmission != null && transmission.Gear == 0)
+                transmission.ShiftInto(1, true);
+        }
+
+        enteredVehicleActivationCoroutine = null;
+        context?.Logger.Info(
+            $"KoenigseggJesko: dealer entry activation completed instance={vehicle!.GetInstanceID()}, " +
+            $"physicsEnabled={physics?.enabled ?? false}, " +
+            $"isKinematic={rigidbody?.isKinematic ?? false}.");
+    }
+
+    private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
+    {
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        var playerRoot = PlayerHelper.PlayerController?.transform;
+        if (playerRoot == null)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var agents = playerRoot.GetComponentsInChildren<NavMeshAgent>(true);
+        var needsRecovery = false;
+        foreach (var agent in agents)
+            needsRecovery |= agent != null && agent.enabled && !agent.isOnNavMesh;
+        needsRecovery |= !IsPlayerExitClear(playerRoot, playerRoot.position);
+        if (!needsRecovery || !TryFindClearExitPosition(playerRoot, exitedVehicle, out var target))
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var characterControllers = playerRoot.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = Array.ConvertAll(
+            characterControllers,
+            controller => controller != null && controller.enabled);
+        var agentStates = Array.ConvertAll(agents, agent => agent != null && agent.enabled);
+        try
+        {
+            foreach (var controller in characterControllers)
+                if (controller != null) controller.enabled = false;
+            foreach (var agent in agents)
+                if (agent != null) agent.enabled = false;
+            playerRoot.position = target;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Length; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(target);
+                    agent.ResetPath();
+                }
+            }
+            for (var index = 0; index < characterControllers.Length; index++)
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            Physics.SyncTransforms();
+        }
+
+        context?.Logger.Info(
+            $"KoenigseggJesko: recovered player after vehicle exit vehicle={exitedVehicle.GetInstanceID()} " +
+            $"position={target}.");
+        exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private static bool TryFindClearExitPosition(
+        Transform playerRoot,
+        VehicleController exitedVehicle,
+        out Vector3 target)
+    {
+        var vehicleTransform = exitedVehicle.transform;
+        var driverMarker = FindChildTransform(vehicleTransform, "Driverside");
+        var passengerMarker = FindChildTransform(vehicleTransform, "Passengerside");
+        var candidates = new List<Vector3>
+        {
+            driverMarker != null ? driverMarker.position : vehicleTransform.position - vehicleTransform.right * 2.05f,
+            passengerMarker != null ? passengerMarker.position : vehicleTransform.position + vehicleTransform.right * 2.05f,
+            vehicleTransform.position - vehicleTransform.forward * 2.35f,
+            vehicleTransform.position + vehicleTransform.forward * 2.35f,
+            vehicleTransform.position - vehicleTransform.right * 2.05f - vehicleTransform.forward * 1.35f,
+            vehicleTransform.position + vehicleTransform.right * 2.05f - vehicleTransform.forward * 1.35f,
+            vehicleTransform.position - vehicleTransform.right * 2.45f + vehicleTransform.forward * 1.15f,
+            vehicleTransform.position + vehicleTransform.right * 2.45f + vehicleTransform.forward * 1.15f,
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!NavMesh.SamplePosition(candidate, out var hit, 1.25f, NavMesh.AllAreas))
+                continue;
+            var sampled = hit.position + Vector3.up * 0.05f;
+            if (!IsPlayerExitClear(playerRoot, sampled))
+                continue;
+            target = sampled;
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private static bool IsPlayerExitClear(Transform playerRoot, Vector3 position)
+    {
+        var overlaps = Physics.OverlapCapsule(
+            position + Vector3.up * 0.42f,
+            position + Vector3.up * 1.55f,
+            0.30f,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+        foreach (var overlap in overlaps)
+        {
+            if (overlap == null || overlap.transform.IsChildOf(playerRoot))
+                continue;
+            return false;
+        }
+        return true;
+    }
+
+    private static Transform? FindChildTransform(Transform root, string name)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+            if (string.Equals(transform.name, name, StringComparison.Ordinal))
+                return transform;
+        return null;
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
@@ -371,6 +577,138 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
     }
 
+    private int ConfigureSleepEnvironment(VehicleController vehicle)
+    {
+        try
+        {
+            var environmentField = typeof(VehicleController).GetField(
+                "sleepEnvironment",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var environment = environmentField?.GetValue(vehicle);
+            if (environmentField == null || environment == null)
+                return 0;
+
+            var configField = environment.GetType().BaseType?.GetField(
+                "config",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (configField == null)
+                return 0;
+            if (configField.GetValue(environment) is UnityEngine.Object currentConfig && currentConfig != null)
+                return 1;
+
+            UnityEngine.Object? carConfig = null;
+            foreach (var otherVehicle in Resources.FindObjectsOfTypeAll<VehicleController>())
+            {
+                if (otherVehicle == null || otherVehicle == vehicle)
+                    continue;
+                var otherEnvironment = environmentField.GetValue(otherVehicle);
+                var candidate = otherEnvironment == null
+                    ? null
+                    : configField.GetValue(otherEnvironment) as UnityEngine.Object;
+                if (candidate != null && IsCarSleepConfig(candidate))
+                {
+                    carConfig = candidate;
+                    break;
+                }
+            }
+
+            if (carConfig == null)
+            {
+                foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+                {
+                    if (candidate != null &&
+                        candidate.GetType().FullName == "PlayerActivity.SleepEnvironmentConfig" &&
+                        IsCarSleepConfig(candidate))
+                    {
+                        carConfig = candidate;
+                        break;
+                    }
+                }
+            }
+
+            carConfig ??= CreateFallbackCarSleepConfig(configField.FieldType);
+            if (carConfig == null)
+            {
+                context?.Logger.Warn(
+                    $"KoenigseggJesko: car sleep configuration unavailable instance={vehicle.GetInstanceID()}.");
+                return 0;
+            }
+
+            configField.SetValue(environment, carConfig);
+            environmentField.SetValue(vehicle, environment);
+            context?.Logger.Info(
+                $"KoenigseggJesko: assigned car sleep configuration instance={vehicle.GetInstanceID()}.");
+            return 1;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"KoenigseggJesko: could not assign car sleep configuration: " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return 0;
+        }
+    }
+
+    private static bool IsCarSleepConfig(UnityEngine.Object candidate)
+    {
+        var typeField = FindField(candidate.GetType(), "sleepEnvironmentType");
+        var typeValue = typeField?.GetValue(candidate);
+        return typeValue != null && Convert.ToInt32(typeValue) == 1;
+    }
+
+    private static UnityEngine.Object? CreateFallbackCarSleepConfig(Type configType)
+    {
+        if (!typeof(ScriptableObject).IsAssignableFrom(configType))
+            return null;
+
+        var config = ScriptableObject.CreateInstance(configType);
+        config.name = "KoenigseggJesko Runtime Car Sleep Config";
+        config.hideFlags = HideFlags.HideAndDontSave;
+        SetEnumField(config, "sleepEnvironmentType", 1);
+        SetEnumField(config, "energyRegen", 3);
+
+        var balanceConfigField = FindField(configType, "balanceConfig");
+        if (balanceConfigField == null ||
+            !typeof(ScriptableObject).IsAssignableFrom(balanceConfigField.FieldType))
+        {
+            Destroy(config);
+            return null;
+        }
+
+        var balance = ScriptableObject.CreateInstance(balanceConfigField.FieldType);
+        balance.name = "KoenigseggJesko Runtime Car Sleep Balance";
+        balance.hideFlags = HideFlags.HideAndDontSave;
+        SetStringField(balance, "displayName", "Car");
+        SetEnumField(balance, "source", 0);
+        SetIntField(balance, "defaultDurationMinutes", 480);
+        SetIntField(balance, "minDurationMinutes", 60);
+        SetIntField(balance, "maxDurationMinutes", 1440);
+        balanceConfigField.SetValue(config, balance);
+        FindField(configType, "luxuryOverrideBalanceConfig")?.SetValue(config, balance);
+        return config;
+    }
+
+    private static void SetEnumField(object target, string fieldName, int value)
+    {
+        var field = FindField(target.GetType(), fieldName);
+        if (field?.FieldType.IsEnum == true)
+            field.SetValue(target, Enum.ToObject(field.FieldType, value));
+    }
+
+    private static void SetIntField(object target, string fieldName, int value)
+    {
+        var field = FindField(target.GetType(), fieldName);
+        if (field?.FieldType == typeof(int))
+            field.SetValue(target, value);
+    }
+
+    private static void SetStringField(object target, string fieldName, string value)
+    {
+        var field = FindField(target.GetType(), fieldName);
+        if (field?.FieldType == typeof(string))
+            field.SetValue(target, value);
+    }
+
     private void ConfigureExistingVehicles(out int matchedCount)
     {
         matchedCount = 0;
@@ -394,7 +732,30 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
     }
 
-    private void TryConfigureVehicle(VehicleController? vehicle)
+    private static bool HasVehicleVisualsReady(GameObject root)
+    {
+        var wheelControllers = 0;
+        var hasDamageBody = false;
+        var hasNormalBody = false;
+        foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null)
+                continue;
+            if (string.Equals(filter.name, "KoenigseggDamageBody", StringComparison.Ordinal))
+                hasDamageBody = true;
+            if (filter.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                filter.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
+                hasNormalBody = true;
+        }
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
+                wheelControllers++;
+        }
+        return wheelControllers >= 4 && hasDamageBody && hasNormalBody;
+    }
+
+    private bool TryConfigureVehicle(VehicleController? vehicle)
     {
         if (vehicle?.vehicleInstance == null ||
             !string.Equals(
@@ -402,15 +763,25 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 vehicleTypeName,
                 StringComparison.Ordinal))
         {
-            return;
+            return false;
         }
 
         var instanceId = vehicle.GetInstanceID();
-        if (!configuredVehicleIds.Add(instanceId))
-            return;
+        if (configuredVehicleIds.Contains(instanceId))
+            return true;
 
         try
         {
+            var sleepConfigured = ConfigureSleepEnvironment(vehicle);
+            if (!HasVehicleVisualsReady(vehicle.gameObject))
+            {
+                if (configurationReadinessWarnings.Add(instanceId))
+                    context?.Logger.Warn(
+                        $"KoenigseggJesko: dealer vehicle instance={instanceId} is still settling; " +
+                        "deferring model-dependent setup until wheels, damage body, and normal shell exist.");
+                return false;
+            }
+
             var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
             if (rigidbody != null)
             {
@@ -429,7 +800,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ConfigureExitMarkers(vehicle.gameObject);
             var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
             var repairedBodyShell = RepairDamageBodyFromMainShell(vehicle.gameObject);
-            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
             if (caliperController == null)
@@ -444,6 +814,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             if (lightingController == null)
                 lightingController = vehicle.gameObject.AddComponent<KoenigseggJeskoLightingController>();
             lightingController.Initialize(vehicle, context);
+            // Capture the lighting overlays as well as the painted shell so
+            // bumper inserts, lamp details, grilles, and aero cannot remain
+            // rigid or float in front of a deformed end section.
+            var deformableBodyMeshes = ConfigureVisualDamage(vehicle);
             var driverController = vehicle.GetComponent<KoenigseggJeskoDriverController>();
             if (driverController == null)
                 driverController = vehicle.gameObject.AddComponent<KoenigseggJeskoDriverController>();
@@ -465,10 +839,24 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             }
             accelerationTelemetry.Initialize(vehicle, context);
 
+            if (wheelPlacements < 12 || !repairedBodyShell || deformableBodyMeshes == 0 ||
+                !powertrainConfigured || sleepConfigured == 0)
+            {
+                context?.Logger.Warn(
+                    $"KoenigseggJesko: vehicle instance={instanceId} setup incomplete; " +
+                    $"sleep={sleepConfigured}, wheels={wheelPlacements}/12, " +
+                    $"bodyShell={repairedBodyShell}, deformable={deformableBodyMeshes}, " +
+                    $"powertrain={powertrainConfigured}. Retrying on the lifecycle pass.");
+                return false;
+            }
+
+            configuredVehicleIds.Add(instanceId);
+
             context?.Logger.Info(
                 $"KoenigseggJesko: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=9-speed-LST, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
+                $"sleepEnvironmentConfigured={sleepConfigured}, " +
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"wheelPlacements={wheelPlacements}/12, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
@@ -490,13 +878,15 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
                 $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
                 $"hdrpValidated={materialResult.MaterialsValidated}.");
+            configurationReadinessWarnings.Remove(instanceId);
+            return true;
         }
         catch (Exception exception)
         {
-            configuredVehicleIds.Remove(instanceId);
             context?.Logger.Warn(
                 $"KoenigseggJesko: vehicle configuration failed instance={instanceId}: " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
         }
     }
 
@@ -803,7 +1193,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 !IsDeformableExterior(filter))
                 continue;
             var renderer = filter.GetComponent<MeshRenderer>();
-            if (renderer != null && renderer.enabled)
+            if (renderer != null &&
+                (renderer.enabled ||
+                 filter.name.StartsWith("KoenigseggJesko_", StringComparison.Ordinal)))
                 filters.Add(filter);
         }
 
@@ -850,42 +1242,58 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static bool IsDeformableExterior(MeshFilter filter)
     {
         var name = filter.name;
+        if (name.StartsWith("KoenigseggDamageBody", StringComparison.Ordinal))
+            return true;
+        if (name.StartsWith("KoenigseggJesko_", StringComparison.Ordinal))
+            return true;
         if (name.IndexOf("_INT_", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("WINDOWS", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("TYRE_mm", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("WHEEL_mm", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("ROTOR_mm", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("BRAKE_CALIPER", StringComparison.OrdinalIgnoreCase) >= 0)
-        {
             return false;
+
+        var renderer = filter.GetComponent<MeshRenderer>();
+        if (renderer == null || !KoenigseggJeskoMaterials.IsKoenigseggRenderer(renderer.transform))
+            return false;
+        foreach (var parent in filter.GetComponentsInParent<Transform>(true))
+        {
+            if (parent.name.StartsWith("KoenigseggWheel", StringComparison.Ordinal) ||
+                parent.name.StartsWith("KoenigseggFixedCaliper", StringComparison.Ordinal))
+                return false;
         }
 
-        return name.StartsWith("KoenigseggDamageBody", StringComparison.Ordinal) ||
-               name.IndexOf("Vehicle_Exterior", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               string.Equals(name, "Hood.075_Body_0", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, "Hood.075_Plastic_0", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, "Logo_Logo_0", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Front_part_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Front_vents", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Headlight_carbon", StringComparison.OrdinalIgnoreCase) ||
+        foreach (var material in renderer.sharedMaterials)
+        {
+            if (material == null)
+                continue;
+            var materialName = material.name;
+            if (materialName.IndexOf("Interior", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                materialName.IndexOf("Seat", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                KoenigseggJeskoMaterials.IsCabinGlassMaterial(material))
+                return false;
+        }
+
+        // Imported end assemblies use generic carbon/plastic materials. Their
+        // world bounds are the reliable ownership signal for the front and
+        // rear deformation zones, including the bumper pieces behind the paint.
+        var vehicle = filter.GetComponentInParent<VehicleController>();
+        if (vehicle != null)
+        {
+            var localCenter = vehicle.transform.InverseTransformPoint(renderer.bounds.center);
+            if (Mathf.Abs(localCenter.z) >= 1.25f)
+                return true;
+        }
+
+        return name.IndexOf("Vehicle_Exterior", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.StartsWith("Daylight_Part_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Daylight_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Mid_part_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Mid_parts_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Rear_part_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Rear_plastic", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Rear_vent", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Rear_engine_carbon", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Exhaust_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Tail_light_Plastic", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Tail_light_", StringComparison.OrdinalIgnoreCase) ||
-               name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.StartsWith("Brake_light_", StringComparison.OrdinalIgnoreCase) ||
-               name.IndexOf("Turning_light", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.StartsWith("Vents_", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, "Mirrors_Body_0", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, "Mirrors_Carbon_0", StringComparison.OrdinalIgnoreCase);
+               name.IndexOf("Tail", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Brake", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Bumper", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Front", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Rear", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Carbon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Plastic", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static void ClearCollection(object target, string fieldName)

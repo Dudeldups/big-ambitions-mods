@@ -35,8 +35,11 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
                         throw new InvalidOperationException($"Caliper pivot '{pivotName}' is missing.");
             var wheel = FindTransform(controller.transform, wheelName) ??
                         throw new InvalidOperationException($"Wheel visual '{wheelName}' is missing.");
-            CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
-            bindings.Add(new CaliperBinding(pivot, wheel));
+            var positionOffset = CenterPivotWithoutMovingGeometry(
+                pivot,
+                wheel,
+                controller.transform);
+            bindings.Add(new CaliperBinding(pivot, wheel, positionOffset));
         }
 
         ApplyBindings();
@@ -77,15 +80,15 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
             }
 
             binding.Pivot.SetPositionAndRotation(
-                binding.Wheel.position,
+                binding.Wheel.position + vehicleTransform.TransformVector(binding.PositionOffset),
                 vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f));
         }
     }
 
-    private static void CenterPivotWithoutMovingGeometry(
+    private static Vector3 CenterPivotWithoutMovingGeometry(
         Transform pivot,
         Transform wheel,
-        Quaternion chassisRotation)
+        Transform chassis)
     {
         var childPositions = new Vector3[pivot.childCount];
         var childRotations = new Quaternion[pivot.childCount];
@@ -95,9 +98,35 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
             childRotations[index] = pivot.GetChild(index).rotation;
         }
 
-        pivot.SetPositionAndRotation(wheel.position, chassisRotation);
+        pivot.SetPositionAndRotation(wheel.position, chassis.rotation);
         for (var index = 0; index < pivot.childCount; index++)
             pivot.GetChild(index).SetPositionAndRotation(childPositions[index], childRotations[index]);
+
+        var boundsFound = false;
+        var bounds = default(Bounds);
+        foreach (var renderer in pivot.GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer == null)
+                continue;
+            if (!boundsFound)
+            {
+                bounds = renderer.bounds;
+                boundsFound = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        if (boundsFound)
+        {
+            var delta = chassis.up * Vector3.Dot(wheel.position - bounds.center, chassis.up) +
+                        chassis.forward * Vector3.Dot(wheel.position - bounds.center, chassis.forward);
+            pivot.position += delta;
+        }
+
+        return chassis.InverseTransformVector(pivot.position - wheel.position);
     }
 
     private static Transform? FindTransform(Transform root, string name)
@@ -112,14 +141,16 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
 
     private sealed class CaliperBinding
     {
-        public CaliperBinding(Transform pivot, Transform wheel)
+        public CaliperBinding(Transform pivot, Transform wheel, Vector3 positionOffset)
         {
             Pivot = pivot;
             Wheel = wheel;
+            PositionOffset = positionOffset;
         }
 
         public Transform Pivot { get; }
         public Transform Wheel { get; }
+        public Vector3 PositionOffset { get; }
     }
 }
 

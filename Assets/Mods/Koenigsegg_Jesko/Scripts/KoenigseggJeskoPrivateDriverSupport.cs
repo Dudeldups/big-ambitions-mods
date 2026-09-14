@@ -302,6 +302,21 @@ internal static class KoenigseggJeskoPrivateDriverSupport
             SetLayerRecursively(visual.transform, clone.layer);
         }
 
+        // The imported prefab contains a separate bonnet-camera duplicate of
+        // the body. It must never be part of the private-driver appearance;
+        // otherwise the AI vehicle can show the same missing/stacked panels as
+        // an early player instance.
+        foreach (var transform in clone.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            transform.gameObject.SetActive(false);
+            foreach (var renderer in transform.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = false;
+        }
+
+        RepairPrivateDriverBodyShell(clone);
+
         KoenigseggJeskoMaterials.FixSolidMaterials(clone);
         var appearance = clone.AddComponent<KoenigseggJeskoPrivateDriverAppearance>();
         appearance.BindWheelVisuals();
@@ -321,6 +336,50 @@ internal static class KoenigseggJeskoPrivateDriverSupport
             "KoenigseggJesko private-driver prefab prepared with body, damage body, " +
             "four wheels, and four fixed calipers.");
         return clone;
+    }
+
+    private static void RepairPrivateDriverBodyShell(GameObject clone)
+    {
+        MeshFilter? damageFilter = null;
+        MeshRenderer? damageRenderer = null;
+        MeshFilter? sourceFilter = null;
+        MeshRenderer? sourceRenderer = null;
+        foreach (var filter in clone.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (string.Equals(filter.name, "KoenigseggDamageBody", StringComparison.Ordinal))
+            {
+                damageFilter = filter;
+                damageRenderer = filter.GetComponent<MeshRenderer>();
+            }
+
+            var renderer = filter.GetComponent<MeshRenderer>();
+            if (renderer != null &&
+                filter.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                filter.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                sourceFilter = filter;
+                sourceRenderer = renderer;
+            }
+        }
+
+        if (damageFilter == null || damageRenderer == null ||
+            sourceFilter == null || sourceRenderer == null || sourceFilter.sharedMesh == null)
+        {
+            context?.Logger.Warn(
+                "KoenigseggJesko private-driver body shell repair skipped: " +
+                "normal BODY_mm_ext source or damage body is missing.");
+            return;
+        }
+
+        var owner = clone.GetComponent<KoenigseggJeskoDamageBodyMeshController>() ??
+                    clone.AddComponent<KoenigseggJeskoDamageBodyMeshController>();
+        owner.Initialize(
+            clone,
+            damageFilter,
+            damageRenderer,
+            sourceFilter,
+            sourceRenderer,
+            context);
     }
 
     private static GameObject? LoadAiTemplate()
