@@ -18,7 +18,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
-    private const float BrakeMaxTorque = 1850f;
+    private const float BrakeMaxTorque = 1620f;
     private const float CenterOfMassHeight = 0.25f;
     private const float DamageIntensity = 0.5f;
     private const float DamageDecelerationThreshold = 200f;
@@ -30,6 +30,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float FuelConsumptionMultiplier = 20f;
     private const float FuelIdleConsumption = 0.045f;
     private const float EngineInertia = 0.2f;
+    private const float SimulationEnginePowerKw = 345f;
     private const float EngineLossPercent = 0.57f;
     private const float ClutchSlipTorque = 780f;
     private const float CenterDifferentialRearBias = 0.60f;
@@ -482,13 +483,12 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             $"AudiRS6R vehicle={vehicleController.GetInstanceID()}: configured exitMarkers={exitMarkerCount}, " +
             $"bodyColliders={bodyColliderCount}, adjustedBodyColliders={adjustedColliderCount}, " +
             $"navMeshObstacles={navMeshObstacleCount}, deformableExteriorMeshes={deformableMeshCount}, " +
-            $"power=544kW, engineLoss={EngineLossPercent:0.00}, rearTorqueBias={CenterDifferentialRearBias:0.00}, " +
+            $"power={SimulationEnginePowerKw:0}kW simulation/544kW rated, engineLoss={EngineLossPercent:0.00}, rearTorqueBias={CenterDifferentialRearBias:0.00}, " +
             $"brakeTorque={BrakeMaxTorque:0}Nm.");
     }
 
     private static void ConfigureAccelerationDynamics(VehicleController vehicleController)
     {
-        var targetEnginePower = vehicleController.vehicleType?.enginePower ?? 0f;
         var targetSpeedLimit = vehicleController.vehicleType?.maxSpeed ?? 0;
 
         foreach (var component in vehicleController.GetComponents<MonoBehaviour>())
@@ -506,8 +506,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
                 var engine = GetMemberValue(powertrain, "engine");
                 if (engine != null)
                 {
-                    if (targetEnginePower > 0f)
-                        TrySetFloatMember(engine, "maxPower", targetEnginePower);
+                    TrySetFloatMember(engine, "maxPower", SimulationEnginePowerKw);
                     TrySetFloatMember(engine, "inertia", EngineInertia);
                     TrySetFloatMember(engine, "engineLossPercent", EngineLossPercent);
                     TrySetMemberValue(engine, "powerCurve", CreateRS6RPowerCurve());
