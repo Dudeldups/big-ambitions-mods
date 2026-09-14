@@ -17,12 +17,12 @@ Avant. Calibration is driven by bounded in-game acceleration and braking runs.
 | 100–0 km/h calibration target | 37.5 m |
 
 The vehicle catalog retains the published 544 kW output. The NWH physics engine
-uses a separate 365 kW simulation value because its engine-loss field did not
+uses a separate 390 kW simulation value because its engine-loss field did not
 change the measured acceleration response. Forced-induction multiplication
 remains disabled to avoid counting turbo boost twice. The remaining calibration
-uses a 40:60 front/rear torque split, 780 Nm clutch limit, 0.45 engine inertia,
-and a bounded 1,790 Nm brake input. These values compensate for the simulation's
-measured 2.72-second 0–100 km/h, 10.43-second 0–200 km/h, and 38.97-metre stop;
+uses a 40:60 front/rear torque split, 780 Nm clutch limit, 0.90 engine inertia,
+and a bounded 1,835 Nm brake input. These values compensate for the simulation's
+measured 2.95-second 0–100 km/h, 10.72-second 0–200 km/h, and 38.27-metre stop;
 they are calibration controls rather than claims about the real car's mechanical
 losses. The temporary rear longitudinal-grip reduction was reverted after
 telemetry confirmed that the launch produced no measurable tire slip.
