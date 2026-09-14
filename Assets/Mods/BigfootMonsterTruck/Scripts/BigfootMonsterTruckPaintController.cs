@@ -35,6 +35,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
     private bool hasAppliedColor;
+    private bool unresolvedSavedColorLogged;
     private bool configured;
     private bool failed;
     private int attempts;
@@ -51,8 +52,11 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         if (!configured)
             return false;
 
-        return ApplySelectedColor(source, force);
+        return ApplySelectedColor(source, force, false);
     }
+
+    internal bool RefreshPreviewColor() =>
+        configured && ApplySelectedColor("repaint-preview", false, true);
 
     private void Update()
     {
@@ -139,17 +143,20 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             bodyRenderer.sharedMaterials = materials;
         ConfigurePaintedPillars();
         configured = true;
-        ApplySelectedColor("initialization", true);
+        ApplySelectedColor("initialization", true, false);
         return true;
     }
 
-    private bool ApplySelectedColor(string source, bool force = false)
+    private bool ApplySelectedColor(
+        string source,
+        bool force,
+        bool preferLiveColor)
     {
         if (bodyRenderer == null || paintMaterial == null || sourceTexture == null ||
             sourcePixels == null)
             return false;
 
-        var selected = ResolveSavedVehicleColor();
+        var selected = ResolveVehicleColor(preferLiveColor);
         if (selected == null)
         {
             Warn($"saved vehicle color was unavailable source='{source}'.");
@@ -211,8 +218,12 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         }
     }
 
-    private VehicleColor? ResolveSavedVehicleColor()
+    private VehicleColor? ResolveVehicleColor(bool preferLiveColor)
     {
+        var live = vehicle?.CarFeatures?.VehicleColor;
+        if (preferLiveColor && live != null)
+            return live;
+
         // On a cold load, CarFeatures can still contain the prefab's black
         // fallback until the player enters the truck. The serialized instance
         // name is the durable repaint value and must win during restoration.
@@ -221,7 +232,14 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             VehicleHelper.TryGetVehicleColor(colorName, out var saved))
             return saved;
 
-        return vehicle?.CarFeatures?.VehicleColor;
+        if (!string.IsNullOrEmpty(colorName) && !unresolvedSavedColorLogged)
+        {
+            unresolvedSavedColorLogged = true;
+            Warn($"saved color name '{colorName}' could not be resolved; " +
+                 "falling back to the runtime color.");
+        }
+
+        return live;
     }
 
     private static Color32[] ReadSourcePixels(Texture2D source)

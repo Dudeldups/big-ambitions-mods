@@ -5,6 +5,7 @@ using System.Reflection;
 using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
+using UI.PurchaseVehicle;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -42,6 +43,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     private string vehicleTypeName = string.Empty;
     private Coroutine? initializationCoroutine;
     private int observedPlayerVehicleCount = -1;
+    private VehicleController? previewVehicle;
+    private BigfootMonsterTruckPaintController? previewPaintController;
 
     public static BigfootMonsterTruckRuntime Initialize(ModContext context, string vehicleTypeName)
     {
@@ -92,22 +95,26 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         foreach (var paintController in FindObjectsOfType<BigfootMonsterTruckPaintController>(true))
             if (paintController != null)
                 Destroy(paintController);
+        previewVehicle = null;
+        previewPaintController = null;
         Destroy(gameObject);
     }
 
     private void Update()
     {
         var currentCount = VehicleHelper.AllPlayerVehicles?.Count ?? 0;
-        if (currentCount == observedPlayerVehicleCount)
-            return;
-
-        var configured = ConfigureExistingVehicles();
-        if (configured > 0 && BigfootMonsterTruckDebug.VehicleDiscoveryEnabled)
+        if (currentCount != observedPlayerVehicleCount)
         {
-            context?.Logger.Info(
-                $"BigfootMonsterTruck: player vehicle list changed count={currentCount}, " +
-                $"configured={configured}.");
+            var configured = ConfigureExistingVehicles();
+            if (configured > 0 && BigfootMonsterTruckDebug.VehicleDiscoveryEnabled)
+            {
+                context?.Logger.Info(
+                    $"BigfootMonsterTruck: player vehicle list changed count={currentCount}, " +
+                    $"configured={configured}.");
+            }
         }
+
+        RefreshPaintPreview();
     }
 
     private void OnEnable()
@@ -125,6 +132,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
@@ -143,6 +152,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onNewHour -= HandleNewHour;
@@ -166,10 +176,13 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private void HandleGameUnloaded()
     {
-        if (initializationCoroutine == null)
-            return;
-        StopCoroutine(initializationCoroutine);
-        initializationCoroutine = null;
+        if (initializationCoroutine != null)
+        {
+            StopCoroutine(initializationCoroutine);
+            initializationCoroutine = null;
+        }
+        previewVehicle = null;
+        previewPaintController = null;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -221,6 +234,42 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             if (IsTargetVehicle(vehicle))
                 vehicle!.GetComponent<BigfootMonsterTruckPaintController>()
                     ?.RefreshSavedColor("vehicle-variables-changed");
+    }
+
+    private void RefreshPaintPreview()
+    {
+        if (!PurchaseVehicleUI.IsPanelOpen)
+        {
+            previewPaintController?.RefreshSavedColor("repaint-preview-closed");
+            previewVehicle = null;
+            previewPaintController = null;
+            return;
+        }
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!ReferenceEquals(selectedVehicle, previewVehicle))
+        {
+            previewVehicle = selectedVehicle;
+            previewPaintController = IsTargetVehicle(selectedVehicle)
+                ? selectedVehicle!.GetComponent<BigfootMonsterTruckPaintController>()
+                : null;
+        }
+
+        previewPaintController?.RefreshPreviewColor();
+    }
+
+    private void HandleGameEvent(string _)
+    {
+        if (!PurchaseVehicleUI.IsPanelOpen)
+            return;
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        selectedVehicle!
+            .GetComponent<BigfootMonsterTruckPaintController>()
+            ?.RefreshPreviewColor();
     }
 
     private void ScheduleInitialization(string source)
