@@ -67,14 +67,15 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.clip == null || native.outputAudioMixerGroup == null || context == null)
+        if (physics == null || context == null)
             return false;
-        originalDistortion = engineSound!.maxDistortion;
+        originalDistortion = engineSound?.maxDistortion ?? 0f;
         audioHost = new GameObject("Porsche911GT3RS_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
-        audioHost.transform.position = native.transform.position;
-        // Borrow the original Car clip without processing or taking ownership.
-        idleSource = CreateSource(audioHost, native.clip, true);
+        audioHost.transform.position = EnginePosition();
+        // Prefer the game's native idle loop, but use our own low-RPM layer when
+        // a spawned vehicle does not receive a native engine AudioSource.
+        idleSource = CreateSource(audioHost, native?.clip ?? LoadClip("EngineLow"), true);
         layers = new AudioSource[6];
         for (var i = 0; i < EngineNames.Length; i++)
         {
@@ -90,11 +91,10 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
         ConfigureCrackleFilters(exhaustHost);
         var hornHost = new GameObject("Porsche911GT3RS_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
-        var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
-        if (otherSource == null || otherSource.outputAudioMixerGroup == null) otherSource = native;
+        var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>() ?? native;
         hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, otherSource);
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
-        engineSound.maxDistortion = 0f;
+        if (engineSound != null) engineSound.maxDistortion = 0f;
         configured = true;
         Porsche911GT3RSDiagnostics.Info(
             context,
@@ -103,7 +103,8 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
             $"{Porsche911GT3RSAudioModel.EngineBaseVolume + Porsche911GT3RSAudioModel.EngineThrottleVolume:0.00}, " +
             $"hornVoices=low/high@{Porsche911GT3RSAudioModel.HornLowVolume:0.00}/" +
             $"{Porsche911GT3RSAudioModel.HornHighVolume:0.00}, " +
-            $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
+            $"source={(native != null ? "native" : "fallback")}, " +
+            $"sourceDistance={idleSource.minDistance:0.0}..{idleSource.maxDistance:0.0}, " +
             "exhaust=continuous-subtle-crackle.");
         return true;
     }
@@ -129,29 +130,49 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
 
     private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource? template = null)
     {
-        template ??= native!;
+        template ??= native;
         var source = host.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = loop;
         source.clip = clip;
         source.volume = 0f;
-        source.outputAudioMixerGroup = template.outputAudioMixerGroup;
-        source.spatialBlend = template.spatialBlend;
-        source.minDistance = template.minDistance;
-        source.maxDistance = template.maxDistance;
-        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
-        source.rolloffMode = template.rolloffMode;
+        if (template != null)
+        {
+            source.outputAudioMixerGroup = template.outputAudioMixerGroup;
+            source.spatialBlend = template.spatialBlend;
+            source.minDistance = template.minDistance;
+            source.maxDistance = template.maxDistance;
+            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+            source.rolloffMode = template.rolloffMode;
+            source.priority = template.priority;
+        }
+        else
+        {
+            // Dealer and private-driver spawns can lack the game's native engine
+            // voice. Keep the custom layers audible and spatial in that case.
+            source.spatialBlend = 1f;
+            source.minDistance = 4f;
+            source.maxDistance = 50f;
+            source.rolloffMode = AudioRolloffMode.Logarithmic;
+            source.priority = 128;
+        }
         source.dopplerLevel = 0f;
-        source.priority = template.priority;
         return source;
+    }
+
+    private Vector3 EnginePosition()
+    {
+        return native != null
+            ? native.transform.position
+            : vehicle!.transform.TransformPoint(new Vector3(0f, .45f, -.8f));
     }
 
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
+        if (physics == null || layers == null || audioHost == null || crackleSource == null ||
             hornSource == null || hornSupportSource == null || idleSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
-        audioHost.transform.position = native.transform.position;
+        audioHost.transform.position = EnginePosition();
         var exhaust = physics.soundManager.exhaustSourceGO;
         crackleSource.transform.position = exhaust != null ? exhaust.transform.position :
             vehicle!.transform.TransformPoint(new Vector3(0f, .4f, -2f));
@@ -172,7 +193,7 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
             if (shouldPause) StopLayers();
             paused = shouldPause;
         }
-        if (controlled)
+        if (controlled && native != null)
         {
             if (!ownsMute) { savedMute = native.mute; ownsMute = true; }
             native.mute = true;
