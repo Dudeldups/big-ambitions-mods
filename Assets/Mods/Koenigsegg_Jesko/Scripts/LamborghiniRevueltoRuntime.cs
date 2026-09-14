@@ -68,10 +68,19 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
+    private GameObject? playerVehiclePrefab;
+    private int cachedPlayerVehicleCount = -1;
     private bool dealerReadyLogged;
     private bool dealerReady;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
 
-    public static KoenigseggJeskoRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static KoenigseggJeskoRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<KoenigseggJeskoRuntime>();
         if (runtime == null)
@@ -83,6 +92,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
+        KoenigseggJeskoPrivateDriverSupport.SetContext(context);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -98,6 +109,12 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
+        KoenigseggJeskoPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         Destroy(gameObject);
     }
 
@@ -112,6 +129,18 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+    }
+
+    private void Update()
+    {
+        // Dealer purchases do not raise onEnterVehicle. Keep the hot path to
+        // one count comparison and enumerate only after the collection changes.
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var vehicleCount = vehicles?.Count ?? 0;
+        if (vehicleCount == cachedPlayerVehicleCount)
+            return;
+        cachedPlayerVehicleCount = vehicleCount;
+        ConfigureExistingVehicles(out _);
     }
 
     private void SubscribeEvents()
@@ -146,6 +175,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
     }
 
@@ -158,8 +188,13 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
+        cachedPlayerVehicleCount = -1;
         dealerReadyLogged = false;
         dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -336,6 +371,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     {
         if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
+        if (isOpen && privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void ScheduleInitialization(string source)
@@ -353,18 +391,24 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                EnsurePrivateDriverSupport(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady && privateDriverPoolReady &&
+                                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -376,6 +420,65 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"KoenigseggJesko: luxury dealer stock not ready source='{source}', " +
                 $"matchedVehicles={maximumMatchedCount}.");
+        }
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+            context?.Logger.Warn(
+                $"KoenigseggJesko: private-driver contracts not ready source='{source}'.");
+        if (!privateDriverPoolReady)
+            context?.Logger.Warn(
+                $"KoenigseggJesko: private-driver traffic pool not ready source='{source}'.");
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverReady && privateDriverPoolReady)
+            return true;
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+            if (!privateDriverReady)
+            {
+                privateDriverReady =
+                    KoenigseggJeskoPrivateDriverSupport.EnsureVehicleAvailable(
+                        vehicleTypeName);
+            }
+            if (privateDriverReady)
+                context?.Logger.Info(
+                    $"KoenigseggJesko: private-driver support registered source='{source}'.");
+            return privateDriverReady && privateDriverPoolReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"KoenigseggJesko: private-driver registration failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+        try
+        {
+            return KoenigseggJeskoPrivateDriverSupport.PrepareTrafficPool(
+                playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                privateDriverPreparationExceptionLogged = true;
+                context?.Logger.Warn(
+                    $"KoenigseggJesko: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+            }
+            return false;
         }
     }
 

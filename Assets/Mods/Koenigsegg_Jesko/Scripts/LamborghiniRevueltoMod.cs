@@ -21,6 +21,8 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
     private const string BundleKey = "AssetBundles/koenigseggjesko.unity3d";
     private const string VehicleAssetPath =
         "Assets/Mods/Koenigsegg_Jesko/KoenigseggJesko.asset";
+    private const string VehiclePrefabPath =
+        "Assets/Mods/Koenigsegg_Jesko/KoenigseggJesko.prefab";
 
     private VehicleType? vehicleType;
     private KoenigseggJeskoRuntime? runtime;
@@ -44,12 +46,23 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<UnityEngine.GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn(
+                $"KoenigseggJesko: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            return Task.CompletedTask;
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
         context.Logger.Info(
             $"KoenigseggJesko: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}.");
-        runtime = KoenigseggJeskoRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = KoenigseggJeskoRuntime.Initialize(
+            context,
+            vehicleType.vehicleTypeName,
+            vehiclePrefab);
         return Task.CompletedTask;
     }
 

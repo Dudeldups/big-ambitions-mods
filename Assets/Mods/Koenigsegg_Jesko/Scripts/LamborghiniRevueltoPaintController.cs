@@ -19,6 +19,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private VehicleController? vehicle;
     private ModContext? context;
+    private string? explicitVehicleColorName;
+    private VehicleColor? explicitVehicleColor;
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
     private bool hasAppliedTint;
@@ -30,6 +32,22 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         FindPaintSlots();
         ApplyCurrentColor();
     }
+
+    internal void InitializeForPrivateDriver(
+        string? vehicleColorName,
+        VehicleColor? vehicleColor)
+    {
+        vehicle = null;
+        context = null;
+        explicitVehicleColorName = vehicleColorName;
+        explicitVehicleColor = vehicleColor;
+        appliedColor = null;
+        hasAppliedTint = false;
+        FindPaintSlots();
+        ApplyCurrentColor();
+    }
+
+    internal bool HasAppliedColor => hasAppliedTint;
 
     private void LateUpdate()
     {
@@ -125,6 +143,11 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
 
     private VehicleColor? ResolveVehicleColor()
     {
+        if (explicitVehicleColor != null &&
+            (string.IsNullOrEmpty(explicitVehicleColorName) ||
+             string.Equals(explicitVehicleColor.name, explicitVehicleColorName,
+                 StringComparison.Ordinal)))
+            return explicitVehicleColor;
         var live = vehicle?.CarFeatures?.VehicleColor;
         if (live != null)
             return live;

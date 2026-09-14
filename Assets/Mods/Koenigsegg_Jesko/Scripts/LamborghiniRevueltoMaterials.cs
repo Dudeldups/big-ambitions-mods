@@ -57,6 +57,17 @@ public static class KoenigseggJeskoMaterials
 
     public static KoenigseggJeskoMaterialFixResult FixSolidMaterials(GameObject vehicle)
     {
+        // Runtime material repair changes shader state and finish properties. Keep
+        // those changes on instance-owned materials so one Jesko cannot repaint or
+        // reconfigure another spawned Jesko (or the imported bundle asset).
+        if (Application.isPlaying)
+        {
+            var instanceController = vehicle.GetComponent<KoenigseggJeskoMaterialController>();
+            if (instanceController == null)
+                instanceController = vehicle.AddComponent<KoenigseggJeskoMaterialController>();
+            instanceController.Initialize();
+        }
+
         var canonicalRimMaterial = FindCanonicalRimMaterial(vehicle);
         var materials = new HashSet<Material>();
         var rendererCount = 0;
@@ -519,5 +530,59 @@ public static class KoenigseggJeskoMaterials
         }
 
         return cachedMethod;
+    }
+}
+
+[AddComponentMenu("")]
+public sealed class KoenigseggJeskoMaterialController : MonoBehaviour
+{
+    private readonly List<Material> ownedMaterials = new List<Material>();
+    private bool initialized;
+
+    internal void Initialize()
+    {
+        if (initialized)
+            return;
+
+        initialized = true;
+        var clones = new Dictionary<Material, Material>();
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            if (!KoenigseggJeskoMaterials.IsKoenigseggRenderer(renderer.transform))
+                continue;
+
+            var materials = renderer.sharedMaterials;
+            var changed = false;
+            for (var index = 0; index < materials.Length; index++)
+            {
+                var source = materials[index];
+                if (source == null)
+                    continue;
+
+                if (!clones.TryGetValue(source, out var runtimeMaterial))
+                {
+                    runtimeMaterial = Instantiate(source);
+                    runtimeMaterial.name = source.name + "_KoenigseggInstance";
+                    clones.Add(source, runtimeMaterial);
+                    ownedMaterials.Add(runtimeMaterial);
+                }
+
+                materials[index] = runtimeMaterial;
+                changed = true;
+            }
+
+            if (changed)
+                renderer.sharedMaterials = materials;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var material in ownedMaterials)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        ownedMaterials.Clear();
     }
 }
