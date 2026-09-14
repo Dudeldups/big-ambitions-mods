@@ -740,7 +740,7 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
             direction = Vector3.forward;
 
         var obstacleHeight = Mathf.Clamp(obstacleBounds.size.y, 0.08f, MaximumBridgeHeight);
-        var rampRun = Mathf.Clamp(1.1f + obstacleHeight * 0.75f, 1.35f, 2.15f);
+        var rampRun = Mathf.Clamp(1.85f + obstacleHeight * 0.95f, 2.10f, 2.65f);
         var bridgeWidth = Mathf.Clamp(
             Mathf.Max(2.95f, Mathf.Min(obstacleBounds.size.x, obstacleBounds.size.z) + 0.6f),
             2.95f,
@@ -757,7 +757,17 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
         var mesh = CreateBridgeMesh(bridgeWidth * 0.5f, rampRun, obstacleHeight);
         var collider = bridgeObject.AddComponent<MeshCollider>();
         collider.sharedMesh = mesh;
-        return new BridgeSurface(bridgeObject, mesh);
+        var gripMaterial = new PhysicMaterial("Bigfoot scenery bridge grip")
+        {
+            dynamicFriction = 1.25f,
+            staticFriction = 1.4f,
+            frictionCombine = PhysicMaterialCombine.Maximum,
+            bounciness = 0f,
+            bounceCombine = PhysicMaterialCombine.Minimum,
+            hideFlags = HideFlags.DontSave,
+        };
+        collider.sharedMaterial = gripMaterial;
+        return new BridgeSurface(bridgeObject, mesh, gripMaterial);
     }
 
     private void ReleaseBridge(int obstacleId)
@@ -796,12 +806,12 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
         var points = new[]
         {
             new Vector3(-halfWidth, 0f, -rampRun),
-            new Vector3(-halfWidth, height, -0.22f),
-            new Vector3(-halfWidth, height, 0.22f),
+            new Vector3(-halfWidth, height, -0.60f),
+            new Vector3(-halfWidth, height, 0.60f),
             new Vector3(-halfWidth, 0f, rampRun),
             new Vector3(halfWidth, 0f, -rampRun),
-            new Vector3(halfWidth, height, -0.22f),
-            new Vector3(halfWidth, height, 0.22f),
+            new Vector3(halfWidth, height, -0.60f),
+            new Vector3(halfWidth, height, 0.60f),
             new Vector3(halfWidth, 0f, rampRun),
         };
         mesh.vertices = points;
@@ -836,11 +846,16 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
         internal float ActiveUntil;
         private GameObject? bridgeObject;
         private Mesh? mesh;
+        private PhysicMaterial? gripMaterial;
 
-        internal BridgeSurface(GameObject gameObject, Mesh bridgeMesh)
+        internal BridgeSurface(
+            GameObject gameObject,
+            Mesh bridgeMesh,
+            PhysicMaterial bridgeGripMaterial)
         {
             bridgeObject = gameObject;
             mesh = bridgeMesh;
+            gripMaterial = bridgeGripMaterial;
         }
 
         internal void Dispose()
@@ -849,8 +864,11 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
                 Destroy(bridgeObject);
             if (mesh != null)
                 Destroy(mesh);
+            if (gripMaterial != null)
+                Destroy(gripMaterial);
             bridgeObject = null;
             mesh = null;
+            gripMaterial = null;
         }
     }
 
