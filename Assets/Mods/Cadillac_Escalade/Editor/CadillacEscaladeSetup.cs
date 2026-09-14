@@ -176,6 +176,7 @@ public static class CadillacEscaladeSetup
             var speed = ReadNumber(serialized.FindProperty("maxSpeed"));
             var power = ReadNumber(serialized.FindProperty("enginePower"));
             var fitsHandTruck = serialized.FindProperty("fitsHandTruck");
+            var fitsFlatbed = serialized.FindProperty("fitsFlatbed");
             if (Math.Abs(price - PeriodMsrp) > 0.5f) issues.Add($"price={price}");
             if (Math.Abs(fuel - FuelCapacityLitres) > 0.5f) issues.Add($"fuel={fuel}");
             if (Math.Abs(cargo - 24f) > 0.5f) issues.Add($"cargo={cargo}");
@@ -185,6 +186,11 @@ public static class CadillacEscaladeSetup
                 !fitsHandTruck.boolValue)
             {
                 issues.Add("fitsHandTruck=false");
+            }
+            if (fitsFlatbed?.propertyType != SerializedPropertyType.Boolean ||
+                !fitsFlatbed.boolValue)
+            {
+                issues.Add("fitsFlatbed=false");
             }
 
             if (!TryGetCadillacRendererBounds(prefab.transform, out var bounds))
@@ -492,7 +498,7 @@ public static class CadillacEscaladeSetup
         SetBool(serialized, "isATruck", false);
         SetBool(serialized, "isHandVehicle", false);
         SetBool(serialized, "fitsHandTruck", true);
-        SetBool(serialized, "fitsFlatbed", false);
+        SetBool(serialized, "fitsFlatbed", true);
         SetBool(serialized, "autoParkSupported", true);
         SetBool(serialized, "hasRadio", true);
         SetBool(serialized, "isLuxuryCar", true);
