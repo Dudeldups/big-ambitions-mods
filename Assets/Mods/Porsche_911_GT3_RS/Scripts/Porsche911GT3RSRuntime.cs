@@ -87,6 +87,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? enteredVehicleActivationCoroutine;
+    private int enteredVehicleActivationInstanceId;
     private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
@@ -130,6 +131,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
@@ -208,6 +210,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (!IsTargetVehicle(selectedVehicle))
             return;
 
+        // Dealer purchases do not reliably invoke onEnterVehicle. This event
+        // is a bounded lifecycle handoff from the dealer display vehicle to
+        // the owned, player-controlled instance, so configure it here rather
+        // than scanning vehicles every frame.
+        TryConfigureVehicle(selectedVehicle);
         selectedVehicle!
             .GetComponent<Porsche911GT3RSPaintController>()
             ?.ApplyCurrentColor("game-event");
@@ -245,6 +252,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
@@ -267,9 +275,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             return;
         vehicle.GetComponent<Porsche911GT3RSPaintController>()
             ?.ApplyCurrentColor("vehicle-entered");
-        if (enteredVehicleActivationCoroutine != null)
-            StopCoroutine(enteredVehicleActivationCoroutine);
-        enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
+        ScheduleEnteredVehicleActivation(vehicle);
     }
 
     private void HandleVehicleExited(VehicleController vehicle)
@@ -279,6 +285,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
@@ -401,6 +408,25 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             vehicleTypeName,
             StringComparison.Ordinal);
 
+    private void ScheduleEnteredVehicleActivation(VehicleController vehicle)
+    {
+        if (!vehicle.controlledByPlayer)
+            return;
+
+        var instanceId = vehicle.GetInstanceID();
+        if (enteredVehicleActivationCoroutine != null &&
+            enteredVehicleActivationInstanceId == instanceId)
+        {
+            return;
+        }
+
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+
+        enteredVehicleActivationInstanceId = instanceId;
+        enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
+    }
+
     private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
     {
         const int maximumPasses = 4;
@@ -462,6 +488,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         }
 
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         if (vehicle == null)
             yield break;
 
@@ -838,6 +865,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         {
             vehicle.GetComponent<Porsche911GT3RSPaintController>()
                 ?.ApplyCurrentColor("vehicle-variables-changed");
+            ScheduleEnteredVehicleActivation(vehicle);
             return;
         }
 
@@ -878,6 +906,13 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ConfigureBodyColliders(
                 vehicle.gameObject,
                 contactMaterialOwner.GetOrCreateMaterial());
+            var warehouseEntry = vehicle.GetComponent<Porsche911GT3RSWarehouseEntryController>();
+            if (warehouseEntry == null)
+            {
+                warehouseEntry = vehicle.gameObject
+                    .AddComponent<Porsche911GT3RSWarehouseEntryController>();
+            }
+            warehouseEntry.Initialize(vehicle);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<Porsche911GT3RSCaliperController>();
             if (caliperController == null)
@@ -932,6 +967,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
                 $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
                 $"hdrpValidated={materialResult.MaterialsValidated}.");
+            ScheduleEnteredVehicleActivation(vehicle);
         }
         catch (Exception exception)
         {

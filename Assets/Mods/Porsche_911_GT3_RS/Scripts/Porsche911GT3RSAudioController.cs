@@ -10,7 +10,9 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
 {
-    private const float DirectFallbackMixGain = .38f;
+    // Manual spawns can miss the game's mixer-routed engine source. Keep the
+    // unmixed fallback quiet enough to match the dealer vehicle's mixer gain.
+    private const float DirectFallbackMixGain = .16f;
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new List<AudioClip>();
     private VehicleController? vehicle;
