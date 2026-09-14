@@ -871,8 +871,6 @@ internal sealed class AudiRS6RLightingController : MonoBehaviour
             }
 
             binding.Overlay.vertices = sourceMesh.vertices;
-            binding.Overlay.normals = sourceMesh.normals;
-            binding.Overlay.tangents = sourceMesh.tangents;
             binding.Overlay.RecalculateBounds();
         }
     }

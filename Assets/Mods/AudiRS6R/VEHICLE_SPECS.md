@@ -1,7 +1,7 @@
 # Audi RS6-R vehicle targets
 
 The prefab and runtime tune target the ABT RS6-R based on the C8 Audi RS 6
-Avant. The existing driving tune is retained in this update.
+Avant. Calibration is driven by bounded in-game acceleration and braking runs.
 
 | Item | Target |
 | --- | ---: |
@@ -18,9 +18,11 @@ Avant. The existing driving tune is retained in this update.
 
 The vehicle controller represents the published 544 kW output directly in its
 power curve. Its separate forced-induction multiplier therefore remains
-disabled to avoid counting turbo boost twice. The drivetrain tune uses a 16%
-loss target, 40:60 front/rear torque split, and a bounded 3,500 Nm brake input;
-the previous 18,000 Nm brake input was excessive for this physics model.
+disabled to avoid counting turbo boost twice. The game-physics calibration uses
+a 45% engine-output loss, 40:60 front/rear torque split, 780 Nm clutch limit,
+and a bounded 2,200 Nm brake input. These values compensate for the simulation's
+measured 1.8-second 0–100 km/h launch and 24-metre stop; they are calibration
+controls rather than claims about the real car's mechanical losses.
 
 Primary references:
 

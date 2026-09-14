@@ -18,7 +18,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
-    private const float BrakeMaxTorque = 3500f;
+    private const float BrakeMaxTorque = 2200f;
     private const float CenterOfMassHeight = 0.25f;
     private const float DamageIntensity = 0.5f;
     private const float DamageDecelerationThreshold = 200f;
@@ -30,8 +30,8 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float FuelConsumptionMultiplier = 20f;
     private const float FuelIdleConsumption = 0.045f;
     private const float EngineInertia = 0.2f;
-    private const float EngineLossPercent = 0.16f;
-    private const float ClutchSlipTorque = 1250f;
+    private const float EngineLossPercent = 0.45f;
+    private const float ClutchSlipTorque = 780f;
     private const float CenterDifferentialRearBias = 0.60f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
@@ -1470,6 +1470,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
     private float impactThresholdMps;
     private float nextCollisionTime;
     private float previousDamage;
+    private Coroutine? numericalDamageCheck;
     private bool initialized;
     private bool failureReported;
 
@@ -1554,6 +1555,8 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
         {
             var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
             nextCollisionTime = Time.unscaledTime + CollisionCooldown;
+            var damageBeforeImpact = CurrentNumericalDamage();
+            var expectedDamage = CalculateNativeEquivalentDamage(collision);
             var contacts = collision.contacts;
             if (contacts.Length == 0)
                 return;
@@ -1728,6 +1731,11 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                     $"maxDisplacement={maximumDisplacement:0.000}m, processing={elapsedMilliseconds:0.0}ms, " +
                     $"targets=[{string.Join(",", changedMeshNames)}].");
             }
+
+            if (numericalDamageCheck != null)
+                StopCoroutine(numericalDamageCheck);
+            numericalDamageCheck = StartCoroutine(
+                EnsureNumericalDamageAfterCollision(damageBeforeImpact, expectedDamage, region));
         }
         catch (Exception exception)
         {
@@ -1738,6 +1746,62 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                 $"AudiRS6R damage vehicle={vehicle?.GetInstanceID()}: inward deformation failed " +
                 $"with {exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    private float CurrentNumericalDamage()
+    {
+        var physicsDamage = damageHandler?.Damage ?? 0f;
+        var savedDamage = vehicle?.vehicleInstance?.damage ?? 0f;
+        return Mathf.Max(physicsDamage, savedDamage);
+    }
+
+    private float CalculateNativeEquivalentDamage(Collision collision)
+    {
+        if (body == null || damageHandler == null)
+            return 0f;
+
+        var fixedDeltaTime = Mathf.Max(Time.fixedDeltaTime, 0.001f);
+        var mass = Mathf.Max(body.mass, 1f);
+        var intensity = Mathf.Clamp(damageHandler.damageIntensity, 0f, 0.99f);
+        return collision.impulse.magnitude /
+               (fixedDeltaTime * mass * 10f) *
+               intensity *
+               0.005f;
+    }
+
+    private IEnumerator EnsureNumericalDamageAfterCollision(
+        float damageBeforeImpact,
+        float expectedDamage,
+        string region)
+    {
+        // Let the native NWH and game save-damage handlers finish first. The
+        // fallback only runs when a valid non-road impact produced no increase.
+        yield return null;
+        numericalDamageCheck = null;
+
+        var damageAfterNativeHandlers = CurrentNumericalDamage();
+        if (damageAfterNativeHandlers > damageBeforeImpact + 0.0001f ||
+            expectedDamage <= 0.0001f ||
+            vehicle?.vehicleInstance == null)
+        {
+            yield break;
+        }
+
+        var targetDamage = Mathf.Clamp01(damageBeforeImpact + expectedDamage);
+        if (vehicle is CarController carController)
+            carController.SetDamage(targetDamage);
+        else
+        {
+            vehicle.vehicleInstance.damage = targetDamage;
+            damageHandler?.SetDamage(targetDamage);
+        }
+
+        SaveGameManager.MarkChange();
+        GlobalEvents.onVehicleVariablesChanged?.Invoke();
+        context?.Logger.Info(
+            $"AudiRS6R damage vehicle={vehicle.GetInstanceID()}: restored missing numerical " +
+            $"damage region={region}, before={damageBeforeImpact:0.000}, " +
+            $"after={targetDamage:0.000}, nativeAfter={damageAfterNativeHandlers:0.000}.");
     }
 
     private static bool CanDeformAtContact(
@@ -1791,6 +1855,8 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (numericalDamageCheck != null)
+            StopCoroutine(numericalDamageCheck);
         foreach (var pair in originalMeshes)
             if (pair.Key != null && pair.Value != null)
                 pair.Key.sharedMesh = pair.Value;

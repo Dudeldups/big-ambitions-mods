@@ -16309,7 +16309,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 3500
+    maxTorque: 2200
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.06
@@ -16434,7 +16434,7 @@ MonoBehaviour:
         m_RotationOrder: 4
       controlType: 0
       engagementRange: 500
-      slipTorque: 1250
+      slipTorque: 780
       creepTorque: 0
       creepSpeedLimit: 1
     differentials:
@@ -16514,7 +16514,7 @@ MonoBehaviour:
             m_Calls: []
       idleRPM: 900
       maxPower: 544
-      engineLossPercent: 0.16
+      engineLossPercent: 0.45
       onRevLimiter:
         m_PersistentCalls:
           m_Calls: []

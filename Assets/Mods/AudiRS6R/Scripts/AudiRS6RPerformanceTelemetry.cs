@@ -42,6 +42,9 @@ internal sealed class AudiRS6RPerformanceTelemetry : MonoBehaviour
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
     {
+        if (vehicle == controller && physics != null && body != null)
+            return;
+
         vehicle = controller;
         physics = controller.GetComponent<PhysicsVehicle>();
         body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
