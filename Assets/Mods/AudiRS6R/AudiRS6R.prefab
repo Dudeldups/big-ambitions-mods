@@ -16309,7 +16309,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 1620
+    maxTorque: 1750
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.06
@@ -16513,7 +16513,7 @@ MonoBehaviour:
           m_PersistentCalls:
             m_Calls: []
       idleRPM: 900
-      maxPower: 345
+      maxPower: 365
       engineLossPercent: 0.57
       onRevLimiter:
         m_PersistentCalls:
@@ -25919,7 +25919,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 1.5
+    grip: 0.75
     stiffness: 1.7
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
@@ -31360,7 +31360,7 @@ MonoBehaviour:
   forwardFriction:
     force: 0
     slip: 0
-    grip: 1.5
+    grip: 0.75
     stiffness: 1.7
     speed: 0
   activeFrictionPreset: {fileID: 11400000, guid: 8fa8a2c6069c00541aa092e84e007c73,
