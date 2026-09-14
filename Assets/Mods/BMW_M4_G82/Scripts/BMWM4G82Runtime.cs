@@ -56,6 +56,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float DamageIntensity = 0.62f;
     private const float DamageDecelerationThreshold = 500f;
     private const float MinimumHealthyEngineRpm = 300f;
+    private const float WarehouseExitEntranceSearchRadius = 12f;
+    private const float WarehouseExitTriggerClearance = 0.25f;
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 DriverExitPosition = new Vector3(-2.05f, 0.20f, 0.15f);
     private static readonly Vector3 PassengerExitPosition = new Vector3(2.05f, 0.20f, 0.15f);
@@ -192,6 +194,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
@@ -205,6 +209,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -383,6 +388,148 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         else
             EnsureDealerStock("dealer-entered");
     }
+
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+            return;
+
+        var nearestEntrance = FindClosestDriveInEntrance(
+            vehicle.transform.position,
+            out var distance);
+        if (nearestEntrance == null || distance > WarehouseExitEntranceSearchRadius)
+        {
+            context?.Logger.Warn(
+                $"BMWM4G82: warehouse exit guard could not resolve the nearby drive-in " +
+                $"entrance vehicle={vehicle.GetInstanceID()} distance={distance:0.00}m.");
+            return;
+        }
+
+        if (!TryGetWarehouseEnterTriggerBounds(nearestEntrance, out var triggerBounds) ||
+            !TryGetWorldBodyColliderBounds(vehicle.transform, out var bodyBounds))
+        {
+            context?.Logger.Warn(
+                $"BMWM4G82: warehouse exit correction could not resolve fitted bounds " +
+                $"vehicle={vehicle.GetInstanceID()} entrance='{nearestEntrance.name}'.");
+            return;
+        }
+
+        var outward = Vector3.ProjectOnPlane(nearestEntrance.transform.forward, Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+            return;
+        outward.Normalize();
+
+        // Native warehouse exit offsets the spawn by the source MeshCollider's
+        // local bounds. Those bounds do not describe the fitted BMW body, so its
+        // physical collider can still overlap the child EnterTrigger and start
+        // another entry immediately. Move only far enough toward the garage door
+        // for the fitted body to clear that trigger before the next physics step.
+        var triggerMaximum = Vector3.Dot(triggerBounds.center, outward) +
+                             ProjectBoundsExtent(triggerBounds.extents, outward);
+        var bodyMinimum = Vector3.Dot(bodyBounds.center, outward) -
+                          ProjectBoundsExtent(bodyBounds.extents, outward);
+        var correctionDistance = triggerMaximum + WarehouseExitTriggerClearance - bodyMinimum;
+        if (correctionDistance <= 0f)
+            return;
+
+        vehicle.transform.position += outward * correctionDistance;
+        Physics.SyncTransforms();
+        context?.Logger.Info(
+            $"BMWM4G82: corrected warehouse exit trigger overlap " +
+            $"vehicle={vehicle.GetInstanceID()} entrance='{nearestEntrance.name}' " +
+            $"entranceDistance={distance:0.00}m correction={correctionDistance:0.00}m.");
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(
+        Vector3 vehiclePosition,
+        out float distance)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null
+            ? float.PositiveInfinity
+            : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
+    }
+
+    private static bool TryGetWarehouseEnterTriggerBounds(
+        DriveInEntrance entrance,
+        out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var trigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
+        foreach (var collider in trigger.GetComponents<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.isTrigger)
+                continue;
+            if (!found)
+            {
+                bounds = collider.bounds;
+                found = true;
+            }
+            else
+            {
+                bounds.Encapsulate(collider.bounds);
+            }
+        }
+
+        return found;
+    }
+
+    private static bool TryGetWorldBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger)
+                    continue;
+                if (!found)
+                {
+                    bounds = collider.bounds;
+                    found = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(collider.bounds);
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBoundsExtent(Vector3 extents, Vector3 worldAxis) =>
+        Mathf.Abs(worldAxis.x) * extents.x +
+        Mathf.Abs(worldAxis.y) * extents.y +
+        Mathf.Abs(worldAxis.z) * extents.z;
 
     private void HandleFullMenuToggle(bool isOpen)
     {

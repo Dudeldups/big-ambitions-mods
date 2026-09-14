@@ -1,7 +1,9 @@
 {
   "name": "LamborghiniRevuelto",
   "rootNamespace": "",
-  "references": [],
+  "references": [
+    "Cinemachine"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
@@ -24,7 +26,6 @@
     "BigAmbitions.PlacementSystem.dll",
     "BigAmbitions.Seasons.dll",
     "BigAmbitions.SoundSystem.dll",
-    "Cinemachine.dll",
     "DayNightCycle.dll",
     "DOTween.dll",
     "DOTween.Modules.dll",
