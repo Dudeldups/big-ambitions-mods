@@ -683,7 +683,8 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
             return;
 
         var obstacleId = obstacle.GetInstanceID();
-        if (ignoredObstacleIds.Add(obstacleId))
+        var createdBridge = ignoredObstacleIds.Add(obstacleId);
+        if (createdBridge)
         {
             foreach (var vehicleCollider in vehicle.GetComponentsInChildren<Collider>(true))
             {
@@ -699,7 +700,8 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
 
         if (bridges.TryGetValue(obstacleId, out var bridge))
             bridge.ActiveUntil = Time.unscaledTime + BridgeDuration;
-        if (obstacleId != lastObstacleId || Time.unscaledTime >= nextLogTime)
+        if (createdBridge &&
+            (obstacleId != lastObstacleId || Time.unscaledTime >= nextLogTime))
         {
             lastObstacleId = obstacleId;
             nextLogTime = Time.unscaledTime + 1f;
@@ -757,17 +759,7 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
         var mesh = CreateBridgeMesh(bridgeWidth * 0.5f, rampRun, obstacleHeight);
         var collider = bridgeObject.AddComponent<MeshCollider>();
         collider.sharedMesh = mesh;
-        var gripMaterial = new PhysicMaterial("Bigfoot scenery bridge grip")
-        {
-            dynamicFriction = 1.25f,
-            staticFriction = 1.4f,
-            frictionCombine = PhysicMaterialCombine.Maximum,
-            bounciness = 0f,
-            bounceCombine = PhysicMaterialCombine.Minimum,
-            hideFlags = HideFlags.DontSave,
-        };
-        collider.sharedMaterial = gripMaterial;
-        return new BridgeSurface(bridgeObject, mesh, gripMaterial);
+        return new BridgeSurface(bridgeObject, mesh);
     }
 
     private void ReleaseBridge(int obstacleId)
@@ -846,16 +838,11 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
         internal float ActiveUntil;
         private GameObject? bridgeObject;
         private Mesh? mesh;
-        private PhysicMaterial? gripMaterial;
 
-        internal BridgeSurface(
-            GameObject gameObject,
-            Mesh bridgeMesh,
-            PhysicMaterial bridgeGripMaterial)
+        internal BridgeSurface(GameObject gameObject, Mesh bridgeMesh)
         {
             bridgeObject = gameObject;
             mesh = bridgeMesh;
-            gripMaterial = bridgeGripMaterial;
         }
 
         internal void Dispose()
@@ -864,11 +851,8 @@ internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
                 Destroy(bridgeObject);
             if (mesh != null)
                 Destroy(mesh);
-            if (gripMaterial != null)
-                Destroy(gripMaterial);
             bridgeObject = null;
             mesh = null;
-            gripMaterial = null;
         }
     }
 
