@@ -10,6 +10,7 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
 {
+    private const float DirectFallbackMixGain = .38f;
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new List<AudioClip>();
     private VehicleController? vehicle;
@@ -17,6 +18,7 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
     private ModContext? context;
     private EngineRunningComponent? engineSound;
     private AudioSource? native;
+    private AudioSource? sourceTemplate;
     private GameObject? audioHost;
     private AudioSource[]? layers;
     private AudioSource? idleSource;
@@ -25,7 +27,8 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
     private AudioSource? hornSupportSource;
     private AudioClip? crackleClip;
     private float originalDistortion;
-    private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
+    private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted,
+        usesDirectFallbackMix;
     private int attempts;
     private float nextAttempt, smoothRpm, smoothThrottle, envelope, driveBlend, loadBlend;
 
@@ -69,31 +72,41 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
         native = engineSound?.source;
         if (physics == null || context == null)
             return false;
+        var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
+        // Manual spawns can omit the native engine source while still having an
+        // auxiliary vehicle source with the correct mixer and spatial profile.
+        sourceTemplate = native ?? otherSource;
+        usesDirectFallbackMix = sourceTemplate == null ||
+                                sourceTemplate.outputAudioMixerGroup == null;
         originalDistortion = engineSound?.maxDistortion ?? 0f;
         audioHost = new GameObject("Porsche911GT3RS_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = EnginePosition();
         // Prefer the game's native idle loop, but use our own low-RPM layer when
         // a spawned vehicle does not receive a native engine AudioSource.
-        idleSource = CreateSource(audioHost, native?.clip ?? LoadClip("EngineLow"), true);
+        idleSource = CreateSource(
+            audioHost,
+            native?.clip ?? LoadClip("EngineLow"),
+            true,
+            sourceTemplate);
         layers = new AudioSource[6];
         for (var i = 0; i < EngineNames.Length; i++)
         {
             var clip = LoadClip(EngineNames[i]);
-            layers[i] = CreateSource(audioHost, clip, true);
+            layers[i] = CreateSource(audioHost, clip, true, sourceTemplate);
             var loaded = LoadClip(EngineNames[i]+"Load");
-            layers[i + 3] = CreateSource(audioHost, loaded, true);
+            layers[i + 3] = CreateSource(audioHost, loaded, true, sourceTemplate);
         }
         crackleClip = Porsche911GT3RSCrackleWave.Create();
         var exhaustHost = new GameObject("Porsche911GT3RS_ExhaustCrackle");
         exhaustHost.transform.SetParent(audioHost.transform, false);
-        crackleSource = CreateSource(exhaustHost, crackleClip, true);
+        crackleSource = CreateSource(exhaustHost, crackleClip, true, sourceTemplate);
         ConfigureCrackleFilters(exhaustHost);
         var hornHost = new GameObject("Porsche911GT3RS_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
-        var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>() ?? native;
-        hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, otherSource);
-        hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
+        var hornTemplate = otherSource ?? sourceTemplate;
+        hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, hornTemplate);
+        hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, hornTemplate);
         if (engineSound != null) engineSound.maxDistortion = 0f;
         configured = true;
         Porsche911GT3RSDiagnostics.Info(
@@ -103,8 +116,9 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
             $"{Porsche911GT3RSAudioModel.EngineBaseVolume + Porsche911GT3RSAudioModel.EngineThrottleVolume:0.00}, " +
             $"hornVoices=low/high@{Porsche911GT3RSAudioModel.HornLowVolume:0.00}/" +
             $"{Porsche911GT3RSAudioModel.HornHighVolume:0.00}, " +
-            $"source={(native != null ? "native" : "fallback")}, " +
+            $"source={(native != null ? "native" : sourceTemplate != null ? "auxiliary" : "direct-fallback")}, " +
             $"sourceDistance={idleSource.minDistance:0.0}..{idleSource.maxDistance:0.0}, " +
+            $"directMixGain={(usesDirectFallbackMix ? DirectFallbackMixGain : 1f):0.00}, " +
             "exhaust=continuous-subtle-crackle.");
         return true;
     }
@@ -128,9 +142,8 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
         return clip;
     }
 
-    private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource? template = null)
+    private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource? template)
     {
-        template ??= native;
         var source = host.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = loop;
@@ -201,7 +214,10 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
         else RestoreMute();
 
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
-        UpdateHorn(controlled && !paused && physics.input.Horn, Mathf.Clamp01(physics.soundManager.masterVolume));
+        var mixGain = usesDirectFallbackMix ? DirectFallbackMixGain : 1f;
+        UpdateHorn(
+            controlled && !paused && physics.input.Horn,
+            Mathf.Clamp01(physics.soundManager.masterVolume) * mixGain);
         if (!paused)
         {
             var follow = 1f - Mathf.Exp(-Time.deltaTime / .1f);
@@ -213,9 +229,10 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
             driveBlend = Mathf.MoveTowards(driveBlend,
                 Porsche911GT3RSAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM), Time.deltaTime * 4f);
             idleSource.pitch = Porsche911GT3RSAudioModel.IdlePitch;
-            idleSource.volume = envelope * master * Porsche911GT3RSAudioModel.IdleVolume(driveBlend);
+            idleSource.volume = envelope * master * mixGain *
+                                Porsche911GT3RSAudioModel.IdleVolume(driveBlend);
             idleSource.mute = controlled && savedMute;
-            var gain = envelope * master * Porsche911GT3RSAudioModel.EngineVolume(smoothThrottle) *
+            var gain = envelope * master * mixGain * Porsche911GT3RSAudioModel.EngineVolume(smoothThrottle) *
                        Mathf.Sqrt(driveBlend);
             loadBlend = Porsche911GT3RSAudioModel.LoadBlend(smoothThrottle);
             for (var i = 0; i < EngineNames.Length; i++)
@@ -231,7 +248,7 @@ internal sealed class Porsche911GT3RSAudioController : MonoBehaviour
             }
             var crackleLoad = Mathf.SmoothStep(0f, 1f, smoothThrottle);
             crackleSource.pitch = Mathf.Lerp(.82f, 1.08f, normalized);
-            crackleSource.volume = envelope * master * Mathf.Lerp(
+            crackleSource.volume = envelope * master * mixGain * Mathf.Lerp(
                 Porsche911GT3RSAudioModel.CrackleIdleVolume,
                 Porsche911GT3RSAudioModel.CrackleLoadVolume,
                 crackleLoad);

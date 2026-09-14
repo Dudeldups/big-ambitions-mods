@@ -47,6 +47,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
+    private const float WarehouseExitEntranceSearchRadius = 12f;
+    private const float WarehouseExitTriggerClearance = 0.25f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.08f, -0.28f);
     private static readonly Vector3 FrontContactColliderCenter =
         new Vector3(0f, 0.61f, 1.58f);
@@ -178,6 +180,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
@@ -192,6 +196,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -495,6 +500,129 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         EnsureDealerStock("dealer-entered");
     }
+
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+            return;
+
+        var entrance = FindClosestDriveInEntrance(vehicle.transform.position, out var distance);
+        if (entrance == null || distance > WarehouseExitEntranceSearchRadius ||
+            !TryGetWarehouseEnterTriggerBounds(entrance, out var triggerBounds) ||
+            !TryGetWorldBodyColliderBounds(vehicle.transform, out var bodyBounds))
+        {
+            return;
+        }
+
+        var outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+            return;
+        outward.Normalize();
+
+        var triggerMaximum = Vector3.Dot(triggerBounds.center, outward) +
+                             ProjectBoundsExtent(triggerBounds.extents, outward);
+        var bodyMinimum = Vector3.Dot(bodyBounds.center, outward) -
+                          ProjectBoundsExtent(bodyBounds.extents, outward);
+        var correctionDistance = triggerMaximum + WarehouseExitTriggerClearance - bodyMinimum;
+        if (correctionDistance <= 0f)
+            return;
+
+        vehicle.transform.position += outward * correctionDistance;
+        Physics.SyncTransforms();
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(
+        Vector3 vehiclePosition,
+        out float distance)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null ? float.PositiveInfinity : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
+    }
+
+    private static bool TryGetWarehouseEnterTriggerBounds(
+        DriveInEntrance entrance,
+        out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var trigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
+        foreach (var collider in trigger.GetComponents<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.isTrigger)
+                continue;
+
+            if (!found)
+            {
+                bounds = collider.bounds;
+                found = true;
+            }
+            else
+            {
+                bounds.Encapsulate(collider.bounds);
+            }
+        }
+
+        return found;
+    }
+
+    private static bool TryGetWorldBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger)
+                    continue;
+
+                if (!found)
+                {
+                    bounds = collider.bounds;
+                    found = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(collider.bounds);
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBoundsExtent(Vector3 extents, Vector3 worldAxis) =>
+        Mathf.Abs(worldAxis.x) * extents.x +
+        Mathf.Abs(worldAxis.y) * extents.y +
+        Mathf.Abs(worldAxis.z) * extents.z;
 
     private void HandleFullMenuToggle(bool isOpen)
     {
@@ -882,8 +1010,12 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.32f, 0f);
-                colliders[0].size = new Vector3(1.82f, 0.42f, 4.40f);
+                // This is the game-facing vehicle collider used by the
+                // warehouse drive-in trigger. Keep it low enough for stable
+                // road contact but tall enough to cross that trigger before
+                // the closed garage-door collider.
+                colliders[0].center = new Vector3(0f, 0.40f, 0f);
+                colliders[0].size = new Vector3(1.82f, 0.52f, 4.40f);
             }
             if (colliders.Length > 1)
             {
