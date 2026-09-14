@@ -33,6 +33,8 @@ public static class KoenigseggJeskoSetup
     private const float AntiRollBarForce = 7800f;
     private const float FrontSuspensionTravel = 0.08f;
     private const float RearSuspensionTravel = 0.06f;
+    private const float EffectiveEnginePowerKw = 620f;
+    private const float BrakeTorque = 6500f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
     private const float FrontWheelForwardOffset = 0.06f;
@@ -96,6 +98,13 @@ public static class KoenigseggJeskoSetup
     public static void GenerateAndBuild()
     {
         Generate();
+        ModAssetBundleCli.BuildForMod();
+        VerifyBuiltBundle();
+    }
+
+    public static void BuildAndVerifyExisting()
+    {
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         ModAssetBundleCli.BuildForMod();
         VerifyBuiltBundle();
     }
@@ -341,7 +350,7 @@ public static class KoenigseggJeskoSetup
             var opaqueMaterials = new HashSet<Material>();
             var decalSafeMaterials = 0;
             var transparentMaterials = 0;
-            var transparentMaterialsDoubleSided = true;
+            var transparentMaterialsSingleSided = true;
             var cabinGlassTintValid = true;
             var opaqueRendererMasksSafe = true;
             var paintRenderers = new HashSet<Renderer>();
@@ -361,6 +370,8 @@ public static class KoenigseggJeskoSetup
             foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 if (!KoenigseggJeskoMaterials.IsKoenigseggRenderer(renderer.transform))
+                    continue;
+                if (!renderer.enabled || renderer.sharedMaterials.Length == 0)
                     continue;
 
                 var hasOpaque = false;
@@ -409,11 +420,12 @@ public static class KoenigseggJeskoSetup
                     if (KoenigseggJeskoMaterials.IsTransparentMaterial(material))
                     {
                         transparentMaterials++;
-                        transparentMaterialsDoubleSided &=
-                            (!material.HasProperty("_Cull") || material.GetFloat("_Cull") < 0.5f) &&
+                        transparentMaterialsSingleSided &=
+                            (!material.HasProperty("_Cull") ||
+                             Math.Abs(material.GetFloat("_Cull") - (float)CullMode.Back) < 0.5f) &&
                             (!material.HasProperty("_DoubleSidedEnable") ||
-                             material.GetFloat("_DoubleSidedEnable") > 0.5f) &&
-                            material.IsKeywordEnabled("_DOUBLESIDED_ON");
+                             material.GetFloat("_DoubleSidedEnable") < 0.5f) &&
+                            !material.IsKeywordEnabled("_DOUBLESIDED_ON");
                         if (KoenigseggJeskoMaterials.IsCabinGlassMaterial(material))
                         {
                             var tint = material.HasProperty("_BaseColor")
@@ -422,8 +434,8 @@ public static class KoenigseggJeskoSetup
                                     ? material.GetColor("baseColorFactor")
                                     : Color.black;
                             cabinGlassTintValid &= tint.r >= 0.04f &&
-                                                   tint.a >= 0.40f &&
-                                                   tint.a <= 0.50f &&
+                                                   tint.a >= 0.10f &&
+                                                   tint.a <= 0.20f &&
                                                    (!material.HasProperty("_Smoothness") ||
                                                     material.GetFloat("_Smoothness") >= 0.90f) &&
                                                    (!material.HasProperty("_Metallic") ||
@@ -521,7 +533,7 @@ public static class KoenigseggJeskoSetup
             if (Math.Abs(price - 3000000f) > 0.5f ||
                 Math.Abs(maxFuel - 72f) > 0.5f ||
                 Math.Abs(maxSpeed - 480f) > 0.5f ||
-                Math.Abs(enginePower - 760f) > 0.5f ||
+                Math.Abs(enginePower - EffectiveEnginePowerKw) > 0.5f ||
                 !luxury ||
                 bounds.size.z < 4.50f || bounds.size.z > 4.72f ||
                 bounds.size.x < 1.98f || bounds.size.x > 2.08f ||
@@ -549,7 +561,7 @@ public static class KoenigseggJeskoSetup
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
                 transparentMaterials == 0 ||
-                !transparentMaterialsDoubleSided ||
+                !transparentMaterialsSingleSided ||
                 !cabinGlassTintValid ||
                 bodyPaintSlots == 0 ||
                 interiorAccentPaintSlots == 0 ||
@@ -581,7 +593,7 @@ public static class KoenigseggJeskoSetup
                     $"suspensionTravelCount={suspensionTravelCount}, " +
                     $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
-                    $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
+                    $"transparentSingleSided={transparentMaterialsSingleSided}, " +
                     $"cabinGlassTint={cabinGlassTintValid}, " +
                     $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
                     $"caliperSlots={caliperSlots}, rimSlots={rimSlots}, " +
@@ -600,7 +612,7 @@ public static class KoenigseggJeskoSetup
                 $"damageBody=runtime-end-assembly, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
                 $"launchResponse=true, " +
                 $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
-                $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
+                $"headlightTemplate=true, transparentSingleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
                 $"calipersPainted=true, rimsFactoryColor=true, rimFinish=balanced-matte-graphite, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
@@ -639,8 +651,8 @@ public static class KoenigseggJeskoSetup
         SetNumber(serialized, "maxFuel", 72f);
         SetNumber(serialized, "maxCargoCapacity", 2f);
         SetNumber(serialized, "maxSpeed", 480f);
-        SetNumber(serialized, "enginePower", 760f);
-        SetNumber(serialized, "brakeForce", 32000f);
+        SetNumber(serialized, "enginePower", EffectiveEnginePowerKw);
+        SetNumber(serialized, "brakeForce", BrakeTorque);
         SetNumber(serialized, "turnRadius", 27f);
         SetNumber(serialized, "damageIntensity", 0.42f);
         SetBool(serialized, "isATruck", false);
@@ -918,7 +930,8 @@ public static class KoenigseggJeskoSetup
                 SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.09f);
-                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 760f);
+                SetRelativeNumber(serialized, "powertrain.engine.maxPower", EffectiveEnginePowerKw);
+                SetRelativeNumber(serialized, "brakes.maxTorque", BrakeTorque);
                 var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
                 if (powerCurve?.propertyType != SerializedPropertyType.AnimationCurve)
                     throw new InvalidOperationException("Reference engine power curve is missing.");
@@ -1264,7 +1277,6 @@ public static class KoenigseggJeskoSetup
         damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
 
         sourceRenderer.enabled = false;
-        sourceRenderer.sharedMaterials = Array.Empty<Material>();
         return damageFilter;
     }
 

@@ -18,9 +18,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1420f;
-    // 1280 hp on pump fuel is 955 kW. The curve below keeps the real Jesko's
-    // broad midrange torque without applying the E85-only 1600 hp figure.
-    private const float EnginePowerKw = 955f;
+    // Calibrated from the user's measured runs: 955 kW produced 0-100 in
+    // 1.58-1.75 s and 0-200 in 3.66-3.96 s in this physics model.
+    private const float EnginePowerKw = 620f;
+    private const float BrakeTorque = 6500f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8500f;
     private const float SpeedLimitKph = 480f;
@@ -253,53 +254,73 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
     {
-        const int maximumPasses = 8;
+        const int maximumWaitPasses = 500;
+        const int stabilizationPasses = 4;
         yield return null;
 
         var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
         var physics = vehicle.GetComponent<PhysicsVehicle>();
-        for (var pass = 0; pass < maximumPasses; pass++)
+        var acquiredControl = false;
+        for (var pass = 0; pass < maximumWaitPasses; pass++)
         {
             yield return new WaitForFixedUpdate();
-            if (vehicle == null || !vehicle.controlledByPlayer)
+            if (vehicle == null)
+            {
+                enteredVehicleActivationCoroutine = null;
+                yield break;
+            }
+            if (!vehicle.controlledByPlayer)
                 continue;
 
-            vehicle.SetFreeze(false);
-            if (physics != null)
-                physics.enabled = true;
-            foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
+            acquiredControl = true;
+            for (var stabilizationPass = 0;
+                 stabilizationPass < stabilizationPasses;
+                 stabilizationPass++)
             {
-                if (component != null && string.Equals(
-                        component.GetType().FullName,
-                        "NWH.WheelController3D.WheelController",
-                        StringComparison.Ordinal))
+                vehicle.SetFreeze(false);
+                if (physics != null)
+                    physics.enabled = true;
+                foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
                 {
-                    component.enabled = true;
+                    if (component != null && string.Equals(
+                            component.GetType().FullName,
+                            "NWH.WheelController3D.WheelController",
+                            StringComparison.Ordinal))
+                    {
+                        component.enabled = true;
+                    }
                 }
-            }
-            if (rigidbody != null)
-            {
-                rigidbody.isKinematic = false;
-                rigidbody.WakeUp();
-            }
+                if (rigidbody != null)
+                {
+                    rigidbody.isKinematic = false;
+                    rigidbody.WakeUp();
+                }
 
-            var engine = physics?.powertrain?.engine;
-            var transmission = physics?.powertrain?.transmission;
-            if (engine != null && !engine.IsRunning)
-                engine.StartEngine();
-            if (transmission != null && transmission.Gear == 0)
-                transmission.ShiftInto(1, true);
+                var engine = physics?.powertrain?.engine;
+                var transmission = physics?.powertrain?.transmission;
+                if (engine != null && !engine.IsRunning)
+                    engine.StartEngine();
+                if (transmission != null && transmission.Gear <= 0)
+                    transmission.ShiftInto(1, true);
+                yield return new WaitForFixedUpdate();
+            }
+            break;
         }
 
         enteredVehicleActivationCoroutine = null;
         var finalEngine = physics?.powertrain?.engine;
         var finalTransmission = physics?.powertrain?.transmission;
-        context?.Logger.Info(
-            $"KoenigseggJesko: dealer entry activation completed instance={vehicle!.GetInstanceID()}, " +
+        var message =
+            $"KoenigseggJesko: dealer entry activation {(acquiredControl ? "completed" : "timed out")} " +
+            $"instance={vehicle.GetInstanceID()}, " +
             $"physicsEnabled={physics?.enabled ?? false}, " +
             $"isKinematic={rigidbody?.isKinematic ?? false}, " +
             $"engineRunning={finalEngine?.IsRunning ?? false}, gear={finalTransmission?.Gear ?? -99}, " +
-            $"controlledByPlayer={vehicle.controlledByPlayer}.");
+            $"controlledByPlayer={vehicle.controlledByPlayer}.";
+        if (acquiredControl)
+            context?.Logger.Info(message);
+        else
+            context?.Logger.Warn(message);
     }
 
     private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
@@ -873,12 +894,12 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"navMeshObstacles={normalizedNavMeshObstacles}, " +
                 $"disabledFallbackChassis={disabledFallbackChassis}, " +
                 $"disabledBonnetCamera={disabledBonnetCamera}, " +
-                $"mainBodyShellRepaired={repairedBodyShell}, " +
+                $"bakedBodyShellRestored={repairedBodyShell}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
-                $"powerCurve=telemetry-calibration-2, steeringCalipers=4, " +
+                $"powerCurve=measured-calibration-3, brakeTorque={BrakeTorque:0}, steeringCalipers=4, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -1046,17 +1067,17 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             return false;
         }
 
-        // The source shell is already authored in its correct local frame.
-        // Converting it into the old root-local damage holder caused the
-        // misaligned/invisible body sections visible in dealer screenshots.
-        // Preserve the source transform and let the visual-damage controller
-        // clone/deform that mesh in place.
-        sourceRenderer.enabled = true;
-        damageRenderer.enabled = false;
+        // The source renderer is intentionally stripped after its geometry is
+        // baked into the root-local deformable shell. Re-enabling it leaves an
+        // invisible body because it has no serialized materials.
+        sourceRenderer.enabled = false;
+        damageRenderer.enabled = damageFilter.sharedMesh != null &&
+                                 damageRenderer.sharedMaterials.Length > 0;
         context?.Logger.Info(
-            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: restored authored " +
-            $"main shell='{sourceRenderer.name}' in its native transform; stale damage shell disabled.");
-        return true;
+            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: restored baked deformable " +
+            $"shell visible={damageRenderer.enabled}, mesh='{damageFilter.sharedMesh?.name}', " +
+            $"materials={damageRenderer.sharedMaterials.Length}; stripped source retained disabled.");
+        return damageRenderer.enabled;
     }
 
     private static void ConfigureExitMarkers(GameObject root)
@@ -1341,6 +1362,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             SetBool(forcedInduction, "useForcedInduction", false);
             SetFloat(forcedInduction, "powerGainMultiplier", 1f);
             SetFloat(forcedInduction, "spoolUpTime", 0f);
+
+            var brakes = GetMember(component, "brakes");
+            SetFloat(brakes, "maxTorque", BrakeTorque);
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);

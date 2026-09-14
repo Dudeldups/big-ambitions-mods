@@ -86,10 +86,9 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         secondaryHeadlampOverlay = CreateDirectionalFilteredOverlay(secondaryHeadlamp,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "HeadlampSecondary", new Color(0.84f, 0.92f, 1f, 1f), 3.8f, 1.001f);
-        // Each tail lens is an eight-component mesh: the three broad outer
-        // components are the red running/indicator signature, while the small
-        // inner components are the actual brake elements. Keep the lower
-        // bumper reflectors out of all three states.
+        // The running and brake states use the broad red lamp components. The
+        // smaller inner components are the amber indicators; lower bumper
+        // reflectors remain excluded from every powered state.
         rearTailLeftOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
             (_, triangleCount) => triangleCount >= 20,
             "RearTailSignatureLeft", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
@@ -97,10 +96,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             (_, triangleCount) => triangleCount >= 20,
             "RearTailSignatureRight", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
         brakeLeftOverlay = CreateConnectedComponentFilteredOverlay(brakeLeft,
-            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
+            (_, triangleCount) => triangleCount >= 20,
             "RearBrakeSignatureLeft", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         brakeRightOverlay = CreateConnectedComponentFilteredOverlay(brakeRight,
-            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
+            (_, triangleCount) => triangleCount >= 20,
             "RearBrakeSignatureRight", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         thirdBrakeOverlay = CreateFilteredOverlay(thirdBrake,
             center => Mathf.Abs(center.x) < 0.15f && center.y > 0.58f,
@@ -118,10 +117,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "RightIndicator", amber, 4.5f, 1.003f);
         rearLeftBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
-            (_, triangleCount) => triangleCount >= 20,
+            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
             "RearLeftIndicator", amber, 5.2f, 1.005f);
         rearRightBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
-            (_, triangleCount) => triangleCount >= 20,
+            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
             "RearRightIndicator", amber, 5.2f, 1.005f);
         var beamCount = ConfigureHeadlightBeams();
 

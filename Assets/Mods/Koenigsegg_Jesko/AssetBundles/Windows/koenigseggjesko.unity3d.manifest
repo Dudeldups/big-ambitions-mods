@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 3138700832
+CRC: 458368740
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 198b1b10f621da16755afb026604f526
+    Hash: dcd0defd2f67a9f3b16db27c0028aefd
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 198b1b10f621da16755afb026604f526
+    Hash: dcd0defd2f67a9f3b16db27c0028aefd
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -246,7 +246,6 @@ Assets:
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_08_jeskoVehicle_Exterior_mm_wheel1.mat
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineHigh.wav
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_13_PLASTICO_OPCAO.mat
-- Assets/Mods/Koenigsegg_Jesko/ATTRIBUTION.md
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/generation.json
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineLowLoad.wav
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/Horn.wav

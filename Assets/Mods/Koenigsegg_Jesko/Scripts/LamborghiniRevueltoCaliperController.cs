@@ -9,36 +9,35 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
 {
     private static readonly string[,] BindingNames =
     {
-        { "KoenigseggFixedCaliperFrontLeft", "FrontLeft_WheelController", "KoenigseggWheelFrontLeft" },
-        { "KoenigseggFixedCaliperFrontRight", "FrontRight_WheelController", "KoenigseggWheelFrontRight" },
-        { "KoenigseggFixedCaliperRearLeft", "RearLeft_WheelController", "KoenigseggWheelRearLeft" },
-        { "KoenigseggFixedCaliperRearRight", "RearRight_WheelController", "KoenigseggWheelRearRight" },
+        { "KoenigseggFixedCaliperFrontLeft", "KoenigseggWheelFrontLeft" },
+        { "KoenigseggFixedCaliperFrontRight", "KoenigseggWheelFrontRight" },
+        { "KoenigseggFixedCaliperRearLeft", "KoenigseggWheelRearLeft" },
+        { "KoenigseggFixedCaliperRearRight", "KoenigseggWheelRearRight" },
     };
 
     private readonly List<CaliperBinding> bindings = new List<CaliperBinding>(4);
     private VehicleController? vehicle;
     private ModContext? context;
+    private bool warnedAboutInvalidSteering;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
         context = modContext;
         bindings.Clear();
+        warnedAboutInvalidSteering = false;
 
         for (var index = 0; index < BindingNames.GetLength(0); index++)
         {
             var pivotName = BindingNames[index, 0];
-            var uprightName = BindingNames[index, 1];
-            var wheelName = BindingNames[index, 2];
+            var wheelName = BindingNames[index, 1];
             var pivot = FindTransform(controller.transform, pivotName) ??
                         throw new InvalidOperationException($"Caliper pivot '{pivotName}' is missing.");
             var wheel = FindTransform(controller.transform, wheelName) ??
                         throw new InvalidOperationException($"Wheel visual '{wheelName}' is missing.");
-            var upright = FindTransform(controller.transform, uprightName) ??
-                         throw new InvalidOperationException($"Wheel upright '{uprightName}' is missing.");
             var positionOffset = CenterPivotWithoutMovingGeometry(
                 pivot,
-                upright,
+                wheel,
                 controller.transform);
             // Front calipers sit slightly inboard of the disc centre; the rear
             // calipers are forward-mounted. These are fixed measured offsets,
@@ -46,12 +45,11 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
             // from a rolling mesh each frame.
             positionOffset += index switch
             {
-                0 => new Vector3(0.045f, 0f, 0f),
-                1 => new Vector3(-0.045f, 0f, 0f),
-                2 or 3 => new Vector3(0f, 0f, 0.075f),
+                0 or 1 => new Vector3(0f, 0f, -0.08f),
+                2 or 3 => new Vector3(0f, 0f, 0.12f),
                 _ => Vector3.zero,
             };
-            bindings.Add(new CaliperBinding(pivot, upright, wheel, positionOffset));
+            bindings.Add(new CaliperBinding(pivot, wheel, positionOffset));
         }
 
         ApplyBindings();
@@ -68,14 +66,31 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
 
     private void ApplyBindings()
     {
+        var vehicleTransform = vehicle!.transform;
+        var vehicleUp = vehicleTransform.up;
         foreach (var binding in bindings)
         {
-            // The wheel-controller transform is the non-rolling upright: it
-            // receives suspension and steering exactly once, unlike the wheel
-            // visual whose roll made the front calipers over-steer.
+            var axle = Vector3.ProjectOnPlane(binding.Wheel.right, vehicleUp).normalized;
+            if (axle.sqrMagnitude < 0.5f)
+                continue;
+            var steeringAngle = Vector3.SignedAngle(vehicleTransform.right, axle, vehicleUp);
+            if (Mathf.Abs(steeringAngle) > 60f)
+            {
+                if (!warnedAboutInvalidSteering)
+                {
+                    warnedAboutInvalidSteering = true;
+                    context?.Logger.Warn(
+                        $"KoenigseggJesko steering caliper rejected angle={steeringAngle:0.0}deg " +
+                        $"wheel='{binding.Wheel.name}'.");
+                }
+                continue;
+            }
+
+            var uprightRotation =
+                vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f);
             binding.Pivot.SetPositionAndRotation(
-                binding.Upright.TransformPoint(binding.PositionOffset),
-                binding.Upright.rotation);
+                binding.Wheel.position + uprightRotation * binding.PositionOffset,
+                uprightRotation);
         }
     }
 
@@ -135,16 +150,14 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
 
     private sealed class CaliperBinding
     {
-        public CaliperBinding(Transform pivot, Transform upright, Transform wheel, Vector3 positionOffset)
+        public CaliperBinding(Transform pivot, Transform wheel, Vector3 positionOffset)
         {
             Pivot = pivot;
-            Upright = upright;
             Wheel = wheel;
             PositionOffset = positionOffset;
         }
 
         public Transform Pivot { get; }
-        public Transform Upright { get; }
         public Transform Wheel { get; }
         public Vector3 PositionOffset { get; }
     }

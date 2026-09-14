@@ -321,18 +321,11 @@ public static class KoenigseggJeskoMaterials
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
-        if (cabinGlass)
-        {
-            // The imported glTF glass shader can retain a valid-looking
-            // transparent state while producing no visible pixels in the
-            // game's HDRP build. Cabin glass uses the stock game Lit shader so
-            // its blend state is deterministic on every vehicle instance.
-            RebindToHdrpLit(material);
-        }
+        RebindToHdrpLit(material);
         var tint = cabinGlass
-            ? new Color(0.10f, 0.14f, 0.18f, 0.28f)
+            ? new Color(0.09f, 0.12f, 0.15f, 0.14f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
-                ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
+                ? new Color(0.78f, 0.84f, 0.90f, 0.035f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
                   name.IndexOf("Tail_light", StringComparison.OrdinalIgnoreCase) >= 0
                     ? new Color(0.72f, 0.025f, 0.008f, 0.16f)
@@ -377,13 +370,13 @@ public static class KoenigseggJeskoMaterials
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
-        SetFloat(material, "_Cull", 0f);
-        SetFloat(material, "_CullMode", 0f);
-        SetFloat(material, "_CullModeForward", 0f);
-        SetFloat(material, "_TransparentCullMode", 0f);
-        SetFloat(material, "_DoubleSidedEnable", 1f);
+        SetFloat(material, "_Cull", (float)CullMode.Back);
+        SetFloat(material, "_CullMode", (float)CullMode.Back);
+        SetFloat(material, "_CullModeForward", (float)CullMode.Back);
+        SetFloat(material, "_TransparentCullMode", (float)CullMode.Back);
+        SetFloat(material, "_DoubleSidedEnable", 0f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.EnableKeyword("_DOUBLESIDED_ON");
+        material.DisableKeyword("_DOUBLESIDED_ON");
         material.EnableKeyword("_DISABLE_DECALS");
         material.DisableKeyword("_ALPHATEST_ON");
         material.SetOverrideTag("RenderType", "Transparent");
@@ -406,7 +399,7 @@ public static class KoenigseggJeskoMaterials
         // Lens materials can share the imported "windows" marker with cabin
         // glass but must remain nearly clear; never apply the dark cabin tint.
         FixTransparentHdrpMaterial(material);
-        var lensTint = new Color(0.82f, 0.90f, 0.98f, 0.08f);
+        var lensTint = new Color(0.78f, 0.84f, 0.90f, 0.035f);
         SetColor(material, "_BaseColor", lensTint);
         SetColor(material, "_Color", lensTint);
         SetColor(material, "baseColorFactor", lensTint);
