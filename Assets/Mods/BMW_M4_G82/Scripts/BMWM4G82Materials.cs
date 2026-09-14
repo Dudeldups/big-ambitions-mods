@@ -13,6 +13,7 @@ public readonly struct BMWM4G82MaterialFixResult
         int opaqueMaterialsFixed,
         int transparentMaterialsFixed,
         int materialsValidated,
+        int bodyPaintMaterialsNormalized,
         int rimSlotsNormalized,
         int cabinGlassRenderers,
         int cabinGlassRenderersReenabled)
@@ -22,6 +23,7 @@ public readonly struct BMWM4G82MaterialFixResult
         OpaqueMaterialsFixed = opaqueMaterialsFixed;
         TransparentMaterialsFixed = transparentMaterialsFixed;
         MaterialsValidated = materialsValidated;
+        BodyPaintMaterialsNormalized = bodyPaintMaterialsNormalized;
         RimSlotsNormalized = rimSlotsNormalized;
         CabinGlassRenderers = cabinGlassRenderers;
         CabinGlassRenderersReenabled = cabinGlassRenderersReenabled;
@@ -32,6 +34,7 @@ public readonly struct BMWM4G82MaterialFixResult
     public int OpaqueMaterialsFixed { get; }
     public int TransparentMaterialsFixed { get; }
     public int MaterialsValidated { get; }
+    public int BodyPaintMaterialsNormalized { get; }
     public int RimSlotsNormalized { get; }
     public int CabinGlassRenderers { get; }
     public int CabinGlassRenderersReenabled { get; }
@@ -41,6 +44,8 @@ public static class BMWM4G82Materials
 {
     public const float RimMetallic = 0.08f;
     public const float RimSmoothness = 0.32f;
+    public const float BodyPaintMetallic = 0.30f;
+    public const float BodyPaintSmoothness = 0.92f;
     public static readonly Color RimBaseColor = new Color(0.23f, 0.23f, 0.23f, 1f);
     public static readonly Color CaliperBaseColor = new Color(0.78f, 0.80f, 0.82f, 1f);
 
@@ -70,6 +75,7 @@ public static class BMWM4G82Materials
         var opaqueMaterialsFixed = 0;
         var transparentMaterialsFixed = 0;
         var materialsValidated = 0;
+        var bodyPaintMaterialsNormalized = 0;
         var rimSlotsNormalized = 0;
         var cabinGlassRenderers = 0;
         var cabinGlassRenderersReenabled = 0;
@@ -114,6 +120,11 @@ public static class BMWM4G82Materials
                 RebindToHdrpLit(material);
                 if (FixSolidHdrpMaterial(material))
                     materialsValidated++;
+                if (IsBodyPaintMaterial(material))
+                {
+                    ConfigureBodyPaintFinish(material);
+                    bodyPaintMaterialsNormalized++;
+                }
                 opaqueMaterialsFixed++;
             }
 
@@ -137,6 +148,7 @@ public static class BMWM4G82Materials
             opaqueMaterialsFixed,
             transparentMaterialsFixed,
             materialsValidated,
+            bodyPaintMaterialsNormalized,
             rimSlotsNormalized,
             cabinGlassRenderers,
             cabinGlassRenderersReenabled);
@@ -370,6 +382,24 @@ public static class BMWM4G82Materials
         SetFloat(material, "_TransmissionMask", 0f);
         SetFloat(material, "transmissionFactor", 0f);
         return validated;
+    }
+
+    private static bool IsBodyPaintMaterial(Material material) =>
+        material.name.IndexOf("PaintTNR", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static void ConfigureBodyPaintFinish(Material material)
+    {
+        // Imported PaintTNR is almost black and fully metallic. If a native
+        // transition clears the per-instance property block, that authored
+        // fallback makes every selected color appear black. Keep the shared
+        // tint neutral and let BMWM4G82PaintController provide the saved color.
+        SetColor(material, "_BaseColor", Color.white);
+        SetColor(material, "_Color", Color.white);
+        SetColor(material, "baseColorFactor", Color.white);
+        SetFloat(material, "_Metallic", BodyPaintMetallic);
+        SetFloat(material, "metallicFactor", BodyPaintMetallic);
+        SetFloat(material, "_Smoothness", BodyPaintSmoothness);
+        SetFloat(material, "roughnessFactor", 1f - BodyPaintSmoothness);
     }
 
     private static void FixTransparentHdrpMaterial(Material material)
