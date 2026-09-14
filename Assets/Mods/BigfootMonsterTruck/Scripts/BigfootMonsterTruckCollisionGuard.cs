@@ -35,7 +35,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float ParkedContactMaximumDescentSpeed = 0.75f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
-    private const float MaximumBypassableSceneryHeight = 1.05f;
+    private const float MaximumBypassableSceneryHeight = 1.35f;
     private const float MaximumBypassableScenerySpan = 8f;
     private const int HeavyCargoCapacity = 32;
 
@@ -122,11 +122,15 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private void FixedUpdate()
     {
         if (!initialized || vehicle?.controlledByPlayer != true || physicsVehicle == null ||
-            vehicleBody == null || Time.unscaledTime > latchedClimbUntil)
+            vehicleBody == null)
             return;
 
         try
         {
+            sceneryBypass?.ProbeAhead(physicsVehicle.input.Vertical);
+            if (Time.unscaledTime > latchedClimbUntil)
+                return;
+
             var driveInput = physicsVehicle.input.Vertical;
             var driveIntensity = Mathf.Abs(driveInput);
             if (driveIntensity < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
@@ -497,14 +501,18 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         sceneryBypass?.Arm(collider, bounds);
     }
 
-    private static bool TryGetBypassableScenery(Collider collider, out Bounds bounds)
+    internal static bool TryGetBypassableScenery(Collider collider, out Bounds bounds)
     {
         bounds = default;
-        if (collider == null || collider.isTrigger || collider is TerrainCollider ||
-            collider.attachedRigidbody != null)
+        if (collider == null || collider.isTrigger || collider is TerrainCollider)
         {
             return false;
         }
+
+        // A few map props use kinematic bodies solely as static scene
+        // anchors. Keep mobile rigidbodies under normal vehicle physics.
+        if (collider.attachedRigidbody != null && !collider.attachedRigidbody.isKinematic)
+            return false;
 
         bounds = collider.bounds;
         var span = Mathf.Max(bounds.size.x, bounds.size.z);
@@ -604,10 +612,15 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 internal sealed class BigfootMonsterTruckSceneryBypass : MonoBehaviour
 {
     private const float BypassDuration = 1.5f;
+    private const float ProbeCenterHeight = 0.72f;
+    private const float ProbeDistance = 2.75f;
+    private static readonly Vector3 ProbeHalfExtents = new(1.65f, 0.72f, 1.25f);
 
     private VehicleController? vehicle;
     private ModContext? context;
     private readonly List<ColliderPair> ignoredPairs = new();
+    private readonly HashSet<int> ignoredObstacleIds = new();
+    private readonly Collider[] probeResults = new Collider[24];
     private float activeUntil;
     private int lastObstacleId;
     private float nextLogTime;
@@ -618,14 +631,44 @@ internal sealed class BigfootMonsterTruckSceneryBypass : MonoBehaviour
         context = modContext;
     }
 
+    internal void ProbeAhead(float driveInput)
+    {
+        if (vehicle == null || Mathf.Abs(driveInput) < 0.10f)
+            return;
+
+        var driveDirection = Mathf.Sign(driveInput);
+        var center = vehicle.transform.position +
+                     vehicle.transform.up * ProbeCenterHeight +
+                     vehicle.transform.forward * (ProbeDistance * driveDirection);
+        var hitCount = Physics.OverlapBoxNonAlloc(
+            center,
+            ProbeHalfExtents,
+            probeResults,
+            vehicle.transform.rotation,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Ignore);
+        for (var index = 0; index < hitCount; index++)
+        {
+            var candidate = probeResults[index];
+            if (!BigfootMonsterTruckCollisionGuard.TryGetBypassableScenery(
+                    candidate,
+                    out var bounds))
+            {
+                continue;
+            }
+
+            Arm(candidate, bounds);
+        }
+    }
+
     internal void Arm(Collider obstacle, Bounds obstacleBounds)
     {
         if (vehicle == null || obstacle == null)
             return;
 
-        if (lastObstacleId != obstacle.GetInstanceID())
+        var obstacleId = obstacle.GetInstanceID();
+        if (ignoredObstacleIds.Add(obstacleId))
         {
-            RestoreCollisions();
             foreach (var vehicleCollider in vehicle.GetComponentsInChildren<Collider>(true))
             {
                 if (vehicleCollider == null || vehicleCollider.isTrigger)
@@ -637,7 +680,6 @@ internal sealed class BigfootMonsterTruckSceneryBypass : MonoBehaviour
         }
 
         activeUntil = Time.unscaledTime + BypassDuration;
-        var obstacleId = obstacle.GetInstanceID();
         if (obstacleId != lastObstacleId || Time.unscaledTime >= nextLogTime)
         {
             lastObstacleId = obstacleId;
@@ -669,6 +711,7 @@ internal sealed class BigfootMonsterTruckSceneryBypass : MonoBehaviour
                 Physics.IgnoreCollision(pair.VehicleCollider, pair.ObstacleCollider, false);
         }
         ignoredPairs.Clear();
+        ignoredObstacleIds.Clear();
         lastObstacleId = 0;
     }
 
