@@ -18,6 +18,7 @@ internal sealed class AudiRS6RRoadDamageGuard : MonoBehaviour
     private bool failureReported;
     private bool lastCollisionWasRoadSurface;
     private float approvedDamage;
+    private float obstacleContactUntil;
     private float roadDamageSuppressionUntil;
     private int roadSurfaceContactFrame = -1;
     private int obstacleContactFrame = -1;
@@ -69,15 +70,21 @@ internal sealed class AudiRS6RRoadDamageGuard : MonoBehaviour
                                        normal.y >= RoadSurfaceNormalThreshold &&
                                        Vector3.Dot(transform.up, Vector3.up) >= 0.7f;
 
-            lastCollisionWasRoadSurface = isRoadSurfaceContact;
             if (isRoadSurfaceContact)
             {
                 roadSurfaceContactFrame = Time.frameCount;
-                roadDamageSuppressionUntil = Time.unscaledTime + RoadDamageSuppressionWindow;
+                // A hard rear/front impact can pitch the car into the road on
+                // the following physics step. That ground contact must not
+                // roll back damage already earned from the obstacle impact.
+                lastCollisionWasRoadSurface = Time.unscaledTime > obstacleContactUntil;
+                if (lastCollisionWasRoadSurface)
+                    roadDamageSuppressionUntil = Time.unscaledTime + RoadDamageSuppressionWindow;
             }
             else
             {
+                lastCollisionWasRoadSurface = false;
                 obstacleContactFrame = Time.frameCount;
+                obstacleContactUntil = Time.unscaledTime + RoadDamageSuppressionWindow;
                 roadDamageSuppressionUntil = 0f;
             }
         }
@@ -94,8 +101,10 @@ internal sealed class AudiRS6RRoadDamageGuard : MonoBehaviour
 
         var instance = vehicleController.vehicleInstance;
         var roadOnlyThisFrame = roadSurfaceContactFrame == Time.frameCount &&
-                                obstacleContactFrame != Time.frameCount;
+                                obstacleContactFrame != Time.frameCount &&
+                                Time.unscaledTime > obstacleContactUntil;
         var roadDamageMayBePending = Time.unscaledTime <= roadDamageSuppressionUntil &&
+                                     Time.unscaledTime > obstacleContactUntil &&
                                      lastCollisionWasRoadSurface;
 
         if (roadOnlyThisFrame)
@@ -193,6 +202,23 @@ internal sealed class AudiRS6RRoadDamageGuard : MonoBehaviour
                objectIdentity.Contains("roadmesh") || objectIdentity.Contains("road_mesh") ||
                objectIdentity.Contains("roadsurface") || objectIdentity.Contains("road_surface") ||
                objectIdentity.Contains("asphalt") || objectIdentity.Contains("terrain");
+    }
+
+    internal bool IsRoadSurfaceCollision(Collision collision)
+    {
+        if (collision == null || collision.contactCount == 0)
+            return false;
+
+        var otherCollider = collision.collider;
+        var otherName = otherCollider != null ? otherCollider.name : string.Empty;
+        var otherPath = otherCollider != null ? GetHierarchyPath(otherCollider.transform) : string.Empty;
+        var tag = otherCollider != null ? otherCollider.tag : string.Empty;
+        var layerName = otherCollider != null
+            ? LayerMask.LayerToName(otherCollider.gameObject.layer)
+            : string.Empty;
+        return IsRoadLike(otherName, otherPath, tag, layerName) &&
+               collision.GetContact(0).normal.y >= RoadSurfaceNormalThreshold &&
+               Vector3.Dot(transform.up, Vector3.up) >= 0.7f;
     }
 
     private static string GetHierarchyPath(Transform target)
