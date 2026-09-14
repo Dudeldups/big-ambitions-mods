@@ -13,11 +13,24 @@ using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(AudiRS6RMod))]
 
+internal static class AudiRS6RDiagnostics
+{
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool WarehouseExitDebugEnabled { get; set; } = false;
+
+    internal static void WarehouseExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && WarehouseExitDebugEnabled)
+            context?.Logger.Info(message);
+    }
+}
+
 [ModEntryOnInitializationLoad]
 public class AudiRS6RMod : IModBigAmbitions
 {
     private const string BundleKey = "AssetBundles/audirs6r.unity3d";
     private const string VehicleAssetPath = "Assets/Mods/AudiRS6R/AudiRS6R.asset";
+    private const string VehiclePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
@@ -40,9 +53,16 @@ public class AudiRS6RMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
+        var vehiclePrefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
+        if (vehiclePrefab == null)
+        {
+            context.Logger.Warn($"AudiRS6R: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            return Task.CompletedTask;
+        }
+
         ModdingAPI.RegisterModVehicleType(vehicleType);
         AudiRS6ROptions.Initialize(context);
-        runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName);
+        runtime = AudiRS6RRuntime.Initialize(context, vehicleType.vehicleTypeName, vehiclePrefab);
         return Task.CompletedTask;
     }
 

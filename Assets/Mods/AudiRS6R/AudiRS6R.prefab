@@ -16309,7 +16309,7 @@ MonoBehaviour:
     brakeWhileDisabled: 1
     brakeWhileIdle: 1
     brakeOnReverseDirection: 0
-    maxTorque: 18000
+    maxTorque: 2050
     handbrakeType: 0
     handbrakeValue: 0
     actuationTime: 0.06
@@ -16434,7 +16434,7 @@ MonoBehaviour:
         m_RotationOrder: 4
       controlType: 0
       engagementRange: 500
-      slipTorque: 4500
+      slipTorque: 780
       creepTorque: 0
       creepSpeedLimit: 1
     differentials:
@@ -16483,7 +16483,7 @@ MonoBehaviour:
       inputNameHash: -1471968074
       outputNameHash: -1503760582
       _differentialType: 0
-      biasAB: 0.5
+      biasAB: 0.6
       stiffness: 0.1
       powerRamp: 1
       coastRamp: 0.5
@@ -16491,7 +16491,7 @@ MonoBehaviour:
       slipTorque: 1000
     engine:
       name: Engine
-      inertia: 0.12
+      inertia: 0.9
       inputTorque: 0
       outputTorque: 0
       inputAngularVelocity: 0
@@ -16513,8 +16513,8 @@ MonoBehaviour:
           m_PersistentCalls:
             m_Calls: []
       idleRPM: 900
-      maxPower: 544
-      engineLossPercent: 0.25
+      maxPower: 390
+      engineLossPercent: 0.57
       onRevLimiter:
         m_PersistentCalls:
           m_Calls: []
@@ -25262,7 +25262,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1905419697668264746
 Transform:
   m_ObjectHideFlags: 0
