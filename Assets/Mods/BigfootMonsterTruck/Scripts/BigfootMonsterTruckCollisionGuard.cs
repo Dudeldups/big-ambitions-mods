@@ -524,6 +524,16 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             return false;
         }
 
+        // The forward probe sees traffic before a physical collision callback
+        // occurs. Never replace a real player, traffic, or parked-car contact
+        // with scenery traversal; their dedicated collision path owns it.
+        if (collider.GetComponentInParent<VehicleController>() != null ||
+            collider.GetComponentInParent<GleyTrafficSystem.VehicleComponent>() != null ||
+            FindParkedVehicle(collider) != null)
+        {
+            return false;
+        }
+
         // A few map props use kinematic bodies solely as static scene
         // anchors. Keep mobile rigidbodies under normal vehicle physics.
         if (collider.attachedRigidbody != null && !collider.attachedRigidbody.isKinematic)
