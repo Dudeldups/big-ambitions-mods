@@ -13,6 +13,7 @@ using Entities;
 using Extensions;
 using Helpers;
 using Localizor.LanguageChangeEvent;
+using Player.HUD.SmartphoneUI;
 using UI;
 using UI.Elements;
 using UI.Overlays;
@@ -20,6 +21,7 @@ using UI.PurchaseVehicle;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(VehicleRepainter.VehicleRepainterMod))]
 
@@ -53,6 +55,7 @@ namespace VehicleRepainter
     internal sealed class VehicleRepainterLifecycle : MonoBehaviour
     {
         private Coroutine? pendingInstall;
+        private Coroutine? pendingPersistenceRestore;
         private VehicleRepainterRuntime? runtime;
 
         internal static VehicleRepainterLifecycle Initialize(VehicleRepainterRuntime runtime)
@@ -73,6 +76,12 @@ namespace VehicleRepainter
             {
                 StopCoroutine(pendingInstall);
                 pendingInstall = null;
+            }
+
+            if (pendingPersistenceRestore != null)
+            {
+                StopCoroutine(pendingPersistenceRestore);
+                pendingPersistenceRestore = null;
             }
 
             SceneManager.sceneLoaded -= HandleSceneLoaded;
@@ -126,6 +135,12 @@ namespace VehicleRepainter
                 pendingInstall = null;
             }
 
+            if (pendingPersistenceRestore != null)
+            {
+                StopCoroutine(pendingPersistenceRestore);
+                pendingPersistenceRestore = null;
+            }
+
             runtime?.Uninstall();
         }
 
@@ -142,31 +157,66 @@ namespace VehicleRepainter
             yield return null;
             pendingInstall = null;
             runtime?.Install(source);
+
+            if (pendingPersistenceRestore != null)
+                StopCoroutine(pendingPersistenceRestore);
+
+            pendingPersistenceRestore = StartCoroutine(RestorePersistenceAfterLoad(source));
+        }
+
+        private IEnumerator RestorePersistenceAfterLoad(string source)
+        {
+            const float scanIntervalSeconds = 0.5f;
+            object? observedSaveGame = null;
+            var pass = 1;
+
+            while (true)
+            {
+                var currentSaveGame = (object?)SaveGameManager.Current;
+                if (!ReferenceEquals(currentSaveGame, observedSaveGame))
+                {
+                    observedSaveGame = currentSaveGame;
+                    pass = 1;
+                }
+
+                runtime?.RestorePersistenceState(source, pass);
+                pass++;
+                yield return new WaitForSecondsRealtime(scanIntervalSeconds);
+            }
         }
     }
 
     internal sealed class VehicleRepainterRuntime
     {
         internal const float RepaintPrice = 800f;
+        private const string CustomColorRestoredEvent = "vehicle-repainter:color-restored";
 
         private static class DebugOptions
         {
             private const string GlobalDebugMarker = "vehicle-repainter.debug";
             private const string ButtonDebugMarker = "button-diagnostics.debug";
+            private const string InteractionDebugMarker = "interaction-diagnostics.debug";
+            private const string PersistenceDebugMarker = "color-persistence.debug";
 
             internal static bool EnableDebugLogging = false;
             internal static bool EnableButtonDiagnostics = false;
+            internal static bool EnableInteractionDiagnostics = false;
+            internal static bool EnablePersistenceDiagnostics = false;
 
             internal static void Configure(string modId)
             {
                 EnableDebugLogging = false;
                 EnableButtonDiagnostics = false;
+                EnableInteractionDiagnostics = false;
+                EnablePersistenceDiagnostics = false;
                 if (string.IsNullOrWhiteSpace(modId) || !Directory.Exists(modId))
                     return;
 
                 var configDirectory = Path.Combine(modId, "Config");
                 EnableDebugLogging = File.Exists(Path.Combine(configDirectory, GlobalDebugMarker));
                 EnableButtonDiagnostics = File.Exists(Path.Combine(configDirectory, ButtonDebugMarker));
+                EnableInteractionDiagnostics = File.Exists(Path.Combine(configDirectory, InteractionDebugMarker));
+                EnablePersistenceDiagnostics = File.Exists(Path.Combine(configDirectory, PersistenceDebugMarker));
             }
         }
 
@@ -280,6 +330,11 @@ namespace VehicleRepainter
         private readonly List<VehicleColor> ownedCustomVehicleColors = new List<VehicleColor>();
         private readonly List<GasStationTrigger> observedStationTriggers = new List<GasStationTrigger>();
         private readonly HashSet<string> reportedButtonFailures = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> reportedPersistenceFailures = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<int, string> restoredCustomVehicleColorsByControllerId =
+            new Dictionary<int, string>();
+        private static VehicleRepainterRuntime? activeRuntime;
+        private bool privateDriverPaintHooksInstalled;
         private OverlayUI? overlayUi;
         private GasStationOverlay? originalGasStationOverlay;
         private ExtendedGasStationOverlay? extendedGasStationOverlay;
@@ -306,6 +361,7 @@ namespace VehicleRepainter
                 ReferenceEquals(overlayUi, uis.overlayUI) &&
                 ReferenceEquals(overlayUi.gasStation, extendedGasStationOverlay))
             {
+                EnsurePrivateDriverPaintHooks();
                 TraceButton($"Installation already active source='{source}'.");
                 return;
             }
@@ -333,6 +389,9 @@ namespace VehicleRepainter
             extendedGasStationOverlay = new ExtendedGasStationOverlay(this);
             overlayUi.gasStation = extendedGasStationOverlay;
             ObserveStationTriggers();
+            activeRuntime = this;
+            EnsurePrivateDriverPaintHooks();
+            TraceInteraction($"Installed gas-station overlay extension source='{source}'.");
             TraceButton(
                 $"Installed gas-station overlay extension source='{source}'; previousOverlay='{originalGasStationOverlay?.GetType().FullName ?? "null"}', " +
                 $"observedTriggers={observedStationTriggers.Count}.");
@@ -340,6 +399,7 @@ namespace VehicleRepainter
 
         internal void Uninstall()
         {
+            TraceInteraction("Uninstalling the gas-station overlay extension.");
             if (activeRepaintAsset != null && PurchaseVehicleUI.IsPanelOpen)
                 InstanceBehavior<UIs>.Instance?.playerHUD?.purchaseVehicleUI?.Close();
 
@@ -356,6 +416,9 @@ namespace VehicleRepainter
             overlayUi = null;
             originalGasStationOverlay = null;
             extendedGasStationOverlay = null;
+            ReleasePrivateDriverPaintHooks();
+            if (ReferenceEquals(activeRuntime, this))
+                activeRuntime = null;
             ReleaseCustomVehicleColors();
         }
 
@@ -491,6 +554,12 @@ namespace VehicleRepainter
                 context.Logger.Info($"Vehicle Repainter button diagnostic: {message}");
         }
 
+        private void TracePersistence(string message)
+        {
+            if (DebugOptions.EnableDebugLogging && DebugOptions.EnablePersistenceDiagnostics)
+                context.Logger.Info($"Vehicle Repainter color persistence: {message}");
+        }
+
         private static string DescribeTrigger(GasStationTrigger? trigger)
         {
             if (trigger == null)
@@ -617,9 +686,10 @@ namespace VehicleRepainter
             if (dealerColors.Length != registeredColors.Count)
                 globalReferences.vehicleColors = dealerColors;
 
-            RestoreSavedCustomVehicleColors();
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
             GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+            GlobalEvents.onExitVehicle -= HandleVehicleExited;
+            GlobalEvents.onExitVehicle += HandleVehicleExited;
             return true;
         }
 
@@ -645,38 +715,226 @@ namespace VehicleRepainter
                    VehicleHelper.TryGetVehicleColor(colorName, out vehicleColor);
         }
 
-        private int RestoreSavedCustomVehicleColors()
+        internal void RestorePersistenceState(string source, int pass)
+        {
+            if (pass <= 4)
+                RepairInvalidVehicleRecords(source, pass);
+            if (customVehicleColors.Count == 0)
+                return;
+
+            EnsurePrivateDriverPaintHooks();
+            var inspectedVehicleCount = VehicleHelper.AllPlayerVehicles.Count;
+            var restoredVehicleCount = RestoreSavedCustomVehicleColors(source);
+            if (restoredVehicleCount > 0)
+            {
+                GameEvent.Invoke(CustomColorRestoredEvent);
+                TracePersistence(
+                    $"Broadcast '{CustomColorRestoredEvent}' after restoring {restoredVehicleCount} vehicle(s).");
+            }
+
+            TracePersistence(
+                $"Load restore pass={pass}, source='{source}', inspected={inspectedVehicleCount}, " +
+                $"restored={restoredVehicleCount}, privateDriverHooksInstalled={privateDriverPaintHooksInstalled}.");
+        }
+
+        private void RepairInvalidVehicleRecords(string source, int pass)
+        {
+            var gameInstance = SaveGameManager.Current;
+            if (gameInstance == null || gameInstance.VehicleInstances == null)
+                return;
+
+            var invalidPlayerVehicleRecords = gameInstance.VehicleInstances
+                .Where(vehicleInstance => !IsValidSavedVehicleRecord(vehicleInstance))
+                .ToArray();
+            var invalidPrivateDriverVehicleRecords = gameInstance.privateDriverVehicleInstances == null
+                ? Array.Empty<VehicleInstance>()
+                : gameInstance.privateDriverVehicleInstances
+                    .Where(vehicleInstance => !IsValidSavedVehicleRecord(vehicleInstance))
+                    .ToArray();
+
+            var removedPlayerVehicleRecords = invalidPlayerVehicleRecords.Length;
+            var removedPrivateDriverVehicleRecords = invalidPrivateDriverVehicleRecords.Length;
+            if (removedPlayerVehicleRecords == 0 && removedPrivateDriverVehicleRecords == 0)
+            {
+                if (pass == 4)
+                {
+                    context.Logger.Info(
+                        "Vehicle save recovery scan completed without invalid vehicle records; " +
+                        $"source='{source}', playerVehicleRecords={gameInstance.VehicleInstances.Count}, " +
+                        $"privateDriverVehicleRecords={gameInstance.privateDriverVehicleInstances?.Count ?? 0}.");
+                }
+
+                return;
+            }
+
+            gameInstance.VehicleInstances.RemoveAll(invalidPlayerVehicleRecords.Contains);
+            gameInstance.privateDriverVehicleInstances?.RemoveAll(invalidPrivateDriverVehicleRecords.Contains);
+
+            var clearedActiveVehicleId = !string.IsNullOrEmpty(gameInstance.ActiveVehicleId);
+            if (clearedActiveVehicleId)
+                gameInstance.ActiveVehicleId = string.Empty;
+
+            SaveGameManager.MarkChange();
+            context.Logger.Warn(
+                "Recovered invalid vehicle records from the loaded save; " +
+                $"source='{source}', pass={pass}, removedPlayerVehicleRecords={removedPlayerVehicleRecords}, " +
+                $"removedPrivateDriverVehicleRecords={removedPrivateDriverVehicleRecords}, " +
+                $"clearedActiveVehicleId={clearedActiveVehicleId}. " +
+                "Valid vehicles were preserved; save the game after confirming normal interactions.");
+        }
+
+        private static bool IsValidSavedVehicleRecord(VehicleInstance? vehicleInstance)
+        {
+            if (vehicleInstance == null || string.IsNullOrWhiteSpace(vehicleInstance.id) ||
+                string.IsNullOrWhiteSpace(vehicleInstance.vehicleTypeName))
+                return false;
+
+            try
+            {
+                return VehicleTypeHelper.GetVehicleType(vehicleInstance.vehicleTypeName) != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private int RestoreSavedCustomVehicleColors(string source)
         {
             var restoredVehicleCount = 0;
             foreach (var vehicle in VehicleHelper.AllPlayerVehicles.ToArray())
             {
-                if (RestoreSavedCustomVehicleColor(vehicle))
+                if (RestoreSavedCustomVehicleColor(vehicle, source))
                     restoredVehicleCount++;
             }
 
             return restoredVehicleCount;
         }
 
-        private bool RestoreSavedCustomVehicleColor(VehicleController? vehicle)
+        private bool RestoreSavedCustomVehicleColor(VehicleController? vehicle, string source)
         {
-            if (vehicle == null || vehicle.vehicleInstance == null || vehicle.CarFeatures == null ||
-                !customVehicleColors.TryGetValue(vehicle.vehicleInstance.vehicleColorName, out var color))
+            if (vehicle == null || vehicle.vehicleInstance == null)
+                return false;
+
+            var vehicleInstance = vehicle.vehicleInstance;
+            var colorName = vehicleInstance.vehicleColorName;
+            if (string.IsNullOrEmpty(colorName) || !customVehicleColors.TryGetValue(colorName, out var color))
             {
+                restoredCustomVehicleColorsByControllerId.Remove(vehicle.GetInstanceID());
                 return false;
             }
 
+            if (vehicle.CarFeatures == null)
+            {
+                WarnPersistenceFailureOnce(
+                    $"player:{vehicleInstance.id}:missing-car-features",
+                    $"Could not restore custom color '{colorName}' for " +
+                    $"vehicle id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', " +
+                    $"source='{source}' because CarFeatures is unavailable.");
+                return false;
+            }
+
+            var controllerId = vehicle.GetInstanceID();
+            if (restoredCustomVehicleColorsByControllerId.TryGetValue(controllerId, out var restoredColorName) &&
+                string.Equals(restoredColorName, colorName, StringComparison.Ordinal))
+                return false;
+
             vehicle.CarFeatures.SetColor(color);
+            restoredCustomVehicleColorsByControllerId[controllerId] = colorName;
+            TracePersistence(
+                $"Restored custom color '{colorName}' for player vehicle " +
+                $"id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', source='{source}'.");
             return true;
         }
 
         private void HandleVehicleEntered(VehicleController vehicle)
         {
-            RestoreSavedCustomVehicleColor(vehicle);
+            TraceInteraction("Received global vehicle-enter event.", vehicle);
+            TraceInteractionNextFrame("Vehicle state one frame after the global vehicle-enter event.", vehicle);
+            RestoreSavedCustomVehicleColor(vehicle, "vehicle-entered");
+        }
+
+        private void EnsurePrivateDriverPaintHooks()
+        {
+            if (privateDriverPaintHooksInstalled)
+                return;
+
+            var added = 0;
+            foreach (var button in Resources.FindObjectsOfTypeAll<SmartphonePrivateDriverUiButton>())
+            {
+                if (button == null || !button.gameObject.scene.IsValid() ||
+                    button.GetComponent<PrivateDriverPaintButtonHook>() != null)
+                {
+                    continue;
+                }
+
+                button.gameObject.AddComponent<PrivateDriverPaintButtonHook>();
+                added++;
+            }
+
+            if (added > 0)
+            {
+                privateDriverPaintHooksInstalled = true;
+                TracePersistence($"Attached private-driver paint restore hook to {added} phone button(s).");
+            }
+        }
+
+        private void ReleasePrivateDriverPaintHooks()
+        {
+            foreach (var hook in Resources.FindObjectsOfTypeAll<PrivateDriverPaintButtonHook>())
+            {
+                if (hook != null && hook.gameObject.scene.IsValid())
+                    UnityEngine.Object.Destroy(hook);
+            }
+
+            privateDriverPaintHooksInstalled = false;
+        }
+
+        internal static void HandlePrivateDriverButtonClicked()
+        {
+            activeRuntime?.RestorePrivateDriverCustomColor("private-driver-button");
+        }
+
+        private void RestorePrivateDriverCustomColor(string source)
+        {
+            var privateDriverVehicle = SmartphonePrivateDriverUI.CurrentVehicle;
+            if (privateDriverVehicle == null || privateDriverVehicle.vehicleInstance == null)
+            {
+                TracePersistence($"No summoned private-driver vehicle was available after source='{source}'.");
+                return;
+            }
+
+            var vehicleInstance = privateDriverVehicle.vehicleInstance;
+            var colorName = vehicleInstance.vehicleColorName;
+            if (string.IsNullOrEmpty(colorName) || !customVehicleColors.TryGetValue(colorName, out var color))
+                return;
+
+            var carFeatures = privateDriverVehicle.GetComponent<CarFeatures>();
+            if (carFeatures == null)
+            {
+                WarnPersistenceFailureOnce(
+                    $"private-driver:{vehicleInstance.id}:missing-car-features",
+                    $"Could not restore custom color '{colorName}' for private-driver " +
+                    $"vehicle id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}' because CarFeatures is unavailable.");
+                return;
+            }
+
+            carFeatures.SetColor(color);
+            TracePersistence(
+                $"Restored custom color '{colorName}' for private-driver vehicle " +
+                $"id='{vehicleInstance.id}', type='{vehicleInstance.vehicleTypeName}', source='{source}'.");
+        }
+
+        private void WarnPersistenceFailureOnce(string reason, string message)
+        {
+            if (reportedPersistenceFailures.Add(reason))
+                context.Logger.Warn($"Vehicle Repainter color persistence failed [{reason}]: {message}");
         }
 
         private void ReleaseCustomVehicleColors()
         {
             GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+            GlobalEvents.onExitVehicle -= HandleVehicleExited;
             foreach (var color in ownedCustomVehicleColors)
             {
                 if (color != null)
@@ -685,6 +943,53 @@ namespace VehicleRepainter
 
             customVehicleColors.Clear();
             ownedCustomVehicleColors.Clear();
+            restoredCustomVehicleColorsByControllerId.Clear();
+            reportedPersistenceFailures.Clear();
+        }
+
+        private void HandleVehicleExited(VehicleController vehicle)
+        {
+            TraceInteraction("Received global vehicle-exit event.", vehicle);
+            TraceInteractionNextFrame("Vehicle state one frame after the global vehicle-exit event.", vehicle);
+        }
+
+        private void TraceInteraction(string message, VehicleController? eventVehicle = null)
+        {
+            if (!DebugOptions.EnableDebugLogging || !DebugOptions.EnableInteractionDiagnostics)
+                return;
+
+            context.Logger.Info(
+                $"Vehicle Repainter interaction diagnostic: {message} " +
+                $"eventVehicle='{DescribeVehicle(eventVehicle)}'; {DescribeInteractionState()}");
+        }
+
+        private void TraceInteractionNextFrame(string message, VehicleController? eventVehicle)
+        {
+            if (!DebugOptions.EnableDebugLogging || !DebugOptions.EnableInteractionDiagnostics || overlayUi == null)
+                return;
+
+            overlayUi.StartCoroutine(TraceInteractionAfterFrame(message, eventVehicle));
+        }
+
+        private IEnumerator TraceInteractionAfterFrame(string message, VehicleController? eventVehicle)
+        {
+            yield return null;
+            TraceInteraction(message, eventVehicle);
+        }
+
+        private string DescribeInteractionState()
+        {
+            var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+            var activeOverlay = overlayUi?.gasStation;
+            var currentTrigger = activeOverlay == null ? null : GetCurrentStationTrigger(activeOverlay);
+            return $"selectedVehicle='{DescribeVehicle(selectedVehicle)}', " +
+                   $"usingVehicle={PlayerHelper.IsUsingVehicle}, " +
+                   $"insideMotorVehicle={VehicleHelper.IsInsideMotorVehicle()}, " +
+                   $"purchasePanelOpen={PurchaseVehicleUI.IsPanelOpen}, " +
+                   $"activeRepaintSession={activeRepaintAsset != null}, " +
+                   $"activeOverlay='{activeOverlay?.GetType().FullName ?? "null"}', " +
+                   $"repaintOverlayActive={ReferenceEquals(activeOverlay, extendedGasStationOverlay)}, " +
+                   $"overlayTrigger='{DescribeTrigger(currentTrigger)}'";
         }
 
         private sealed class ExtendedGasStationOverlay : GasStationOverlay, IOverlay
@@ -830,6 +1135,7 @@ namespace VehicleRepainter
                 GlobalEvents.onExitVehicle += HandleVehicleExited;
                 vehicle.SetFreeze(true);
                 movementLocked = true;
+                runtime.TraceInteraction("Started repaint session and froze the serviced vehicle.", vehicle);
             }
 
             internal void ApplyColorGridLayout(PurchaseVehicleUI purchaseUi)
@@ -926,6 +1232,7 @@ namespace VehicleRepainter
                 if (closed)
                     return;
 
+                runtime.TraceInteraction("Closing repaint session.", vehicle);
                 closed = true;
                 stationTrigger.onExited -= HandleStationExited;
                 GlobalEvents.onExitVehicle -= HandleVehicleExited;
@@ -945,6 +1252,7 @@ namespace VehicleRepainter
 
                 RestoreGasStationOverlayIfStillRelevant();
                 onClosed(this);
+                runtime.TraceInteraction("Closed repaint session and restored the vehicle/UI state.", vehicle);
             }
 
             public bool Purchase()
@@ -1012,6 +1320,7 @@ namespace VehicleRepainter
                 if (closed || !ReferenceEquals(exitedStation, stationTrigger))
                     return;
 
+                runtime.TraceInteraction("Serviced vehicle exited the repaint station; cancelling session.", vehicle);
                 CancelSession();
             }
 
@@ -1020,6 +1329,7 @@ namespace VehicleRepainter
                 if (closed || !ReferenceEquals(exitedVehicle, vehicle))
                     return;
 
+                runtime.TraceInteraction("Serviced vehicle emitted its exit event; cancelling repaint session.", vehicle);
                 CancelSession();
             }
 
@@ -1244,6 +1554,48 @@ namespace VehicleRepainter
                 FresnelColor = fresnelColor;
                 FresnelPower = fresnelPower;
             }
+        }
+    }
+
+    internal sealed class PrivateDriverPaintButtonHook : MonoBehaviour
+    {
+        private Button? button;
+        private bool subscribed;
+
+        private void OnEnable()
+        {
+            if (subscribed)
+                return;
+
+            button = GetComponent<Button>();
+            if (button == null)
+                return;
+
+            button.onClick.AddListener(HandleClicked);
+            subscribed = true;
+        }
+
+        private void OnDisable()
+        {
+            Unsubscribe();
+        }
+
+        private void OnDestroy()
+        {
+            Unsubscribe();
+        }
+
+        private void HandleClicked()
+        {
+            VehicleRepainterRuntime.HandlePrivateDriverButtonClicked();
+        }
+
+        private void Unsubscribe()
+        {
+            if (subscribed && button != null)
+                button.onClick.RemoveListener(HandleClicked);
+
+            subscribed = false;
         }
     }
 }

@@ -23,6 +23,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private const float EngineLimitRpm = 9500f;
     private const float SpeedLimitKph = 355f;
     private const float FinalDriveRatio = 3.15f;
+    private const float DownshiftRpm = 6500f;
     private const float EngineInertia = 0.09f;
     private const float EngineStartDuration = 0.42f;
     private const float ClutchEngagementRpm = 1400f;
@@ -61,8 +62,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private static AnimationCurve CreateRevueltoPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.23f, 0.16f),
-            new Keyframe(0.55f, 0.34f),
+            new Keyframe(0.23f, 0.17f),
+            new Keyframe(0.55f, 0.36f),
             new Keyframe(0.78f, 0.58f),
             new Keyframe(0.90f, 1f),
             new Keyframe(1f, 0.88f));
@@ -70,12 +71,21 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private ModContext? context;
+    private bool dealerReady;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
     private string vehicleTypeName = string.Empty;
     private int observedPlayerVehicleCount = -1;
+    private GameObject? playerVehiclePrefab;
     private VehicleController? previewVehicle;
     private LamborghiniRevueltoPaintController? previewPaintController;
 
-    public static LamborghiniRevueltoRuntime Initialize(ModContext context, string vehicleTypeName)
+    public static LamborghiniRevueltoRuntime Initialize(
+        ModContext context,
+        string vehicleTypeName,
+        GameObject playerVehiclePrefab)
     {
         var runtime = FindObjectOfType<LamborghiniRevueltoRuntime>();
         if (runtime == null)
@@ -87,6 +97,8 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
         runtime.context = context;
         runtime.vehicleTypeName = vehicleTypeName ?? string.Empty;
+        runtime.playerVehiclePrefab = playerVehiclePrefab;
+        LamborghiniRevueltoPrivateDriverSupport.SetContext(context);
         runtime.SubscribeEvents();
         GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
         runtime.ScheduleInitialization("mod-load");
@@ -99,8 +111,15 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         previewVehicle = null;
         previewPaintController = null;
+        LamborghiniRevueltoPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
+        playerVehiclePrefab = null;
         Destroy(gameObject);
     }
 
@@ -161,7 +180,17 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         SubscribeEvents();
+        if (LamborghiniRevueltoLoadRecovery.CompleteInterruptedLoad(context))
+            StartCoroutine(ReportLoadedInputState());
+        privateDriverRegistrationAllowed = true;
         ScheduleInitialization("game-loaded-late");
+    }
+
+    private IEnumerator ReportLoadedInputState()
+    {
+        // The native loading screen fades out for 0.8 seconds after this event.
+        yield return new WaitForSecondsRealtime(2f);
+        LamborghiniRevueltoLoadRecovery.ReportInputState(context);
     }
 
     private void HandleGameUnloaded()
@@ -170,6 +199,11 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
         configuredVehicleIds.Clear();
+        dealerReady = false;
+        privateDriverPoolReady = false;
+        privateDriverReady = false;
+        privateDriverRegistrationAllowed = false;
+        privateDriverPreparationExceptionLogged = false;
         observedPlayerVehicleCount = -1;
         previewVehicle = null;
         previewPaintController = null;
@@ -230,14 +264,24 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         if (address == null)
             return;
         var registration = BuildingHelper.GetBuildingRegistration(address);
-        if (LamborghiniRevueltoLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        if (!dealerReady &&
+            !BusinessLayoutSetHelper.loadingLayouts &&
+            LamborghiniRevueltoLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
+        {
             EnsureDealerStock("dealer-entered");
+        }
     }
 
     private void HandleFullMenuToggle(bool isOpen)
     {
-        if (isOpen)
+        if (!isOpen)
+            return;
+
+        if (!dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
             EnsureDealerStock("full-menu");
+        if (privateDriverRegistrationAllowed &&
+            (!privateDriverReady || !privateDriverPoolReady))
+            EnsurePrivateDriverSupport("full-menu");
     }
 
     private void HandleVehicleVariablesChanged() => ConfigureExistingVehicles(out _);
@@ -251,31 +295,39 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
 
     private IEnumerator InitializeForLifecycle(string source)
     {
-        while (BusinessLayoutSetHelper.loadingLayouts)
-        {
-            ConfigureExistingVehicles(out _);
-            yield return new WaitForSecondsRealtime(InitializationRetryDelay);
-        }
-
-        var dealerReady = false;
         var previousMatchedCount = -1;
         var stablePasses = 0;
         var maximumMatchedCount = 0;
 
         for (var attempt = 1; attempt <= InitializationRetryCount; attempt++)
         {
+            if (!privateDriverPoolReady && playerVehiclePrefab != null)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
+            while (!dealerReady && BusinessLayoutSetHelper.loadingLayouts)
+            {
+                ConfigureExistingVehicles(out var waitingMatchedCount);
+                maximumMatchedCount = Math.Max(maximumMatchedCount, waitingMatchedCount);
+                yield return new WaitForSecondsRealtime(InitializationRetryDelay);
+            }
+
             if (!dealerReady)
                 dealerReady = EnsureDealerStock(source);
+            if (privateDriverRegistrationAllowed && !privateDriverReady)
+                EnsurePrivateDriverSupport(source);
             ConfigureExistingVehicles(out var matchedCount);
             maximumMatchedCount = Math.Max(maximumMatchedCount, matchedCount);
 
-            if (dealerReady && matchedCount == previousMatchedCount)
+            var servicesReady = dealerReady &&
+                                privateDriverPoolReady &&
+                                (!privateDriverRegistrationAllowed || privateDriverReady);
+            if (servicesReady && matchedCount == previousMatchedCount)
                 stablePasses++;
             else
                 stablePasses = 0;
             previousMatchedCount = matchedCount;
 
-            if (dealerReady && stablePasses >= RequiredStablePasses)
+            if (servicesReady && stablePasses >= RequiredStablePasses)
                 break;
             if (attempt < InitializationRetryCount)
                 yield return new WaitForSecondsRealtime(InitializationRetryDelay);
@@ -288,19 +340,93 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 $"LamborghiniRevuelto: luxury dealer stock not ready source='{source}', " +
                 $"matchedVehicles={maximumMatchedCount}.");
         }
+        if (privateDriverRegistrationAllowed && !privateDriverReady)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver support not ready source='{source}'.");
+        }
+        if (!privateDriverPoolReady)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver traffic pool not ready source='{source}'.");
+        }
     }
 
     private bool EnsureDealerStock(string source)
     {
+        if (dealerReady)
+            return true;
+        if (BusinessLayoutSetHelper.loadingLayouts)
+            return false;
+
         try
         {
-            return LamborghiniRevueltoLuxuryDealerStock.EnsureVehicleAvailable(vehicleTypeName);
+            dealerReady = LamborghiniRevueltoLuxuryDealerStock.EnsureVehicleAvailable(
+                vehicleTypeName);
+            return dealerReady;
         }
         catch (Exception exception)
         {
             context?.Logger.Warn(
                 $"LamborghiniRevuelto: dealer stock update failed source='{source}': " +
                 $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool EnsurePrivateDriverSupport(string source)
+    {
+        if (privateDriverReady && privateDriverPoolReady)
+            return true;
+        if (!privateDriverRegistrationAllowed || playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            if (!privateDriverPoolReady)
+                privateDriverPoolReady = TryPreparePrivateDriverPool(source);
+
+            if (!privateDriverReady)
+            {
+                privateDriverReady = LamborghiniRevueltoPrivateDriverSupport.EnsureVehicleAvailable(
+                    vehicleTypeName);
+                if (privateDriverReady)
+                {
+                    context?.Logger.Info(
+                        $"LamborghiniRevuelto: private-driver support registered source='{source}'.");
+                }
+            }
+            return privateDriverReady && privateDriverPoolReady;
+        }
+        catch (Exception exception)
+        {
+            context?.Logger.Warn(
+                $"LamborghiniRevuelto: private-driver registration failed source='{source}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return false;
+        }
+    }
+
+    private bool TryPreparePrivateDriverPool(string source)
+    {
+        if (playerVehiclePrefab == null)
+            return false;
+
+        try
+        {
+            return LamborghiniRevueltoPrivateDriverSupport.PrepareTrafficPool(
+                playerVehiclePrefab);
+        }
+        catch (Exception exception)
+        {
+            if (!privateDriverPreparationExceptionLogged)
+            {
+                context?.Logger.Warn(
+                    $"LamborghiniRevuelto: private-driver pool preparation failed source='{source}': " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+                privateDriverPreparationExceptionLogged = true;
+            }
+
             return false;
         }
     }
@@ -365,6 +491,20 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
                 rigidbody.solverIterations = Mathf.Max(rigidbody.solverIterations, 12);
                 rigidbody.solverVelocityIterations =
                     Mathf.Max(rigidbody.solverVelocityIterations, 4);
+
+                var aerodynamics = vehicle.GetComponent<LamborghiniRevueltoAerodynamics>();
+                if (aerodynamics == null)
+                    aerodynamics = vehicle.gameObject.AddComponent<LamborghiniRevueltoAerodynamics>();
+                aerodynamics.Initialize(rigidbody);
+
+                var highwaySeamGuard =
+                    vehicle.GetComponent<LamborghiniRevueltoHighwaySeamGuard>();
+                if (highwaySeamGuard == null)
+                {
+                    highwaySeamGuard = vehicle.gameObject
+                        .AddComponent<LamborghiniRevueltoHighwaySeamGuard>();
+                }
+                highwaySeamGuard.Initialize(rigidbody);
             }
 
             ConfigureMassProperties(vehicle.gameObject);
@@ -735,7 +875,7 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.065f);
-            SetFloat(transmission, "_downshiftRPM", 3600f);
+            SetFloat(transmission, "_downshiftRPM", DownshiftRpm);
             SetFloat(transmission, "_upshiftRPM", 9250f);
             SetInt(transmission, "forwardGearCount", 8);
             SetInt(transmission, "reverseGearCount", 1);
@@ -880,6 +1020,129 @@ public sealed class LamborghiniRevueltoRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[DisallowMultipleComponent]
+internal sealed class LamborghiniRevueltoAerodynamics : MonoBehaviour
+{
+    // Approximate road-load drag with a speed-squared force above the launch
+    // range. This preserves the 0-100 response while curbing the overly strong
+    // pull above 200 km/h seen in the diagnostic runs.
+    private const float DragForceCoefficient = 0.56f;
+    private const float MinimumDragSpeedMps = 25f;
+
+    private Rigidbody? body;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        var speedSquared = planarVelocity.sqrMagnitude;
+        var minimumSpeedSquared = MinimumDragSpeedMps * MinimumDragSpeedMps;
+        if (speedSquared <= minimumSpeedSquared)
+            return;
+
+        var dragForce = DragForceCoefficient * (speedSquared - minimumSpeedSquared);
+        body.AddForce(-planarVelocity.normalized * dragForce, ForceMode.Force);
+    }
+}
+
+[DefaultExecutionOrder(-100)]
+[DisallowMultipleComponent]
+internal sealed class LamborghiniRevueltoHighwaySeamGuard : MonoBehaviour
+{
+    private const float MinimumSpeedMps = 40f;
+    private const float MaximumSampleAgeSeconds = 0.1f;
+    private const float MinimumUpwardContactNormal = 0.9f;
+    private static readonly string[] KnownHighwaySurfaceNames =
+    {
+        "HamptonsAvenue_Highway",
+        "HighwayAvenue_Highway",
+        "X_IntersectionAASAAS_Highway",
+    };
+
+    private Rigidbody? body;
+    private Vector3 velocityBeforeStep;
+    private Vector3 angularVelocityBeforeStep;
+    private float velocitySampleTime;
+
+    internal void Initialize(Rigidbody vehicleBody)
+    {
+        body = vehicleBody;
+    }
+
+    private void FixedUpdate()
+    {
+        if (body == null || body.isKinematic)
+            return;
+
+        var planarVelocity = Vector3.ProjectOnPlane(body.velocity, Vector3.up);
+        if (planarVelocity.sqrMagnitude < MinimumSpeedMps * MinimumSpeedMps)
+            return;
+
+        velocityBeforeStep = body.velocity;
+        angularVelocityBeforeStep = body.angularVelocity;
+        velocitySampleTime = Time.unscaledTime;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        CorrectKnownHighwaySeam(collision);
+    }
+
+    private void CorrectKnownHighwaySeam(Collision collision)
+    {
+        if (collision == null || body == null)
+            return;
+
+        var other = collision.collider;
+        if (other == null ||
+            Time.unscaledTime - velocitySampleTime > MaximumSampleAgeSeconds ||
+            !IsKnownHighwaySurface(other.name) || !HasUpwardContact(collision))
+        {
+            return;
+        }
+
+        var correctedVelocity = body.velocity;
+        if (correctedVelocity.y <= velocityBeforeStep.y)
+            return;
+
+        correctedVelocity.y = velocityBeforeStep.y;
+        body.velocity = correctedVelocity;
+        body.angularVelocity = angularVelocityBeforeStep;
+    }
+
+    private static bool HasUpwardContact(Collision collision)
+    {
+        for (var index = 0; index < collision.contactCount; index++)
+        {
+            if (collision.GetContact(index).normal.y >= MinimumUpwardContactNormal)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsKnownHighwaySurface(string objectName)
+    {
+        foreach (var surfaceName in KnownHighwaySurfaceNames)
+        {
+            if (objectName.IndexOf(surfaceName, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
     }
 }
 

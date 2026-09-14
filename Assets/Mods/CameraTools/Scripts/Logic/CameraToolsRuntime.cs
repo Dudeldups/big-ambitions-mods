@@ -7,6 +7,7 @@ using Helpers;
 using UI.Notification;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace CameraTools
@@ -433,11 +434,13 @@ namespace CameraTools
         private void OnEnable()
         {
             Camera.onPreCull += HandleCameraPreCull;
+            SceneManager.sceneLoaded += HandleCityFogSceneLoaded;
         }
 
         private void OnDisable()
         {
             Camera.onPreCull -= HandleCameraPreCull;
+            SceneManager.sceneLoaded -= HandleCityFogSceneLoaded;
             RestoreCityFogState();
             RestoreForcedIndoorWallsVisibility();
             RestoreTrackedMemberStates();

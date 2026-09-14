@@ -70,8 +70,8 @@ public static class LamborghiniRevueltoSetup
     private static AnimationCurve CreateRevueltoPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.23f, 0.16f),
-            new Keyframe(0.55f, 0.34f),
+            new Keyframe(0.23f, 0.17f),
+            new Keyframe(0.55f, 0.36f),
             new Keyframe(0.78f, 0.58f),
             new Keyframe(0.90f, 1f),
             new Keyframe(1f, 0.88f));
@@ -914,7 +914,7 @@ public static class LamborghiniRevueltoSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 8f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3600f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 6500f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 9250f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 
