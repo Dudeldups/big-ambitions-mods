@@ -13,6 +13,18 @@ using Vehicles.VehicleTypes;
 
 [assembly: RegisterModClass(typeof(AudiRS6RMod))]
 
+internal static class AudiRS6RDiagnostics
+{
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool WarehouseExitDebugEnabled { get; set; } = false;
+
+    internal static void WarehouseExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && WarehouseExitDebugEnabled)
+            context?.Logger.Info(message);
+    }
+}
+
 [ModEntryOnInitializationLoad]
 public class AudiRS6RMod : IModBigAmbitions
 {
