@@ -84,10 +84,13 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             new Color(0.90f, 0.95f, 1f, 1f), 6.4f);
         secondaryHeadlampOverlay = CreateOverlay(secondaryHeadlamp, "HeadlampSecondary",
             new Color(0.84f, 0.92f, 1f, 1f), 5.8f);
-        rearTailLeftOverlay = CreateOverlay(tailLeft, "RearTailSignatureLeft",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
-        rearTailRightOverlay = CreateOverlay(tailRight, "RearTailSignatureRight",
-            new Color(0.78f, 0.006f, 0.002f, 1f), 2.8f);
+        // TAILLIGHT_LENS_* is the outer cover, not the emissive running-light
+        // insert. Use the dedicated inner BRAKES_* surfaces for both red
+        // states so the lens itself remains transparent/non-emissive.
+        rearTailLeftOverlay = CreateOverlay(brakeLeft, "RearTailSignatureLeft",
+            new Color(0.78f, 0.006f, 0.002f, 1f), 1.7f, 1.003f);
+        rearTailRightOverlay = CreateOverlay(brakeRight, "RearTailSignatureRight",
+            new Color(0.78f, 0.006f, 0.002f, 1f), 1.7f, 1.003f);
         brakeLeftOverlay = CreateOverlay(brakeLeft, "RearBrakeSignatureLeft",
             new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
         brakeRightOverlay = CreateOverlay(brakeRight, "RearBrakeSignatureRight",
@@ -101,8 +104,8 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         var amber = new Color(1f, 0.18f, 0.001f, 1f);
         leftBlinkerOverlay = CreateOverlay(leftBlinker, "LeftIndicator", amber, 5.4f, 1.004f);
         rightBlinkerOverlay = CreateOverlay(rightBlinker, "RightIndicator", amber, 5.4f, 1.004f);
-        rearLeftBlinkerOverlay = CreateOverlay(tailLeft, "RearLeftIndicator", amber, 6f, 1.006f);
-        rearRightBlinkerOverlay = CreateOverlay(tailRight, "RearRightIndicator", amber, 6f, 1.006f);
+        rearLeftBlinkerOverlay = CreateOverlay(brakeLeft, "RearLeftIndicator", amber, 6f, 1.006f);
+        rearRightBlinkerOverlay = CreateOverlay(brakeRight, "RearRightIndicator", amber, 6f, 1.006f);
         var beamCount = ConfigureHeadlightBeams();
 
         initialized = true;

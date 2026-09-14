@@ -330,7 +330,7 @@ public static class KoenigseggJeskoMaterials
             RebindToHdrpLit(material);
         }
         var tint = cabinGlass
-            ? new Color(0.10f, 0.14f, 0.18f, 0.45f)
+            ? new Color(0.08f, 0.12f, 0.16f, 0.30f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.72f, 0.80f, 0.88f, 0.08f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -394,7 +394,8 @@ public static class KoenigseggJeskoMaterials
     {
         var name = material.name;
         return name.IndexOf("Windows", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0;
+               name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string? FirstTextureProperty(Material material, params string[] properties)

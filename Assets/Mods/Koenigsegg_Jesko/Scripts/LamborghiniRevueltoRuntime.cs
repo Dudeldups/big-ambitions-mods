@@ -17,7 +17,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1420f;
-    private const float EnginePowerKw = 1280f;
+    private const float EnginePowerKw = 760f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8500f;
     private const float SpeedLimitKph = 480f;
@@ -38,6 +38,22 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
+    private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
+        new Dictionary<string, Vector3>
+        {
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.307f, 1.3743513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.307f, 1.3743511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.2689924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.2689926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.307f, 1.3743513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.307f, 1.3743511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2689924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.2689926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.307f, 1.3743513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.307f, 1.3743511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.2689924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.2689926f) },
+        };
 
     private static readonly float[] JeskoGears =
     {
@@ -405,6 +421,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             }
 
             ConfigureMassProperties(vehicle.gameObject);
+            var wheelPlacements = ConfigureWheelPlacements(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
             var disabledFallbackChassis = DisableFallbackChassis(vehicle.gameObject);
@@ -451,6 +468,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"mass={VehicleMass:0}kg, transmission=9-speed-LST, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
+                $"wheelPlacements={wheelPlacements}/12, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
                 $"navMeshObstacles={normalizedNavMeshObstacles}, " +
@@ -503,6 +521,25 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
             }
         }
+    }
+
+    private static int ConfigureWheelPlacements(GameObject root)
+    {
+        var configured = 0;
+        foreach (var pair in WheelPlacementOverrides)
+        {
+            foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (!string.Equals(transform.name, pair.Key, StringComparison.Ordinal))
+                    continue;
+
+                transform.localPosition = pair.Value;
+                configured++;
+                break;
+            }
+        }
+
+        return configured;
     }
 
     private static void ConfigureMassProperties(GameObject root)
@@ -816,9 +853,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             SetFloat(engine, "startDuration", EngineStartDuration);
             SetBool(engine, "stallingEnabled", false);
             var forcedInduction = GetMember(engine, "forcedInduction");
-            SetBool(forcedInduction, "useForcedInduction", true);
-            SetFloat(forcedInduction, "powerGainMultiplier", 1.2f);
-            SetFloat(forcedInduction, "spoolUpTime", 0.12f);
+            SetBool(forcedInduction, "useForcedInduction", false);
+            SetFloat(forcedInduction, "powerGainMultiplier", 1f);
+            SetFloat(forcedInduction, "spoolUpTime", 0f);
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);

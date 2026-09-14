@@ -35,6 +35,9 @@ public static class KoenigseggJeskoSetup
     private const float RearSuspensionTravel = 0.06f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
+    private const float FrontWheelForwardOffset = 0.08f;
+    private const float RearWheelForwardOffset = 0.14f;
+    private const float WheelGroundingOffset = -0.04f;
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
@@ -43,10 +46,10 @@ public static class KoenigseggJeskoSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.970f, 0.347f, 1.380f) },
-            { "FrontRight_WheelController", new Vector3(0.970f, 0.347f, 1.380f) },
-            { "RearLeft_WheelController", new Vector3(-0.970f, 0.371f, -1.330f) },
-            { "RearRight_WheelController", new Vector3(0.970f, 0.371f, -1.330f) },
+            { "FrontLeft_WheelController", new Vector3(-0.806f, 0.307f, 1.374f) },
+            { "FrontRight_WheelController", new Vector3(0.806f, 0.307f, 1.374f) },
+            { "RearLeft_WheelController", new Vector3(-0.767f, 0.331f, -1.269f) },
+            { "RearRight_WheelController", new Vector3(0.767f, 0.331f, -1.269f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -634,7 +637,7 @@ public static class KoenigseggJeskoSetup
         SetNumber(serialized, "maxFuel", 72f);
         SetNumber(serialized, "maxCargoCapacity", 2f);
         SetNumber(serialized, "maxSpeed", 480f);
-        SetNumber(serialized, "enginePower", 1280f);
+        SetNumber(serialized, "enginePower", 760f);
         SetNumber(serialized, "brakeForce", 32000f);
         SetNumber(serialized, "turnRadius", 27f);
         SetNumber(serialized, "damageIntensity", 0.42f);
@@ -895,7 +898,7 @@ public static class KoenigseggJeskoSetup
                 SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
                 SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.09f);
-                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 1280f);
+                SetRelativeNumber(serialized, "powertrain.engine.maxPower", 760f);
                 var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
                 if (powerCurve?.propertyType != SerializedPropertyType.AnimationCurve)
                     throw new InvalidOperationException("Reference engine power curve is missing.");
@@ -1038,10 +1041,11 @@ public static class KoenigseggJeskoSetup
             var authoredCenter = root.transform.InverseTransformPoint(tireBounds.center);
             var side = authoredCenter.x < 0f ? -1f : 1f;
             var outset = isFront ? FrontWheelOutset : RearWheelOutset;
+            var forwardOffset = isFront ? FrontWheelForwardOffset : RearWheelForwardOffset;
             controller.localPosition = new Vector3(
                 authoredCenter.x + side * outset,
-                radius,
-                authoredCenter.z);
+                radius + WheelGroundingOffset,
+                authoredCenter.z + forwardOffset);
             var mount = new GameObject(
                 "KoenigseggWheel" +
                 pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
@@ -1049,7 +1053,7 @@ public static class KoenigseggJeskoSetup
             mount.transform.localPosition =
                 new Vector3(
                     controller.localPosition.x,
-                    radius,
+                    radius + WheelGroundingOffset,
                     controller.localPosition.z);
 
             // Preserve the GLB's side-specific hierarchy and rotation. Resetting
@@ -1094,7 +1098,9 @@ public static class KoenigseggJeskoSetup
             fixedCaliper.transform.SetParent(root.transform, false);
             fixedCaliper.transform.position = mount.transform.position;
             fixedCaliper.transform.rotation = root.transform.rotation;
-            caliper.SetParent(fixedCaliper.transform, true);
+            caliper.SetParent(fixedCaliper.transform, false);
+            caliper.localPosition = Vector3.zero;
+            caliper.localRotation = Quaternion.identity;
             caliper.name = "Jesko_Caliper_" + pair.Key;
 
             AssignWheelVisual(controller, mount);
