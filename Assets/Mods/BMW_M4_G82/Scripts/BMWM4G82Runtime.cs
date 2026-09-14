@@ -56,6 +56,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private const float DamageIntensity = 0.62f;
     private const float DamageDecelerationThreshold = 500f;
     private const float MinimumHealthyEngineRpm = 300f;
+    private const float WarehouseExitReentrySuppressionSeconds = 1.5f;
+    private const float WarehouseExitEntranceSearchRadius = 12f;
     private const int EngineStartAttemptCount = 3;
     private static readonly Vector3 DriverExitPosition = new Vector3(-2.05f, 0.20f, 0.15f);
     private static readonly Vector3 PassengerExitPosition = new Vector3(2.05f, 0.20f, 0.15f);
@@ -107,6 +109,9 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? powertrainReadinessCoroutine;
+    private Coroutine? warehouseExitGuardCoroutine;
+    private DriveInEntrance? suppressedWarehouseEntrance;
+    private bool suppressedWarehouseEntranceWasEnabled;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private bool dealerReady;
@@ -146,6 +151,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     public void Shutdown()
     {
+        RestoreWarehouseExitGuard(false);
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         if (powertrainReadinessCoroutine != null)
@@ -182,6 +188,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+        RestoreWarehouseExitGuard(false);
     }
 
     private void SubscribeEvents()
@@ -192,6 +199,8 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
@@ -205,6 +214,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
         GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -234,6 +244,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
 
     private void HandleGameUnloaded()
     {
+        RestoreWarehouseExitGuard(false);
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         if (powertrainReadinessCoroutine != null)
@@ -382,6 +393,106 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
             ScheduleInitialization("dealer-entered");
         else
             EnsureDealerStock("dealer-entered");
+    }
+
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+            return;
+
+        var nearestEntrance = FindClosestDriveInEntrance(
+            vehicle.transform.position,
+            out var distance);
+        if (nearestEntrance == null || distance > WarehouseExitEntranceSearchRadius)
+        {
+            context?.Logger.Warn(
+                $"BMWM4G82: warehouse exit guard could not resolve the nearby drive-in " +
+                $"entrance vehicle={vehicle.GetInstanceID()} distance={distance:0.00}m.");
+            return;
+        }
+
+        RestoreWarehouseExitGuard(false);
+        suppressedWarehouseEntrance = nearestEntrance;
+        suppressedWarehouseEntranceWasEnabled = nearestEntrance.enabled;
+        if (!suppressedWarehouseEntranceWasEnabled)
+        {
+            suppressedWarehouseEntrance = null;
+            return;
+        }
+
+        // Native warehouse exit places the car at the garage trigger before
+        // the next physics step. The BMW can therefore invoke the same
+        // DriveInEntrance again immediately, producing an exit/enter loop.
+        // Debounce only that door for this one verified BMW transition.
+        nearestEntrance.enabled = false;
+        context?.Logger.Info(
+            $"BMWM4G82: suppressing immediate warehouse re-entry " +
+            $"vehicle={vehicle.GetInstanceID()} entrance='{nearestEntrance.name}' " +
+            $"distance={distance:0.00}m duration={WarehouseExitReentrySuppressionSeconds:0.0}s.");
+        warehouseExitGuardCoroutine = StartCoroutine(RestoreWarehouseExitGuardAfterDelay());
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(
+        Vector3 vehiclePosition,
+        out float distance)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null
+            ? float.PositiveInfinity
+            : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
+    }
+
+    private IEnumerator RestoreWarehouseExitGuardAfterDelay()
+    {
+        yield return new WaitForSecondsRealtime(WarehouseExitReentrySuppressionSeconds);
+        warehouseExitGuardCoroutine = null;
+        RestoreWarehouseExitGuard(true);
+    }
+
+    private void RestoreWarehouseExitGuard(bool log)
+    {
+        if (warehouseExitGuardCoroutine != null)
+        {
+            StopCoroutine(warehouseExitGuardCoroutine);
+            warehouseExitGuardCoroutine = null;
+        }
+
+        var entrance = suppressedWarehouseEntrance;
+        var restoreEnabled = suppressedWarehouseEntranceWasEnabled;
+        suppressedWarehouseEntrance = null;
+        suppressedWarehouseEntranceWasEnabled = false;
+        if (entrance == null)
+            return;
+
+        if (restoreEnabled)
+            entrance.enabled = true;
+        if (log)
+            context?.Logger.Info(
+                $"BMWM4G82: warehouse exit re-entry guard released " +
+                $"entrance='{entrance.name}'.");
     }
 
     private void HandleFullMenuToggle(bool isOpen)
