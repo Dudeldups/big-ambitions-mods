@@ -660,6 +660,7 @@ public sealed class BMWM4G82Runtime : MonoBehaviour
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
                 $"transparentFixed={materialResult.TransparentMaterialsFixed}, " +
+                $"bodyPaintNormalized={materialResult.BodyPaintMaterialsNormalized}, " +
                 $"cabinGlass={materialResult.CabinGlassRenderers}/" +
                 $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
                 $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
