@@ -105,6 +105,28 @@ this repository. Do not wait for the user to request a commit separately.
 - Never push directly to `main`. For work completed on a dedicated task branch,
   push only that branch as part of the pull-request workflow below.
 
+## Remote and Pull-Request Safety
+
+- This repository's pull requests belong only in the user's fork:
+  `Dudeldups/big-ambitions-mods`. The `origin` remote must refer to that fork.
+- Treat `upstream` (`hovgaardgames/bigambitions`) as fetch-only reference
+  material. Never push a branch to it and never create, retarget, merge, close,
+  or otherwise modify a pull request in the upstream repository.
+- Immediately before any push or pull-request operation, verify the destination
+  with `git remote get-url origin` and
+  `gh repo view Dudeldups/big-ambitions-mods --json nameWithOwner,url`.
+  Stop if either result does not resolve to `Dudeldups/big-ambitions-mods`; do
+  not infer a target from GitHub CLI's default repository, the branch's tracking
+  remote, another remote's name, or the fork relationship.
+- Always make the repository explicit in GitHub CLI pull-request commands by
+  passing `--repo Dudeldups/big-ambitions-mods`. Create pull requests with the
+  task branch from this fork as the head and `main` in this same fork as the
+  base. Never use `--repo hovgaardgames/bigambitions` or an upstream base.
+- After creating a pull request, inspect its URL and repository owner before
+  reporting success or continuing. If it is not under
+  `github.com/Dudeldups/big-ambitions-mods`, stop immediately, report the
+  mistake, and do not continue the workflow there.
+
 ## Parallel Work and Branches
 
 - Run simultaneous mod tasks in separate Git worktrees so each chat has its own
