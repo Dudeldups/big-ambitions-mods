@@ -18,7 +18,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
-    private const float BrakeMaxTorque = 2200f;
+    private const float BrakeMaxTorque = 2800f;
     private const float CenterOfMassHeight = 0.25f;
     private const float DamageIntensity = 0.5f;
     private const float DamageDecelerationThreshold = 200f;
@@ -1449,11 +1449,11 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
     private const float FrontDentCenterLowering = 0.08f;
     private const float RearDentCenterLowering = 0.18f;
     private const float MinimumFrontEndDentDepth = 0.030f;
-    private const float MinimumRearEndDentDepth = 0.018f;
+    private const float MinimumRearEndDentDepth = 0.022f;
     private const float MaximumFrontEndDentDepth = 0.285f;
-    private const float MaximumRearEndDentDepth = 0.20f;
+    private const float MaximumRearEndDentDepth = 0.23f;
     private const float FrontEndDepthPerExcessMps = 0.011f;
-    private const float RearEndDepthPerExcessMps = 0.0075f;
+    private const float RearEndDepthPerExcessMps = 0.009f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
 

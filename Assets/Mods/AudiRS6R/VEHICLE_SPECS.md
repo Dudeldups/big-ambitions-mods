@@ -20,9 +20,10 @@ The vehicle controller represents the published 544 kW output directly in its
 power curve. Its separate forced-induction multiplier therefore remains
 disabled to avoid counting turbo boost twice. The game-physics calibration uses
 a 45% engine-output loss, 40:60 front/rear torque split, 780 Nm clutch limit,
-and a bounded 2,200 Nm brake input. These values compensate for the simulation's
-measured 1.8-second 0–100 km/h launch and 24-metre stop; they are calibration
-controls rather than claims about the real car's mechanical losses.
+and a bounded 2,800 Nm brake input. These values compensate for the simulation's
+measured acceleration and braking response while prioritizing the confirmed
+in-game pedal feel; they are calibration controls rather than claims about the
+real car's mechanical losses.
 
 Primary references:
 
