@@ -401,6 +401,17 @@ public static class KoenigseggJeskoMaterials
             FixTransparentHdrpMaterial(material);
     }
 
+    internal static void RestoreHeadlampLensMaterial(Material material)
+    {
+        // Lens materials can share the imported "windows" marker with cabin
+        // glass but must remain nearly clear; never apply the dark cabin tint.
+        FixTransparentHdrpMaterial(material);
+        var lensTint = new Color(0.82f, 0.90f, 0.98f, 0.08f);
+        SetColor(material, "_BaseColor", lensTint);
+        SetColor(material, "_Color", lensTint);
+        SetColor(material, "baseColorFactor", lensTint);
+    }
+
     public static bool IsCabinGlassMaterial(Material material)
     {
         var name = material.name;

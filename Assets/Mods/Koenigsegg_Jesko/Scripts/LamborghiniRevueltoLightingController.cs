@@ -91,16 +91,16 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         // inner components are the actual brake elements. Keep the lower
         // bumper reflectors out of all three states.
         rearTailLeftOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
-            bounds => bounds.size.x >= 0.20f,
+            (_, triangleCount) => triangleCount >= 20,
             "RearTailSignatureLeft", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
         rearTailRightOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
-            bounds => bounds.size.x >= 0.20f,
+            (_, triangleCount) => triangleCount >= 20,
             "RearTailSignatureRight", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
         brakeLeftOverlay = CreateConnectedComponentFilteredOverlay(brakeLeft,
-            bounds => bounds.size.x >= 0.04f && bounds.size.x < 0.20f,
+            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
             "RearBrakeSignatureLeft", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         brakeRightOverlay = CreateConnectedComponentFilteredOverlay(brakeRight,
-            bounds => bounds.size.x >= 0.04f && bounds.size.x < 0.20f,
+            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
             "RearBrakeSignatureRight", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         thirdBrakeOverlay = CreateFilteredOverlay(thirdBrake,
             center => Mathf.Abs(center.x) < 0.15f && center.y > 0.58f,
@@ -118,10 +118,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "RightIndicator", amber, 4.5f, 1.003f);
         rearLeftBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
-            bounds => bounds.size.x >= 0.20f,
+            (_, triangleCount) => triangleCount >= 20,
             "RearLeftIndicator", amber, 5.2f, 1.005f);
         rearRightBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
-            bounds => bounds.size.x >= 0.20f,
+            (_, triangleCount) => triangleCount >= 20,
             "RearRightIndicator", amber, 5.2f, 1.005f);
         var beamCount = ConfigureHeadlightBeams();
 
@@ -241,7 +241,7 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
 
     private MeshRenderer? CreateConnectedComponentFilteredOverlay(
         MeshRenderer? source,
-        Func<Bounds, bool> includeComponent,
+        Func<Bounds, int, bool> includeComponent,
         string suffix,
         Color color,
         float intensity,
@@ -279,9 +279,23 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
                 bounds.Encapsulate(vertices[index]);
         }
 
+        var componentTriangleCounts = new Dictionary<int, int>();
+        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
+        {
+            var sourceTriangles = sourceMesh.GetTriangles(subMesh);
+            for (var index = 0; index + 2 < sourceTriangles.Length; index += 3)
+            {
+                var root = FindRoot(parents, sourceTriangles[index]);
+                componentTriangleCounts[root] = componentTriangleCounts.TryGetValue(root, out var count)
+                    ? count + 1
+                    : 1;
+            }
+        }
+
         var selectedRoots = new HashSet<int>();
         foreach (var pair in componentBounds)
-            if (includeComponent(pair.Value))
+            if (includeComponent(pair.Value,
+                    componentTriangleCounts.TryGetValue(pair.Key, out var count) ? count : 0))
                 selectedRoots.Add(pair.Key);
 
         var triangles = new List<int>();

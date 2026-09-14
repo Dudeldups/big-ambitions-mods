@@ -18,7 +18,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1420f;
-    private const float EnginePowerKw = 760f;
+    // 1280 hp on pump fuel is 955 kW. The curve below keeps the real Jesko's
+    // broad midrange torque without applying the E85-only 1600 hp figure.
+    private const float EnginePowerKw = 955f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8500f;
     private const float SpeedLimitKph = 480f;
@@ -74,10 +76,13 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static AnimationCurve CreateJeskoPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.20f, 0.14f),
-            new Keyframe(0.48f, 0.34f),
-            new Keyframe(0.76f, 0.72f),
-            new Keyframe(0.90f, 1f),
+            new Keyframe(0.106f, 0.02f),
+            // 1000 Nm from 2700 to 6170 rpm translates to about 30–68% of
+            // the 955 kW pump-fuel peak; peak power arrives at 7800 rpm.
+            new Keyframe(0.318f, 0.296f),
+            new Keyframe(0.480f, 0.447f),
+            new Keyframe(0.726f, 0.676f),
+            new Keyframe(0.918f, 1f),
             new Keyframe(1f, 0.94f));
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
@@ -248,7 +253,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
     {
-        const int maximumPasses = 4;
+        const int maximumPasses = 8;
         yield return null;
 
         var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
@@ -287,10 +292,14 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         enteredVehicleActivationCoroutine = null;
+        var finalEngine = physics?.powertrain?.engine;
+        var finalTransmission = physics?.powertrain?.transmission;
         context?.Logger.Info(
             $"KoenigseggJesko: dealer entry activation completed instance={vehicle!.GetInstanceID()}, " +
             $"physicsEnabled={physics?.enabled ?? false}, " +
-            $"isKinematic={rigidbody?.isKinematic ?? false}.");
+            $"isKinematic={rigidbody?.isKinematic ?? false}, " +
+            $"engineRunning={finalEngine?.IsRunning ?? false}, gear={finalTransmission?.Gear ?? -99}, " +
+            $"controlledByPlayer={vehicle.controlledByPlayer}.");
     }
 
     private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
@@ -1037,20 +1046,17 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             return false;
         }
 
-        try
-        {
-            var owner = root.GetComponent<KoenigseggJeskoDamageBodyMeshController>() ??
-                        root.AddComponent<KoenigseggJeskoDamageBodyMeshController>();
-            owner.Initialize(root, damageFilter, damageRenderer, sourceFilter, sourceRenderer, context);
-            return true;
-        }
-        catch (Exception exception)
-        {
-            context?.Logger.Warn(
-                $"KoenigseggJesko body vehicle={root.GetInstanceID()}: " +
-                $"normal shell repair failed: {exception.GetType().Name}: {exception.Message}");
-            return false;
-        }
+        // The source shell is already authored in its correct local frame.
+        // Converting it into the old root-local damage holder caused the
+        // misaligned/invisible body sections visible in dealer screenshots.
+        // Preserve the source transform and let the visual-damage controller
+        // clone/deform that mesh in place.
+        sourceRenderer.enabled = true;
+        damageRenderer.enabled = false;
+        context?.Logger.Info(
+            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: restored authored " +
+            $"main shell='{sourceRenderer.name}' in its native transform; stale damage shell disabled.");
+        return true;
     }
 
     private static void ConfigureExitMarkers(GameObject root)
@@ -1691,6 +1697,8 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
     private readonly List<Renderer> cabinGlass = new List<Renderer>();
     private readonly Dictionary<Material, Material> runtimeMaterials =
         new Dictionary<Material, Material>();
+    private readonly Dictionary<Material, Material> runtimeHeadlampMaterials =
+        new Dictionary<Material, Material>();
     private ModContext? context;
     private Coroutine? restoreCoroutine;
     private bool initialized;
@@ -1705,8 +1713,28 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
         }
 
         cabinGlass.Clear();
+        var disabledInteriorDuplicates = 0;
+        var headlampLenses = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
+            // The GLB includes a second set of black interior window shells.
+            // Rendering both panes produces the opaque, angle-dependent black
+            // glass seen in-game even with the exterior material configured
+            // correctly. Keep the authored exterior panes only.
+            if (IsInteriorDuplicateGlassRenderer(renderer))
+            {
+                renderer.enabled = false;
+                renderer.forceRenderingOff = true;
+                disabledInteriorDuplicates++;
+                continue;
+            }
+            if (IsHeadlampLensRenderer(renderer))
+            {
+                ConfigureHeadlampLens(renderer);
+                headlampLenses++;
+            }
+            if (!IsExteriorCabinGlassRenderer(renderer))
+                continue;
             var materials = renderer.sharedMaterials;
             var containsCabinGlass = false;
             for (var index = 0; index < materials.Length; index++)
@@ -1735,6 +1763,10 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
         }
         initialized = true;
         EnsureVisible("initialize");
+        context?.Logger.Info(
+            $"KoenigseggJesko glass vehicle={GetInstanceID()}: disabled interior duplicate panes=" +
+            $"{disabledInteriorDuplicates}, clear headlamp lenses={headlampLenses}; " +
+            "exterior panes remain independently transparent.");
     }
 
     internal void RestoreAfterVehicleEntered()
@@ -1804,6 +1836,48 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
         }
     }
 
+    private static bool IsInteriorDuplicateGlassRenderer(Renderer renderer)
+    {
+        return renderer.name.StartsWith("jesko_int1:LOD_A_INT_GLASS_", StringComparison.Ordinal) ||
+               renderer.name.StartsWith("jesko_int1:LOD_A_INT_BODY_mm_int_Glass", StringComparison.Ordinal);
+    }
+
+    private static bool IsExteriorCabinGlassRenderer(Renderer renderer)
+    {
+        return renderer.name.StartsWith("jesko:LOD_A_GLASS_", StringComparison.Ordinal) &&
+               renderer.name.IndexOf("HEADLIGHT", StringComparison.OrdinalIgnoreCase) < 0 &&
+               renderer.name.IndexOf("MIRROR", StringComparison.OrdinalIgnoreCase) < 0;
+    }
+
+    private static bool IsHeadlampLensRenderer(Renderer renderer) =>
+        renderer.name.IndexOf("HEADLIGHT_LENS", StringComparison.OrdinalIgnoreCase) >= 0 &&
+        renderer.name.IndexOf("_mm_windows", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private void ConfigureHeadlampLens(Renderer renderer)
+    {
+        var materials = renderer.sharedMaterials;
+        for (var index = 0; index < materials.Length; index++)
+        {
+            var source = materials[index];
+            if (source == null)
+                continue;
+            if (!runtimeHeadlampMaterials.TryGetValue(source, out var runtimeMaterial))
+            {
+                runtimeMaterial = Instantiate(source);
+                runtimeMaterial.name = source.name + "_RuntimeHeadlampLens";
+                KoenigseggJeskoMaterials.RestoreHeadlampLensMaterial(runtimeMaterial);
+                runtimeHeadlampMaterials.Add(source, runtimeMaterial);
+            }
+            materials[index] = runtimeMaterial;
+            renderer.SetPropertyBlock(null, index);
+        }
+        renderer.sharedMaterials = materials;
+        renderer.enabled = true;
+        renderer.forceRenderingOff = false;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+    }
+
     private void OnDestroy()
     {
         if (restoreCoroutine != null)
@@ -1815,6 +1889,12 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
                 Destroy(material);
         }
         runtimeMaterials.Clear();
+        foreach (var material in runtimeHeadlampMaterials.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+        runtimeHeadlampMaterials.Clear();
     }
 }
 
