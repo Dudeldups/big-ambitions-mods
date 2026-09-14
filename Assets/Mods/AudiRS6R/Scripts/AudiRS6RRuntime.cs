@@ -18,7 +18,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
-    private const float BrakeMaxTorque = 18000f;
+    private const float BrakeMaxTorque = 3500f;
     private const float CenterOfMassHeight = 0.25f;
     private const float DamageIntensity = 0.5f;
     private const float DamageDecelerationThreshold = 200f;
@@ -29,6 +29,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float ExitLocalZ = 0.117f;
     private const float FuelConsumptionMultiplier = 20f;
     private const float FuelIdleConsumption = 0.045f;
+    private const float EngineInertia = 0.2f;
+    private const float EngineLossPercent = 0.16f;
+    private const float ClutchSlipTorque = 1250f;
+    private const float CenterDifferentialRearBias = 0.60f;
     private const float HandbrakeCoefficient = 2f;
     private const float LowerBodyColliderCenterY = 0.6f;
     private const float LowerBodyColliderHeight = 0.62f;
@@ -443,8 +447,14 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             audioController = vehicleController.gameObject.AddComponent<AudiRS6RAudioController>();
         audioController!.Initialize(vehicleController, context);
 
+        var performanceTelemetry = vehicleController.GetComponent<AudiRS6RPerformanceTelemetry>();
+        var addedPerformanceTelemetry = performanceTelemetry == null;
+        if (addedPerformanceTelemetry)
+            performanceTelemetry = vehicleController.gameObject.AddComponent<AudiRS6RPerformanceTelemetry>();
+        performanceTelemetry!.Initialize(vehicleController, context);
+
         return sleepConfigured > 0 || addedRoadDamageGuard || addedMaterialController || addedLightingController ||
-               addedDriverController || addedAudioController;
+               addedDriverController || addedAudioController || addedPerformanceTelemetry;
     }
 
     private void ConfigureVehiclePhysics(VehicleController vehicleController)
@@ -461,7 +471,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureAccelerationDynamics(vehicleController);
         ConfigureVisualBodyHeight(vehicleController);
         var exitMarkerCount = ConfigureExitMarkers(vehicleController);
-        ConfigureBodyColliders(vehicleController, out _, out _);
+        ConfigureBodyColliders(vehicleController, out var bodyColliderCount, out var adjustedColliderCount);
         var navMeshObstacleCount = ConfigureNavMeshObstacles(vehicleController.gameObject);
         ConfigureSuspension(vehicleController, out _, out _);
         ConfigureBrakes(vehicleController, out _, out _);
@@ -470,7 +480,10 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         ConfigureLights(vehicleController, out _, out _, out _);
         context?.Logger.Info(
             $"AudiRS6R vehicle={vehicleController.GetInstanceID()}: configured exitMarkers={exitMarkerCount}, " +
-            $"navMeshObstacles={navMeshObstacleCount}, deformableExteriorMeshes={deformableMeshCount}.");
+            $"bodyColliders={bodyColliderCount}, adjustedBodyColliders={adjustedColliderCount}, " +
+            $"navMeshObstacles={navMeshObstacleCount}, deformableExteriorMeshes={deformableMeshCount}, " +
+            $"power=544kW, engineLoss={EngineLossPercent:0.00}, rearTorqueBias={CenterDifferentialRearBias:0.00}, " +
+            $"brakeTorque={BrakeMaxTorque:0}Nm.");
     }
 
     private static void ConfigureAccelerationDynamics(VehicleController vehicleController)
@@ -487,9 +500,35 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             if (string.Equals(componentType.FullName, "NWH.VehiclePhysics2.VehicleController", StringComparison.Ordinal))
             {
                 var powertrain = GetMemberValue(component, "powertrain");
+                var clutch = GetMemberValue(powertrain, "clutch");
+                if (clutch != null)
+                    TrySetFloatMember(clutch, "slipTorque", ClutchSlipTorque);
                 var engine = GetMemberValue(powertrain, "engine");
-                if (engine != null && targetEnginePower > 0f)
-                    TrySetFloatMember(engine, "maxPower", targetEnginePower);
+                if (engine != null)
+                {
+                    if (targetEnginePower > 0f)
+                        TrySetFloatMember(engine, "maxPower", targetEnginePower);
+                    TrySetFloatMember(engine, "inertia", EngineInertia);
+                    TrySetFloatMember(engine, "engineLossPercent", EngineLossPercent);
+                    TrySetMemberValue(engine, "powerCurve", CreateRS6RPowerCurve());
+                }
+
+                if (GetMemberValue(powertrain, "differentials") is IList differentials)
+                {
+                    foreach (var differential in differentials)
+                    {
+                        if (differential == null ||
+                            !string.Equals(
+                                GetMemberValue(differential, "name") as string,
+                                "Center Differential",
+                                StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        TrySetFloatMember(differential, "biasAB", CenterDifferentialRearBias);
+                    }
+                }
             }
             else if (string.Equals(componentType.Name, "SpeedLimiterModuleWrapper", StringComparison.Ordinal))
             {
@@ -583,6 +622,18 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
             vehicle.GetComponent<AudiRS6RMaterialController>()?.RefreshPaint();
         }
     }
+
+    private static AnimationCurve CreateRS6RPowerCurve() =>
+        new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.13f, 0.10f),
+            new Keyframe(0.29f, 0.355f),
+            new Keyframe(0.36f, 0.443f),
+            new Keyframe(0.50f, 0.62f),
+            new Keyframe(0.64f, 0.80f),
+            new Keyframe(0.79f, 0.95f),
+            new Keyframe(0.86f, 1f),
+            new Keyframe(1f, 0.84f));
 
     private static int ConfigureNavMeshObstacles(GameObject root)
     {
@@ -778,7 +829,6 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     {
         return string.Equals(name, "Paint", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Base_Geo_", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("B:Engine_Geo_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Paint_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Coloured_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("B:Kit2_Carbon1_Geo_", StringComparison.OrdinalIgnoreCase) ||
@@ -1270,6 +1320,32 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
         return false;
     }
 
+    private static bool TrySetMemberValue(object target, string memberName, object value)
+    {
+        for (var type = target.GetType(); type != null; type = type.BaseType)
+        {
+            var field = type.GetField(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null && field.FieldType.IsInstanceOfType(value))
+            {
+                field.SetValue(target, value);
+                return true;
+            }
+
+            var property = type.GetProperty(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (property != null && property.CanWrite && property.PropertyType.IsInstanceOfType(value))
+            {
+                property.SetValue(target, value, null);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static object? InvokeNoArgumentMethod(object target, string methodName)
     {
         var method = target.GetType().GetMethod(
@@ -1336,6 +1412,9 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
 
         foreach (var materialController in FindObjectsOfType<AudiRS6RMaterialController>(true))
             if (materialController != null) Destroy(materialController);
+
+        foreach (var telemetry in FindObjectsOfType<AudiRS6RPerformanceTelemetry>(true))
+            if (telemetry != null) Destroy(telemetry);
 
         foreach (var damageController in FindObjectsOfType<AudiRS6RVisualDamageController>(true))
             if (damageController != null) Destroy(damageController);
@@ -1448,8 +1527,6 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                 var mesh = pair.Key.sharedMesh;
                 mesh.vertices = pair.Value;
                 mesh.RecalculateBounds();
-                mesh.RecalculateNormals();
-                mesh.RecalculateTangents();
                 SynchronizeLighting(pair.Key, mesh);
                 repairedMeshes++;
             }
@@ -1475,17 +1552,39 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
 
         try
         {
+            var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
             nextCollisionTime = Time.unscaledTime + CollisionCooldown;
             var contacts = collision.contacts;
             if (contacts.Length == 0)
                 return;
+
+            var contactSamples = new ContactSample[contacts.Length];
+            for (var contactIndex = 0; contactIndex < contacts.Length; contactIndex++)
+            {
+                var contact = contacts[contactIndex];
+                var localPoint = transform.InverseTransformPoint(contact.point);
+                var isEndContact =
+                    Mathf.Abs(localPoint.z) >= EndContactMinimumLongitudinalOffset &&
+                    Mathf.Abs(localPoint.z) > Mathf.Abs(localPoint.x);
+                contactSamples[contactIndex] = new ContactSample(
+                    localPoint,
+                    transform.InverseTransformDirection(contact.normal).normalized,
+                    isEndContact,
+                    isEndContact && localPoint.z >= 0f);
+            }
+
+            // Collision contacts for one rigid body impact occupy the same
+            // vehicle region. Classify once so front-only/rear-only meshes are
+            // skipped before their vertex buffers are read.
+            var primaryContact = contactSamples[0];
 
             var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
             var sideDentDepth = Mathf.Clamp(
                 excessSpeed * DepthPerExcessMps,
                 MinimumSideDentDepth,
                 MaximumSideDentDepth);
-            var center = body != null ? body.worldCenterOfMass : transform.position;
+            var localCenter = transform.InverseTransformPoint(
+                body != null ? body.worldCenterOfMass : transform.position);
             var changedMeshes = 0;
             var changedMeshNames = new List<string>();
             var maximumDisplacement = 0f;
@@ -1493,42 +1592,50 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
 
             foreach (var filter in deformableFilters)
             {
-                if (filter == null || filter.sharedMesh == null)
+                if (filter == null || filter.sharedMesh == null ||
+                    !CanDeformAtContact(
+                        filter.name,
+                        primaryContact.IsEndContact,
+                        primaryContact.IsFrontEndContact))
+                {
                     continue;
+                }
                 var mesh = filter.sharedMesh;
                 var vertices = mesh.vertices;
                 originalVertices.TryGetValue(filter, out var sourceVertices);
+                var filterToVehicle = transform.worldToLocalMatrix * filter.transform.localToWorldMatrix;
+                var vehicleToFilter = filterToVehicle.inverse;
                 var meshChanged = false;
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
-                    var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
+                    var vehicleLocalVertex = filterToVehicle.MultiplyPoint3x4(vertices[vertexIndex]);
                     var strongestInfluence = 0f;
                     var inwardDirection = Vector3.zero;
                     var selectedDepth = sideDentDepth;
                     var selectedEndImpact = false;
                     var selectedFrontEndImpact = false;
-                    foreach (var contact in contacts)
+                    foreach (var contact in contactSamples)
                     {
-                        var localContact = transform.InverseTransformPoint(contact.point);
-                        var isEndContact =
-                            Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
-                            Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
-                        var isFrontEndContact = isEndContact && localContact.z >= 0f;
-                        if (!CanDeformAtContact(filter.name, isEndContact, isFrontEndContact))
+                        if (!CanDeformAtContact(
+                                filter.name,
+                                contact.IsEndContact,
+                                contact.IsFrontEndContact))
+                        {
                             continue;
+                        }
                         float influence;
                         Vector3 candidateDirection;
-                        if (isEndContact)
+                        if (contact.IsEndContact)
                         {
                             // The Audi's visible bumper skins sit below the main
                             // collision contact. Lowering this ellipsoid keeps the
                             // fascia inside the dent instead of only folding the
                             // painted panel above it.
-                            var centerLowering = isFrontEndContact
+                            var centerLowering = contact.IsFrontEndContact
                                 ? FrontDentCenterLowering
                                 : RearDentCenterLowering;
-                            var influenceCenter = contact.point - transform.up * centerLowering;
-                            var localDelta = transform.InverseTransformVector(worldVertex - influenceCenter);
+                            var influenceCenter = contact.LocalPoint - Vector3.up * centerLowering;
+                            var localDelta = vehicleLocalVertex - influenceCenter;
                             var normalizedDistance = Mathf.Sqrt(
                                 localDelta.x * localDelta.x /
                                 (EndDentLateralRadius * EndDentLateralRadius) +
@@ -1537,26 +1644,27 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                                 localDelta.z * localDelta.z /
                                 (EndDentLongitudinalRadius * EndDentLongitudinalRadius));
                             influence = 1f - normalizedDistance;
-                            candidateDirection = localContact.z >= 0f
-                                ? -transform.forward
-                                : transform.forward;
+                            candidateDirection = contact.LocalPoint.z >= 0f
+                                ? Vector3.back
+                                : Vector3.forward;
                         }
                         else
                         {
-                            influence = 1f - Vector3.Distance(worldVertex, contact.point) / DentRadius;
-                            var towardCenter = (center - contact.point).normalized;
-                            var contactNormal = contact.normal.normalized;
-                            candidateDirection = Vector3.Dot(contactNormal, towardCenter) >= 0f
-                                ? contactNormal
-                                : -contactNormal;
+                            influence = 1f -
+                                        Vector3.Distance(vehicleLocalVertex, contact.LocalPoint) /
+                                        DentRadius;
+                            var towardCenter = (localCenter - contact.LocalPoint).normalized;
+                            candidateDirection = Vector3.Dot(contact.LocalNormal, towardCenter) >= 0f
+                                ? contact.LocalNormal
+                                : -contact.LocalNormal;
                         }
 
                         if (influence <= strongestInfluence)
                             continue;
                         strongestInfluence = influence;
                         inwardDirection = candidateDirection;
-                        selectedFrontEndImpact = isFrontEndContact;
-                        selectedDepth = isEndContact
+                        selectedFrontEndImpact = contact.IsFrontEndContact;
+                        selectedDepth = contact.IsEndContact
                             ? Mathf.Clamp(
                                 excessSpeed * (selectedFrontEndImpact
                                     ? FrontEndDepthPerExcessMps
@@ -1568,7 +1676,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                                     ? MaximumFrontEndDentDepth
                                     : MaximumRearEndDentDepth)
                             : sideDentDepth;
-                        selectedEndImpact = isEndContact;
+                        selectedEndImpact = contact.IsEndContact;
                     }
 
                     if (strongestInfluence <= 0f || inwardDirection.sqrMagnitude < 0.5f)
@@ -1576,7 +1684,7 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                     var falloff = selectedEndImpact
                         ? Mathf.Pow(strongestInfluence, 1.35f)
                         : strongestInfluence * strongestInfluence;
-                    worldVertex += inwardDirection * (selectedDepth * falloff);
+                    vehicleLocalVertex += inwardDirection * (selectedDepth * falloff);
                     var cumulativeCap = selectedEndImpact
                         ? selectedFrontEndImpact
                             ? MaximumFrontEndDentDepth
@@ -1584,17 +1692,17 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                         : MaximumSideDentDepth;
                     if (sourceVertices != null && vertexIndex < sourceVertices.Length)
                     {
-                        var originalWorldVertex =
-                            filter.transform.TransformPoint(sourceVertices[vertexIndex]);
-                        var cumulativeOffset = worldVertex - originalWorldVertex;
+                        var originalVehicleLocalVertex =
+                            filterToVehicle.MultiplyPoint3x4(sourceVertices[vertexIndex]);
+                        var cumulativeOffset = vehicleLocalVertex - originalVehicleLocalVertex;
                         maximumDisplacement = Mathf.Max(maximumDisplacement, cumulativeOffset.magnitude);
                         if (cumulativeOffset.sqrMagnitude > cumulativeCap * cumulativeCap)
                         {
-                            worldVertex = originalWorldVertex +
-                                          cumulativeOffset.normalized * cumulativeCap;
+                            vehicleLocalVertex = originalVehicleLocalVertex +
+                                                 cumulativeOffset.normalized * cumulativeCap;
                         }
                     }
-                    vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
+                    vertices[vertexIndex] = vehicleToFilter.MultiplyPoint3x4(vehicleLocalVertex);
                     meshChanged = true;
                     if (selectedEndImpact)
                         region = selectedFrontEndImpact ? "front" : "rear";
@@ -1604,8 +1712,6 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
                     continue;
                 mesh.vertices = vertices;
                 mesh.RecalculateBounds();
-                mesh.RecalculateNormals();
-                mesh.RecalculateTangents();
                 SynchronizeLighting(filter, mesh);
                 changedMeshes++;
                 changedMeshNames.Add(filter.name);
@@ -1613,10 +1719,13 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
 
             if (changedMeshes > 0)
             {
+                var elapsedMilliseconds =
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - startedAt) * 1000d /
+                    System.Diagnostics.Stopwatch.Frequency;
                 context?.Logger.Info(
                     $"AudiRS6R damage vehicle={vehicle?.GetInstanceID()}: region={region}, " +
                     $"impact={collision.relativeVelocity.magnitude:0.0}mps, meshes={changedMeshes}, " +
-                    $"maxDisplacement={maximumDisplacement:0.000}m, " +
+                    $"maxDisplacement={maximumDisplacement:0.000}m, processing={elapsedMilliseconds:0.0}ms, " +
                     $"targets=[{string.Join(",", changedMeshNames)}].");
             }
         }
@@ -1645,13 +1754,32 @@ public sealed class AudiRS6RVisualDamageController : MonoBehaviour
         if (meshName.StartsWith("B:Window_Geo_lodA_B:", StringComparison.OrdinalIgnoreCase))
             return isEndContact;
 
-        if (meshName.StartsWith("B:Engine_Geo_", StringComparison.OrdinalIgnoreCase) ||
-            meshName.StartsWith("B:Kit2_Textured_Geo_", StringComparison.OrdinalIgnoreCase))
+        if (meshName.StartsWith("B:Kit2_Textured_Geo_", StringComparison.OrdinalIgnoreCase))
         {
             return isFrontEndContact;
         }
 
         return true;
+    }
+
+    private readonly struct ContactSample
+    {
+        internal ContactSample(
+            Vector3 localPoint,
+            Vector3 localNormal,
+            bool isEndContact,
+            bool isFrontEndContact)
+        {
+            LocalPoint = localPoint;
+            LocalNormal = localNormal;
+            IsEndContact = isEndContact;
+            IsFrontEndContact = isFrontEndContact;
+        }
+
+        internal Vector3 LocalPoint { get; }
+        internal Vector3 LocalNormal { get; }
+        internal bool IsEndContact { get; }
+        internal bool IsFrontEndContact { get; }
     }
 
     private void SynchronizeLighting(MeshFilter filter, Mesh mesh)

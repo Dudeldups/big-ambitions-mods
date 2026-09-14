@@ -639,10 +639,11 @@ internal sealed class AudiRS6RPrivateDriverAppearance : MonoBehaviour
         var colorName = privateDriver.vehicleInstance.vehicleColorName;
         var features = GetComponent<CarFeatures>();
         var restoredBaseColor = false;
+        VehicleColor? savedColor = null;
         if (AudiRS6RPrivateDriverSupport.TryResolveDriverColor(
                 colorName,
                 features?.VehicleColor,
-                out var savedColor) &&
+                out savedColor) &&
             savedColor != null)
         {
             features?.SetColor(savedColor);
@@ -655,7 +656,7 @@ internal sealed class AudiRS6RPrivateDriverAppearance : MonoBehaviour
         var paint = GetComponent<AudiRS6RMaterialController>();
         if (paint == null)
             paint = gameObject.AddComponent<AudiRS6RMaterialController>();
-        paint.InitializeForPrivateDriver(colorName, features?.VehicleColor);
+        paint.InitializeForPrivateDriver(colorName, savedColor);
         return paint.HasAppliedColor;
     }
 

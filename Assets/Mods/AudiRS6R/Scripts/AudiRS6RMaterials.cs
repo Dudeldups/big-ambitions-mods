@@ -652,7 +652,7 @@ internal sealed class AudiRS6RMaterialController : MonoBehaviour
 
     private void ConfigurePaintRenderer()
     {
-        foreach (var renderer in vehicle!.GetComponentsInChildren<Renderer>(true))
+        foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
             if (renderer == null || !string.Equals(renderer.name, PaintRendererName, StringComparison.Ordinal))
                 continue;
