@@ -18,7 +18,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float InitializationRetryDelay = 0.25f;
     private const float AntiRollBarForce = 6500f;
     private const float BrakeActuationTime = 0.06f;
-    private const float BrakeMaxTorque = 2800f;
+    private const float BrakeMaxTorque = 1850f;
     private const float CenterOfMassHeight = 0.25f;
     private const float DamageIntensity = 0.5f;
     private const float DamageDecelerationThreshold = 200f;
@@ -30,7 +30,7 @@ public sealed class AudiRS6RRuntime : MonoBehaviour
     private const float FuelConsumptionMultiplier = 20f;
     private const float FuelIdleConsumption = 0.045f;
     private const float EngineInertia = 0.2f;
-    private const float EngineLossPercent = 0.45f;
+    private const float EngineLossPercent = 0.57f;
     private const float ClutchSlipTorque = 780f;
     private const float CenterDifferentialRearBias = 0.60f;
     private const float HandbrakeCoefficient = 2f;

@@ -19,11 +19,11 @@ Avant. Calibration is driven by bounded in-game acceleration and braking runs.
 The vehicle controller represents the published 544 kW output directly in its
 power curve. Its separate forced-induction multiplier therefore remains
 disabled to avoid counting turbo boost twice. The game-physics calibration uses
-a 45% engine-output loss, 40:60 front/rear torque split, 780 Nm clutch limit,
-and a bounded 2,800 Nm brake input. These values compensate for the simulation's
-measured acceleration and braking response while prioritizing the confirmed
-in-game pedal feel; they are calibration controls rather than claims about the
-real car's mechanical losses.
+a 57% engine-output loss, 40:60 front/rear torque split, 780 Nm clutch limit,
+and a bounded 1,850 Nm brake input. These values compensate for the simulation's
+measured 2.58-second 0–100 km/h, 8.3-second 0–200 km/h, and 25.22-metre stop;
+they are calibration controls rather than claims about the real car's mechanical
+losses.
 
 Primary references:
 
