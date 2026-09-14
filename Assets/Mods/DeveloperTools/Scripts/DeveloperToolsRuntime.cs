@@ -1,5 +1,7 @@
 #nullable enable
+using System.Collections;
 using BAModAPI;
+using Helpers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -45,6 +47,7 @@ namespace DeveloperTools
                 runtime.vehicleDiagnostics,
                 new DeveloperToolsPauseService(context));
             runtime.mapTeleport = new DeveloperToolsMapTeleport(context, runtime.playerService);
+            GlobalEvents.RegisterOnGameLoadedLateCallback(runtime.HandleGameLoadedLate);
             return runtime;
         }
 
@@ -103,6 +106,44 @@ namespace DeveloperTools
         {
             vehicleService?.RestoreDeveloperColor(vehicle);
             vehicleDiagnostics?.HandleEnterVehicle(vehicle);
+        }
+
+        private void HandleGameLoadedLate()
+        {
+            StartCoroutine(RestoreDeveloperColorsAfterLoad());
+        }
+
+        private IEnumerator RestoreDeveloperColorsAfterLoad()
+        {
+            // Player vehicles and their CarFeatures are created asynchronously
+            // during save loading. A finite sequence restores DeveloperTools
+            // colors without relying on vehicle entry.
+            for (var pass = 1; pass <= 12; pass++)
+            {
+                yield return new WaitForSecondsRealtime(0.25f);
+                if (vehicleService == null || VehicleHelper.AllPlayerVehicles == null)
+                    continue;
+
+                var restored = 0;
+                foreach (var vehicle in VehicleHelper.AllPlayerVehicles)
+                {
+                    if (vehicle?.vehicleInstance == null || vehicle.CarFeatures == null)
+                        continue;
+
+                    vehicleService.RestoreDeveloperColor(vehicle);
+                    restored++;
+                }
+
+                if (restored > 0)
+                {
+                    context?.Logger.Info(
+                        $"DeveloperTools: checked {restored} player vehicle color(s) after save load pass={pass}.");
+                    yield break;
+                }
+            }
+
+            context?.Logger.Warn(
+                "DeveloperTools: player vehicles were not ready for extended color restoration after save load.");
         }
 
         private void HandleExitVehicle(VehicleController vehicle) =>

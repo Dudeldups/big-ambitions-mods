@@ -35,6 +35,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private const float ParkedContactMaximumDescentSpeed = 0.75f;
     private const float MaximumClimbAssistSpeed = 12f;
     private const float MaximumAssistedVerticalSpeed = 1.25f;
+    private const float MaximumBypassableSceneryHeight = 1.35f;
+    private const float MaximumBypassableScenerySpan = 8f;
     private const int HeavyCargoCapacity = 32;
 
     private readonly List<VehicleDeformationController.VehicleDeformation> approvedDeformations = new();
@@ -44,6 +46,7 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private ModContext? context;
     private NWH.VehiclePhysics2.VehicleController? physicsVehicle;
     private Rigidbody? vehicleBody;
+    private BigfootMonsterTruckSceneryBridge? sceneryBridge;
     private UnityAction<Collision>? collisionListener;
     private float approvedDamage;
     private float suppressDamageUntil;
@@ -67,6 +70,10 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             BindingFlags.Instance | BindingFlags.NonPublic);
         approvedDamage = controller.vehicleInstance?.damage ?? 0f;
         vehicleBody = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
+        sceneryBridge = controller.GetComponent<BigfootMonsterTruckSceneryBridge>();
+        if (sceneryBridge == null)
+            sceneryBridge = controller.gameObject.AddComponent<BigfootMonsterTruckSceneryBridge>();
+        sceneryBridge.Initialize(controller, context);
         SnapshotApprovedDeformations();
         if (controller is CarController car && car.vehicleController != null)
         {
@@ -115,11 +122,15 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
     private void FixedUpdate()
     {
         if (!initialized || vehicle?.controlledByPlayer != true || physicsVehicle == null ||
-            vehicleBody == null || Time.unscaledTime > latchedClimbUntil)
+            vehicleBody == null)
             return;
 
         try
         {
+            sceneryBridge?.ProbeAhead(physicsVehicle.input.Vertical);
+            if (Time.unscaledTime > latchedClimbUntil)
+                return;
+
             var driveInput = physicsVehicle.input.Vertical;
             var driveIntensity = Mathf.Abs(driveInput);
             if (driveIntensity < 0.2f || Vector3.Dot(vehicle.transform.up, Vector3.up) < 0.55f)
@@ -196,6 +207,12 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
         try
         {
+            if (BigfootMonsterTruckSceneryBridge.IsBridgeSurface(collision.collider))
+            {
+                SuppressBridgeDamage();
+                return;
+            }
+
             var otherPlayerVehicle = collision.collider.GetComponentInParent<VehicleController>();
             if (otherPlayerVehicle == vehicle)
                 return;
@@ -204,7 +221,13 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
                 ? FindParkedVehicle(collision.collider)
                 : null;
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
+            {
+                if (TryGetBypassableScenery(collision.collider, out var sceneryBounds))
+                {
+                    SuppressSceneryDamage(collision.collider, sceneryBounds);
+                }
                 return;
+            }
 
             var isHeavy = otherPlayerVehicle != null
                 ? IsHeavyVehicle(otherPlayerVehicle)
@@ -237,6 +260,9 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
 
         try
         {
+            if (BigfootMonsterTruckSceneryBridge.IsBridgeSurface(collision.collider))
+                return;
+
             var otherPlayerVehicle = collision.collider.GetComponentInParent<VehicleController>();
             if (otherPlayerVehicle == vehicle)
                 return;
@@ -244,14 +270,27 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             var parkedVehicle = otherPlayerVehicle == null && trafficVehicle == null
                 ? FindParkedVehicle(collision.collider)
                 : null;
+            Collider? bypassableScenery = null;
+            var sceneryBounds = default(Bounds);
             if (otherPlayerVehicle == null && trafficVehicle == null && parkedVehicle == null)
-                return;
-            if (otherPlayerVehicle != null
+            {
+                if (!TryGetBypassableScenery(collision.collider, out sceneryBounds))
+                    return;
+                bypassableScenery = collision.collider;
+            }
+            if (bypassableScenery == null &&
+                (otherPlayerVehicle != null
                     ? IsTooHeavyToClimb(otherPlayerVehicle)
                     : trafficVehicle != null
                         ? IsTooHeavyToClimbIdentity(trafficVehicle.name)
-                        : IsTooHeavyToClimbIdentity(parkedVehicle!.name))
+                        : IsTooHeavyToClimbIdentity(parkedVehicle!.name)))
                 return;
+
+            if (bypassableScenery != null)
+            {
+                SuppressSceneryDamage(bypassableScenery, sceneryBounds);
+                return;
+            }
 
             var driveInput = physicsVehicle.input.Vertical;
             var driveIntensity = Mathf.Abs(driveInput);
@@ -363,6 +402,8 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         parkedContactVehicleId = 0;
         if (physicsVehicle != null && collisionListener != null)
             physicsVehicle.onCollision.RemoveListener(collisionListener);
+        sceneryBridge?.Dispose();
+        sceneryBridge = null;
         physicsVehicle = null;
         vehicleBody = null;
         collisionListener = null;
@@ -460,6 +501,54 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
         return null;
     }
 
+    private void SuppressSceneryDamage(Collider collider, Bounds bounds)
+    {
+        SuppressBridgeDamage();
+        sceneryBridge?.Arm(collider, bounds);
+    }
+
+    private void SuppressBridgeDamage()
+    {
+        suppressDamageUntil = Mathf.Max(
+            suppressDamageUntil,
+            Time.unscaledTime + SmallVehicleSuppressionWindow);
+        ClearPendingDeformationQueue();
+    }
+
+    internal static bool TryGetBypassableScenery(Collider collider, out Bounds bounds)
+    {
+        bounds = default;
+        if (collider == null || collider.isTrigger || collider is TerrainCollider ||
+            BigfootMonsterTruckSceneryBridge.IsBridgeSurface(collider))
+        {
+            return false;
+        }
+
+        // The forward probe sees traffic before a physical collision callback
+        // occurs. Never replace a real player, traffic, or parked-car contact
+        // with scenery traversal; their dedicated collision path owns it.
+        if (collider.GetComponentInParent<VehicleController>() != null ||
+            collider.GetComponentInParent<GleyTrafficSystem.VehicleComponent>() != null ||
+            FindParkedVehicle(collider) != null)
+        {
+            return false;
+        }
+
+        // A few map props use kinematic bodies solely as static scene
+        // anchors. Keep mobile rigidbodies under normal vehicle physics.
+        if (collider.attachedRigidbody != null && !collider.attachedRigidbody.isKinematic)
+            return false;
+
+        bounds = collider.bounds;
+        var span = Mathf.Max(bounds.size.x, bounds.size.z);
+        // This admits small, low static props (benches, bins, bollards and
+        // short wall segments) while excluding terrain, buildings and long
+        // barriers. Dynamic objects remain under the game's normal physics.
+        return bounds.size.y > 0.05f &&
+               bounds.size.y <= MaximumBypassableSceneryHeight &&
+               span <= MaximumBypassableScenerySpan;
+    }
+
     private static bool IsHeavyVehicle(VehicleController other)
     {
         var type = other.vehicleType;
@@ -543,4 +632,244 @@ internal sealed class BigfootMonsterTruckCollisionGuard : MonoBehaviour
             $"BigfootMonsterTruck collision guard {scope} failed: " +
             $"{exception.GetType().Name}: {exception.Message}");
     }
+}
+
+internal sealed class BigfootMonsterTruckSceneryBridge : MonoBehaviour
+{
+    private const float BridgeDuration = 3f;
+    private const float MaximumBridgeHeight = 0.78f;
+    private const float ProbeCenterHeight = 0.72f;
+    private const float ProbeDistance = 2.75f;
+    private static readonly Vector3 ProbeHalfExtents = new(1.65f, 0.72f, 1.25f);
+
+    private VehicleController? vehicle;
+    private ModContext? context;
+    private readonly List<ColliderPair> ignoredPairs = new();
+    private readonly HashSet<int> ignoredObstacleIds = new();
+    private readonly Collider[] probeResults = new Collider[24];
+    private readonly Dictionary<int, BridgeSurface> bridges = new();
+    private int lastObstacleId;
+    private float nextLogTime;
+
+    internal void Initialize(VehicleController controller, ModContext? modContext)
+    {
+        vehicle = controller;
+        context = modContext;
+    }
+
+    internal void ProbeAhead(float driveInput)
+    {
+        if (vehicle == null || Mathf.Abs(driveInput) < 0.10f)
+            return;
+
+        var driveDirection = Mathf.Sign(driveInput);
+        var center = vehicle.transform.position +
+                     vehicle.transform.up * ProbeCenterHeight +
+                     vehicle.transform.forward * (ProbeDistance * driveDirection);
+        var hitCount = Physics.OverlapBoxNonAlloc(
+            center,
+            ProbeHalfExtents,
+            probeResults,
+            vehicle.transform.rotation,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Ignore);
+        for (var index = 0; index < hitCount; index++)
+        {
+            var candidate = probeResults[index];
+            if (!BigfootMonsterTruckCollisionGuard.TryGetBypassableScenery(
+                    candidate,
+                    out var bounds))
+            {
+                continue;
+            }
+
+            Arm(candidate, bounds);
+        }
+    }
+
+    internal void Arm(Collider obstacle, Bounds obstacleBounds)
+    {
+        if (vehicle == null || obstacle == null)
+            return;
+
+        var obstacleId = obstacle.GetInstanceID();
+        var createdBridge = ignoredObstacleIds.Add(obstacleId);
+        if (createdBridge)
+        {
+            foreach (var vehicleCollider in vehicle.GetComponentsInChildren<Collider>(true))
+            {
+                if (vehicleCollider == null || vehicleCollider.isTrigger)
+                    continue;
+
+                Physics.IgnoreCollision(vehicleCollider, obstacle, true);
+                ignoredPairs.Add(new ColliderPair(vehicleCollider, obstacle));
+            }
+
+            bridges[obstacleId] = CreateBridge(obstacle, obstacleBounds);
+        }
+
+        if (bridges.TryGetValue(obstacleId, out var bridge))
+            bridge.ActiveUntil = Time.unscaledTime + BridgeDuration;
+        if (createdBridge &&
+            (obstacleId != lastObstacleId || Time.unscaledTime >= nextLogTime))
+        {
+            lastObstacleId = obstacleId;
+            nextLogTime = Time.unscaledTime + 1f;
+            context?.Logger.Info(
+                $"BigfootMonsterTruck scenery bridge vehicle={vehicle.GetInstanceID()}: " +
+                $"rolling over '{obstacle.name}' size={obstacleBounds.size:F2}.");
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (bridges.Count == 0)
+            return;
+
+        var expired = new List<int>();
+        foreach (var pair in bridges)
+            if (Time.unscaledTime > pair.Value.ActiveUntil)
+                expired.Add(pair.Key);
+        foreach (var obstacleId in expired)
+            ReleaseBridge(obstacleId);
+    }
+
+    internal void Dispose()
+    {
+        var obstacleIds = new List<int>(bridges.Keys);
+        foreach (var obstacleId in obstacleIds)
+            ReleaseBridge(obstacleId);
+    }
+
+    internal static bool IsBridgeSurface(Collider collider) =>
+        collider != null && collider.GetComponent<BigfootMonsterTruckSceneryBridgeSurface>() != null;
+
+    private BridgeSurface CreateBridge(Collider obstacle, Bounds obstacleBounds)
+    {
+        var vehicleTransform = vehicle!.transform;
+        var direction = Vector3.ProjectOnPlane(vehicleTransform.forward, Vector3.up).normalized;
+        if (direction.sqrMagnitude < 0.9f)
+            direction = Vector3.forward;
+
+        var obstacleHeight = Mathf.Clamp(obstacleBounds.size.y, 0.08f, MaximumBridgeHeight);
+        var rampRun = Mathf.Clamp(1.1f + obstacleHeight * 0.75f, 1.35f, 2.15f);
+        var bridgeWidth = Mathf.Clamp(
+            Mathf.Max(2.95f, Mathf.Min(obstacleBounds.size.x, obstacleBounds.size.z) + 0.6f),
+            2.95f,
+            3.5f);
+        var bridgeObject = new GameObject("BigfootSceneryBridge")
+        {
+            hideFlags = HideFlags.DontSave,
+            layer = obstacle.gameObject.layer,
+        };
+        bridgeObject.transform.SetPositionAndRotation(
+            new Vector3(obstacleBounds.center.x, obstacleBounds.min.y, obstacleBounds.center.z),
+            Quaternion.LookRotation(direction, Vector3.up));
+        bridgeObject.AddComponent<BigfootMonsterTruckSceneryBridgeSurface>();
+        var mesh = CreateBridgeMesh(bridgeWidth * 0.5f, rampRun, obstacleHeight);
+        var collider = bridgeObject.AddComponent<MeshCollider>();
+        collider.sharedMesh = mesh;
+        return new BridgeSurface(bridgeObject, mesh);
+    }
+
+    private void ReleaseBridge(int obstacleId)
+    {
+        if (!bridges.TryGetValue(obstacleId, out var bridge))
+            return;
+
+        bridges.Remove(obstacleId);
+        ignoredObstacleIds.Remove(obstacleId);
+        for (var index = ignoredPairs.Count - 1; index >= 0; index--)
+        {
+            var pair = ignoredPairs[index];
+            if (pair.ObstacleCollider != null &&
+                pair.ObstacleCollider.GetInstanceID() != obstacleId)
+            {
+                continue;
+            }
+
+            if (pair.VehicleCollider != null && pair.ObstacleCollider != null)
+                Physics.IgnoreCollision(pair.VehicleCollider, pair.ObstacleCollider, false);
+            ignoredPairs.RemoveAt(index);
+        }
+
+        bridge.Dispose();
+        if (bridges.Count == 0)
+            lastObstacleId = 0;
+    }
+
+    private static Mesh CreateBridgeMesh(float halfWidth, float rampRun, float height)
+    {
+        var mesh = new Mesh
+        {
+            name = "Bigfoot scenery bridge mesh",
+            hideFlags = HideFlags.DontSave,
+        };
+        var points = new[]
+        {
+            new Vector3(-halfWidth, 0f, -rampRun),
+            new Vector3(-halfWidth, height, -0.22f),
+            new Vector3(-halfWidth, height, 0.22f),
+            new Vector3(-halfWidth, 0f, rampRun),
+            new Vector3(halfWidth, 0f, -rampRun),
+            new Vector3(halfWidth, height, -0.22f),
+            new Vector3(halfWidth, height, 0.22f),
+            new Vector3(halfWidth, 0f, rampRun),
+        };
+        mesh.vertices = points;
+        mesh.triangles = new[]
+        {
+            0, 1, 4, 4, 1, 5,
+            1, 2, 5, 5, 2, 6,
+            2, 3, 6, 6, 3, 7,
+            0, 1, 3, 1, 2, 3,
+            4, 7, 5, 5, 7, 6,
+            0, 3, 4, 4, 3, 7,
+        };
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    private readonly struct ColliderPair
+    {
+        internal readonly Collider VehicleCollider;
+        internal readonly Collider ObstacleCollider;
+
+        internal ColliderPair(Collider vehicleCollider, Collider obstacleCollider)
+        {
+            VehicleCollider = vehicleCollider;
+            ObstacleCollider = obstacleCollider;
+        }
+    }
+
+    private sealed class BridgeSurface
+    {
+        internal float ActiveUntil;
+        private GameObject? bridgeObject;
+        private Mesh? mesh;
+
+        internal BridgeSurface(GameObject gameObject, Mesh bridgeMesh)
+        {
+            bridgeObject = gameObject;
+            mesh = bridgeMesh;
+        }
+
+        internal void Dispose()
+        {
+            if (bridgeObject != null)
+                Destroy(bridgeObject);
+            if (mesh != null)
+                Destroy(mesh);
+            bridgeObject = null;
+            mesh = null;
+        }
+    }
+
+    private void OnDestroy() => Dispose();
+}
+
+[AddComponentMenu("")]
+internal sealed class BigfootMonsterTruckSceneryBridgeSurface : MonoBehaviour
+{
 }
