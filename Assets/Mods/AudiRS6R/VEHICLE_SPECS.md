@@ -21,11 +21,13 @@ uses a separate 390 kW simulation value because its engine-loss field did not
 change the measured acceleration response. Forced-induction multiplication
 remains disabled to avoid counting turbo boost twice. The remaining calibration
 uses a 40:60 front/rear torque split, 780 Nm clutch limit, 0.90 engine inertia,
-and a bounded 1,835 Nm brake input. These values compensate for the simulation's
-measured 2.95-second 0–100 km/h, 10.72-second 0–200 km/h, and 38.27-metre stop;
-they are calibration controls rather than claims about the real car's mechanical
-losses. The temporary rear longitudinal-grip reduction was reverted after
-telemetry confirmed that the launch produced no measurable tire slip.
+and a bounded 2,000 Nm brake input. The v0.5.8 telemetry produced clean
+3.14–3.28-second 0–100 km/h and 10.40–10.50-second 0–200 km/h runs, matching the
+instrumented acceleration targets. Its approximately 40.8-metre equivalent
+100–0 km/h stops motivated the isolated brake-torque correction in v0.5.9. These
+values are calibration controls rather than claims about the real car's
+mechanical losses. The temporary rear longitudinal-grip reduction was reverted
+after telemetry confirmed that the launch produced no measurable tire slip.
 
 Primary references:
 
