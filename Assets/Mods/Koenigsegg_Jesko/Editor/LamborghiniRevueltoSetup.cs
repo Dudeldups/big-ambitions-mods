@@ -139,6 +139,7 @@ public static class KoenigseggJeskoSetup
                 exhaustHeight = exhaustBounds.center.y;
             var bodyUpright =
                 !float.IsNaN(windshieldHeight) && !float.IsNaN(exhaustHeight) &&
+                windshieldHeight > exhaustHeight + 0.05f &&
                 bounds.size.y > 1.0f;
 
             var wheelVisuals = 0;
@@ -924,12 +925,12 @@ public static class KoenigseggJeskoSetup
     private static void NormalizeModel(GameObject model)
     {
         model.transform.localPosition = Vector3.zero;
-        // glTFast imports this model with its authored length on Unity Y and
-        // height on Z. Rotate it once so Y is up, then turn the source nose
-        // (authored toward -Y) into the game's +Z forward axis.
-        model.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        model.transform.localRotation =
-            Quaternion.Euler(0f, 180f, 0f) * model.transform.localRotation;
+        // The imported GLB's nested wrapper exposes the authored longitudinal
+        // axis on its source Y axis. The -90-degree X correction makes that
+        // axis the game's +Z forward axis and keeps +Y upright. A yaw-only
+        // correction leaves the chassis on its side, while combining the old
+        // X correction with a yaw adds a 180-degree roll and flips the car.
+        model.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
         model.transform.localScale = Vector3.one;
 
         if (!TryGetModelBodyBounds(model.transform, out var bounds))

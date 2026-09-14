@@ -7,6 +7,7 @@ using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 
@@ -64,6 +65,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
+    private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private bool dealerReadyLogged;
@@ -92,6 +94,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         Destroy(gameObject);
     }
@@ -113,6 +118,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -124,6 +131,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private void UnsubscribeEvents()
     {
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -146,6 +154,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = null;
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = null;
         configuredVehicleIds.Clear();
         dealerReadyLogged = false;
         dealerReady = false;
@@ -156,6 +167,158 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         TryConfigureVehicle(vehicle);
         vehicle?.GetComponent<KoenigseggJeskoGlassController>()
             ?.RestoreAfterVehicleEntered();
+    }
+
+    private void HandleVehicleExited(VehicleController vehicle)
+    {
+        if (!IsTargetVehicle(vehicle))
+            return;
+
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
+        context?.Logger.Info(
+            $"KoenigseggJesko: scheduled bounded player-exit safety check " +
+            $"vehicle={vehicle.GetInstanceID()}.");
+    }
+
+    private bool IsTargetVehicle(VehicleController? vehicle) =>
+        vehicle?.vehicleInstance != null &&
+        string.Equals(
+            vehicle.vehicleInstance.vehicleTypeName,
+            vehicleTypeName,
+            StringComparison.Ordinal);
+
+    private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
+    {
+        // Let the game's exit animation and controller placement finish first.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        var root = PlayerHelper.PlayerController?.transform;
+        if (root == null)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var agents = root.GetComponentsInChildren<NavMeshAgent>(true);
+        var needsRecovery = false;
+        foreach (var agent in agents)
+            needsRecovery |= agent != null && agent.enabled && !agent.isOnNavMesh;
+        needsRecovery |= !IsPlayerExitClear(root, root.position);
+        if (!needsRecovery)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        if (!TryFindClearExitPosition(root, exitedVehicle, out var target))
+        {
+            context?.Logger.Warn(
+                $"KoenigseggJesko: player-exit recovery found no clear NavMesh position " +
+                $"vehicle={exitedVehicle.GetInstanceID()}.");
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = Array.ConvertAll(
+            characterControllers,
+            controller => controller != null && controller.enabled);
+        var agentStates = Array.ConvertAll(agents, agent => agent != null && agent.enabled);
+        try
+        {
+            foreach (var controller in characterControllers)
+                if (controller != null)
+                    controller.enabled = false;
+            foreach (var agent in agents)
+                if (agent != null)
+                    agent.enabled = false;
+
+            root.position = target;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Length; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(target);
+                    agent.ResetPath();
+                }
+            }
+
+            for (var index = 0; index < characterControllers.Length; index++)
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            Physics.SyncTransforms();
+        }
+
+        context?.Logger.Info(
+            $"KoenigseggJesko: player-exit recovery moved player to a clear NavMesh " +
+            $"position vehicle={exitedVehicle.GetInstanceID()} target={target}.");
+        exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private static bool TryFindClearExitPosition(
+        Transform playerRoot,
+        VehicleController exitedVehicle,
+        out Vector3 target)
+    {
+        var vehicleTransform = exitedVehicle.transform;
+        var candidates = new[]
+        {
+            playerRoot.position,
+            vehicleTransform.position - vehicleTransform.right * 2.10f,
+            vehicleTransform.position + vehicleTransform.right * 2.10f,
+            vehicleTransform.position - vehicleTransform.forward * 2.45f,
+            vehicleTransform.position + vehicleTransform.forward * 2.45f,
+            vehicleTransform.position - vehicleTransform.right * 2.10f -
+                vehicleTransform.forward * 1.35f,
+            vehicleTransform.position + vehicleTransform.right * 2.10f -
+                vehicleTransform.forward * 1.35f,
+            vehicleTransform.position - vehicleTransform.right * 2.50f +
+                vehicleTransform.forward * 1.15f,
+            vehicleTransform.position + vehicleTransform.right * 2.50f +
+                vehicleTransform.forward * 1.15f,
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!NavMesh.SamplePosition(candidate, out var hit, 1.25f, NavMesh.AllAreas))
+                continue;
+            var sampled = hit.position + Vector3.up * 0.05f;
+            if (!IsPlayerExitClear(playerRoot, sampled))
+                continue;
+            target = sampled;
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private static bool IsPlayerExitClear(Transform playerRoot, Vector3 position)
+    {
+        var overlaps = Physics.OverlapCapsule(
+            position + Vector3.up * 0.42f,
+            position + Vector3.up * 1.55f,
+            0.30f,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+        foreach (var overlap in overlaps)
+        {
+            if (overlap == null || overlap.transform.IsChildOf(playerRoot))
+                continue;
+            return false;
+        }
+        return true;
     }
 
     private void HandleBuildingEntered(Address address)
