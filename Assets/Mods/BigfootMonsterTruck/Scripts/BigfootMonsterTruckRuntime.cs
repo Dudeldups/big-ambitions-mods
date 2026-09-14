@@ -135,6 +135,8 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
+        GlobalEvents.onVehicleVariablesChanged += HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
         GlobalEvents.onGameUnloaded += HandleGameUnloaded;
     }
@@ -146,6 +148,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         GlobalEvents.onNewHour -= HandleNewHour;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
+        GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
 
@@ -171,7 +174,7 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
-        TryConfigureVehicle(vehicle);
+        TryConfigureVehicle(vehicle, "vehicle-entered");
         vehicle?.GetComponent<BigfootMonsterTruckParkingController>()?.HandleVehicleEntered();
     }
 
@@ -206,6 +209,18 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
     {
         if (isOpen)
             BigfootTruckDealerStock.EnsureVehicleAvailable(vehicleTypeName, context, "menu-opened");
+    }
+
+    private void HandleVehicleVariablesChanged()
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        if (vehicles == null)
+            return;
+
+        foreach (var vehicle in vehicles)
+            if (IsTargetVehicle(vehicle))
+                vehicle!.GetComponent<BigfootMonsterTruckPaintController>()
+                    ?.RefreshSavedColor("vehicle-variables-changed");
     }
 
     private void ScheduleInitialization(string source)
@@ -255,25 +270,30 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
         }
         observedPlayerVehicleCount = vehicles.Count;
         foreach (var vehicle in vehicles)
-            if (TryConfigureVehicle(vehicle))
+            if (TryConfigureVehicle(vehicle, "existing-vehicle"))
                 configured++;
         return configured;
     }
 
-    private bool TryConfigureVehicle(VehicleController? vehicle)
+    private bool TryConfigureVehicle(VehicleController? vehicle, string source)
     {
-        if (vehicle?.vehicleInstance == null ||
-            !string.Equals(vehicle.vehicleInstance.vehicleTypeName, vehicleTypeName, StringComparison.Ordinal))
+        if (!IsTargetVehicle(vehicle))
             return false;
-        if (vehicle.GetComponent<BigfootMonsterTruckPaintController>() == null)
+        var targetVehicle = vehicle!;
+        var paint = targetVehicle.GetComponent<BigfootMonsterTruckPaintController>();
+        if (paint == null)
         {
-            var paint = vehicle.gameObject.AddComponent<BigfootMonsterTruckPaintController>();
-            paint.Initialize(vehicle, context);
+            paint = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckPaintController>();
+            paint.Initialize(targetVehicle, context);
         }
-        if (vehicle.GetComponent<BigfootMonsterTruckConfigured>() != null)
+        else
+        {
+            paint.RefreshSavedColor(source);
+        }
+        if (targetVehicle.GetComponent<BigfootMonsterTruckConfigured>() != null)
             return false;
 
-        var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
+        var rigidbody = targetVehicle.GetComponent<Rigidbody>() ?? targetVehicle.GetComponentInParent<Rigidbody>();
         if (rigidbody != null)
         {
             rigidbody.mass = VehicleMass;
@@ -291,35 +311,39 @@ public sealed class BigfootMonsterTruckRuntime : MonoBehaviour
             bounciness = 0f,
             bounceCombine = PhysicMaterialCombine.Minimum,
         };
-        var wheelCount = ConfigureWheels(vehicle);
-        ConfigureBodyColliders(vehicle, contactMaterial);
-        ConfigureWheelContactColliders(vehicle, contactMaterial);
-        ConfigureVehicleModules(vehicle);
-        ConfigureExitMarkers(vehicle);
-        ConfigureDriverSeat(vehicle);
-        var materialFix = BigfootMonsterTruckMaterials.FixSolidMaterials(vehicle.gameObject);
+        var wheelCount = ConfigureWheels(targetVehicle);
+        ConfigureBodyColliders(targetVehicle, contactMaterial);
+        ConfigureWheelContactColliders(targetVehicle, contactMaterial);
+        ConfigureVehicleModules(targetVehicle);
+        ConfigureExitMarkers(targetVehicle);
+        ConfigureDriverSeat(targetVehicle);
+        var materialFix = BigfootMonsterTruckMaterials.FixSolidMaterials(targetVehicle.gameObject);
         if (materialFix.MaterialsValidated < materialFix.OpaqueMaterialsFixed)
             context?.Logger.Warn(
-                $"BigfootMonsterTruck materials vehicle={vehicle.GetInstanceID()}: " +
+                $"BigfootMonsterTruck materials vehicle={targetVehicle.GetInstanceID()}: " +
                 "HDRP validation was unavailable for one or more opaque materials.");
 
-        var driver = vehicle.gameObject.AddComponent<BigfootMonsterTruckDriverController>();
-        driver.Initialize(vehicle, context);
-        var collisionGuard = vehicle.gameObject.AddComponent<BigfootMonsterTruckCollisionGuard>();
-        collisionGuard.Initialize(vehicle, context);
-        var audioController = vehicle.gameObject.AddComponent<BigfootMonsterTruckAudioController>();
-        audioController.Initialize(vehicle, context);
-        var parkingController = vehicle.gameObject.AddComponent<BigfootMonsterTruckParkingController>();
-        parkingController.Initialize(vehicle, context);
-        var lightingController = vehicle.gameObject.AddComponent<BigfootMonsterTruckLightingController>();
-        lightingController.Initialize(vehicle, context);
-        var marker = vehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
+        var driver = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckDriverController>();
+        driver.Initialize(targetVehicle, context);
+        var collisionGuard = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckCollisionGuard>();
+        collisionGuard.Initialize(targetVehicle, context);
+        var audioController = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckAudioController>();
+        audioController.Initialize(targetVehicle, context);
+        var parkingController = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckParkingController>();
+        parkingController.Initialize(targetVehicle, context);
+        var lightingController = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckLightingController>();
+        lightingController.Initialize(targetVehicle, context);
+        var marker = targetVehicle.gameObject.AddComponent<BigfootMonsterTruckConfigured>();
         marker.Initialize(contactMaterial);
         if (wheelCount != 4)
             context?.Logger.Warn(
                 $"BigfootMonsterTruck: expected four wheel controllers but configured {wheelCount}.");
         return true;
     }
+
+    private bool IsTargetVehicle(VehicleController? vehicle) =>
+        vehicle?.vehicleInstance != null &&
+        string.Equals(vehicle.vehicleInstance.vehicleTypeName, vehicleTypeName, StringComparison.Ordinal);
 
     private int ConfigureWheels(VehicleController vehicle)
     {

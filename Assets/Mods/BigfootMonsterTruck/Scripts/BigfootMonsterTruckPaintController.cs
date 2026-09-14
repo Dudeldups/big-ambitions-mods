@@ -2,15 +2,14 @@
 using System;
 using System.Collections.Generic;
 using BAModAPI;
+using Data.VehicleColors;
+using Helpers;
 using UnityEngine;
 
 internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
 {
     private const string BodyRendererName = "Object_5";
     private const string StructureRendererName = "Object_4";
-    private static readonly int TintId =
-        Shader.PropertyToID("Color_3d0f0cdbe6b74be28a1a5be5bab71dea");
-    private readonly MaterialPropertyBlock propertyBlock = new();
     private VehicleController? vehicle;
     private MeshRenderer? bodyRenderer;
     private Material? originalMaterial;
@@ -33,17 +32,26 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
     private Mesh? paintedBodyMesh;
     private Material[]? originalBodyMaterials;
     private ModContext? context;
-    private Color lastTint;
+    private VehicleColor? appliedColor;
+    private Color32 appliedTint;
+    private bool hasAppliedColor;
     private bool configured;
     private bool failed;
     private int attempts;
     private float nextAttempt;
-    private float nextColorCheck;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
         context = modContext;
+    }
+
+    internal bool RefreshSavedColor(string source, bool force = false)
+    {
+        if (!configured)
+            return false;
+
+        return ApplySelectedColor(source, force);
     }
 
     private void Update()
@@ -63,10 +71,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             }
             return;
         }
-        if (Time.unscaledTime < nextColorCheck)
-            return;
-        nextColorCheck = Time.unscaledTime + 0.1f;
-        ApplySelectedColor();
     }
 
     private bool TryConfigure()
@@ -103,11 +107,13 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
 
         paintMaterial = new Material(originalMaterial)
         {
-            name = "Bigfoot Repaintable Body"
+            name = "Bigfoot Repaintable Body",
+            hideFlags = HideFlags.DontSave,
         };
         grillePanelMaterial = new Material(originalMaterial)
         {
-            name = "Bigfoot Repaintable Native Grille Panel"
+            name = "Bigfoot Repaintable Native Grille Panel",
+            hideFlags = HideFlags.DontSave,
         };
         SetBaseTexture(grillePanelMaterial, Texture2D.whiteTexture);
         ClearTexture(grillePanelMaterial, "_NormalMap");
@@ -123,7 +129,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             originalWindowMaterial = materials[1];
             paintWindowMaterial = new Material(originalWindowMaterial)
             {
-                name = "Bigfoot Repaintable Windshield Trim"
+                name = "Bigfoot Repaintable Windshield Trim",
+                hideFlags = HideFlags.DontSave,
             };
             materials[1] = paintWindowMaterial;
         }
@@ -132,23 +139,29 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             bodyRenderer.sharedMaterials = materials;
         ConfigurePaintedPillars();
         configured = true;
-        ApplySelectedColor(true);
+        ApplySelectedColor("initialization", true);
         return true;
     }
 
-    private void ApplySelectedColor(bool force = false)
+    private bool ApplySelectedColor(string source, bool force = false)
     {
         if (bodyRenderer == null || paintMaterial == null || sourceTexture == null ||
             sourcePixels == null)
-            return;
-        bodyRenderer.GetPropertyBlock(propertyBlock);
-        var tint = propertyBlock.GetColor(TintId);
-        tint.r = Mathf.Clamp01(tint.r);
-        tint.g = Mathf.Clamp01(tint.g);
-        tint.b = Mathf.Clamp01(tint.b);
+            return false;
+
+        var selected = ResolveSavedVehicleColor();
+        if (selected == null)
+        {
+            Warn($"saved vehicle color was unavailable source='{source}'.");
+            return false;
+        }
+
+        var tint = (Color)selected.tint;
         tint.a = 1f;
-        if (!force && ColorsMatch(tint, lastTint))
-            return;
+        var tint32 = (Color32)tint;
+        if (!force && hasAppliedColor && ReferenceEquals(selected, appliedColor) &&
+            tint32.Equals(appliedTint))
+            return true;
 
         Texture2D? replacement = null;
         Texture2D? windowReplacement = null;
@@ -178,7 +191,13 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             paintedWindowTexture = windowReplacement;
             replacement = null;
             windowReplacement = null;
-            lastTint = tint;
+            appliedColor = selected;
+            appliedTint = tint32;
+            hasAppliedColor = true;
+            context?.Logger.Info(
+                $"BigfootMonsterTruck paint vehicle={vehicle?.GetInstanceID()}: applied " +
+                $"color='{selected.name}' rgba={tint32} source='{source}'.");
+            return true;
         }
         catch (Exception exception)
         {
@@ -188,7 +207,21 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
                 Destroy(windowReplacement);
             failed = true;
             Warn($"paint update failed: {exception.GetType().Name}: {exception.Message}");
+            return false;
         }
+    }
+
+    private VehicleColor? ResolveSavedVehicleColor()
+    {
+        // On a cold load, CarFeatures can still contain the prefab's black
+        // fallback until the player enters the truck. The serialized instance
+        // name is the durable repaint value and must win during restoration.
+        var colorName = vehicle?.vehicleInstance?.vehicleColorName;
+        if (!string.IsNullOrEmpty(colorName) &&
+            VehicleHelper.TryGetVehicleColor(colorName, out var saved))
+            return saved;
+
+        return vehicle?.CarFeatures?.VehicleColor;
     }
 
     private static Color32[] ReadSourcePixels(Texture2D source)
@@ -299,6 +332,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, true, false)
         {
             name = $"Bigfoot body paint {tint.r:F2},{tint.g:F2},{tint.b:F2}",
+            hideFlags = HideFlags.DontSave,
             filterMode = source.filterMode,
             wrapMode = source.wrapMode,
             anisoLevel = source.anisoLevel,
@@ -336,6 +370,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             false)
         {
             name = paintedBodyTexture.name + " windshield",
+            hideFlags = HideFlags.DontSave,
             filterMode = paintedBodyTexture.filterMode,
             wrapMode = paintedBodyTexture.wrapMode,
             anisoLevel = paintedBodyTexture.anisoLevel,
@@ -414,6 +449,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         originalBodyMesh = sourceMesh;
         paintedBodyMesh = Instantiate(sourceMesh);
         paintedBodyMesh.name = sourceMesh.name + "_RepaintableFactoryDetails";
+        paintedBodyMesh.hideFlags = HideFlags.DontSave;
         var factorySubMesh = sourceMesh.subMeshCount;
         var grilleSubMesh = factorySubMesh + 1;
         paintedBodyMesh.subMeshCount = factorySubMesh + 2;
@@ -577,6 +613,7 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         originalStructureMaterials = structureRenderer.sharedMaterials;
         paintedStructureMesh = Instantiate(sourceMesh);
         paintedStructureMesh.name = "Bigfoot structure with repaintable A-pillars";
+        paintedStructureMesh.hideFlags = HideFlags.DontSave;
         paintedStructureMesh.subMeshCount = 2;
         paintedStructureMesh.SetTriangles(regularTriangles, 0);
         paintedStructureMesh.SetTriangles(pillarTriangles, 1);
@@ -589,7 +626,8 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
             return 0;
         pillarMaterial = new Material(sourceMaterial)
         {
-            name = "Bigfoot Repaintable A-Pillars"
+            name = "Bigfoot Repaintable A-Pillars",
+            hideFlags = HideFlags.DontSave,
         };
         SetBaseTexture(pillarMaterial, Texture2D.whiteTexture);
         SetFloat(pillarMaterial, "_Metallic", 0.18f);
@@ -658,11 +696,6 @@ internal sealed class BigfootMonsterTruckPaintController : MonoBehaviour
         if (material.HasProperty(property))
             material.SetTexture(property, null);
     }
-
-    private static bool ColorsMatch(Color left, Color right) =>
-        Mathf.Abs(left.r - right.r) < 0.002f &&
-        Mathf.Abs(left.g - right.g) < 0.002f &&
-        Mathf.Abs(left.b - right.b) < 0.002f;
 
     private void Warn(string message) => context?.Logger.Warn(
         $"BigfootMonsterTruck paint vehicle={vehicle?.GetInstanceID()}: {message}");
