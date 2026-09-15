@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 4252919774
+CRC: 619441184
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 03a4f64d78afb7431a71ec8446bb68b5
+    Hash: c7abee16b02ba74a458e51c9767f3dca
   TypeTreeHash:
     serializedVersion: 2
-    Hash: df156dd73d9e55c283e9dd6005ca0a10
+    Hash: cb7bc3299153d6fcb746a8b825d5e8ed
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 03a4f64d78afb7431a71ec8446bb68b5
+    Hash: c7abee16b02ba74a458e51c9767f3dca
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -41,13 +41,9 @@ ClassTypes:
 - Class: 108
   Script: {instanceID: 0}
 - Class: 114
-  Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
-- Class: 114
-  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
-- Class: 114
-  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
-- Class: 114
   Script: {fileID: 1155249634, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
+- Class: 114
+  Script: {fileID: 1019579490, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
   Script: {fileID: -333503815, guid: 4384b44565f83c96ced3259b77f79fb6, type: 3}
 - Class: 114
@@ -81,7 +77,11 @@ ClassTypes:
 - Class: 114
   Script: {fileID: -464276067, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
 - Class: 114
+  Script: {fileID: 1962544247, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
   Script: {fileID: -1156002225, guid: 8886001327901f6fdbae60e8ea6c53fd, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
 - Class: 115
   Script: {instanceID: 0}
 - Class: 135
@@ -221,36 +221,58 @@ SerializeReferenceClassIdentifiers:
   ClassName: UnityEngine.Events.UnityEvent`1[UnityEngine.Collision]
 Assets:
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/HornLow.wav
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggTransparent_01_jeskoVehicle_Exterior_mm_windows1.mat
-- Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineLow.wav
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.ru.md
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_11_phong4.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.ro.md
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggTransparent_02_Glass_Blask.mat
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_02_jeskoVehicle_Exterior_mm_lights1.mat
-- Assets/Mods/Koenigsegg_Jesko/KoenigseggJesko.asset
-- Assets/Mods/Koenigsegg_Jesko/Models/2020_koenigsegg_jesko.glb
-- Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineMidLoad.wav
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_01_jeskoVehicle_Exterior_mm_ext1.mat
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_04_CARBON.mat
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_07_jeskoVehicle_Exterior_mm_tyre1.mat
+- Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineMidLoad.wav
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.tr.md
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/HornHigh.wav
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_10_Tela_Int.mat
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineHighLoad.wav
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_05_jeskoVehicle_Exterior_mm_cab1.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.pl.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.fi.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.pt.md
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_12_phong2.mat
-- Assets/Mods/Koenigsegg_Jesko/Config/THIRD_PARTY_NOTICES.txt
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.ja.md
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_14_phong8.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.ko.md
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_03_jeskoVehicle_Exterior_mm_misc1.mat
-- Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineMid.wav
-- Assets/Mods/Koenigsegg_Jesko/Config/ATTRIBUTION.txt
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_08_jeskoVehicle_Exterior_mm_wheel1.mat
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineHigh.wav
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_13_PLASTICO_OPCAO.mat
-- Assets/Mods/Koenigsegg_Jesko/Config/Audio/generation.json
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_09_material.mat
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineLowLoad.wav
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.nl.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.zh-CN.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.de.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.fr.md
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggTransparent_00_jeskoVehicle_Exterior_mm_badges1.mat
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_06_jeskoVehicle_Exterior_mm_rotor1.mat
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggTransparent_01_jeskoVehicle_Exterior_mm_windows1.mat
+- Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineLow.wav
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.da.md
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_02_jeskoVehicle_Exterior_mm_lights1.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.es.md
+- Assets/Mods/Koenigsegg_Jesko/KoenigseggJesko.asset
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.hu.md
+- Assets/Mods/Koenigsegg_Jesko/Models/2020_koenigsegg_jesko.glb
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_01_jeskoVehicle_Exterior_mm_ext1.mat
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_07_jeskoVehicle_Exterior_mm_tyre1.mat
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_05_jeskoVehicle_Exterior_mm_cab1.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.el.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/Steam_ChangeLog.md
+- Assets/Mods/Koenigsegg_Jesko/Config/THIRD_PARTY_NOTICES.txt
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.uk.md
+- Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineMid.wav
+- Assets/Mods/Koenigsegg_Jesko/Config/ATTRIBUTION.txt
+- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_13_PLASTICO_OPCAO.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.it.md
+- Assets/Mods/Koenigsegg_Jesko/Config/Audio/generation.json
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/Horn.wav
 - Assets/Mods/Koenigsegg_Jesko/KoenigseggJesko.prefab
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_00_jeskoVehicle_Exterior_mm_chassis1.mat
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_09_material.mat
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggTransparent_00_jeskoVehicle_Exterior_mm_badges1.mat
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_06_jeskoVehicle_Exterior_mm_rotor1.mat
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.zh-TW.md
+- Assets/Mods/Koenigsegg_Jesko/releases/0.1.0/full-description.cs.md
 Dependencies: []

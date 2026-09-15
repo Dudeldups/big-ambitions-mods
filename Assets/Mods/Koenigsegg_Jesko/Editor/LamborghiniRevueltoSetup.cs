@@ -757,7 +757,7 @@ public static class KoenigseggJeskoSetup
                 break;
             }
 
-            if (Math.Abs(price - 3000000f) > 0.5f ||
+            if (Math.Abs(price - 3500000f) > 0.5f ||
                 Math.Abs(maxFuel - 72f) > 0.5f ||
                 Math.Abs(maxSpeed - 480f) > 0.5f ||
                 Math.Abs(enginePower - EffectiveEnginePowerKw) > 0.5f ||
@@ -940,7 +940,7 @@ public static class KoenigseggJeskoSetup
         target.name = "KoenigseggJesko";
         var serialized = new SerializedObject(target);
         SetString(serialized, "vehicleTypeName", VehicleTypeName);
-        SetNumber(serialized, "price", 3000000f);
+        SetNumber(serialized, "price", 3500000f);
         SetNumber(serialized, "maxFuel", 72f);
         SetNumber(serialized, "maxCargoCapacity", 2f);
         SetNumber(serialized, "maxSpeed", 480f);
