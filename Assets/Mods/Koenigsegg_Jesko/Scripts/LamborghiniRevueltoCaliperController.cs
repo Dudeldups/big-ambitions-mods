@@ -40,7 +40,7 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
         }
 
         ApplyBindings();
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko steering calipers ready vehicle={controller.GetInstanceID()}, " +
             $"bindings={bindings.Count}, followsSteeringAndSuspension=true, inheritsWheelSpin=false.");
     }

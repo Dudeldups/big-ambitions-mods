@@ -14,6 +14,16 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 {
+    private const string VehicleRepainterColorRestoredEvent =
+        "vehicle-repainter:color-restored";
+    private const string VehicleRepainterColorPreviewEvent =
+        "vehicle-repainter:color-preview";
+    private const string VehicleRepainterColorResetEvent =
+        "vehicle-repainter:color-reset";
+    private const string DeveloperToolsVehicleRecolorEvent =
+        "developer-tools:vehicle-recolor";
+    private const string DeveloperToolsVehicleRecolorRestoredEvent =
+        "developer-tools:vehicle-recolor-restored";
     // Reuse the game's native player-car sleep configuration, matching the
     // confirmed Cadillac implementation and supporting unsaved dev spawns.
     private const string NativeCarSleepDonorPrefabPath =
@@ -30,6 +40,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const float EngineLimitRpm = 8500f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
+    private const float WarehouseExitEntranceSearchRadius = 12f;
+    private const float WarehouseExitGuardDuration = 8f;
+    private const float WarehouseExitGuardClearDistance = 4f;
     private const float SpeedLimitKph = 480f;
     private const float FinalDriveRatio = 3.25f;
     private const float EngineInertia = 0.12f;
@@ -102,6 +115,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private Coroutine? enteredVehicleActivationCoroutine;
     private int enteredVehicleActivationInstanceId;
     private Coroutine? exitedPlayerRecoveryCoroutine;
+    private Coroutine? warehouseExitGuardCoroutine;
+    private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
+    private KoenigseggJeskoWarehouseEntryController? warehouseExitGuardEntryController;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -152,6 +168,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         enteredVehicleActivationCoroutine = null;
         enteredVehicleActivationInstanceId = 0;
         exitedPlayerRecoveryCoroutine = null;
+        StopWarehouseExitGuard();
         privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
@@ -174,6 +191,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+        StopWarehouseExitGuard();
     }
 
     private void Update()
@@ -190,12 +208,16 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private void SubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
+        GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -204,9 +226,11 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private void UnsubscribeEvents()
     {
+        GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
@@ -238,6 +262,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         enteredVehicleActivationCoroutine = null;
         enteredVehicleActivationInstanceId = 0;
         exitedPlayerRecoveryCoroutine = null;
+        StopWarehouseExitGuard();
         cachedPlayerVehicleCount = -1;
         dealerReadyLogged = false;
         dealerReady = false;
@@ -245,6 +270,76 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+    }
+
+    private void HandleGameEvent(string eventName)
+    {
+        var developerToolsEvent =
+            string.Equals(eventName, DeveloperToolsVehicleRecolorEvent,
+                StringComparison.Ordinal) ||
+            string.Equals(eventName, DeveloperToolsVehicleRecolorRestoredEvent,
+                StringComparison.Ordinal);
+        if (!string.Equals(eventName, VehicleRepainterColorRestoredEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, VehicleRepainterColorPreviewEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, VehicleRepainterColorResetEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, DeveloperToolsVehicleRecolorEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, DeveloperToolsVehicleRecolorRestoredEvent,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (developerToolsEvent)
+        {
+            RefreshDeveloperToolPaint(eventName);
+            return;
+        }
+
+        var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selectedVehicle))
+            return;
+
+        TryConfigureVehicle(selectedVehicle);
+        selectedVehicle!
+            .GetComponent<KoenigseggJeskoPaintController>()
+            ?.RefreshCurrentColor(eventName);
+        KoenigseggJeskoDiagnostics.PaintInfo(
+            context,
+            $"KoenigseggJesko repaint event='{eventName}' " +
+            $"vehicle={selectedVehicle.GetInstanceID()} handled=true.");
+    }
+
+    private void RefreshDeveloperToolPaint(string eventName)
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var targetCount = 0;
+        var changedCount = 0;
+        if (vehicles != null)
+        {
+            foreach (var vehicle in vehicles)
+            {
+                if (!IsTargetVehicle(vehicle))
+                    continue;
+
+                targetCount++;
+                TryConfigureVehicle(vehicle);
+                if (vehicle!
+                    .GetComponent<KoenigseggJeskoPaintController>()
+                    ?.RefreshCurrentColor(eventName, settleWhenUnchanged: false) == true)
+                {
+                    changedCount++;
+                }
+            }
+        }
+
+        KoenigseggJeskoDiagnostics.PaintInfo(
+            context,
+            $"KoenigseggJesko developer recolor event='{eventName}' " +
+            $"targets={targetCount}, changed={changedCount}.");
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -255,6 +350,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ?.RestoreAfterVehicleEntered();
         if (vehicle == null || !IsTargetVehicle(vehicle))
             return;
+        vehicle.GetComponent<KoenigseggJeskoPaintController>()
+            ?.RestoreAfterVehicleEntered();
         ScheduleEnteredVehicleActivation(vehicle);
     }
 
@@ -302,7 +399,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                     transmission.ShiftInto(1, true);
                     yield return new WaitForFixedUpdate();
                 }
-                context?.Logger.Info(
+                KoenigseggJeskoDiagnostics.Info(context,
                     $"KoenigseggJesko: post-entry drivetrain ready vehicle={vehicle.GetInstanceID()} " +
                     $"attempt={attempt} running={engine.IsRunning} rpm={rpm:0} gear={transmission.Gear}.");
                 enteredVehicleActivationCoroutine = null;
@@ -337,7 +434,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (!vehicle.controlledByPlayer &&
             !ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle))
         {
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko: post-entry activation skipped vehicle={vehicle.GetInstanceID()} " +
                 "because it is neither controlled nor selected.");
             return;
@@ -351,7 +448,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             StopCoroutine(enteredVehicleActivationCoroutine);
 
         enteredVehicleActivationInstanceId = instanceId;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko: post-entry activation scheduled vehicle={instanceId} " +
             $"controlled={vehicle.controlledByPlayer} selected=" +
             $"{ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle)}.");
@@ -415,7 +512,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             Physics.SyncTransforms();
         }
 
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko: recovered player after vehicle exit vehicle={exitedVehicle.GetInstanceID()} " +
             $"position={target}.");
         exitedPlayerRecoveryCoroutine = null;
@@ -503,6 +600,182 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             EnsureDealerStock("dealer-entered");
     }
 
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+        {
+            KoenigseggJeskoDiagnostics.WarehouseInfo(
+                context,
+                "KoenigseggJesko warehouse-exit: guard skipped because the current vehicle " +
+                "is not a player-controlled Jesko.");
+            return;
+        }
+
+        var entrance = FindClosestDriveInEntrance(vehicle.transform.position, out var distance);
+        if (entrance == null || distance > WarehouseExitEntranceSearchRadius)
+        {
+            KoenigseggJeskoDiagnostics.WarehouseInfo(
+                context,
+                $"KoenigseggJesko warehouse-exit: no nearby drive-in entrance; " +
+                $"vehicle={vehicle.GetInstanceID()}, distance={distance:0.00}m.");
+            return;
+        }
+
+        StopWarehouseExitGuard();
+        warehouseExitGuardEntryController =
+            vehicle.GetComponent<KoenigseggJeskoWarehouseEntryController>();
+        warehouseExitGuardEntryController?.SuppressEntrance(
+            entrance,
+            "warehouse-exit-guard");
+        foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
+        foreach (var collider in enterTrigger.GetComponents<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.isTrigger)
+                continue;
+
+            warehouseExitGuardColliders.Add(collider);
+            collider.enabled = false;
+        }
+
+        if (warehouseExitGuardColliders.Count == 0)
+        {
+            warehouseExitGuardEntryController?.ClearSuppressedEntrance(
+                entrance,
+                "no-native-entry-trigger");
+            warehouseExitGuardEntryController = null;
+            KoenigseggJeskoDiagnostics.WarehouseInfo(
+                context,
+                $"KoenigseggJesko warehouse-exit: entrance='{entrance.name}' had no " +
+                "enabled child entry-trigger colliders.");
+            return;
+        }
+
+        var outward = Vector3.ProjectOnPlane(
+            vehicle.transform.position - entrance.transform.position,
+            Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+            outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+        {
+            KoenigseggJeskoDiagnostics.WarehouseInfo(
+                context,
+                "KoenigseggJesko warehouse-exit: guard aborted because outward direction was zero.");
+            StopWarehouseExitGuard();
+            return;
+        }
+
+        outward.Normalize();
+        var startingProjection = Vector3.Dot(vehicle.transform.position, outward);
+        Physics.SyncTransforms();
+        KoenigseggJeskoDiagnostics.WarehouseInfo(
+            context,
+            $"KoenigseggJesko warehouse-exit: guard started vehicle={vehicle.GetInstanceID()}, " +
+            $"entrance='{entrance.name}', entranceDistance={distance:0.00}m, " +
+            $"triggerCount={warehouseExitGuardColliders.Count}, outward={outward}, " +
+            $"clearDistance={WarehouseExitGuardClearDistance:0.00}m, " +
+            $"timeout={WarehouseExitGuardDuration:0.0}s.");
+        warehouseExitGuardCoroutine = StartCoroutine(GuardWarehouseExit(
+            vehicle,
+            outward,
+            startingProjection));
+    }
+
+    private IEnumerator GuardWarehouseExit(
+        VehicleController vehicle,
+        Vector3 outward,
+        float startingProjection)
+    {
+        var expiresAt = Time.unscaledTime + WarehouseExitGuardDuration;
+        var reason = "timeout";
+        while (vehicle != null && vehicle.controlledByPlayer &&
+               Time.unscaledTime < expiresAt)
+        {
+            if (Vector3.Dot(vehicle.transform.position, outward) >=
+                startingProjection + WarehouseExitGuardClearDistance)
+            {
+                reason = "moved-away";
+                break;
+            }
+
+            yield return new WaitForFixedUpdate();
+        }
+
+        if (vehicle == null)
+            reason = "vehicle-destroyed";
+        else if (!vehicle.controlledByPlayer)
+            reason = "player-left-vehicle";
+
+        KoenigseggJeskoDiagnostics.WarehouseInfo(
+            context,
+            $"KoenigseggJesko warehouse-exit: guard ending reason={reason}.");
+        RestoreWarehouseExitTriggers(reason);
+    }
+
+    private void StopWarehouseExitGuard()
+    {
+        if (warehouseExitGuardCoroutine != null)
+            StopCoroutine(warehouseExitGuardCoroutine);
+        RestoreWarehouseExitTriggers("cancelled-or-reset");
+    }
+
+    private void RestoreWarehouseExitTriggers(string reason)
+    {
+        if (warehouseExitGuardColliders.Count > 0)
+        {
+            KoenigseggJeskoDiagnostics.WarehouseInfo(
+                context,
+                $"KoenigseggJesko warehouse-exit: restoring " +
+                $"triggerCount={warehouseExitGuardColliders.Count}, reason={reason}.");
+        }
+
+        foreach (var collider in warehouseExitGuardColliders)
+        {
+            if (collider != null)
+                collider.enabled = true;
+        }
+
+        warehouseExitGuardColliders.Clear();
+        warehouseExitGuardEntryController?.ClearSuppressedEntrance(null, reason);
+        warehouseExitGuardEntryController = null;
+        warehouseExitGuardCoroutine = null;
+        Physics.SyncTransforms();
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(
+        Vector3 vehiclePosition,
+        out float distance)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null
+            ? float.PositiveInfinity
+            : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
+    }
+
     private void HandleFullMenuToggle(bool isOpen)
     {
         if (isOpen && !dealerReady && !BusinessLayoutSetHelper.loadingLayouts)
@@ -583,7 +856,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                         vehicleTypeName);
             }
             if (privateDriverReady)
-                context?.Logger.Info(
+                KoenigseggJeskoDiagnostics.Info(context,
                     $"KoenigseggJesko: private-driver support registered source='{source}'.");
             return privateDriverReady && privateDriverPoolReady;
         }
@@ -631,7 +904,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             if (ready && !dealerReadyLogged)
             {
                 dealerReadyLogged = true;
-                context?.Logger.Info(
+                KoenigseggJeskoDiagnostics.Info(context,
                     $"KoenigseggJesko: available at The Hamptons Axis and Manhattan Luxury Cars " +
                     $"source='{source}'.");
             }
@@ -677,7 +950,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
             configField.SetValue(environment, carConfig);
             environmentField.SetValue(vehicle, environment);
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko: configured native car sleep environment " +
                 $"vehicle={vehicle.GetInstanceID()} donor=HonzaMimic.");
             return true;
@@ -824,6 +1097,22 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             var disabledBonnetCamera = DisableBonnetCameraGeometry(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
             var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
+            var warehouseBounds =
+                vehicle.GetComponent<KoenigseggJeskoWarehouseBoundsController>();
+            if (warehouseBounds == null)
+            {
+                warehouseBounds = vehicle.gameObject
+                    .AddComponent<KoenigseggJeskoWarehouseBoundsController>();
+            }
+            warehouseBounds.Initialize();
+            var warehouseEntry =
+                vehicle.GetComponent<KoenigseggJeskoWarehouseEntryController>();
+            if (warehouseEntry == null)
+            {
+                warehouseEntry = vehicle.gameObject
+                    .AddComponent<KoenigseggJeskoWarehouseEntryController>();
+            }
+            warehouseEntry.Initialize(vehicle, context);
             var repairedBodyShell = UseAuthoredBodyShell(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
@@ -886,7 +1175,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 ScheduleEnteredVehicleActivation(vehicle);
             }
 
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko: configured vehicle instance={instanceId}, " +
                 $"mass={VehicleMass:0}kg, transmission=9-speed-LST, " +
                 $"powertrainConfigured={powertrainConfigured}, " +
@@ -1091,7 +1380,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         sourceRenderer.enabled = sourceRenderer.sharedMaterials.Length > 0;
         if (damageRenderer != null)
             damageRenderer.enabled = false;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko body vehicle={root.GetInstanceID()}: using authored in-place shell " +
             $"visible={sourceRenderer.enabled}, mesh='{sourceFilter.sharedMesh.name}', " +
             $"materials={sourceRenderer.sharedMaterials.Length}; duplicate damage shell disabled.");
@@ -1281,7 +1570,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             filters,
             DamageDecelerationThreshold / 100f);
 
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
             $"bodyMeshes={filters.Count} threshold={DamageDecelerationThreshold / 100f:0.0}mps " +
             $"filters=[{string.Join(", ", filters.ConvertAll(filter => filter.name))}]; " +
@@ -1608,7 +1897,7 @@ public sealed class KoenigseggJeskoRimGeometryController : MonoBehaviour
         }
         else
         {
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko wheel finish vehicle={GetInstanceID()}: complete left " +
                 "wheel assemblies rebuilt as exact mirrors of the preferred right-side geometry.");
         }
@@ -1761,7 +2050,7 @@ internal sealed class KoenigseggJeskoSettlingController : MonoBehaviour
     {
         settling = true;
         settleUntil = Time.unscaledTime + SettleDuration;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko settling vehicle={vehicle?.GetInstanceID()}: begin " +
             $"reason={reason} controlled={vehicle?.controlledByPlayer}.");
     }
@@ -1771,7 +2060,7 @@ internal sealed class KoenigseggJeskoSettlingController : MonoBehaviour
         if (!settling)
             return;
         settling = false;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko settling vehicle={vehicle?.GetInstanceID()}: end reason={reason}.");
     }
 }
@@ -1847,7 +2136,7 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
         }
         initialized = true;
         EnsureVisible("initialize");
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko glass vehicle={GetInstanceID()}: disabled interior duplicate panes=" +
             $"{disabledInteriorDuplicates}, clear headlamp lenses={headlampLenses}; " +
             "exterior panes remain independently transparent.");
@@ -1907,14 +2196,14 @@ public sealed class KoenigseggJeskoGlassController : MonoBehaviour
         }
         if (string.Equals(source, "initialize", StringComparison.Ordinal))
         {
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko glass vehicle={GetInstanceID()}: configured " +
                 $"renderers={cabinGlass.Count}, runtimeMaterials={runtimeMaterials.Count}, " +
                 "shader=HDRP/Lit, deferredPolling=false.");
         }
         else if (restored > 0 || propertyBlocksCleared > 0)
         {
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko glass vehicle={GetInstanceID()}: repaired after " +
                 $"'{source}' renderers={restored}, propertyBlocks={propertyBlocksCleared}.");
         }
@@ -2101,7 +2390,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
             if (repairRecoveryCoroutine != null)
                 StopCoroutine(repairRecoveryCoroutine);
             repairRecoveryCoroutine = StartCoroutine(RestoreDrivingStateAfterRepair());
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko damage vehicle={vehicle?.GetInstanceID()}: visual body repaired; " +
                 "post-repair driving recovery scheduled.");
             repairClearSince = -1f;
@@ -2113,6 +2402,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         if (!initialized || collision == null || Time.unscaledTime < nextCollisionTime ||
+            collision.collider.GetComponentInParent<DriveInEntrance>() != null ||
             collision.relativeVelocity.magnitude < impactThresholdMps ||
             !NWH.VehiclePhysics2.Damage.DamageHandler.IsCollisionValid(collision))
             return;
@@ -2237,7 +2527,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
             {
-                context?.Logger.Info(
+                KoenigseggJeskoDiagnostics.Info(context,
                     $"KoenigseggJesko damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
@@ -2292,7 +2582,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
                 rigidbody.isKinematic = false;
                 rigidbody.WakeUp();
             }
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko damage vehicle={vehicle.GetInstanceID()}: post-repair " +
                 $"driving recovery pass={pass} physics={physics?.enabled} " +
                 $"engine={physics?.powertrain.engine.IsRunning} " +

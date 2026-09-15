@@ -55,7 +55,7 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
         }
 
         ModdingAPI.RegisterModVehicleType(vehicleType);
-        context.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko: registered '{vehicleType.vehicleTypeName}' " +
             $"price={vehicleType.price:0}, maxSpeed={vehicleType.maxSpeed}, " +
             $"enginePower={vehicleType.enginePower:0}.");
@@ -79,6 +79,34 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
         }
 
         return Task.CompletedTask;
+    }
+}
+
+internal static class KoenigseggJeskoDiagnostics
+{
+    // Repaint and warehouse-transition validation are complete. Keep release
+    // logging quiet while warnings and errors remain available for failures.
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool PaintDebugEnabled { get; set; } = false;
+    internal static bool WarehouseTransitionDebugEnabled { get; set; } = false;
+    internal static bool TelemetryEnabled { get; set; } = false;
+
+    internal static void Info(ModContext? context, string message)
+    {
+        if (DebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void PaintInfo(ModContext? context, string message)
+    {
+        if (PaintDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void WarehouseInfo(ModContext? context, string message)
+    {
+        if (WarehouseTransitionDebugEnabled)
+            context?.Logger.Info(message);
     }
 }
 

@@ -78,7 +78,7 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         expanded[existing.Length] = customCarType;
         pool.trafficCars = expanded;
         modifiedVehiclePool = pool;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko private-driver traffic type registered name='{AiCarTypeName}' " +
             $"poolSize={PrivateDriverPoolSize}.");
         return true;
@@ -179,7 +179,7 @@ internal static class KoenigseggJeskoPrivateDriverSupport
             $"KoenigseggJesko private-driver appearance color='{colorName ?? "<none>"}' " +
             $"paintApplied={paintApplied}.";
         if (paintApplied)
-            context?.Logger.Info(message);
+            KoenigseggJeskoDiagnostics.Info(context, message);
         else
             context?.Logger.Warn(message);
     }
@@ -190,7 +190,7 @@ internal static class KoenigseggJeskoPrivateDriverSupport
             $"KoenigseggJesko private-driver departure color='{colorName ?? "<none>"}' " +
             $"paintApplied={paintApplied}.";
         if (paintApplied)
-            context?.Logger.Info(message);
+            KoenigseggJeskoDiagnostics.Info(context, message);
         else
             context?.Logger.Warn(message);
     }
@@ -331,7 +331,7 @@ internal static class KoenigseggJeskoPrivateDriverSupport
             break;
         }
 
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             "KoenigseggJesko private-driver prefab prepared with in-place body, " +
             "four wheels, and four fixed calipers.");
         return clone;

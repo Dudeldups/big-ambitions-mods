@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using BAModAPI;
 using Data.VehicleColors;
@@ -8,6 +9,8 @@ using UnityEngine;
 
 internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
 {
+    private const int PaintSettlementAttempts = 20;
+    private const float PaintSettlementDelay = 0.10f;
     private const string BodyMaterialMarker = "Exterior_mm_ext1";
     private const string CaliperMaterialMarker = "_Caliper";
     private const string InteriorAccentMaterialMarker = "Tela_Int";
@@ -36,13 +39,17 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private VehicleColor? appliedColor;
     private Color32 appliedTint;
     private bool hasAppliedTint;
+    private Coroutine? settlementCoroutine;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
         context = modContext;
+        explicitVehicleColorName = null;
+        explicitVehicleColor = null;
         FindPaintSlots();
-        ApplyCurrentColor();
+        ApplyCurrentColor("initialize");
+        SchedulePaintSettlement("initialize");
     }
 
     internal void InitializeForPrivateDriver(
@@ -56,17 +63,58 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         appliedColor = null;
         hasAppliedTint = false;
         FindPaintSlots();
-        ApplyCurrentColor();
+        ApplyCurrentColor("private-driver");
     }
 
     internal bool HasAppliedColor => hasAppliedTint;
 
-    private void LateUpdate()
+    internal void RestoreAfterVehicleEntered() =>
+        SchedulePaintSettlement("vehicle-entered");
+
+    internal bool RefreshCurrentColor(string source, bool settleWhenUnchanged = true)
     {
-        // The game exposes no vehicle-paint-changed event. This comparison is
-        // allocation-free and performs material work only when the saved color changes.
-        if (vehicle != null)
-            ApplyCurrentColor();
+        var changed = HasCurrentColorChanged();
+        if (!ApplyCurrentColor(source))
+            return false;
+        if (changed || settleWhenUnchanged)
+            SchedulePaintSettlement(source);
+        return changed;
+    }
+
+    private bool HasCurrentColorChanged()
+    {
+        var selected = ResolveVehicleColor();
+        if (selected == null)
+            return false;
+        var tint = (Color32)selected.tint;
+        return !hasAppliedTint ||
+               !ReferenceEquals(selected, appliedColor) ||
+               !tint.Equals(appliedTint);
+    }
+
+    private void SchedulePaintSettlement(string source)
+    {
+        if (vehicle == null)
+            return;
+        if (settlementCoroutine != null)
+            StopCoroutine(settlementCoroutine);
+        settlementCoroutine = StartCoroutine(SettlePaintAfterLifecycle(source));
+    }
+
+    private IEnumerator SettlePaintAfterLifecycle(string source)
+    {
+        // Dealer and repaint transitions can update the selected color after
+        // the triggering callback. Sample only this bounded transition window;
+        // there is no permanent per-frame paint watcher.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+        for (var attempt = 1; attempt <= PaintSettlementAttempts; attempt++)
+        {
+            ApplyCurrentColor($"{source}-settle-{attempt}");
+            if (attempt < PaintSettlementAttempts)
+                yield return new WaitForSecondsRealtime(PaintSettlementDelay);
+        }
+        settlementCoroutine = null;
     }
 
     private void FindPaintSlots()
@@ -139,7 +187,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             }
         }
 
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.PaintInfo(context,
             $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: " +
             $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
             $"exteriorContrastSlots={exteriorContrastSlots}, " +
@@ -158,14 +206,14 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 $"expected 3 badge renderers (two cabin sides, plate, two wing sides), found {letteringSlots}.");
     }
 
-    private void ApplyCurrentColor()
+    private bool ApplyCurrentColor(string source)
     {
         var selected = ResolveVehicleColor();
         if (selected == null)
-            return;
+            return false;
         var tint = (Color32)selected.tint;
         if (hasAppliedTint && ReferenceEquals(selected, appliedColor) && tint.Equals(appliedTint))
-            return;
+            return true;
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
@@ -215,11 +263,12 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         appliedColor = selected;
         appliedTint = tint;
         hasAppliedTint = true;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.PaintInfo(context,
             $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"to {slots.Count} body/caliper slots; exteriorContrast=" +
-            $"{(UseDarkContrast(selectedColor) ? "50%-gray" : "white")}.");
+            $"{(UseDarkContrast(selectedColor) ? "50%-gray" : "white")}, source='{source}'.");
+        return true;
     }
 
     private static bool UseDarkContrast(Color paint)
@@ -367,7 +416,13 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         exteriorContrastTextures.Clear();
     }
 
-    private void OnDestroy() => ReleaseRuntimePaintTextures();
+    private void OnDestroy()
+    {
+        if (settlementCoroutine != null)
+            StopCoroutine(settlementCoroutine);
+        settlementCoroutine = null;
+        ReleaseRuntimePaintTextures();
+    }
 
     private VehicleColor? ResolveVehicleColor()
     {

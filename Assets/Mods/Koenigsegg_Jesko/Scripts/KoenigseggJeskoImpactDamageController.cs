@@ -1,6 +1,7 @@
 #nullable enable
 using System.Collections.Generic;
 using BAModAPI;
+using BusinessLayoutSets;
 using NWH.VehiclePhysics2.Damage;
 using UnityEngine;
 
@@ -26,6 +27,9 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
     private string contactName = "";
     private float contactSpeed;
     private float contactImpulse;
+    private bool warehouseDamageRestorePending;
+    private float warehouseDamageBaseline;
+    private string warehouseContactName = "";
 
     internal void Initialize(VehicleController owner, DamageHandler damage, ModContext? modContext)
     {
@@ -53,12 +57,31 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision) => Observe(collision, true);
     private void OnCollisionStay(Collision collision) => Observe(collision, false);
-    private void OnDisable() => ClearImpact();
+    private void OnDisable()
+    {
+        RestoreWarehouseEntranceDamage();
+        ClearImpact();
+    }
 
     private void Observe(Collision collision, bool entering)
     {
-        if (!CanApplyDamage || collision.contactCount == 0 ||
-            !DamageHandler.IsCollisionValid(collision)) return;
+        if (!CanApplyDamage || collision.contactCount == 0)
+            return;
+        if (collision.collider.GetComponentInParent<DriveInEntrance>() != null)
+        {
+            // The Jesko's splitter can touch the physical warehouse entrance
+            // before its native entry trigger finishes the transition. Undo
+            // only damage from that exact entrance-owned contact; all other
+            // collision damage remains authoritative.
+            warehouseDamageBaseline = warehouseDamageRestorePending
+                ? Mathf.Min(warehouseDamageBaseline, preStepDamage)
+                : Mathf.Min(preStepDamage, handler!.Damage);
+            warehouseContactName = collision.collider.name;
+            warehouseDamageRestorePending = true;
+            ClearImpact();
+            return;
+        }
+        if (!DamageHandler.IsCollisionValid(collision)) return;
         foreach (var tag in handler!.collisionIgnoreTags)
             if (collision.collider.CompareTag(tag)) return;
 
@@ -93,6 +116,7 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
 
     private void LateUpdate()
     {
+        RestoreWarehouseEntranceDamage();
         if (!pending || handler == null) return;
         pending = false;
         if (!CanApplyDamage || handler.Damage + Tolerance < lastObservedDamage)
@@ -120,6 +144,34 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
                     "strongest contact in native cooldown, existing damage credited.");
         }
         lastObservedDamage = handler.Damage;
+    }
+
+    private void RestoreWarehouseEntranceDamage()
+    {
+        if (!warehouseDamageRestorePending || handler == null || vehicle == null)
+            return;
+
+        warehouseDamageRestorePending = false;
+        var observedDamage = handler.Damage;
+        if (observedDamage <= warehouseDamageBaseline + Tolerance)
+            return;
+
+        if (vehicle is CarController car)
+            car.SetDamage(warehouseDamageBaseline);
+        else
+        {
+            handler.SetDamage(warehouseDamageBaseline);
+            if (vehicle.vehicleInstance != null)
+                vehicle.vehicleInstance.damage = warehouseDamageBaseline;
+        }
+
+        lastObservedDamage = handler.Damage;
+        GlobalEvents.onVehicleVariablesChanged?.Invoke();
+        KoenigseggJeskoDiagnostics.WarehouseInfo(
+            context,
+            $"KoenigseggJesko warehouse-entry: ignored entrance contact damage " +
+            $"vehicle={vehicle.GetInstanceID()}, collider='{warehouseContactName}', " +
+            $"observed={observedDamage:0.0000}, restored={warehouseDamageBaseline:0.0000}.");
     }
 
     // Same native impulse-to-condition scale and the existing 0.8 intensity.

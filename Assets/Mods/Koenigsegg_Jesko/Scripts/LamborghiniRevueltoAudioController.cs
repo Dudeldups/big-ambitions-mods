@@ -93,7 +93,7 @@ internal sealed class KoenigseggJeskoAudioController : MonoBehaviour
         hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
         engineSound.maxDistortion = 0f;
         configured = true;
-        context.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko audio configured vehicle={vehicle.GetInstanceID()}, " +
             $"engineLayers=6, nativeExampleClipSuppressed=true, " +
             $"engineGain={KoenigseggJeskoAudioModel.EngineBaseVolume:0.00}.." +
