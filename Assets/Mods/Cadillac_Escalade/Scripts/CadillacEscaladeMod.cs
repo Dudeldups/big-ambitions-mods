@@ -86,11 +86,11 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
 
 internal static class CadillacEscaladeDiagnostics
 {
-    // Keep focused warehouse-exit diagnostics enabled through the first
-    // runtime validation of the placement/trigger guard.
-    internal static readonly bool DebugEnabled = true;
-    internal static readonly bool WarehouseExitDebugEnabled = true;
-    internal static readonly bool PlayerExitDebugEnabled = true;
+    // Release defaults. The focused guards retain their diagnostics for any
+    // future regression, but they are opt-in to keep normal play quiet.
+    internal static readonly bool DebugEnabled = false;
+    internal static readonly bool WarehouseExitDebugEnabled = false;
+    internal static readonly bool PlayerExitDebugEnabled = false;
     internal static readonly bool AccelerationTelemetryDebugEnabled = false;
 
     internal static bool AccelerationTelemetryEnabled =>
