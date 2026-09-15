@@ -15,12 +15,40 @@ internal sealed class Porsche911GT3RSWarehouseEntryController : MonoBehaviour
 
     private VehicleController? vehicle;
     private ModContext? context;
+    private DriveInEntrance? suppressedEntrance;
     private float nextAttemptTime;
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
         context = modContext;
+    }
+
+    internal void SuppressEntrance(DriveInEntrance entrance, string reason)
+    {
+        if (entrance == null)
+            return;
+
+        suppressedEntrance = entrance;
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-entry: suppressing physical-door fallback for " +
+            $"entrance='{entrance.name}', reason={reason}.");
+    }
+
+    internal void ClearSuppressedEntrance(DriveInEntrance? entrance, string reason)
+    {
+        if (suppressedEntrance == null ||
+            (entrance != null && suppressedEntrance != entrance))
+        {
+            return;
+        }
+
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-entry: restoring physical-door fallback for " +
+            $"entrance='{suppressedEntrance.name}', reason={reason}.");
+        suppressedEntrance = null;
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -34,6 +62,17 @@ internal sealed class Porsche911GT3RSWarehouseEntryController : MonoBehaviour
         var entrance = collision.collider.GetComponentInParent<DriveInEntrance>();
         if (entrance == null)
             return;
+
+        if (entrance == suppressedEntrance)
+        {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                $"Porsche911GT3RS warehouse-entry: physical-door fallback suppressed during " +
+                $"warehouse exit; instance={vehicle.GetInstanceID()}, entrance='{entrance.name}', " +
+                $"vehiclePosition={vehicle.transform.position}, collider='{collision.collider.name}', " +
+                $"relativeVelocity={collision.relativeVelocity}.");
+            return;
+        }
 
         var car = vehicle as CarController ?? vehicle.GetComponent<CarController>();
         if (car == null || InstanceBehavior<GameManager>.Instance?.selectedVehicle != car)
@@ -68,5 +107,6 @@ internal sealed class Porsche911GT3RSWarehouseEntryController : MonoBehaviour
     private void OnDisable()
     {
         nextAttemptTime = 0f;
+        suppressedEntrance = null;
     }
 }

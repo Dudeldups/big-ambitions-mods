@@ -93,6 +93,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private Coroutine? exitedPlayerRecoveryCoroutine;
     private Coroutine? warehouseExitGuardCoroutine;
     private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
+    private Porsche911GT3RSWarehouseEntryController? warehouseExitGuardEntryController;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private int cachedPlayerVehicleCount = -1;
@@ -547,6 +548,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                     Porsche911GT3RSDiagnostics.DealerEntryInfo(
                         context,
                         "Porsche911GT3RS dealer-entry: native engine healthy; shifted neutral to first.");
+                    yield return new WaitForFixedUpdate();
+                    Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                        context,
+                        $"Porsche911GT3RS dealer-entry: first-gear settle, gear={transmission.Gear}, " +
+                        $"ratio={transmission.currentGearRatio:0.000}.");
                 }
                 else
                 {
@@ -652,6 +658,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             $"nativeMeshLength={nativeMeshCollider?.sharedMesh?.bounds.size.z:0.000}.");
 
         StopWarehouseExitGuard();
+        warehouseExitGuardEntryController =
+            vehicle.GetComponent<Porsche911GT3RSWarehouseEntryController>();
+        warehouseExitGuardEntryController?.SuppressEntrance(entrance, "warehouse-exit-guard");
         foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
         foreach (var collider in enterTrigger.GetComponents<Collider>())
         {
@@ -668,6 +677,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         if (warehouseExitGuardColliders.Count == 0)
         {
+            warehouseExitGuardEntryController?.ClearSuppressedEntrance(
+                entrance,
+                "no-native-entry-trigger");
+            warehouseExitGuardEntryController = null;
             Porsche911GT3RSDiagnostics.WarehouseExitInfo(
                 context,
                 "Porsche911GT3RS warehouse-exit: guard skipped; matching entrance had no enabled trigger colliders.");
@@ -758,6 +771,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         }
 
         warehouseExitGuardColliders.Clear();
+        warehouseExitGuardEntryController?.ClearSuppressedEntrance(null, reason);
+        warehouseExitGuardEntryController = null;
         warehouseExitGuardCoroutine = null;
         Physics.SyncTransforms();
     }
@@ -996,7 +1011,6 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         {
             vehicle.GetComponent<Porsche911GT3RSPaintController>()
                 ?.ApplyCurrentColor("vehicle-variables-changed");
-            ScheduleEnteredVehicleActivation(vehicle);
             return;
         }
 
@@ -1106,7 +1120,14 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 $"reenabled={materialResult.CabinGlassRenderersReenabled}, " +
                 $"rimSlotsNormalized={materialResult.RimSlotsNormalized}, " +
                 $"hdrpValidated={materialResult.MaterialsValidated}.");
-            ScheduleEnteredVehicleActivation(vehicle);
+            // A dealer purchase may create an already-entered vehicle without
+            // raising onEnterVehicle. Configure that one entry once; regular
+            // vehicle-variable events must not repeatedly touch the drivetrain.
+            if (vehicle.controlledByPlayer &&
+                ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle))
+            {
+                ScheduleEnteredVehicleActivation(vehicle);
+            }
         }
         catch (Exception exception)
         {
