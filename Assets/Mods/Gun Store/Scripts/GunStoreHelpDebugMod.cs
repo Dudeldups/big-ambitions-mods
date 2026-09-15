@@ -308,10 +308,24 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         {
             var visual = Instantiate(visualPrefab, visualSlot);
             visual.transform.SetPositionAndRotation(pose.position, pose.rotation);
+            DisableDisplayItemInteraction(visual);
         }
 
         shelf.UpdateVisuals();
         return true;
+    }
+
+    private static void DisableDisplayItemInteraction(GameObject visual)
+    {
+        // Gun Store's bundle currently contains placeable-item prefabs rather than stripped
+        // display-only prefabs. Their ItemController creates interaction/placement overlays when
+        // active in a shelf visual. Keep the meshes, but prevent those gameplay components and
+        // colliders from participating in the scene.
+        foreach (var itemController in visual.GetComponentsInChildren<ItemController>(true))
+            itemController.enabled = false;
+
+        foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+            collider.enabled = false;
     }
 
     private void LogGunStoreVisualSetupFailure(string itemName, string shelfName, string reason)
