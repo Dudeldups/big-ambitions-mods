@@ -15,7 +15,7 @@ MonoBehaviour:
   database: {fileID: 0}
   tags: []
   vehicleTypeName: koenigseggjesko-vehicle:vehicletype_koenigseggjesko
-  price: 3000000
+  price: 3500000
   itemVersion: 
   maxFuel: 72
   maxCargoCapacity: 2

@@ -1689,7 +1689,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.065f);
-            SetFloat(transmission, "_downshiftRPM", 2200f);
+            SetFloat(transmission, "_downshiftRPM", 5000f);
             SetFloat(transmission, "_upshiftRPM", 7600f);
             SetInt(transmission, "forwardGearCount", 9);
             SetInt(transmission, "reverseGearCount", 1);
