@@ -10,6 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 #endif
 using BAModAPI;
+using BAModAPI.Services;
 using BigAmbitions.Items;
 using Helpers;
 using Localizor;
@@ -30,9 +31,23 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private bool gameLoadedLateCallbackRegistered;
     private bool postCitySaveRepairCompleted;
     private Coroutine? shelfVisualRepairCoroutine;
+    private Coroutine? gunStoreVisualSetupCoroutine;
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
         "_visualItems",
         BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo? ShelfItemsVisualsContainerField = typeof(ShelfController).GetField(
+        "itemsVisualsContainer",
+        BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly IReadOnlyDictionary<string, string> GunStoreVisualPrefabNames =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["gunstore-businesstype:itemname_ak47"] = "Ak47.prefab",
+            ["gunstore-businesstype:itemname_ammosmall"] = "AmmoSmall.prefab",
+            ["gunstore-businesstype:itemname_wincheatersxp"] = "WinCheaterSXP.prefab",
+            ["gunstore-businesstype:itemname_berettam9"] = "BerettaM9.prefab",
+            ["gunstore-businesstype:itemname_ammolarge"] = "AmmoLarge.prefab",
+            ["gunstore-businesstype:itemname_rpg"] = "Rpg.prefab"
+        };
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
@@ -177,6 +192,11 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             StopCoroutine(shelfVisualRepairCoroutine);
 
         shelfVisualRepairCoroutine = StartCoroutine(RepairMalformedShelfVisuals());
+
+        if (gunStoreVisualSetupCoroutine != null)
+            StopCoroutine(gunStoreVisualSetupCoroutine);
+
+        gunStoreVisualSetupCoroutine = StartCoroutine(InstallGunStoreShelfVisuals());
     }
 
     private IEnumerator RepairMalformedShelfVisuals()
@@ -190,6 +210,91 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
 
         shelfVisualRepairCoroutine = null;
+    }
+
+    private IEnumerator InstallGunStoreShelfVisuals()
+    {
+        // The game's mod showcase API replaces a template visual on every matching base-game
+        // shelf. Gun Store used the same template for several products, which left destroyed
+        // visual references in unrelated shops. Add an independent visual slot only to shelves
+        // that actually contain Gun Store stock instead.
+        for (var pass = 0; pass < 16; pass++)
+        {
+            yield return pass == 0 ? null : new WaitForSeconds(2f);
+
+            var installedCount = 0;
+            foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
+            {
+                if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+                    continue;
+
+                if (TryInstallGunStoreVisualSlot(shelf, out var itemName, out var shelfName))
+                {
+                    installedCount++;
+                    context?.Logger.Info(
+                        $"Gun Store: installed isolated shelf visual: product='{itemName}', shelf='{shelfName}', " +
+                        $"position={shelf.transform.position}.");
+                }
+            }
+
+            if (installedCount > 0)
+            {
+                context?.Logger.Info(
+                    $"Gun Store: installed {installedCount} isolated shelf visual slot(s) on pass {pass + 1}. " +
+                    "No base-game showcase fixture definitions were changed.");
+            }
+        }
+
+        gunStoreVisualSetupCoroutine = null;
+    }
+
+    private static bool TryInstallGunStoreVisualSlot(
+        ShelfController shelf,
+        out string itemName,
+        out string shelfName)
+    {
+        itemName = "<none>";
+        shelfName = shelf.name;
+
+        if (ShelfItemsVisualsContainerField?.GetValue(shelf) is not Transform visualsContainer)
+            return false;
+
+        var owner = shelf.GetComponentInParent<ItemController>();
+        var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
+        if (stock == null || !GunStoreVisualPrefabNames.TryGetValue(stock.itemName, out var prefabName))
+            return false;
+
+        itemName = stock.itemName;
+        shelfName = owner?.Item?.itemName ?? shelf.name;
+        var visualSlotName = itemName.Substring(itemName.LastIndexOf(':') + 1);
+        if (visualsContainer.Find(visualSlotName) != null)
+            return false;
+
+        var template = visualsContainer.Cast<Transform>().FirstOrDefault(candidate => candidate.childCount > 0);
+        var visualPrefab = AssetService.FindAssetInAnyBundleByFileName<GameObject>(prefabName);
+        if (template == null || visualPrefab == null)
+            return false;
+
+        var visualPoses = new List<(Vector3 position, Quaternion rotation)>();
+        foreach (Transform visual in template)
+            visualPoses.Add((visual.position, visual.rotation));
+
+        if (visualPoses.Count == 0)
+            return false;
+
+        var visualSlot = Instantiate(template, visualsContainer);
+        visualSlot.name = visualSlotName;
+        for (var index = visualSlot.childCount - 1; index >= 0; index--)
+            DestroyImmediate(visualSlot.GetChild(index).gameObject);
+
+        foreach (var pose in visualPoses)
+        {
+            var visual = Instantiate(visualPrefab, visualSlot);
+            visual.transform.SetPositionAndRotation(pose.position, pose.rotation);
+        }
+
+        shelf.UpdateVisuals();
+        return true;
     }
 
     private void RepairMalformedShelfVisualsInLoadedScenes()
