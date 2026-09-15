@@ -15,11 +15,11 @@ using Vehicles.VehicleTypes;
 
 internal static class Porsche911GT3RSDiagnostics
 {
-    // Temporary local diagnostic build. Set this and both focused flags back
-    // to false only after dealer entry and warehouse exit are confirmed fixed.
-    internal static bool DebugEnabled { get; set; } = true;
-    internal static bool DealerEntryDebugEnabled { get; set; } = true;
-    internal static bool WarehouseExitDebugEnabled { get; set; } = true;
+    // Release defaults. Focused diagnostics remain available for a future
+    // regression, but are opt-in and require this global flag as well.
+    internal static bool DebugEnabled { get; set; } = false;
+    internal static bool DealerEntryDebugEnabled { get; set; } = false;
+    internal static bool WarehouseExitDebugEnabled { get; set; } = false;
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool DamageDebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
