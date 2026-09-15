@@ -19,6 +19,11 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         "vehicle-repainter:color-preview";
     private const string VehicleRepainterColorResetEvent =
         "vehicle-repainter:color-reset";
+    // Match the established Alfa approach: reuse the game's native player-car
+    // sleep configuration instead of synthesizing one or scanning all loaded
+    // vehicles. This is valid for dealer and developer-tool spawned Cadillacs.
+    private const string NativeCarSleepDonorPrefabPath =
+        "Vehicles/PlayerVehicles/HonzaMimic";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -104,6 +109,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
     private bool privateDriverPreparationExceptionLogged;
+    private UnityEngine.Object? nativeCarSleepConfig;
+    private bool nativeCarSleepConfigUnavailableLogged;
     private int cachedPlayerVehicleCount = -1;
     private int cachedTargetVehicleCount;
 
@@ -146,6 +153,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+        nativeCarSleepConfig = null;
+        nativeCarSleepConfigUnavailableLogged = false;
         configuredVehicleIds.Clear();
         ResetPlayerVehicleSnapshot();
         Destroy(gameObject);
@@ -238,6 +247,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+        nativeCarSleepConfig = null;
+        nativeCarSleepConfigUnavailableLogged = false;
     }
 
     private void HandleGameEvent(string eventName)
@@ -933,6 +944,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         if (!IsTargetVehicle(vehicle) || vehicle == null)
             return;
 
+        // This must run before checking vehicleInstance: developer-tool spawns
+        // can have no saved instance yet, but still need to support sleeping.
+        ConfigureSleepEnvironment(vehicle);
+
         if (vehicle.vehicleInstance == null)
         {
             ConfigurePresentationOnly(vehicle);
@@ -1043,6 +1058,90 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 $"CadillacEscalade: vehicle configuration failed instance={instanceId}: " +
                 $"{exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    private bool ConfigureSleepEnvironment(VehicleController vehicle)
+    {
+        try
+        {
+            var environmentField = FindField(typeof(VehicleController), "sleepEnvironment");
+            var environment = environmentField?.GetValue(vehicle);
+            if (environmentField == null || environment == null)
+                return false;
+
+            var configField = FindField(environment.GetType(), "config");
+            if (configField == null)
+                return false;
+
+            if (configField.GetValue(environment) is UnityEngine.Object currentConfig &&
+                currentConfig != null)
+            {
+                return IsCarSleepConfig(currentConfig);
+            }
+
+            var carSleepConfig = ResolveNativeCarSleepConfig();
+            if (carSleepConfig == null)
+            {
+                if (!nativeCarSleepConfigUnavailableLogged)
+                {
+                    nativeCarSleepConfigUnavailableLogged = true;
+                    context?.Logger.Warn(
+                        "CadillacEscalade: native car sleep configuration was unavailable; " +
+                        "sleeping in this vehicle will remain disabled.");
+                }
+
+                return false;
+            }
+
+            configField.SetValue(environment, carSleepConfig);
+            environmentField.SetValue(vehicle, environment);
+            CadillacEscaladeDiagnostics.Info(context,
+                $"CadillacEscalade: configured native car sleep environment " +
+                $"vehicle={vehicle.GetInstanceID()} donor=HonzaMimic.");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            if (!nativeCarSleepConfigUnavailableLogged)
+            {
+                nativeCarSleepConfigUnavailableLogged = true;
+                context?.Logger.Warn(
+                    "CadillacEscalade: could not configure the native car sleep environment: " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+            }
+
+            return false;
+        }
+    }
+
+    private UnityEngine.Object? ResolveNativeCarSleepConfig()
+    {
+        if (nativeCarSleepConfig != null)
+            return nativeCarSleepConfig;
+
+        var donor = PrefabHelper.LoadPrefabAssetByName(NativeCarSleepDonorPrefabPath);
+        var donorVehicle = donor?.GetComponent<VehicleController>() ??
+                           donor?.GetComponentInChildren<VehicleController>(true);
+        if (donorVehicle == null)
+            return null;
+
+        var environmentField = FindField(typeof(VehicleController), "sleepEnvironment");
+        var donorEnvironment = environmentField?.GetValue(donorVehicle);
+        var configField = donorEnvironment == null
+            ? null
+            : FindField(donorEnvironment.GetType(), "config");
+        var candidate = configField?.GetValue(donorEnvironment) as UnityEngine.Object;
+        if (candidate == null || !IsCarSleepConfig(candidate))
+            return null;
+
+        nativeCarSleepConfig = candidate;
+        return nativeCarSleepConfig;
+    }
+
+    private static bool IsCarSleepConfig(UnityEngine.Object candidate)
+    {
+        var environmentType = GetMember(candidate, "sleepEnvironmentType");
+        return environmentType != null && Convert.ToInt32(environmentType) == 1;
     }
 
     private void ConfigurePresentationOnly(VehicleController vehicle)
