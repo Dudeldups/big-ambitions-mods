@@ -29,8 +29,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
-    private const int RoundedShelfDisplayLimit = 12;
-    private const int ProductPanelDisplayLimit = 8;
+    private const int GeneratedDisplayVersion = 16;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -279,7 +278,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         var existingVisualSlot = visualsContainer.Find(visualSlotName);
         if (existingVisualSlot != null)
         {
-            if (existingVisualSlot.GetComponent<GunStoreMeshOnlyDisplayMarker>() != null)
+            var existingMarker = existingVisualSlot.GetComponent<GunStoreMeshOnlyDisplayMarker>();
+            if (existingMarker != null && existingMarker.Generation == GeneratedDisplayVersion)
                 return false;
 
             // Upgrade visual slots created by 0.1.13/0.1.14 in an already-loaded city. They
@@ -319,22 +319,17 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         var visualSlot = Instantiate(template, visualsContainer);
         visualSlot.name = visualSlotName;
-        visualSlot.gameObject.AddComponent<GunStoreMeshOnlyDisplayMarker>();
+        visualSlot.gameObject.AddComponent<GunStoreMeshOnlyDisplayMarker>().Generation = GeneratedDisplayVersion;
         for (var index = visualSlot.childCount - 1; index >= 0; index--)
             DestroyImmediate(visualSlot.GetChild(index).gameObject);
 
-        var displayPlacements = SelectSpacedDisplayPlacements(
-            template,
-            owner?.Item?.itemName == RoundedShelfItemName ? RoundedShelfDisplayLimit : ProductPanelDisplayLimit);
-        var displayScale = CalculateDisplayScale(visualPrefab, displayPlacements);
         var displayCount = 0;
         var meshCount = 0;
-        foreach (var placement in displayPlacements)
+        foreach (var placement in template.Cast<Transform>())
         {
             var displayVisual = new GameObject(visualPrefab.name + " Display");
             displayVisual.transform.SetParent(visualSlot, false);
             displayVisual.transform.SetPositionAndRotation(placement.position, placement.rotation);
-            displayVisual.transform.localScale = Vector3.one * displayScale;
             meshCount += CopyDisplayMeshHierarchy(visualPrefab.transform, displayVisual.transform);
             displayCount++;
         }
@@ -353,81 +348,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         shelf.UpdateVisuals();
         context.Logger.Info(
             $"Gun Store: installed mesh-only shelf display: product='{itemName}', shelf='{shelfName}', " +
-            $"template='{template.name}', sourcePlacements={template.childCount}, displayCount={displayCount}, " +
-            $"displayScale={displayScale:F3}, meshCount={meshCount}, " +
+            $"template='{template.name}', displayCount={displayCount}, meshCount={meshCount}, " +
             $"position={shelf.transform.position}.");
         return true;
-    }
-
-    private static List<Transform> SelectSpacedDisplayPlacements(Transform template, int limit)
-    {
-        var candidates = template.Cast<Transform>().ToList();
-        if (candidates.Count <= limit)
-            return candidates;
-
-        // Furthest-point sampling retains the shelf's own authored positions, while avoiding the
-        // 48–51 tiny gift/flower placements intended for products much smaller than firearms.
-        var selected = new List<Transform>();
-        var first = candidates[0];
-        var second = candidates
-            .OrderByDescending(candidate => (candidate.position - first.position).sqrMagnitude)
-            .First();
-        selected.Add(first);
-        if (second != first)
-            selected.Add(second);
-
-        while (selected.Count < limit)
-        {
-            var next = candidates
-                .Where(candidate => !selected.Contains(candidate))
-                .OrderByDescending(candidate => selected
-                    .Min(selectedPlacement => (candidate.position - selectedPlacement.position).sqrMagnitude))
-                .FirstOrDefault();
-            if (next == null)
-                break;
-
-            selected.Add(next);
-        }
-
-        return selected;
-    }
-
-    private static float CalculateDisplayScale(GameObject visualPrefab, IReadOnlyList<Transform> placements)
-    {
-        if (placements.Count < 2)
-            return 0.5f;
-
-        var smallestSpacing = float.PositiveInfinity;
-        for (var index = 0; index < placements.Count; index++)
-        {
-            for (var comparisonIndex = index + 1; comparisonIndex < placements.Count; comparisonIndex++)
-            {
-                smallestSpacing = Mathf.Min(
-                    smallestSpacing,
-                    Vector3.Distance(placements[index].position, placements[comparisonIndex].position));
-            }
-        }
-
-        var largestMeshDimension = 0f;
-        foreach (var meshFilter in visualPrefab.GetComponentsInChildren<MeshFilter>(true))
-        {
-            if (meshFilter.sharedMesh == null)
-                continue;
-
-            var sourceScale = meshFilter.transform.lossyScale;
-            var meshSize = meshFilter.sharedMesh.bounds.size;
-            largestMeshDimension = Mathf.Max(
-                largestMeshDimension,
-                Mathf.Abs(meshSize.x * sourceScale.x),
-                Mathf.Abs(meshSize.y * sourceScale.y),
-                Mathf.Abs(meshSize.z * sourceScale.z));
-        }
-
-        if (largestMeshDimension <= Mathf.Epsilon || float.IsPositiveInfinity(smallestSpacing))
-            return 0.25f;
-
-        // Leave a visible gap between neighbours so depth-buffer conflicts cannot recur.
-        return Mathf.Clamp(smallestSpacing * 0.72f / largestMeshDimension, 0.08f, 0.5f);
     }
 
     private static int CopyDisplayMeshHierarchy(Transform source, Transform destination)
@@ -446,6 +369,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
             destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
             destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+            destinationRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+            destinationRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
+            destinationRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
             copiedMeshCount++;
         }
 
@@ -504,6 +430,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 // reloads while still allowing a newer implementation to replace older generated slots.
 internal sealed class GunStoreMeshOnlyDisplayMarker : MonoBehaviour
 {
+    public int Generation;
 }
 
 internal enum GunStoreHelpNavigationPatchResult

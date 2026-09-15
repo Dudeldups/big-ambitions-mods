@@ -15,7 +15,7 @@ MonoBehaviour:
   ModId: Gun Store
   DisplayName: Gun Store Business Type
   Author: Codex
-  Version: 0.1.15
+  Version: 0.1.16
   AssetBundleName: gunstore-businesstype.unity3d
   ModAssembly: {fileID: 5897886265953266890, guid: fdad77bca2f543ddb5f2e4a89c3d2d57,
     type: 3}
