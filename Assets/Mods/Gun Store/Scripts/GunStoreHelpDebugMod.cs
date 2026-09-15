@@ -29,7 +29,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
-    private const int GeneratedDisplayVersion = 16;
+    private const int GeneratedDisplayVersion = 17;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -204,6 +204,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             StopCoroutine(gunStoreVisualSetupCoroutine);
 
         gunStoreVisualSetupCoroutine = StartCoroutine(InstallGunStoreShelfVisuals());
+        StartCoroutine(LogGunStoreVisualDiagnostics());
     }
 
     private IEnumerator RepairMalformedShelfVisuals()
@@ -369,9 +370,6 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
             destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
             destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
-            destinationRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
-            destinationRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
-            destinationRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
             copiedMeshCount++;
         }
 
@@ -386,6 +384,61 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
 
         return copiedMeshCount;
+    }
+
+    private IEnumerator LogGunStoreVisualDiagnostics()
+    {
+        // The shelf instances become available asynchronously. Inspect once after the bounded
+        // visual setup window rather than logging inside an update loop.
+        yield return new WaitForSeconds(32f);
+
+        if (context == null)
+            yield break;
+
+        var sourceMeshes = new HashSet<Mesh>();
+        var bundle = AssetService.GetBundle(context.ModId, GunStoreBundleKey);
+        foreach (var prefabPath in GunStoreVisualPrefabPaths.Values)
+        {
+            var prefab = bundle.LoadAsset<GameObject>(prefabPath);
+            if (prefab == null)
+                continue;
+
+            foreach (var meshFilter in prefab.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (meshFilter.sharedMesh != null)
+                    sourceMeshes.Add(meshFilter.sharedMesh);
+            }
+        }
+
+        var generatedMeshCount = 0;
+        var orphanMeshCount = 0;
+        var orphanDescriptions = new List<string>();
+        foreach (var meshFilter in Resources.FindObjectsOfTypeAll<MeshFilter>())
+        {
+            if (meshFilter == null || !meshFilter.gameObject.scene.IsValid() ||
+                !meshFilter.gameObject.scene.isLoaded || !sourceMeshes.Contains(meshFilter.sharedMesh))
+            {
+                continue;
+            }
+
+            if (meshFilter.GetComponentInParent<GunStoreMeshOnlyDisplayMarker>() != null)
+            {
+                generatedMeshCount++;
+                continue;
+            }
+
+            orphanMeshCount++;
+            if (orphanDescriptions.Count < 8)
+            {
+                orphanDescriptions.Add(
+                    $"mesh='{meshFilter.sharedMesh.name}', object='{meshFilter.name}', parent='{meshFilter.transform.parent?.name ?? "<none>"}', " +
+                    $"position={meshFilter.transform.position}");
+            }
+        }
+
+        context.Logger.Info(
+            $"Gun Store display diagnostic: generatedGunMeshes={generatedMeshCount}, orphanGunMeshes={orphanMeshCount}. " +
+            $"Orphans={string.Join(" | ", orphanDescriptions)}");
     }
 
     private void LogGunStoreVisualSetupFailure(string itemName, string shelfName, string reason)
