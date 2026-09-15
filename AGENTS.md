@@ -137,6 +137,9 @@ this repository. Do not wait for the user to request a commit separately.
 - Do not add a `codex/` prefix to branch names.
 - Keep each branch limited to its requested mod change and any required shared
   SDK changes.
+- Reuse the same task branch, worktree, and pull request for corrections made
+  during runtime testing. Do not create a new worktree for each failed test,
+  rebuild, upload attempt, or follow-up on the same still-open pull request.
 - Before opening a pull request, update the task branch against the latest
   `origin/main`, resolve any conflicts in the task worktree, and rerun the
   required build and local-install verification.
@@ -167,6 +170,30 @@ this repository. Do not wait for the user to request a commit separately.
 - If authentication, branch protection, failed checks, or unresolved conflicts
   prevent the push, pull request, or merge, stop and report the blocker. Never
   bypass repository protections.
+
+### Worktree Cleanup
+
+- Keep a task worktree while its pull request is open or the user is still
+  testing that branch. Once the pull request is merged or definitively closed
+  and the task has no pending follow-up, remove the task-owned disposable
+  worktree before the final handoff so completed worktrees do not accumulate.
+- Before removing a worktree, verify from another registered checkout that its
+  path is the intended disposable task worktree, `git status --porcelain` is
+  empty including untracked files, its commits were pushed, and its matching
+  pull request in `Dudeldups/big-ambitions-mods` is merged or closed. If any
+  check is uncertain or fails, leave the worktree in place and report why.
+- Never remove the primary repository checkout, the persistent checkout used
+  for branch `main` and Workshop releases, another active task's worktree, or a
+  worktree containing uncommitted, untracked, unpushed, or unmerged work. Never
+  use forced worktree removal to bypass these protections.
+- Remove a verified worktree with `git worktree remove <absolute-path>` from a
+  different checkout, then run `git worktree prune`. Perform this as the final
+  filesystem action for that task and do not run later commands from the
+  deleted path.
+- Removing a worktree does not delete its merged pull request or Git history.
+  Local or remote task branches may remain unless branch cleanup is separately
+  requested; those references use negligible disk space compared with a Unity
+  project checkout.
 
 ## Workshop Releases
 
