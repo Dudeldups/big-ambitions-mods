@@ -90,6 +90,7 @@ internal static class CadillacEscaladeDiagnostics
     // runtime validation of the placement/trigger guard.
     internal static readonly bool DebugEnabled = true;
     internal static readonly bool WarehouseExitDebugEnabled = true;
+    internal static readonly bool PlayerExitDebugEnabled = true;
     internal static readonly bool AccelerationTelemetryDebugEnabled = false;
 
     internal static bool AccelerationTelemetryEnabled =>
@@ -110,6 +111,12 @@ internal static class CadillacEscaladeDiagnostics
     internal static void WarehouseExitInfo(ModContext? context, string message)
     {
         if (DebugEnabled && WarehouseExitDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void PlayerExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && PlayerExitDebugEnabled)
             context?.Logger.Info(message);
     }
 }

@@ -7,6 +7,7 @@ using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 
@@ -91,6 +92,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? powertrainReadinessCoroutine;
+    private Coroutine? exitedPlayerRecoveryCoroutine;
     private Coroutine? warehouseExitGuardCoroutine;
     private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
     private ModContext? context;
@@ -136,6 +138,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        StopPlayerExitRecovery();
         StopWarehouseExitGuard();
         CadillacEscaladePrivateDriverSupport.RemoveVehicle(vehicleTypeName);
         playerVehiclePrefab = null;
@@ -159,6 +162,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+        StopPlayerExitRecovery();
         StopWarehouseExitGuard();
     }
 
@@ -178,6 +182,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
         GlobalEvents.onExitBuilding -= HandleBuildingExited;
@@ -192,6 +198,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
@@ -221,6 +228,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        StopPlayerExitRecovery();
         StopWarehouseExitGuard();
         configuredVehicleIds.Clear();
         ResetPlayerVehicleSnapshot();
@@ -268,6 +276,172 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         if (powertrainReadinessCoroutine != null)
             StopCoroutine(powertrainReadinessCoroutine);
         powertrainReadinessCoroutine = StartCoroutine(EnsurePowertrainReadyAfterEntry(vehicle));
+    }
+
+    private void HandleVehicleExited(VehicleController vehicle)
+    {
+        if (!IsTargetVehicle(vehicle))
+            return;
+
+        StopPlayerExitRecovery();
+        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
+    }
+
+    private void StopPlayerExitRecovery()
+    {
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
+    {
+        // Native exit first completes its animation and transfers input. Check
+        // once afterwards instead of changing every normal, successful exit.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        var root = PlayerHelper.PlayerController?.transform;
+        if (root == null)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        Physics.SyncTransforms();
+        var agents = root.GetComponentsInChildren<NavMeshAgent>(true);
+        var anyAgentOffNavMesh = false;
+        foreach (var agent in agents)
+            anyAgentOffNavMesh |= agent != null && agent.enabled && !agent.isOnNavMesh;
+
+        var initialExitClear = IsPlayerExitClear(root, root.position);
+        var needsRecovery = anyAgentOffNavMesh || !initialExitClear;
+        CadillacEscaladeDiagnostics.PlayerExitInfo(
+            context,
+            $"CadillacEscalade player-exit: deferred validation vehicle={exitedVehicle.GetInstanceID()}, " +
+            $"playerPosition={root.position}, agentCount={agents.Length}, " +
+            $"anyAgentOffNavMesh={anyAgentOffNavMesh}, initialClear={initialExitClear}, " +
+            $"needsRecovery={needsRecovery}.");
+        if (!needsRecovery)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        if (!TryFindClearExitPosition(root, exitedVehicle, out var target))
+        {
+            CadillacEscaladeDiagnostics.PlayerExitInfo(
+                context,
+                $"CadillacEscalade player-exit: recovery failed vehicle={exitedVehicle.GetInstanceID()}; " +
+                "no NavMesh/capsule-clear candidate was found.");
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = Array.ConvertAll(
+            characterControllers,
+            controller => controller != null && controller.enabled);
+        var agentStates = Array.ConvertAll(agents, agent => agent != null && agent.enabled);
+        try
+        {
+            foreach (var controller in characterControllers)
+            {
+                if (controller != null)
+                    controller.enabled = false;
+            }
+            foreach (var agent in agents)
+            {
+                if (agent != null)
+                    agent.enabled = false;
+            }
+
+            root.position = target;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Length; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(target);
+                    agent.ResetPath();
+                }
+            }
+            for (var index = 0; index < characterControllers.Length; index++)
+            {
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            }
+
+            Physics.SyncTransforms();
+        }
+
+        CadillacEscaladeDiagnostics.PlayerExitInfo(
+            context,
+            $"CadillacEscalade player-exit: recovery moved player to {target}.");
+        exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private static bool TryFindClearExitPosition(
+        Transform playerRoot,
+        VehicleController exitedVehicle,
+        out Vector3 target)
+    {
+        var vehicleTransform = exitedVehicle.transform;
+        var candidates = new[]
+        {
+            playerRoot.position,
+            vehicleTransform.position - vehicleTransform.right * 2.25f,
+            vehicleTransform.position + vehicleTransform.right * 2.25f,
+            vehicleTransform.position - vehicleTransform.forward * 3.00f,
+            vehicleTransform.position + vehicleTransform.forward * 3.00f,
+            vehicleTransform.position - vehicleTransform.right * 2.25f - vehicleTransform.forward * 1.75f,
+            vehicleTransform.position + vehicleTransform.right * 2.25f - vehicleTransform.forward * 1.75f,
+            vehicleTransform.position - vehicleTransform.right * 2.55f + vehicleTransform.forward * 1.30f,
+            vehicleTransform.position + vehicleTransform.right * 2.55f + vehicleTransform.forward * 1.30f,
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!NavMesh.SamplePosition(candidate, out var hit, 1.25f, NavMesh.AllAreas))
+                continue;
+
+            var sampled = hit.position + Vector3.up * 0.05f;
+            if (!IsPlayerExitClear(playerRoot, sampled))
+                continue;
+
+            target = sampled;
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private static bool IsPlayerExitClear(Transform playerRoot, Vector3 position)
+    {
+        var overlaps = Physics.OverlapCapsule(
+            position + Vector3.up * 0.42f,
+            position + Vector3.up * 1.55f,
+            0.30f,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+        foreach (var overlap in overlaps)
+        {
+            if (overlap == null || overlap.transform.IsChildOf(playerRoot))
+                continue;
+
+            return false;
+        }
+
+        return true;
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
@@ -790,6 +964,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             const int bakedPositiveWheelMeshes = 8;
             ConfigureBodyColliders(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
+            var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
             var warehouseBounds = vehicle.GetComponent<CadillacEscaladeWarehouseBoundsController>();
             if (warehouseBounds == null)
             {
@@ -843,6 +1018,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
+                $"navMeshObstaclesNormalized={normalizedNavMeshObstacles}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
@@ -969,6 +1145,93 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 colliders[1].size = UpperColliderSize;
             }
         }
+    }
+
+    private static int ConfigureNavMeshObstacles(GameObject root)
+    {
+        if (!TryGetBodyColliderBounds(root.transform, out var bodyBounds))
+            return 0;
+
+        var normalized = 0;
+        foreach (var obstacle in root.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle == null || obstacle.shape != NavMeshObstacleShape.Box)
+                continue;
+
+            var obstacleTransform = obstacle.transform;
+            var scale = obstacleTransform.lossyScale;
+            if (Mathf.Abs(scale.x) < 0.0001f ||
+                Mathf.Abs(scale.y) < 0.0001f ||
+                Mathf.Abs(scale.z) < 0.0001f)
+            {
+                continue;
+            }
+
+            var rootTransform = root.transform;
+            obstacle.center = obstacleTransform.InverseTransformPoint(
+                rootTransform.TransformPoint(bodyBounds.center));
+            obstacle.size = new Vector3(
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.right) /
+                Mathf.Abs(scale.x),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.up) /
+                Mathf.Abs(scale.y),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.forward) /
+                Mathf.Abs(scale.z));
+            normalized++;
+        }
+
+        return normalized;
+    }
+
+    private static bool TryGetBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || collider.isTrigger)
+                    continue;
+
+                var halfSize = collider.size * 0.5f;
+                for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                for (var z = -1; z <= 1; z += 2)
+                {
+                    var corner = collider.center + Vector3.Scale(
+                        halfSize,
+                        new Vector3(x, y, z));
+                    var rootCorner = root.InverseTransformPoint(
+                        collider.transform.TransformPoint(corner));
+                    if (!found)
+                    {
+                        bounds = new Bounds(rootCorner, Vector3.zero);
+                        found = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(rootCorner);
+                    }
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBodySizeOntoAxis(
+        Vector3 bodySize,
+        Transform root,
+        Vector3 worldAxis)
+    {
+        worldAxis.Normalize();
+        return Mathf.Abs(Vector3.Dot(worldAxis, root.right)) * bodySize.x +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.up)) * bodySize.y +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.forward)) * bodySize.z;
     }
 
     private int ConfigureVisualDamage(VehicleController vehicle)
