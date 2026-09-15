@@ -225,13 +225,13 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     public async Task OnLoadAsync(ModContext context)
     {
         context.Logger.Info(
-            "Gun Store city integration loaded without AI-rival or layout-cache patches; " +
-            "customer navigation remains owned by the base game.");
+            "Gun Store city integration loaded with AI-rival and layout-cache patches disabled; " +
+            "product visual mappings are limited to base-game showcase fixtures.");
 
         for (var i = 0; i < 6; i++)
         {
             if (i == 0)
-                PatchShowcaseShelves();
+                PatchShowcaseShelves(context);
 
             AddToImporter();
             PatchImportPartnerships();
@@ -251,11 +251,17 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         return Task.CompletedTask;
     }
 
-    private void PatchShowcaseShelves()
+    private void PatchShowcaseShelves(ModContext context)
     {
+        // ShelfController stores visual mappings globally. Clear mappings left by a hot reload
+        // before registering only the base-game fixtures this mod supports.
+        foreach (var gunStoreItemName in GunStoreShelfItemNames)
+            ShelfController.UnregisterItemToShow(gunStoreItemName);
+
         if (ItemsGetter.AllItems == null)
             return;
 
+        var patchedShelfCount = 0;
         foreach (var item in ItemsGetter.AllItems)
         {
             if (!ShouldPatchShowcaseShelf(item))
@@ -278,12 +284,18 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             }
 
             item.itemsThatCanShowcase = item.itemsThatCanShowcase.Concat(missingGunStoreItems).ToArray();
+            patchedShelfCount++;
         }
+
+        context.Logger.Info(
+            $"Gun Store showcase integration registered {GunStoreShelfItemNames.Length} products on " +
+            $"{patchedShelfCount} base-game fixture catalog(s). Custom-mod fixtures were not modified.");
     }
 
     private static bool ShouldPatchShowcaseShelf(BigAmbitions.Items.Item item)
     {
-        if (item == null || item.itemsThatCanShowcase == null)
+        if (item == null || item.itemsThatCanShowcase == null ||
+            !item.itemName.StartsWith("ba:", StringComparison.Ordinal))
             return false;
 
         if (item.itemName == RoundedShelfItemName)
