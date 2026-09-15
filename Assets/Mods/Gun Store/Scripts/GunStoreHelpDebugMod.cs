@@ -289,27 +289,25 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return false;
         }
 
-        var visualPoses = new List<(Vector3 position, Quaternion rotation)>();
-        foreach (Transform visual in template)
-            visualPoses.Add((visual.position, visual.rotation));
-
-        if (visualPoses.Count == 0)
+        if (template.childCount == 0)
         {
             LogGunStoreVisualSetupFailure(itemName, shelfName, "the base visual slot has no child placement transforms");
             return false;
         }
+
+        var placement = template.GetChild(0);
 
         var visualSlot = Instantiate(template, visualsContainer);
         visualSlot.name = visualSlotName;
         for (var index = visualSlot.childCount - 1; index >= 0; index--)
             DestroyImmediate(visualSlot.GetChild(index).gameObject);
 
-        foreach (var pose in visualPoses)
-        {
-            var visual = Instantiate(visualPrefab, visualSlot);
-            visual.transform.SetPositionAndRotation(pose.position, pose.rotation);
-            DisableDisplayItemInteraction(visual);
-        }
+        // A gift/candy template contains many tightly packed item positions. A full-size gun at
+        // every position overlaps its neighbours and produces z-fighting shimmer, so use one
+        // representative product visual per shelf slot.
+        var visual = Instantiate(visualPrefab, visualSlot);
+        visual.transform.SetPositionAndRotation(placement.position, placement.rotation);
+        DisableDisplayItemInteraction(visual);
 
         shelf.UpdateVisuals();
         return true;
