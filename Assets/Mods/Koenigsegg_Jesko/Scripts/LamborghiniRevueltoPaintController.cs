@@ -79,6 +79,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         var bodySlots = 0;
         var caliperSlots = 0;
         var exteriorContrastSlots = 0;
+        var letteringSlots = 0;
         var interiorAccentSlots = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -124,6 +125,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                             PaintCategory.ExteriorContrastAccent,
                             exteriorContrastTexture: contrastTexture));
                         exteriorContrastSlots++;
+                        if (IsAccentLetteringRenderer(renderer, material))
+                            letteringSlots++;
                     }
                 }
                 else if (material.name.IndexOf(
@@ -140,6 +143,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: " +
             $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
             $"exteriorContrastSlots={exteriorContrastSlots}, " +
+            $"letteringSlots={letteringSlots} (BOOT sides, rear plate, wing 251), " +
             $"interiorAccentSlots={interiorAccentSlots}; " +
             "rims, tires, carbon, black trim, and glass remain factory materials.");
         if (bodySlots == 0 || caliperSlots != 4 || exteriorContrastSlots == 0 ||
@@ -148,6 +152,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 $"KoenigseggJesko paint mapping incomplete bodySlots={bodySlots}, " +
                 $"caliperSlots={caliperSlots}, exteriorContrastSlots={exteriorContrastSlots}, " +
                 $"interiorAccentSlots={interiorAccentSlots}.");
+        if (letteringSlots != 3)
+            context?.Logger.Warn(
+                $"KoenigseggJesko lettering mapping incomplete vehicle={vehicle?.GetInstanceID()}: " +
+                $"expected 3 badge renderers (two cabin sides, plate, two wing sides), found {letteringSlots}.");
     }
 
     private void ApplyCurrentColor()
@@ -269,8 +277,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             state = ExteriorContrastTexture.Create(
                 sourceMaterial,
                 tintNonAccentPixels: true,
-                recolorNeutralPixels: false,
-                recolorSideJeskoAtlasPixels: IsBodyExteriorAtlas(sourceMaterial));
+                recolorBadgeLettering: false);
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -297,8 +304,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             state = ExteriorContrastTexture.Create(
                 sourceMaterial,
                 tintNonAccentPixels: false,
-                recolorNeutralPixels: IsSideJeskoBadgeRenderer(renderer, sourceMaterial),
-                recolorSideJeskoAtlasPixels: false);
+                recolorBadgeLettering: IsAccentLetteringRenderer(renderer, sourceMaterial));
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -318,7 +324,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private static bool IsExteriorContrastAccentRenderer(Renderer renderer, Material material)
     {
         var rendererName = renderer.name;
-        if (IsSideJeskoBadgeRenderer(renderer, material))
+        if (IsAccentLetteringRenderer(renderer, material))
             return true;
 
         var supportedMaterial =
@@ -336,12 +342,11 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                rendererName.IndexOf("REARBUMPER_mm_misc_CARBON", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static bool IsSideJeskoBadgeRenderer(Renderer renderer, Material material) =>
-        renderer.name.IndexOf("BODY_mm_badges", StringComparison.OrdinalIgnoreCase) >= 0 &&
-        material.name.IndexOf("Exterior_mm_badges1", StringComparison.OrdinalIgnoreCase) >= 0;
-
-    private static bool IsBodyExteriorAtlas(Material material) =>
-        material.name.IndexOf("Exterior_mm_ext1", StringComparison.OrdinalIgnoreCase) >= 0;
+    private static bool IsAccentLetteringRenderer(Renderer renderer, Material material) =>
+        material.name.IndexOf("Exterior_mm_badges1", StringComparison.OrdinalIgnoreCase) >= 0 &&
+        (renderer.name.IndexOf("BOOT_mm_badges", StringComparison.OrdinalIgnoreCase) >= 0 ||
+         renderer.name.IndexOf("REARBUMPER_mm_badges", StringComparison.OrdinalIgnoreCase) >= 0 ||
+         renderer.name.IndexOf("WING_REAR_mm_badges", StringComparison.OrdinalIgnoreCase) >= 0);
 
     private void ReleaseRuntimePaintTextures()
     {
@@ -584,8 +589,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         internal static ExteriorContrastTexture? Create(
             Material sourceMaterial,
             bool tintNonAccentPixels,
-            bool recolorNeutralPixels,
-            bool recolorSideJeskoAtlasPixels)
+            bool recolorBadgeLettering)
         {
             var sourceTexture = FindBaseTexture(sourceMaterial);
             if (sourceTexture == null)
@@ -650,24 +654,24 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 Color.RGBToHSV(source, out var hue, out var saturation, out var value);
                 var yellowGreenAccent = hue >= 0.14f && hue <= 0.38f &&
                                         saturation > 0.30f && value > 0.18f;
-                var neutralJeskoLettering = recolorNeutralPixels && saturation < 0.25f;
-                // The side "Jesko" script is baked into the body atlas rather
-                // than exposed as a separate renderer. Its body triangles map
-                // to this narrow UV island behind the cabin. Select only the
-                // neutral mid-value glyphs, excluding both the white painted
-                // panel and the dark carbon backing around the lettering.
+                // Authored BADGES atlas, not EXT/body paint. BOOT owns BOTH
+                // cabin-side scripts; REARBUMPER owns the plate script; WING_REAR
+                // owns both 251 decals. Keep the Swedish flag and other badges.
+                // glTFast flips V on import, so convert the bottom-up readback
+                // row to the original atlas's top-down coordinate here.
                 var pixelX = index % sourceTexture.width;
                 var pixelY = index / sourceTexture.width;
                 var normalizedX = (pixelX + 0.5f) / sourceTexture.width;
-                var normalizedY = (pixelY + 0.5f) / sourceTexture.height;
-                var sideJeskoLettering = recolorSideJeskoAtlasPixels &&
-                                         normalizedX >= 0.125f && normalizedX <= 0.215f &&
-                                         normalizedY >= 0.35f && normalizedY <= 0.47f &&
-                                         saturation < 0.25f &&
-                                         value > 0.45f && value < 0.90f;
+                var atlasY = 1f - (pixelY + 0.5f) / sourceTexture.height;
+                var scriptRegion = normalizedX >= 0.024f && normalizedX <= 0.438f &&
+                                   atlasY >= 0.434f && atlasY <= 0.576f;
+                var wingNumberRegion = normalizedX >= 0.424f && normalizedX <= 0.486f &&
+                                       atlasY >= 0.061f && atlasY <= 0.335f;
+                var badgeLettering = recolorBadgeLettering &&
+                                     (scriptRegion || wingNumberRegion) &&
+                                     saturation < 0.25f && value > 0.20f;
                 accentPixels[index] = source.a > 0.01f &&
-                                      (yellowGreenAccent || neutralJeskoLettering ||
-                                       sideJeskoLettering);
+                                      (recolorBadgeLettering ? badgeLettering : yellowGreenAccent);
             }
 
             return new ExteriorContrastTexture(

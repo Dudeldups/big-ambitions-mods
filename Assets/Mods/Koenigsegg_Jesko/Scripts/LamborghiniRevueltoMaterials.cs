@@ -324,6 +324,10 @@ public static class KoenigseggJeskoMaterials
         RebindToHdrpLit(material);
         var tint = cabinGlass
             ? new Color(0.10f, 0.14f, 0.18f, 0.36f)
+            : name.IndexOf("Exterior_mm_badges1", StringComparison.OrdinalIgnoreCase) >= 0
+                // Badge alpha comes from the decal texture. The generic lens
+                // fallback (8% opacity) lets body paint show through the letters.
+                ? Color.white
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.78f, 0.84f, 0.90f, 0.035f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||

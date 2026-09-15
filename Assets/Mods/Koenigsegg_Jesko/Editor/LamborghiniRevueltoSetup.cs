@@ -114,6 +114,7 @@ public static class KoenigseggJeskoSetup
         Generate();
         ModAssetBundleCli.BuildForMod();
         VerifyBuiltBundle();
+        VerifyAccentLettering();
     }
 
     public static void BuildAndVerifyExisting()
@@ -121,6 +122,111 @@ public static class KoenigseggJeskoSetup
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         ModAssetBundleCli.BuildForMod();
         VerifyBuiltBundle();
+        VerifyAccentLettering();
+    }
+
+    // Exercises the same texture creation/repaint path as the installed DLL,
+    // using the actual prefab badge materials and mesh UVs. No prefab mutation.
+    public static void VerifyAccentLettering()
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(VehiclePrefabPath);
+        var runtimeType = typeof(KoenigseggJeskoMod).Assembly.GetType("KoenigseggJeskoPaintController", true);
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Instance;
+        var classify = runtimeType.GetMethod("IsAccentLetteringRenderer", flags)!;
+        var textureType = runtimeType.GetNestedType("ExteriorContrastTexture", flags)!;
+        var create = textureType.GetMethod("Create", flags)!;
+        var apply = textureType.GetMethod("Apply", flags)!;
+        var renderers = new List<Renderer>();
+        foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
+            foreach (var material in renderer.sharedMaterials)
+                if (material != null && (bool)classify.Invoke(null, new object[] { renderer, material }))
+                    renderers.Add(renderer);
+        if (renderers.Count != 3)
+            throw new InvalidOperationException($"Lettering: expected BOOT/REARBUMPER/WING_REAR, got {renderers.Count}.");
+
+        var source = renderers[0].sharedMaterial;
+        var state = create.Invoke(null, new object[] { source, false, true })!;
+        var materialResult = (Material)textureType.GetProperty("Material", flags)!.GetValue(state)!;
+        var texture = (Texture2D)materialResult.GetTexture("_BaseColorMap");
+        try
+        {
+            typeof(KoenigseggJeskoMaterials).GetMethod("FixTransparentHdrpMaterial", flags)!
+                .Invoke(null, new object[] { materialResult });
+            if (materialResult.GetColor("_BaseColor").a < 0.999f)
+                throw new InvalidOperationException("Badge material repair reduced lettering opacity to glass opacity.");
+            apply.Invoke(state, new object[] { Color.black });
+            var darkPaintPixels = texture.GetPixels32();
+            apply.Invoke(state, new object[] { Color.white });
+            var lightPaintPixels = texture.GetPixels32();
+            // Independent GLB UV bounds for each authored lettering island.
+            var regions = new[] {
+                new Rect(0.0259f, 0.4404f, 0.4116f, 0.0625f),
+                new Rect(0.0244f, 0.5151f, 0.4072f, 0.0601f),
+                new Rect(0.4243f, 0.0615f, 0.0615f, 0.2735f),
+            };
+            var names = new[] { "cabin-side Jesko", "rear-plate Jesko", "wing 251" };
+            for (var regionIndex = 0; regionIndex < regions.Length; regionIndex++)
+            {
+                var region = regions[regionIndex];
+                var changed = 0;
+                for (var i = 0; i < lightPaintPixels.Length; i++)
+                {
+                    var uv = new Vector2((i % texture.width + 0.5f) / texture.width,
+                        1f - (i / texture.width + 0.5f) / texture.height);
+                    if (!region.Contains(uv) || darkPaintPixels[i].Equals(lightPaintPixels[i]))
+                        continue;
+                    var light = lightPaintPixels[i];
+                    var dark = darkPaintPixels[i];
+                    if (light.r != 128 || light.g != 128 || light.b != 128 ||
+                        dark.r < 184 || dark.r != dark.g || dark.r != dark.b || dark.a != light.a)
+                        throw new InvalidOperationException($"Incorrect contrast/alpha for {names[regionIndex]}.");
+                    changed++;
+                }
+                if (changed < 100)
+                    throw new InvalidOperationException($"No readable accent glyphs for {names[regionIndex]} ({changed} pixels).");
+                var renderer = renderers.Find(r => r.name.Contains(new[] { "BOOT_mm", "REARBUMPER_mm", "WING_REAR_mm" }[regionIndex]))!;
+                var mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
+                var matchingVertices = 0;
+                var meshRegion = new Rect(region.x - 0.001f, region.y - 0.001f,
+                    region.width + 0.002f, region.height + 0.002f);
+                var left = false;
+                var right = false;
+                var uvs = mesh.uv;
+                var vertices = mesh.vertices;
+                for (var i = 0; i < uvs.Length; i++)
+                    if (meshRegion.Contains(new Vector2(uvs[i].x, 1f - uvs[i].y)))
+                    {
+                        matchingVertices++;
+                        left |= vertices[i].x < -0.1f;
+                        right |= vertices[i].x > 0.1f;
+                    }
+                if (matchingVertices < (regionIndex == 1 ? 4 : 8))
+                    throw new InvalidOperationException($"Missing left/right imported mesh coverage for {names[regionIndex]}: {matchingVertices} vertices.");
+                if (regionIndex != 1 && (!left || !right))
+                    throw new InvalidOperationException($"Lettering does not cover both sides: {names[regionIndex]}.");
+                Debug.Log($"Jesko lettering verified: {names[regionIndex]}, pixels={changed}, vertices={matchingVertices}, light paint=gray, dark paint=white, alpha preserved.");
+            }
+            var original = (Color32[])textureType.GetField("sourcePixels", flags)!.GetValue(state)!;
+            for (var i = 0; i < original.Length; i++)
+                if (darkPaintPixels[i].Equals(lightPaintPixels[i]) && !original[i].Equals(lightPaintPixels[i]))
+                    throw new InvalidOperationException("Lettering recolored unrelated badge pixels.");
+            apply.Invoke(state, new object[] { Color.black });
+            var repeated = texture.GetPixels32();
+            for (var i = 0; i < repeated.Length; i++)
+                if (!repeated[i].Equals(darkPaintPixels[i]))
+                    throw new InvalidOperationException("Lettering repaint roundtrip changed output.");
+            var args = Environment.GetCommandLineArgs();
+            var previewArg = Array.IndexOf(args, "-letteringPreview");
+            if (previewArg >= 0 && previewArg + 1 < args.Length)
+                System.IO.File.WriteAllBytes(args[previewArg + 1], texture.EncodeToPNG());
+            Debug.Log("Jesko lettering verification passed: correct renderers, all five decals, preserved non-letter pixels, repeat repaint.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(materialResult);
+            UnityEngine.Object.DestroyImmediate(texture);
+        }
     }
 
     public static void VerifyBuiltBundle()
