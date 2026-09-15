@@ -14,9 +14,10 @@ using UnityEngine;
 internal sealed class Porsche911GT3RSWarehouseBoundsController : MonoBehaviour
 {
     // The physical Porsche body spans 4.41m after its bumper-contact boxes.
-    // Keep 0.30m of native placement margin so the rear clears the garage
-    // entry trigger immediately on exit.
-    private static readonly Vector3 BoundsSize = new Vector3(1.90f, 1.20f, 5.01f);
+    // BuildingManager's exit point lands within the door trigger for this
+    // model, so use a 1.30m rear clearance beyond the body before normal
+    // driving resumes outside.
+    private static readonly Vector3 BoundsSize = new Vector3(1.90f, 1.20f, 7.01f);
 
     private Mesh? placementMesh;
     private MeshCollider? placementCollider;

@@ -47,6 +47,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
+    private const int EngineStartAttemptCount = 3;
+    private const float MinimumHealthyEngineRpm = 300f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.08f, -0.28f);
     private static readonly Vector3 FrontContactColliderCenter =
         new Vector3(0f, 0.61f, 1.58f);
@@ -427,91 +429,54 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
     {
-        const int maximumPasses = 30;
-        yield return null;
-
-        var rigidbody = vehicle.GetComponent<Rigidbody>() ??
-                        vehicle.GetComponentInChildren<Rigidbody>(true) ??
-                        vehicle.GetComponentInParent<Rigidbody>();
+        // Match the working BMW/Cadillac dealer-entry pattern: native entry
+        // owns the vehicle physics and wheel state. Only restart the
+        // powertrain when it stayed dormant after that native transition.
+        yield return new WaitForSecondsRealtime(.25f);
         var physics = vehicle.GetComponent<PhysicsVehicle>() ??
                       vehicle.GetComponentInChildren<PhysicsVehicle>(true);
-        var wasKinematic = rigidbody != null && rigidbody.isKinematic;
-        var physicsWasEnabled = physics != null && physics.enabled;
-        var engineWasRunning = physics?.powertrain?.engine?.IsRunning ?? false;
-        var gearBefore = physics?.powertrain?.transmission?.Gear ?? 0;
-        var constraintsBefore = rigidbody?.constraints ?? RigidbodyConstraints.None;
-        var appliedPasses = 0;
-        var wheelControllersEnabled = 0;
-
-        for (var pass = 0; pass < maximumPasses; pass++)
+        if (physics == null)
         {
-            yield return new WaitForFixedUpdate();
+            enteredVehicleActivationCoroutine = null;
+            enteredVehicleActivationInstanceId = 0;
+            yield break;
+        }
+
+        var engine = physics.powertrain.engine;
+        var transmission = physics.powertrain.transmission;
+        for (var attempt = 0; attempt < EngineStartAttemptCount; attempt++)
+        {
             if (vehicle == null || !vehicle.controlledByPlayer)
-                continue;
+                break;
 
-            appliedPasses++;
-            // Dealer purchase finalization can assign the chosen color a frame
-            // after the entry event. This bounded entry sequence catches that
-            // transition without adding a permanent paint polling loop.
+            // Paint assignment from the dealer is asynchronous too; retain a
+            // bounded entry refresh without turning it into runtime polling.
             vehicle.GetComponent<Porsche911GT3RSPaintController>()
-                ?.ApplyCurrentColor($"vehicle-entered-pass-{pass + 1}");
-            // Dealer display vehicles are frozen with Rigidbody constraints,
-            // not only isKinematic. Use the game's own transition so all
-            // vehicle physics state and center-of-mass bookkeeping is restored.
-            // Preserve the component's existing lifecycle. Disabling it here
-            // can strand an entered dealer car with NWH input unavailable.
-            // The native controller only needs to be enabled and unfrozen.
-            if (physics != null)
-                physics.enabled = true;
-            vehicle.SetFreeze(false);
-            foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
+                ?.ApplyCurrentColor("vehicle-entered");
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
+            if (engine.IsRunning && engine.ignition && engine.canRun &&
+                rpm >= MinimumHealthyEngineRpm)
             {
-                if (component != null && string.Equals(
-                        component.GetType().FullName,
-                        "NWH.WheelController3D.WheelController",
-                        StringComparison.Ordinal))
-                {
-                    if (!component.enabled)
-                        wheelControllersEnabled++;
-                    component.enabled = true;
-                }
+                if (transmission.Gear <= 0)
+                    transmission.ShiftInto(1, true);
+                break;
             }
 
-            if (rigidbody != null)
-            {
-                rigidbody.isKinematic = false;
-                rigidbody.WakeUp();
-            }
-
-            var engine = physics?.powertrain?.engine;
-            var transmission = physics?.powertrain?.transmission;
-            if (engine != null && !engine.IsRunning)
-                engine.StartEngine();
-            if (transmission != null && transmission.Gear == 0)
+            engine.StopEngine();
+            transmission.ShiftInto(0, true);
+            transmission.currentGearRatio = 0f;
+            yield return new WaitForSecondsRealtime(.15f);
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                break;
+            engine.StartEngine();
+            yield return new WaitForSecondsRealtime(.75f);
+            if (vehicle != null && vehicle.controlledByPlayer)
                 transmission.ShiftInto(1, true);
-
-            break;
+            yield return new WaitForSecondsRealtime(.15f);
         }
 
         enteredVehicleActivationCoroutine = null;
         enteredVehicleActivationInstanceId = 0;
-        if (vehicle == null)
-            yield break;
-
-        var engineRunning = physics?.powertrain?.engine?.IsRunning ?? false;
-        var gearAfter = physics?.powertrain?.transmission?.Gear ?? 0;
-        var isKinematic = rigidbody != null && rigidbody.isKinematic;
-        var constraintsAfter = rigidbody?.constraints ?? RigidbodyConstraints.None;
-        var physicsEnabled = physics != null && physics.enabled;
-        Porsche911GT3RSDiagnostics.Info(
-            context,
-            $"Porsche911GT3RS: entered-vehicle activation instance={vehicle.GetInstanceID()}, " +
-            $"controlled={vehicle.controlledByPlayer}, passes={appliedPasses}/{maximumPasses}, " +
-            $"kinematic={wasKinematic}->{isKinematic}, physicsEnabled={physicsWasEnabled}->{physicsEnabled}, " +
-            $"constraints={constraintsBefore}->{constraintsAfter}, " +
-            $"wheelControllersEnabled={wheelControllersEnabled}, " +
-            $"engineRunning={engineWasRunning}->{engineRunning}, gear={gearBefore}->{gearAfter}, " +
-            $"fuel={vehicle.GetCurrentFuel():F2}.");
     }
 
     private void HandleBuildingEntered(Address address)
