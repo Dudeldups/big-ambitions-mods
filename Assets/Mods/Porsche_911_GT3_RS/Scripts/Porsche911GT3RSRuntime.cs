@@ -1549,7 +1549,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.075f);
-            SetFloat(transmission, "_downshiftRPM", 5500f);
+            // Keep the PDK in the naturally aspirated engine's power band;
+            // 5,500 RPM felt detached from the 8,850 RPM upshift point.
+            SetFloat(transmission, "_downshiftRPM", 6500f);
             SetFloat(transmission, "_upshiftRPM", 8850f);
             SetInt(transmission, "forwardGearCount", 7);
             SetInt(transmission, "reverseGearCount", 1);
