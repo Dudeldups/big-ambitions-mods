@@ -23,6 +23,12 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         new Dictionary<Material, ExteriorContrastTexture>();
     private readonly Dictionary<Material, ExteriorContrastTexture> exteriorContrastTextures =
         new Dictionary<Material, ExteriorContrastTexture>();
+    private readonly HashSet<CaliperPaintTexture> updatedCaliperTextures =
+        new HashSet<CaliperPaintTexture>();
+    private readonly HashSet<ExteriorContrastTexture> updatedBodyPaintTextures =
+        new HashSet<ExteriorContrastTexture>();
+    private readonly HashSet<ExteriorContrastTexture> updatedExteriorContrastTextures =
+        new HashSet<ExteriorContrastTexture>();
     private VehicleController? vehicle;
     private ModContext? context;
     private string? explicitVehicleColorName;
@@ -155,25 +161,31 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
 
         var selectedColor = (Color)tint;
         selectedColor.a = 1f;
+        updatedCaliperTextures.Clear();
+        updatedBodyPaintTextures.Clear();
+        updatedExteriorContrastTextures.Clear();
         foreach (var slot in slots)
         {
             if (slot.Category == PaintCategory.Body && slot.BodyPaintTexture != null)
             {
                 slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
-                slot.BodyPaintTexture.Apply(selectedColor);
+                if (updatedBodyPaintTextures.Add(slot.BodyPaintTexture))
+                    slot.BodyPaintTexture.Apply(selectedColor);
                 continue;
             }
             if (slot.Category == PaintCategory.Caliper && slot.CaliperTexture != null)
             {
                 slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
-                slot.CaliperTexture.Apply(selectedColor);
+                if (updatedCaliperTextures.Add(slot.CaliperTexture))
+                    slot.CaliperTexture.Apply(selectedColor);
                 continue;
             }
             if (slot.Category == PaintCategory.ExteriorContrastAccent &&
                 slot.ExteriorContrastTexture != null)
             {
                 slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
-                slot.ExteriorContrastTexture.Apply(selectedColor);
+                if (updatedExteriorContrastTextures.Add(slot.ExteriorContrastTexture))
+                    slot.ExteriorContrastTexture.Apply(selectedColor);
                 continue;
             }
 
@@ -198,7 +210,18 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         context?.Logger.Info(
             $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
-            $"to {slots.Count} body/caliper slots.");
+            $"to {slots.Count} body/caliper slots; exteriorContrast=" +
+            $"{(UseDarkContrast(selectedColor) ? "black" : "white")}.");
+    }
+
+    private static bool UseDarkContrast(Color paint)
+    {
+        // VehicleColor tint values are stored in display (sRGB) space. Judging
+        // their linearized values made even visibly light pinks and lavenders
+        // select white. Use perceived display luminance, as the caliper lettering
+        // and exterior accent are visual contrast decisions rather than lighting.
+        var luminance = paint.r * 0.2126f + paint.g * 0.7152f + paint.b * 0.0722f;
+        return luminance >= 0.40f;
     }
 
     private CaliperPaintTexture? GetOrCreateCaliperPaintTexture(
@@ -442,9 +465,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
 
         internal void Apply(Color paint)
         {
-            var linear = paint.linear;
-            var luminance = linear.r * 0.2126f + linear.g * 0.7152f + linear.b * 0.0722f;
-            var text = luminance >= 0.42f ? Color.black : Color.white;
+            var text = UseDarkContrast(paint) ? Color.black : Color.white;
             var output = new Color32[sourcePixels.Length];
             for (var index = 0; index < sourcePixels.Length; index++)
             {
@@ -518,18 +539,25 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private sealed class ExteriorContrastTexture
     {
         private readonly Color32[] sourcePixels;
+        private readonly Color32[] outputPixels;
+        private readonly bool[] accentPixels;
         private readonly Texture2D texture;
         private readonly bool tintNonAccentPixels;
+        private bool? appliedDarkContrast;
 
         private ExteriorContrastTexture(
             Material material,
             Texture2D texture,
             Color32[] sourcePixels,
+            Color32[] outputPixels,
+            bool[] accentPixels,
             bool tintNonAccentPixels)
         {
             Material = material;
             this.texture = texture;
             this.sourcePixels = sourcePixels;
+            this.outputPixels = outputPixels;
+            this.accentPixels = accentPixels;
             this.tintNonAccentPixels = tintNonAccentPixels;
         }
 
@@ -594,52 +622,60 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             SetTexture(runtimeMaterial, "_MainTex", readable);
             SetTexture(runtimeMaterial, "baseColorTexture", readable);
             SetMaterialColor(runtimeMaterial, Color.white);
+            var sourcePixels = readable.GetPixels32();
+            var accentPixels = new bool[sourcePixels.Length];
+            for (var index = 0; index < sourcePixels.Length; index++)
+            {
+                var source = (Color)sourcePixels[index];
+                Color.RGBToHSV(source, out var hue, out var saturation, out var value);
+                accentPixels[index] = source.a > 0.01f &&
+                                      hue >= 0.14f && hue <= 0.38f &&
+                                      saturation > 0.30f &&
+                                      value > 0.18f;
+            }
+
             return new ExteriorContrastTexture(
                 runtimeMaterial,
                 readable,
-                readable.GetPixels32(),
+                sourcePixels,
+                new Color32[sourcePixels.Length],
+                accentPixels,
                 tintNonAccentPixels);
         }
 
         internal void Apply(Color paint)
         {
-            var linear = paint.linear;
-            var luminance = linear.r * 0.2126f + linear.g * 0.7152f + linear.b * 0.0722f;
-            var contrast = luminance >= 0.42f ? Color.black : Color.white;
-            var output = new Color32[sourcePixels.Length];
+            var darkContrast = UseDarkContrast(paint);
+            if (!tintNonAccentPixels && appliedDarkContrast == darkContrast)
+                return;
+
+            var paintBytes = (Color32)paint;
             for (var index = 0; index < sourcePixels.Length; index++)
             {
-                var source = (Color)sourcePixels[index];
-                Color.RGBToHSV(source, out var hue, out var saturation, out var value);
-                var yellowGreenAccent = source.a > 0.01f &&
-                                        hue >= 0.14f && hue <= 0.38f &&
-                                        saturation > 0.30f &&
-                                        value > 0.18f;
-                if (!yellowGreenAccent)
+                var source = sourcePixels[index];
+                if (!accentPixels[index])
                 {
-                    output[index] = tintNonAccentPixels
-                        ? new Color(
-                            source.r * paint.r,
-                            source.g * paint.g,
-                            source.b * paint.b,
+                    outputPixels[index] = tintNonAccentPixels
+                        ? new Color32(
+                            (byte)(source.r * paintBytes.r / 255),
+                            (byte)(source.g * paintBytes.g / 255),
+                            (byte)(source.b * paintBytes.b / 255),
                             source.a)
-                        : sourcePixels[index];
+                        : source;
                     continue;
                 }
 
-                var shade = contrast == Color.white
-                    ? Mathf.Lerp(0.72f, 1f, value)
-                    : Mathf.Lerp(0.015f, 0.07f, value);
-                output[index] = new Color(
-                    contrast.r * shade,
-                    contrast.g * shade,
-                    contrast.b * shade,
-                    source.a);
+                var shade = darkContrast
+                    ? (byte)0
+                    : (byte)Mathf.RoundToInt(Mathf.Lerp(184f, 255f,
+                        Mathf.Max(source.r, Mathf.Max(source.g, source.b)) / 255f));
+                outputPixels[index] = new Color32(shade, shade, shade, source.a);
             }
 
-            texture.SetPixels32(output);
+            texture.SetPixels32(outputPixels);
             texture.Apply(true, false);
             SetMaterialColor(Material, Color.white);
+            appliedDarkContrast = darkContrast;
         }
 
         internal void Dispose()
