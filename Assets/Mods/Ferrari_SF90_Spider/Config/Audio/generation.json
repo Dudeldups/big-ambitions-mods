@@ -1,0 +1,68 @@
+{
+  "engine": "3.990 L 90-degree twin-turbo V8 + hybrid system (acoustic synthesis only)",
+  "recorded_samples": false,
+  "layers": [
+    {
+      "name": "EngineLow.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.20591654823098002,
+      "method": "deterministic additive high-rev V8 synthesis"
+    },
+    {
+      "name": "EngineLowLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.32146843785436735,
+      "method": "phase-aligned combustion-pulse/turbo texture synthesis"
+    },
+    {
+      "name": "EngineMid.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.20552820805094785,
+      "method": "deterministic additive high-rev V8 synthesis"
+    },
+    {
+      "name": "EngineMidLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.32021181865236936,
+      "method": "phase-aligned combustion-pulse/turbo texture synthesis"
+    },
+    {
+      "name": "EngineHigh.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.20404974521079244,
+      "method": "deterministic additive high-rev V8 synthesis"
+    },
+    {
+      "name": "EngineHighLoad.wav",
+      "samples": 88200,
+      "seconds": 2.0,
+      "peak": 0.320741093694847,
+      "method": "phase-aligned combustion-pulse/turbo texture synthesis"
+    }
+  ],
+  "horn": [
+    {
+      "name": "HornLow.wav",
+      "samples": 44100,
+      "seconds": 1.0,
+      "peak": 0.25961034123325716,
+      "method": "deterministic dual-reed road-horn synthesis"
+    },
+    {
+      "name": "HornHigh.wav",
+      "samples": 44100,
+      "seconds": 1.0,
+      "peak": 0.1598935059441959,
+      "method": "deterministic dual-reed road-horn synthesis"
+    }
+  ],
+  "notes": [
+    "Mathematical synthesis only; no Ferrari or third-party recordings.",
+    "Runtime pitch/crossfade is calibrated by FerrariSF90SpiderAudioModel."
+  ]
+}
