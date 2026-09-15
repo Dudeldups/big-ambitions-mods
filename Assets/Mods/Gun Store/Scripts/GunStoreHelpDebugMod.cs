@@ -30,7 +30,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
-    private const int GeneratedDisplayVersion = 19;
+    private const int GeneratedDisplayVersion = 20;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -390,8 +390,12 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             destinationRenderer.sharedMaterials = sourceRenderer.sharedMaterials
                 .Select(GetCompatibleDisplayMaterial)
                 .ToArray();
-            destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-            destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
+            // These are dense, static inventory proxies rather than standalone world items.
+            // Letting every proxy cast and receive real-time shadows creates grazing-angle
+            // shadow-map interference that appears as a moving rainbow/moire pattern.
+            destinationRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            destinationRenderer.receiveShadows = false;
+            destinationRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
             destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
             destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
             copiedMeshCount++;
