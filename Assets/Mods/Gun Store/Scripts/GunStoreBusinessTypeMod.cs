@@ -180,28 +180,45 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             SaveGameManager.MarkChange();
     }
 
-    internal static void LogRetiredAiRivalsAfterGameLoaded(ModContext? context)
+    internal static void RetireLegacyAiRivalsAfterGameLoaded(ModContext? context)
     {
         var registrations = SaveGameManager.Current?.BuildingRegistrations;
         if (registrations == null)
             return;
 
+        var retiredCount = 0;
         foreach (var registration in registrations)
         {
             if (registration == null ||
-                !string.Equals(registration.businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal) ||
+                registration.RentedByPlayer ||
                 !RetiredAiRivalBusinessNames.Contains(registration.BusinessName, StringComparer.Ordinal))
             {
                 continue;
             }
 
+            var wasAlreadyClosed = registration.temporarilyClosed;
+            if (!wasAlreadyClosed)
+            {
+                registration.temporarilyClosed = true;
+                retiredCount++;
+            }
+
             context?.Logger.Warn(
-                $"Gun Store: legacy AI rival detected: name='{registration.BusinessName}', " +
-                $"address={registration.Address}, playerOwned={registration.RentedByPlayer}, " +
-                $"businessOwnerRivalId='{registration.businessOwnerRivalId ?? "<none>"}'. " +
-                "AI rivals are disabled in this version; this saved rival may still request its old logo, " +
-                "including the 'pay-to-win' logo reported in the console.");
+                $"Gun Store: retired legacy AI rival: name='{registration.BusinessName}', " +
+                $"address={registration.Address}, businessType='{registration.businessTypeName}', " +
+                $"businessOwnerRivalId='{registration.businessOwnerRivalId ?? "<none>"}', " +
+                $"wasAlreadyClosed={wasAlreadyClosed}. " +
+                "It is not player-owned and has been closed to prevent obsolete Gun Store layouts " +
+                "from participating in customer and shelf simulation.");
         }
+
+        if (retiredCount <= 0)
+            return;
+
+        SaveGameManager.MarkChange();
+        context?.Logger.Info(
+            $"Gun Store: closed {retiredCount} legacy AI rival business(es) in this save. " +
+            "Player-owned businesses were not changed.");
     }
 
     private static bool HasLoadedGunStoreStock(BuildingRegistration registration)
