@@ -13,6 +13,8 @@ public static class KoenigseggJeskoSetup
     private const string ReferenceAssetPath = "Assets/Mods/AudiRS6R/AudiRS6R.asset";
     private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath = ModRoot + "/Models/2020_koenigsegg_jesko.glb";
+    private const string NativeEngineFallbackClipPath =
+        ModRoot + "/Config/Audio/EngineLow.wav";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
     private const string VehicleAssetPath = ModRoot + "/KoenigseggJesko.asset";
     private const string VehiclePrefabPath = ModRoot + "/KoenigseggJesko.prefab";
@@ -292,6 +294,10 @@ public static class KoenigseggJeskoSetup
             var launchResponseVerified = false;
             var antiRollVerified = false;
             var massCenterVerified = false;
+            var nativeEngineTemplateValid = false;
+            var donorHierarchyRenamed =
+                FindTransform(prefab.transform, "VehicleNavMeshObstacle") != null &&
+                FindTransform(prefab.transform, "2020_abt_sportline_audi_rs6-r") == null;
             var tireFrictionCount = 0;
             var suspensionTravelCount = 0;
             foreach (var component in prefab.GetComponentsInChildren<MonoBehaviour>(true))
@@ -339,6 +345,17 @@ public static class KoenigseggJeskoSetup
                 }
 
                 var serialized = new SerializedObject(component);
+                var nativeClips = serialized.FindProperty("soundManager")
+                    ?.FindPropertyRelative("engineRunningComponent")
+                    ?.FindPropertyRelative("clips");
+                nativeEngineTemplateValid = nativeClips != null && nativeClips.isArray &&
+                                            nativeClips.arraySize == 1 &&
+                                            nativeClips.GetArrayElementAtIndex(0)
+                                                .objectReferenceValue is AudioClip nativeClip &&
+                                            string.Equals(
+                                                nativeClip.name,
+                                                "EngineLow",
+                                                StringComparison.Ordinal);
                 var powertrain = serialized.FindProperty("powertrain");
                 var wheelGroups = powertrain?.FindPropertyRelative("wheelGroups");
                 antiRollVerified = wheelGroups != null && wheelGroups.isArray && wheelGroups.arraySize == 2;
@@ -572,6 +589,8 @@ public static class KoenigseggJeskoSetup
                 !headlightTemplateValid ||
                 !transmissionVerified ||
                 !launchResponseVerified ||
+                !nativeEngineTemplateValid ||
+                !donorHierarchyRenamed ||
                 !massCenterVerified ||
                 !antiRollVerified ||
                 tireFrictionCount != 4 ||
@@ -609,6 +628,8 @@ public static class KoenigseggJeskoSetup
                     $"frontBlinkers={frontBlinkerMeshes}, sideBlinkers={sideBlinkerMeshes}, " +
                     $"headlightTemplate={headlightTemplateValid}, " +
                     $"nineSpeed={transmissionVerified}, launchResponse={launchResponseVerified}, " +
+                    $"nativeEngineTemplate={nativeEngineTemplateValid}, " +
+                    $"donorHierarchyRenamed={donorHierarchyRenamed}, " +
                     $"massCenter={massCenterVerified}, antiRoll={antiRollVerified}, " +
                     $"tireFrictionCount={tireFrictionCount}, " +
                     $"suspensionTravelCount={suspensionTravelCount}, " +
@@ -634,7 +655,7 @@ public static class KoenigseggJeskoSetup
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
                 $"damageBody=in-place-authored-shell, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
-                $"launchResponse=true, " +
+                $"launchResponse=true, nativeEngineTemplate=Jesko, donorHierarchy=neutral, " +
                 $"centerRearRunningLight=true, segmentedBrakeLights=true/{runtimeBrakeFaces}faces, blinkers=4, " +
                 $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
@@ -767,6 +788,7 @@ public static class KoenigseggJeskoSetup
             ConfigureBodyColliders(root);
             ConfigureVehicleReferences(root, vehicleType);
             ConfigurePowertrain(root);
+            ConfigureNativeAudioTemplate(root);
 
             var modelInstance = PrefabUtility.InstantiatePrefab(model, root.transform) as GameObject;
             if (modelInstance == null)
@@ -815,6 +837,10 @@ public static class KoenigseggJeskoSetup
 
     private static void StripAudiGeometry(GameObject root)
     {
+        var donorModelRoot = FindTransform(root.transform, "2020_abt_sportline_audi_rs6-r");
+        if (donorModelRoot != null)
+            donorModelRoot.name = "VehicleNavMeshObstacle";
+
         foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
         {
             renderer.enabled = false;
@@ -981,6 +1007,40 @@ public static class KoenigseggJeskoSetup
         Debug.Log(
             $"KoenigseggJesko: steering wheel x={steeringPosition.x:F3}; " +
             $"driver exit x={driverSide:F2}; passenger exit x={passengerSide:F2}.");
+    }
+
+    private static void ConfigureNativeAudioTemplate(GameObject root)
+    {
+        var fallbackClip = AssetDatabase.LoadAssetAtPath<AudioClip>(NativeEngineFallbackClipPath) ??
+                           throw new InvalidOperationException(
+                               "Koenigsegg native engine fallback clip is missing.");
+        var configured = false;
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component == null ||
+                !string.Equals(
+                    component.GetType().FullName,
+                    "NWH.VehiclePhysics2.VehicleController",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var serialized = new SerializedObject(component);
+            var clips = serialized.FindProperty("soundManager")
+                ?.FindPropertyRelative("engineRunningComponent")
+                ?.FindPropertyRelative("clips");
+            if (clips == null || !clips.isArray)
+                continue;
+
+            clips.arraySize = 1;
+            clips.GetArrayElementAtIndex(0).objectReferenceValue = fallbackClip;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            configured = true;
+        }
+
+        if (!configured)
+            throw new InvalidOperationException("Vehicle engine audio template could not be configured.");
     }
 
     private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)

@@ -651,16 +651,20 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 var yellowGreenAccent = hue >= 0.14f && hue <= 0.38f &&
                                         saturation > 0.30f && value > 0.18f;
                 var neutralJeskoLettering = recolorNeutralPixels && saturation < 0.25f;
-                // The two side "Jesko" scripts are UV-mirrored from the pale
-                // lettering at the upper-right edge of the shared body atlas.
-                // Select only those bright neutral glyph pixels so the broad
-                // painted body island beneath them is not recolored.
+                // The side "Jesko" script is baked into the body atlas rather
+                // than exposed as a separate renderer. Its body triangles map
+                // to this narrow UV island behind the cabin. Select only the
+                // neutral mid-value glyphs, excluding both the white painted
+                // panel and the dark carbon backing around the lettering.
                 var pixelX = index % sourceTexture.width;
                 var pixelY = index / sourceTexture.width;
+                var normalizedX = (pixelX + 0.5f) / sourceTexture.width;
+                var normalizedY = (pixelY + 0.5f) / sourceTexture.height;
                 var sideJeskoLettering = recolorSideJeskoAtlasPixels &&
-                                         pixelX >= sourceTexture.width * 0.83f &&
-                                         pixelY >= sourceTexture.height * 0.968f &&
-                                         saturation < 0.25f && value > 0.48f;
+                                         normalizedX >= 0.125f && normalizedX <= 0.215f &&
+                                         normalizedY >= 0.35f && normalizedY <= 0.47f &&
+                                         saturation < 0.25f &&
+                                         value > 0.45f && value < 0.90f;
                 accentPixels[index] = source.a > 0.01f &&
                                       (yellowGreenAccent || neutralJeskoLettering ||
                                        sideJeskoLettering);
