@@ -117,6 +117,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private Coroutine? exitedPlayerRecoveryCoroutine;
     private Coroutine? warehouseExitGuardCoroutine;
     private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
+    private KoenigseggJeskoWarehouseEntryController? warehouseExitGuardEntryController;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -631,6 +632,11 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         StopWarehouseExitGuard();
+        warehouseExitGuardEntryController =
+            vehicle.GetComponent<KoenigseggJeskoWarehouseEntryController>();
+        warehouseExitGuardEntryController?.SuppressEntrance(
+            entrance,
+            "warehouse-exit-guard");
         foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
         foreach (var collider in enterTrigger.GetComponents<Collider>())
         {
@@ -643,6 +649,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
         if (warehouseExitGuardColliders.Count == 0)
         {
+            warehouseExitGuardEntryController?.ClearSuppressedEntrance(
+                entrance,
+                "no-native-entry-trigger");
+            warehouseExitGuardEntryController = null;
             KoenigseggJeskoDiagnostics.WarehouseInfo(
                 context,
                 $"KoenigseggJesko warehouse-exit: entrance='{entrance.name}' had no " +
@@ -735,6 +745,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         warehouseExitGuardColliders.Clear();
+        warehouseExitGuardEntryController?.ClearSuppressedEntrance(null, reason);
+        warehouseExitGuardEntryController = null;
         warehouseExitGuardCoroutine = null;
         Physics.SyncTransforms();
     }
@@ -1093,6 +1105,14 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                     .AddComponent<KoenigseggJeskoWarehouseBoundsController>();
             }
             warehouseBounds.Initialize();
+            var warehouseEntry =
+                vehicle.GetComponent<KoenigseggJeskoWarehouseEntryController>();
+            if (warehouseEntry == null)
+            {
+                warehouseEntry = vehicle.gameObject
+                    .AddComponent<KoenigseggJeskoWarehouseEntryController>();
+            }
+            warehouseEntry.Initialize(vehicle, context);
             var repairedBodyShell = UseAuthoredBodyShell(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
