@@ -1291,7 +1291,7 @@ public static class KoenigseggJeskoSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 9f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2200f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 5000f);
                 SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7600f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 
