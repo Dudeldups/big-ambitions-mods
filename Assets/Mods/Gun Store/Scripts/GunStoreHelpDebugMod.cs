@@ -26,6 +26,9 @@ using UnityEngine.SceneManagement;
 internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 {
     private const string GunStoreBundleKey = "AssetBundles/gunstore-businesstype.unity3d";
+    private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
+    private const string CheapGiftItemName = "ba:itemname_cheapgift";
+    private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -274,7 +277,13 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         if (visualsContainer.Find(visualSlotName) != null)
             return false;
 
-        var template = visualsContainer.Cast<Transform>().FirstOrDefault(candidate => candidate.childCount > 0);
+        // Match the exact layouts used by the original showcase registration. The first
+        // populated slot is not stable across fixtures and can be a dense gift layout.
+        var placementTemplateName = (owner?.Item?.itemName == RoundedShelfItemName
+            ? ExpensiveFlowerItemName
+            : CheapGiftItemName).GetIdWithoutType();
+        var template = visualsContainer.Cast<Transform>().FirstOrDefault(candidate =>
+            candidate.name.Equals(placementTemplateName, StringComparison.InvariantCultureIgnoreCase));
         var visualPrefab = AssetService.GetBundle(context.ModId, GunStoreBundleKey)
             .LoadAsset<GameObject>(prefabPath);
         if (template == null)
@@ -295,35 +304,71 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return false;
         }
 
-        var placement = template.GetChild(0);
-
         var visualSlot = Instantiate(template, visualsContainer);
         visualSlot.name = visualSlotName;
         for (var index = visualSlot.childCount - 1; index >= 0; index--)
             DestroyImmediate(visualSlot.GetChild(index).gameObject);
 
-        // A gift/candy template contains many tightly packed item positions. A full-size gun at
-        // every position overlaps its neighbours and produces z-fighting shimmer, so use one
-        // representative product visual per shelf slot.
-        var visual = Instantiate(visualPrefab, visualSlot);
-        visual.transform.SetPositionAndRotation(placement.position, placement.rotation);
-        DisableDisplayItemInteraction(visual);
+        var displayCount = 0;
+        var meshCount = 0;
+        foreach (var placement in template.Cast<Transform>())
+        {
+            var displayVisual = new GameObject(visualPrefab.name + " Display");
+            displayVisual.transform.SetParent(visualSlot, false);
+            displayVisual.transform.SetPositionAndRotation(placement.position, placement.rotation);
+            meshCount += CopyDisplayMeshHierarchy(visualPrefab.transform, displayVisual.transform);
+            displayCount++;
+        }
 
+        if (meshCount == 0)
+        {
+            Destroy(visualSlot.gameObject);
+            LogGunStoreVisualSetupFailure(itemName, shelfName, "the product prefab contains no static display meshes");
+            return false;
+        }
+
+        // Never instantiate the product prefab itself here. It has an ItemController, and Awake
+        // registers cargo and interaction overlays before a later Disable can run. Those leaked
+        // overlays are the source of the coloured shimmer; mesh-only copies have no game logic.
+        shelf.ShowItemVisuals(itemName, showDefault: false);
         shelf.UpdateVisuals();
+        context.Logger.Info(
+            $"Gun Store: installed mesh-only shelf display: product='{itemName}', shelf='{shelfName}', " +
+            $"template='{template.name}', displayCount={displayCount}, meshCount={meshCount}, " +
+            $"position={shelf.transform.position}.");
         return true;
     }
 
-    private static void DisableDisplayItemInteraction(GameObject visual)
+    private static int CopyDisplayMeshHierarchy(Transform source, Transform destination)
     {
-        // Gun Store's bundle currently contains placeable-item prefabs rather than stripped
-        // display-only prefabs. Their ItemController creates interaction/placement overlays when
-        // active in a shelf visual. Keep the meshes, but prevent those gameplay components and
-        // colliders from participating in the scene.
-        foreach (var itemController in visual.GetComponentsInChildren<ItemController>(true))
-            itemController.enabled = false;
+        var copiedMeshCount = 0;
+        var sourceFilter = source.GetComponent<MeshFilter>();
+        var sourceRenderer = source.GetComponent<MeshRenderer>();
+        if (sourceFilter?.sharedMesh != null && sourceRenderer != null)
+        {
+            var destinationFilter = destination.gameObject.AddComponent<MeshFilter>();
+            destinationFilter.sharedMesh = sourceFilter.sharedMesh;
 
-        foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
-            collider.enabled = false;
+            var destinationRenderer = destination.gameObject.AddComponent<MeshRenderer>();
+            destinationRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+            destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+            destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
+            destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
+            destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+            copiedMeshCount++;
+        }
+
+        foreach (var sourceChild in source.Cast<Transform>())
+        {
+            var destinationChild = new GameObject(sourceChild.name).transform;
+            destinationChild.SetParent(destination, false);
+            destinationChild.localPosition = sourceChild.localPosition;
+            destinationChild.localRotation = sourceChild.localRotation;
+            destinationChild.localScale = sourceChild.localScale;
+            copiedMeshCount += CopyDisplayMeshHierarchy(sourceChild, destinationChild);
+        }
+
+        return copiedMeshCount;
     }
 
     private void LogGunStoreVisualSetupFailure(string itemName, string shelfName, string reason)
