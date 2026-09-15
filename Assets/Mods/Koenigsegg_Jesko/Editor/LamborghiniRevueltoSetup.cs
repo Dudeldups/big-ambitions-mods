@@ -36,7 +36,14 @@ public static class KoenigseggJeskoSetup
     private const float RearWheelOutset = 0f;
     private const float FrontWheelForwardOffset = 0.06f;
     private const float RearWheelForwardOffset = 0.12f;
-    private const float WheelRearwardOffset = -0.08f;
+    private const float FrontWheelRearwardOffset = -0.07f;
+    private const float RearWheelRearwardOffset = -0.10f;
+    private const float FrontCaliperOutset = 0.03f;
+    private const float FrontCaliperHeightOffset = 0.02f;
+    private const float FrontCaliperLongitudinalOffset = -0.03f;
+    private const float RearCaliperOutset = 0.01f;
+    private const float RearCaliperHeightOffset = 0.02f;
+    private const float RearCaliperLongitudinalOffset = 0.06f;
     private const float FrontWheelHeightOffset = 0.02f;
     private const float WheelGroundingOffset = -0.04f;
     private const float DeformationStrength = 0.20f;
@@ -250,19 +257,19 @@ public static class KoenigseggJeskoSetup
                 CaliperPivotMatches(
                     fittedCaliperCenters,
                     "KoenigseggFixedCaliperFrontLeft",
-                    frontLeftCenter) &&
+                    frontLeftCenter + CaliperOffset(true, -1f)) &&
                 CaliperPivotMatches(
                     fittedCaliperCenters,
                     "KoenigseggFixedCaliperFrontRight",
-                    frontRightCenter) &&
+                    frontRightCenter + CaliperOffset(true, 1f)) &&
                 CaliperPivotMatches(
                     fittedCaliperCenters,
                     "KoenigseggFixedCaliperRearLeft",
-                    rearLeftCenter) &&
+                    rearLeftCenter + CaliperOffset(false, -1f)) &&
                 CaliperPivotMatches(
                     fittedCaliperCenters,
                     "KoenigseggFixedCaliperRearRight",
-                    rearRightCenter);
+                    rearRightCenter + CaliperOffset(false, 1f));
 
             var transmissionVerified = false;
             var launchResponseVerified = false;
@@ -348,7 +355,7 @@ public static class KoenigseggJeskoSetup
             var opaqueMaterials = new HashSet<Material>();
             var decalSafeMaterials = 0;
             var transparentMaterials = 0;
-            var transparentMaterialsSingleSided = true;
+            var transparentMaterialsDoubleSided = true;
             var cabinGlassTintValid = true;
             var opaqueRendererMasksSafe = true;
             var paintRenderers = new HashSet<Renderer>();
@@ -418,12 +425,12 @@ public static class KoenigseggJeskoSetup
                     if (KoenigseggJeskoMaterials.IsTransparentMaterial(material))
                     {
                         transparentMaterials++;
-                        transparentMaterialsSingleSided &=
+                        transparentMaterialsDoubleSided &=
                             (!material.HasProperty("_Cull") ||
-                             Math.Abs(material.GetFloat("_Cull") - (float)CullMode.Back) < 0.5f) &&
+                             material.GetFloat("_Cull") < 0.5f) &&
                             (!material.HasProperty("_DoubleSidedEnable") ||
-                             material.GetFloat("_DoubleSidedEnable") < 0.5f) &&
-                            !material.IsKeywordEnabled("_DOUBLESIDED_ON");
+                             material.GetFloat("_DoubleSidedEnable") > 0.5f) &&
+                            material.IsKeywordEnabled("_DOUBLESIDED_ON");
                         if (KoenigseggJeskoMaterials.IsCabinGlassMaterial(material))
                         {
                             var tint = material.HasProperty("_BaseColor")
@@ -554,7 +561,7 @@ public static class KoenigseggJeskoSetup
                 decalSafeMaterials != opaqueMaterials.Count ||
                 !opaqueRendererMasksSafe ||
                 transparentMaterials == 0 ||
-                !transparentMaterialsSingleSided ||
+                !transparentMaterialsDoubleSided ||
                 !cabinGlassTintValid ||
                 bodyPaintSlots == 0 ||
                 interiorAccentPaintSlots == 0 ||
@@ -586,7 +593,7 @@ public static class KoenigseggJeskoSetup
                     $"suspensionTravelCount={suspensionTravelCount}, " +
                     $"opaque={opaqueMaterials.Count}, " +
                     $"decalSafe={decalSafeMaterials}, transparent={transparentMaterials}, " +
-                    $"transparentSingleSided={transparentMaterialsSingleSided}, " +
+                    $"transparentDoubleSided={transparentMaterialsDoubleSided}, " +
                     $"cabinGlassTint={cabinGlassTintValid}, " +
                     $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
                     $"caliperSlots={caliperSlots}, rimSlots={rimSlots}, " +
@@ -607,7 +614,7 @@ public static class KoenigseggJeskoSetup
                 $"damageBody=in-place-authored-shell, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
                 $"launchResponse=true, " +
                 $"centerRearRunningLight=true, segmentedBrakeLights=true/{runtimeBrakeFaces}faces, blinkers=4, " +
-                $"headlightTemplate=true, transparentSingleSided=true, cabinGlassTint=true, " +
+                $"headlightTemplate=true, transparentDoubleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
                 $"calipersPainted=true, rimsFactoryColor=true, rimFinish=balanced-matte-graphite, " +
                 $"decalSafeMaterials={decalSafeMaterials}.");
@@ -704,7 +711,7 @@ public static class KoenigseggJeskoSetup
         SetNumber(serialized, "enginePower", EffectiveEnginePowerKw);
         SetNumber(serialized, "brakeForce", BrakeTorque);
         SetNumber(serialized, "turnRadius", 27f);
-        SetNumber(serialized, "damageIntensity", 0.42f);
+        SetNumber(serialized, "damageIntensity", 0.336f);
         SetBool(serialized, "isATruck", false);
         SetBool(serialized, "isHandVehicle", false);
         SetBool(serialized, "fitsHandTruck", false);
@@ -1125,11 +1132,12 @@ public static class KoenigseggJeskoSetup
             var side = authoredCenter.x < 0f ? -1f : 1f;
             var outset = isFront ? FrontWheelOutset : RearWheelOutset;
             var forwardOffset = isFront ? FrontWheelForwardOffset : RearWheelForwardOffset;
+            var rearwardOffset = isFront ? FrontWheelRearwardOffset : RearWheelRearwardOffset;
             controller.localPosition = new Vector3(
                 authoredCenter.x + side * outset,
                 radius + WheelGroundingOffset +
                     (isFront ? FrontWheelHeightOffset : 0f),
-                authoredCenter.z + forwardOffset + WheelRearwardOffset);
+                authoredCenter.z + forwardOffset + rearwardOffset);
             var mount = new GameObject(
                 "KoenigseggWheel" +
                 pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
@@ -1181,7 +1189,8 @@ public static class KoenigseggJeskoSetup
                 "KoenigseggFixedCaliper" +
                 pair.Value.Replace("_WheelController", "").Replace("_", string.Empty));
             fixedCaliper.transform.SetParent(root.transform, false);
-            fixedCaliper.transform.position = mount.transform.position;
+            fixedCaliper.transform.localPosition =
+                mount.transform.localPosition + CaliperOffset(isFront, side);
             fixedCaliper.transform.rotation = root.transform.rotation;
             caliper.SetParent(fixedCaliper.transform, true);
             caliper.name = "Jesko_Caliper_" + pair.Key;
@@ -1380,6 +1389,17 @@ public static class KoenigseggJeskoSetup
         Vector3 wheelCenter) =>
         centers.TryGetValue(name, out var center) &&
         Vector3.Distance(center, wheelCenter) < 0.005f;
+
+    private static Vector3 CaliperOffset(bool isFront, float side) =>
+        isFront
+            ? new Vector3(
+                side * FrontCaliperOutset,
+                FrontCaliperHeightOffset,
+                FrontCaliperLongitudinalOffset)
+            : new Vector3(
+                side * RearCaliperOutset,
+                RearCaliperHeightOffset,
+                RearCaliperLongitudinalOffset);
 
     private static bool JeskoPowerCurveMatches(AnimationCurve? curve)
     {

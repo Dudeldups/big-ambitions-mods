@@ -41,24 +41,24 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 1f;
+    private const float DamageIntensity = 0.8f;
     private const float DamageDecelerationThreshold = 350f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.2743513f) },
-            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.2743511f) },
-            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3689924f) },
-            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3689926f) },
-            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2743513f) },
-            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.2743511f) },
-            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3689924f) },
-            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3689926f) },
-            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2743513f) },
-            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.347f, 1.2743511f) },
-            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3689924f) },
-            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.3689926f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.2843513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.2843511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3889924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3889926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2843513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.2843511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3889924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3889926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8357338f, 0.367f, 1.2543513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8359794f, 0.367f, 1.2543511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.77666033f, 0.351f, -1.3289924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7769054f, 0.351f, -1.3289926f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -1283,6 +1283,14 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 return false;
         }
 
+        var explicitImpactAttachment =
+            name.IndexOf("HEADLIGHT_LENS", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("FRONTBUMPER", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("REARBUMPER", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("WING_REAR", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (explicitImpactAttachment)
+            return true;
+
         foreach (var material in renderer.sharedMaterials)
         {
             if (material == null)
@@ -1844,7 +1852,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private const float MaximumFrontDentDepth = 0.36f;
     private const float FrontDepthPerExcessMps = 0.012f;
     private const float RearDentLateralRadius = 0.96f;
-    private const float RearDentVerticalRadius = 0.82f;
+    private const float RearDentVerticalRadius = 1.18f;
     private const float RearDentLongitudinalRadius = 1.18f;
     private const float MaximumRearDentDepth = 0.58f;
     private const float RearDepthPerExcessMps = 0.017f;
