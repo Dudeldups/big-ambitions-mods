@@ -29,7 +29,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
-    private const int GeneratedDisplayVersion = 17;
+    private const int GeneratedDisplayVersion = 18;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -149,6 +149,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (postCitySaveRepairCompleted)
+            StartGunStoreVisualSetup($"scene-loaded:{scene.name}:{mode}");
+
         ScheduleNavigationPatch(reason: $"scene-loaded:{scene.name}:{mode}");
     }
 
@@ -156,6 +159,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     {
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
         GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        if (postCitySaveRepairCompleted)
+            StartGunStoreVisualSetup("game-loaded-late");
+
         ScheduleNavigationPatch(forceRefresh: true, reason: "game-loaded-late");
     }
 
@@ -200,11 +206,17 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         shelfVisualRepairCoroutine = StartCoroutine(RepairMalformedShelfVisuals());
 
+        StartGunStoreVisualSetup("post-city-save-repair");
+        StartCoroutine(LogGunStoreVisualDiagnostics());
+    }
+
+    private void StartGunStoreVisualSetup(string reason)
+    {
         if (gunStoreVisualSetupCoroutine != null)
             StopCoroutine(gunStoreVisualSetupCoroutine);
 
         gunStoreVisualSetupCoroutine = StartCoroutine(InstallGunStoreShelfVisuals());
-        StartCoroutine(LogGunStoreVisualDiagnostics());
+        context?.Logger.Info($"Gun Store: scheduled isolated shelf-visual setup; reason='{reason}'.");
     }
 
     private IEnumerator RepairMalformedShelfVisuals()
@@ -439,6 +451,34 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         context.Logger.Info(
             $"Gun Store display diagnostic: generatedGunMeshes={generatedMeshCount}, orphanGunMeshes={orphanMeshCount}. " +
             $"Orphans={string.Join(" | ", orphanDescriptions)}");
+
+        var matchingShelfStates = new List<string>();
+        foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
+        {
+            if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+                continue;
+
+            var owner = shelf.GetComponentInParent<ItemController>();
+            var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
+            if (stock == null || string.IsNullOrEmpty(stock.itemName) ||
+                !GunStoreVisualPrefabPaths.ContainsKey(stock.itemName))
+            {
+                continue;
+            }
+
+            var visualsContainer = ShelfItemsVisualsContainerField?.GetValue(shelf) as Transform;
+            var slotName = stock.itemName.GetIdWithoutType();
+            var existingSlot = visualsContainer?.Find(slotName);
+            matchingShelfStates.Add(
+                $"stock='{stock.itemName}', fixture='{owner?.Item?.itemName ?? shelf.name}', " +
+                $"container={(visualsContainer != null)}, slot={(existingSlot != null)}, " +
+                $"markerGeneration={existingSlot?.GetComponent<GunStoreMeshOnlyDisplayMarker>()?.Generation.ToString() ?? "<none>"}, " +
+                $"position={shelf.transform.position}");
+        }
+
+        context.Logger.Info(
+            $"Gun Store shelf-state diagnostic: matchingShelves={matchingShelfStates.Count}. " +
+            $"States={string.Join(" | ", matchingShelfStates.Take(20))}");
     }
 
     private void LogGunStoreVisualSetupFailure(string itemName, string shelfName, string reason)
