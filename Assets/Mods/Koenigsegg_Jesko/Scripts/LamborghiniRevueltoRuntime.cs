@@ -21,7 +21,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     // Calibrated from the user's measured runs. Even the 500 kW gameplay value
     // produced repeated 0-100 runs around 1.85 s and 0-200 around 6.06 s.
     private const float EnginePowerKw = 390f;
-    private const float BrakeTorque = 3400f;
+    private const float BrakeTorque = 2100f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8500f;
     private const float MinimumHealthyEngineRpm = 300f;
@@ -47,18 +47,18 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.2843513f) },
-            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.2843511f) },
-            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3889924f) },
-            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3889926f) },
-            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2843513f) },
-            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.2843511f) },
-            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3889924f) },
-            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3889926f) },
-            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8357338f, 0.367f, 1.2543513f) },
-            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8359794f, 0.367f, 1.2543511f) },
-            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.77666033f, 0.351f, -1.3289924f) },
-            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7769054f, 0.351f, -1.3289926f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.2893513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.2893511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3989924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3989926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2893513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.2893511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3989924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3989926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8357338f, 0.397f, 1.2443513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8359794f, 0.397f, 1.2443511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.77666033f, 0.361f, -1.3189924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7769054f, 0.361f, -1.3189926f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -92,6 +92,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private readonly HashSet<int> configurationReadinessWarnings = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? enteredVehicleActivationCoroutine;
+    private int enteredVehicleActivationInstanceId;
     private Coroutine? exitedPlayerRecoveryCoroutine;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
@@ -139,6 +140,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         exitedPlayerRecoveryCoroutine = null;
         privateDriverPoolReady = false;
         privateDriverReady = false;
@@ -222,6 +224,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         exitedPlayerRecoveryCoroutine = null;
         cachedPlayerVehicleCount = -1;
         dealerReadyLogged = false;
@@ -240,9 +243,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             ?.RestoreAfterVehicleEntered();
         if (vehicle == null || !IsTargetVehicle(vehicle))
             return;
-        if (enteredVehicleActivationCoroutine != null)
-            StopCoroutine(enteredVehicleActivationCoroutine);
-        enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
+        ScheduleEnteredVehicleActivation(vehicle);
     }
 
     private void HandleVehicleExited(VehicleController vehicle)
@@ -256,9 +257,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
     {
-        // Match the proven BMW dealer-entry recovery. Native entry can report a
-        // running engine while RPM is still zero, which produces no wheel torque
-        // until the next entry unless the whole start transition is replayed.
+        // Native entry owns the dealer display-to-player physics transition.
+        // Only recover a dormant powertrain after that transition has settled;
+        // forcing SetFreeze(false) here caused the low car to spring out of the
+        // ground and oscillate on its rear suspension.
         yield return new WaitForSecondsRealtime(0.25f);
         var physics = vehicle == null
             ? null
@@ -269,6 +271,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             context?.Logger.Warn(
                 $"KoenigseggJesko: post-entry drivetrain unavailable vehicle={vehicle?.GetInstanceID()}.");
             enteredVehicleActivationCoroutine = null;
+            enteredVehicleActivationInstanceId = 0;
             yield break;
         }
 
@@ -282,20 +285,16 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             if (engine.IsRunning && engine.ignition && engine.canRun &&
                 rpm >= MinimumHealthyEngineRpm)
             {
-                vehicle.SetFreeze(false);
-                physics.enabled = true;
-                if (transmission.Gear <= 0)
-                    transmission.ShiftInto(1, true);
-                var body = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
-                if (body != null)
+                if (transmission.Gear == 0)
                 {
-                    body.isKinematic = false;
-                    body.WakeUp();
+                    transmission.ShiftInto(1, true);
+                    yield return new WaitForFixedUpdate();
                 }
                 context?.Logger.Info(
                     $"KoenigseggJesko: post-entry drivetrain ready vehicle={vehicle.GetInstanceID()} " +
                     $"attempt={attempt} running={engine.IsRunning} rpm={rpm:0} gear={transmission.Gear}.");
                 enteredVehicleActivationCoroutine = null;
+                enteredVehicleActivationInstanceId = 0;
                 yield break;
             }
 
@@ -313,11 +312,38 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         enteredVehicleActivationCoroutine = null;
+        enteredVehicleActivationInstanceId = 0;
         var finalRpm = engine.RPMPercent * engine.revLimiterRPM;
         context?.Logger.Warn(
             $"KoenigseggJesko: post-entry drivetrain remained unavailable " +
             $"vehicle={vehicle?.GetInstanceID()} controlled={vehicle?.controlledByPlayer} " +
             $"running={engine.IsRunning} rpm={finalRpm:0} gear={transmission.Gear}.");
+    }
+
+    private void ScheduleEnteredVehicleActivation(VehicleController vehicle)
+    {
+        if (!vehicle.controlledByPlayer &&
+            !ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle))
+        {
+            context?.Logger.Info(
+                $"KoenigseggJesko: post-entry activation skipped vehicle={vehicle.GetInstanceID()} " +
+                "because it is neither controlled nor selected.");
+            return;
+        }
+
+        var instanceId = vehicle.GetInstanceID();
+        if (enteredVehicleActivationCoroutine != null &&
+            enteredVehicleActivationInstanceId == instanceId)
+            return;
+        if (enteredVehicleActivationCoroutine != null)
+            StopCoroutine(enteredVehicleActivationCoroutine);
+
+        enteredVehicleActivationInstanceId = instanceId;
+        context?.Logger.Info(
+            $"KoenigseggJesko: post-entry activation scheduled vehicle={instanceId} " +
+            $"controlled={vehicle.controlledByPlayer} selected=" +
+            $"{ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle)}.");
+        enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
     }
 
     private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
@@ -875,6 +901,15 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             }
 
             configuredVehicleIds.Add(instanceId);
+
+            // Dealer purchases can create an already-entered car without
+            // raising onEnterVehicle. Schedule the same bounded powertrain
+            // handoff once when that freshly configured instance is selected.
+            if (vehicle.controlledByPlayer &&
+                ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle))
+            {
+                ScheduleEnteredVehicleActivation(vehicle);
+            }
 
             context?.Logger.Info(
                 $"KoenigseggJesko: configured vehicle instance={instanceId}, " +
@@ -1849,13 +1884,16 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private const float FrontDentLateralRadius = 0.82f;
     private const float FrontDentVerticalRadius = 0.68f;
     private const float FrontDentLongitudinalRadius = 0.95f;
+    private const float FrontLipDentLateralRadius = 1.18f;
+    private const float FrontLipDentVerticalRadius = 0.92f;
+    private const float FrontLipDentLongitudinalRadius = 1.30f;
     private const float MaximumFrontDentDepth = 0.36f;
     private const float FrontDepthPerExcessMps = 0.012f;
     private const float RearDentLateralRadius = 0.96f;
     private const float RearDentVerticalRadius = 1.18f;
     private const float RearDentLongitudinalRadius = 1.18f;
-    private const float MaximumRearDentDepth = 0.58f;
-    private const float RearDepthPerExcessMps = 0.017f;
+    private const float MaximumRearDentDepth = 0.52f;
+    private const float RearDepthPerExcessMps = 0.0153f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
     private const float CollisionCooldown = 0.5f;
     private const int MaximumDiagnosticLogs = 6;
@@ -1863,6 +1901,8 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
     private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
         new Dictionary<MeshFilter, Vector3[]>();
+    private readonly Dictionary<MeshFilter, Mesh> damageMeshes =
+        new Dictionary<MeshFilter, Mesh>();
     private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
     private VehicleController? vehicle;
     private NWH.VehiclePhysics2.Damage.DamageHandler? damageHandler;
@@ -1874,6 +1914,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private float previousSavedDamage;
     private float repairClearSince = -1f;
     private int diagnosticLogs;
+    private Coroutine? repairRecoveryCoroutine;
     private bool initialized;
     private bool failureReported;
 
@@ -1897,6 +1938,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
         repairClearSince = -1f;
         deformableFilters.Clear();
         originalVertices.Clear();
+        damageMeshes.Clear();
         runtimeMeshes.Clear();
         foreach (var filter in filters)
         {
@@ -1907,6 +1949,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
             filter.sharedMesh = runtimeMesh;
             deformableFilters.Add(filter);
             originalVertices[filter] = runtimeMesh.vertices;
+            damageMeshes[filter] = runtimeMesh;
             runtimeMeshes.Add(runtimeMesh);
         }
         initialized = true;
@@ -1935,16 +1978,25 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
         {
             foreach (var pair in originalVertices)
             {
-                if (pair.Key == null || pair.Key.sharedMesh == null)
+                if (pair.Key == null || !damageMeshes.TryGetValue(pair.Key, out var mesh) ||
+                    mesh == null)
                     continue;
-                var mesh = pair.Key.sharedMesh;
+                // Native repair may restore the serialized prefab mesh even
+                // though legacy deformation is disabled. Rebind this instance's
+                // private mesh before restoring it so repair never mutates a
+                // shared asset and later impacts still deform correctly.
+                pair.Key.sharedMesh = mesh;
                 mesh.vertices = pair.Value;
                 mesh.RecalculateBounds();
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
             }
+            if (repairRecoveryCoroutine != null)
+                StopCoroutine(repairRecoveryCoroutine);
+            repairRecoveryCoroutine = StartCoroutine(RestoreDrivingStateAfterRepair());
             context?.Logger.Info(
-                $"KoenigseggJesko damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
+                $"KoenigseggJesko damage vehicle={vehicle?.GetInstanceID()}: visual body repaired; " +
+                "post-repair driving recovery scheduled.");
             repairClearSince = -1f;
         }
         previousDamage = currentDamage;
@@ -1979,6 +2031,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
             var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
             var changedMeshes = 0;
             var changedVertices = 0;
+            var changedMeshNames = new List<string>();
             var frontImpact = false;
             var rearImpact = false;
 
@@ -1989,6 +2042,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
                 var mesh = filter.sharedMesh;
                 var vertices = mesh.vertices;
                 var meshChanged = false;
+                var frontLowerLip = IsFrontLowerLip(filter);
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
                     var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
@@ -2010,13 +2064,13 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
                         {
                             var localDelta = transform.InverseTransformVector(worldVertex - contact.point);
                             var lateralRadius = isFrontContact
-                                ? FrontDentLateralRadius
+                                ? frontLowerLip ? FrontLipDentLateralRadius : FrontDentLateralRadius
                                 : RearDentLateralRadius;
                             var verticalRadius = isFrontContact
-                                ? FrontDentVerticalRadius
+                                ? frontLowerLip ? FrontLipDentVerticalRadius : FrontDentVerticalRadius
                                 : RearDentVerticalRadius;
                             var longitudinalRadius = isFrontContact
-                                ? FrontDentLongitudinalRadius
+                                ? frontLowerLip ? FrontLipDentLongitudinalRadius : FrontDentLongitudinalRadius
                                 : RearDentLongitudinalRadius;
                             var normalizedDistance = Mathf.Sqrt(
                                 localDelta.x * localDelta.x /
@@ -2071,6 +2125,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
                 mesh.RecalculateNormals();
                 mesh.RecalculateTangents();
                 changedMeshes++;
+                changedMeshNames.Add(filter.name);
             }
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
@@ -2084,6 +2139,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
                     $"region={(frontImpact ? "front" : rearImpact ? "rear" : "side")} " +
                     $"depth={(frontImpact ? frontDentDepth : rearImpact ? rearDentDepth : dentDepth):0.000}m " +
                     $"meshes={changedMeshes} vertices={changedVertices} " +
+                    $"changed=[{string.Join(", ", changedMeshNames)}] " +
                     $"nwhDamage={(damageHandler?.Damage ?? 0f) * 100f:0.0}% " +
                     $"vehicleDamage={(vehicle?.vehicleInstance?.damage ?? 0f) * 100f:0.0}%.");
             }
@@ -2099,8 +2155,53 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
         }
     }
 
+    private IEnumerator RestoreDrivingStateAfterRepair()
+    {
+        yield return null;
+        for (var pass = 1; pass <= 3; pass++)
+        {
+            yield return new WaitForFixedUpdate();
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                continue;
+
+            vehicle.SetFreeze(false);
+            var physics = vehicle.GetComponent<PhysicsVehicle>() ??
+                          vehicle.GetComponentInChildren<PhysicsVehicle>(true);
+            if (physics != null)
+            {
+                physics.enabled = true;
+                if (!physics.powertrain.engine.IsRunning)
+                    physics.powertrain.engine.StartEngine();
+                if (physics.powertrain.transmission.Gear == 0)
+                    physics.powertrain.transmission.ShiftInto(1, true);
+            }
+            foreach (var wheelController in
+                     vehicle.GetComponentsInChildren<NWH.WheelController3D.WheelController>(true))
+                wheelController.enabled = true;
+            var rigidbody = vehicle.GetComponent<Rigidbody>() ??
+                            vehicle.GetComponentInParent<Rigidbody>();
+            if (rigidbody != null)
+            {
+                rigidbody.isKinematic = false;
+                rigidbody.WakeUp();
+            }
+            context?.Logger.Info(
+                $"KoenigseggJesko damage vehicle={vehicle.GetInstanceID()}: post-repair " +
+                $"driving recovery pass={pass} physics={physics?.enabled} " +
+                $"engine={physics?.powertrain.engine.IsRunning} " +
+                $"gear={physics?.powertrain.transmission.Gear} kinematic={rigidbody?.isKinematic}.");
+        }
+        repairRecoveryCoroutine = null;
+    }
+
+    private static bool IsFrontLowerLip(MeshFilter filter) =>
+        filter.name.IndexOf("FRONTBUMPER_mm_misc_CARBON", StringComparison.OrdinalIgnoreCase) >= 0;
+
     private void OnDestroy()
     {
+        if (repairRecoveryCoroutine != null)
+            StopCoroutine(repairRecoveryCoroutine);
+        repairRecoveryCoroutine = null;
         foreach (var mesh in runtimeMeshes)
             if (mesh != null) Destroy(mesh);
         runtimeMeshes.Clear();
