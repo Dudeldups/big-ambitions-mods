@@ -7,8 +7,8 @@ internal static class KoenigseggJeskoAudioModel
     internal const float IdlePitch = 1f;
     internal const float HornLowVolume = .95f;
     internal const float HornHighVolume = .58f;
-    internal const float EngineBaseVolume = .27f;
-    internal const float EngineThrottleVolume = .31f;
+    internal const float EngineBaseVolume = .24f;
+    internal const float EngineThrottleVolume = .28f;
     internal const float CrackleIdleVolume = .009f;
     internal const float CrackleLoadVolume = .024f;
     internal static float LoadBlend(float throttle) => Clamp01((throttle - .12f) / .72f);

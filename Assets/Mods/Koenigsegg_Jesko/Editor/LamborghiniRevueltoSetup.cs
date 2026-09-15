@@ -45,10 +45,14 @@ public static class KoenigseggJeskoSetup
     private const float RearCaliperHeightOffset = 0.04f;
     private const float RearCaliperLongitudinalOffset = 0.08f;
     private const float FrontWheelHeightOffset = 0.04f;
-    private const float BodyVisualHeightOffset = 0.06f;
+    private const float BodyVisualHeightOffset = 0.07f;
     // Retain the user-confirmed tire grounding. Body ride height is authored
     // independently through BodyVisualHeightOffset above.
     private const float WheelGroundingOffset = 0.06f;
+    private static readonly Vector3 FrontContactColliderCenter =
+        new Vector3(0f, 0.67f, 1.68f);
+    private static readonly Vector3 FrontContactColliderSize =
+        new Vector3(1.94f, 0.46f, 1.10f);
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
@@ -137,8 +141,18 @@ public static class KoenigseggJeskoSetup
             var enginePower = ReadNumber(vehicleSerialized.FindProperty("enginePower"));
             var luxury = vehicleSerialized.FindProperty("isLuxuryCar")?.boolValue ?? true;
 
-        var visual = FindTransform(prefab.transform, "KoenigseggVisual") ??
+            var visual = FindTransform(prefab.transform, "KoenigseggVisual") ??
                          throw new InvalidOperationException("Koenigsegg visual root is missing.");
+            var visualRideHeightValid =
+                Math.Abs(visual.localPosition.y - -0.04485577f) < 0.001f;
+            var bodyColliderHolder = FindTransform(prefab.transform, "BodyCollider");
+            var bodyColliders = bodyColliderHolder != null
+                ? bodyColliderHolder.GetComponents<BoxCollider>()
+                : Array.Empty<BoxCollider>();
+            var frontContactColliderValid = bodyColliders.Length >= 3 &&
+                Vector3.Distance(bodyColliders[2].center, FrontContactColliderCenter) < 0.001f &&
+                Vector3.Distance(bodyColliders[2].size, FrontContactColliderSize) < 0.001f &&
+                bodyColliders[2].enabled && !bodyColliders[2].isTrigger;
             if (!TryGetKoenigseggRendererBounds(prefab.transform, out var bounds))
                 throw new InvalidOperationException("Koenigsegg visual has no renderer bounds.");
             var bodySidesOriented =
@@ -541,6 +555,8 @@ public static class KoenigseggJeskoSetup
                 bounds.size.z < 4.50f || bounds.size.z > 4.72f ||
                 bounds.size.x < 1.98f || bounds.size.x > 2.08f ||
                 bounds.size.y < 1.15f || bounds.size.y > 1.28f ||
+                !visualRideHeightValid ||
+                !frontContactColliderValid ||
                 !bodySidesOriented ||
                 !bodyUpright ||
                 !frontFacesVehicleForward ||
@@ -577,6 +593,8 @@ public static class KoenigseggJeskoSetup
                     $"Bundle verification failed: price={price}, fuel={maxFuel}, " +
                     $"speed={maxSpeed}, power={enginePower}, luxury={luxury}, " +
                     $"bounds={bounds.size}, bodySidesOriented={bodySidesOriented}, " +
+                    $"visualRideHeight={visualRideHeightValid}, " +
+                    $"frontContactCollider={frontContactColliderValid}/{bodyColliders.Length}, " +
                     $"bodyUpright={bodyUpright}, frontForward={frontFacesVehicleForward}, " +
                     $"windshieldY={windshieldHeight:F3}, exhaustY={exhaustHeight:F3}, " +
                     $"wheels={wheelVisuals}, " +
@@ -610,6 +628,7 @@ public static class KoenigseggJeskoSetup
             Debug.Log(
                 $"KoenigseggJesko bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, nineSpeed=true, " +
+                $"visualRideHeight=+7cm, frontContactCollider=true, " +
                 $"fixedCalipers=4, steeringCaliperPivots=true, tireBoundsCentered=true, wheelbase={wheelbase:F3}, " +
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
@@ -875,6 +894,8 @@ public static class KoenigseggJeskoSetup
         body.centerOfMass = StableCenterOfMass;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        body.solverIterations = Mathf.Max(body.solverIterations, 12);
+        body.solverVelocityIterations = Mathf.Max(body.solverVelocityIterations, 4);
 
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -936,6 +957,13 @@ public static class KoenigseggJeskoSetup
         colliders[0].size = new Vector3(1.96f, 0.50f, 4.48f);
         colliders[1].center = new Vector3(0f, 0.82f, -0.10f);
         colliders[1].size = new Vector3(1.74f, 0.58f, 2.35f);
+        var frontContactCollider = colliders.Length > 2
+            ? colliders[2]
+            : holder.gameObject.AddComponent<BoxCollider>();
+        frontContactCollider.center = FrontContactColliderCenter;
+        frontContactCollider.size = FrontContactColliderSize;
+        frontContactCollider.isTrigger = false;
+        frontContactCollider.enabled = true;
     }
 
     private static void ConfigureExitMarkers(GameObject root, GameObject model)

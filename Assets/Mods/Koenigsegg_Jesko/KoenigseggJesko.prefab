@@ -12127,6 +12127,7 @@ GameObject:
   - component: {fileID: 4944834259100834972}
   - component: {fileID: 6641098813400959980}
   - component: {fileID: 8289884389166964975}
+  - component: {fileID: 7182459342761038461}
   m_Layer: 12
   m_Name: BodyCollider
   m_TagString: Vehicle
@@ -12191,6 +12192,27 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.74, y: 0.58, z: 2.35}
   m_Center: {x: 0, y: 0.82, z: -0.1}
+--- !u!65 &7182459342761038461
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2654539716109822540}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.94, y: 0.46, z: 1.1}
+  m_Center: {x: 0, y: 0.67, z: 1.68}
 --- !u!1 &2681612490202001349
 GameObject:
   m_ObjectHideFlags: 0
@@ -42866,7 +42888,7 @@ Transform:
   m_GameObject: {fileID: 8272253193357124170}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: -0.05485577, z: -0.0025978088}
+  m_LocalPosition: {x: 0, y: -0.04485577, z: -0.0025978088}
   m_LocalScale: {x: 91.87183, y: 99.91329, z: 107.643616}
   m_ConstrainProportionsScale: 0
   m_Children:

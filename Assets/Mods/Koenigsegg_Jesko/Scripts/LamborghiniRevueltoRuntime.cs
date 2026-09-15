@@ -42,6 +42,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const float AntiRollBarForce = 7800f;
     private const float FrontSuspensionTravel = 0.08f;
     private const float RearSuspensionTravel = 0.06f;
+    private static readonly Vector3 FrontContactColliderCenter =
+        new Vector3(0f, 0.67f, 1.68f);
+    private static readonly Vector3 FrontContactColliderSize =
+        new Vector3(1.94f, 0.46f, 1.10f);
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
@@ -792,12 +796,26 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 rigidbody.centerOfMass = StableCenterOfMass;
                 rigidbody.drag = 0f;
                 rigidbody.angularDrag = 1.45f;
+                rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+                rigidbody.solverIterations = Mathf.Max(rigidbody.solverIterations, 12);
+                rigidbody.solverVelocityIterations =
+                    Mathf.Max(rigidbody.solverVelocityIterations, 4);
             }
 
             ConfigureMassProperties(vehicle.gameObject);
             var wheelPlacements = ConfigureWheelPlacements(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
-            ConfigureBodyColliders(vehicle.gameObject);
+            var contactMaterialOwner =
+                vehicle.GetComponent<KoenigseggJeskoContactMaterialOwner>();
+            if (contactMaterialOwner == null)
+            {
+                contactMaterialOwner = vehicle.gameObject
+                    .AddComponent<KoenigseggJeskoContactMaterialOwner>();
+            }
+            ConfigureBodyColliders(
+                vehicle.gameObject,
+                contactMaterialOwner.GetOrCreateMaterial());
             var settlingController = vehicle.GetComponent<KoenigseggJeskoSettlingController>();
             if (settlingController == null)
                 settlingController = vehicle.gameObject.AddComponent<KoenigseggJeskoSettlingController>();
@@ -966,7 +984,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
     }
 
-    private static void ConfigureBodyColliders(GameObject root)
+    private static void ConfigureBodyColliders(GameObject root, PhysicMaterial contactMaterial)
     {
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))
         {
@@ -984,6 +1002,21 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 colliders[1].center = new Vector3(0f, 0.78f, -0.18f);
                 colliders[1].size = new Vector3(1.72f, 0.62f, 2.62f);
             }
+
+            // The Jesko's low wedge nose can otherwise pass below a taller
+            // vehicle's body collider and trap the two vehicles together.
+            // This fitted bridge closes that vertical gap without extending
+            // the collision footprint beyond the visible front bodywork.
+            var frontContactCollider = colliders.Length > 2
+                ? colliders[2]
+                : transform.gameObject.AddComponent<BoxCollider>();
+            frontContactCollider.center = FrontContactColliderCenter;
+            frontContactCollider.size = FrontContactColliderSize;
+            frontContactCollider.isTrigger = false;
+            frontContactCollider.enabled = true;
+
+            foreach (var collider in transform.GetComponents<BoxCollider>())
+                collider.sharedMaterial = contactMaterial;
         }
     }
 
@@ -1507,6 +1540,35 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         return null;
+    }
+}
+
+[AddComponentMenu("")]
+internal sealed class KoenigseggJeskoContactMaterialOwner : MonoBehaviour
+{
+    private PhysicMaterial? contactMaterial;
+
+    internal PhysicMaterial GetOrCreateMaterial()
+    {
+        if (contactMaterial != null)
+            return contactMaterial;
+
+        contactMaterial = new PhysicMaterial("Koenigsegg Jesko body contact")
+        {
+            dynamicFriction = 0.05f,
+            staticFriction = 0.05f,
+            frictionCombine = PhysicMaterialCombine.Minimum,
+            bounciness = 0f,
+            bounceCombine = PhysicMaterialCombine.Minimum,
+        };
+        return contactMaterial;
+    }
+
+    private void OnDestroy()
+    {
+        if (contactMaterial != null)
+            Destroy(contactMaterial);
+        contactMaterial = null;
     }
 }
 

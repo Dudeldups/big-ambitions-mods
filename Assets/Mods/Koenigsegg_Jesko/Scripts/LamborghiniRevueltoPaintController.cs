@@ -269,7 +269,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             state = ExteriorContrastTexture.Create(
                 sourceMaterial,
                 tintNonAccentPixels: true,
-                recolorNeutralPixels: false);
+                recolorNeutralPixels: false,
+                recolorSideJeskoAtlasPixels: IsBodyExteriorAtlas(sourceMaterial));
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -296,7 +297,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             state = ExteriorContrastTexture.Create(
                 sourceMaterial,
                 tintNonAccentPixels: false,
-                recolorNeutralPixels: IsSideJeskoBadgeRenderer(renderer, sourceMaterial));
+                recolorNeutralPixels: IsSideJeskoBadgeRenderer(renderer, sourceMaterial),
+                recolorSideJeskoAtlasPixels: false);
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -337,6 +339,9 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private static bool IsSideJeskoBadgeRenderer(Renderer renderer, Material material) =>
         renderer.name.IndexOf("BODY_mm_badges", StringComparison.OrdinalIgnoreCase) >= 0 &&
         material.name.IndexOf("Exterior_mm_badges1", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool IsBodyExteriorAtlas(Material material) =>
+        material.name.IndexOf("Exterior_mm_ext1", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private void ReleaseRuntimePaintTextures()
     {
@@ -579,7 +584,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         internal static ExteriorContrastTexture? Create(
             Material sourceMaterial,
             bool tintNonAccentPixels,
-            bool recolorNeutralPixels)
+            bool recolorNeutralPixels,
+            bool recolorSideJeskoAtlasPixels)
         {
             var sourceTexture = FindBaseTexture(sourceMaterial);
             if (sourceTexture == null)
@@ -645,8 +651,19 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 var yellowGreenAccent = hue >= 0.14f && hue <= 0.38f &&
                                         saturation > 0.30f && value > 0.18f;
                 var neutralJeskoLettering = recolorNeutralPixels && saturation < 0.25f;
+                // The two side "Jesko" scripts are UV-mirrored from the pale
+                // lettering at the upper-right edge of the shared body atlas.
+                // Select only those bright neutral glyph pixels so the broad
+                // painted body island beneath them is not recolored.
+                var pixelX = index % sourceTexture.width;
+                var pixelY = index / sourceTexture.width;
+                var sideJeskoLettering = recolorSideJeskoAtlasPixels &&
+                                         pixelX >= sourceTexture.width * 0.83f &&
+                                         pixelY >= sourceTexture.height * 0.968f &&
+                                         saturation < 0.25f && value > 0.48f;
                 accentPixels[index] = source.a > 0.01f &&
-                                      (yellowGreenAccent || neutralJeskoLettering);
+                                      (yellowGreenAccent || neutralJeskoLettering ||
+                                       sideJeskoLettering);
             }
 
             return new ExteriorContrastTexture(
