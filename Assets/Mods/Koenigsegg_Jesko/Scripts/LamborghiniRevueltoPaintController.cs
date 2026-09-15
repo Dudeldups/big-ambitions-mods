@@ -19,6 +19,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private readonly Dictionary<Material, CaliperPaintTexture> caliperTextures =
         new Dictionary<Material, CaliperPaintTexture>();
+    private readonly Dictionary<Material, ExteriorContrastTexture> bodyPaintTextures =
+        new Dictionary<Material, ExteriorContrastTexture>();
     private readonly Dictionary<Material, ExteriorContrastTexture> exteriorContrastTextures =
         new Dictionary<Material, ExteriorContrastTexture>();
     private VehicleController? vehicle;
@@ -82,7 +84,13 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                     continue;
                 if (material.name.IndexOf(BodyMaterialMarker, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    slots.Add(new PaintSlot(renderer, material, index, PaintCategory.Body));
+                    var bodyTexture = GetOrCreateBodyPaintTexture(renderer, index, material);
+                    slots.Add(new PaintSlot(
+                        renderer,
+                        bodyTexture?.Material ?? material,
+                        index,
+                        PaintCategory.Body,
+                        bodyPaintTexture: bodyTexture));
                     bodySlots++;
                 }
                 else if (IsCaliperRenderer(renderer.transform))
@@ -149,6 +157,12 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         selectedColor.a = 1f;
         foreach (var slot in slots)
         {
+            if (slot.Category == PaintCategory.Body && slot.BodyPaintTexture != null)
+            {
+                slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
+                slot.BodyPaintTexture.Apply(selectedColor);
+                continue;
+            }
             if (slot.Category == PaintCategory.Caliper && slot.CaliperTexture != null)
             {
                 slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
@@ -222,6 +236,30 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         return false;
     }
 
+    private ExteriorContrastTexture? GetOrCreateBodyPaintTexture(
+        Renderer renderer,
+        int materialIndex,
+        Material sourceMaterial)
+    {
+        if (!bodyPaintTextures.TryGetValue(sourceMaterial, out var state))
+        {
+            state = ExteriorContrastTexture.Create(sourceMaterial, tintNonAccentPixels: true);
+            if (state == null)
+            {
+                context?.Logger.Warn(
+                    $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: body " +
+                    $"texture unavailable material='{sourceMaterial.name}'; using property-block fallback.");
+                return null;
+            }
+            bodyPaintTextures.Add(sourceMaterial, state);
+        }
+
+        var materials = renderer.sharedMaterials;
+        materials[materialIndex] = state.Material;
+        renderer.sharedMaterials = materials;
+        return state;
+    }
+
     private ExteriorContrastTexture? GetOrCreateExteriorContrastTexture(
         Renderer renderer,
         int materialIndex,
@@ -229,7 +267,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     {
         if (!exteriorContrastTextures.TryGetValue(sourceMaterial, out var state))
         {
-            state = ExteriorContrastTexture.Create(sourceMaterial);
+            state = ExteriorContrastTexture.Create(sourceMaterial, tintNonAccentPixels: false);
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -274,6 +312,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         }
         caliperTextures.Clear();
 
+        foreach (var state in bodyPaintTextures.Values)
+            state?.Dispose();
+        bodyPaintTextures.Clear();
+
         foreach (var state in exteriorContrastTextures.Values)
             state?.Dispose();
         exteriorContrastTextures.Clear();
@@ -305,6 +347,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             int materialIndex,
             PaintCategory category,
             CaliperPaintTexture? caliperTexture = null,
+            ExteriorContrastTexture? bodyPaintTexture = null,
             ExteriorContrastTexture? exteriorContrastTexture = null)
         {
             Renderer = renderer;
@@ -312,6 +355,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             MaterialIndex = materialIndex;
             Category = category;
             CaliperTexture = caliperTexture;
+            BodyPaintTexture = bodyPaintTexture;
             ExteriorContrastTexture = exteriorContrastTexture;
         }
 
@@ -320,6 +364,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         internal readonly int MaterialIndex;
         internal readonly PaintCategory Category;
         internal readonly CaliperPaintTexture? CaliperTexture;
+        internal readonly ExteriorContrastTexture? BodyPaintTexture;
         internal readonly ExteriorContrastTexture? ExteriorContrastTexture;
     }
 
@@ -474,17 +519,25 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     {
         private readonly Color32[] sourcePixels;
         private readonly Texture2D texture;
+        private readonly bool tintNonAccentPixels;
 
-        private ExteriorContrastTexture(Material material, Texture2D texture, Color32[] sourcePixels)
+        private ExteriorContrastTexture(
+            Material material,
+            Texture2D texture,
+            Color32[] sourcePixels,
+            bool tintNonAccentPixels)
         {
             Material = material;
             this.texture = texture;
             this.sourcePixels = sourcePixels;
+            this.tintNonAccentPixels = tintNonAccentPixels;
         }
 
         internal Material Material { get; }
 
-        internal static ExteriorContrastTexture? Create(Material sourceMaterial)
+        internal static ExteriorContrastTexture? Create(
+            Material sourceMaterial,
+            bool tintNonAccentPixels)
         {
             var sourceTexture = FindBaseTexture(sourceMaterial);
             if (sourceTexture == null)
@@ -509,7 +562,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                     true,
                     false)
                 {
-                    name = sourceTexture.name + "_RuntimeExteriorContrast",
+                    name = sourceTexture.name +
+                           (tintNonAccentPixels
+                               ? "_RuntimeBodyContrast"
+                               : "_RuntimeExteriorContrast"),
                     hideFlags = HideFlags.DontSave,
                     filterMode = sourceTexture.filterMode,
                     wrapMode = sourceTexture.wrapMode,
@@ -529,7 +585,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             }
 
             var runtimeMaterial = UnityEngine.Object.Instantiate(sourceMaterial);
-            runtimeMaterial.name = sourceMaterial.name + "_RuntimeExteriorContrast";
+            runtimeMaterial.name = sourceMaterial.name +
+                                   (tintNonAccentPixels
+                                       ? "_RuntimeBodyContrast"
+                                       : "_RuntimeExteriorContrast");
             runtimeMaterial.hideFlags = HideFlags.DontSave;
             SetTexture(runtimeMaterial, "_BaseColorMap", readable);
             SetTexture(runtimeMaterial, "_MainTex", readable);
@@ -538,7 +597,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             return new ExteriorContrastTexture(
                 runtimeMaterial,
                 readable,
-                readable.GetPixels32());
+                readable.GetPixels32(),
+                tintNonAccentPixels);
         }
 
         internal void Apply(Color paint)
@@ -550,15 +610,20 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             for (var index = 0; index < sourcePixels.Length; index++)
             {
                 var source = (Color)sourcePixels[index];
-                Color.RGBToHSV(source, out _, out var saturation, out var value);
+                Color.RGBToHSV(source, out var hue, out var saturation, out var value);
                 var yellowGreenAccent = source.a > 0.01f &&
-                                        source.g > source.r * 1.02f &&
-                                        source.g > source.b * 1.20f &&
-                                        saturation > 0.25f &&
+                                        hue >= 0.14f && hue <= 0.38f &&
+                                        saturation > 0.30f &&
                                         value > 0.18f;
                 if (!yellowGreenAccent)
                 {
-                    output[index] = sourcePixels[index];
+                    output[index] = tintNonAccentPixels
+                        ? new Color(
+                            source.r * paint.r,
+                            source.g * paint.g,
+                            source.b * paint.b,
+                            source.a)
+                        : sourcePixels[index];
                     continue;
                 }
 
