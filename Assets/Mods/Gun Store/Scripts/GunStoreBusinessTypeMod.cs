@@ -253,13 +253,10 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     {
         context.Logger.Info(
             "Gun Store city integration loaded with AI-rival and layout-cache patches disabled; " +
-            "product visual mappings are limited to base-game showcase fixtures.");
+            "global showcase-fixture mappings are disabled while customer navigation is repaired.");
 
         for (var i = 0; i < 6; i++)
         {
-            if (i == 0)
-                PatchShowcaseShelves(context);
-
             AddToImporter();
             PatchImportPartnerships();
             PatchConsumerGoodsWorkstation();
