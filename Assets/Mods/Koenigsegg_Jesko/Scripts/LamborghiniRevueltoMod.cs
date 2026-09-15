@@ -84,10 +84,10 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
 
 internal static class KoenigseggJeskoDiagnostics
 {
-    // Repaint and warehouse-transition diagnostics remain enabled for their
-    // initial runtime validation. Established systems stay quiet in release.
+    // Warehouse-transition diagnostics remain enabled for initial runtime
+    // validation. Repaint is confirmed and now stays quiet in release.
     internal static bool DebugEnabled { get; set; } = false;
-    internal static bool PaintDebugEnabled { get; set; } = true;
+    internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool WarehouseTransitionDebugEnabled { get; set; } = true;
     internal static bool TelemetryEnabled { get; set; } = false;
 

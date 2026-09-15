@@ -2382,6 +2382,7 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         if (!initialized || collision == null || Time.unscaledTime < nextCollisionTime ||
+            collision.collider.GetComponentInParent<DriveInEntrance>() != null ||
             collision.relativeVelocity.magnitude < impactThresholdMps ||
             !NWH.VehiclePhysics2.Damage.DamageHandler.IsCollisionValid(collision))
             return;
