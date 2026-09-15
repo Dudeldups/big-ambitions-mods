@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 458368740
+CRC: 3730770908
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: dcd0defd2f67a9f3b16db27c0028aefd
+    Hash: e20f3b29603758ba8c66cae58f14575d
   TypeTreeHash:
     serializedVersion: 2
     Hash: df156dd73d9e55c283e9dd6005ca0a10
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: dcd0defd2f67a9f3b16db27c0028aefd
+    Hash: e20f3b29603758ba8c66cae58f14575d
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -237,7 +237,6 @@ Assets:
 - Assets/Mods/Koenigsegg_Jesko/Config/Audio/EngineHighLoad.wav
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_05_jeskoVehicle_Exterior_mm_cab1.mat
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_12_phong2.mat
-- Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMeshes/KoenigseggDamageBody.asset
 - Assets/Mods/Koenigsegg_Jesko/Config/THIRD_PARTY_NOTICES.txt
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_14_phong8.mat
 - Assets/Mods/Koenigsegg_Jesko/Models/GeneratedMaterials/KoenigseggOpaque_03_jeskoVehicle_Exterior_mm_misc1.mat

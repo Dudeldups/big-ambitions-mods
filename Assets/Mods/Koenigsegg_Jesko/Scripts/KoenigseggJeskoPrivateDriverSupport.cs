@@ -276,7 +276,6 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         var requiredVisuals = new[]
         {
             "KoenigseggVisual",
-            "KoenigseggDamageBody",
             "KoenigseggWheelFrontLeft",
             "KoenigseggWheelFrontRight",
             "KoenigseggWheelRearLeft",
@@ -333,7 +332,7 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         }
 
         context?.Logger.Info(
-            "KoenigseggJesko private-driver prefab prepared with body, damage body, " +
+            "KoenigseggJesko private-driver prefab prepared with in-place body, " +
             "four wheels, and four fixed calipers.");
         return clone;
     }
@@ -362,24 +361,16 @@ internal static class KoenigseggJeskoPrivateDriverSupport
             }
         }
 
-        if (damageFilter == null || damageRenderer == null ||
-            sourceFilter == null || sourceRenderer == null || sourceFilter.sharedMesh == null)
+        if (sourceFilter == null || sourceRenderer == null || sourceFilter.sharedMesh == null)
         {
             context?.Logger.Warn(
                 "KoenigseggJesko private-driver body shell repair skipped: " +
-                "normal BODY_mm_ext source or damage body is missing.");
+                "normal BODY_mm_ext source is missing.");
             return;
         }
-
-        var owner = clone.GetComponent<KoenigseggJeskoDamageBodyMeshController>() ??
-                    clone.AddComponent<KoenigseggJeskoDamageBodyMeshController>();
-        owner.Initialize(
-            clone,
-            damageFilter,
-            damageRenderer,
-            sourceFilter,
-            sourceRenderer,
-            context);
+        sourceRenderer.enabled = sourceRenderer.sharedMaterials.Length > 0;
+        if (damageRenderer != null)
+            damageRenderer.enabled = false;
     }
 
     private static GameObject? LoadAiTemplate()

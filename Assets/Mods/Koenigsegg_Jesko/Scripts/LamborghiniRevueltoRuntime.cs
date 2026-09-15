@@ -18,12 +18,15 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1420f;
-    // Calibrated from the user's measured runs: 955 kW produced 0-100 in
-    // 1.58-1.75 s and 0-200 in 3.66-3.96 s in this physics model.
-    private const float EnginePowerKw = 620f;
-    private const float BrakeTorque = 6500f;
+    // Calibrated from the user's measured runs: the prior 620 kW gameplay
+    // value produced 0-100 in 1.84-1.86 s, 0-200 in 5.01-5.29 s, and the
+    // prior 6500 brake value repeatedly exceeded 2.5 g.
+    private const float EnginePowerKw = 500f;
+    private const float BrakeTorque = 3400f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8500f;
+    private const float MinimumHealthyEngineRpm = 300f;
+    private const int EngineStartAttemptCount = 3;
     private const float SpeedLimitKph = 480f;
     private const float FinalDriveRatio = 3.25f;
     private const float EngineInertia = 0.09f;
@@ -254,73 +257,68 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private IEnumerator ActivateEnteredVehicle(VehicleController vehicle)
     {
-        const int maximumWaitPasses = 500;
-        const int stabilizationPasses = 4;
-        yield return null;
-
-        var rigidbody = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
-        var physics = vehicle.GetComponent<PhysicsVehicle>();
-        var acquiredControl = false;
-        for (var pass = 0; pass < maximumWaitPasses; pass++)
+        // Match the proven BMW dealer-entry recovery. Native entry can report a
+        // running engine while RPM is still zero, which produces no wheel torque
+        // until the next entry unless the whole start transition is replayed.
+        yield return new WaitForSecondsRealtime(0.25f);
+        var physics = vehicle == null
+            ? null
+            : vehicle.GetComponent<PhysicsVehicle>() ??
+              vehicle.GetComponentInChildren<PhysicsVehicle>(true);
+        if (physics == null)
         {
-            yield return new WaitForFixedUpdate();
-            if (vehicle == null)
+            context?.Logger.Warn(
+                $"KoenigseggJesko: post-entry drivetrain unavailable vehicle={vehicle?.GetInstanceID()}.");
+            enteredVehicleActivationCoroutine = null;
+            yield break;
+        }
+
+        var engine = physics.powertrain.engine;
+        var transmission = physics.powertrain.transmission;
+        for (var attempt = 1; attempt <= EngineStartAttemptCount; attempt++)
+        {
+            if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+                break;
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
+            if (engine.IsRunning && engine.ignition && engine.canRun &&
+                rpm >= MinimumHealthyEngineRpm)
             {
+                vehicle.SetFreeze(false);
+                physics.enabled = true;
+                if (transmission.Gear <= 0)
+                    transmission.ShiftInto(1, true);
+                var body = vehicle.GetComponent<Rigidbody>() ?? vehicle.GetComponentInParent<Rigidbody>();
+                if (body != null)
+                {
+                    body.isKinematic = false;
+                    body.WakeUp();
+                }
+                context?.Logger.Info(
+                    $"KoenigseggJesko: post-entry drivetrain ready vehicle={vehicle.GetInstanceID()} " +
+                    $"attempt={attempt} running={engine.IsRunning} rpm={rpm:0} gear={transmission.Gear}.");
                 enteredVehicleActivationCoroutine = null;
                 yield break;
             }
-            if (!vehicle.controlledByPlayer)
-                continue;
 
-            acquiredControl = true;
-            for (var stabilizationPass = 0;
-                 stabilizationPass < stabilizationPasses;
-                 stabilizationPass++)
-            {
-                vehicle.SetFreeze(false);
-                if (physics != null)
-                    physics.enabled = true;
-                foreach (var component in vehicle.GetComponentsInChildren<MonoBehaviour>(true))
-                {
-                    if (component != null && string.Equals(
-                            component.GetType().FullName,
-                            "NWH.WheelController3D.WheelController",
-                            StringComparison.Ordinal))
-                    {
-                        component.enabled = true;
-                    }
-                }
-                if (rigidbody != null)
-                {
-                    rigidbody.isKinematic = false;
-                    rigidbody.WakeUp();
-                }
-
-                var engine = physics?.powertrain?.engine;
-                var transmission = physics?.powertrain?.transmission;
-                if (engine != null && !engine.IsRunning)
-                    engine.StartEngine();
-                if (transmission != null && transmission.Gear <= 0)
-                    transmission.ShiftInto(1, true);
-                yield return new WaitForFixedUpdate();
-            }
-            break;
+            engine.StopEngine();
+            transmission.ShiftInto(0, true);
+            transmission.currentGearRatio = 0f;
+            yield return new WaitForSecondsRealtime(0.15f);
+            if (vehicle == null || !vehicle.controlledByPlayer)
+                break;
+            engine.StartEngine();
+            yield return new WaitForSecondsRealtime(0.75f);
+            if (vehicle != null && vehicle.controlledByPlayer)
+                transmission.ShiftInto(1, true);
+            yield return new WaitForSecondsRealtime(0.15f);
         }
 
         enteredVehicleActivationCoroutine = null;
-        var finalEngine = physics?.powertrain?.engine;
-        var finalTransmission = physics?.powertrain?.transmission;
-        var message =
-            $"KoenigseggJesko: dealer entry activation {(acquiredControl ? "completed" : "timed out")} " +
-            $"instance={vehicle.GetInstanceID()}, " +
-            $"physicsEnabled={physics?.enabled ?? false}, " +
-            $"isKinematic={rigidbody?.isKinematic ?? false}, " +
-            $"engineRunning={finalEngine?.IsRunning ?? false}, gear={finalTransmission?.Gear ?? -99}, " +
-            $"controlledByPlayer={vehicle.controlledByPlayer}.";
-        if (acquiredControl)
-            context?.Logger.Info(message);
-        else
-            context?.Logger.Warn(message);
+        var finalRpm = engine.RPMPercent * engine.revLimiterRPM;
+        context?.Logger.Warn(
+            $"KoenigseggJesko: post-entry drivetrain remained unavailable " +
+            $"vehicle={vehicle?.GetInstanceID()} controlled={vehicle?.controlledByPlayer} " +
+            $"running={engine.IsRunning} rpm={finalRpm:0} gear={transmission.Gear}.");
     }
 
     private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
@@ -765,14 +763,11 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static bool HasVehicleVisualsReady(GameObject root)
     {
         var wheelControllers = 0;
-        var hasDamageBody = false;
         var hasNormalBody = false;
         foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
         {
             if (filter == null || filter.sharedMesh == null)
                 continue;
-            if (string.Equals(filter.name, "KoenigseggDamageBody", StringComparison.Ordinal))
-                hasDamageBody = true;
             if (filter.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) >= 0 &&
                 filter.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0)
                 hasNormalBody = true;
@@ -782,7 +777,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             if (transform.name.EndsWith("_WheelController", StringComparison.Ordinal))
                 wheelControllers++;
         }
-        return wheelControllers >= 4 && hasDamageBody && hasNormalBody;
+        return wheelControllers >= 4 && hasNormalBody;
     }
 
     private bool TryConfigureVehicle(VehicleController? vehicle)
@@ -808,7 +803,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 if (configurationReadinessWarnings.Add(instanceId))
                     context?.Logger.Warn(
                         $"KoenigseggJesko: dealer vehicle instance={instanceId} is still settling; " +
-                        "deferring model-dependent setup until wheels, damage body, and normal shell exist.");
+                        "deferring model-dependent setup until wheels and the normal shell exist.");
                 return false;
             }
 
@@ -829,7 +824,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             var disabledBonnetCamera = DisableBonnetCameraGeometry(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
             var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
-            var repairedBodyShell = RepairDamageBodyFromMainShell(vehicle.gameObject);
+            var repairedBodyShell = UseAuthoredBodyShell(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
             if (caliperController == null)
@@ -894,7 +889,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"navMeshObstacles={normalizedNavMeshObstacles}, " +
                 $"disabledFallbackChassis={disabledFallbackChassis}, " +
                 $"disabledBonnetCamera={disabledBonnetCamera}, " +
-                $"bakedBodyShellRestored={repairedBodyShell}, " +
+                $"authoredBodyShell={repairedBodyShell}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
@@ -1033,7 +1028,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         return disabled;
     }
 
-    private bool RepairDamageBodyFromMainShell(GameObject root)
+    private bool UseAuthoredBodyShell(GameObject root)
     {
         MeshFilter? damageFilter = null;
         MeshRenderer? damageRenderer = null;
@@ -1058,26 +1053,25 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         var sourceFilter = sourceRenderer?.GetComponent<MeshFilter>();
-        if (damageFilter == null || damageRenderer == null ||
-            sourceRenderer == null || sourceFilter?.sharedMesh == null)
+        if (sourceRenderer == null || sourceFilter?.sharedMesh == null)
         {
             context?.Logger.Warn(
                 $"KoenigseggJesko body vehicle={root.GetInstanceID()}: " +
-                "normal BODY_mm_ext shell was not found; retained existing damage body.");
+                "normal BODY_mm_ext shell was not found.");
             return false;
         }
 
-        // The source renderer is intentionally stripped after its geometry is
-        // baked into the root-local deformable shell. Re-enabling it leaves an
-        // invisible body because it has no serialized materials.
-        sourceRenderer.enabled = false;
-        damageRenderer.enabled = damageFilter.sharedMesh != null &&
-                                 damageRenderer.sharedMaterials.Length > 0;
+        // Keep deformation on the authored body in its original transform.
+        // A second root-local shell cannot remain aligned with this imported
+        // hierarchy and was the source of the upside-down duplicate chassis.
+        sourceRenderer.enabled = sourceRenderer.sharedMaterials.Length > 0;
+        if (damageRenderer != null)
+            damageRenderer.enabled = false;
         context?.Logger.Info(
-            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: restored baked deformable " +
-            $"shell visible={damageRenderer.enabled}, mesh='{damageFilter.sharedMesh?.name}', " +
-            $"materials={damageRenderer.sharedMaterials.Length}; stripped source retained disabled.");
-        return damageRenderer.enabled;
+            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: using authored in-place shell " +
+            $"visible={sourceRenderer.enabled}, mesh='{sourceFilter.sharedMesh.name}', " +
+            $"materials={sourceRenderer.sharedMaterials.Length}; duplicate damage shell disabled.");
+        return sourceRenderer.enabled;
     }
 
     private static void ConfigureExitMarkers(GameObject root)
@@ -1270,7 +1264,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     {
         var name = filter.name;
         if (name.StartsWith("KoenigseggDamageBody", StringComparison.Ordinal))
-            return true;
+            return false;
         if (name.StartsWith("KoenigseggJesko_", StringComparison.Ordinal))
             return true;
         if (name.IndexOf("_INT_", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -1514,89 +1508,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         return null;
-    }
-}
-
-[AddComponentMenu("")]
-internal sealed class KoenigseggJeskoDamageBodyMeshController : MonoBehaviour
-{
-    private Mesh? runtimeMesh;
-    private bool initialized;
-
-    internal void Initialize(
-        GameObject root,
-        MeshFilter damageFilter,
-        MeshRenderer damageRenderer,
-        MeshFilter sourceFilter,
-        MeshRenderer sourceRenderer,
-        ModContext? context)
-    {
-        if (initialized)
-            return;
-
-        var sourceMesh = sourceFilter.sharedMesh;
-        if (sourceMesh == null)
-            throw new InvalidOperationException("Normal body shell has no mesh.");
-
-        runtimeMesh = Instantiate(sourceMesh);
-        runtimeMesh.name = "KoenigseggDamageBody_RuntimeMainShell";
-        var sourceToRoot = root.transform.worldToLocalMatrix *
-                           sourceFilter.transform.localToWorldMatrix;
-        var vertices = runtimeMesh.vertices;
-        for (var index = 0; index < vertices.Length; index++)
-            vertices[index] = sourceToRoot.MultiplyPoint3x4(vertices[index]);
-        runtimeMesh.vertices = vertices;
-
-        var normals = runtimeMesh.normals;
-        if (normals.Length == vertices.Length)
-        {
-            var normalMatrix = sourceToRoot.inverse.transpose;
-            for (var index = 0; index < normals.Length; index++)
-                normals[index] = normalMatrix.MultiplyVector(normals[index]).normalized;
-            runtimeMesh.normals = normals;
-        }
-
-        var tangents = runtimeMesh.tangents;
-        if (tangents.Length == vertices.Length)
-        {
-            var tangentMatrix = sourceToRoot;
-            for (var index = 0; index < tangents.Length; index++)
-            {
-                var tangent = tangents[index];
-                var direction = tangentMatrix.MultiplyVector(
-                    new Vector3(tangent.x, tangent.y, tangent.z)).normalized;
-                tangents[index] = new Vector4(direction.x, direction.y, direction.z, tangent.w);
-            }
-            runtimeMesh.tangents = tangents;
-        }
-
-        runtimeMesh.RecalculateBounds();
-        runtimeMesh.UploadMeshData(false);
-        damageFilter.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-        damageFilter.transform.localScale = Vector3.one;
-        damageFilter.sharedMesh = runtimeMesh;
-        damageRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
-        damageRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-        damageRenderer.receiveShadows = sourceRenderer.receiveShadows;
-        damageRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
-        damageRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
-        damageRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
-        damageRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
-        damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
-        sourceRenderer.enabled = false;
-        sourceRenderer.sharedMaterials = Array.Empty<Material>();
-        initialized = true;
-        context?.Logger.Info(
-            $"KoenigseggJesko body vehicle={root.GetInstanceID()}: replaced stale damage shell " +
-            $"with normal source='{sourceRenderer.name}', vertices={vertices.Length}, " +
-            "bonnet-camera geometry excluded.");
-    }
-
-    private void OnDestroy()
-    {
-        if (runtimeMesh != null)
-            Destroy(runtimeMesh);
-        runtimeMesh = null;
     }
 }
 

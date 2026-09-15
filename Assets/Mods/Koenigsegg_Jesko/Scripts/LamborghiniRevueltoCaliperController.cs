@@ -35,21 +35,8 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
                         throw new InvalidOperationException($"Caliper pivot '{pivotName}' is missing.");
             var wheel = FindTransform(controller.transform, wheelName) ??
                         throw new InvalidOperationException($"Wheel visual '{wheelName}' is missing.");
-            var positionOffset = CenterPivotWithoutMovingGeometry(
-                pivot,
-                wheel,
-                controller.transform);
-            // Front calipers sit slightly inboard of the disc centre; the rear
-            // calipers are forward-mounted. These are fixed measured offsets,
-            // applied in the controller's upright space rather than inferred
-            // from a rolling mesh each frame.
-            positionOffset += index switch
-            {
-                0 or 1 => new Vector3(0f, 0f, -0.08f),
-                2 or 3 => new Vector3(0f, 0f, 0.12f),
-                _ => Vector3.zero,
-            };
-            bindings.Add(new CaliperBinding(pivot, wheel, positionOffset));
+            CenterPivotWithoutMovingGeometry(pivot, wheel, controller.transform.rotation);
+            bindings.Add(new CaliperBinding(pivot, wheel));
         }
 
         ApplyBindings();
@@ -86,18 +73,16 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
                 continue;
             }
 
-            var uprightRotation =
-                vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f);
             binding.Pivot.SetPositionAndRotation(
-                binding.Wheel.position + uprightRotation * binding.PositionOffset,
-                uprightRotation);
+                binding.Wheel.position,
+                vehicleTransform.rotation * Quaternion.Euler(0f, steeringAngle, 0f));
         }
     }
 
-    private static Vector3 CenterPivotWithoutMovingGeometry(
+    private static void CenterPivotWithoutMovingGeometry(
         Transform pivot,
         Transform wheel,
-        Transform chassis)
+        Quaternion chassisRotation)
     {
         var childPositions = new Vector3[pivot.childCount];
         var childRotations = new Quaternion[pivot.childCount];
@@ -107,35 +92,9 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
             childRotations[index] = pivot.GetChild(index).rotation;
         }
 
-        pivot.SetPositionAndRotation(wheel.position, chassis.rotation);
+        pivot.SetPositionAndRotation(wheel.position, chassisRotation);
         for (var index = 0; index < pivot.childCount; index++)
             pivot.GetChild(index).SetPositionAndRotation(childPositions[index], childRotations[index]);
-
-        var boundsFound = false;
-        var bounds = default(Bounds);
-        foreach (var renderer in pivot.GetComponentsInChildren<Renderer>(true))
-        {
-            if (renderer == null)
-                continue;
-            if (!boundsFound)
-            {
-                bounds = renderer.bounds;
-                boundsFound = true;
-            }
-            else
-            {
-                bounds.Encapsulate(renderer.bounds);
-            }
-        }
-
-        if (boundsFound)
-        {
-            var delta = chassis.up * Vector3.Dot(wheel.position - bounds.center, chassis.up) +
-                        chassis.forward * Vector3.Dot(wheel.position - bounds.center, chassis.forward);
-            pivot.position += delta;
-        }
-
-        return chassis.InverseTransformVector(pivot.position - wheel.position);
     }
 
     private static Transform? FindTransform(Transform root, string name)
@@ -150,16 +109,14 @@ internal sealed class KoenigseggJeskoCaliperController : MonoBehaviour
 
     private sealed class CaliperBinding
     {
-        public CaliperBinding(Transform pivot, Transform wheel, Vector3 positionOffset)
+        public CaliperBinding(Transform pivot, Transform wheel)
         {
             Pivot = pivot;
             Wheel = wheel;
-            PositionOffset = positionOffset;
         }
 
         public Transform Pivot { get; }
         public Transform Wheel { get; }
-        public Vector3 PositionOffset { get; }
     }
 }
 

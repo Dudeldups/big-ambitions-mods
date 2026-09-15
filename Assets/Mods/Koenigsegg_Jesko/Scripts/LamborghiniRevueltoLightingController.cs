@@ -42,7 +42,7 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
     private MeshRenderer? rearTailRightOverlay;
     private MeshRenderer? brakeLeftOverlay;
     private MeshRenderer? brakeRightOverlay;
-    private MeshRenderer? thirdBrakeOverlay;
+    private MeshRenderer? centerRunningOverlay;
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
     private MeshRenderer? rightBlinkerOverlay;
@@ -86,30 +86,26 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         secondaryHeadlampOverlay = CreateDirectionalFilteredOverlay(secondaryHeadlamp,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "HeadlampSecondary", new Color(0.84f, 0.92f, 1f, 1f), 3.8f, 1.001f);
-        // The running and brake states use the broad red lamp components. The
-        // smaller inner components are the amber indicators; lower bumper
-        // reflectors remain excluded from every powered state.
-        rearTailLeftOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
-            (_, triangleCount) => triangleCount >= 20,
-            "RearTailSignatureLeft", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
-        rearTailRightOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
-            (_, triangleCount) => triangleCount >= 20,
-            "RearTailSignatureRight", new Color(0.78f, 0.006f, 0.002f, 1f), 1.45f, 1.002f);
+        // The single center lamp is the Jesko's rear running lamp. The outer
+        // assemblies do not glow as one lens: their inner connected faces are
+        // brake emitters and their existing smaller faces are indicators.
+        rearTailLeftOverlay = null;
+        rearTailRightOverlay = null;
         brakeLeftOverlay = CreateConnectedComponentFilteredOverlay(brakeLeft,
-            (_, triangleCount) => triangleCount >= 20,
+            (_, triangleCount) => triangleCount == 13,
             "RearBrakeSignatureLeft", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         brakeRightOverlay = CreateConnectedComponentFilteredOverlay(brakeRight,
-            (_, triangleCount) => triangleCount >= 20,
+            (_, triangleCount) => triangleCount == 13,
             "RearBrakeSignatureRight", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
-        thirdBrakeOverlay = CreateFilteredOverlay(thirdBrake,
+        centerRunningOverlay = CreateFilteredOverlay(thirdBrake,
             center => Mathf.Abs(center.x) < 0.15f && center.y > 0.58f,
-            "ThirdBrakeLight",
-            new Color(1f, 0.008f, 0.001f, 1f), 4.5f, 1.004f);
+            "CenterRearRunningLight",
+            new Color(0.78f, 0.006f, 0.002f, 1f), 1.7f, 1.004f);
         reverseOverlay = CreateFilteredOverlay(reverseLight,
-            center => Mathf.Abs(center.x) < 0.24f && center.y > 0.50f,
+            center => Mathf.Abs(center.x) < 0.14f && center.y > 0.36f && center.y < 0.44f,
             "ReverseLight",
             new Color(0.92f, 0.96f, 1f, 1f), 4.8f, 1.002f);
-        var amber = new Color(1f, 0.18f, 0.001f, 1f);
+        var amber = new Color(1f, 0.42f, 0.001f, 1f);
         leftBlinkerOverlay = CreateDirectionalFilteredOverlay(leftBlinker,
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "LeftIndicator", amber, 4.5f, 1.003f);
@@ -117,10 +113,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
             (center, normal) => Mathf.Abs(center.x) < 0.84f && normal.z > 0.20f,
             "RightIndicator", amber, 4.5f, 1.003f);
         rearLeftBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailLeft,
-            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
+            (_, triangleCount) => triangleCount >= 4 && triangleCount < 13,
             "RearLeftIndicator", amber, 5.2f, 1.005f);
         rearRightBlinkerOverlay = CreateConnectedComponentFilteredOverlay(tailRight,
-            (_, triangleCount) => triangleCount >= 4 && triangleCount < 20,
+            (_, triangleCount) => triangleCount >= 4 && triangleCount < 13,
             "RearRightIndicator", amber, 5.2f, 1.005f);
         var beamCount = ConfigureHeadlightBeams();
 
@@ -128,10 +124,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         LogInfo($"initialized front='{daylight?.name}/{headlamp?.name}/{secondaryHeadlamp?.name}' " +
                 $"rear='{rearStrip?.name}' tail='{tailLeft?.name}/{tailRight?.name}' " +
                 $"brake='{brakeLeft?.name}/{brakeRight?.name}' " +
-                $"thirdBrake='{thirdBrake?.name}' " +
+                $"centerRunning='{thirdBrake?.name}' " +
                 $"reverse='{reverseLight?.name}' beams={beamCount}/2 " +
-                $"lampOverlays={CountLampOverlays()}/10 blinkerOverlays={CountBlinkerOverlays()}/4.");
-        if (CountLampOverlays() != 10 || beamCount != 2 || CountBlinkerOverlays() != 4)
+                $"lampOverlays={CountLampOverlays()}/7 blinkerOverlays={CountBlinkerOverlays()}/4.");
+        if (CountLampOverlays() != 7 || beamCount != 2 || CountBlinkerOverlays() != 4)
             LogWarning("lighting setup is incomplete; inspect renderer-name diagnostics.");
         if (blinkers == null)
             LogWarning("VehicleBlinker state source is missing; indicator input cannot be read.");
@@ -471,11 +467,11 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         SetEnabled(daylightOverlay, drlOn);
         SetEnabled(headlampOverlay, lightsOn);
         SetEnabled(secondaryHeadlampOverlay, lightsOn);
-        SetEnabled(rearTailLeftOverlay, lightsOn);
-        SetEnabled(rearTailRightOverlay, lightsOn);
+        SetEnabled(rearTailLeftOverlay, false);
+        SetEnabled(rearTailRightOverlay, false);
         SetEnabled(brakeLeftOverlay, braking);
         SetEnabled(brakeRightOverlay, braking);
-        SetEnabled(thirdBrakeOverlay, braking);
+        SetEnabled(centerRunningOverlay, lightsOn);
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
@@ -502,7 +498,7 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         (secondaryHeadlampOverlay != null ? 1 : 0) +
         (rearTailLeftOverlay != null ? 1 : 0) + (rearTailRightOverlay != null ? 1 : 0) +
         (brakeLeftOverlay != null ? 1 : 0) + (brakeRightOverlay != null ? 1 : 0) +
-        (thirdBrakeOverlay != null ? 1 : 0) +
+        (centerRunningOverlay != null ? 1 : 0) +
         (reverseOverlay != null ? 1 : 0);
 
     private int CountBlinkerOverlays() =>

@@ -331,9 +331,9 @@ Material:
     - roughnessFactor: 0.04723824
     - transmissionFactor: 0
     m_Colors:
-    - _BaseColor: {r: 0.09, g: 0.12, b: 0.15, a: 0.14}
+    - _BaseColor: {r: 0.14, g: 0.19, b: 0.23, a: 0.24}
     - _BaseColorMap_MipInfo: {r: 0, g: 0, b: 0, a: 0}
-    - _Color: {r: 0.09, g: 0.12, b: 0.15, a: 0.14}
+    - _Color: {r: 0.14, g: 0.19, b: 0.23, a: 0.24}
     - _DiffusionProfileAsset: {r: 0, g: 0, b: 0, a: 0}
     - _DoubleSidedConstants: {r: -1, g: -1, b: -1, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}

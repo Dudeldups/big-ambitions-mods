@@ -19,7 +19,7 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     private const float SeatedScale = 0.94f;
     private const float HandHalfSpacing = 0.19f;
     private const float HandForwardOffset = 0.075f;
-    private const float HandHeightOffset = 0.018f;
+    private const float HandHeightOffset = 0.065f;
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
     private const int ExitRecoveryDelayFrames = 3;
@@ -40,7 +40,7 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
         new(0f, -2.85f),
     };
     // Pelvis position relative to the Jesko steering-wheel pivot, in vehicle axes.
-    private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.65f);
+    private static readonly Vector3 SeatOffset = new(0f, -0.34f, -0.55f);
     private const int MaximumAttempts = 20;
     private readonly List<UnityEngine.Object> ownedAssets = new();
     private VehicleController? vehicle;

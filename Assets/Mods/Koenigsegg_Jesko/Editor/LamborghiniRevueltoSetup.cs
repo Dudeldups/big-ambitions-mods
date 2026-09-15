@@ -14,9 +14,6 @@ public static class KoenigseggJeskoSetup
     private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
     private const string ModelPath = ModRoot + "/Models/2020_koenigsegg_jesko.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
-    private const string MeshFolder = ModRoot + "/Models/GeneratedMeshes";
-    private const string DamageBodyMeshPath =
-        MeshFolder + "/KoenigseggDamageBody.asset";
     private const string VehicleAssetPath = ModRoot + "/KoenigseggJesko.asset";
     private const string VehiclePrefabPath = ModRoot + "/KoenigseggJesko.prefab";
     private const string ManifestPath = ModRoot + "/ModManifest.asset";
@@ -33,8 +30,8 @@ public static class KoenigseggJeskoSetup
     private const float AntiRollBarForce = 7800f;
     private const float FrontSuspensionTravel = 0.08f;
     private const float RearSuspensionTravel = 0.06f;
-    private const float EffectiveEnginePowerKw = 620f;
-    private const float BrakeTorque = 6500f;
+    private const float EffectiveEnginePowerKw = 500f;
+    private const float BrakeTorque = 3400f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
     private const float FrontWheelForwardOffset = 0.06f;
@@ -74,10 +71,11 @@ public static class KoenigseggJeskoSetup
     private static AnimationCurve CreateJeskoPowerCurve() =>
         new AnimationCurve(
             new Keyframe(0f, 0f),
-            new Keyframe(0.20f, 0.14f),
-            new Keyframe(0.48f, 0.34f),
-            new Keyframe(0.76f, 0.72f),
-            new Keyframe(0.90f, 1f),
+            new Keyframe(0.106f, 0.02f),
+            new Keyframe(0.318f, 0.296f),
+            new Keyframe(0.480f, 0.447f),
+            new Keyframe(0.726f, 0.676f),
+            new Keyframe(0.918f, 1f),
             new Keyframe(1f, 0.94f));
 
     [MenuItem("Big Ambitions Mods/Setup Koenigsegg Jesko")]
@@ -435,7 +433,7 @@ public static class KoenigseggJeskoSetup
                                     : Color.black;
                             cabinGlassTintValid &= tint.r >= 0.04f &&
                                                    tint.a >= 0.10f &&
-                                                   tint.a <= 0.20f &&
+                                                    tint.a <= 0.30f &&
                                                    (!material.HasProperty("_Smoothness") ||
                                                     material.GetFloat("_Smoothness") >= 0.90f) &&
                                                    (!material.HasProperty("_Metallic") ||
@@ -508,14 +506,9 @@ public static class KoenigseggJeskoSetup
                     meshFilters.GetArrayElementAtIndex(0).objectReferenceValue is MeshFilter bodyFilter)
                 {
                     deformationBodyValid =
-                        string.Equals(
-                            bodyFilter.name,
-                            "KoenigseggDamageBody",
-                            StringComparison.Ordinal) &&
-                        bodyFilter.transform.parent == prefab.transform &&
-                        bodyFilter.transform.localPosition.sqrMagnitude < 0.000001f &&
-                        Quaternion.Angle(bodyFilter.transform.localRotation, Quaternion.identity) < 0.01f &&
-                        Vector3.Distance(bodyFilter.transform.localScale, Vector3.one) < 0.0001f &&
+                        bodyFilter.name.IndexOf("BODY_mm_ext", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        bodyFilter.name.IndexOf("BONNETCAM", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        bodyFilter.GetComponent<MeshRenderer>()?.enabled == true &&
                         bodyFilter.sharedMesh != null &&
                         bodyFilter.sharedMesh.isReadable;
                 }
@@ -609,9 +602,9 @@ public static class KoenigseggJeskoSetup
                 $"frontTrack={frontTrack:F3}, rearTrack={rearTrack:F3}, " +
                 $"stableCenterOfMass=true, tireFriction={TireFrictionCircleStrength:F2}, " +
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
-                $"damageBody=runtime-end-assembly, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
+                $"damageBody=in-place-authored-shell, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
                 $"launchResponse=true, " +
-                $"continuousTailLight=true, thirdBrakeLight=true, blinkers=4, " +
+                $"centerRearRunningLight=true, segmentedBrakeLights=true, blinkers=4, " +
                 $"headlightTemplate=true, transparentSingleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
                 $"calipersPainted=true, rimsFactoryColor=true, rimFinish=balanced-matte-graphite, " +
@@ -1207,77 +1200,12 @@ public static class KoenigseggJeskoSetup
         if (sourceRenderer == null || sourceFilter?.sharedMesh == null)
             throw new InvalidOperationException("The Koenigsegg outer body mesh was not found.");
 
-        if (!AssetDatabase.IsValidFolder(MeshFolder))
-            AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMeshes");
-
-        var bakedMesh = UnityEngine.Object.Instantiate(sourceFilter.sharedMesh);
-        bakedMesh.name = "KoenigseggDamageBody";
-        var sourceToRoot = root.transform.worldToLocalMatrix * sourceFilter.transform.localToWorldMatrix;
-
-        var vertices = bakedMesh.vertices;
-        for (var index = 0; index < vertices.Length; index++)
-            vertices[index] = sourceToRoot.MultiplyPoint3x4(vertices[index]);
-        bakedMesh.vertices = vertices;
-
-        var normals = bakedMesh.normals;
-        if (normals.Length == vertices.Length)
-        {
-            var normalMatrix = sourceToRoot.inverse.transpose;
-            for (var index = 0; index < normals.Length; index++)
-                normals[index] = normalMatrix.MultiplyVector(normals[index]).normalized;
-            bakedMesh.normals = normals;
-        }
-
-        var tangents = bakedMesh.tangents;
-        if (tangents.Length == vertices.Length)
-        {
-            for (var index = 0; index < tangents.Length; index++)
-            {
-                var tangent = tangents[index];
-                var direction = sourceToRoot.MultiplyVector(
-                    new Vector3(tangent.x, tangent.y, tangent.z)).normalized;
-                tangents[index] = new Vector4(direction.x, direction.y, direction.z, tangent.w);
-            }
-            bakedMesh.tangents = tangents;
-        }
-        bakedMesh.RecalculateBounds();
-        bakedMesh.UploadMeshData(false);
-
-        var persistentMesh = AssetDatabase.LoadAssetAtPath<Mesh>(DamageBodyMeshPath);
-        if (persistentMesh == null)
-        {
-            AssetDatabase.CreateAsset(bakedMesh, DamageBodyMeshPath);
-            persistentMesh = bakedMesh;
-        }
-        else
-        {
-            EditorUtility.CopySerialized(bakedMesh, persistentMesh);
-            UnityEngine.Object.DestroyImmediate(bakedMesh);
-            EditorUtility.SetDirty(persistentMesh);
-        }
-
-        var damageBody = new GameObject("KoenigseggDamageBody")
-        {
-            layer = sourceRenderer.gameObject.layer,
-        };
-        damageBody.transform.SetParent(root.transform, false);
-        damageBody.transform.localPosition = Vector3.zero;
-        damageBody.transform.localRotation = Quaternion.identity;
-        damageBody.transform.localScale = Vector3.one;
-        var damageFilter = damageBody.AddComponent<MeshFilter>();
-        damageFilter.sharedMesh = persistentMesh;
-        var damageRenderer = damageBody.AddComponent<MeshRenderer>();
-        damageRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
-        damageRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-        damageRenderer.receiveShadows = sourceRenderer.receiveShadows;
-        damageRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
-        damageRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
-        damageRenderer.motionVectorGenerationMode = sourceRenderer.motionVectorGenerationMode;
-        damageRenderer.allowOcclusionWhenDynamic = sourceRenderer.allowOcclusionWhenDynamic;
-        damageRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
-
-        sourceRenderer.enabled = false;
-        return damageFilter;
+        // Preserve the body renderer in its authored hierarchy. The custom
+        // runtime deformation controller works in world space and clones this
+        // mesh per instance, so a second root-local baked shell is unnecessary
+        // and cannot drift or invert relative to the remaining body panels.
+        sourceRenderer.enabled = true;
+        return sourceFilter;
     }
 
     private static void ConfigureVehicleDeformation(GameObject root, MeshFilter bodyFilter)
