@@ -86,7 +86,10 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
 
 internal static class CadillacEscaladeDiagnostics
 {
-    internal static readonly bool DebugEnabled = false;
+    // Keep focused warehouse-exit diagnostics enabled through the first
+    // runtime validation of the placement/trigger guard.
+    internal static readonly bool DebugEnabled = true;
+    internal static readonly bool WarehouseExitDebugEnabled = true;
     internal static readonly bool AccelerationTelemetryDebugEnabled = false;
 
     internal static bool AccelerationTelemetryEnabled =>
@@ -101,6 +104,12 @@ internal static class CadillacEscaladeDiagnostics
     internal static void TelemetryInfo(ModContext? context, string message)
     {
         if (AccelerationTelemetryEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void WarehouseExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && WarehouseExitDebugEnabled)
             context?.Logger.Info(message);
     }
 }

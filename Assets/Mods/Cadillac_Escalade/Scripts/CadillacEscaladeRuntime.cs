@@ -52,6 +52,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float DamageDecelerationThreshold = 300f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
+    private const float WarehouseExitEntranceSearchRadius = 12f;
+    private const float WarehouseExitGuardDuration = 8f;
+    private const float WarehouseExitGuardClearDistance = 4f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
     private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.30f, -0.05f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
@@ -88,6 +91,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? powertrainReadinessCoroutine;
+    private Coroutine? warehouseExitGuardCoroutine;
+    private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -131,6 +136,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        StopWarehouseExitGuard();
         CadillacEscaladePrivateDriverSupport.RemoveVehicle(vehicleTypeName);
         playerVehiclePrefab = null;
         privateDriverPoolReady = false;
@@ -153,6 +159,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+        StopWarehouseExitGuard();
     }
 
     private void Update()
@@ -173,6 +180,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -184,6 +193,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
@@ -211,6 +221,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        StopWarehouseExitGuard();
         configuredVehicleIds.Clear();
         ResetPlayerVehicleSnapshot();
         dealerReady = false;
@@ -349,6 +360,177 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         var registration = BuildingHelper.GetBuildingRegistration(address);
         if (CadillacEscaladeLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
             ScheduleInitialization("dealer-entered");
+    }
+
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                "CadillacEscalade warehouse-exit: guard skipped because the current vehicle " +
+                "is not a player-controlled Escalade.");
+            return;
+        }
+
+        var entrance = FindClosestDriveInEntrance(vehicle.transform.position, out var distance);
+        if (entrance == null || distance > WarehouseExitEntranceSearchRadius)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                $"CadillacEscalade warehouse-exit: guard skipped because no nearby drive-in " +
+                $"entrance was found; vehicle={vehicle.GetInstanceID()}, distance={distance:0.00}m.");
+            return;
+        }
+
+        StopWarehouseExitGuard();
+        foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
+        foreach (var collider in enterTrigger.GetComponents<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.isTrigger)
+                continue;
+
+            warehouseExitGuardColliders.Add(collider);
+            collider.enabled = false;
+        }
+
+        if (warehouseExitGuardColliders.Count == 0)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                $"CadillacEscalade warehouse-exit: guard skipped because entrance='{entrance.name}' " +
+                "had no enabled child entry-trigger colliders.");
+            return;
+        }
+
+        var outward = Vector3.ProjectOnPlane(
+            vehicle.transform.position - entrance.transform.position,
+            Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+            outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                "CadillacEscalade warehouse-exit: guard aborted because the outward direction was zero.");
+            RestoreWarehouseExitTriggers("zero-outward-direction");
+            return;
+        }
+
+        outward.Normalize();
+        var startingProjection = Vector3.Dot(vehicle.transform.position, outward);
+        var placementCollider = vehicle.GetComponent<MeshCollider>();
+        Physics.SyncTransforms();
+        CadillacEscaladeDiagnostics.WarehouseExitInfo(
+            context,
+            $"CadillacEscalade warehouse-exit: guard started vehicle={vehicle.GetInstanceID()}, " +
+            $"entrance='{entrance.name}', entranceDistance={distance:0.00}m, " +
+            $"triggerCount={warehouseExitGuardColliders.Count}, outward={outward}, " +
+            $"startProjection={startingProjection:0.000}, " +
+            $"nativeMesh='{placementCollider?.name ?? "missing"}', " +
+            $"nativeMeshLength={placementCollider?.sharedMesh?.bounds.size.z:0.000}, " +
+            $"clearDistance={WarehouseExitGuardClearDistance:0.00}m, " +
+            $"timeout={WarehouseExitGuardDuration:0.0}s.");
+        warehouseExitGuardCoroutine = StartCoroutine(GuardWarehouseExit(
+            vehicle,
+            outward,
+            startingProjection));
+    }
+
+    private IEnumerator GuardWarehouseExit(
+        VehicleController vehicle,
+        Vector3 outward,
+        float startingProjection)
+    {
+        var expiresAt = Time.unscaledTime + WarehouseExitGuardDuration;
+        var reason = "timeout";
+        while (vehicle != null && vehicle.controlledByPlayer &&
+               Time.unscaledTime < expiresAt)
+        {
+            if (Vector3.Dot(vehicle.transform.position, outward) >=
+                startingProjection + WarehouseExitGuardClearDistance)
+            {
+                reason = "moved-away";
+                break;
+            }
+
+            yield return new WaitForFixedUpdate();
+        }
+
+        if (vehicle == null)
+            reason = "vehicle-destroyed";
+        else if (!vehicle.controlledByPlayer)
+            reason = "player-left-vehicle";
+
+        CadillacEscaladeDiagnostics.WarehouseExitInfo(
+            context,
+            $"CadillacEscalade warehouse-exit: guard ending reason={reason}, " +
+            $"projection={(vehicle == null ? float.NaN : Vector3.Dot(vehicle.transform.position, outward)):0.000}, " +
+            $"startProjection={startingProjection:0.000}.");
+        RestoreWarehouseExitTriggers(reason);
+    }
+
+    private void StopWarehouseExitGuard()
+    {
+        if (warehouseExitGuardCoroutine != null)
+            StopCoroutine(warehouseExitGuardCoroutine);
+        RestoreWarehouseExitTriggers("cancelled-or-reset");
+    }
+
+    private void RestoreWarehouseExitTriggers(string reason)
+    {
+        if (warehouseExitGuardColliders.Count > 0)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                $"CadillacEscalade warehouse-exit: restoring triggerCount={warehouseExitGuardColliders.Count}, " +
+                $"reason={reason}.");
+        }
+
+        foreach (var collider in warehouseExitGuardColliders)
+        {
+            if (collider != null)
+                collider.enabled = true;
+        }
+
+        warehouseExitGuardColliders.Clear();
+        warehouseExitGuardCoroutine = null;
+        Physics.SyncTransforms();
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(
+        Vector3 vehiclePosition,
+        out float distance)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null
+            ? float.PositiveInfinity
+            : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
     }
 
     private void HandleFullMenuToggle(bool isOpen)
@@ -608,6 +790,13 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             const int bakedPositiveWheelMeshes = 8;
             ConfigureBodyColliders(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
+            var warehouseBounds = vehicle.GetComponent<CadillacEscaladeWarehouseBoundsController>();
+            if (warehouseBounds == null)
+            {
+                warehouseBounds = vehicle.gameObject
+                    .AddComponent<CadillacEscaladeWarehouseBoundsController>();
+            }
+            warehouseBounds.Initialize();
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<CadillacEscaladeCaliperController>();
             if (caliperController == null)
