@@ -181,9 +181,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private IEnumerator RepairMalformedShelfVisuals()
     {
-        // Affected shelf controllers can be instantiated after the city callback. Make a small,
-        // bounded number of passes rather than leaving a recurring scan running during gameplay.
-        for (var pass = 0; pass < 3; pass++)
+        // Affected shelf controllers can be instantiated after the city callback. Keep the
+        // fallback bounded, but cover the first half-minute when business simulation begins.
+        for (var pass = 0; pass < 6; pass++)
         {
             yield return pass == 0 ? null : new WaitForSeconds(5f);
             RepairMalformedShelfVisualsInLoadedScenes();

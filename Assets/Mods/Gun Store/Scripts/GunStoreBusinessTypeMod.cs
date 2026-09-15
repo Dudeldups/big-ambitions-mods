@@ -186,7 +186,8 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         if (registrations == null)
             return;
 
-        var retiredCount = 0;
+        var repairedCount = 0;
+        var removedItemInstanceCount = 0;
         foreach (var registration in registrations)
         {
             if (registration == null ||
@@ -197,30 +198,37 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             }
 
             var wasAlreadyClosed = registration.temporarilyClosed;
-            if (!wasAlreadyClosed)
-                retiredCount++;
+            var itemInstanceCount = registration.itemInstances?.Count ?? 0;
+            var changed = !wasAlreadyClosed || itemInstanceCount > 0;
 
-            // Use the game's closure method rather than setting the serialized flag directly.
-            // It completes in-flight business simulation work and refreshes customer entries,
-            // including when a previous version already set the serialized closed flag.
-            registration.TemporarilyClose(true);
+            // These businesses were created by the removed AI-rival integration. Their saved
+            // fixture instances can contain a broken ShowcaseShelf visual reference; when that
+            // reference is updated, the base game's customer task loop aborts for every shop.
+            // Clear the obsolete rival fixtures before BuildingManager instantiates them. Do not
+            // call TemporarilyClose here: its game-side UI refresh is not safe this early in load.
+            registration.temporarilyClosed = true;
+            registration.itemInstances?.Clear();
 
+            if (!changed)
+                continue;
+
+            repairedCount++;
+            removedItemInstanceCount += itemInstanceCount;
             context?.Logger.Warn(
-                $"Gun Store: retired legacy AI rival: name='{registration.BusinessName}', " +
+                $"Gun Store: quarantined legacy AI rival fixtures: name='{registration.BusinessName}', " +
                 $"address={registration.Address}, businessType='{registration.businessTypeName}', " +
                 $"businessOwnerRivalId='{registration.businessOwnerRivalId ?? "<none>"}', " +
-                $"wasAlreadyClosed={wasAlreadyClosed}. " +
-                "It is not player-owned and has been closed to prevent obsolete Gun Store layouts " +
-                "from participating in customer and shelf simulation.");
+                $"wasAlreadyClosed={wasAlreadyClosed}, removedItemInstances={itemInstanceCount}. " +
+                "It is not player-owned; its obsolete fixtures were removed before customer simulation.");
         }
 
-        if (retiredCount <= 0)
+        if (repairedCount <= 0)
             return;
 
         SaveGameManager.MarkChange();
         context?.Logger.Info(
-            $"Gun Store: closed {retiredCount} legacy AI rival business(es) in this save. " +
-            "Player-owned businesses were not changed.");
+            $"Gun Store: quarantined {repairedCount} legacy AI rival business(es), removing " +
+            $"{removedItemInstanceCount} obsolete fixture instance(s). Player-owned businesses were not changed.");
     }
 
     private static bool HasLoadedGunStoreStock(BuildingRegistration registration)
