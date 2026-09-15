@@ -10,6 +10,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 #endif
 using BAModAPI;
+using BigAmbitions.Items;
+using Helpers;
 using Localizor;
 using UnityEngine;
 using UnityEngine.Events;
@@ -27,6 +29,10 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private bool pendingForcedNavigationRefresh;
     private bool gameLoadedLateCallbackRegistered;
     private bool postCitySaveRepairCompleted;
+    private Coroutine? shelfVisualRepairCoroutine;
+    private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
+        "_visualItems",
+        BindingFlags.Instance | BindingFlags.NonPublic);
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
@@ -166,6 +172,51 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
         postCitySaveRepairCompleted = true;
         context?.Logger.Info("Gun Store: completed post-city save repair after building registrations became available.");
+
+        if (shelfVisualRepairCoroutine != null)
+            StopCoroutine(shelfVisualRepairCoroutine);
+
+        shelfVisualRepairCoroutine = StartCoroutine(RepairMalformedShelfVisuals());
+    }
+
+    private IEnumerator RepairMalformedShelfVisuals()
+    {
+        // Affected shelf controllers can be instantiated after the city callback. Make a small,
+        // bounded number of passes rather than leaving a recurring scan running during gameplay.
+        for (var pass = 0; pass < 3; pass++)
+        {
+            yield return pass == 0 ? null : new WaitForSeconds(5f);
+            RepairMalformedShelfVisualsInLoadedScenes();
+        }
+
+        shelfVisualRepairCoroutine = null;
+    }
+
+    private void RepairMalformedShelfVisualsInLoadedScenes()
+    {
+        if (ShelfVisualItemsField == null)
+            return;
+
+        foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
+        {
+            if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded ||
+                ShelfVisualItemsField.GetValue(shelf) is not GameObject[] visualItems ||
+                !visualItems.Any(visualItem => visualItem == null))
+            {
+                continue;
+            }
+
+            var repairedVisualItems = visualItems.Where(visualItem => visualItem != null).ToArray();
+            ShelfVisualItemsField.SetValue(shelf, repairedVisualItems);
+
+            var owner = shelf.GetComponentInParent<ItemController>();
+            var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
+            context?.Logger.Warn(
+                $"Gun Store: repaired malformed shelf visuals: shelf='{owner?.Item?.itemName ?? shelf.name}', " +
+                $"stock='{stock?.itemName ?? "<none>"}', position={shelf.transform.position}, " +
+                $"removedNullVisuals={visualItems.Length - repairedVisualItems.Length}. " +
+                "This prevents the base game ShelfController from aborting customer purchases.");
+        }
     }
 }
 
