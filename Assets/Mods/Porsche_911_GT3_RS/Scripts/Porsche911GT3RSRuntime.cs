@@ -458,17 +458,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             // Dealer display vehicles are frozen with Rigidbody constraints,
             // not only isKinematic. Use the game's own transition so all
             // vehicle physics state and center-of-mass bookkeeping is restored.
-            // A dealer-purchased instance can be entered before the NWH
-            // controller has completed its usual disable/enable handoff.
-            // Re-run that native lifecycle once; its CarController listeners
-            // restore the wheel API and clear the frozen rigidbody state.
-            // Do not repeat this each physics frame -- that would reset a car
-            // the player is already driving.
-            if (physics != null && physics.enabled)
-            {
-                physics.enabled = false;
-                yield return new WaitForFixedUpdate();
-            }
+            // Preserve the component's existing lifecycle. Disabling it here
+            // can strand an entered dealer car with NWH input unavailable.
+            // The native controller only needs to be enabled and unfrozen.
             if (physics != null)
                 physics.enabled = true;
             vehicle.SetFreeze(false);
