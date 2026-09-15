@@ -30,13 +30,13 @@ public static class KoenigseggJeskoSetup
     private const float AntiRollBarForce = 7800f;
     private const float FrontSuspensionTravel = 0.08f;
     private const float RearSuspensionTravel = 0.06f;
-    private const float EffectiveEnginePowerKw = 500f;
+    private const float EffectiveEnginePowerKw = 390f;
     private const float BrakeTorque = 3400f;
     private const float FrontWheelOutset = 0.03f;
     private const float RearWheelOutset = 0f;
     private const float FrontWheelForwardOffset = 0.06f;
     private const float RearWheelForwardOffset = 0.12f;
-    private const float WheelRearwardOffset = -0.02f;
+    private const float WheelRearwardOffset = -0.08f;
     private const float FrontWheelHeightOffset = 0.02f;
     private const float WheelGroundingOffset = -0.04f;
     private const float DeformationStrength = 0.20f;
@@ -339,7 +339,7 @@ public static class KoenigseggJeskoSetup
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("throttleEngagementOffsetRPM")) - 700f) < 0.01f &&
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("engagementRange")) - 650f) < 0.01f &&
                     Math.Abs(ReadNumber(clutch?.FindPropertyRelative("creepTorque"))) < 0.01f &&
-                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.09f) < 0.001f &&
+                    Math.Abs(ReadNumber(engine?.FindPropertyRelative("inertia")) - 0.12f) < 0.001f &&
                     Math.Abs(ReadNumber(engine?.FindPropertyRelative("startDuration")) - 0.42f) < 0.001f &&
                     JeskoPowerCurveMatches(powerCurve) &&
                     !(engine?.FindPropertyRelative("stallingEnabled")?.boolValue ?? true);
@@ -595,6 +595,8 @@ public static class KoenigseggJeskoSetup
                     $"rendererMasksSafe={opaqueRendererMasksSafe}.");
             }
 
+            var runtimeBrakeFaces = VerifyRuntimeLampOverlays(prefab);
+
             Debug.Log(
                 $"KoenigseggJesko bundle verified: price={price}, speed={maxSpeed}, " +
                 $"power={enginePower}, bounds={bounds.size}, wheels=4, nineSpeed=true, " +
@@ -604,7 +606,7 @@ public static class KoenigseggJeskoSetup
                 $"suspensionTravel={FrontSuspensionTravel:F2}/{RearSuspensionTravel:F2}, " +
                 $"damageBody=in-place-authored-shell, deformation={DeformationStrength:F2}/{DeformationRadius:F2}, " +
                 $"launchResponse=true, " +
-                $"centerRearRunningLight=true, segmentedBrakeLights=true, blinkers=4, " +
+                $"centerRearRunningLight=true, segmentedBrakeLights=true/{runtimeBrakeFaces}faces, blinkers=4, " +
                 $"headlightTemplate=true, transparentSingleSided=true, cabinGlassTint=true, " +
                 $"bodyPaintSlots={bodyPaintSlots}, interiorAccentSlots={interiorAccentPaintSlots}, " +
                 $"calipersPainted=true, rimsFactoryColor=true, rimFinish=balanced-matte-graphite, " +
@@ -613,6 +615,61 @@ public static class KoenigseggJeskoSetup
         finally
         {
             bundle.Unload(true);
+        }
+    }
+
+    private static int VerifyRuntimeLampOverlays(GameObject prefab)
+    {
+        var instance = UnityEngine.Object.Instantiate(prefab);
+        instance.name = "KoenigseggJesko_LightingVerification";
+        try
+        {
+            Type? lightingType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                lightingType = assembly.GetType("KoenigseggJeskoLightingController", false);
+                if (lightingType != null)
+                    break;
+            }
+            if (lightingType == null)
+                throw new InvalidOperationException(
+                    "Runtime lighting verification cannot resolve the Jesko lighting controller.");
+            var initialize = lightingType.GetMethod(
+                "Initialize",
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic) ??
+                throw new InvalidOperationException(
+                    "Runtime lighting verification cannot resolve Initialize().");
+            var parameterType = initialize.GetParameters()[0].ParameterType;
+            var vehicle = instance.GetComponentInChildren(parameterType, true);
+            if (vehicle == null)
+                throw new InvalidOperationException(
+                    $"Runtime lighting verification has no '{parameterType.FullName}' component.");
+            var lighting = instance.AddComponent(lightingType);
+            initialize.Invoke(lighting, new object?[] { vehicle, null });
+            var left = FindTransform(instance.transform, "KoenigseggJesko_RearBrakeSignatureLeft")
+                       ?.GetComponent<MeshFilter>()?.sharedMesh;
+            var right = FindTransform(instance.transform, "KoenigseggJesko_RearBrakeSignatureRight")
+                        ?.GetComponent<MeshFilter>()?.sharedMesh;
+            var center = FindTransform(instance.transform, "KoenigseggJesko_CenterRearRunningLight");
+            var leftIndicator = FindTransform(instance.transform, "KoenigseggJesko_RearLeftIndicator");
+            var rightIndicator = FindTransform(instance.transform, "KoenigseggJesko_RearRightIndicator");
+            var faceCount = (left?.triangles.Length ?? 0) / 3 +
+                            (right?.triangles.Length ?? 0) / 3;
+            if (left == null || right == null || center == null ||
+                leftIndicator == null || rightIndicator == null ||
+                faceCount <= 0 || faceCount >= 160)
+            {
+                throw new InvalidOperationException(
+                    $"Runtime rear-lamp verification failed: brakeFaces={faceCount}, " +
+                    $"center={center != null}, indicators={leftIndicator != null}/{rightIndicator != null}.");
+            }
+            return faceCount;
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(instance);
         }
     }
 
@@ -922,7 +979,7 @@ public static class KoenigseggJeskoSetup
                 SetRelativeNumber(serialized, "powertrain.clutch.engagementRange", 650f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepTorque", 0f);
                 SetRelativeNumber(serialized, "powertrain.clutch.creepSpeedLimit", 1f);
-                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.09f);
+                SetRelativeNumber(serialized, "powertrain.engine.inertia", 0.12f);
                 SetRelativeNumber(serialized, "powertrain.engine.maxPower", EffectiveEnginePowerKw);
                 SetRelativeNumber(serialized, "brakes.maxTorque", BrakeTorque);
                 var powerCurve = FindRelativeProperty(serialized, "powertrain.engine.powerCurve");
@@ -940,8 +997,8 @@ public static class KoenigseggJeskoSetup
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 9f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 3300f);
-                SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 8300f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 2200f);
+                SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7600f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
 
                 var wheelGroups = FindRelativeProperty(serialized, "powertrain.wheelGroups");
@@ -1013,10 +1070,10 @@ public static class KoenigseggJeskoSetup
     {
         var mapping = new Dictionary<string, string>
         {
-            { "LOD_A_WHEEL_mm_wheel", "FrontLeft_WheelController" },
-            { "jesko:LOD_A_WHEEL_mm_wheel", "FrontRight_WheelController" },
-            { "LOD_A_WHEEL_mm_wheel2", "RearLeft_WheelController" },
-            { "LOD_A_WHEEL_mm_wheel1", "RearRight_WheelController" },
+            { "LOD_A_WHEEL_mm_wheel", "FrontRight_WheelController" },
+            { "jesko:LOD_A_WHEEL_mm_wheel", "FrontLeft_WheelController" },
+            { "LOD_A_WHEEL_mm_wheel2", "RearRight_WheelController" },
+            { "LOD_A_WHEEL_mm_wheel1", "RearLeft_WheelController" },
         };
 
         var tireNames = new Dictionary<string, string>
@@ -1035,10 +1092,10 @@ public static class KoenigseggJeskoSetup
         };
         var caliperNames = new Dictionary<string, string>
         {
-            { "LOD_A_WHEEL_mm_wheel", "jesko:LOD_A_BRAKE_CALIPER_FRONT_LEFT_mm_misc" },
-            { "jesko:LOD_A_WHEEL_mm_wheel", "jesko:LOD_A_BRAKE_CALIPER_FRONT_RIGHT_mm_misc" },
-            { "LOD_A_WHEEL_mm_wheel2", "jesko:LOD_A_BRAKE_CALIPER_REAR_LEFT_mm_misc" },
-            { "LOD_A_WHEEL_mm_wheel1", "jesko:LOD_A_BRAKE_CALIPER_REAR_RIGHT_mm_misc" },
+            { "LOD_A_WHEEL_mm_wheel", "jesko:LOD_A_BRAKE_CALIPER_FRONT_RIGHT_mm_misc" },
+            { "jesko:LOD_A_WHEEL_mm_wheel", "jesko:LOD_A_BRAKE_CALIPER_FRONT_LEFT_mm_misc" },
+            { "LOD_A_WHEEL_mm_wheel2", "jesko:LOD_A_BRAKE_CALIPER_REAR_RIGHT_mm_misc" },
+            { "LOD_A_WHEEL_mm_wheel1", "jesko:LOD_A_BRAKE_CALIPER_REAR_LEFT_mm_misc" },
         };
 
         foreach (var pair in mapping)
@@ -1084,8 +1141,8 @@ public static class KoenigseggJeskoSetup
                         (isFront ? FrontWheelHeightOffset : 0f),
                     controller.localPosition.z);
 
-            // Preserve the GLB's side-specific hierarchy and rotation. Resetting
-            // both sides to one rotation turns the authored inner rim faces out.
+            // Each source corner is bound to the controller on the same signed
+            // vehicle X side. Swapping sides exposes the authored inner rim face.
             wheel.SetParent(mount.transform, true);
             wheel.name = "Geometry_" + pair.Key;
             var rotor = FindTransform(model.transform, rotorNames[pair.Key]) ??

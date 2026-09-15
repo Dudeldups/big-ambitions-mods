@@ -18,10 +18,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
     private const float VehicleMass = 1420f;
-    // Calibrated from the user's measured runs: the prior 620 kW gameplay
-    // value produced 0-100 in 1.84-1.86 s, 0-200 in 5.01-5.29 s, and the
-    // prior 6500 brake value repeatedly exceeded 2.5 g.
-    private const float EnginePowerKw = 500f;
+    // Calibrated from the user's measured runs. Even the 500 kW gameplay value
+    // produced repeated 0-100 runs around 1.85 s and 0-200 around 6.06 s.
+    private const float EnginePowerKw = 390f;
     private const float BrakeTorque = 3400f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8500f;
@@ -29,7 +28,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const int EngineStartAttemptCount = 3;
     private const float SpeedLimitKph = 480f;
     private const float FinalDriveRatio = 3.25f;
-    private const float EngineInertia = 0.09f;
+    private const float EngineInertia = 0.12f;
     private const float EngineStartDuration = 0.42f;
     private const float ClutchEngagementRpm = 1400f;
     private const float ClutchThrottleOffsetRpm = 700f;
@@ -43,23 +42,23 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
-    private const float DamageDecelerationThreshold = 500f;
+    private const float DamageDecelerationThreshold = 350f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.10f, -0.08f);
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.3343513f) },
-            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.3343511f) },
-            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3089924f) },
-            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3089926f) },
-            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.3343513f) },
-            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.3343511f) },
-            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3089924f) },
-            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3089926f) },
-            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.3343513f) },
-            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.347f, 1.3343511f) },
-            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3089924f) },
-            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.3089926f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.2743513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.2743511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3689924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3689926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2743513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.2743511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3689924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3689926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2743513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8059794f, 0.347f, 1.2743511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3689924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7669054f, 0.331f, -1.3689926f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -894,7 +893,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
                 $"{ClutchEngagementRange:0}rpm, engineInertia={EngineInertia:0.000}, " +
-                $"powerCurve=measured-calibration-3, brakeTorque={BrakeTorque:0}, steeringCalipers=4, " +
+                $"powerCurve=measured-calibration-4, brakeTorque={BrakeTorque:0}, steeringCalipers=4, " +
                 $"materialRenderers={materialResult.RendererCount}, " +
                 $"decalMasksCleared={materialResult.DecalMasksCleared}, " +
                 $"opaqueFixed={materialResult.OpaqueMaterialsFixed}, " +
@@ -1362,9 +1361,9 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
-            SetFloat(transmission, "shiftDuration", 0.03f);
-            SetFloat(transmission, "_downshiftRPM", 3300f);
-            SetFloat(transmission, "_upshiftRPM", 8300f);
+            SetFloat(transmission, "shiftDuration", 0.065f);
+            SetFloat(transmission, "_downshiftRPM", 2200f);
+            SetFloat(transmission, "_upshiftRPM", 7600f);
             SetInt(transmission, "forwardGearCount", 9);
             SetInt(transmission, "reverseGearCount", 1);
             SetInt(transmission, "transmissionType", 1);
@@ -1864,6 +1863,8 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
     private float impactThresholdMps;
     private float nextCollisionTime;
     private float previousDamage;
+    private float previousSavedDamage;
+    private float repairClearSince = -1f;
     private int diagnosticLogs;
     private bool initialized;
     private bool failureReported;
@@ -1884,6 +1885,8 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
         body = controller.GetComponent<Rigidbody>();
         impactThresholdMps = thresholdMps;
         previousDamage = handler.Damage;
+        previousSavedDamage = controller.vehicleInstance?.damage ?? 0f;
+        repairClearSince = -1f;
         deformableFilters.Clear();
         originalVertices.Clear();
         runtimeMeshes.Clear();
@@ -1907,7 +1910,20 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
             return;
 
         var currentDamage = damageHandler.Damage;
-        if (previousDamage > 0.001f && currentDamage <= 0.001f)
+        var currentSavedDamage = vehicle?.vehicleInstance?.damage ?? 0f;
+        if (currentDamage > 0.001f || currentSavedDamage > 0.001f)
+        {
+            repairClearSince = -1f;
+        }
+        else if ((previousDamage > 0.001f || previousSavedDamage > 0.001f) &&
+                 repairClearSince < 0f)
+        {
+            // The native handler can briefly clear one damage source while the
+            // saved vehicle value is still synchronizing after an impact. Only
+            // treat a sustained clear state as an actual repair.
+            repairClearSince = Time.unscaledTime;
+        }
+        else if (repairClearSince >= 0f && Time.unscaledTime - repairClearSince >= 0.75f)
         {
             foreach (var pair in originalVertices)
             {
@@ -1921,8 +1937,10 @@ public sealed class KoenigseggJeskoVisualDamageController : MonoBehaviour
             }
             context?.Logger.Info(
                 $"KoenigseggJesko damage vehicle={vehicle?.GetInstanceID()}: visual body repaired.");
+            repairClearSince = -1f;
         }
         previousDamage = currentDamage;
+        previousSavedDamage = currentSavedDamage;
     }
 
     private void OnCollisionEnter(Collision collision)

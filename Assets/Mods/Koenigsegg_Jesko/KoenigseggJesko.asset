@@ -20,7 +20,7 @@ MonoBehaviour:
   maxFuel: 72
   maxCargoCapacity: 2
   maxSpeed: 480
-  enginePower: 500
+  enginePower: 390
   brakeForce: 3400
   turnRadius: 27
   damageIntensity: 0.42

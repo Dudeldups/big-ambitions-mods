@@ -92,10 +92,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
         rearTailLeftOverlay = null;
         rearTailRightOverlay = null;
         brakeLeftOverlay = CreateConnectedComponentFilteredOverlay(brakeLeft,
-            (_, triangleCount) => triangleCount == 13,
+            (_, triangleCount) => triangleCount == 29,
             "RearBrakeSignatureLeft", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         brakeRightOverlay = CreateConnectedComponentFilteredOverlay(brakeRight,
-            (_, triangleCount) => triangleCount == 13,
+            (_, triangleCount) => triangleCount == 29,
             "RearBrakeSignatureRight", new Color(1f, 0.008f, 0.001f, 1f), 4.0f, 1.003f);
         centerRunningOverlay = CreateFilteredOverlay(thirdBrake,
             center => Mathf.Abs(center.x) < 0.15f && center.y > 0.58f,

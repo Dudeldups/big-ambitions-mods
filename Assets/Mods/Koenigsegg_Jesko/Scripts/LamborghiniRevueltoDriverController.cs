@@ -264,7 +264,8 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
     {
         if (driverRoot == null || hips == null || steeringWheel == null || vehicle == null)
             return;
-        driverRoot.transform.rotation = vehicle.transform.rotation;
+        driverRoot.transform.rotation =
+            vehicle.transform.rotation * Quaternion.Euler(-2f, 0f, 0f);
         var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
         driverRoot.transform.position += seatPosition - hips.position;
     }

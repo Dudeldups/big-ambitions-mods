@@ -323,7 +323,7 @@ public static class KoenigseggJeskoMaterials
         var cabinGlass = IsCabinGlassMaterial(material);
         RebindToHdrpLit(material);
         var tint = cabinGlass
-            ? new Color(0.14f, 0.19f, 0.23f, 0.24f)
+            ? new Color(0.13f, 0.18f, 0.22f, 0.29f)
             : name.IndexOf("Headlight", StringComparison.OrdinalIgnoreCase) >= 0
                 ? new Color(0.78f, 0.84f, 0.90f, 0.035f)
                 : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
