@@ -48,7 +48,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
     private const int EngineStartAttemptCount = 3;
-    private const float MinimumHealthyEngineRpm = 300f;
+    private const float WarehouseExitGuardDuration = 8f;
+    private const float WarehouseExitGuardClearDistance = 4f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.08f, -0.28f);
     private static readonly Vector3 FrontContactColliderCenter =
         new Vector3(0f, 0.61f, 1.58f);
@@ -89,6 +90,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private Coroutine? enteredVehicleActivationCoroutine;
     private int enteredVehicleActivationInstanceId;
     private Coroutine? exitedPlayerRecoveryCoroutine;
+    private Coroutine? warehouseExitGuardCoroutine;
+    private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private int cachedPlayerVehicleCount = -1;
@@ -135,6 +138,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
+        StopWarehouseExitGuard();
         configuredVehicleIds.Clear();
         dealerRegistrationReady = false;
         dealerReadyLogged = false;
@@ -182,6 +186,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
@@ -196,6 +202,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onVehicleVariablesChanged -= HandleVehicleVariablesChanged;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -253,6 +260,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (exitedPlayerRecoveryCoroutine != null)
             StopCoroutine(exitedPlayerRecoveryCoroutine);
         exitedPlayerRecoveryCoroutine = null;
+        StopWarehouseExitGuard();
         configuredVehicleIds.Clear();
         cachedPlayerVehicleCount = -1;
         dealerRegistrationReady = false;
@@ -453,11 +461,11 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             // bounded entry refresh without turning it into runtime polling.
             vehicle.GetComponent<Porsche911GT3RSPaintController>()
                 ?.ApplyCurrentColor("vehicle-entered");
-            var rpm = engine.RPMPercent * engine.revLimiterRPM;
-            if (engine.IsRunning && engine.ignition && engine.canRun &&
-                rpm >= MinimumHealthyEngineRpm)
+            if (engine.IsRunning && engine.ignition && engine.canRun)
             {
-                if (transmission.Gear <= 0)
+                // Do not overwrite an intentional reverse selection. The
+                // native entry leaves an unselected gearbox at exactly zero.
+                if (transmission.Gear == 0)
                     transmission.ShiftInto(1, true);
                 break;
             }
@@ -470,7 +478,8 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 break;
             engine.StartEngine();
             yield return new WaitForSecondsRealtime(.75f);
-            if (vehicle != null && vehicle.controlledByPlayer)
+            if (vehicle != null && vehicle.controlledByPlayer &&
+                transmission.Gear == 0)
                 transmission.ShiftInto(1, true);
             yield return new WaitForSecondsRealtime(.15f);
         }
@@ -497,6 +506,120 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         }
 
         EnsureDealerStock("dealer-entered");
+    }
+
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+            return;
+
+        var entrance = FindClosestDriveInEntrance(vehicle.transform.position);
+        if (entrance == null)
+            return;
+
+        StopWarehouseExitGuard();
+        foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
+        foreach (var collider in enterTrigger.GetComponents<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.isTrigger)
+                continue;
+
+            warehouseExitGuardColliders.Add(collider);
+            collider.enabled = false;
+        }
+
+        if (warehouseExitGuardColliders.Count == 0)
+            return;
+
+        var outward = Vector3.ProjectOnPlane(
+            vehicle.transform.position - entrance.transform.position,
+            Vector3.up);
+        if (outward.sqrMagnitude < .0001f)
+            outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
+        if (outward.sqrMagnitude < .0001f)
+        {
+            StopWarehouseExitGuard();
+            return;
+        }
+
+        outward.Normalize();
+        var startingDistance = Vector3.Dot(vehicle.transform.position, outward);
+        Physics.SyncTransforms();
+        warehouseExitGuardCoroutine = StartCoroutine(GuardWarehouseExit(
+            vehicle,
+            outward,
+            startingDistance));
+    }
+
+    private IEnumerator GuardWarehouseExit(
+        VehicleController vehicle,
+        Vector3 outward,
+        float startingDistance)
+    {
+        var expiresAt = Time.unscaledTime + WarehouseExitGuardDuration;
+        while (vehicle != null && vehicle.controlledByPlayer &&
+               Time.unscaledTime < expiresAt)
+        {
+            if (Vector3.Dot(vehicle.transform.position, outward) >=
+                startingDistance + WarehouseExitGuardClearDistance)
+            {
+                break;
+            }
+
+            yield return new WaitForFixedUpdate();
+        }
+
+        RestoreWarehouseExitTriggers();
+    }
+
+    private void StopWarehouseExitGuard()
+    {
+        if (warehouseExitGuardCoroutine != null)
+            StopCoroutine(warehouseExitGuardCoroutine);
+        RestoreWarehouseExitTriggers();
+    }
+
+    private void RestoreWarehouseExitTriggers()
+    {
+        foreach (var collider in warehouseExitGuardColliders)
+        {
+            if (collider != null)
+                collider.enabled = true;
+        }
+
+        warehouseExitGuardColliders.Clear();
+        warehouseExitGuardCoroutine = null;
+        Physics.SyncTransforms();
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(Vector3 vehiclePosition)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        return nearest;
     }
 
     private void HandleFullMenuToggle(bool isOpen)
