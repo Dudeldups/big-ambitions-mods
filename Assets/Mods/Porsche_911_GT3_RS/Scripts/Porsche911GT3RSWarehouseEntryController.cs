@@ -15,13 +15,45 @@ internal sealed class Porsche911GT3RSWarehouseEntryController : MonoBehaviour
 
     private VehicleController? vehicle;
     private ModContext? context;
+    private BoxCollider? approachTrigger;
     private DriveInEntrance? suppressedEntrance;
     private float nextAttemptTime;
+    private float nextSuppressionLogTime;
 
     internal void Initialize(VehicleController controller, ModContext? modContext)
     {
         vehicle = controller;
         context = modContext;
+        EnsureApproachTrigger();
+    }
+
+    private void EnsureApproachTrigger()
+    {
+        if (approachTrigger != null)
+            return;
+
+        var vehicleLayer = gameObject.layer;
+        foreach (var child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name != "BodyCollider")
+                continue;
+
+            vehicleLayer = child.gameObject.layer;
+            break;
+        }
+
+        var triggerObject = new GameObject("Porsche911GT3RS_WarehouseApproachTrigger")
+        {
+            hideFlags = HideFlags.DontSave,
+            layer = vehicleLayer,
+        };
+        triggerObject.transform.SetParent(transform, false);
+        approachTrigger = triggerObject.AddComponent<BoxCollider>();
+        approachTrigger.isTrigger = true;
+        // Reach the closed door slightly ahead of the bumper boxes from
+        // either driving direction. This is event-driven, not polling.
+        approachTrigger.center = new Vector3(0f, 0.60f, 0f);
+        approachTrigger.size = new Vector3(1.78f, 1.10f, 6.20f);
     }
 
     internal void SuppressEntrance(DriveInEntrance entrance, string reason)
@@ -65,12 +97,7 @@ internal sealed class Porsche911GT3RSWarehouseEntryController : MonoBehaviour
 
         if (entrance == suppressedEntrance)
         {
-            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
-                context,
-                $"Porsche911GT3RS warehouse-entry: physical-door fallback suppressed during " +
-                $"warehouse exit; instance={vehicle.GetInstanceID()}, entrance='{entrance.name}', " +
-                $"vehiclePosition={vehicle.transform.position}, collider='{collision.collider.name}', " +
-                $"relativeVelocity={collision.relativeVelocity}.");
+            LogSuppressedCollision(entrance, collision.collider, collision.relativeVelocity);
             return;
         }
 
@@ -93,20 +120,61 @@ internal sealed class Porsche911GT3RSWarehouseEntryController : MonoBehaviour
         if (vehicle == null || !vehicle.controlledByPlayer || other == null)
             return;
 
-        var enterTrigger = other.GetComponentInParent<DriveInEntranceEnterTrigger>();
-        if (enterTrigger == null)
+        var entrance = other.GetComponentInParent<DriveInEntrance>();
+        if (entrance == null)
+            return;
+
+        if (entrance == suppressedEntrance)
+        {
+            if (Time.unscaledTime >= nextSuppressionLogTime)
+            {
+                nextSuppressionLogTime = Time.unscaledTime + RetryDelaySeconds;
+                Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                    context,
+                    $"Porsche911GT3RS warehouse-entry: approach trigger suppressed during warehouse " +
+                    $"exit; instance={vehicle.GetInstanceID()}, entrance='{entrance.name}', " +
+                    $"vehiclePosition={vehicle.transform.position}, collider='{other.name}'.");
+            }
+            return;
+        }
+
+        if (Time.unscaledTime < nextAttemptTime)
+            return;
+
+        var car = vehicle as CarController ?? vehicle.GetComponent<CarController>();
+        if (car == null || InstanceBehavior<GameManager>.Instance?.selectedVehicle != car)
             return;
 
         Porsche911GT3RSDiagnostics.WarehouseExitInfo(
             context,
-            $"Porsche911GT3RS warehouse-entry: Porsche received entry-trigger contact; " +
-            $"instance={vehicle.GetInstanceID()}, trigger='{other.name}', " +
-            $"vehiclePosition={vehicle.transform.position}.");
+            $"Porsche911GT3RS warehouse-entry: approach trigger invokes native entry; " +
+            $"instance={vehicle.GetInstanceID()}, entrance='{entrance.name}', " +
+            $"collider='{other.name}', vehiclePosition={vehicle.transform.position}.");
+        nextAttemptTime = Time.unscaledTime + RetryDelaySeconds;
+        entrance.TryToEnterWithCar(car);
+    }
+
+    private void LogSuppressedCollision(
+        DriveInEntrance entrance,
+        Collider collider,
+        Vector3 relativeVelocity)
+    {
+        if (Time.unscaledTime < nextSuppressionLogTime)
+            return;
+
+        nextSuppressionLogTime = Time.unscaledTime + RetryDelaySeconds;
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-entry: physical-door fallback suppressed during " +
+            $"warehouse exit; instance={vehicle!.GetInstanceID()}, entrance='{entrance.name}', " +
+            $"vehiclePosition={vehicle.transform.position}, collider='{collider.name}', " +
+            $"relativeVelocity={relativeVelocity}.");
     }
 
     private void OnDisable()
     {
         nextAttemptTime = 0f;
+        nextSuppressionLogTime = 0f;
         suppressedEntrance = null;
     }
 }

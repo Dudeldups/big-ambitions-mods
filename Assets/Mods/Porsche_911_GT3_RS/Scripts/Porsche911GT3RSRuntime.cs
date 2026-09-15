@@ -48,6 +48,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     private const float DeformationRandomness = 0.005f;
     private const float DamageIntensity = 1f;
     private const float DamageDecelerationThreshold = 500f;
+    private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
     private const float WarehouseExitGuardDuration = 8f;
     private const float WarehouseExitGuardClearDistance = 4f;
@@ -60,6 +61,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         new Vector3(0f, 0.60f, -1.78f);
     private static readonly Vector3 RearContactColliderSize =
         new Vector3(1.78f, 0.50f, 1.02f);
+    private static readonly Vector3 DriverExitPosition =
+        new Vector3(-2.10f, 0.20f, 0.15f);
+    private static readonly Vector3 PassengerExitPosition =
+        new Vector3(2.10f, 0.20f, 0.15f);
 
     private static readonly float[] GT3RSGears =
     {
@@ -532,13 +537,15 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             // bounded entry refresh without turning it into runtime polling.
             vehicle.GetComponent<Porsche911GT3RSPaintController>()
                 ?.ApplyCurrentColor("vehicle-entered");
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
             Porsche911GT3RSDiagnostics.DealerEntryInfo(
                 context,
                 $"Porsche911GT3RS dealer-entry: activation attempt={attempt + 1}, " +
                 $"running={engine.IsRunning}, ignition={engine.ignition}, canRun={engine.canRun}, " +
-                $"rpm={engine.RPMPercent * engine.revLimiterRPM:0}, gear={transmission.Gear}, " +
+                $"rpm={rpm:0}, gear={transmission.Gear}, " +
                 $"ratio={transmission.currentGearRatio:0.000}, physicsEnabled={physics.enabled}.");
-            if (engine.IsRunning && engine.ignition && engine.canRun)
+            if (engine.IsRunning && engine.ignition && engine.canRun &&
+                rpm >= MinimumHealthyEngineRpm)
             {
                 // Do not overwrite an intentional reverse selection. The
                 // native entry leaves an unselected gearbox at exactly zero.
@@ -1051,6 +1058,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             ConfigureBodyColliders(
                 vehicle.gameObject,
                 contactMaterialOwner.GetOrCreateMaterial());
+            ConfigureExitMarkers(vehicle.gameObject);
             var warehouseBounds =
                 vehicle.GetComponent<Porsche911GT3RSWarehouseBoundsController>();
             if (warehouseBounds == null)
@@ -1235,6 +1243,17 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
             foreach (var collider in transform.GetComponents<BoxCollider>())
                 collider.sharedMaterial = contactMaterial;
+        }
+    }
+
+    private static void ConfigureExitMarkers(GameObject root)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (string.Equals(transform.name, "Driverside", StringComparison.Ordinal))
+                transform.localPosition = DriverExitPosition;
+            else if (string.Equals(transform.name, "Passengerside", StringComparison.Ordinal))
+                transform.localPosition = PassengerExitPosition;
         }
     }
 
