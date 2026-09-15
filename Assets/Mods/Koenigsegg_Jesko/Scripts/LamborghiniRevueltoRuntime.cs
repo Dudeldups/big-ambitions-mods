@@ -47,18 +47,18 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.347f, 1.2893513f) },
-            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.347f, 1.2893511f) },
-            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.331f, -1.3989924f) },
-            { "RearRight_WheelController", new Vector3(0.7669054f, 0.331f, -1.3989926f) },
-            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.347f, 1.2893513f) },
-            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.347f, 1.2893511f) },
-            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.331f, -1.3989924f) },
-            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.331f, -1.3989926f) },
-            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8357338f, 0.397f, 1.2443513f) },
-            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8359794f, 0.397f, 1.2443511f) },
-            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.77666033f, 0.361f, -1.3189924f) },
-            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7769054f, 0.361f, -1.3189926f) },
+            { "FrontLeft_WheelController", new Vector3(-0.8057338f, 0.417f, 1.2893513f) },
+            { "FrontRight_WheelController", new Vector3(0.8059794f, 0.417f, 1.2893511f) },
+            { "RearLeft_WheelController", new Vector3(-0.76666033f, 0.401f, -1.4039924f) },
+            { "RearRight_WheelController", new Vector3(0.7669054f, 0.401f, -1.4039926f) },
+            { "KoenigseggWheelFrontLeft", new Vector3(-0.8057338f, 0.417f, 1.2893513f) },
+            { "KoenigseggWheelFrontRight", new Vector3(0.8059794f, 0.417f, 1.2893511f) },
+            { "KoenigseggWheelRearLeft", new Vector3(-0.76666033f, 0.401f, -1.4039924f) },
+            { "KoenigseggWheelRearRight", new Vector3(0.7669054f, 0.401f, -1.4039926f) },
+            { "KoenigseggFixedCaliperFrontLeft", new Vector3(-0.8357338f, 0.477f, 1.2443513f) },
+            { "KoenigseggFixedCaliperFrontRight", new Vector3(0.8359794f, 0.477f, 1.2443511f) },
+            { "KoenigseggFixedCaliperRearLeft", new Vector3(-0.77666033f, 0.441f, -1.3239924f) },
+            { "KoenigseggFixedCaliperRearRight", new Vector3(0.7769054f, 0.441f, -1.3239926f) },
         };
 
     private static readonly float[] JeskoGears =
@@ -845,6 +845,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             var wheelPlacements = ConfigureWheelPlacements(vehicle.gameObject);
             ConfigureWheelControllers(vehicle.gameObject);
             ConfigureBodyColliders(vehicle.gameObject);
+            var settlingController = vehicle.GetComponent<KoenigseggJeskoSettlingController>();
+            if (settlingController == null)
+                settlingController = vehicle.gameObject.AddComponent<KoenigseggJeskoSettlingController>();
+            settlingController.Initialize(vehicle, context);
             var disabledFallbackChassis = DisableFallbackChassis(vehicle.gameObject);
             var disabledBonnetCamera = DisableBonnetCameraGeometry(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
@@ -1669,6 +1673,89 @@ public sealed class KoenigseggJeskoRimGeometryController : MonoBehaviour
 }
 
 [AddComponentMenu("")]
+[DefaultExecutionOrder(1100)]
+internal sealed class KoenigseggJeskoSettlingController : MonoBehaviour
+{
+    private const float SettleDuration = 1.35f;
+    private const float MaximumSettlingSpeed = 1.5f;
+    private VehicleController? vehicle;
+    private Rigidbody? body;
+    private ModContext? context;
+    private bool wasControlled;
+    private bool settling;
+    private float settleUntil;
+
+    internal void Initialize(VehicleController controller, ModContext? modContext)
+    {
+        vehicle = controller;
+        body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
+        context = modContext;
+        wasControlled = controller.controlledByPlayer;
+        BeginSettling(wasControlled ? "configured-controlled" : "dealer-display");
+    }
+
+    private void FixedUpdate()
+    {
+        if (vehicle == null || body == null)
+            return;
+
+        var controlled = vehicle.controlledByPlayer;
+        if (controlled != wasControlled)
+            BeginSettling(controlled ? "player-entry" : "player-exit");
+        wasControlled = controlled;
+
+        if (!settling)
+            return;
+        if (Time.unscaledTime >= settleUntil)
+        {
+            EndSettling("duration-complete");
+            return;
+        }
+        if (body.isKinematic)
+            return;
+
+        var up = vehicle.transform.up;
+        var velocity = body.velocity;
+        var horizontalVelocity = Vector3.ProjectOnPlane(velocity, up);
+        if (horizontalVelocity.sqrMagnitude > MaximumSettlingSpeed * MaximumSettlingSpeed)
+        {
+            EndSettling("vehicle-moving");
+            return;
+        }
+
+        var verticalVelocity = Vector3.Project(velocity, up);
+        var verticalSpeed = Vector3.Dot(velocity, up);
+        if (Mathf.Abs(verticalSpeed) < 0.025f)
+            verticalVelocity = Vector3.zero;
+        else
+            verticalVelocity *= verticalSpeed > 0f ? 0.10f : 0.35f;
+        body.velocity = horizontalVelocity + verticalVelocity;
+
+        // Preserve steering/yaw while suppressing only the pitch and roll that
+        // make a freshly released dealer car hop on its short suspension.
+        var yawVelocity = Vector3.Project(body.angularVelocity, up);
+        body.angularVelocity = yawVelocity + (body.angularVelocity - yawVelocity) * 0.18f;
+    }
+
+    private void BeginSettling(string reason)
+    {
+        settling = true;
+        settleUntil = Time.unscaledTime + SettleDuration;
+        context?.Logger.Info(
+            $"KoenigseggJesko settling vehicle={vehicle?.GetInstanceID()}: begin " +
+            $"reason={reason} controlled={vehicle?.controlledByPlayer}.");
+    }
+
+    private void EndSettling(string reason)
+    {
+        if (!settling)
+            return;
+        settling = false;
+        context?.Logger.Info(
+            $"KoenigseggJesko settling vehicle={vehicle?.GetInstanceID()}: end reason={reason}.");
+    }
+}
+
 public sealed class KoenigseggJeskoGlassController : MonoBehaviour
 {
     private readonly List<Renderer> cabinGlass = new List<Renderer>();

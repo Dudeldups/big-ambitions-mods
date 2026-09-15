@@ -37,15 +37,17 @@ public static class KoenigseggJeskoSetup
     private const float FrontWheelForwardOffset = 0.06f;
     private const float RearWheelForwardOffset = 0.12f;
     private const float FrontWheelRearwardOffset = -0.065f;
-    private const float RearWheelRearwardOffset = -0.11f;
+    private const float RearWheelRearwardOffset = -0.115f;
     private const float FrontCaliperOutset = 0.03f;
-    private const float FrontCaliperHeightOffset = 0.05f;
+    private const float FrontCaliperHeightOffset = 0.06f;
     private const float FrontCaliperLongitudinalOffset = -0.045f;
     private const float RearCaliperOutset = 0.01f;
-    private const float RearCaliperHeightOffset = 0.03f;
+    private const float RearCaliperHeightOffset = 0.04f;
     private const float RearCaliperLongitudinalOffset = 0.08f;
     private const float FrontWheelHeightOffset = 0.04f;
-    private const float WheelGroundingOffset = -0.04f;
+    // Raise the suspension anchors relative to the chassis. The tire contact
+    // patches remain on the road while the complete body settles 7 cm lower.
+    private const float WheelGroundingOffset = 0.03f;
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;

@@ -19,6 +19,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
     private readonly Dictionary<Material, CaliperPaintTexture> caliperTextures =
         new Dictionary<Material, CaliperPaintTexture>();
+    private readonly Dictionary<Material, ExteriorContrastTexture> exteriorContrastTextures =
+        new Dictionary<Material, ExteriorContrastTexture>();
     private VehicleController? vehicle;
     private ModContext? context;
     private string? explicitVehicleColorName;
@@ -64,10 +66,11 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         if (slots.Count > 0)
             return;
 
-        ReleaseCaliperPaintTextures();
+        ReleaseRuntimePaintTextures();
         slots.Clear();
         var bodySlots = 0;
         var caliperSlots = 0;
+        var exteriorContrastSlots = 0;
         var interiorAccentSlots = 0;
         foreach (var renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -94,6 +97,21 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                         caliperTexture));
                     caliperSlots++;
                 }
+                else if (IsExteriorContrastAccentRenderer(renderer, material))
+                {
+                    var contrastTexture = GetOrCreateExteriorContrastTexture(
+                        renderer, index, material);
+                    if (contrastTexture != null)
+                    {
+                        slots.Add(new PaintSlot(
+                            renderer,
+                            contrastTexture.Material,
+                            index,
+                            PaintCategory.ExteriorContrastAccent,
+                            exteriorContrastTexture: contrastTexture));
+                        exteriorContrastSlots++;
+                    }
+                }
                 else if (material.name.IndexOf(
                              InteriorAccentMaterialMarker,
                              StringComparison.OrdinalIgnoreCase) >= 0)
@@ -107,12 +125,15 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         context?.Logger.Info(
             $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: " +
             $"mapped bodySlots={bodySlots}, caliperSlots={caliperSlots}, " +
+            $"exteriorContrastSlots={exteriorContrastSlots}, " +
             $"interiorAccentSlots={interiorAccentSlots}; " +
             "rims, tires, carbon, black trim, and glass remain factory materials.");
-        if (bodySlots == 0 || caliperSlots != 4 || interiorAccentSlots == 0)
+        if (bodySlots == 0 || caliperSlots != 4 || exteriorContrastSlots == 0 ||
+            interiorAccentSlots == 0)
             context?.Logger.Warn(
                 $"KoenigseggJesko paint mapping incomplete bodySlots={bodySlots}, " +
-                $"caliperSlots={caliperSlots}, interiorAccentSlots={interiorAccentSlots}.");
+                $"caliperSlots={caliperSlots}, exteriorContrastSlots={exteriorContrastSlots}, " +
+                $"interiorAccentSlots={interiorAccentSlots}.");
     }
 
     private void ApplyCurrentColor()
@@ -132,6 +153,13 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             {
                 slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
                 slot.CaliperTexture.Apply(selectedColor);
+                continue;
+            }
+            if (slot.Category == PaintCategory.ExteriorContrastAccent &&
+                slot.ExteriorContrastTexture != null)
+            {
+                slot.Renderer.SetPropertyBlock(null, slot.MaterialIndex);
+                slot.ExteriorContrastTexture.Apply(selectedColor);
                 continue;
             }
 
@@ -194,7 +222,49 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         return false;
     }
 
-    private void ReleaseCaliperPaintTextures()
+    private ExteriorContrastTexture? GetOrCreateExteriorContrastTexture(
+        Renderer renderer,
+        int materialIndex,
+        Material sourceMaterial)
+    {
+        if (!exteriorContrastTextures.TryGetValue(sourceMaterial, out var state))
+        {
+            state = ExteriorContrastTexture.Create(sourceMaterial);
+            if (state == null)
+            {
+                context?.Logger.Warn(
+                    $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: exterior " +
+                    $"contrast texture unavailable material='{sourceMaterial.name}'.");
+                return null;
+            }
+            exteriorContrastTextures.Add(sourceMaterial, state);
+        }
+
+        var materials = renderer.sharedMaterials;
+        materials[materialIndex] = state.Material;
+        renderer.sharedMaterials = materials;
+        return state;
+    }
+
+    private static bool IsExteriorContrastAccentRenderer(Renderer renderer, Material material)
+    {
+        var rendererName = renderer.name;
+        var supportedMaterial =
+            material.name.IndexOf("Exterior_mm_misc1", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            material.name.IndexOf("CARBON", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (!supportedMaterial)
+            return false;
+
+        return rendererName.IndexOf("BODY_mm_misc", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               rendererName.IndexOf("BOOT_mm_misc", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               rendererName.IndexOf("HOOD_mm_misc", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               rendererName.IndexOf("DOOR_LEFT_mm_misc", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               rendererName.IndexOf("DOOR_RIGHT_mm_misc", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               rendererName.IndexOf("FRONTBUMPER_mm_misc_CARBON", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               rendererName.IndexOf("REARBUMPER_mm_misc_CARBON", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private void ReleaseRuntimePaintTextures()
     {
         var released = new HashSet<CaliperPaintTexture>();
         foreach (var state in caliperTextures.Values)
@@ -203,9 +273,13 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 state.Dispose();
         }
         caliperTextures.Clear();
+
+        foreach (var state in exteriorContrastTextures.Values)
+            state?.Dispose();
+        exteriorContrastTextures.Clear();
     }
 
-    private void OnDestroy() => ReleaseCaliperPaintTextures();
+    private void OnDestroy() => ReleaseRuntimePaintTextures();
 
     private VehicleColor? ResolveVehicleColor()
     {
@@ -230,13 +304,15 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             Material material,
             int materialIndex,
             PaintCategory category,
-            CaliperPaintTexture? caliperTexture = null)
+            CaliperPaintTexture? caliperTexture = null,
+            ExteriorContrastTexture? exteriorContrastTexture = null)
         {
             Renderer = renderer;
             Material = material;
             MaterialIndex = materialIndex;
             Category = category;
             CaliperTexture = caliperTexture;
+            ExteriorContrastTexture = exteriorContrastTexture;
         }
 
         internal readonly Renderer Renderer;
@@ -244,12 +320,14 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         internal readonly int MaterialIndex;
         internal readonly PaintCategory Category;
         internal readonly CaliperPaintTexture? CaliperTexture;
+        internal readonly ExteriorContrastTexture? ExteriorContrastTexture;
     }
 
     private enum PaintCategory
     {
         Body,
         Caliper,
+        ExteriorContrastAccent,
         InteriorAccent,
     }
 
@@ -357,6 +435,141 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                     recolored = source;
                 }
                 output[index] = recolored;
+            }
+
+            texture.SetPixels32(output);
+            texture.Apply(true, false);
+            SetMaterialColor(Material, Color.white);
+        }
+
+        internal void Dispose()
+        {
+            if (Material != null) UnityEngine.Object.Destroy(Material);
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        }
+
+        private static Texture? FindBaseTexture(Material material)
+        {
+            if (material.HasProperty("_BaseColorMap") && material.GetTexture("_BaseColorMap") != null)
+                return material.GetTexture("_BaseColorMap");
+            if (material.HasProperty("baseColorTexture") && material.GetTexture("baseColorTexture") != null)
+                return material.GetTexture("baseColorTexture");
+            return material.mainTexture;
+        }
+
+        private static void SetTexture(Material material, string property, Texture texture)
+        {
+            if (material.HasProperty(property)) material.SetTexture(property, texture);
+        }
+
+        private static void SetMaterialColor(Material material, Color color)
+        {
+            if (material.HasProperty(BaseColor)) material.SetColor(BaseColor, color);
+            if (material.HasProperty(ColorProperty)) material.SetColor(ColorProperty, color);
+            if (material.HasProperty(BaseColorFactor)) material.SetColor(BaseColorFactor, color);
+        }
+    }
+
+    private sealed class ExteriorContrastTexture
+    {
+        private readonly Color32[] sourcePixels;
+        private readonly Texture2D texture;
+
+        private ExteriorContrastTexture(Material material, Texture2D texture, Color32[] sourcePixels)
+        {
+            Material = material;
+            this.texture = texture;
+            this.sourcePixels = sourcePixels;
+        }
+
+        internal Material Material { get; }
+
+        internal static ExteriorContrastTexture? Create(Material sourceMaterial)
+        {
+            var sourceTexture = FindBaseTexture(sourceMaterial);
+            if (sourceTexture == null)
+                return null;
+
+            var temporary = RenderTexture.GetTemporary(
+                sourceTexture.width,
+                sourceTexture.height,
+                0,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.Default);
+            var previous = RenderTexture.active;
+            Texture2D readable;
+            try
+            {
+                Graphics.Blit(sourceTexture, temporary);
+                RenderTexture.active = temporary;
+                readable = new Texture2D(
+                    sourceTexture.width,
+                    sourceTexture.height,
+                    TextureFormat.RGBA32,
+                    true,
+                    false)
+                {
+                    name = sourceTexture.name + "_RuntimeExteriorContrast",
+                    hideFlags = HideFlags.DontSave,
+                    filterMode = sourceTexture.filterMode,
+                    wrapMode = sourceTexture.wrapMode,
+                    anisoLevel = sourceTexture.anisoLevel,
+                };
+                readable.ReadPixels(
+                    new Rect(0f, 0f, sourceTexture.width, sourceTexture.height),
+                    0,
+                    0,
+                    false);
+                readable.Apply(true, false);
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(temporary);
+            }
+
+            var runtimeMaterial = UnityEngine.Object.Instantiate(sourceMaterial);
+            runtimeMaterial.name = sourceMaterial.name + "_RuntimeExteriorContrast";
+            runtimeMaterial.hideFlags = HideFlags.DontSave;
+            SetTexture(runtimeMaterial, "_BaseColorMap", readable);
+            SetTexture(runtimeMaterial, "_MainTex", readable);
+            SetTexture(runtimeMaterial, "baseColorTexture", readable);
+            SetMaterialColor(runtimeMaterial, Color.white);
+            return new ExteriorContrastTexture(
+                runtimeMaterial,
+                readable,
+                readable.GetPixels32());
+        }
+
+        internal void Apply(Color paint)
+        {
+            var linear = paint.linear;
+            var luminance = linear.r * 0.2126f + linear.g * 0.7152f + linear.b * 0.0722f;
+            var contrast = luminance >= 0.42f ? Color.black : Color.white;
+            var output = new Color32[sourcePixels.Length];
+            for (var index = 0; index < sourcePixels.Length; index++)
+            {
+                var source = (Color)sourcePixels[index];
+                Color.RGBToHSV(source, out _, out var saturation, out var value);
+                var yellowGreenAccent = source.a > 0.01f &&
+                                        source.g > source.r * 1.02f &&
+                                        source.g > source.b * 1.20f &&
+                                        saturation > 0.25f &&
+                                        value > 0.18f;
+                if (!yellowGreenAccent)
+                {
+                    output[index] = sourcePixels[index];
+                    continue;
+                }
+
+                var shade = contrast == Color.white
+                    ? Mathf.Lerp(0.72f, 1f, value)
+                    : Mathf.Lerp(0.015f, 0.07f, value);
+                output[index] = new Color(
+                    contrast.r * shade,
+                    contrast.g * shade,
+                    contrast.b * shade,
+                    source.a);
             }
 
             texture.SetPixels32(output);
