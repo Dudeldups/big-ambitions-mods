@@ -120,6 +120,18 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         "gunstore-businesstype:itemname_gunpartscheap",
         "gunstore-businesstype:itemname_gunpartsexpensive"
     };
+    private static readonly string[] RetiredAiRivalBusinessNames =
+    {
+        "Friendly Fire Department",
+        "Pew Pew Defense",
+        "Guns R Us",
+        "McMunition’s",
+        "Respawn Disablers",
+        "Pay-To-Win Supply Co.",
+        "No Brain, Just Aim",
+        "Boom Boom & Beyond",
+        "Safety Third Firearms"
+    };
 
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
@@ -166,6 +178,30 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
         if (changed)
             SaveGameManager.MarkChange();
+    }
+
+    internal static void LogRetiredAiRivalsAfterGameLoaded(ModContext? context)
+    {
+        var registrations = SaveGameManager.Current?.BuildingRegistrations;
+        if (registrations == null)
+            return;
+
+        foreach (var registration in registrations)
+        {
+            if (registration == null ||
+                !string.Equals(registration.businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal) ||
+                !RetiredAiRivalBusinessNames.Contains(registration.BusinessName, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            context?.Logger.Warn(
+                $"Gun Store: legacy AI rival detected: name='{registration.BusinessName}', " +
+                $"address={registration.Address}, playerOwned={registration.RentedByPlayer}, " +
+                $"businessOwnerRivalId='{registration.businessOwnerRivalId ?? "<none>"}'. " +
+                "AI rivals are disabled in this version; this saved rival may still request its old logo, " +
+                "including the 'pay-to-win' logo reported in the console.");
+        }
     }
 
     private static bool HasLoadedGunStoreStock(BuildingRegistration registration)
