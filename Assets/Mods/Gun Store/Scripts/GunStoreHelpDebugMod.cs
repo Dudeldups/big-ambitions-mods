@@ -34,6 +34,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private bool postCitySaveRepairCompleted;
     private Coroutine? shelfVisualRepairCoroutine;
     private Coroutine? gunStoreVisualSetupCoroutine;
+    private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
         "_visualItems",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -263,7 +264,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         var owner = shelf.GetComponentInParent<ItemController>();
         var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
-        if (context == null || stock == null ||
+        if (context == null || stock == null || string.IsNullOrEmpty(stock.itemName) ||
             !GunStoreVisualPrefabPaths.TryGetValue(stock.itemName, out var prefabPath))
             return false;
 
@@ -276,15 +277,27 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         var template = visualsContainer.Cast<Transform>().FirstOrDefault(candidate => candidate.childCount > 0);
         var visualPrefab = AssetService.GetBundle(context.ModId, GunStoreBundleKey)
             .LoadAsset<GameObject>(prefabPath);
-        if (template == null || visualPrefab == null)
+        if (template == null)
+        {
+            LogGunStoreVisualSetupFailure(itemName, shelfName, "no populated base visual slot was available");
             return false;
+        }
+
+        if (visualPrefab == null)
+        {
+            LogGunStoreVisualSetupFailure(itemName, shelfName, $"visual prefab '{prefabPath}' was not found in the Gun Store bundle");
+            return false;
+        }
 
         var visualPoses = new List<(Vector3 position, Quaternion rotation)>();
         foreach (Transform visual in template)
             visualPoses.Add((visual.position, visual.rotation));
 
         if (visualPoses.Count == 0)
+        {
+            LogGunStoreVisualSetupFailure(itemName, shelfName, "the base visual slot has no child placement transforms");
             return false;
+        }
 
         var visualSlot = Instantiate(template, visualsContainer);
         visualSlot.name = visualSlotName;
@@ -299,6 +312,16 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         shelf.UpdateVisuals();
         return true;
+    }
+
+    private void LogGunStoreVisualSetupFailure(string itemName, string shelfName, string reason)
+    {
+        var key = $"{itemName}|{shelfName}|{reason}";
+        if (loggedGunStoreVisualSetupFailures.Add(key))
+        {
+            context?.Logger.Warn(
+                $"Gun Store: could not install isolated shelf visual: product='{itemName}', shelf='{shelfName}', reason={reason}.");
+        }
     }
 
     private void RepairMalformedShelfVisualsInLoadedScenes()
