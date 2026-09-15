@@ -125,8 +125,95 @@ public static class KoenigseggJeskoSetup
         VerifyAccentLettering();
     }
 
-    // Exercises the same texture creation/repaint path as the installed DLL,
-    // using the actual prefab badge materials and mesh UVs. No prefab mutation.
+    // Batch entry point: omit -quit; the test exits Unity after physics callbacks.
+    public static void VerifyImpactDamageInPlayMode()
+    {
+        SessionState.SetBool("JeskoImpactVerificationPending", true);
+        EditorApplication.EnterPlaymode();
+    }
+
+    [InitializeOnLoadMethod]
+    private static void ResumeImpactVerification()
+    {
+        if (!SessionState.GetBool("JeskoImpactVerificationPending", false)) return;
+        EditorApplication.update += RunPendingImpactVerification;
+    }
+
+    private static void RunPendingImpactVerification()
+    {
+        if (!Application.isPlaying) return;
+        EditorApplication.update -= RunPendingImpactVerification;
+        SessionState.EraseBool("JeskoImpactVerificationPending");
+        try { VerifyImpactDamage(); EditorApplication.Exit(0); }
+        catch (Exception exception) { Debug.LogException(exception); EditorApplication.Exit(1); }
+    }
+
+    public static void VerifyImpactDamage()
+    {
+        var type = typeof(KoenigseggJeskoMod).Assembly.GetType("KoenigseggJeskoImpactDamageController", true);
+        var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+        var damage = type.GetMethod("ImpactDamage", flags)!;
+        var reconcile = type.GetMethod("ReconcileDamage", flags)!;
+        var closing = type.GetMethod("ClosingSpeed", flags)!;
+        float Severity(float speed, float impulse, float otherMass = 1420f) =>
+            (float)damage.Invoke(null, new object[] { speed, impulse, 1420f, otherMass, 0.02f, 0.8f, 3.5f });
+        float Reconcile(float current, float baseline, float expected) =>
+            (float)reconcile.Invoke(null, new object[] { current, baseline, expected });
+        void Check(bool condition, string name)
+        {
+            if (!condition) throw new InvalidOperationException("Jesko impact verification: " + name);
+        }
+        var substantial = Severity(32.7f, 0f);
+        Check(substantial > 0.30f && substantial < 0.35f, "low-impulse severe contact lost");
+        Check(Severity(0f, 0f) == 0f && Severity(2f, 500f) == 0f, "resting/low-energy contact charged");
+        Check(Severity(0f, 14200f) > 0.19f, "continuing contact impulse lost");
+        Check(Mathf.Abs(Reconcile(0.40f, 0.1f, 0.3f) - 0.40f) < 0.0001f, "native damage double-counted");
+        Check(Mathf.Abs(Reconcile(0.102f, 0.1f, 0.3f) - 0.40f) < 0.0001f, "weak first contact masks main hit");
+        Check(Reconcile(0.7f, 0.1f, 0.3f) == 0.7f, "native severe damage reduced");
+        var corrected = Reconcile(0.102f, 0.1f, 0.3f);
+        Check(Reconcile(corrected, 0.1f, 0.3f) == corrected, "repeat changed budget");
+        Check(Reconcile(0.9f, 0.9f, 0.5f) == 1f, "condition unbounded");
+        Check(Severity(20f, 0f, 0f) > Severity(20f, 0f, 1420f), "dynamic mass not respected");
+
+        // Verify Unity's real callback velocity/normal convention, including a
+        // rear-first impact, without running the game or mutating the prefab.
+        var scene = UnityEngine.SceneManagement.SceneManager.CreateScene("JeskoImpactVerification",
+            new UnityEngine.SceneManagement.CreateSceneParameters(UnityEngine.SceneManagement.LocalPhysicsMode.Physics3D));
+        try
+        {
+            Check(scene.GetPhysicsScene() != Physics.defaultPhysicsScene, "preview must isolate physics");
+            foreach (var direction in new[] { Vector3.forward, Vector3.back })
+            {
+                var moving = new GameObject("JeskoImpactProbe");
+                var wall = new GameObject("JeskoImpactWall");
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(moving, scene);
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(wall, scene);
+                moving.AddComponent<BoxCollider>();
+                var body = moving.AddComponent<Rigidbody>();
+                body.mass = 1420f;
+                body.useGravity = false;
+                var probe = moving.AddComponent<KoenigseggJeskoImpactVerificationProbe>();
+                wall.transform.position = direction * 2f;
+                wall.AddComponent<BoxCollider>();
+                body.velocity = direction * 20f;
+                Physics.SyncTransforms();
+                for (var i = 0; i < 10 && !probe.Contacted; i++) scene.GetPhysicsScene().Simulate(0.02f);
+                Check(probe.Contacted, "physics probe produced no collision");
+                var speed = (float)closing.Invoke(null, new object[] { probe.RelativeVelocity, probe.Normal });
+                Debug.Log($"Jesko impact probe direction={direction} relative={probe.RelativeVelocity} normal={probe.Normal} closing={speed} impulse={probe.Impulse}");
+                Check(speed > 15f, "contact-normal sign rejects real forward/reverse crash");
+                Check((float)closing.Invoke(null, new object[] { -probe.RelativeVelocity, probe.Normal }) == 0f,
+                    "separating motion charged");
+                Check((float)closing.Invoke(null, new object[] { Vector3.right * 20f, probe.Normal }) < 0.001f,
+                    "tangential scrape charged");
+                UnityEngine.Object.DestroyImmediate(moving);
+                UnityEngine.Object.DestroyImmediate(wall);
+            }
+        }
+        finally { UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene); }
+        Debug.Log("Jesko impact verification passed: forward/reverse callbacks, low impulse, Stay impulse, mass, threshold, native credit, cap, scrape/separation.");
+    }
+
     public static void VerifyAccentLettering()
     {
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(VehiclePrefabPath);
@@ -1954,5 +2041,20 @@ public static class KoenigseggJeskoSetup
         }
 
         return new string(chars);
+    }
+}
+
+public sealed class KoenigseggJeskoImpactVerificationProbe : MonoBehaviour
+{
+    public bool Contacted;
+    public Vector3 RelativeVelocity;
+    public Vector3 Normal;
+    public float Impulse;
+    private void OnCollisionEnter(Collision collision)
+    {
+        Contacted = true;
+        RelativeVelocity = collision.relativeVelocity;
+        Normal = collision.GetContact(0).normal;
+        Impulse = collision.impulse.magnitude;
     }
 }

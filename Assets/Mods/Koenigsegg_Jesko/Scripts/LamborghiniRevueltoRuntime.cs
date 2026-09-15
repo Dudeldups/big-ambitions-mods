@@ -1266,6 +1266,11 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         // controller below works in world space and only touches the outer shell.
         damageHandler.meshDeform = false;
 
+        var impactDamage = vehicle.GetComponent<KoenigseggJeskoImpactDamageController>();
+        if (impactDamage == null)
+            impactDamage = vehicle.gameObject.AddComponent<KoenigseggJeskoImpactDamageController>();
+        impactDamage.Initialize(vehicle, damageHandler, context);
+
         var visualDamage = vehicle.GetComponent<KoenigseggJeskoVisualDamageController>();
         if (visualDamage == null)
             visualDamage = vehicle.gameObject.AddComponent<KoenigseggJeskoVisualDamageController>();
