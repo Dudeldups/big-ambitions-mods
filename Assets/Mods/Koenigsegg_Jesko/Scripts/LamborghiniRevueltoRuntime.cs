@@ -14,6 +14,10 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 
 public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 {
+    // Reuse the game's native player-car sleep configuration, matching the
+    // confirmed Cadillac implementation and supporting unsaved dev spawns.
+    private const string NativeCarSleepDonorPrefabPath =
+        "Vehicles/PlayerVehicles/HonzaMimic";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -104,6 +108,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
     private bool privateDriverPreparationExceptionLogged;
+    private UnityEngine.Object? nativeCarSleepConfig;
+    private bool nativeCarSleepConfigUnavailableLogged;
 
     public static KoenigseggJeskoRuntime Initialize(
         ModContext context,
@@ -146,6 +152,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+        nativeCarSleepConfig = null;
+        nativeCarSleepConfigUnavailableLogged = false;
         KoenigseggJeskoPrivateDriverSupport.RemoveVehicle(vehicleTypeName);
         playerVehiclePrefab = null;
         Destroy(gameObject);
@@ -470,11 +478,15 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
-        vehicle?.vehicleInstance != null &&
-        string.Equals(
-            vehicle.vehicleInstance.vehicleTypeName,
-            vehicleTypeName,
-            StringComparison.Ordinal);
+        vehicle != null &&
+        (string.Equals(
+             vehicle.vehicleInstance?.vehicleTypeName,
+             vehicleTypeName,
+             StringComparison.Ordinal) ||
+         string.Equals(
+             vehicle.vehicleType?.vehicleTypeName,
+             vehicleTypeName,
+             StringComparison.Ordinal));
 
     private void HandleBuildingEntered(Address address)
     {
@@ -630,76 +642,77 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
     }
 
-    private int ConfigureSleepEnvironment(VehicleController vehicle)
+    private bool ConfigureSleepEnvironment(VehicleController vehicle)
     {
         try
         {
-            var environmentField = typeof(VehicleController).GetField(
-                "sleepEnvironment",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var environmentField = FindField(typeof(VehicleController), "sleepEnvironment");
             var environment = environmentField?.GetValue(vehicle);
             if (environmentField == null || environment == null)
-                return 0;
+                return false;
 
-            var configField = environment.GetType().BaseType?.GetField(
-                "config",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var configField = FindField(environment.GetType(), "config");
             if (configField == null)
-                return 0;
-            if (configField.GetValue(environment) is UnityEngine.Object currentConfig && currentConfig != null)
-                return 1;
+                return false;
+            if (configField.GetValue(environment) is UnityEngine.Object currentConfig &&
+                currentConfig != null)
+                return IsCarSleepConfig(currentConfig);
 
-            UnityEngine.Object? carConfig = null;
-            foreach (var otherVehicle in Resources.FindObjectsOfTypeAll<VehicleController>())
-            {
-                if (otherVehicle == null || otherVehicle == vehicle)
-                    continue;
-                var otherEnvironment = environmentField.GetValue(otherVehicle);
-                var candidate = otherEnvironment == null
-                    ? null
-                    : configField.GetValue(otherEnvironment) as UnityEngine.Object;
-                if (candidate != null && IsCarSleepConfig(candidate))
-                {
-                    carConfig = candidate;
-                    break;
-                }
-            }
-
+            var carConfig = ResolveNativeCarSleepConfig();
             if (carConfig == null)
             {
-                foreach (var candidate in Resources.FindObjectsOfTypeAll<UnityEngine.Object>())
+                if (!nativeCarSleepConfigUnavailableLogged)
                 {
-                    if (candidate != null &&
-                        candidate.GetType().FullName == "PlayerActivity.SleepEnvironmentConfig" &&
-                        IsCarSleepConfig(candidate))
-                    {
-                        carConfig = candidate;
-                        break;
-                    }
+                    nativeCarSleepConfigUnavailableLogged = true;
+                    context?.Logger.Warn(
+                        "KoenigseggJesko: native car sleep configuration was unavailable; " +
+                        "sleeping in this vehicle will remain disabled.");
                 }
-            }
-
-            carConfig ??= CreateFallbackCarSleepConfig(configField.FieldType);
-            if (carConfig == null)
-            {
-                context?.Logger.Warn(
-                    $"KoenigseggJesko: car sleep configuration unavailable instance={vehicle.GetInstanceID()}.");
-                return 0;
+                return false;
             }
 
             configField.SetValue(environment, carConfig);
             environmentField.SetValue(vehicle, environment);
             context?.Logger.Info(
-                $"KoenigseggJesko: assigned car sleep configuration instance={vehicle.GetInstanceID()}.");
-            return 1;
+                $"KoenigseggJesko: configured native car sleep environment " +
+                $"vehicle={vehicle.GetInstanceID()} donor=HonzaMimic.");
+            return true;
         }
         catch (Exception exception)
         {
-            context?.Logger.Warn(
-                $"KoenigseggJesko: could not assign car sleep configuration: " +
-                $"{exception.GetType().Name}: {exception.Message}");
-            return 0;
+            if (!nativeCarSleepConfigUnavailableLogged)
+            {
+                nativeCarSleepConfigUnavailableLogged = true;
+                context?.Logger.Warn(
+                    "KoenigseggJesko: could not configure the native car sleep environment: " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+            }
+            return false;
         }
+    }
+
+    private UnityEngine.Object? ResolveNativeCarSleepConfig()
+    {
+        if (nativeCarSleepConfig != null)
+            return nativeCarSleepConfig;
+
+        var donor = PrefabHelper.LoadPrefabAssetByName(NativeCarSleepDonorPrefabPath);
+        var donorVehicle = donor?.GetComponent<VehicleController>() ??
+                           donor?.GetComponentInChildren<VehicleController>(true);
+        if (donorVehicle == null)
+            return null;
+
+        var environmentField = FindField(typeof(VehicleController), "sleepEnvironment");
+        var donorEnvironment = environmentField?.GetValue(donorVehicle);
+        var configField = donorEnvironment == null
+            ? null
+            : FindField(donorEnvironment.GetType(), "config");
+        var candidate = configField?.GetValue(donorEnvironment) as UnityEngine.Object;
+        if (candidate == null || !IsCarSleepConfig(candidate))
+            return null;
+
+        nativeCarSleepConfig = candidate;
+        return nativeCarSleepConfig;
     }
 
     private static bool IsCarSleepConfig(UnityEngine.Object candidate)
@@ -707,59 +720,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         var typeField = FindField(candidate.GetType(), "sleepEnvironmentType");
         var typeValue = typeField?.GetValue(candidate);
         return typeValue != null && Convert.ToInt32(typeValue) == 1;
-    }
-
-    private static UnityEngine.Object? CreateFallbackCarSleepConfig(Type configType)
-    {
-        if (!typeof(ScriptableObject).IsAssignableFrom(configType))
-            return null;
-
-        var config = ScriptableObject.CreateInstance(configType);
-        config.name = "KoenigseggJesko Runtime Car Sleep Config";
-        config.hideFlags = HideFlags.HideAndDontSave;
-        SetEnumField(config, "sleepEnvironmentType", 1);
-        SetEnumField(config, "energyRegen", 3);
-
-        var balanceConfigField = FindField(configType, "balanceConfig");
-        if (balanceConfigField == null ||
-            !typeof(ScriptableObject).IsAssignableFrom(balanceConfigField.FieldType))
-        {
-            Destroy(config);
-            return null;
-        }
-
-        var balance = ScriptableObject.CreateInstance(balanceConfigField.FieldType);
-        balance.name = "KoenigseggJesko Runtime Car Sleep Balance";
-        balance.hideFlags = HideFlags.HideAndDontSave;
-        SetStringField(balance, "displayName", "Car");
-        SetEnumField(balance, "source", 0);
-        SetIntField(balance, "defaultDurationMinutes", 480);
-        SetIntField(balance, "minDurationMinutes", 60);
-        SetIntField(balance, "maxDurationMinutes", 1440);
-        balanceConfigField.SetValue(config, balance);
-        FindField(configType, "luxuryOverrideBalanceConfig")?.SetValue(config, balance);
-        return config;
-    }
-
-    private static void SetEnumField(object target, string fieldName, int value)
-    {
-        var field = FindField(target.GetType(), fieldName);
-        if (field?.FieldType.IsEnum == true)
-            field.SetValue(target, Enum.ToObject(field.FieldType, value));
-    }
-
-    private static void SetIntField(object target, string fieldName, int value)
-    {
-        var field = FindField(target.GetType(), fieldName);
-        if (field?.FieldType == typeof(int))
-            field.SetValue(target, value);
-    }
-
-    private static void SetStringField(object target, string fieldName, string value)
-    {
-        var field = FindField(target.GetType(), fieldName);
-        if (field?.FieldType == typeof(string))
-            field.SetValue(target, value);
     }
 
     private void ConfigureExistingVehicles(out int matchedCount)
@@ -771,14 +731,8 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
         foreach (var vehicle in vehicles)
         {
-            if (vehicle?.vehicleInstance == null ||
-                !string.Equals(
-                    vehicle.vehicleInstance.vehicleTypeName,
-                    vehicleTypeName,
-                    StringComparison.Ordinal))
-            {
+            if (!IsTargetVehicle(vehicle))
                 continue;
-            }
 
             matchedCount++;
             TryConfigureVehicle(vehicle);
@@ -807,14 +761,14 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private bool TryConfigureVehicle(VehicleController? vehicle)
     {
-        if (vehicle?.vehicleInstance == null ||
-            !string.Equals(
-                vehicle.vehicleInstance.vehicleTypeName,
-                vehicleTypeName,
-                StringComparison.Ordinal))
-        {
+        if (!IsTargetVehicle(vehicle) || vehicle == null)
             return false;
-        }
+
+        // Configure this before requiring a saved instance: developer-tool
+        // spawns can be unsaved but must still expose the native Car sleep action.
+        var sleepConfigured = ConfigureSleepEnvironment(vehicle);
+        if (vehicle.vehicleInstance == null)
+            return sleepConfigured;
 
         var instanceId = vehicle.GetInstanceID();
         if (configuredVehicleIds.Contains(instanceId))
@@ -822,7 +776,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
         try
         {
-            var sleepConfigured = ConfigureSleepEnvironment(vehicle);
             if (!HasVehicleVisualsReady(vehicle.gameObject))
             {
                 if (configurationReadinessWarnings.Add(instanceId))
@@ -894,7 +847,7 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             accelerationTelemetry.Initialize(vehicle, context);
 
             if (wheelPlacements < 12 || !repairedBodyShell || deformableBodyMeshes == 0 ||
-                !powertrainConfigured || sleepConfigured == 0)
+                !powertrainConfigured || !sleepConfigured)
             {
                 context?.Logger.Warn(
                     $"KoenigseggJesko: vehicle instance={instanceId} setup incomplete; " +

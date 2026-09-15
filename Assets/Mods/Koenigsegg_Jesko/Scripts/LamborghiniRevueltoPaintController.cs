@@ -266,7 +266,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     {
         if (!bodyPaintTextures.TryGetValue(sourceMaterial, out var state))
         {
-            state = ExteriorContrastTexture.Create(sourceMaterial, tintNonAccentPixels: true);
+            state = ExteriorContrastTexture.Create(
+                sourceMaterial,
+                tintNonAccentPixels: true,
+                recolorNeutralPixels: false);
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -290,7 +293,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     {
         if (!exteriorContrastTextures.TryGetValue(sourceMaterial, out var state))
         {
-            state = ExteriorContrastTexture.Create(sourceMaterial, tintNonAccentPixels: false);
+            state = ExteriorContrastTexture.Create(
+                sourceMaterial,
+                tintNonAccentPixels: false,
+                recolorNeutralPixels: IsSideJeskoBadgeRenderer(renderer, sourceMaterial));
             if (state == null)
             {
                 context?.Logger.Warn(
@@ -310,6 +316,9 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     private static bool IsExteriorContrastAccentRenderer(Renderer renderer, Material material)
     {
         var rendererName = renderer.name;
+        if (IsSideJeskoBadgeRenderer(renderer, material))
+            return true;
+
         var supportedMaterial =
             material.name.IndexOf("Exterior_mm_misc1", StringComparison.OrdinalIgnoreCase) >= 0 ||
             material.name.IndexOf("CARBON", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -324,6 +333,10 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                rendererName.IndexOf("FRONTBUMPER_mm_misc_CARBON", StringComparison.OrdinalIgnoreCase) >= 0 ||
                rendererName.IndexOf("REARBUMPER_mm_misc_CARBON", StringComparison.OrdinalIgnoreCase) >= 0;
     }
+
+    private static bool IsSideJeskoBadgeRenderer(Renderer renderer, Material material) =>
+        renderer.name.IndexOf("BODY_mm_badges", StringComparison.OrdinalIgnoreCase) >= 0 &&
+        material.name.IndexOf("Exterior_mm_badges1", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private void ReleaseRuntimePaintTextures()
     {
@@ -565,7 +578,8 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
 
         internal static ExteriorContrastTexture? Create(
             Material sourceMaterial,
-            bool tintNonAccentPixels)
+            bool tintNonAccentPixels,
+            bool recolorNeutralPixels)
         {
             var sourceTexture = FindBaseTexture(sourceMaterial);
             if (sourceTexture == null)
@@ -628,10 +642,11 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             {
                 var source = (Color)sourcePixels[index];
                 Color.RGBToHSV(source, out var hue, out var saturation, out var value);
+                var yellowGreenAccent = hue >= 0.14f && hue <= 0.38f &&
+                                        saturation > 0.30f && value > 0.18f;
+                var neutralJeskoLettering = recolorNeutralPixels && saturation < 0.25f;
                 accentPixels[index] = source.a > 0.01f &&
-                                      hue >= 0.14f && hue <= 0.38f &&
-                                      saturation > 0.30f &&
-                                      value > 0.18f;
+                                      (yellowGreenAccent || neutralJeskoLettering);
             }
 
             return new ExteriorContrastTexture(

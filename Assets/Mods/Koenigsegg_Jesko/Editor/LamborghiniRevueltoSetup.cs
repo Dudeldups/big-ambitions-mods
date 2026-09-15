@@ -45,8 +45,9 @@ public static class KoenigseggJeskoSetup
     private const float RearCaliperHeightOffset = 0.04f;
     private const float RearCaliperLongitudinalOffset = 0.08f;
     private const float FrontWheelHeightOffset = 0.04f;
-    // Raise the suspension anchors relative to the chassis. The tire contact
-    // patches remain on the road while the complete body settles 2 cm higher.
+    private const float BodyVisualHeightOffset = 0.06f;
+    // Retain the user-confirmed tire grounding. Body ride height is authored
+    // independently through BodyVisualHeightOffset above.
     private const float WheelGroundingOffset = 0.06f;
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
@@ -760,6 +761,9 @@ public static class KoenigseggJeskoSetup
             DisableBonnetCameraGeometry(modelInstance);
             RemoveModelLights(modelInstance);
             NormalizeModel(modelInstance);
+            // Body ride-height correction is visual-only. Keep every wheel,
+            // tire, rotor, caliper, and wheel-controller anchor unchanged.
+            modelInstance.transform.localPosition += Vector3.up * BodyVisualHeightOffset;
             ConfigureExitMarkers(root, modelInstance);
             AssignPersistentMaterials(modelInstance);
             AttachWheelVisuals(root, modelInstance);
