@@ -198,10 +198,12 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
             var wasAlreadyClosed = registration.temporarilyClosed;
             if (!wasAlreadyClosed)
-            {
-                registration.temporarilyClosed = true;
                 retiredCount++;
-            }
+
+            // Use the game's closure method rather than setting the serialized flag directly.
+            // It completes in-flight business simulation work and refreshes customer entries,
+            // including when a previous version already set the serialized closed flag.
+            registration.TemporarilyClose(true);
 
             context?.Logger.Warn(
                 $"Gun Store: retired legacy AI rival: name='{registration.BusinessName}', " +
