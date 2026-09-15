@@ -26,6 +26,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private Coroutine? pendingNavigationPatch;
     private bool pendingForcedNavigationRefresh;
     private bool gameLoadedLateCallbackRegistered;
+    private bool postCitySaveRepairCompleted;
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
@@ -135,6 +136,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // Let the native Help and localization callbacks finish rebuilding their UI first.
         yield return null;
         pendingNavigationPatch = null;
+        RunPostCitySaveRepair();
         var forceRefresh = pendingForcedNavigationRefresh;
         pendingForcedNavigationRefresh = false;
 #if GUN_STORE_HELP_UI_DEBUG
@@ -153,6 +155,17 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         {
             context?.Logger.Error(exception);
         }
+    }
+
+    private void RunPostCitySaveRepair()
+    {
+        if (postCitySaveRepairCompleted || SaveGameManager.Current?.BuildingRegistrations == null)
+            return;
+
+        GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        postCitySaveRepairCompleted = true;
+        context?.Logger.Info("Gun Store: completed post-city save repair after building registrations became available.");
     }
 }
 
