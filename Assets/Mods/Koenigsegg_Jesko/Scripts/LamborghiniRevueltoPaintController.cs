@@ -71,10 +71,25 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
     internal void RestoreAfterVehicleEntered() =>
         SchedulePaintSettlement("vehicle-entered");
 
-    internal void RefreshCurrentColor(string source)
+    internal bool RefreshCurrentColor(string source, bool settleWhenUnchanged = true)
     {
-        ApplyCurrentColor(source);
-        SchedulePaintSettlement(source);
+        var changed = HasCurrentColorChanged();
+        if (!ApplyCurrentColor(source))
+            return false;
+        if (changed || settleWhenUnchanged)
+            SchedulePaintSettlement(source);
+        return changed;
+    }
+
+    private bool HasCurrentColorChanged()
+    {
+        var selected = ResolveVehicleColor();
+        if (selected == null)
+            return false;
+        var tint = (Color32)selected.tint;
+        return !hasAppliedTint ||
+               !ReferenceEquals(selected, appliedColor) ||
+               !tint.Equals(appliedTint);
     }
 
     private void SchedulePaintSettlement(string source)

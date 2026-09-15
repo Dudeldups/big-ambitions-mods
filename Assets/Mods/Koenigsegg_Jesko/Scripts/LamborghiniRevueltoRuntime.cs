@@ -20,6 +20,10 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         "vehicle-repainter:color-preview";
     private const string VehicleRepainterColorResetEvent =
         "vehicle-repainter:color-reset";
+    private const string DeveloperToolsVehicleRecolorEvent =
+        "developer-tools:vehicle-recolor";
+    private const string DeveloperToolsVehicleRecolorRestoredEvent =
+        "developer-tools:vehicle-recolor-restored";
     // Reuse the game's native player-car sleep configuration, matching the
     // confirmed Cadillac implementation and supporting unsaved dev spawns.
     private const string NativeCarSleepDonorPrefabPath =
@@ -113,7 +117,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
     private Coroutine? exitedPlayerRecoveryCoroutine;
     private Coroutine? warehouseExitGuardCoroutine;
     private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
-    private KoenigseggJeskoWarehouseEntryController? warehouseExitGuardEntryController;
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -270,13 +273,28 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
     private void HandleGameEvent(string eventName)
     {
+        var developerToolsEvent =
+            string.Equals(eventName, DeveloperToolsVehicleRecolorEvent,
+                StringComparison.Ordinal) ||
+            string.Equals(eventName, DeveloperToolsVehicleRecolorRestoredEvent,
+                StringComparison.Ordinal);
         if (!string.Equals(eventName, VehicleRepainterColorRestoredEvent,
                 StringComparison.Ordinal) &&
             !string.Equals(eventName, VehicleRepainterColorPreviewEvent,
                 StringComparison.Ordinal) &&
             !string.Equals(eventName, VehicleRepainterColorResetEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, DeveloperToolsVehicleRecolorEvent,
+                StringComparison.Ordinal) &&
+            !string.Equals(eventName, DeveloperToolsVehicleRecolorRestoredEvent,
                 StringComparison.Ordinal))
         {
+            return;
+        }
+
+        if (developerToolsEvent)
+        {
+            RefreshDeveloperToolPaint(eventName);
             return;
         }
 
@@ -292,6 +310,35 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
             context,
             $"KoenigseggJesko repaint event='{eventName}' " +
             $"vehicle={selectedVehicle.GetInstanceID()} handled=true.");
+    }
+
+    private void RefreshDeveloperToolPaint(string eventName)
+    {
+        var vehicles = VehicleHelper.AllPlayerVehicles;
+        var targetCount = 0;
+        var changedCount = 0;
+        if (vehicles != null)
+        {
+            foreach (var vehicle in vehicles)
+            {
+                if (!IsTargetVehicle(vehicle))
+                    continue;
+
+                targetCount++;
+                TryConfigureVehicle(vehicle);
+                if (vehicle!
+                    .GetComponent<KoenigseggJeskoPaintController>()
+                    ?.RefreshCurrentColor(eventName, settleWhenUnchanged: false) == true)
+                {
+                    changedCount++;
+                }
+            }
+        }
+
+        KoenigseggJeskoDiagnostics.PaintInfo(
+            context,
+            $"KoenigseggJesko developer recolor event='{eventName}' " +
+            $"targets={targetCount}, changed={changedCount}.");
     }
 
     private void HandleVehicleEntered(VehicleController vehicle)
@@ -584,11 +631,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         StopWarehouseExitGuard();
-        warehouseExitGuardEntryController =
-            vehicle.GetComponent<KoenigseggJeskoWarehouseEntryController>();
-        warehouseExitGuardEntryController?.SuppressEntrance(
-            entrance,
-            "warehouse-exit-guard");
         foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
         foreach (var collider in enterTrigger.GetComponents<Collider>())
         {
@@ -601,10 +643,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
 
         if (warehouseExitGuardColliders.Count == 0)
         {
-            warehouseExitGuardEntryController?.ClearSuppressedEntrance(
-                entrance,
-                "no-native-entry-trigger");
-            warehouseExitGuardEntryController = null;
             KoenigseggJeskoDiagnostics.WarehouseInfo(
                 context,
                 $"KoenigseggJesko warehouse-exit: entrance='{entrance.name}' had no " +
@@ -697,8 +735,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
         }
 
         warehouseExitGuardColliders.Clear();
-        warehouseExitGuardEntryController?.ClearSuppressedEntrance(null, reason);
-        warehouseExitGuardEntryController = null;
         warehouseExitGuardCoroutine = null;
         Physics.SyncTransforms();
     }
@@ -1057,14 +1093,6 @@ public sealed class KoenigseggJeskoRuntime : MonoBehaviour
                     .AddComponent<KoenigseggJeskoWarehouseBoundsController>();
             }
             warehouseBounds.Initialize();
-            var warehouseEntry =
-                vehicle.GetComponent<KoenigseggJeskoWarehouseEntryController>();
-            if (warehouseEntry == null)
-            {
-                warehouseEntry = vehicle.gameObject
-                    .AddComponent<KoenigseggJeskoWarehouseEntryController>();
-            }
-            warehouseEntry.Initialize(vehicle, context);
             var repairedBodyShell = UseAuthoredBodyShell(vehicle.gameObject);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<KoenigseggJeskoCaliperController>();
