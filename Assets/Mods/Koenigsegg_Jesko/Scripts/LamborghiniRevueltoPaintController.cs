@@ -211,7 +211,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
             $"KoenigseggJesko paint vehicle={vehicle?.GetInstanceID()}: " +
             $"applied color='{((UnityEngine.Object)selected).name}' rgba={tint} " +
             $"to {slots.Count} body/caliper slots; exteriorContrast=" +
-            $"{(UseDarkContrast(selectedColor) ? "black" : "white")}.");
+            $"{(UseDarkContrast(selectedColor) ? "50%-gray" : "white")}.");
     }
 
     private static bool UseDarkContrast(Color paint)
@@ -666,7 +666,7 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
                 }
 
                 var shade = darkContrast
-                    ? (byte)0
+                    ? (byte)128
                     : (byte)Mathf.RoundToInt(Mathf.Lerp(184f, 255f,
                         Mathf.Max(source.r, Mathf.Max(source.g, source.b)) / 255f));
                 outputPixels[index] = new Color32(shade, shade, shade, source.a);
