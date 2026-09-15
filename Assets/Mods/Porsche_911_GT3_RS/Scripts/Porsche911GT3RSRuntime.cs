@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using BAModAPI;
 using BusinessLayoutSets;
@@ -208,11 +209,16 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
 
-    private void HandleGameEvent(string _)
+    private void HandleGameEvent(string eventName)
     {
         var selectedVehicle = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
         if (!IsTargetVehicle(selectedVehicle))
             return;
+
+        Porsche911GT3RSDiagnostics.DealerEntryInfo(
+            context,
+            $"Porsche911GT3RS dealer-entry: game-event='{eventName}', " +
+            DescribeVehicleState(selectedVehicle));
 
         // Dealer purchases do not reliably invoke onEnterVehicle. This event
         // is a bounded lifecycle handoff from the dealer display vehicle to
@@ -273,6 +279,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
     private void HandleVehicleEntered(VehicleController vehicle)
     {
+        Porsche911GT3RSDiagnostics.DealerEntryInfo(
+            context,
+            $"Porsche911GT3RS dealer-entry: onEnterVehicle, {DescribeVehicleState(vehicle)}");
         TryConfigureVehicle(vehicle);
         vehicle.GetComponent<Porsche911GT3RSGlassController>()
             ?.RestoreAfterVehicleEntered();
@@ -287,6 +296,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
     {
         if (!IsTargetVehicle(vehicle))
             return;
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-exit: onExitVehicle, {DescribeVehicleState(vehicle)}");
         if (enteredVehicleActivationCoroutine != null)
             StopCoroutine(enteredVehicleActivationCoroutine);
         enteredVehicleActivationCoroutine = null;
@@ -312,9 +324,23 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         var needsRecovery = false;
         foreach (var agent in agents)
             needsRecovery |= agent != null && agent.enabled && !agent.isOnNavMesh;
-        needsRecovery |= !IsPlayerExitClear(root, root.position);
-        if (!needsRecovery || !TryFindClearExitPosition(root, exitedVehicle, out var target))
+        var initialExitClear = IsPlayerExitClear(root, root.position);
+        needsRecovery |= !initialExitClear;
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS player-exit: deferred validation playerPosition={root.position}, " +
+            $"agentCount={agents.Length}, anyAgentOffNavMesh={agents.Any(agent => agent != null && agent.enabled && !agent.isOnNavMesh)}, " +
+            $"initialClear={initialExitClear}, needsRecovery={needsRecovery}.");
+        if (!needsRecovery)
         {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+        if (!TryFindClearExitPosition(root, exitedVehicle, out var target))
+        {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                "Porsche911GT3RS player-exit: recovery failed; no NavMesh/capsule-clear candidate found.");
             exitedPlayerRecoveryCoroutine = null;
             yield break;
         }
@@ -352,6 +378,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                     characterControllers[index].enabled = controllerStates[index];
             Physics.SyncTransforms();
         }
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS player-exit: recovery moved player to {target}.");
         exitedPlayerRecoveryCoroutine = null;
     }
 
@@ -413,11 +442,36 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             vehicleTypeName,
             StringComparison.Ordinal);
 
+    private static string DescribeVehicleState(VehicleController? vehicle)
+    {
+        if (vehicle == null)
+            return "vehicle=<null>";
+
+        var physics = vehicle.GetComponent<PhysicsVehicle>() ??
+                      vehicle.GetComponentInChildren<PhysicsVehicle>(true);
+        var rigidbody = vehicle.GetComponent<Rigidbody>() ??
+                        vehicle.GetComponentInChildren<Rigidbody>(true) ??
+                        vehicle.GetComponentInParent<Rigidbody>();
+        var engine = physics?.powertrain?.engine;
+        var transmission = physics?.powertrain?.transmission;
+        return $"instance={vehicle.GetInstanceID()}, controlled={vehicle.controlledByPlayer}, " +
+               $"selected={ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle)}, " +
+               $"position={vehicle.transform.position}, physics={(physics == null ? "missing" : physics.enabled.ToString())}, " +
+               $"kinematic={rigidbody?.isKinematic}, constraints={rigidbody?.constraints}, " +
+               $"engineRunning={engine?.IsRunning}, ignition={engine?.ignition}, canRun={engine?.canRun}, " +
+               $"rpm={(engine == null ? "n/a" : (engine.RPMPercent * engine.revLimiterRPM).ToString("0"))}, " +
+               $"gear={transmission?.Gear}, ratio={transmission?.currentGearRatio:0.000}.";
+    }
+
     private void ScheduleEnteredVehicleActivation(VehicleController vehicle)
     {
         if (!vehicle.controlledByPlayer &&
             !ReferenceEquals(InstanceBehavior<GameManager>.Instance?.selectedVehicle, vehicle))
         {
+            Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                context,
+                $"Porsche911GT3RS dealer-entry: activation skipped because the vehicle is " +
+                $"neither controlled nor selected, {DescribeVehicleState(vehicle)}");
             return;
         }
 
@@ -425,6 +479,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         if (enteredVehicleActivationCoroutine != null &&
             enteredVehicleActivationInstanceId == instanceId)
         {
+            Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                context,
+                $"Porsche911GT3RS dealer-entry: activation already pending instance={instanceId}.");
             return;
         }
 
@@ -432,6 +489,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             StopCoroutine(enteredVehicleActivationCoroutine);
 
         enteredVehicleActivationInstanceId = instanceId;
+        Porsche911GT3RSDiagnostics.DealerEntryInfo(
+            context,
+            $"Porsche911GT3RS dealer-entry: activation scheduled, {DescribeVehicleState(vehicle)}");
         enteredVehicleActivationCoroutine = StartCoroutine(ActivateEnteredVehicle(vehicle));
     }
 
@@ -445,6 +505,10 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                       vehicle.GetComponentInChildren<PhysicsVehicle>(true);
         if (physics == null)
         {
+            Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                context,
+                $"Porsche911GT3RS dealer-entry: activation failed; NWH controller missing, " +
+                DescribeVehicleState(vehicle));
             enteredVehicleActivationCoroutine = null;
             enteredVehicleActivationInstanceId = 0;
             yield break;
@@ -455,37 +519,77 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         for (var attempt = 0; attempt < EngineStartAttemptCount; attempt++)
         {
             if (vehicle == null || !vehicle.controlledByPlayer)
+            {
+                Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                    context,
+                    $"Porsche911GT3RS dealer-entry: activation cancelled attempt={attempt + 1}; " +
+                    $"controlled={vehicle?.controlledByPlayer}.");
                 break;
+            }
 
             // Paint assignment from the dealer is asynchronous too; retain a
             // bounded entry refresh without turning it into runtime polling.
             vehicle.GetComponent<Porsche911GT3RSPaintController>()
                 ?.ApplyCurrentColor("vehicle-entered");
+            Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                context,
+                $"Porsche911GT3RS dealer-entry: activation attempt={attempt + 1}, " +
+                $"running={engine.IsRunning}, ignition={engine.ignition}, canRun={engine.canRun}, " +
+                $"rpm={engine.RPMPercent * engine.revLimiterRPM:0}, gear={transmission.Gear}, " +
+                $"ratio={transmission.currentGearRatio:0.000}, physicsEnabled={physics.enabled}.");
             if (engine.IsRunning && engine.ignition && engine.canRun)
             {
                 // Do not overwrite an intentional reverse selection. The
                 // native entry leaves an unselected gearbox at exactly zero.
                 if (transmission.Gear == 0)
+                {
                     transmission.ShiftInto(1, true);
+                    Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                        context,
+                        "Porsche911GT3RS dealer-entry: native engine healthy; shifted neutral to first.");
+                }
+                else
+                {
+                    Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                        context,
+                        $"Porsche911GT3RS dealer-entry: native engine healthy; preserved gear={transmission.Gear}.");
+                }
                 break;
             }
 
+            Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                context,
+                $"Porsche911GT3RS dealer-entry: dormant powertrain; restart attempt={attempt + 1}.");
             engine.StopEngine();
             transmission.ShiftInto(0, true);
             transmission.currentGearRatio = 0f;
             yield return new WaitForSecondsRealtime(.15f);
             if (vehicle == null || !vehicle.controlledByPlayer)
+            {
+                Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                    context,
+                    $"Porsche911GT3RS dealer-entry: restart aborted after stop attempt={attempt + 1}; " +
+                    $"controlled={vehicle?.controlledByPlayer}.");
                 break;
+            }
             engine.StartEngine();
             yield return new WaitForSecondsRealtime(.75f);
             if (vehicle != null && vehicle.controlledByPlayer &&
                 transmission.Gear == 0)
+            {
                 transmission.ShiftInto(1, true);
+                Porsche911GT3RSDiagnostics.DealerEntryInfo(
+                    context,
+                    $"Porsche911GT3RS dealer-entry: restart attempt={attempt + 1} shifted neutral to first.");
+            }
             yield return new WaitForSecondsRealtime(.15f);
         }
 
         enteredVehicleActivationCoroutine = null;
         enteredVehicleActivationInstanceId = 0;
+        Porsche911GT3RSDiagnostics.DealerEntryInfo(
+            context,
+            $"Porsche911GT3RS dealer-entry: activation completed, {DescribeVehicleState(vehicle)}");
     }
 
     private void HandleBuildingEntered(Address address)
@@ -521,11 +625,31 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
 
         var vehicle = VehicleHelper.GetCurrentVehicleBase();
         if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+        {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                $"Porsche911GT3RS warehouse-exit: guard skipped; current vehicle is not " +
+                $"a controlled Porsche ({DescribeVehicleState(vehicle)}).");
             return;
+        }
 
         var entrance = FindClosestDriveInEntrance(vehicle.transform.position);
         if (entrance == null)
+        {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                $"Porsche911GT3RS warehouse-exit: guard skipped; no DriveInEntrance found, " +
+                DescribeVehicleState(vehicle));
             return;
+        }
+
+        var nativeMeshCollider = vehicle.GetComponentInChildren<MeshCollider>(true);
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-exit: native exit completed, {DescribeVehicleState(vehicle)} " +
+            $"entrance='{entrance.name}' entrancePosition={entrance.transform.position}, " +
+            $"nativeMesh='{nativeMeshCollider?.name ?? "missing"}', " +
+            $"nativeMeshLength={nativeMeshCollider?.sharedMesh?.bounds.size.z:0.000}.");
 
         StopWarehouseExitGuard();
         foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
@@ -535,11 +659,20 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 continue;
 
             warehouseExitGuardColliders.Add(collider);
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                $"Porsche911GT3RS warehouse-exit: disabling entry trigger " +
+                $"'{collider.name}' bounds={collider.bounds}.");
             collider.enabled = false;
         }
 
         if (warehouseExitGuardColliders.Count == 0)
+        {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                "Porsche911GT3RS warehouse-exit: guard skipped; matching entrance had no enabled trigger colliders.");
             return;
+        }
 
         var outward = Vector3.ProjectOnPlane(
             vehicle.transform.position - entrance.transform.position,
@@ -548,6 +681,9 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
             outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
         if (outward.sqrMagnitude < .0001f)
         {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                "Porsche911GT3RS warehouse-exit: guard aborted; outward direction was zero.");
             StopWarehouseExitGuard();
             return;
         }
@@ -555,6 +691,12 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         outward.Normalize();
         var startingDistance = Vector3.Dot(vehicle.transform.position, outward);
         Physics.SyncTransforms();
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-exit: guard started triggerCount={warehouseExitGuardColliders.Count}, " +
+            $"outward={outward}, startProjection={startingDistance:0.000}, " +
+            $"clearDistance={WarehouseExitGuardClearDistance:0.00}, " +
+            $"timeout={WarehouseExitGuardDuration:0.0}s.");
         warehouseExitGuardCoroutine = StartCoroutine(GuardWarehouseExit(
             vehicle,
             outward,
@@ -567,30 +709,48 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
         float startingDistance)
     {
         var expiresAt = Time.unscaledTime + WarehouseExitGuardDuration;
+        var reason = "timeout";
         while (vehicle != null && vehicle.controlledByPlayer &&
                Time.unscaledTime < expiresAt)
         {
             if (Vector3.Dot(vehicle.transform.position, outward) >=
                 startingDistance + WarehouseExitGuardClearDistance)
             {
+                reason = "moved-away";
                 break;
             }
 
             yield return new WaitForFixedUpdate();
         }
 
-        RestoreWarehouseExitTriggers();
+        if (vehicle == null)
+            reason = "vehicle-destroyed";
+        else if (!vehicle.controlledByPlayer)
+            reason = "player-left-vehicle";
+        Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+            context,
+            $"Porsche911GT3RS warehouse-exit: guard ending reason={reason}, " +
+            $"projection={(vehicle == null ? float.NaN : Vector3.Dot(vehicle.transform.position, outward)):0.000}, " +
+            $"startProjection={startingDistance:0.000}.");
+        RestoreWarehouseExitTriggers(reason);
     }
 
     private void StopWarehouseExitGuard()
     {
         if (warehouseExitGuardCoroutine != null)
             StopCoroutine(warehouseExitGuardCoroutine);
-        RestoreWarehouseExitTriggers();
+        RestoreWarehouseExitTriggers("cancelled-or-reset");
     }
 
-    private void RestoreWarehouseExitTriggers()
+    private void RestoreWarehouseExitTriggers(string reason)
     {
+        if (warehouseExitGuardColliders.Count > 0)
+        {
+            Porsche911GT3RSDiagnostics.WarehouseExitInfo(
+                context,
+                $"Porsche911GT3RS warehouse-exit: restoring triggerCount={warehouseExitGuardColliders.Count}, " +
+                $"reason={reason}.");
+        }
         foreach (var collider in warehouseExitGuardColliders)
         {
             if (collider != null)
@@ -891,7 +1051,7 @@ public sealed class Porsche911GT3RSRuntime : MonoBehaviour
                 warehouseEntry = vehicle.gameObject
                     .AddComponent<Porsche911GT3RSWarehouseEntryController>();
             }
-            warehouseEntry.Initialize(vehicle);
+            warehouseEntry.Initialize(vehicle, context);
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<Porsche911GT3RSCaliperController>();
             if (caliperController == null)

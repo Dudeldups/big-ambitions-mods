@@ -15,7 +15,11 @@ using Vehicles.VehicleTypes;
 
 internal static class Porsche911GT3RSDiagnostics
 {
-    internal static bool DebugEnabled { get; set; } = false;
+    // Temporary local diagnostic build. Set this and both focused flags back
+    // to false only after dealer entry and warehouse exit are confirmed fixed.
+    internal static bool DebugEnabled { get; set; } = true;
+    internal static bool DealerEntryDebugEnabled { get; set; } = true;
+    internal static bool WarehouseExitDebugEnabled { get; set; } = true;
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool DamageDebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
@@ -29,6 +33,18 @@ internal static class Porsche911GT3RSDiagnostics
     internal static void PaintInfo(ModContext? context, string message)
     {
         if (DebugEnabled && PaintDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void DealerEntryInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && DealerEntryDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void WarehouseExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && WarehouseExitDebugEnabled)
             context?.Logger.Info(message);
     }
 
