@@ -17,6 +17,7 @@ using Helpers;
 using Localizor;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Rendering;
 #if GUN_STORE_HELP_UI_DEBUG
 using UnityEngine.EventSystems;
 #endif
@@ -29,7 +30,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
-    private const int GeneratedDisplayVersion = 18;
+    private const int GeneratedDisplayVersion = 19;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -39,6 +40,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private Coroutine? shelfVisualRepairCoroutine;
     private Coroutine? gunStoreVisualSetupCoroutine;
     private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
+    private readonly Dictionary<Material, Material> displayMaterialCache = new();
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
         "_visualItems",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -139,6 +141,14 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         if (pendingNavigationPatch != null)
             StopCoroutine(pendingNavigationPatch);
+
+        foreach (var material in displayMaterialCache.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+
+        displayMaterialCache.Clear();
         Destroy(gameObject);
     }
 
@@ -366,7 +376,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         return true;
     }
 
-    private static int CopyDisplayMeshHierarchy(Transform source, Transform destination)
+    private int CopyDisplayMeshHierarchy(Transform source, Transform destination)
     {
         var copiedMeshCount = 0;
         var sourceFilter = source.GetComponent<MeshFilter>();
@@ -377,7 +387,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             destinationFilter.sharedMesh = sourceFilter.sharedMesh;
 
             var destinationRenderer = destination.gameObject.AddComponent<MeshRenderer>();
-            destinationRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+            destinationRenderer.sharedMaterials = sourceRenderer.sharedMaterials
+                .Select(GetCompatibleDisplayMaterial)
+                .ToArray();
             destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
             destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
             destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
@@ -396,6 +408,180 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
 
         return copiedMeshCount;
+    }
+
+    private Material? GetCompatibleDisplayMaterial(Material? sourceMaterial)
+    {
+        if (sourceMaterial == null)
+            return null;
+
+        if (displayMaterialCache.TryGetValue(sourceMaterial, out var cachedMaterial))
+            return cachedMaterial;
+
+        var hdrpLit = Shader.Find("HDRP/Lit") ??
+                      Shader.Find("High Definition Render Pipeline/Lit");
+        if (hdrpLit == null)
+        {
+            var failureKey = $"missing-hdrp-lit:{sourceMaterial.name}";
+            if (loggedGunStoreVisualSetupFailures.Add(failureKey))
+            {
+                context?.Logger.Warn(
+                    $"Gun Store: cannot remap display material '{sourceMaterial.name}' because the HDRP/Lit shader was not found.");
+            }
+
+            return sourceMaterial;
+        }
+
+        var sourceShaderName = sourceMaterial.shader?.name ?? "<missing>";
+        var baseColor = GetMaterialColor(
+            sourceMaterial,
+            Color.white,
+            "baseColorFactor",
+            "_BaseColor",
+            "_Color");
+        baseColor.a = 1f;
+
+        var baseTextureProperty = FirstTextureProperty(
+            sourceMaterial,
+            "baseColorTexture",
+            "_BaseColorMap",
+            "_MainTex");
+        var baseTexture = baseTextureProperty == null
+            ? null
+            : sourceMaterial.GetTexture(baseTextureProperty);
+        var baseTextureScale = baseTextureProperty == null
+            ? Vector2.one
+            : sourceMaterial.GetTextureScale(baseTextureProperty);
+        var baseTextureOffset = baseTextureProperty == null
+            ? Vector2.zero
+            : sourceMaterial.GetTextureOffset(baseTextureProperty);
+
+        var normalTextureProperty = FirstTextureProperty(
+            sourceMaterial,
+            "normalTexture",
+            "_NormalMap",
+            "_BumpMap");
+        var normalTexture = normalTextureProperty == null
+            ? null
+            : sourceMaterial.GetTexture(normalTextureProperty);
+        var normalScale = GetMaterialFloat(
+            sourceMaterial,
+            1f,
+            "normalTexture_scale",
+            "normalScale",
+            "_NormalScale");
+        var metallic = GetMaterialFloat(sourceMaterial, 0f, "metallicFactor", "_Metallic");
+        var roughness = GetMaterialFloat(sourceMaterial, 1f, "roughnessFactor");
+        var smoothness = 1f - Mathf.Clamp01(roughness);
+
+        var compatibleMaterial = new Material(hdrpLit)
+        {
+            name = sourceMaterial.name + " (Gun Store HDRP Display)",
+            hideFlags = HideFlags.HideAndDontSave,
+            renderQueue = (int)RenderQueue.Geometry
+        };
+        SetMaterialColor(compatibleMaterial, "_BaseColor", baseColor);
+        SetMaterialTexture(
+            compatibleMaterial,
+            "_BaseColorMap",
+            baseTexture,
+            baseTextureScale,
+            baseTextureOffset);
+        SetMaterialTexture(
+            compatibleMaterial,
+            "_NormalMap",
+            normalTexture,
+            Vector2.one,
+            Vector2.zero);
+        SetMaterialFloat(compatibleMaterial, "_NormalScale", normalScale);
+        SetMaterialFloat(compatibleMaterial, "_Metallic", metallic);
+        SetMaterialFloat(compatibleMaterial, "_Smoothness", smoothness);
+        SetMaterialFloat(compatibleMaterial, "_SurfaceType", 0f);
+        SetMaterialFloat(compatibleMaterial, "_AlphaCutoffEnable", 0f);
+        SetMaterialFloat(compatibleMaterial, "_SupportDecals", 0f);
+        SetMaterialFloat(compatibleMaterial, "_ReceivesSSR", 0f);
+        SetMaterialFloat(compatibleMaterial, "_ReceivesSSRTransparent", 0f);
+        SetMaterialFloat(compatibleMaterial, "_RefractionModel", 0f);
+        SetMaterialFloat(compatibleMaterial, "_ZWrite", 1f);
+        SetMaterialFloat(compatibleMaterial, "_SrcBlend", (float)BlendMode.One);
+        SetMaterialFloat(compatibleMaterial, "_DstBlend", (float)BlendMode.Zero);
+        compatibleMaterial.SetOverrideTag("RenderType", "Opaque");
+        compatibleMaterial.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        compatibleMaterial.DisableKeyword("_ALPHATEST_ON");
+        compatibleMaterial.EnableKeyword("_DISABLE_DECALS");
+        compatibleMaterial.EnableKeyword("_DISABLE_SSR");
+        compatibleMaterial.EnableKeyword("_DISABLE_SSR_TRANSPARENT");
+        if (normalTexture != null)
+            compatibleMaterial.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
+
+        displayMaterialCache[sourceMaterial] = compatibleMaterial;
+        context?.Logger.Info(
+            $"Gun Store: remapped display material: source='{sourceMaterial.name}', " +
+            $"sourceShader='{sourceShaderName}', targetShader='{hdrpLit.name}', " +
+            $"baseColor={baseColor}, metallic={metallic:0.###}, smoothness={smoothness:0.###}, " +
+            $"baseTexture='{baseTexture?.name ?? "<none>"}'.");
+        return compatibleMaterial;
+    }
+
+    private static string? FirstTextureProperty(Material material, params string[] properties)
+    {
+        return properties.FirstOrDefault(property =>
+            material.HasProperty(property) && material.GetTexture(property) != null);
+    }
+
+    private static Color GetMaterialColor(
+        Material material,
+        Color fallback,
+        params string[] properties)
+    {
+        foreach (var property in properties)
+        {
+            if (material.HasProperty(property))
+                return material.GetColor(property);
+        }
+
+        return fallback;
+    }
+
+    private static float GetMaterialFloat(
+        Material material,
+        float fallback,
+        params string[] properties)
+    {
+        foreach (var property in properties)
+        {
+            if (material.HasProperty(property))
+                return material.GetFloat(property);
+        }
+
+        return fallback;
+    }
+
+    private static void SetMaterialColor(Material material, string property, Color value)
+    {
+        if (material.HasProperty(property))
+            material.SetColor(property, value);
+    }
+
+    private static void SetMaterialFloat(Material material, string property, float value)
+    {
+        if (material.HasProperty(property))
+            material.SetFloat(property, value);
+    }
+
+    private static void SetMaterialTexture(
+        Material material,
+        string property,
+        Texture? texture,
+        Vector2 scale,
+        Vector2 offset)
+    {
+        if (!material.HasProperty(property))
+            return;
+
+        material.SetTexture(property, texture);
+        material.SetTextureScale(property, scale);
+        material.SetTextureOffset(property, offset);
     }
 
     private IEnumerator LogGunStoreVisualDiagnostics()
