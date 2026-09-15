@@ -16,6 +16,7 @@ internal sealed class KoenigseggJeskoWarehouseEntryController : MonoBehaviour
 {
     private const float RetryDelaySeconds = 0.25f;
     private const float ContactWindowSeconds = 2.5f;
+    private const float EntranceSelectionRadius = 8f;
     private const int MaximumAttemptsPerContact = 8;
     private static readonly Vector3 FrontProbePosition = new Vector3(0f, 0.55f, 2.48f);
     private static readonly Vector3 FrontProbeSize = new Vector3(0.40f, 0.75f, 0.65f);
@@ -154,8 +155,10 @@ internal sealed class KoenigseggJeskoWarehouseEntryController : MonoBehaviour
         }
 
         var now = Time.unscaledTime;
-        if (acceptedEntrance == entrance && now < acceptedUntil)
+        if (acceptedEntrance != null && now < acceptedUntil)
             return;
+        var touchedEntrance = entrance;
+        entrance = FindAlignedEntrance(out var alignmentDistance) ?? entrance;
         if (contactEntrance != entrance || now > contactWindowEnd)
         {
             contactEntrance = entrance;
@@ -176,7 +179,8 @@ internal sealed class KoenigseggJeskoWarehouseEntryController : MonoBehaviour
         KoenigseggJeskoDiagnostics.WarehouseInfo(
             context,
             $"KoenigseggJesko warehouse-entry: exact entrance invokes native entry; " +
-            $"vehicle={vehicle.GetInstanceID()}, entrance='{entrance.name}', " +
+            $"vehicle={vehicle.GetInstanceID()}, touchedEntrance='{touchedEntrance.name}', " +
+            $"selectedEntrance='{entrance.name}', alignmentDistance={alignmentDistance:0.00}m, " +
             $"collider='{colliderName}', source={source}, attempt={contactAttempts}, " +
             $"accepted={accepted}, relativeVelocity={relativeVelocity}.");
         if (accepted)
@@ -185,6 +189,30 @@ internal sealed class KoenigseggJeskoWarehouseEntryController : MonoBehaviour
             acceptedUntil = now + 5f;
             contactAttempts = MaximumAttemptsPerContact;
         }
+    }
+
+    private DriveInEntrance? FindAlignedEntrance(out float distance)
+    {
+        var probePosition = frontProbe != null
+            ? frontProbe.bounds.center
+            : transform.TransformPoint(FrontProbePosition);
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = EntranceSelectionRadius * EntranceSelectionRadius;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+            var distanceSquared = (entrance.transform.position - probePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null
+            ? float.PositiveInfinity
+            : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
     }
 
     private void ResetContact()
