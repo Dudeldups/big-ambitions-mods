@@ -503,7 +503,9 @@ internal sealed class KoenigseggJeskoDriverController : MonoBehaviour
         target != null && vehicle != null ? vehicle.transform.InverseTransformPoint(target.position).ToString("F3") : "missing";
 
     private void LogInfo(string message) =>
-        context?.Logger.Info($"KoenigseggJesko driver vehicle={vehicle?.GetInstanceID()}: {message}");
+        KoenigseggJeskoDiagnostics.Info(
+            context,
+            $"KoenigseggJesko driver vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void RemoveDriver()
     {

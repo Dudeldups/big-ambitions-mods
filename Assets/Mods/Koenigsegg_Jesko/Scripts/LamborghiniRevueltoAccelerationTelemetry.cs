@@ -37,11 +37,15 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
+        enabled = KoenigseggJeskoDiagnostics.TelemetryEnabled;
+        if (!enabled)
+            return;
+
         vehicle = controller;
         physics = controller.GetComponent<PhysicsVehicle>();
         body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
         context = modContext;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko acceleration telemetry ready vehicle={controller.GetInstanceID()}, " +
             $"official0to100={OfficialZeroToHundredSeconds:0.0}s, " +
             "milestones=100/200/300kmh.");
@@ -142,7 +146,7 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
         elapsed = maximumYaw = maximumLateral = 0f;
         zeroToHundred = -1f;
         nextMilestone = 0;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko acceleration run started vehicle={vehicle.GetInstanceID()}, " +
             $"speed={speedKph:0.0}kmh. Hold full throttle on a flat straight.");
     }
@@ -167,7 +171,7 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
                 ? $", official={OfficialZeroToHundredSeconds:0.0}s, " +
                   $"delta={milestoneTime - OfficialZeroToHundredSeconds:+0.000;-0.000;0.000}s"
                 : string.Empty;
-            context?.Logger.Info(
+            KoenigseggJeskoDiagnostics.Info(context,
                 $"KoenigseggJesko acceleration milestone vehicle={vehicle!.GetInstanceID()}, " +
                 $"0to{target:0}={milestoneTime:0.000}s{segment}{benchmark}, " +
                 $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m, " +
@@ -181,7 +185,7 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
 
     private void Finish(string reason, float speedKph)
     {
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko acceleration run ended vehicle={vehicle?.GetInstanceID()}, " +
             $"reason={reason}, elapsed={elapsed:0.000}s, speed={speedKph:0.0}kmh, " +
             $"milestones={nextMilestone}/{MilestonesKph.Length}, " +
@@ -195,7 +199,7 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
         brakingElapsed = 0f;
         brakingStartSpeedKph = speedKph;
         maximumYaw = maximumLateral = 0f;
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko braking run started vehicle={vehicle!.GetInstanceID()}, " +
             $"speed={speedKph:0.0}kmh. Hold full brake in a straight line.");
     }
@@ -221,7 +225,7 @@ internal sealed class KoenigseggJeskoAccelerationTelemetry : MonoBehaviour
 
     private void FinishBraking(string reason, float speedKph)
     {
-        context?.Logger.Info(
+        KoenigseggJeskoDiagnostics.Info(context,
             $"KoenigseggJesko braking run ended vehicle={vehicle?.GetInstanceID()}, " +
             $"reason={reason}, startSpeed={brakingStartSpeedKph:0.0}kmh, " +
             $"100to0={brakingElapsed:0.000}s, endSpeed={speedKph:0.0}kmh. " +

@@ -562,8 +562,10 @@ internal sealed class KoenigseggJeskoLightingController : MonoBehaviour
     }
 
     private void LogInfo(string message) =>
-        context?.Logger.Info($"KoenigseggJesko lighting vehicle='{vehicle?.name}' " +
-                             $"instance={vehicle?.GetInstanceID()}: {message}");
+        KoenigseggJeskoDiagnostics.Info(
+            context,
+            $"KoenigseggJesko lighting vehicle='{vehicle?.name}' " +
+            $"instance={vehicle?.GetInstanceID()}: {message}");
 
     private void LogWarning(string message) =>
         context?.Logger.Warn($"KoenigseggJesko lighting vehicle='{vehicle?.name}' " +
