@@ -2,10 +2,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 #if GUN_STORE_HELP_UI_DEBUG
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 #endif
@@ -39,6 +39,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private bool postCitySaveRepairCompleted;
     private Coroutine? shelfVisualRepairCoroutine;
     private Coroutine? gunStoreVisualSetupCoroutine;
+    private Coroutine? npcBannerCoroutine;
     private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
     private readonly Dictionary<Material, Material> displayMaterialCache = new();
     private readonly Dictionary<Material, Material> shelfGlassMaterialCache = new();
@@ -142,6 +143,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         if (pendingNavigationPatch != null)
             StopCoroutine(pendingNavigationPatch);
+        if (npcBannerCoroutine != null)
+            StopCoroutine(npcBannerCoroutine);
 
         foreach (var material in displayMaterialCache.Values)
         {
@@ -177,7 +180,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private void HandleGameLoadedLate()
     {
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
-        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RestoreAiRivalsAfterGameLoaded(context);
+        StartNpcBannerGeneration();
         if (postCitySaveRepairCompleted)
             StartGunStoreVisualSetup("game-loaded-late");
 
@@ -216,9 +220,11 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return;
 
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
-        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RestoreAiRivalsAfterGameLoaded(context);
         postCitySaveRepairCompleted = true;
         context?.Logger.Info("Gun Store: completed post-city save repair after building registrations became available.");
+
+        StartNpcBannerGeneration();
 
         if (shelfVisualRepairCoroutine != null)
             StopCoroutine(shelfVisualRepairCoroutine);
@@ -236,6 +242,13 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         gunStoreVisualSetupCoroutine = StartCoroutine(InstallGunStoreShelfVisuals());
         context?.Logger.Info($"Gun Store: scheduled isolated shelf-visual setup; reason='{reason}'.");
+    }
+
+    private void StartNpcBannerGeneration()
+    {
+        if (context == null || npcBannerCoroutine != null)
+            return;
+        npcBannerCoroutine = StartCoroutine(GunStoreNpcBannerRuntime.Generate(context));
     }
 
     private IEnumerator RepairMalformedShelfVisuals()
@@ -306,11 +319,15 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         var owner = shelf.GetComponentInParent<ItemController>();
         var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
-        if (context == null || stock == null || string.IsNullOrEmpty(stock.itemName) ||
-            !GunStoreVisualPrefabPaths.TryGetValue(stock.itemName, out var prefabPath))
+        var npcProductName = owner?.playerItemPurchaserSettings?.enabled == true
+            ? owner.playerItemPurchaserSettings.itemName
+            : null;
+        var productName = stock?.itemName ?? npcProductName ?? string.Empty;
+        if (context == null || productName.Length == 0 ||
+            !GunStoreVisualPrefabPaths.TryGetValue(productName, out var prefabPath))
             return false;
 
-        itemName = stock.itemName;
+        itemName = productName;
         shelfName = owner?.Item?.itemName ?? shelf.name;
         DisableIridescenceOnGunStoreShelfGlass(shelf, itemName);
         var visualSlotName = itemName.GetIdWithoutType();
@@ -774,6 +791,119 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
                 $"stock='{stock?.itemName ?? "<none>"}', position={shelf.transform.position}, " +
                 $"removedNullVisuals={visualItems.Length - repairedVisualItems.Length}. " +
                 "This prevents the base game ShelfController from aborting customer purchases.");
+        }
+    }
+}
+
+internal static class GunStoreNpcBannerRuntime
+{
+    internal const string LogoShapeKey = "gunstore_npc_pistol";
+    private const string BusinessTypeName = "gunstore-businesstype:businesstype_gunstore";
+    private static readonly LogoSize[] BannerSizes =
+    {
+        LogoSize.SquareSign, LogoSize.WideSign, LogoSize.Billboard
+    };
+
+    internal static void Prime(ModContext context)
+    {
+        var addedShape = !LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey);
+        if (addedShape)
+        {
+            var icon = BusinessTypeHelper.GetData(BusinessTypeName)?.icon;
+            if (icon == null)
+            {
+                context.Logger.Warn("Gun Store: NPC banner pistol icon was not available.");
+                return;
+            }
+
+            LogoHelper.LogoShapeSprites[LogoShapeKey] = Sprite.Create(
+                icon.texture, icon.rect, new Vector2(0.5f, 0.5f), icon.pixelsPerUnit);
+        }
+
+        // AI signs do not invoke the game's generator when a logo is missing. Prime only
+        // our own names so its completion callback can replace these entries in the cache.
+        var placeholder = LogoHelper.GetNullTexture();
+        if (placeholder == null)
+        {
+            context.Logger.Warn("Gun Store: NPC banner cache not primed: game placeholder texture unavailable.");
+            return;
+        }
+        foreach (var name in GunStoreBusinessTypeCityMod.AiRivalBusinessNames)
+        {
+            foreach (var size in BannerSizes)
+            {
+                var key = (name, size, false);
+                if (!LogoHelper.BusinessLogoTextures.ContainsKey(key))
+                    LogoHelper.BusinessLogoTextures[key] = placeholder;
+            }
+        }
+
+        if (addedShape)
+            context.Logger.Info(
+                $"Gun Store: primed storefront banner cache for {GunStoreBusinessTypeCityMod.AiRivalBusinessNames.Count} NPC names.");
+    }
+
+    internal static IEnumerator Generate(ModContext context)
+    {
+        for (var attempt = 0; BusinessLogoGenerator.Instance == null && attempt < 10; attempt++)
+            yield return new WaitForSeconds(1f);
+
+        if (BusinessLogoGenerator.Instance == null)
+        {
+            context.Logger.Warn("Gun Store: NPC banners could not be generated: game logo generator unavailable.");
+            yield break;
+        }
+        if (!LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey))
+        {
+            context.Logger.Warn("Gun Store: NPC banners could not be generated: pistol logo shape unavailable.");
+            yield break;
+        }
+
+        foreach (var name in GunStoreBusinessTypeCityMod.AiRivalBusinessNames)
+        {
+            var settings = CompetitionHelper.GetBusinessDefault(name)?.logoSettings?.Clone()
+                ?? new LogoSettings();
+            settings.logoShape = LogoShapeKey;
+            var path = Path.Combine(Application.persistentDataPath, "GunStoreAiLogos",
+                LogoHelper.GetBusinessNamePathSafe(name));
+            var completed = false;
+            BusinessLogoGenerator.Create(name, settings, path, false, () =>
+            {
+                completed = true;
+                try
+                {
+                    var key = (name, LogoSize.WideSign, false);
+                    var success = LogoHelper.BusinessLogoTextures.TryGetValue(key, out var texture) &&
+                                  texture != null && texture != LogoHelper.GetNullTexture();
+                    if (!success)
+                    {
+                        context.Logger.Warn($"Gun Store: storefront banner generation failed for '{name}'.");
+                        return;
+                    }
+
+                    foreach (var registration in SaveGameManager.Current?.BuildingRegistrations?.AsEnumerable()
+                                 ?? Enumerable.Empty<BuildingRegistration>())
+                    {
+                        if (registration == null || registration.RentedByPlayer ||
+                            !string.Equals(registration.BusinessName, name, StringComparison.Ordinal))
+                            continue;
+
+                        InstanceBehavior<CityManager>.Instance?
+                            .FindCityBuildingController(registration.Address)?.UpdateSign();
+                    }
+
+                    context.Logger.Info($"Gun Store: generated square and wide storefront banners for '{name}'.");
+                }
+                catch (Exception exception)
+                {
+                    context.Logger.Warn($"Gun Store: failed to refresh storefront banner for '{name}': {exception.Message}");
+                }
+            });
+
+            for (var attempt = 0; !completed && attempt < 40; attempt++)
+                yield return new WaitForSeconds(0.25f);
+            if (!completed)
+                context.Logger.Warn($"Gun Store: storefront banner generation timed out for '{name}'.");
         }
     }
 }
