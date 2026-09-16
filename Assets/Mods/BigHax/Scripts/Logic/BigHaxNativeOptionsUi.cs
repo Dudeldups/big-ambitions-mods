@@ -154,6 +154,8 @@ namespace BigHax
             Toggle(Localize("bighax_no_vehicle_damage_label"), () => settings!.EnableNoVehicleDamage, v => { settings!.EnableNoVehicleDamage = v; BigHaxOptionPersistence.SaveEnableNoVehicleDamage(context!.ModId, v); });
             Toggle(Localize("bighax_infinite_vehicle_fuel_label"), () => settings!.EnableInfiniteVehicleFuel, v => { settings!.EnableInfiniteVehicleFuel = v; BigHaxOptionPersistence.SaveEnableInfiniteVehicleFuel(context!.ModId, v); });
             Toggle(Localize("bighax_never_dirty_vehicles_label"), () => settings!.EnableNeverDirtyVehicles, v => { settings!.EnableNeverDirtyVehicles = v; BigHaxOptionPersistence.SaveEnableNeverDirtyVehicles(context!.ModId, v); });
+            Toggle(Localize("bighax_disable_traffic_label"), () => settings!.DisableTraffic, v => { settings!.DisableTraffic = v; BigHaxOptionPersistence.SaveDisableTraffic(context!.ModId, v); });
+            Toggle(Localize("bighax_disable_parked_cars_label"), () => settings!.DisableParkedCars, v => { settings!.DisableParkedCars = v; BigHaxOptionPersistence.SaveDisableParkedCars(context!.ModId, v); });
             SteppedSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings!.FreightTruckT1DeliveryPlaces, BigHaxSettings.FreightTruckT1DeliveryPlacesValues, v => { settings!.FreightTruckT1DeliveryPlaces = v; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context!.ModId, v); }, v => v.ToString());
             Separator();
             Section(Localize("bighax_category_capacity"));

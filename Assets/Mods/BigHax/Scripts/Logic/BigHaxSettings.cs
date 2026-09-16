@@ -28,6 +28,8 @@ namespace BigHax
         public const bool DefaultEnableNoVehicleDamage = false;
         public const bool DefaultEnableInfiniteVehicleFuel = false;
         public const bool DefaultEnableNeverDirtyVehicles = false;
+        public const bool DefaultDisableTraffic = false;
+        public const bool DefaultDisableParkedCars = false;
         public const int DefaultInstallationFirmFeePercentage = 100;
         public const bool DefaultEnableMaximumHeadhunterRecruitmentPoints = false;
         public const int MaximumHeadhunterRecruitmentPoints = 1000;
@@ -88,6 +90,10 @@ namespace BigHax
         public bool EnableInfiniteVehicleFuel { get; set; } = DefaultEnableInfiniteVehicleFuel;
 
         public bool EnableNeverDirtyVehicles { get; set; } = DefaultEnableNeverDirtyVehicles;
+
+        public bool DisableTraffic { get; set; } = DefaultDisableTraffic;
+
+        public bool DisableParkedCars { get; set; } = DefaultDisableParkedCars;
 
         public int InstallationFirmFeePercentage { get; set; } = DefaultInstallationFirmFeePercentage;
 
