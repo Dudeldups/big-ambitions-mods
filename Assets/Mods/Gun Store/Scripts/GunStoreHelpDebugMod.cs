@@ -83,6 +83,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         LocalizorManager.OnLanguageChanged += existing.HandleLanguageChanged;
         SceneManager.sceneLoaded -= existing.HandleSceneLoaded;
         SceneManager.sceneLoaded += existing.HandleSceneLoaded;
+        GlobalEvents.onEnterBuildingDelayed -= existing.HandleEnterBuildingDelayed;
+        GlobalEvents.onEnterBuildingDelayed += existing.HandleEnterBuildingDelayed;
         if (!existing.gameLoadedLateCallbackRegistered)
         {
             GlobalEvents.RegisterOnGameLoadedLateCallback(existing.HandleGameLoadedLate);
@@ -141,6 +143,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         shuttingDown = true;
         LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
         SceneManager.sceneLoaded -= HandleSceneLoaded;
+        GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
         if (pendingNavigationPatch != null)
             StopCoroutine(pendingNavigationPatch);
         if (npcBannerCoroutine != null)
@@ -177,8 +180,24 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         ScheduleNavigationPatch(reason: $"scene-loaded:{scene.name}:{mode}");
     }
 
+    private void HandleEnterBuildingDelayed(Address address)
+    {
+        var registration = SaveGameManager.Current?.BuildingRegistrations?
+            .FirstOrDefault(item => item != null && item.Address.Equals(address));
+        if (registration == null || registration.RentedByPlayer ||
+            !string.Equals(registration.businessTypeName,
+                "gunstore-businesstype:businesstype_gunstore", StringComparison.Ordinal))
+            return;
+
+        context?.Logger.Info(
+            $"Gun Store: NPC interior ready for shelf visuals: name='{registration.BusinessName}', address={address}.");
+        StartGunStoreVisualSetup($"npc-entered:{registration.BusinessName}:{address}");
+    }
+
     private void HandleGameLoadedLate()
     {
+        GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
+        GlobalEvents.onEnterBuildingDelayed += HandleEnterBuildingDelayed;
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
         GunStoreBusinessTypeCityMod.RestoreAiRivalsAfterGameLoaded(context);
         StartNpcBannerGeneration();
@@ -845,17 +864,30 @@ internal static class GunStoreNpcBannerRuntime
 
     internal static IEnumerator Generate(ModContext context)
     {
-        for (var attempt = 0; BusinessLogoGenerator.Instance == null && attempt < 10; attempt++)
-            yield return new WaitForSeconds(1f);
+        // The game's late-loaded callback can precede this mod's city-load entry point.
+        // Wait for the NPC defaults and logo cache instead of permanently abandoning signs.
+        var ready = false;
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            if (BusinessLogoGenerator.Instance != null &&
+                CompetitionHelper.GetBusinessDefault(GunStoreBusinessTypeCityMod.AiRivalBusinessNames[0]) != null)
+            {
+                Prime(context);
+                ready = LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey) &&
+                        LogoHelper.BusinessLogoTextures.ContainsKey(
+                            (GunStoreBusinessTypeCityMod.AiRivalBusinessNames[0], LogoSize.WideSign, false));
+                if (ready)
+                    break;
+            }
 
-        if (BusinessLogoGenerator.Instance == null)
-        {
-            context.Logger.Warn("Gun Store: NPC banners could not be generated: game logo generator unavailable.");
-            yield break;
+            yield return new WaitForSeconds(0.5f);
         }
-        if (!LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey))
+
+        if (!ready)
         {
-            context.Logger.Warn("Gun Store: NPC banners could not be generated: pistol logo shape unavailable.");
+            context.Logger.Warn("Gun Store: NPC banners could not be generated within 30 seconds: " +
+                                $"generatorReady={BusinessLogoGenerator.Instance != null}, " +
+                                $"logoShapeReady={LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey)}.");
             yield break;
         }
 
