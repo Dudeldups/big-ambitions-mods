@@ -908,22 +908,47 @@ internal static class GunStoreNpcBannerRuntime
 
             var sourcePixels = readableIcon.GetPixels32();
             var signPixels = wideSign.GetPixels32();
-            var iconSize = Mathf.Min(wideSign.height - 16, wideSign.width / 7);
-            var left = wideSign.height / 2 - iconSize / 2;
-            var bottom = (wideSign.height - iconSize) / 2;
-            for (var y = 0; y < iconSize; y++)
+            var minX = source.width;
+            var minY = source.height;
+            var maxX = -1;
+            var maxY = -1;
+            for (var y = 0; y < source.height; y++)
             {
-                var sourceY = Mathf.Min(source.height - 1, y * source.height / iconSize);
-                for (var x = 0; x < iconSize; x++)
+                for (var x = 0; x < source.width; x++)
                 {
-                    var sourceX = Mathf.Min(source.width - 1, x * source.width / iconSize);
-                    var alpha = sourcePixels[sourceY * source.width + sourceX].a;
+                    if (sourcePixels[y * source.width + x].a <= 16)
+                        continue;
+                    minX = Mathf.Min(minX, x);
+                    minY = Mathf.Min(minY, y);
+                    maxX = Mathf.Max(maxX, x);
+                    maxY = Mathf.Max(maxY, y);
+                }
+            }
+
+            if (maxX < minX || maxY < minY)
+                return false;
+
+            // The 50x50 icon contains substantial transparent padding. Enlarge the
+            // actual silhouette into the 240-pixel margin beside the name, not the
+            // padded image, so it remains recognizable at normal camera distance.
+            var iconWidth = Mathf.Min(220, wideSign.width / 4 - 20);
+            var iconHeight = wideSign.height - 12;
+            var left = 12;
+            var bottom = (wideSign.height - iconHeight) / 2;
+            for (var y = 0; y < iconHeight; y++)
+            {
+                var sourceY = minY + (y + 0.5f) * (maxY - minY + 1) / iconHeight;
+                for (var x = 0; x < iconWidth; x++)
+                {
+                    var sourceX = minX + (x + 0.5f) * (maxX - minX + 1) / iconWidth;
+                    var alpha = readableIcon.GetPixelBilinear(
+                        sourceX / source.width, sourceY / source.height).a;
                     if (alpha == 0)
                         continue;
 
                     var index = (bottom + y) * wideSign.width + left + x;
                     var background = signPixels[index];
-                    var remaining = 255 - alpha;
+                    var remaining = 255 - Mathf.RoundToInt(alpha * 255f);
                     signPixels[index] = new Color32(
                         (byte)(background.r * remaining / 255),
                         (byte)(background.g * remaining / 255),
@@ -1028,6 +1053,8 @@ internal static class GunStoreNpcBannerRuntime
                             context.Logger.Warn($"Gun Store: could not add the pistol icon to wide banner for '{name}'.");
                             continue;
                         }
+                        if (size == LogoSize.WideSign)
+                            context.Logger.Info($"Gun Store: enlarged pistol silhouette on wide banner for '{name}'.");
 
                         if (!TryCacheGeneratedBanner(name, size, texture))
                         {
