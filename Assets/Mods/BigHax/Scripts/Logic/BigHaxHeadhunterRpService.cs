@@ -189,8 +189,9 @@ namespace BigHax
             var demandsToIgnore = plan != null
                 ? GetDemandsToIgnore(plan)
                 : new List<string>();
+            var allPossibleDealBreakersExcluded = plan != null && AreAllPossibleDealBreakersExcluded(plan);
             AddUniqueRange(demandsToIgnore, GetStringListField(CandidateDemandsToIgnoreField, candidate));
-            if (demandsToIgnore.Count == 0)
+            if (!allPossibleDealBreakersExcluded && demandsToIgnore.Count == 0)
             {
                 BigHaxLogger.WarnOnce(
                     context,
@@ -200,10 +201,17 @@ namespace BigHax
             }
 
             var originalDemandCount = candidate.demands.Count;
-            for (var index = candidate.demands.Count - 1; index >= 0; index--)
+            if (allPossibleDealBreakersExcluded)
             {
-                if (demandsToIgnore.Contains(candidate.demands[index]))
-                    candidate.demands.RemoveAt(index);
+                candidate.demands.Clear();
+            }
+            else
+            {
+                for (var index = candidate.demands.Count - 1; index >= 0; index--)
+                {
+                    if (demandsToIgnore.Contains(candidate.demands[index]))
+                        candidate.demands.RemoveAt(index);
+                }
             }
 
             var removedDemandCount = originalDemandCount - candidate.demands.Count;
@@ -217,6 +225,7 @@ namespace BigHax
                     ", originalDemands=" + originalDemandCount +
                     ", remainingDemands=" + candidate.demands.Count +
                     ", exclusions=" + demandsToIgnore.Count +
+                    ", allPossibleDealBreakersExcluded=" + allPossibleDealBreakersExcluded +
                     ", plan=" + (plan?.id ?? "unknown") +
                     ", skill=" + (plan?.skillRecruiting ?? candidate.GetPrimarySkill()) + ".");
             }
@@ -232,6 +241,12 @@ namespace BigHax
         {
             var requiredDemandCount = JobDemandHelper.GetIdealNumberOfDemands(plan.skillRecruiting, totalSkillValue);
             var demands = new List<string>();
+            if (enabled && AreAllPossibleDealBreakersExcluded(plan))
+            {
+                LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "all possible deal-breakers excluded by hax", requiredDemandCount);
+                return demands;
+            }
+
             var demandsToIgnore = GetDemandsToIgnore(plan);
             var excludedDemandSlotCount = 0;
             if (requiredDemandCount == 0)
@@ -400,6 +415,23 @@ namespace BigHax
             }
 
             return demandsToIgnore;
+        }
+
+        private static bool AreAllPossibleDealBreakersExcluded(HeadhunterPlan plan)
+        {
+            var skillData = SkillHelper.GetData(plan.skillRecruiting);
+            var possibleDealBreakers = skillData?.possibleDealbreakers;
+            if (possibleDealBreakers == null || possibleDealBreakers.Count == 0)
+                return false;
+
+            for (var index = 0; index < possibleDealBreakers.Count; index++)
+            {
+                var dealBreakerType = possibleDealBreakers[index];
+                if (!string.IsNullOrEmpty(dealBreakerType) && !plan.dealBreakerTypes.Contains(dealBreakerType))
+                    return false;
+            }
+
+            return true;
         }
 
         private static IEnumerable<string>? GetStringListField(FieldInfo? field, object instance)
