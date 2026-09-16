@@ -259,7 +259,13 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // that actually contain Gun Store stock instead.
         for (var pass = 0; pass < 16; pass++)
         {
-            yield return pass == 0 ? null : new WaitForSeconds(2f);
+            // StartCoroutine runs until its first yield immediately. Correct shelf glass on
+            // the scene-loaded callback, before the first frame can show iridescence. Keep
+            // a next-frame pass for fixtures whose stock is assigned during scene startup.
+            if (pass == 1)
+                yield return null;
+            else if (pass > 1)
+                yield return new WaitForSeconds(2f);
 
             var installedCount = 0;
             foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
