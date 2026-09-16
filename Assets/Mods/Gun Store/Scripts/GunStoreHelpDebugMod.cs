@@ -41,6 +41,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private Coroutine? gunStoreVisualSetupCoroutine;
     private Coroutine? npcBannerCoroutine;
     private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
+    private readonly HashSet<int> loggedNpcShelfVisualRestorations = new();
     private readonly Dictionary<Material, Material> displayMaterialCache = new();
     private readonly Dictionary<Material, Material> shelfGlassMaterialCache = new();
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
@@ -358,7 +359,10 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         {
             var existingMarker = existingVisualSlot.GetComponent<GunStoreMeshOnlyDisplayMarker>();
             if (existingMarker != null && existingMarker.Generation == GeneratedDisplayVersion)
+            {
+                EnsureNpcShelfDisplayVisible(shelf, owner, existingVisualSlot, itemName);
                 return false;
+            }
 
             // Upgrade visual slots created by 0.1.13/0.1.14 in an already-loaded city. They
             // have the same product name but contain the unbounded placement layout.
@@ -424,11 +428,41 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // copies keep the display visual separate from product gameplay state.
         shelf.ShowItemVisuals(itemName, showDefault: false);
         shelf.UpdateVisuals();
+        EnsureNpcShelfDisplayVisible(shelf, owner, visualSlot, itemName);
         context.Logger.Info(
             $"Gun Store: installed mesh-only shelf display: product='{itemName}', shelf='{shelfName}', " +
             $"template='{template.name}', displayCount={displayCount}, meshCount={meshCount}, " +
             $"position={shelf.transform.position}.");
         return true;
+    }
+
+    private void EnsureNpcShelfDisplayVisible(
+        ShelfController shelf, ItemController? owner, Transform visualSlot, string itemName)
+    {
+        // AI fixtures advertise virtual stock through PlayerItemPurchaserSettings, but
+        // their cargo fill can be zero. The native UpdateVisuals then disables every
+        // child of the otherwise correctly selected Gun Store visual slot.
+        if (owner?.BuildingContext?.Registration?.RentedByPlayer != false ||
+            owner.playerItemPurchaserSettings?.enabled != true ||
+            !string.Equals(owner.playerItemPurchaserSettings.itemName, itemName, StringComparison.Ordinal) ||
+            !shelf.gameObject.activeInHierarchy)
+            return;
+
+        var wasActive = visualSlot.gameObject.activeSelf;
+        var firstVisualActive = visualSlot.childCount > 0 &&
+                                visualSlot.GetChild(0).gameObject.activeSelf;
+        var previousFill = shelf.fillState;
+        if (wasActive && firstVisualActive && previousFill >= 0.99d)
+            return;
+
+        shelf.ShowItemVisuals(itemName, showDefault: false);
+        visualSlot.gameObject.SetActive(true);
+        shelf.UpdateFillState(1d);
+        if (loggedNpcShelfVisualRestorations.Add(shelf.GetInstanceID()))
+            context?.Logger.Info(
+                $"Gun Store: restored NPC shelf display: product='{itemName}', position={shelf.transform.position}, " +
+                $"slotActiveBefore={wasActive}, firstVisualActiveBefore={firstVisualActive}, " +
+                $"fillBefore={previousFill:0.###}, visualCount={visualSlot.childCount}.");
     }
 
     private void DisableIridescenceOnGunStoreShelfGlass(ShelfController shelf, string itemName)
@@ -852,6 +886,63 @@ internal static class GunStoreNpcBannerRuntime
         return ReferenceEquals(LogoHelper.GetBusinessLogoTexture(name, size, false), texture);
     }
 
+    private static bool TryAddPistolToWideSign(Texture2D wideSign)
+    {
+        // Big Ambitions' WideSign capture contains only the business name. Its
+        // square and billboard captures include the shape, so compose the same
+        // existing Gun Store icon into the unused left margin of the wide sign.
+        var source = BusinessTypeHelper.GetData(BusinessTypeName)?.icon?.texture;
+        if (source == null || wideSign.width < wideSign.height * 3)
+            return false;
+
+        var renderTexture = RenderTexture.GetTemporary(source.width, source.height, 0,
+            RenderTextureFormat.ARGB32);
+        var previousActive = RenderTexture.active;
+        var readableIcon = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
+        try
+        {
+            Graphics.Blit(source, renderTexture);
+            RenderTexture.active = renderTexture;
+            readableIcon.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+            readableIcon.Apply();
+
+            var sourcePixels = readableIcon.GetPixels32();
+            var signPixels = wideSign.GetPixels32();
+            var iconSize = Mathf.Min(wideSign.height - 16, wideSign.width / 7);
+            var left = wideSign.height / 2 - iconSize / 2;
+            var bottom = (wideSign.height - iconSize) / 2;
+            for (var y = 0; y < iconSize; y++)
+            {
+                var sourceY = Mathf.Min(source.height - 1, y * source.height / iconSize);
+                for (var x = 0; x < iconSize; x++)
+                {
+                    var sourceX = Mathf.Min(source.width - 1, x * source.width / iconSize);
+                    var alpha = sourcePixels[sourceY * source.width + sourceX].a;
+                    if (alpha == 0)
+                        continue;
+
+                    var index = (bottom + y) * wideSign.width + left + x;
+                    var background = signPixels[index];
+                    var remaining = 255 - alpha;
+                    signPixels[index] = new Color32(
+                        (byte)(background.r * remaining / 255),
+                        (byte)(background.g * remaining / 255),
+                        (byte)(background.b * remaining / 255), 255);
+                }
+            }
+
+            wideSign.SetPixels32(signPixels);
+            wideSign.Apply(false, false);
+            return true;
+        }
+        finally
+        {
+            RenderTexture.active = previousActive;
+            RenderTexture.ReleaseTemporary(renderTexture);
+            UnityEngine.Object.Destroy(readableIcon);
+        }
+    }
+
     internal static void Prime(ModContext context)
     {
         var addedShape = !LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey);
@@ -928,6 +1019,13 @@ internal static class GunStoreNpcBannerRuntime
                         {
                             UnityEngine.Object.Destroy(texture);
                             context.Logger.Warn($"Gun Store: generated banner image invalid: business='{name}', size={size}.");
+                            continue;
+                        }
+
+                        if (size == LogoSize.WideSign && !TryAddPistolToWideSign(texture))
+                        {
+                            UnityEngine.Object.Destroy(texture);
+                            context.Logger.Warn($"Gun Store: could not add the pistol icon to wide banner for '{name}'.");
                             continue;
                         }
 
