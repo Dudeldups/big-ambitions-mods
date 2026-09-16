@@ -30,7 +30,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
-    private const int GeneratedDisplayVersion = 20;
+    private const int GeneratedDisplayVersion = 21;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -41,6 +41,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private Coroutine? gunStoreVisualSetupCoroutine;
     private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
     private readonly Dictionary<Material, Material> displayMaterialCache = new();
+    private readonly Dictionary<Material, Material> shelfGlassMaterialCache = new();
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
         "_visualItems",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -149,6 +150,14 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
 
         displayMaterialCache.Clear();
+
+        foreach (var material in shelfGlassMaterialCache.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+
+        shelfGlassMaterialCache.Clear();
         Destroy(gameObject);
     }
 
@@ -297,6 +306,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         itemName = stock.itemName;
         shelfName = owner?.Item?.itemName ?? shelf.name;
+        DisableIridescenceOnGunStoreShelfGlass(shelf, itemName);
         var visualSlotName = itemName.GetIdWithoutType();
         var existingVisualSlot = visualsContainer.Find(visualSlotName);
         if (existingVisualSlot != null)
@@ -376,6 +386,62 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         return true;
     }
 
+    private void DisableIridescenceOnGunStoreShelfGlass(ShelfController shelf, string itemName)
+    {
+        // RoundedShelf's fixture mesh has M_GlassTransparent_01 as a submaterial. The game
+        // asset enables full-strength HDRP iridescence on that glass, producing the colored
+        // view-angle-dependent polygons even when the shelf contains no display items.
+        // Change only this stocked fixture's renderer; never mutate the game's shared asset.
+        var fixtureRenderer = shelf.GetComponent<MeshRenderer>();
+        if (fixtureRenderer == null)
+            return;
+
+        var materials = fixtureRenderer.sharedMaterials;
+        var changed = false;
+        for (var index = 0; index < materials.Length; index++)
+        {
+            var source = materials[index];
+            if (source == null || !source.name.StartsWith("M_GlassTransparent", StringComparison.Ordinal) ||
+                !source.IsKeywordEnabled("_MATERIAL_FEATURE_IRIDESCENCE"))
+            {
+                continue;
+            }
+
+            if (!shelfGlassMaterialCache.TryGetValue(source, out var corrected))
+            {
+                corrected = new Material(source)
+                {
+                    name = source.name + " (Gun Store non-iridescent glass)",
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+                corrected.DisableKeyword("_MATERIAL_FEATURE_IRIDESCENCE");
+                if (corrected.HasProperty("_MaterialID"))
+                    corrected.SetFloat("_MaterialID", 1f); // HDRP Lit Standard; 3 is Iridescence.
+                if (corrected.HasProperty("_IridescenceMask"))
+                    corrected.SetFloat("_IridescenceMask", 0f);
+                shelfGlassMaterialCache.Add(source, corrected);
+                context?.Logger.Info(
+                    $"Gun Store: prepared non-iridescent shelf glass: source='{source.name}', " +
+                    $"shader='{source.shader?.name ?? "<missing>"}', " +
+                    $"sourceMaterialID={(source.HasProperty("_MaterialID") ? source.GetFloat("_MaterialID").ToString() : "<missing>")}, " +
+                    $"sourceIridescenceMask={(source.HasProperty("_IridescenceMask") ? source.GetFloat("_IridescenceMask").ToString() : "<missing>")}, " +
+                    $"surfaceType={(source.HasProperty("_SurfaceType") ? source.GetFloat("_SurfaceType").ToString() : "<missing>")}. ");
+            }
+
+            materials[index] = corrected;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        fixtureRenderer.sharedMaterials = materials;
+        context?.Logger.Info(
+            $"Gun Store: disabled iridescence on stocked shelf glass: product='{itemName}', " +
+            $"shelf='{shelf.name}', position={shelf.transform.position}. " +
+            "The original fixture material and all other stores are unchanged.");
+    }
+
     private int CopyDisplayMeshHierarchy(Transform source, Transform destination)
     {
         var copiedMeshCount = 0;
@@ -390,12 +456,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             destinationRenderer.sharedMaterials = sourceRenderer.sharedMaterials
                 .Select(GetCompatibleDisplayMaterial)
                 .ToArray();
-            // These are dense, static inventory proxies rather than standalone world items.
-            // Letting every proxy cast and receive real-time shadows creates grazing-angle
-            // shadow-map interference that appears as a moving rainbow/moire pattern.
-            destinationRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            destinationRenderer.receiveShadows = false;
-            destinationRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+            destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+            destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
             destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
             destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
             copiedMeshCount++;
