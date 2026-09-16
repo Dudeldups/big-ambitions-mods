@@ -402,7 +402,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         {
             var source = materials[index];
             if (source == null || !source.name.StartsWith("M_GlassTransparent", StringComparison.Ordinal) ||
-                !source.IsKeywordEnabled("_MATERIAL_FEATURE_IRIDESCENCE"))
+                !source.IsKeywordEnabled("_MATERIAL_FEATURE_IRIDESCENCE") ||
+                !source.HasProperty("_IridescenceMask") ||
+                source.GetFloat("_IridescenceMask") <= 0f)
             {
                 continue;
             }
@@ -414,11 +416,10 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
                     name = source.name + " (Gun Store non-iridescent glass)",
                     hideFlags = HideFlags.HideAndDontSave
                 };
-                corrected.DisableKeyword("_MATERIAL_FEATURE_IRIDESCENCE");
-                if (corrected.HasProperty("_MaterialID"))
-                    corrected.SetFloat("_MaterialID", 1f); // HDRP Lit Standard; 3 is Iridescence.
-                if (corrected.HasProperty("_IridescenceMask"))
-                    corrected.SetFloat("_IridescenceMask", 0f);
+                // Keep the original transparent HDRP shader variant and material type.
+                // Unity specifies a zero mask as the supported way to disable only the
+                // angle-dependent iridescence contribution.
+                corrected.SetFloat("_IridescenceMask", 0f);
                 shelfGlassMaterialCache.Add(source, corrected);
                 context?.Logger.Info(
                     $"Gun Store: prepared non-iridescent shelf glass: source='{source.name}', " +
