@@ -243,6 +243,7 @@ namespace BigHax
                 AddToggle(Localize("bighax_disable_purchase_limits_label"), arePurchaseLimitsDisabled, setPurchaseLimitsDisabled);
             AddSteppedSlider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings.InstallationFirmFeePercentage, BigHaxSettings.InstallationFirmFeePercentageValues, value => { settings.InstallationFirmFeePercentage = value; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value); }, value => value + "%");
             AddSlider(Localize("bighax_customer_traffic_multiplier_label"), () => settings.CustomerTrafficMultiplierIndex, 0, 5, value => { settings.CustomerTrafficMultiplierIndex = value; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
+            AddSlider(Localize("bighax_building_customer_capacity_multiplier_label"), () => settings.BuildingCustomerCapacityMultiplierIndex, 0, 5, value => { settings.BuildingCustomerCapacityMultiplierIndex = value; BigHaxOptionPersistence.SaveBuildingCustomerCapacityMultiplierIndex(context.ModId, value); }, value => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[value]);
             AddSeparator();
 
             AddCategory(Localize("bighax_category_vehicle"));
@@ -366,6 +367,7 @@ namespace BigHax
                 Localize("bighax_disable_parked_cars_label"),
                 Localize("bighax_active_vehicle_enabled_label"),
                 Localize("bighax_customer_traffic_multiplier_label"),
+                Localize("bighax_building_customer_capacity_multiplier_label"),
                 Localize("bighax_employee_training_skill_increase_label"),
                 Localize("bighax_standard_fridge_capacity_label", new Dictionary<string, string>
                 {

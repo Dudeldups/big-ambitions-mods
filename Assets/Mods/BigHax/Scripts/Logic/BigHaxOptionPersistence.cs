@@ -19,6 +19,10 @@ namespace BigHax
                 BigHaxOptionIds.DisableIllegalParkingPenalties,
                 BigHaxSettings.DefaultDisableIllegalParkingPenalties);
             settings.CustomerTrafficMultiplierIndex = LoadCustomerTrafficMultiplierIndex(modId);
+            settings.BuildingCustomerCapacityMultiplierIndex = LoadInt(
+                modId,
+                BigHaxOptionIds.BuildingCustomerCapacityMultiplier,
+                BigHaxSettings.DefaultBuildingCustomerCapacityMultiplierIndex);
             settings.DisableInvestmentLimit = LoadDisableInvestmentLimit(modId);
             settings.EnableVantanderMaxLoanOverride = LoadBool(
                 modId,
@@ -125,6 +129,12 @@ namespace BigHax
                 settings.CustomerTrafficMultiplierIndex = BigHaxSettings.DefaultCustomerTrafficMultiplierIndex;
             }
 
+            if (settings.BuildingCustomerCapacityMultiplierIndex < 0 ||
+                settings.BuildingCustomerCapacityMultiplierIndex >= BigHaxSettings.BuildingCustomerCapacityMultiplierValues.Length)
+            {
+                settings.BuildingCustomerCapacityMultiplierIndex = BigHaxSettings.DefaultBuildingCustomerCapacityMultiplierIndex;
+            }
+
             settings.UiHotkeyIndex = BigHaxHotkeys.ClampIndex(settings.UiHotkeyIndex);
             if (migratedStepValues)
                 UnityEngine.PlayerPrefs.Save();
@@ -133,6 +143,14 @@ namespace BigHax
         public static void SaveCustomerTrafficMultiplierIndex(string modId, int value)
         {
             SaveInt(modId, BigHaxOptionIds.CustomerTrafficMultiplier, value);
+        }
+
+        public static void SaveBuildingCustomerCapacityMultiplierIndex(string modId, int value)
+        {
+            SaveInt(
+                modId,
+                BigHaxOptionIds.BuildingCustomerCapacityMultiplier,
+                UnityEngine.Mathf.Clamp(value, 0, BigHaxSettings.BuildingCustomerCapacityMultiplierValues.Length - 1));
         }
 
         public static void SaveDisableCasinoBetLimit(string modId, bool value)
