@@ -1,6 +1,8 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Reflection;
 using System.Threading.Tasks;
 using BAModAPI;
 using BAModAPI.Services;
@@ -19,8 +21,6 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
         "ferrarisf90spider-vehicle:vehicletype_ferrarisf90spider";
 
     private const string BundleKey = "AssetBundles/ferrarisf90spider.unity3d";
-    private const string VehicleAssetPath =
-        "Assets/Mods/Ferrari_SF90_Spider/FerrariSF90Spider.asset";
     private const string VehiclePrefabPath =
         "Assets/Mods/Ferrari_SF90_Spider/FerrariSF90Spider.prefab";
 
@@ -38,11 +38,10 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
             return Task.CompletedTask;
         }
 
-        vehicleType = bundle.LoadAsset<VehicleType>(VehicleAssetPath);
+        vehicleType = CreateRuntimeVehicleType(context);
         if (vehicleType == null)
         {
-            context.Logger.Warn(
-                $"FerrariSF90Spider: failed to load vehicle type '{VehicleAssetPath}'.");
+            context.Logger.Warn("FerrariSF90Spider: failed to create runtime VehicleType.");
             return Task.CompletedTask;
         }
 
@@ -51,9 +50,12 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
         {
             context.Logger.Warn(
                 $"FerrariSF90Spider: failed to load vehicle prefab '{VehiclePrefabPath}'.");
+            UnityEngine.Object.Destroy(vehicleType);
+            vehicleType = null;
             return Task.CompletedTask;
         }
 
+        BindRuntimeVehicleTypeToPrefab(vehiclePrefab, vehicleType, context);
         ModdingAPI.RegisterModVehicleType(vehicleType);
         FerrariSF90SpiderDiagnostics.Info(context,
             $"FerrariSF90Spider: registered '{vehicleType.vehicleTypeName}' " +
@@ -66,6 +68,159 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
         return Task.CompletedTask;
     }
 
+    private static VehicleType CreateRuntimeVehicleType(ModContext context)
+    {
+        try
+        {
+            var type = UnityEngine.ScriptableObject.CreateInstance<VehicleType>();
+            type.name = "FerrariSF90Spider";
+
+            SetRuntimeMember(type, "vehicleTypeName", VehicleTypeName);
+            SetRuntimeMember(type, "price", 558000f);
+            SetRuntimeMember(type, "itemVersion", string.Empty);
+            SetRuntimeMember(type, "maxFuel", 68f);
+            SetRuntimeMember(type, "maxCargoCapacity", 2);
+            SetRuntimeMember(type, "maxSpeed", 340);
+            SetRuntimeMember(type, "enginePower", 735f);
+            SetRuntimeMember(type, "brakeForce", 3200f);
+            SetRuntimeMember(type, "turnRadius", 25f);
+            SetRuntimeMember(type, "damageIntensity", 0.80f);
+            SetRuntimeMember(type, "fitsHandTruck", false);
+            SetRuntimeMember(type, "fitsFlatbed", true);
+            SetRuntimeMember(type, "autoParkSupported", true);
+            SetRuntimeMember(type, "taxDeductible", false);
+            SetRuntimeMember(type, "hasRadio", true);
+            SetRuntimeMember(type, "isLuxuryCar", true);
+            SetRuntimeMember(type, "requiredDeliveryDriverSkillValue", 0f);
+            SetRuntimeMember(type, "destinationsThatCanDeliver", 2);
+            SetRuntimeMember(type, "countsForPersonalGoals", true);
+            SetRuntimeMember(type, "spawnInPlayerObject", false);
+            SetRuntimeMember(type, "usePedestrianCam", false);
+            SetRuntimeMember(type, "autoDestroyAfterMinutes", -1f);
+            SetRuntimeMember(type, "enclosed", true);
+            SetRuntimeMember(type, "canGetDirty", true);
+            SetRuntimeMember(type, "dirtinessTimer", 600f);
+            SetRuntimeMember(type, "cleanByRainTimer", 360f);
+
+            return type;
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error(ex);
+            return null;
+        }
+    }
+
+    private static void BindRuntimeVehicleTypeToPrefab(
+        UnityEngine.GameObject prefab,
+        VehicleType type,
+        ModContext context)
+    {
+        var assigned = 0;
+        foreach (var component in prefab.GetComponentsInChildren<UnityEngine.Component>(true))
+        {
+            if (component == null)
+                continue;
+
+            if (TrySetNamedMember(component, "vehicleType", type))
+                assigned++;
+
+            var vehicleInstance = GetNamedMember(component, "vehicleInstance");
+            if (vehicleInstance != null)
+                TrySetNamedMember(vehicleInstance, "vehicleTypeName", VehicleTypeName);
+        }
+
+        FerrariSF90SpiderDiagnostics.Info(
+            context,
+            $"FerrariSF90Spider: bound runtime VehicleType to {assigned} prefab member(s).");
+    }
+
+    private static void SetRuntimeMember(object target, string name, object value)
+    {
+        if (!TrySetNamedMember(target, name, value))
+            return;
+    }
+
+    private static bool TrySetNamedMember(object target, string name, object value)
+    {
+        if (target == null)
+            return false;
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        for (var type = target.GetType(); type != null; type = type.BaseType)
+        {
+            var field = type.GetField(name, flags | BindingFlags.DeclaredOnly);
+            if (field != null && !field.IsInitOnly)
+            {
+                var converted = ConvertRuntimeValue(value, field.FieldType);
+                if (converted != null || !field.FieldType.IsValueType)
+                {
+                    field.SetValue(target, converted);
+                    return true;
+                }
+            }
+
+            var property = type.GetProperty(name, flags | BindingFlags.DeclaredOnly);
+            if (property?.CanWrite == true)
+            {
+                var converted = ConvertRuntimeValue(value, property.PropertyType);
+                if (converted != null || !property.PropertyType.IsValueType)
+                {
+                    property.SetValue(target, converted, null);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static object GetNamedMember(object target, string name)
+    {
+        if (target == null)
+            return null;
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        for (var type = target.GetType(); type != null; type = type.BaseType)
+        {
+            var field = type.GetField(name, flags | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field.GetValue(target);
+
+            var property = type.GetProperty(name, flags | BindingFlags.DeclaredOnly);
+            if (property?.CanRead == true)
+                return property.GetValue(target, null);
+        }
+
+        return null;
+    }
+
+    private static object ConvertRuntimeValue(object value, Type targetType)
+    {
+        if (value == null)
+            return null;
+
+        var effectiveType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (effectiveType.IsInstanceOfType(value))
+            return value;
+
+        if (effectiveType.IsEnum)
+        {
+            if (value is string text)
+                return Enum.Parse(effectiveType, text, true);
+            return Enum.ToObject(effectiveType, Convert.ToInt32(value, CultureInfo.InvariantCulture));
+        }
+
+        try
+        {
+            return Convert.ChangeType(value, effectiveType, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public Task OnUnloadAsync()
     {
         runtime?.Shutdown();
@@ -75,6 +230,7 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
         {
             FerrariSF90SpiderLuxuryDealerStock.RemoveVehicle(vehicleType.vehicleTypeName);
             ModdingAPI.UnregisterModVehicleType(vehicleType.vehicleTypeName);
+            UnityEngine.Object.Destroy(vehicleType);
             vehicleType = null;
         }
 

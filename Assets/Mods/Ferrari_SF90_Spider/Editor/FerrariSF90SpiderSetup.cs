@@ -1,17 +1,37 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.IO;
 using BAModTemplate.Editor;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public static class FerrariSF90SpiderSetup
+public static class FerrariSF90SpiderSetupV15
 {
     private const string ModRoot = "Assets/Mods/Ferrari_SF90_Spider";
-    private const string ReferenceAssetPath = "Assets/Mods/AudiRS6R/AudiRS6R.asset";
-    private const string ReferencePrefabPath = "Assets/Mods/AudiRS6R/AudiRS6R.prefab";
+    private const string EmbeddedReferenceBundlePath =
+        ModRoot + "/tools~/reference/cadillacescalade.unity3d";
+    private static readonly (string Label, string PrefabPath, string BundlePath)[] ReferenceVehicles =
+    {
+        (
+            "Cadillac Escalade",
+            "Assets/Mods/Cadillac_Escalade/CadillacEscalade.prefab",
+            "Assets/Mods/Cadillac_Escalade/AssetBundles/Windows/cadillacescalade.unity3d"),
+        (
+            "Koenigsegg Jesko",
+            "Assets/Mods/Koenigsegg_Jesko/KoenigseggJesko.prefab",
+            "Assets/Mods/Koenigsegg_Jesko/AssetBundles/Windows/koenigseggjesko.unity3d"),
+        (
+            "Audi RS6R",
+            "Assets/Mods/AudiRS6R/AudiRS6R.prefab",
+            "Assets/Mods/AudiRS6R/AssetBundles/Windows/audirs6r.unity3d"),
+        (
+            "SDK Example Vehicle",
+            "Assets/Mods/Example-Vehicle/TurboHonza.prefab",
+            string.Empty),
+    };
     private const string ModelPath = ModRoot + "/Models/2021_ferrari_sf90_spider.glb";
     private const string LightOverlayModelPath = ModRoot + "/Models/FerrariSF90LightOverlays.glb";
     private const string MaterialFolder = ModRoot + "/Models/GeneratedMaterials";
@@ -32,7 +52,15 @@ public static class FerrariSF90SpiderSetup
     private const float TargetLength = 4.704f;
     private const float TargetVisualWidthIncludingMirrors = 2.22f;
     private const float TargetHeight = 1.191f;
-    private const float Wheelbase = 2.649f;
+    private const float Wheelbase = 2.649f; // real-world specification; retained for documentation/physics reference
+    // Final visual calibration measured directly against the supplied SF90 model in Unity.
+    // The imported/model-scaled wheel arches do not line up perfectly with the published
+    // 2.649 m wheelbase, so the prefab uses these visually verified local-Z positions.
+    private const float CalibratedFrontWheelZ = 1.166f;
+    private const float CalibratedRearWheelZ = -1.547f;
+    private const float FrontCaliperGeometryOffsetZ = 0.0200f;
+    private const float RearCaliperGeometryOffsetZ = -0.0289f;
+    private const float AuthoredAxleCenterOffsetZ = -0.183f; // diagnostic fallback for raw GLB locator analysis
     private const float FrontTrack = 1.679f;
     private const float RearTrack = 1.652f;
     private const float FrontWheelRadius = 0.34325f; // 255/35 ZR20
@@ -40,6 +68,9 @@ public static class FerrariSF90SpiderSetup
     private const float FrontWheelWidth = 0.255f;
     private const float RearWheelWidth = 0.315f;
     private const float BodyGroundClearance = 0.105f;
+    // Visual/prefab calibration from the first in-game test: keep the wheels on the ground
+    // and lower only the Ferrari body/driver/collider package to reduce the wheel-arch gap.
+    private const float VisualRideHeightOffsetY = -0.040f;
 
     private const float VehicleMass = 1670f;
     private const float PeriodSpiderMsrp = 558000f;
@@ -60,13 +91,13 @@ public static class FerrariSF90SpiderSetup
     private const float ExitMarkerOffset = 1.42f;
 
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.09f, -0.13f);
-    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.36f, 0f);
+    private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.36f + VisualRideHeightOffsetY, 0f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.93f, 0.44f, 4.66f);
-    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.73f, -0.16f);
+    private static readonly Vector3 UpperColliderCenter = new Vector3(0f, 0.73f + VisualRideHeightOffsetY, -0.16f);
     private static readonly Vector3 UpperColliderSize = new Vector3(1.68f, 0.58f, 2.46f);
-    private static readonly Vector3 FrontContactColliderCenter = new Vector3(0f, 0.52f, 1.82f);
+    private static readonly Vector3 FrontContactColliderCenter = new Vector3(0f, 0.52f + VisualRideHeightOffsetY, 1.82f);
     private static readonly Vector3 FrontContactColliderSize = new Vector3(1.86f, 0.38f, 0.92f);
-    private static readonly Vector3 SteeringReferencePosition = new Vector3(-0.37f, 0.80f, 0.39f);
+    private static readonly Vector3 SteeringReferencePosition = new Vector3(-0.37f, 0.80f + VisualRideHeightOffsetY, 0.39f);
 
     private const string WheelMaterialMarker = "Wheel1A_3D_3DWheel1C_Material";
     private const string CaliperMaterialMarker = "CallipersCalliperA_Zone_Material";
@@ -76,10 +107,10 @@ public static class FerrariSF90SpiderSetup
     private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {
-            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f, FrontWheelRadius, Wheelbase * 0.5f) },
-            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f, FrontWheelRadius, Wheelbase * 0.5f) },
-            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f, RearWheelRadius, -Wheelbase * 0.5f) },
-            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f, RearWheelRadius, -Wheelbase * 0.5f) },
+            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f, FrontWheelRadius, CalibratedFrontWheelZ) },
+            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f, FrontWheelRadius, CalibratedFrontWheelZ) },
+            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f, RearWheelRadius, CalibratedRearWheelZ) },
+            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f, RearWheelRadius, CalibratedRearWheelZ) },
         };
 
     // Exact Ferrari ratios are not published in the supplied source material.
@@ -100,13 +131,17 @@ public static class FerrariSF90SpiderSetup
 
     private static readonly (string SourceName, string RuntimeName)[] LightOverlayNames =
     {
+        // The SF90 uses the same front strip for white DRL and amber indicator.
+        // The Blender extractor duplicates each labeled strip into two overlay objects
+        // so the runtime can switch the same physical surface between white and amber.
         ("VehicleLightRef_DRL_FL", "FerrariSF90Spider_Light_DRL_FL"),
         ("VehicleLightRef_DRL_FR", "FerrariSF90Spider_Light_DRL_FR"),
-        ("VehicleLightRef_FrontIndicatorSecondary_FL", "FerrariSF90Spider_Light_FrontIndicatorSecondary_FL"),
-        ("VehicleLightRef_FrontIndicatorSecondary_FR", "FerrariSF90Spider_Light_FrontIndicatorSecondary_FR"),
         ("VehicleLightRef_FrontIndicator_FL", "FerrariSF90Spider_Light_FrontIndicator_FL"),
         ("VehicleLightRef_FrontIndicator_FR", "FerrariSF90Spider_Light_FrontIndicator_FR"),
+        ("VehicleLightRef_MirrorIndicatorLeft", "FerrariSF90Spider_Light_MirrorIndicatorLeft"),
+        ("VehicleLightRef_MirrorIndicatorRight", "FerrariSF90Spider_Light_MirrorIndicatorRight"),
         ("VehicleLightRef_Headlamps", "FerrariSF90Spider_Light_Headlamps"),
+        // The same rear lamp geometry is duplicated into dim tail and bright brake overlays.
         ("VehicleLightRef_TailLights", "FerrariSF90Spider_Light_TailLights"),
         ("VehicleLightRef_BrakeLights", "FerrariSF90Spider_Light_BrakeLights"),
         ("VehicleLightRef_ThirdBrakeLight", "FerrariSF90Spider_Light_ThirdBrakeLight"),
@@ -115,55 +150,54 @@ public static class FerrariSF90SpiderSetup
         ("VehicleLightRef_RearIndicator_RR", "FerrariSF90Spider_Light_RearIndicator_RR"),
     };
 
-    [MenuItem("Big Ambitions Mods/Setup Ferrari SF90 Spider")]
+    [MenuItem("Big Ambitions Mods/Ferrari SF90 Spider/Setup V15 (glass + RPM audio + driver + ride height)")]
     public static void Generate()
     {
         EnsureAssetFolder(MaterialFolder);
         EnsureAssetFolder(MeshFolder);
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        var vehicleType = CreateVehicleType();
-        CreateVehiclePrefab(vehicleType);
+        Debug.Log("Ferrari SF90 Spider Setup V15 ACTIVE - GLASS + RPM AUDIO + DRIVER + RIDE HEIGHT");
+        var reference = ResolveReferenceVehicle();
+        Debug.Log($"FerrariSF90Spider setup: using '{reference.Label}' as the vehicle reference.");
+        RemoveLegacyVehicleTypeAsset();
+        CreateVehiclePrefab(reference);
         CreateManifest();
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         ValidateProjectAssets(false);
         Debug.Log(
-            "FerrariSF90Spider setup complete: model normalized, four wheel assemblies and " +
+            "FerrariSF90Spider V15 setup complete: model normalized, four wheel assemblies and " +
             "four fixed calipers generated from the supplied GLB, eight-speed DCT baseline, " +
-            "AWD reference drivetrain, paint/glass/audio/runtime hooks configured. " +
-            "If FerrariSF90LightOverlays.glb is absent, functional lamp overlays remain the " +
-            "only intentionally deferred visual step.");
+            "AWD reference drivetrain, transparent SF90 glass/lens materials, gear-aware RPM audio, driver lean, lowered body stance, and the current light-overlay import validated.");
     }
 
-    [MenuItem("Big Ambitions Mods/Setup + Build Ferrari SF90 Spider")]
+    [MenuItem("Big Ambitions Mods/Ferrari SF90 Spider/Setup + Build V15 (glass + RPM audio + ride height)")]
     public static void GenerateAndBuild()
     {
         Generate();
-        ModAssetBundleCli.BuildForMod();
+        BuildFerrariAssetBundle();
         VerifyBuiltBundle();
     }
 
-    [MenuItem("Big Ambitions Mods/Validate Ferrari SF90 Spider")]
+    [MenuItem("Big Ambitions Mods/Ferrari SF90 Spider/Validate V15")]
     public static void ValidateProject()
     {
         ValidateProjectAssets(true);
     }
 
-    [MenuItem("Big Ambitions Mods/Verify Ferrari SF90 Spider Bundle")]
+    [MenuItem("Big Ambitions Mods/Ferrari SF90 Spider/Verify Bundle V15")]
     public static void VerifyBuiltBundle()
     {
-        var bundle = AssetBundle.LoadFromFile(WindowsBundlePath);
+        var bundle = AssetBundle.LoadFromFile(AssetPathToAbsolutePath(WindowsBundlePath));
         if (bundle == null)
             throw new InvalidOperationException($"Could not load bundle '{WindowsBundlePath}'.");
         try
         {
-            var type = bundle.LoadAsset<UnityEngine.Object>(VehicleAssetPath);
             var prefab = bundle.LoadAsset<GameObject>(VehiclePrefabPath);
-            if (type == null || prefab == null)
-                throw new InvalidOperationException("SF90 bundle is missing VehicleType or prefab.");
-            ValidateVehicleType(type);
+            if (prefab == null)
+                throw new InvalidOperationException("SF90 bundle is missing the vehicle prefab.");
             ValidatePrefab(prefab, true);
-            Debug.Log("FerrariSF90Spider bundle verified successfully.");
+            Debug.Log("FerrariSF90Spider V15 bundle verified successfully (VehicleType is created at runtime).");
         }
         finally
         {
@@ -171,70 +205,228 @@ public static class FerrariSF90SpiderSetup
         }
     }
 
-    private static UnityEngine.Object CreateVehicleType()
+    private static (string Label, string PrefabPath, string BundlePath) ResolveReferenceVehicle()
     {
-        var source = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(ReferenceAssetPath);
-        if (source == null)
-            throw new InvalidOperationException("Audi RS6R VehicleType reference asset was not found.");
-
-        var target = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(VehicleAssetPath);
-        if (target == null)
+        // V6 ships an editor-only Cadillac reference bundle under tools~ so setup is
+        // independent of which other mod source folders happen to be present/importable.
+        var embeddedAbsolute = AssetPathToAbsolutePath(EmbeddedReferenceBundlePath);
+        if (File.Exists(embeddedAbsolute))
         {
-            if (!AssetDatabase.CopyAsset(ReferenceAssetPath, VehicleAssetPath))
-                throw new InvalidOperationException("Could not create the SF90 VehicleType asset.");
-            target = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(VehicleAssetPath);
-        }
-        else
-        {
-            EditorUtility.CopySerialized(source, target);
+            Debug.Log(
+                $"FerrariSF90Spider V15: using embedded Cadillac reference bundle at '{embeddedAbsolute}'.");
+            return (
+                "Embedded Cadillac Escalade",
+                "Assets/Mods/Cadillac_Escalade/CadillacEscalade.prefab",
+                EmbeddedReferenceBundlePath);
         }
 
-        if (target == null)
-            throw new InvalidOperationException("Generated SF90 VehicleType asset did not load.");
+        // Fallback for an incomplete patch copy: discover source prefabs/bundles dynamically.
+        var diagnostics = new List<string>();
+        foreach (var candidate in ReferenceVehicles)
+        {
+            var resolvedPrefabPath = ResolveExistingPrefabPath(candidate.PrefabPath);
+            var resolvedBundlePath = ResolveExistingBundlePath(candidate.BundlePath);
+            var prefab = !string.IsNullOrEmpty(resolvedPrefabPath)
+                ? AssetDatabase.LoadAssetAtPath<GameObject>(resolvedPrefabPath)
+                : null;
+            var bundleExists = !string.IsNullOrEmpty(resolvedBundlePath) &&
+                               File.Exists(AssetPathToAbsolutePath(resolvedBundlePath));
 
-        target.name = "FerrariSF90Spider";
-        var serialized = new SerializedObject(target);
-        SetString(serialized, "vehicleTypeName", VehicleTypeName);
-        SetNumber(serialized, "price", PeriodSpiderMsrp);
-        SetNumber(serialized, "maxFuel", FuelCapacityLitres);
-        SetNumber(serialized, "maxCargoCapacity", 2f);
-        SetNumber(serialized, "maxSpeed", 340f);
-        SetNumber(serialized, "enginePower", RatedSystemPowerKw);
-        SetNumber(serialized, "brakeForce", BrakeTorque);
-        SetNumber(serialized, "turnRadius", 25f);
-        SetNumber(serialized, "damageIntensity", 0.80f);
-        SetBool(serialized, "isATruck", false);
-        SetBool(serialized, "isHandVehicle", false);
-        SetBool(serialized, "fitsHandTruck", false);
-        SetBool(serialized, "fitsFlatbed", true);
-        SetBool(serialized, "autoParkSupported", true);
-        SetBool(serialized, "hasRadio", true);
-        SetBool(serialized, "isLuxuryCar", true);
-        SetBool(serialized, "enclosed", true);
-        serialized.ApplyModifiedPropertiesWithoutUndo();
-        EditorUtility.SetDirty(target);
-        return target;
+            diagnostics.Add(
+                $"{candidate.Label}: prefabPath='{resolvedPrefabPath}', " +
+                $"prefabAsset={(prefab != null ? "ok" : "missing")}, " +
+                $"bundlePath='{resolvedBundlePath}', bundle={(bundleExists ? "ok" : "missing")}");
+
+            if (prefab != null || bundleExists)
+                return (candidate.Label, resolvedPrefabPath, resolvedBundlePath);
+        }
+
+        throw new InvalidOperationException(
+            "Ferrari SF90 Spider V15 could not find its embedded editor reference bundle and no " +
+            "fallback vehicle prefab/bundle is available. Checked: " + string.Join("; ", diagnostics) +
+            $". Expected embedded file: '{embeddedAbsolute}'.");
     }
 
-    private static void CreateVehiclePrefab(UnityEngine.Object vehicleType)
+    private static string ResolveExistingPrefabPath(string preferredPath)
     {
-        var source = AssetDatabase.LoadAssetAtPath<GameObject>(ReferencePrefabPath);
+        if (!string.IsNullOrEmpty(preferredPath) &&
+            AssetDatabase.LoadAssetAtPath<GameObject>(preferredPath) != null)
+            return preferredPath;
+
+        var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(preferredPath);
+        if (string.IsNullOrEmpty(fileNameWithoutExtension))
+            return string.Empty;
+
+        foreach (var guid in AssetDatabase.FindAssets(fileNameWithoutExtension + " t:Prefab", new[] { "Assets" }))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            if (string.Equals(Path.GetFileNameWithoutExtension(path), fileNameWithoutExtension,
+                    StringComparison.OrdinalIgnoreCase))
+                return path;
+        }
+
+        return string.Empty;
+    }
+
+    private static string ResolveExistingBundlePath(string preferredPath)
+    {
+        if (!string.IsNullOrEmpty(preferredPath) &&
+            File.Exists(AssetPathToAbsolutePath(preferredPath)))
+            return preferredPath;
+
+        var fileName = Path.GetFileName(preferredPath);
+        if (string.IsNullOrEmpty(fileName))
+            return string.Empty;
+
+        var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+        if (string.IsNullOrEmpty(projectRoot))
+            return string.Empty;
+
+        var assetsRoot = Path.Combine(projectRoot, "Assets");
+        if (!Directory.Exists(assetsRoot))
+            return string.Empty;
+
+        try
+        {
+            foreach (var absolute in Directory.EnumerateFiles(assetsRoot, fileName, SearchOption.AllDirectories))
+            {
+                var normalizedProjectRoot = projectRoot.Replace('\\', '/').TrimEnd('/');
+                var normalizedAbsolute = absolute.Replace('\\', '/');
+                if (!normalizedAbsolute.StartsWith(normalizedProjectRoot + "/", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                return normalizedAbsolute.Substring(normalizedProjectRoot.Length + 1);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"FerrariSF90Spider V15: bundle discovery failed: {ex.Message}");
+        }
+
+        return string.Empty;
+    }
+
+    private static void RemoveLegacyVehicleTypeAsset()
+    {
+        // V9 shipped a YAML VehicleType asset. The current SDK imports BigAmbitions.dll as
+        // an explicitly referenced plugin, and Unity's editor asset pipeline can leave these
+        // external-DLL ScriptableObjects unresolved even though runtime assemblies compile.
+        // V10 therefore creates VehicleType in FerrariSF90SpiderMod at game runtime and keeps
+        // the AssetBundle purely prefab/material/mesh based. Remove the obsolete asset so it
+        // cannot poison bundle builds.
+        if (AssetDatabase.DeleteAsset(VehicleAssetPath))
+        {
+            Debug.Log("FerrariSF90Spider V15: removed legacy editor VehicleType asset; runtime registration will create it in memory.");
+            return;
+        }
+
+        var absolutePath = AssetPathToAbsolutePath(VehicleAssetPath);
+        var changed = false;
+        if (File.Exists(absolutePath))
+        {
+            File.Delete(absolutePath);
+            changed = true;
+        }
+        if (File.Exists(absolutePath + ".meta"))
+        {
+            File.Delete(absolutePath + ".meta");
+            changed = true;
+        }
+        if (changed)
+        {
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            Debug.Log("FerrariSF90Spider V15: removed legacy VehicleType files from disk.");
+        }
+    }
+
+    private static GameObject InstantiateReferenceVehicle(
+        (string Label, string PrefabPath, string BundlePath) reference)
+    {
+        var source = AssetDatabase.LoadAssetAtPath<GameObject>(reference.PrefabPath);
+        if (source != null)
+        {
+            Debug.Log(
+                $"FerrariSF90Spider setup: loading {reference.Label} prefab from AssetDatabase.");
+            return UnityEngine.Object.Instantiate(source);
+        }
+
+        if (string.IsNullOrEmpty(reference.BundlePath))
+            throw new InvalidOperationException(
+                $"Reference prefab '{reference.PrefabPath}' is not importable and no bundle fallback exists.");
+
+        var absoluteBundlePath = AssetPathToAbsolutePath(reference.BundlePath);
+        var bundle = AssetBundle.LoadFromFile(absoluteBundlePath);
+        if (bundle == null)
+            throw new InvalidOperationException(
+                $"Could not load reference bundle '{reference.BundlePath}'.");
+
+        try
+        {
+            GameObject? bundledPrefab = null;
+            foreach (var assetName in bundle.GetAllAssetNames())
+            {
+                if (!assetName.EndsWith(
+                        "/" + Path.GetFileName(reference.PrefabPath),
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                bundledPrefab = bundle.LoadAsset<GameObject>(assetName);
+                if (bundledPrefab != null)
+                    break;
+            }
+
+            if (bundledPrefab == null)
+            {
+                bundledPrefab = bundle.LoadAsset<GameObject>(reference.PrefabPath);
+            }
+
+            if (bundledPrefab == null)
+                throw new InvalidOperationException(
+                    $"Bundle '{reference.BundlePath}' does not contain reference prefab " +
+                    $"'{reference.PrefabPath}'. Assets: {string.Join(", ", bundle.GetAllAssetNames())}");
+
+            Debug.Log(
+                $"FerrariSF90Spider setup: AssetDatabase prefab unavailable; " +
+                $"loading {reference.Label} from its Windows AssetBundle fallback.");
+            return UnityEngine.Object.Instantiate(bundledPrefab);
+        }
+        finally
+        {
+            // Keep loaded referenced objects alive until the generated Ferrari prefab has been saved.
+            bundle.Unload(false);
+        }
+    }
+
+    private static string AssetPathToAbsolutePath(string assetPath)
+    {
+        var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+        if (string.IsNullOrEmpty(projectRoot))
+            throw new InvalidOperationException("Could not resolve the Unity project root.");
+
+        var relative = assetPath.Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(projectRoot, relative));
+    }
+
+    private static void CreateVehiclePrefab(
+        (string Label, string PrefabPath, string BundlePath) reference)
+    {
+        var root = InstantiateReferenceVehicle(reference);
+        RemoveMissingScriptsRecursively(root);
         var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
-        if (source == null)
-            throw new InvalidOperationException("Audi RS6R reference prefab was not found.");
         if (model == null)
             throw new InvalidOperationException($"SF90 GLB did not import at '{ModelPath}'.");
 
-        var root = UnityEngine.Object.Instantiate(source);
         root.name = "FerrariSF90Spider";
         try
         {
+            var removedReferenceObjects = RemoveReferenceOwnedChildren(root);
+            Debug.Log($"FerrariSF90Spider V15: removed {removedReferenceObjects} reference-owned Cadillac/Audi/Koenigsegg hierarchy object(s).");
             StripReferenceGeometry(root);
             RemoveReferenceBehaviours(root);
+            SanitizeInheritedReferenceHelpers(root);
             ConfigureRootPhysics(root);
             ConfigureWheelControllers(root);
             ConfigureBodyColliders(root);
-            ConfigureVehicleReferences(root, vehicleType);
+            ConfigureVehicleReferences(root);
             ConfigurePowertrain(root);
 
             var modelInstance = PrefabUtility.InstantiatePrefab(model, root.transform) as GameObject;
@@ -252,7 +444,7 @@ public static class FerrariSF90SpiderSetup
             var overlays = CreateLightOverlayReferences(modelInstance);
             AttachWheelVisualsAndCalipers(root, modelInstance);
 
-            var materialFix = FerrariSF90SpiderMaterials.FixSolidMaterials(root);
+            var materialFix = FixSolidMaterialsViaRuntime(root);
             MarkMaterialsDirty(root);
             ConfigureRendererReferences(root);
             ConfigureRuntimeBootstrap(root);
@@ -271,6 +463,57 @@ public static class FerrariSF90SpiderSetup
         {
             UnityEngine.Object.DestroyImmediate(root);
         }
+    }
+
+    private static void RemoveMissingScriptsRecursively(GameObject root)
+    {
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            var removed = GameObjectUtility.RemoveMonoBehavioursWithMissingScript(transform.gameObject);
+            if (removed > 0)
+                Debug.Log($"FerrariSF90Spider V15: removed {removed} missing reference script(s) from '{transform.name}'.");
+        }
+    }
+
+    private static int RemoveReferenceOwnedChildren(GameObject root)
+    {
+        var candidates = new List<Transform>();
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (ReferenceEquals(transform, root.transform) ||
+                !IsReferenceOwnedTransformName(transform.name))
+                continue;
+            candidates.Add(transform);
+        }
+
+        // Delete deepest objects first so a named parent and its named children can
+        // both be present without leaving stale Unity-object handles behind.
+        candidates.Sort((left, right) => GetTransformDepth(right).CompareTo(GetTransformDepth(left)));
+        var removed = 0;
+        foreach (var transform in candidates)
+        {
+            if (transform == null)
+                continue;
+            UnityEngine.Object.DestroyImmediate(transform.gameObject);
+            removed++;
+        }
+        return removed;
+    }
+
+    private static bool IsReferenceOwnedTransformName(string name)
+    {
+        return name.StartsWith("Cadillac", StringComparison.Ordinal) ||
+               name.StartsWith("AudiRS6R", StringComparison.Ordinal) ||
+               name.StartsWith("Koenigsegg", StringComparison.Ordinal) ||
+               name.StartsWith("LamborghiniRevuelto", StringComparison.Ordinal);
+    }
+
+    private static int GetTransformDepth(Transform transform)
+    {
+        var depth = 0;
+        for (var current = transform.parent; current != null; current = current.parent)
+            depth++;
+        return depth;
     }
 
     private static void StripReferenceGeometry(GameObject root)
@@ -305,6 +548,80 @@ public static class FerrariSF90SpiderSetup
         }
     }
 
+    private static void SanitizeInheritedReferenceHelpers(GameObject root)
+    {
+        // The Cadillac reference prefab itself descends from the Audi RS6-R setup and
+        // intentionally retained its functional NavMeshObstacle / obstacle toggler on a
+        // GameObject named "2020_abt_sportline_audi_rs6-r". Those components are generic
+        // Big Ambitions vehicle plumbing, so keep them, but remove the misleading Audi
+        // identity from the generated Ferrari prefab.
+        var renamed = 0;
+        var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var component in root.GetComponentsInChildren<Component>(true))
+        {
+            if (component == null ||
+                !string.Equals(component.GetType().Name, "NavMeshObstacle", StringComparison.Ordinal))
+                continue;
+
+            var helperObject = component.gameObject;
+            if (helperObject == null || usedNames.Contains(helperObject.name))
+                continue;
+
+            var targetName = renamed == 0
+                ? "FerrariSF90SpiderNavMeshObstacle"
+                : $"FerrariSF90SpiderNavMeshObstacle{renamed + 1}";
+            helperObject.name = targetName;
+            usedNames.Add(targetName);
+            renamed++;
+        }
+
+        // Defensive cleanup for any surviving helper/object names inherited from the
+        // Cadillac/Audi source. Do not delete generic BA components merely because their
+        // source object had a branded name; rename the object in place so all serialized
+        // component references remain valid.
+        foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (ReferenceEquals(transform, root.transform) ||
+                !ContainsReferenceBrandToken(transform.name))
+                continue;
+
+            // A branded object that survived the explicit hierarchy cleanup is a generic
+            // helper rather than visual/reference-owned geometry. Preserve its components
+            // and references, but give it a Ferrari-local neutral name.
+            var hasNavObstacle = false;
+            foreach (var component in transform.GetComponents<Component>())
+            {
+                if (component != null &&
+                    string.Equals(component.GetType().Name, "NavMeshObstacle", StringComparison.Ordinal))
+                {
+                    hasNavObstacle = true;
+                    break;
+                }
+            }
+
+            if (hasNavObstacle)
+                transform.name = "FerrariSF90SpiderNavMeshObstacle";
+        }
+
+        if (renamed > 0)
+            Debug.Log($"FerrariSF90Spider V15: sanitized {renamed} inherited NavMeshObstacle helper name(s); CarController references remain intact.");
+    }
+
+    private static bool ContainsReferenceBrandToken(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return false;
+
+        return name.IndexOf("audi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("rs6", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("cadillac", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("escalade", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("koenigsegg", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("jesko", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("lamborghini", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("revuelto", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
     private static void RemoveModelLights(GameObject model)
     {
         foreach (var light in model.GetComponentsInChildren<Light>(true))
@@ -313,8 +630,9 @@ public static class FerrariSF90SpiderSetup
 
     private static void ConfigureRuntimeBootstrap(GameObject root)
     {
-        if (root.GetComponent<FerrariSF90SpiderPaintController>() == null)
-            root.AddComponent<FerrariSF90SpiderPaintController>();
+        var paintControllerType = RequireRuntimeType("FerrariSF90SpiderPaintController");
+        if (root.GetComponent(paintControllerType) == null)
+            root.AddComponent(paintControllerType);
     }
 
     private static void ConfigureRootPhysics(GameObject root)
@@ -384,13 +702,20 @@ public static class FerrariSF90SpiderSetup
         steering.localRotation = Quaternion.identity;
         steering.localScale = Vector3.one;
 
+        // Keep the inherited road-light donor aligned with the body after the
+        // visual ride-height correction. The active overlay meshes are children
+        // of FerrariSF90SpiderVisual and already follow the body automatically.
+        var spotlights = FindTransform(root.transform, "Spotlights");
+        if (spotlights != null)
+            spotlights.localPosition += new Vector3(0f, VisualRideHeightOffsetY, 0f);
+
         // Keep the inherited vanilla steering reference coherent as well.
         var inherited = FindTransform(root.transform, "Animate_SteeringWheel_033");
         if (inherited != null)
             inherited.localPosition = SteeringReferencePosition;
     }
 
-    private static void ConfigureVehicleReferences(GameObject root, UnityEngine.Object vehicleType)
+    private static void ConfigureVehicleReferences(GameObject root)
     {
         foreach (var component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -399,7 +724,7 @@ public static class FerrariSF90SpiderSetup
             var serialized = new SerializedObject(component);
             var vehicleTypeProperty = serialized.FindProperty("vehicleType");
             if (vehicleTypeProperty?.propertyType == SerializedPropertyType.ObjectReference)
-                vehicleTypeProperty.objectReferenceValue = vehicleType;
+                vehicleTypeProperty.objectReferenceValue = null;
             var instance = serialized.FindProperty("vehicleInstance");
             var typeName = instance?.FindPropertyRelative("vehicleTypeName");
             if (typeName?.propertyType == SerializedPropertyType.String)
@@ -500,7 +825,7 @@ public static class FerrariSF90SpiderSetup
             throw new InvalidOperationException("Scaled SF90 body bounds could not be measured.");
         model.transform.position += new Vector3(
             -bounds.center.x,
-            BodyGroundClearance - bounds.min.y,
+            BodyGroundClearance - bounds.min.y + VisualRideHeightOffsetY,
             -bounds.center.z);
         if (!TryGetModelBodyBounds(model.transform, out bounds))
             throw new InvalidOperationException("Final SF90 body bounds could not be measured.");
@@ -525,7 +850,11 @@ public static class FerrariSF90SpiderSetup
             throw new InvalidOperationException("No SF90 caliper renderers were found in the supplied GLB.");
 
         var sourceFrontLeft = FindTransform(model.transform, "3DWheel Front L");
+        var sourceFrontRight = FindTransform(model.transform, "3DWheel Front R");
         var sourceRearLeft = FindTransform(model.transform, "3DWheel Rear L");
+        var sourceRearRight = FindTransform(model.transform, "3DWheel Rear R");
+        // Raw GLB wheel locators are used only to classify the source geometry.
+        // Final wheel positions come from the visually verified SF90 prefab calibration.
         var sourceLeftSign = sourceFrontLeft != null
             ? Mathf.Sign(root.transform.InverseTransformPoint(sourceFrontLeft.position).x)
             : -1f;
@@ -562,6 +891,10 @@ public static class FerrariSF90SpiderSetup
             var targetPosition = WheelControllerPositions[controllerName];
             controller.localPosition = targetPosition;
 
+            Debug.Log(
+                $"FerrariSF90Spider V15 {corner}: wheelZ={targetPosition.z:F6}, " +
+                $"caliperLocalZ={(front ? FrontCaliperGeometryOffsetZ : RearCaliperGeometryOffsetZ):F4}.");
+
             var sourceBounds = GetLocalBounds(root.transform, wheelsByCorner[corner]);
             var targetRadius = front ? FrontWheelRadius : RearWheelRadius;
             var targetWidth = front ? FrontWheelWidth : RearWheelWidth;
@@ -591,6 +924,10 @@ public static class FerrariSF90SpiderSetup
             fixedCaliper.transform.localPosition = targetPosition;
             var caliperGeometry = new GameObject("FerrariSF90SpiderCaliper" + corner);
             caliperGeometry.transform.SetParent(fixedCaliper.transform, false);
+            caliperGeometry.transform.localPosition = new Vector3(
+                0f,
+                0f,
+                front ? FrontCaliperGeometryOffsetZ : RearCaliperGeometryOffsetZ);
             var caliperMesh = BakeCombinedMesh(
                 root.transform,
                 calipersByCorner[corner],
@@ -615,6 +952,51 @@ public static class FerrariSF90SpiderSetup
         foreach (var gameObject in toDestroy)
             if (gameObject != null)
                 UnityEngine.Object.DestroyImmediate(gameObject);
+    }
+
+    private static float ResolveAuthoredAxleCenterZ(
+        Transform vehicleRoot,
+        Transform? sourceFrontLeft,
+        Transform? sourceFrontRight,
+        Transform? sourceRearLeft,
+        Transform? sourceRearRight)
+    {
+        var frontSamples = new List<float>(2);
+        var rearSamples = new List<float>(2);
+        if (sourceFrontLeft != null) frontSamples.Add(vehicleRoot.InverseTransformPoint(sourceFrontLeft.position).z);
+        if (sourceFrontRight != null) frontSamples.Add(vehicleRoot.InverseTransformPoint(sourceFrontRight.position).z);
+        if (sourceRearLeft != null) rearSamples.Add(vehicleRoot.InverseTransformPoint(sourceRearLeft.position).z);
+        if (sourceRearRight != null) rearSamples.Add(vehicleRoot.InverseTransformPoint(sourceRearRight.position).z);
+
+        if (frontSamples.Count == 0 || rearSamples.Count == 0)
+        {
+            Debug.LogWarning(
+                $"FerrariSF90Spider V15: authored wheel locators are incomplete; using axle-center fallback {AuthoredAxleCenterOffsetZ:F3}m.");
+            return AuthoredAxleCenterOffsetZ;
+        }
+
+        var frontZ = 0f;
+        foreach (var sample in frontSamples) frontZ += sample;
+        frontZ /= frontSamples.Count;
+        var rearZ = 0f;
+        foreach (var sample in rearSamples) rearZ += sample;
+        rearZ /= rearSamples.Count;
+        var axleCenter = (frontZ + rearZ) * 0.5f;
+
+        // A malformed/importer-flipped locator should not throw the whole vehicle
+        // several metres off-center. The supplied SF90 resolves to about -0.183 m.
+        if (float.IsNaN(axleCenter) || float.IsInfinity(axleCenter) || Mathf.Abs(axleCenter) > 0.75f)
+        {
+            Debug.LogWarning(
+                $"FerrariSF90Spider V15: authored axle center {axleCenter:F3}m is implausible; using fallback {AuthoredAxleCenterOffsetZ:F3}m.");
+            return AuthoredAxleCenterOffsetZ;
+        }
+
+        Debug.Log(
+            $"FerrariSF90Spider V15 raw locator diagnostic: authoredFront={frontZ:F3}m, authoredRear={rearZ:F3}m, " +
+            $"authoredCenter={axleCenter:F3}m, targetFront={axleCenter + Wheelbase * 0.5f:F3}m, " +
+            $"targetRear={axleCenter - Wheelbase * 0.5f:F3}m.");
+        return axleCenter;
     }
 
     private static Dictionary<string, List<MeshRenderer>> NewCornerMap() =>
@@ -778,15 +1160,22 @@ public static class FerrariSF90SpiderSetup
             throw new InvalidOperationException("SF90 Light_Geo_lodA anchor was not found.");
 
         var created = 0;
+        var candidateNames = CollectOverlayMeshCandidateNames(overlayModel);
+        Debug.Log(
+            "FerrariSF90Spider V15: imported light-overlay mesh candidates: " +
+            (candidateNames.Count == 0 ? "<none>" : string.Join(", ", candidateNames)));
+
         foreach (var pair in LightOverlayNames)
         {
-            var source = FindTransform(overlayModel.transform, pair.SourceName);
-            var mesh = source?.GetComponent<MeshFilter>()?.sharedMesh;
+            var mesh = ResolveOverlayMesh(overlayModel, pair.SourceName);
             if (mesh == null)
             {
-                Debug.LogWarning($"FerrariSF90Spider: overlay mesh '{pair.SourceName}' is missing.");
+                Debug.LogWarning(
+                    $"FerrariSF90Spider: overlay mesh '{pair.SourceName}' is missing after checking " +
+                    "both the imported hierarchy and all model sub-assets.");
                 continue;
             }
+
             var existing = FindTransform(model.transform, pair.RuntimeName);
             if (existing != null)
                 UnityEngine.Object.DestroyImmediate(existing.gameObject);
@@ -803,6 +1192,69 @@ public static class FerrariSF90SpiderSetup
             created++;
         }
         return created;
+    }
+
+    private static Mesh? ResolveOverlayMesh(GameObject overlayModel, string expectedName)
+    {
+        // First try the normal imported hierarchy. Depending on Blender/Unity importer
+        // versions, the node name or the Mesh sub-asset name can receive suffixes, so
+        // compare both names with a tolerant matcher rather than requiring exact equality.
+        foreach (var filter in overlayModel.GetComponentsInChildren<MeshFilter>(true))
+        {
+            var mesh = filter.sharedMesh;
+            if (mesh == null)
+                continue;
+            if (OverlayNameMatches(filter.transform.name, expectedName) ||
+                OverlayNameMatches(mesh.name, expectedName))
+                return mesh;
+        }
+
+        // Model importers also expose meshes as sub-assets even when their GameObject node
+        // names are rewritten or flattened. This is the most reliable fallback for GLB.
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(LightOverlayModelPath))
+        {
+            if (asset is Mesh mesh && OverlayNameMatches(mesh.name, expectedName))
+                return mesh;
+        }
+
+        return null;
+    }
+
+    private static bool OverlayNameMatches(string? candidate, string expectedName)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+            return false;
+
+        // Blender can emit .001-style suffixes and Unity can append import suffixes. The
+        // exported VehicleLightRef_* token itself remains unique, so substring matching is
+        // safe for this dedicated overlay GLB.
+        return candidate.IndexOf(expectedName, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static List<string> CollectOverlayMeshCandidateNames(GameObject overlayModel)
+    {
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var filter in overlayModel.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter.sharedMesh == null)
+                continue;
+            var entry = $"node='{filter.transform.name}' mesh='{filter.sharedMesh.name}'";
+            if (seen.Add(entry))
+                names.Add(entry);
+        }
+
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(LightOverlayModelPath))
+        {
+            if (!(asset is Mesh mesh))
+                continue;
+            var entry = $"subasset='{mesh.name}'";
+            if (seen.Add(entry))
+                names.Add(entry);
+        }
+
+        return names;
     }
 
     private static void AssignPersistentMaterials(GameObject model)
@@ -890,6 +1342,188 @@ public static class FerrariSF90SpiderSetup
         }
     }
 
+
+    private static void BuildFerrariAssetBundle()
+    {
+        DiscoveredMod mod = null;
+        foreach (var candidate in ModDiscovery.DiscoverAll())
+        {
+            if (string.Equals(candidate.ModFolderAssetPath, ModRoot, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(candidate.Manifest.ModId, "FerrariSF90Spider", StringComparison.OrdinalIgnoreCase))
+            {
+                mod = candidate;
+                break;
+            }
+        }
+
+        if (mod == null)
+            throw new InvalidOperationException(
+                "FerrariSF90Spider V15: Mod Builder could not discover the Ferrari mod. " +
+                "Make sure ModManifest.asset exists and has finished importing.");
+
+        var bundleName = mod.Manifest.AssetBundleName;
+        if (string.IsNullOrWhiteSpace(bundleName))
+            throw new InvalidOperationException("FerrariSF90Spider V15: ModManifest.AssetBundleName is empty.");
+
+        if ((mod.Manifest.TargetPlatforms & ModTargetPlatforms.Windows) == 0)
+            throw new InvalidOperationException(
+                "FerrariSF90Spider V15: Windows is not enabled in ModManifest.TargetPlatforms.");
+
+        var assignedCount = AssignFerrariBundleableAssets(mod, bundleName);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        Debug.Log($"FerrariSF90Spider V15: updated {assignedCount} AssetBundle assignment(s) for '{bundleName}'.");
+
+        var assetPaths = AssetDatabase.GetAssetPathsFromAssetBundle(bundleName);
+        if (assetPaths == null || assetPaths.Length == 0)
+            throw new InvalidOperationException(
+                $"FerrariSF90Spider V15: no assets are assigned to AssetBundle '{bundleName}'.");
+
+        var (baseName, variant) = SplitFerrariBundleName(bundleName);
+        var build = new AssetBundleBuild
+        {
+            assetBundleName = baseName,
+            assetBundleVariant = variant,
+            assetNames = assetPaths,
+        };
+
+        var outputDir = Path.Combine(mod.ModFolderAbsolutePath, "AssetBundles", "Windows");
+        Directory.CreateDirectory(outputDir);
+
+        var manifest = BuildPipeline.BuildAssetBundles(
+            outputDir,
+            new[] { build },
+            BuildAssetBundleOptions.ChunkBasedCompression,
+            BuildTarget.StandaloneWindows64);
+
+        if (manifest == null)
+            throw new InvalidOperationException(
+                "FerrariSF90Spider V15: Unity returned null while building the Windows AssetBundle.");
+
+        var producedPath = Path.Combine(outputDir, bundleName);
+        if (!File.Exists(producedPath))
+            throw new FileNotFoundException(
+                "FerrariSF90Spider V15: expected Windows AssetBundle was not created.", producedPath);
+
+        var length = new FileInfo(producedPath).Length;
+        if (length < 256)
+            throw new InvalidOperationException(
+                $"FerrariSF90Spider V15: built AssetBundle is unexpectedly small ({length} bytes): {producedPath}");
+
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        Debug.Log(
+            $"FerrariSF90Spider V15: built Windows AssetBundle '{producedPath}' " +
+            $"with {assetPaths.Length} assigned asset(s), size={length:N0} bytes.");
+    }
+
+    private static int AssignFerrariBundleableAssets(DiscoveredMod mod, string fullBundleName)
+    {
+        var (baseName, variant) = SplitFerrariBundleName(fullBundleName);
+        var changedCount = 0;
+        var bundleableAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var assetPath in FindFerrariBundleableModAssets(mod))
+            bundleableAssets.Add(assetPath);
+
+        foreach (var assetPath in FindAllFerrariModFileAssets(mod))
+        {
+            var importer = AssetImporter.GetAtPath(assetPath);
+            if (importer == null)
+                continue;
+
+            if (!bundleableAssets.Contains(assetPath))
+            {
+                if (string.Equals(importer.assetBundleName, baseName, StringComparison.Ordinal) &&
+                    string.Equals(importer.assetBundleVariant, variant, StringComparison.Ordinal))
+                {
+                    importer.SetAssetBundleNameAndVariant(string.Empty, string.Empty);
+                    importer.SaveAndReimport();
+                    changedCount++;
+                }
+
+                continue;
+            }
+
+            if (string.Equals(importer.assetBundleName, baseName, StringComparison.Ordinal) &&
+                string.Equals(importer.assetBundleVariant, variant, StringComparison.Ordinal))
+                continue;
+
+            importer.SetAssetBundleNameAndVariant(baseName, variant);
+            importer.SaveAndReimport();
+            changedCount++;
+        }
+
+        return changedCount;
+    }
+
+    private static IEnumerable<string> FindAllFerrariModFileAssets(DiscoveredMod mod)
+    {
+        foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { mod.ModFolderAssetPath }))
+        {
+            var assetPath = NormaliseFerrariAssetPath(AssetDatabase.GUIDToAssetPath(guid));
+            if (string.IsNullOrEmpty(assetPath) || AssetDatabase.IsValidFolder(assetPath))
+                continue;
+
+            if (assetPath.StartsWith(mod.ModFolderAssetPath + "/AssetBundles/", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            yield return assetPath;
+        }
+    }
+
+    private static IEnumerable<string> FindFerrariBundleableModAssets(DiscoveredMod mod)
+    {
+        var localesPrefix = mod.Manifest.LocalesFolder != null
+            ? NormaliseFerrariAssetPath(AssetDatabase.GetAssetPath(mod.Manifest.LocalesFolder)) + "/"
+            : string.Empty;
+        var enumsPath = mod.Manifest.EnumsFile != null
+            ? NormaliseFerrariAssetPath(AssetDatabase.GetAssetPath(mod.Manifest.EnumsFile))
+            : string.Empty;
+
+        foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { mod.ModFolderAssetPath }))
+        {
+            var assetPath = NormaliseFerrariAssetPath(AssetDatabase.GUIDToAssetPath(guid));
+            if (string.IsNullOrEmpty(assetPath) || AssetDatabase.IsValidFolder(assetPath))
+                continue;
+
+            if (string.Equals(assetPath, mod.ManifestAssetPath, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(assetPath, mod.AsmdefAssetPath, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(assetPath, enumsPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (assetPath.StartsWith(mod.ModFolderAssetPath + "/AssetBundles/", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!string.IsNullOrEmpty(localesPrefix) &&
+                assetPath.StartsWith(localesPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var extension = Path.GetExtension(assetPath);
+            if (extension.Equals(".cs", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".asmdef", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".meta", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (string.Equals(Path.GetFileName(assetPath), "thumbnail.png", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            yield return assetPath;
+        }
+    }
+
+    private static (string name, string variant) SplitFerrariBundleName(string fullBundleName)
+    {
+        var idx = fullBundleName.LastIndexOf('.');
+        if (idx <= 0 || idx >= fullBundleName.Length - 1)
+            return (fullBundleName, string.Empty);
+        return (fullBundleName.Substring(0, idx), fullBundleName.Substring(idx + 1));
+    }
+
+    private static string NormaliseFerrariAssetPath(string path)
+    {
+        return string.IsNullOrEmpty(path) ? string.Empty : path.Replace('\\', '/').TrimEnd('/');
+    }
+
     private static void CreateManifest()
     {
         var manifest = AssetDatabase.LoadAssetAtPath<BAModManifest>(ManifestPath);
@@ -915,31 +1549,12 @@ public static class FerrariSF90SpiderSetup
 
     private static void ValidateProjectAssets(bool logSuccess)
     {
-        var vehicleType = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(VehicleAssetPath) ??
-                          throw new InvalidOperationException("FerrariSF90Spider.asset is missing. Run setup first.");
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(VehiclePrefabPath) ??
                      throw new InvalidOperationException("FerrariSF90Spider.prefab is missing. Run setup first.");
-        ValidateVehicleType(vehicleType);
         ValidatePrefab(prefab, false);
         ValidateAudioFiles();
         if (logSuccess)
             Debug.Log("FerrariSF90Spider project assets validated successfully.");
-    }
-
-    private static void ValidateVehicleType(UnityEngine.Object vehicleType)
-    {
-        var serialized = new SerializedObject(vehicleType);
-        var issues = new List<string>();
-        if (serialized.FindProperty("vehicleTypeName")?.stringValue != VehicleTypeName)
-            issues.Add("vehicleTypeName");
-        if (Mathf.Abs(ReadNumber(serialized.FindProperty("price")) - PeriodSpiderMsrp) > 1f)
-            issues.Add("price");
-        if (Mathf.Abs(ReadNumber(serialized.FindProperty("maxSpeed")) - 340f) > 0.5f)
-            issues.Add("maxSpeed");
-        if (Mathf.Abs(ReadNumber(serialized.FindProperty("enginePower")) - RatedSystemPowerKw) > 0.5f)
-            issues.Add("enginePower");
-        if (issues.Count > 0)
-            throw new InvalidOperationException("SF90 VehicleType validation failed: " + string.Join(", ", issues));
     }
 
     private static void ValidatePrefab(GameObject prefab, bool bundleValidation)
@@ -968,8 +1583,19 @@ public static class FerrariSF90SpiderSetup
             issues.Add("STEERING_WHEEL marker");
         if (FindTransform(prefab.transform, "Spotlights") == null)
             issues.Add("Spotlights beam donor");
-        if (prefab.GetComponent<FerrariSF90SpiderPaintController>() == null)
+        if (!HasRuntimeComponent(prefab, "FerrariSF90SpiderPaintController"))
             issues.Add("paint bootstrap");
+
+        var referenceLeftovers = new List<string>();
+        foreach (var transform in prefab.GetComponentsInChildren<Transform>(true))
+        {
+            if (ReferenceEquals(transform, prefab.transform) ||
+                (!IsReferenceOwnedTransformName(transform.name) && !ContainsReferenceBrandToken(transform.name)))
+                continue;
+            if (referenceLeftovers.Count < 8) referenceLeftovers.Add(transform.name);
+        }
+        if (referenceLeftovers.Count > 0)
+            issues.Add("reference leftovers=" + string.Join("|", referenceLeftovers));
 
         var paintSlots = 0;
         var glassSlots = 0;
@@ -978,7 +1604,7 @@ public static class FerrariSF90SpiderSetup
             {
                 if (material == null) continue;
                 if (ContainsIgnoreCase(material.name, PaintMaterialMarker)) paintSlots++;
-                if (FerrariSF90SpiderMaterials.IsCabinGlassMaterial(material)) glassSlots++;
+                if (IsCabinGlassMaterialViaRuntime(material)) glassSlots++;
             }
         if (paintSlots == 0) issues.Add("body paint material");
         if (glassSlots == 0) issues.Add("cabin glass material");
@@ -1032,7 +1658,7 @@ public static class FerrariSF90SpiderSetup
         bounds = default;
         foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
         {
-            if (!renderer.enabled || !FerrariSF90SpiderMaterials.IsFerrariRenderer(renderer.transform))
+            if (!renderer.enabled || !IsFerrariRendererViaRuntime(renderer.transform))
                 continue;
             if (!found)
             {
@@ -1203,4 +1829,142 @@ public static class FerrariSF90SpiderSetup
         if (!AssetDatabase.IsValidFolder(folder))
             AssetDatabase.CreateFolder(parent, leaf);
     }
+
+    private readonly struct MaterialFixSummary
+    {
+        internal MaterialFixSummary(
+            int rendererCount,
+            int opaqueMaterialsFixed,
+            int transparentMaterialsFixed,
+            int cabinGlassRenderers)
+        {
+            RendererCount = rendererCount;
+            OpaqueMaterialsFixed = opaqueMaterialsFixed;
+            TransparentMaterialsFixed = transparentMaterialsFixed;
+            CabinGlassRenderers = cabinGlassRenderers;
+        }
+
+        internal int RendererCount { get; }
+        internal int OpaqueMaterialsFixed { get; }
+        internal int TransparentMaterialsFixed { get; }
+        internal int CabinGlassRenderers { get; }
+    }
+
+    // The current SDK compiles mod Editor assemblies without a compile-time
+    // reference to the corresponding runtime asmdef. Keep the editor setup
+    // independent and resolve the Ferrari runtime helpers only when the setup
+    // command actually runs.
+    private static Type? FindRuntimeType(string typeName)
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var exact = assembly.GetType(typeName, false);
+            if (exact != null)
+                return exact;
+
+            IEnumerable<Type?> types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (System.Reflection.ReflectionTypeLoadException ex)
+            {
+                types = ex.Types;
+            }
+
+            foreach (var type in types)
+            {
+                if (type == null)
+                    continue;
+
+                if (string.Equals(type.Name, typeName, StringComparison.Ordinal) ||
+                    string.Equals(type.FullName, typeName, StringComparison.Ordinal) ||
+                    (type.FullName?.EndsWith("." + typeName, StringComparison.Ordinal) ?? false))
+                    return type;
+            }
+        }
+
+        return null;
+    }
+
+    private static Type RequireRuntimeType(string typeName)
+    {
+        return FindRuntimeType(typeName) ??
+               throw new InvalidOperationException(
+                   $"Ferrari SF90 runtime type '{typeName}' is not loaded. " +
+                   "Let Unity finish compiling FerrariSF90Spider first, then run the setup command again.");
+    }
+
+    private static bool HasRuntimeComponent(GameObject root, string typeName)
+    {
+        var type = FindRuntimeType(typeName);
+        return type != null && root.GetComponent(type) != null;
+    }
+
+    private static MaterialFixSummary FixSolidMaterialsViaRuntime(GameObject root)
+    {
+        var type = RequireRuntimeType("FerrariSF90SpiderMaterials");
+        var method = type.GetMethod(
+            "FixSolidMaterials",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            null,
+            new[] { typeof(GameObject) },
+            null);
+
+        if (method == null)
+            throw new MissingMethodException(type.FullName, "FixSolidMaterials(GameObject)");
+
+        var result = method.Invoke(null, new object[] { root });
+        if (result == null)
+            return default;
+
+        return new MaterialFixSummary(
+            ReadRuntimeInt(result, "RendererCount"),
+            ReadRuntimeInt(result, "OpaqueMaterialsFixed"),
+            ReadRuntimeInt(result, "TransparentMaterialsFixed"),
+            ReadRuntimeInt(result, "CabinGlassRenderers"));
+    }
+
+    private static bool IsCabinGlassMaterialViaRuntime(Material material)
+    {
+        var type = RequireRuntimeType("FerrariSF90SpiderMaterials");
+        var method = type.GetMethod(
+            "IsCabinGlassMaterial",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            null,
+            new[] { typeof(Material) },
+            null);
+
+        if (method == null)
+            throw new MissingMethodException(type.FullName, "IsCabinGlassMaterial(Material)");
+
+        return method.Invoke(null, new object[] { material }) is bool value && value;
+    }
+
+    private static bool IsFerrariRendererViaRuntime(Transform transform)
+    {
+        var type = RequireRuntimeType("FerrariSF90SpiderMaterials");
+        var method = type.GetMethod(
+            "IsFerrariRenderer",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            null,
+            new[] { typeof(Transform) },
+            null);
+
+        if (method == null)
+            throw new MissingMethodException(type.FullName, "IsFerrariRenderer(Transform)");
+
+        return method.Invoke(null, new object[] { transform }) is bool value && value;
+    }
+
+    private static int ReadRuntimeInt(object result, string propertyName)
+    {
+        var property = result.GetType().GetProperty(
+            propertyName,
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (property?.GetValue(result) is int value)
+            return value;
+        return 0;
+    }
+
 }

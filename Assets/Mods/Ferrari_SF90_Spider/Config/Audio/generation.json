@@ -1,68 +1,63 @@
 {
-  "engine": "3.990 L 90-degree twin-turbo V8 + hybrid system (acoustic synthesis only)",
+  "engine": "Ferrari SF90 Spider 4.0L twin-turbo flat-plane V8 inspired synthetic profile",
   "recorded_samples": false,
+  "design": "damped combustion-pulse synthesis; no donor engine recording",
   "layers": [
     {
-      "name": "EngineLow.wav",
-      "samples": 88200,
+      "name": "EngineIdle.wav",
       "seconds": 2.0,
-      "peak": 0.20591654823098002,
-      "method": "deterministic additive high-rev V8 synthesis"
+      "peak": 0.14949478265717212,
+      "rms": 0.084,
+      "method": "flat-plane V8 damped combustion pulses"
+    },
+    {
+      "name": "EngineLow.wav",
+      "seconds": 2.0,
+      "peak": 0.149445974801636,
+      "rms": 0.084,
+      "method": "phase-coherent flat-plane V8 coast/light-load combustion pulses"
     },
     {
       "name": "EngineLowLoad.wav",
-      "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.32146843785436735,
-      "method": "phase-aligned combustion-pulse/turbo texture synthesis"
+      "peak": 0.18358523897182696,
+      "rms": 0.092,
+      "method": "phase-coherent flat-plane V8 loaded combustion pulses"
     },
     {
       "name": "EngineMid.wav",
-      "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.20552820805094785,
-      "method": "deterministic additive high-rev V8 synthesis"
+      "peak": 0.14944802267927568,
+      "rms": 0.08400000000000002,
+      "method": "phase-coherent flat-plane V8 coast/light-load combustion pulses"
     },
     {
       "name": "EngineMidLoad.wav",
-      "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.32021181865236936,
-      "method": "phase-aligned combustion-pulse/turbo texture synthesis"
+      "peak": 0.18349296176897964,
+      "rms": 0.09200000000000001,
+      "method": "phase-coherent flat-plane V8 loaded combustion pulses"
     },
     {
       "name": "EngineHigh.wav",
-      "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.20404974521079244,
-      "method": "deterministic additive high-rev V8 synthesis"
+      "peak": 0.14863907616597657,
+      "rms": 0.084,
+      "method": "phase-coherent flat-plane V8 coast/light-load combustion pulses"
     },
     {
       "name": "EngineHighLoad.wav",
-      "samples": 88200,
       "seconds": 2.0,
-      "peak": 0.320741093694847,
-      "method": "phase-aligned combustion-pulse/turbo texture synthesis"
-    }
-  ],
-  "horn": [
-    {
-      "name": "HornLow.wav",
-      "samples": 44100,
-      "seconds": 1.0,
-      "peak": 0.25961034123325716,
-      "method": "deterministic dual-reed road-horn synthesis"
+      "peak": 0.18336437793960003,
+      "rms": 0.092,
+      "method": "phase-coherent flat-plane V8 loaded combustion pulses"
     },
     {
-      "name": "HornHigh.wav",
-      "samples": 44100,
-      "seconds": 1.0,
-      "peak": 0.1598935059441959,
-      "method": "deterministic dual-reed road-horn synthesis"
+      "name": "TurboSpool.wav",
+      "seconds": 2.0,
+      "peak": 0.14428118446870092,
+      "rms": 0.045,
+      "method": "restrained multi-partial turbo airflow"
     }
-  ],
-  "notes": [
-    "Mathematical synthesis only; no Ferrari or third-party recordings.",
-    "Runtime pitch/crossfade is calibrated by FerrariSF90SpiderAudioModel."
   ]
 }

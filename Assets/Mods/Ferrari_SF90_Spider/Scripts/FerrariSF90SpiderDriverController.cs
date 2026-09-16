@@ -17,9 +17,12 @@ internal sealed class FerrariSF90SpiderDriverController : MonoBehaviour
     private const string SteeringWheelName = "STEERING_WHEEL";
     private const string SittingClipName = "SitDeliveryTruck";
     private const float SeatedScale = 0.94f;
+    // First in-game fit: the SF90 seatback is noticeably reclined. The old pose used -2°;
+    // -14° is the final in-game fit after a further 2° rearward correction.
+    private const float DriverLeanDegrees = -14f;
     private const float HandHalfSpacing = 0.19f;
     private const float HandForwardOffset = 0.075f;
-    private const float HandHeightOffset = 0.065f;
+    private const float HandHeightOffset = 0.015f;
     private const float FootRaise = 0.16f;
     private const float FootForwardOffset = 0.26f;
     private const int ExitRecoveryDelayFrames = 3;
@@ -265,7 +268,7 @@ internal sealed class FerrariSF90SpiderDriverController : MonoBehaviour
         if (driverRoot == null || hips == null || steeringWheel == null || vehicle == null)
             return;
         driverRoot.transform.rotation =
-            vehicle.transform.rotation * Quaternion.Euler(-2f, 0f, 0f);
+            vehicle.transform.rotation * Quaternion.Euler(DriverLeanDegrees, 0f, 0f);
         var seatPosition = steeringWheel.position + vehicle.transform.TransformVector(SeatOffset);
         driverRoot.transform.position += seatPosition - hips.position;
     }

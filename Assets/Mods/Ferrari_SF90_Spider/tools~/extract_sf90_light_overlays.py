@@ -1,92 +1,214 @@
-"""Export topology-safe SF90 functional lamp overlays from Blender vertex groups.
+"""Export Ferrari SF90 Spider functional light overlays from Blender vertex groups.
 
-Workflow:
-1. Import/open the supplied SF90 model in Blender.
-2. On the actual Light_Geo_lodA mesh object create the REQUIRED_GROUPS below.
-3. Assign only complete lamp faces to each group (weight 1.0).
-4. Save the .blend, then run for example:
+This V14 extractor matches the groups used in FerrariSF90LightOverlays.blend:
 
-   blender --background SF90_Lights.blend --python extract_sf90_light_overlays.py -- \
-       --production 2021_ferrari_sf90_spider.glb --output FerrariSF90LightOverlays.glb
+    Headlamps
+    DRL_FrontIndicator_FL
+    DRL_FrontIndicator_FR
+    BrakeLights
+    ThirdBrakeLight
+    RearIndicator_RL
+    RearIndicator_RR
+    ReverseLights
+    MirrorIndicatorLeft
+    MirrorIndicatorRight
 
-The output belongs in Assets/Mods/Ferrari_SF90_Spider/Models/.
+The SF90 reuses physical surfaces in two places:
+
+* DRL_FrontIndicator_FL/FR are each exported twice: once as white DRL and once
+  as amber front indicator. Runtime logic disables the white DRL while the
+  corresponding indicator is selected.
+* BrakeLights is exported twice: once as the dim TailLights overlay and once as
+  the brighter BrakeLights overlay. The runtime never enables both copies at the
+  same time, so there is no z-fighting.
+
+GUI workflow:
+1. Open FerrariSF90LightOverlays.blend.
+2. Scripting -> Open this file -> Run Script.
+3. The exporter writes FerrariSF90LightOverlays.glb beside the .blend file.
+
+Command-line workflow:
+    blender --background FerrariSF90LightOverlays.blend \
+      --python extract_sf90_light_overlays.py -- \
+      --output /path/to/FerrariSF90LightOverlays.glb
 """
 from __future__ import annotations
-import argparse, json, sys
-from pathlib import Path
-import bpy
-from mathutils import Vector
 
-PREFIX="VehicleLightRef_"
-REQUIRED_GROUPS=(
-    "DRL_FL","DRL_FR",
-    "FrontIndicatorSecondary_FL","FrontIndicatorSecondary_FR",
-    "FrontIndicator_FL","FrontIndicator_FR",
-    "Headlamps","TailLights","BrakeLights","ThirdBrakeLight","ReverseLights",
-    "RearIndicator_RL","RearIndicator_RR",
-)
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import bpy
+
+PREFIX = "VehicleLightRef_"
+
+# One labeled Blender group may intentionally generate more than one runtime overlay.
+GROUP_TO_OVERLAYS = {
+    "Headlamps": ("Headlamps",),
+    "DRL_FrontIndicator_FL": ("DRL_FL", "FrontIndicator_FL"),
+    "DRL_FrontIndicator_FR": ("DRL_FR", "FrontIndicator_FR"),
+    "BrakeLights": ("TailLights", "BrakeLights"),
+    "ThirdBrakeLight": ("ThirdBrakeLight",),
+    "RearIndicator_RL": ("RearIndicator_RL",),
+    "RearIndicator_RR": ("RearIndicator_RR",),
+    "ReverseLights": ("ReverseLights",),
+    "MirrorIndicatorLeft": ("MirrorIndicatorLeft",),
+    "MirrorIndicatorRight": ("MirrorIndicatorRight",),
+}
+
+REQUIRED_GROUPS = tuple(GROUP_TO_OVERLAYS.keys())
+EXPECTED_OVERLAY_COUNT = sum(len(v) for v in GROUP_TO_OVERLAYS.values())
+
 
 def parse_args():
-    args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
-    p=argparse.ArgumentParser(); p.add_argument("--production",required=True); p.add_argument("--output",required=True)
-    return p.parse_args(args)
+    argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--output")
+    return parser.parse_args(argv)
 
-def vertices_for_group(obj,group):
-    return {v.index for v in obj.data.vertices for m in v.groups if m.group==group.index and m.weight>.5}
 
-def bounds(points):
-    mn=Vector(tuple(min(p[i] for p in points) for i in range(3)))
-    mx=Vector(tuple(max(p[i] for p in points) for i in range(3)))
-    return {"min":[round(v,6) for v in mn],"max":[round(v,6) for v in mx],"center":[round(v,6) for v in (mn+mx)*.5]}
+def vertices_for_group(obj, group):
+    return {
+        vertex.index
+        for vertex in obj.data.vertices
+        for membership in vertex.groups
+        if membership.group == group.index and membership.weight > 0.5
+    }
 
-def clear_scene():
-    bpy.ops.object.select_all(action="SELECT"); bpy.ops.object.delete(use_global=False)
-    for collection in (bpy.data.meshes,bpy.data.materials,bpy.data.images):
-        for item in list(collection): collection.remove(item)
+
+def build_overlay_mesh(source_obj, group_name, overlay_name):
+    group = source_obj.vertex_groups.get(group_name)
+    if group is None:
+        raise RuntimeError(f"Group {group_name!r} disappeared from {source_obj.name!r}")
+
+    selected = vertices_for_group(source_obj, group)
+    if not selected:
+        raise RuntimeError(f"Vertex group {group_name!r} on {source_obj.name!r} is empty")
+
+    polygons = [
+        poly
+        for poly in source_obj.data.polygons
+        if all(vertex_index in selected for vertex_index in poly.vertices)
+    ]
+    if not polygons:
+        raise RuntimeError(
+            f"Vertex group {group_name!r} on {source_obj.name!r} contains no complete faces. "
+            "Select complete lamp faces and press Assign in Blender."
+        )
+
+    used = sorted({vertex_index for poly in polygons for vertex_index in poly.vertices})
+    remap = {source_index: target_index for target_index, source_index in enumerate(used)}
+    vertices = [source_obj.data.vertices[index].co.copy() for index in used]
+    faces = [tuple(remap[index] for index in poly.vertices) for poly in polygons]
+
+    mesh = bpy.data.meshes.new(PREFIX + overlay_name)
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    for target_poly, source_poly in zip(mesh.polygons, polygons):
+        target_poly.use_smooth = source_poly.use_smooth
+
+    obj = bpy.data.objects.new(PREFIX + overlay_name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    # Preserve the exact transform of the source mesh; mirror indicators may live
+    # on a different object from the main Light_Geo mesh.
+    obj.matrix_world = source_obj.matrix_world.copy()
+    return obj, {
+        "sourceObject": source_obj.name,
+        "sourceGroup": group_name,
+        "overlay": PREFIX + overlay_name,
+        "selectedVertexCount": len(selected),
+        "usedVertexCount": len(used),
+        "faceCount": len(faces),
+    }
+
 
 def main():
-    opt=parse_args(); production=Path(opt.production).resolve(); output=Path(opt.output).resolve(); output.parent.mkdir(parents=True,exist_ok=True)
-    records=[]; source_meshes={}; found_groups=set()
+    options = parse_args()
+    blend_path = Path(bpy.data.filepath).resolve() if bpy.data.filepath else None
+    if not blend_path:
+        raise RuntimeError("Save the .blend file before running the SF90 light exporter.")
+
+    output = (
+        Path(options.output).expanduser().resolve()
+        if options.output
+        else blend_path.with_name("FerrariSF90LightOverlays.glb")
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    group_sources = {}
+    duplicates = {}
     for obj in bpy.data.objects:
-        if obj.type!="MESH" or "Light_Geo" not in obj.name: continue
+        if obj.type != "MESH":
+            continue
         for group in obj.vertex_groups:
-            if group.name not in REQUIRED_GROUPS: continue
-            selected=vertices_for_group(obj,group)
-            if not selected: raise RuntimeError(f"Required group {group.name!r} on {obj.name!r} is empty")
-            polygons=[p for p in obj.data.polygons if all(i in selected for i in p.vertices)]
-            if not polygons: raise RuntimeError(f"Group {group.name!r} has no complete faces")
-            used=sorted({i for p in polygons for i in p.vertices}); remap={s:t for t,s in enumerate(used)}
-            verts=[obj.data.vertices[i].co.copy() for i in used]
-            faces=[tuple(remap[i] for i in p.vertices) for p in polygons]
-            smooth=[p.use_smooth for p in polygons]
-            records.append({"sourceObject":obj.name,"sourceVertexCount":len(obj.data.vertices),"group":group.name,
-                            "overlay":PREFIX+group.name,"selectedVertexCount":len(selected),"usedVertexCount":len(used),
-                            "faceCount":len(faces),"localBounds":bounds(verts)})
-            source_meshes[(obj.name,group.name)]={"vertices":verts,"faces":faces,"smooth":smooth}
-            found_groups.add(group.name)
-    missing=[g for g in REQUIRED_GROUPS if g not in found_groups]
-    if missing: raise RuntimeError("Missing required SF90 lamp groups: "+", ".join(missing))
+            if group.name not in GROUP_TO_OVERLAYS:
+                continue
+            if group.name in group_sources:
+                duplicates.setdefault(group.name, [group_sources[group.name].name]).append(obj.name)
+            else:
+                group_sources[group.name] = obj
 
-    # Verify the production GLB still has matching source topology.
-    clear_scene(); bpy.ops.import_scene.gltf(filepath=str(production))
-    prod={o.name:o for o in bpy.data.objects if o.type=="MESH"}
-    for r in records:
-        obj=prod.get(r["sourceObject"])
-        if obj is None: raise RuntimeError(f"Production GLB has no exact mesh object {r['sourceObject']!r}")
-        if len(obj.data.vertices)!=r["sourceVertexCount"]:
-            raise RuntimeError(f"Topology mismatch for {r['sourceObject']!r}: labeled={r['sourceVertexCount']} production={len(obj.data.vertices)}")
+    if duplicates:
+        details = "; ".join(f"{name}: {objects}" for name, objects in duplicates.items())
+        raise RuntimeError("A required SF90 light group exists on multiple mesh objects: " + details)
 
-    clear_scene(); generated=[]
-    for r in records:
-        src=source_meshes[(r["sourceObject"],r["group"])]
-        mesh=bpy.data.meshes.new(r["overlay"]); mesh.from_pydata(src["vertices"],[],src["faces"]); mesh.update()
-        for p,smooth in zip(mesh.polygons,src["smooth"]): p.use_smooth=bool(smooth)
-        obj=bpy.data.objects.new(r["overlay"],mesh); bpy.context.scene.collection.objects.link(obj)
-        obj.location=(0,0,0); obj.rotation_euler=(0,0,0); obj.scale=(1,1,1); generated.append(obj)
+    missing = [name for name in REQUIRED_GROUPS if name not in group_sources]
+    if missing:
+        raise RuntimeError("Missing required SF90 light vertex groups: " + ", ".join(missing))
+
+    generated = []
+    records = []
+    for group_name, overlay_names in GROUP_TO_OVERLAYS.items():
+        source_obj = group_sources[group_name]
+        for overlay_name in overlay_names:
+            obj, record = build_overlay_mesh(source_obj, group_name, overlay_name)
+            generated.append(obj)
+            records.append(record)
+
+    if len(generated) != EXPECTED_OVERLAY_COUNT:
+        raise RuntimeError(
+            f"Internal exporter error: generated {len(generated)} overlays, "
+            f"expected {EXPECTED_OVERLAY_COUNT}."
+        )
+
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in generated: obj.select_set(True)
-    bpy.context.view_layer.objects.active=generated[0]
-    bpy.ops.export_scene.gltf(filepath=str(output),export_format="GLB",use_selection=True,export_materials="NONE",export_yup=True)
-    output.with_suffix('.json').write_text(json.dumps({"production":production.name,"overlays":records},indent=2),encoding='utf-8')
-    print(f"EXPORTED {len(records)} SF90 lamp overlays to {output}")
-if __name__=='__main__': main()
+    for obj in generated:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = generated[0]
+
+    bpy.ops.export_scene.gltf(
+        filepath=str(output),
+        export_format="GLB",
+        use_selection=True,
+        export_materials="NONE",
+        export_yup=True,
+    )
+
+    manifest = output.with_suffix(".json")
+    manifest.write_text(
+        json.dumps(
+            {
+                "sourceBlend": blend_path.name,
+                "overlayCount": len(generated),
+                "overlays": records,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    # Remove generated temporary objects from the live .blend after export so the
+    # user's authored scene remains clean if they save again.
+    for obj in generated:
+        mesh = obj.data
+        bpy.data.objects.remove(obj, do_unlink=True)
+        if mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+
+    print(f"EXPORTED {len(records)} SF90 light overlays to {output}")
+    print(f"Manifest: {manifest}")
+
+
+if __name__ == "__main__":
+    main()

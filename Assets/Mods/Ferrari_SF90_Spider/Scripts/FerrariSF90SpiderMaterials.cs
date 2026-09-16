@@ -206,7 +206,8 @@ public static class FerrariSF90SpiderMaterials
         var name = material.name;
         if (name.IndexOf("Window", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0)
+            name.IndexOf("Glass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("LightA_Material", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return true;
         }
@@ -322,34 +323,36 @@ public static class FerrariSF90SpiderMaterials
     {
         var name = material.name;
         var cabinGlass = IsCabinGlassMaterial(material);
-        RebindToHdrpLit(material);
-        var tint = cabinGlass
-            ? new Color(0.10f, 0.14f, 0.18f, 0.36f)
-            : name.IndexOf("BadgeA_Material", StringComparison.OrdinalIgnoreCase) >= 0
-                // Badge alpha comes from the decal texture. The generic lens
-                // fallback (8% opacity) lets body paint show through the letters.
-                ? Color.white
-            : name.IndexOf("LightA_Material", StringComparison.OrdinalIgnoreCase) >= 0
-                ? new Color(0.78f, 0.84f, 0.90f, 0.035f)
-                : name.IndexOf("Taillight", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                  name.IndexOf("Tail_light", StringComparison.OrdinalIgnoreCase) >= 0
-                    ? new Color(0.72f, 0.025f, 0.008f, 0.16f)
-                    : new Color(0.82f, 0.86f, 0.90f, 0.08f);
+        var headlampLens = IsHeadlampLensMaterial(material);
+
+        // The imported glTF transmission materials look correct in Blender but
+        // collapse toward opaque black under the game's HDRP lighting. Cadillac's
+        // proven vehicle path avoids that by rendering passive glass/lenses as
+        // simple unlit transparent surfaces; the dedicated SF90 light overlays
+        // provide the active DRL/indicator/brake/reverse illumination.
+        RebindToHdrpUnlit(material);
+        var tint = GetTransparentTint(name, cabinGlass, headlampLens);
+        SetColor(material, "_UnlitColor", tint);
         SetColor(material, "_BaseColor", tint);
         SetColor(material, "_Color", tint);
         SetColor(material, "baseColorFactor", tint);
-        if (cabinGlass)
+
+        // The source Window material carries a black base factor + transmission
+        // model and the LightA atlas can also darken the physical lens. For the
+        // passive glass shell we want the transparent tint itself, not the glTF
+        // black/transmission shading.
+        if (cabinGlass || headlampLens)
         {
-            // The imported Glass_Blask material can carry a black glTF base
-            // value into the runtime bundle. The vehicle has no glass texture
-            // to preserve here, so explicitly remove all possible base maps
-            // and let HDRP render the transparent tint below. This also avoids
-            // camera-angle-dependent disappearance from the source shader.
+            SetTexture(material, "_UnlitColorMap", null, Vector2.one, Vector2.zero);
             SetTexture(material, "_BaseColorMap", null, Vector2.one, Vector2.zero);
             SetTexture(material, "_MainTex", null, Vector2.one, Vector2.zero);
             SetTexture(material, "baseColorTexture", null, Vector2.one, Vector2.zero);
         }
+
         SetFloat(material, "transmissionFactor", 0f);
+        SetFloat(material, "_TransmissionEnable", 0f);
+        SetFloat(material, "_TransmissionMask", 0f);
+        SetFloat(material, "_RefractionModel", 0f);
         SetFloat(material, "_SurfaceType", 1f);
         SetFloat(material, "_BlendMode", 0f);
         SetFloat(material, "_SrcBlend", (float)BlendMode.One);
@@ -365,13 +368,6 @@ public static class FerrariSF90SpiderMaterials
         SetFloat(material, "_ReceivesSSR", 0f);
         SetFloat(material, "_ReceivesSSRTransparent", 0f);
         SetFloat(material, "_EnableBlendModePreserveSpecularLighting", 0f);
-        if (cabinGlass)
-        {
-            SetFloat(material, "_Metallic", 0f);
-            SetFloat(material, "metallicFactor", 0f);
-            SetFloat(material, "_Smoothness", 0.95f);
-            SetFloat(material, "roughnessFactor", 0f);
-        }
         SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
         SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
         SetFloat(material, "_TransparentBackfaceEnable", 0f);
@@ -393,6 +389,25 @@ public static class FerrariSF90SpiderMaterials
         material.SetShaderPassEnabled("ShadowCaster", false);
     }
 
+    private static Color GetTransparentTint(string name, bool cabinGlass, bool headlampLens)
+    {
+        if (cabinGlass)
+            return new Color(0.08f, 0.10f, 0.12f, 0.14f);
+        if (headlampLens)
+            return new Color(0.88f, 0.93f, 1f, 0.055f);
+        if (name.IndexOf("RED_GLASS", StringComparison.OrdinalIgnoreCase) >= 0)
+            return new Color(0.42f, 0.012f, 0.006f, 0.22f);
+        return new Color(0.18f, 0.20f, 0.22f, 0.10f);
+    }
+
+    private static void RebindToHdrpUnlit(Material material)
+    {
+        var shader = Shader.Find("HDRP/Unlit") ??
+                     Shader.Find("High Definition Render Pipeline/Unlit");
+        if (shader != null && material.shader != shader)
+            material.shader = shader;
+    }
+
     internal static void RestoreCabinGlassMaterial(Material material)
     {
         if (IsCabinGlassMaterial(material))
@@ -401,13 +416,8 @@ public static class FerrariSF90SpiderMaterials
 
     internal static void RestoreHeadlampLensMaterial(Material material)
     {
-        // Lens materials can share the imported "windows" marker with cabin
-        // glass but must remain nearly clear; never apply the dark cabin tint.
-        FixTransparentHdrpMaterial(material);
-        var lensTint = new Color(0.78f, 0.84f, 0.90f, 0.035f);
-        SetColor(material, "_BaseColor", lensTint);
-        SetColor(material, "_Color", lensTint);
-        SetColor(material, "baseColorFactor", lensTint);
+        if (IsHeadlampLensMaterial(material))
+            FixTransparentHdrpMaterial(material);
     }
 
     public static bool IsCabinGlassMaterial(Material material)
@@ -416,6 +426,11 @@ public static class FerrariSF90SpiderMaterials
         return name.IndexOf("Window", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Windshield", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Glass_Blask", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsHeadlampLensMaterial(Material material)
+    {
+        return material.name.IndexOf("LightA_Material", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string? FirstTextureProperty(Material material, params string[] properties)

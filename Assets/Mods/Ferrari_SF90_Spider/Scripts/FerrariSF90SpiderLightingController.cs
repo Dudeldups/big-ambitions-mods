@@ -10,10 +10,10 @@ internal sealed class FerrariSF90SpiderLightingController : MonoBehaviour
 {
     private const string DrlLeftName = "FerrariSF90Spider_Light_DRL_FL";
     private const string DrlRightName = "FerrariSF90Spider_Light_DRL_FR";
-    private const string BumperIndicatorLeftName =
-        "FerrariSF90Spider_Light_FrontIndicatorSecondary_FL";
-    private const string BumperIndicatorRightName =
-        "FerrariSF90Spider_Light_FrontIndicatorSecondary_FR";
+    private const string MirrorIndicatorLeftName =
+        "FerrariSF90Spider_Light_MirrorIndicatorLeft";
+    private const string MirrorIndicatorRightName =
+        "FerrariSF90Spider_Light_MirrorIndicatorRight";
     private const string FrontIndicatorLeftName =
         "FerrariSF90Spider_Light_FrontIndicator_FL";
     private const string FrontIndicatorRightName =
@@ -50,8 +50,8 @@ internal sealed class FerrariSF90SpiderLightingController : MonoBehaviour
     private MeshRenderer? reverseOverlay;
     private MeshRenderer? leftBlinkerOverlay;
     private MeshRenderer? rightBlinkerOverlay;
-    private MeshRenderer? leftBumperBlinkerOverlay;
-    private MeshRenderer? rightBumperBlinkerOverlay;
+    private MeshRenderer? leftMirrorBlinkerOverlay;
+    private MeshRenderer? rightMirrorBlinkerOverlay;
     private MeshRenderer? rearLeftBlinkerOverlay;
     private MeshRenderer? rearRightBlinkerOverlay;
     private bool initialized;
@@ -74,10 +74,10 @@ internal sealed class FerrariSF90SpiderLightingController : MonoBehaviour
         var amber = new Color(1f, 0.42f, 0.005f, 1f);
         leftDrlOverlay = PrepareOverlay(renderers, DrlLeftName, white, 4.8f);
         rightDrlOverlay = PrepareOverlay(renderers, DrlRightName, white, 4.8f);
-        leftBumperBlinkerOverlay =
-            PrepareOverlay(renderers, BumperIndicatorLeftName, amber, 6.2f);
-        rightBumperBlinkerOverlay =
-            PrepareOverlay(renderers, BumperIndicatorRightName, amber, 6.2f);
+        leftMirrorBlinkerOverlay =
+            PrepareOverlay(renderers, MirrorIndicatorLeftName, amber, 6.2f);
+        rightMirrorBlinkerOverlay =
+            PrepareOverlay(renderers, MirrorIndicatorRightName, amber, 6.2f);
         leftBlinkerOverlay = PrepareOverlay(renderers, FrontIndicatorLeftName, amber, 6.2f);
         rightBlinkerOverlay = PrepareOverlay(renderers, FrontIndicatorRightName, amber, 6.2f);
         headlampOverlay = PrepareOverlay(renderers, HeadlampsName, white, 6.2f);
@@ -250,9 +250,9 @@ internal sealed class FerrariSF90SpiderLightingController : MonoBehaviour
             BlinkerHalfPeriod * 2f) < BlinkerHalfPeriod;
         wasBlinking = blinking;
 
-        // The bumper signatures share physical geometry with the indicators.
-        // Suppress the corresponding white DRL for the entire time its signal
-        // is selected, including the dark half of the amber blink cycle.
+        // The SF90 front DRL and indicator use the same physical light strips.
+        // Suppress the corresponding white DRL for the full time that side's
+        // signal is selected, including the dark half of the amber blink cycle.
         SetEnabled(leftDrlOverlay, controlled && !leftBlinker);
         SetEnabled(rightDrlOverlay, controlled && !rightBlinker);
         SetEnabled(headlampOverlay, lightsOn);
@@ -262,8 +262,8 @@ internal sealed class FerrariSF90SpiderLightingController : MonoBehaviour
         SetEnabled(reverseOverlay, reversing);
         SetEnabled(leftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rightBlinkerOverlay, rightBlinker && flash);
-        SetEnabled(leftBumperBlinkerOverlay, leftBlinker && flash);
-        SetEnabled(rightBumperBlinkerOverlay, rightBlinker && flash);
+        SetEnabled(leftMirrorBlinkerOverlay, leftBlinker && flash);
+        SetEnabled(rightMirrorBlinkerOverlay, rightBlinker && flash);
         SetEnabled(rearLeftBlinkerOverlay, leftBlinker && flash);
         SetEnabled(rearRightBlinkerOverlay, rightBlinker && flash);
         SetEnabled(leftBeam, lightsOn);
@@ -288,8 +288,8 @@ internal sealed class FerrariSF90SpiderLightingController : MonoBehaviour
 
     private int CountBlinkerOverlays() =>
         (leftBlinkerOverlay != null ? 1 : 0) + (rightBlinkerOverlay != null ? 1 : 0) +
-        (leftBumperBlinkerOverlay != null ? 1 : 0) +
-        (rightBumperBlinkerOverlay != null ? 1 : 0) +
+        (leftMirrorBlinkerOverlay != null ? 1 : 0) +
+        (rightMirrorBlinkerOverlay != null ? 1 : 0) +
         (rearLeftBlinkerOverlay != null ? 1 : 0) + (rearRightBlinkerOverlay != null ? 1 : 0);
 
     private static MeshRenderer? FindRenderer(IEnumerable<MeshRenderer> renderers, string name)

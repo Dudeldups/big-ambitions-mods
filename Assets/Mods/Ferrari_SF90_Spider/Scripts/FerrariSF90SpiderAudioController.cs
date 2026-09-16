@@ -10,23 +10,42 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
 {
-    private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new List<AudioClip>();
+    private readonly Dictionary<AudioSource, NativeSourceState> suppressedNativeSources =
+        new Dictionary<AudioSource, NativeSourceState>();
+
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
     private ModContext? context;
     private EngineRunningComponent? engineSound;
     private AudioSource? native;
     private GameObject? audioHost;
-    private AudioSource[]? layers;
-    private AudioSource? crackleSource;
+    private AudioSource? engineSource;
+    private AudioLowPassFilter? engineLowPass;
+    private AudioHighPassFilter? engineHighPass;
+    private AudioDistortionFilter? engineDistortion;
     private AudioSource? hornSource;
     private AudioSource? hornSupportSource;
-    private AudioClip? crackleClip;
     private float originalDistortion;
-    private bool savedMute, ownsMute, configured, failed, paused, wasControlled, voicesStarted;
+    private bool configured, failed, paused, wasControlled, voiceStarted;
     private int attempts;
-    private float nextAttempt, smoothRpm, smoothThrottle, envelope, driveBlend, loadBlend;
+    private float nextAttempt, smoothRpm, smoothThrottle, envelope;
+
+    private System.Reflection.FieldInfo? engineBaseVolumeField;
+    private System.Reflection.PropertyInfo? engineBaseVolumeProperty;
+    private bool hasOriginalEngineBaseVolume;
+    private float originalEngineBaseVolume;
+
+    private sealed class NativeSourceState
+    {
+        internal readonly bool Mute;
+        internal readonly float Volume;
+        internal NativeSourceState(AudioSource source)
+        {
+            Mute = source.mute;
+            Volume = source.volume;
+        }
+    }
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -36,18 +55,20 @@ internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (vehicle == null || failed) return;
+        if (vehicle == null || failed)
+            return;
         try
         {
             if (!configured)
             {
-                if (attempts >= 20 || Time.unscaledTime < nextAttempt) return;
+                if (attempts >= 80 || Time.unscaledTime < nextAttempt)
+                    return;
                 attempts++;
-                nextAttempt = Time.unscaledTime + .5f;
+                nextAttempt = Time.unscaledTime + .35f;
                 if (!TryConfigure())
                 {
-                    if (attempts == 20)
-                        Warn("native engine audio unavailable after 20 attempts; custom audio was not initialized.");
+                    if (attempts == 80)
+                        Warn("native NWH audio routing never became ready; custom engine audio was not initialized.");
                     return;
                 }
             }
@@ -57,7 +78,7 @@ internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
         {
             failed = true;
             Cleanup();
-            Warn($"layered audio failed; native Car sound restored: {ex.GetType().Name}: {ex.Message}");
+            Warn($"audio failed; native sources restored: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -66,67 +87,59 @@ internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.outputAudioMixerGroup == null || context == null)
+        if (physics == null || context == null || engineSound == null || native == null ||
+            native.outputAudioMixerGroup == null)
             return false;
-        originalDistortion = engineSound!.maxDistortion;
-        audioHost = new GameObject("FerrariSF90Spider_EngineLayers");
+
+        audioHost = new GameObject("FerrariSF90Spider_EngineV24");
         audioHost.transform.SetParent(vehicle.transform, false);
         audioHost.transform.position = native.transform.position;
-        layers = new AudioSource[6];
-        for (var i = 0; i < EngineNames.Length; i++)
-        {
-            var clip = LoadClip(EngineNames[i]);
-            layers[i] = CreateSource(audioHost, clip, true);
-            var loaded = LoadClip(EngineNames[i]+"Load");
-            layers[i + 3] = CreateSource(audioHost, loaded, true);
-        }
-        crackleClip = FerrariSF90SpiderCrackleWave.Create();
-        var exhaustHost = new GameObject("FerrariSF90Spider_ExhaustCrackle");
-        exhaustHost.transform.SetParent(audioHost.transform, false);
-        crackleSource = CreateSource(exhaustHost, crackleClip, true);
-        ConfigureCrackleFilters(exhaustHost);
+
+        // One tonal engine voice only. No low/mid/high bands, no turbo loop and
+        // no procedural crackle source are mixed underneath it in V24.
+        engineSource = CreateSource(audioHost, LoadClip("EngineCore"), true, native);
+        engineLowPass = audioHost.AddComponent<AudioLowPassFilter>();
+        engineLowPass.cutoffFrequency = 3000f;
+        engineLowPass.lowpassResonanceQ = 1f;
+        engineHighPass = audioHost.AddComponent<AudioHighPassFilter>();
+        engineHighPass.cutoffFrequency = 28f;
+        engineHighPass.highpassResonanceQ = 1f;
+        engineDistortion = audioHost.AddComponent<AudioDistortionFilter>();
+        engineDistortion.distortionLevel = .004f;
+
+        var hornTemplate = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
+        if (hornTemplate == null || hornTemplate.outputAudioMixerGroup == null)
+            hornTemplate = native;
         var hornHost = new GameObject("FerrariSF90Spider_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
-        var otherSource = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
-        if (otherSource == null || otherSource.outputAudioMixerGroup == null) otherSource = native;
-        hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, otherSource);
-        hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, otherSource);
+        hornSource = CreateSource(hornHost, LoadClip("HornLow"), true, hornTemplate);
+        hornSupportSource = CreateSource(hornHost, LoadClip("HornHigh"), true, hornTemplate);
+
+        originalDistortion = engineSound.maxDistortion;
         engineSound.maxDistortion = 0f;
+        UpdateNativeEngineSuppression(true);
         configured = true;
-        FerrariSF90SpiderDiagnostics.Info(context,
-            $"FerrariSF90Spider audio configured vehicle={vehicle.GetInstanceID()}, " +
-            $"engineLayers=6, nativeExampleClipSuppressed=true, " +
+        context.Logger.Info(
+            $"FerrariSF90Spider audio V24 configured vehicle={vehicle.GetInstanceID()}, " +
+            "engine=single-additive-flat-plane-v8, audibleEngineSources=1, " +
+            "nativeEngineExhaustSuppressed=true, turboLoop=false, crackleLoop=false, " +
             $"engineGain={FerrariSF90SpiderAudioModel.EngineBaseVolume:0.00}.." +
             $"{FerrariSF90SpiderAudioModel.EngineBaseVolume + FerrariSF90SpiderAudioModel.EngineThrottleVolume:0.00}, " +
             $"hornVoices=low/high@{FerrariSF90SpiderAudioModel.HornLowVolume:0.00}/" +
-            $"{FerrariSF90SpiderAudioModel.HornHighVolume:0.00}, " +
-            $"sourceDistance={native.minDistance:0.0}..{native.maxDistance:0.0}, " +
-            "exhaust=continuous-subtle-crackle.");
+            $"{FerrariSF90SpiderAudioModel.HornHighVolume:0.00}, routing=native-NWH-mixer.");
         return true;
-    }
-
-    private static void ConfigureCrackleFilters(GameObject host)
-    {
-        var lowPass = host.AddComponent<AudioLowPassFilter>();
-        lowPass.cutoffFrequency = 4800f;
-        lowPass.lowpassResonanceQ = 1.05f;
-        var highPass = host.AddComponent<AudioHighPassFilter>();
-        highPass.cutoffFrequency = 420f;
-        highPass.highpassResonanceQ = 1.02f;
-        var distortion = host.AddComponent<AudioDistortionFilter>();
-        distortion.distortionLevel = .015f;
     }
 
     private AudioClip LoadClip(string name)
     {
-        var clip = FerrariSF90SpiderWave.Load(Path.Combine(context!.ModRootPath, "Config", "Audio", name + ".wav"));
+        var clip = FerrariSF90SpiderWave.Load(
+            Path.Combine(context!.ModRootPath, "Config", "Audio", name + ".wav"));
         ownedClips.Add(clip);
         return clip;
     }
 
-    private AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource? template = null)
+    private static AudioSource CreateSource(GameObject host, AudioClip clip, bool loop, AudioSource template)
     {
-        template ??= native!;
         var source = host.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = loop;
@@ -136,103 +149,90 @@ internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
         source.spatialBlend = template.spatialBlend;
         source.minDistance = template.minDistance;
         source.maxDistance = template.maxDistance;
-        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+        var curve = template.GetCustomCurve(AudioSourceCurveType.CustomRolloff);
+        if (curve != null && curve.length > 0)
+            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, curve);
         source.rolloffMode = template.rolloffMode;
-        source.dopplerLevel = 0f;
         source.priority = template.priority;
+        source.dopplerLevel = 0f;
         return source;
     }
 
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null || crackleSource == null ||
-            hornSource == null || hornSupportSource == null)
+        if (physics == null || native == null || audioHost == null || engineSource == null ||
+            engineLowPass == null || engineDistortion == null || hornSource == null ||
+            hornSupportSource == null)
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
+
         audioHost.transform.position = native.transform.position;
-        var exhaust = physics.soundManager.exhaustSourceGO;
-        crackleSource.transform.position = exhaust != null ? exhaust.transform.position :
-            vehicle!.transform.TransformPoint(new Vector3(0f, .4f, -2f));
+
         var controlled = vehicle!.controlledByPlayer;
         var engine = physics.powertrain.engine;
         var running = controlled && engine.ignition && engine.IsRunning && engine.canRun;
+        var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
+        var rawThrottle = Mathf.Clamp01(engine.ThrottlePosition);
+
         if (controlled && !wasControlled)
         {
-            smoothRpm = engine.RPMPercent * engine.revLimiterRPM;
-            smoothThrottle = Mathf.Clamp01(engine.ThrottlePosition);
+            smoothRpm = rawRpm;
+            smoothThrottle = rawThrottle;
         }
         wasControlled = controlled;
+
         var shouldPause = Time.timeScale <= 0f || AudioListener.pause;
         if (shouldPause != paused)
         {
-            // Cancel any scheduled start too; resume schedules all held loops
-            // together again instead of leaving a pre-start source paused.
-            if (shouldPause) StopLayers();
+            if (shouldPause)
+                StopEngineVoice();
             paused = shouldPause;
         }
-        if (controlled)
-        {
-            if (!ownsMute) { savedMute = native.mute; ownsMute = true; }
-            native.mute = true;
-        }
-        else RestoreMute();
 
-        var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
-        UpdateHorn(controlled && !paused && physics.input.Horn, Mathf.Clamp01(physics.soundManager.masterVolume));
-        if (!paused)
+        UpdateNativeEngineSuppression(controlled);
+        var master = Mathf.Clamp01(physics.soundManager.masterVolume);
+        UpdateHorn(controlled && !paused && physics.input.Horn, master);
+        if (paused)
+            return;
+
+        // Keep the already-validated shift response: falling RPM follows very
+        // quickly so an upshift produces an immediate audible pitch drop.
+        var rpmTau = rawRpm < smoothRpm ? .020f : .055f;
+        var rpmFollow = 1f - Mathf.Exp(-Time.deltaTime / rpmTau);
+        var throttleFollow = 1f - Mathf.Exp(-Time.deltaTime / .080f);
+        smoothRpm = Mathf.Lerp(smoothRpm, rawRpm, rpmFollow);
+        smoothThrottle = Mathf.Lerp(smoothThrottle, rawThrottle, throttleFollow);
+
+        var normalized = FerrariSF90SpiderAudioModel.Normalize(
+            smoothRpm, engine.idleRPM, engine.revLimiterRPM);
+        envelope = Mathf.MoveTowards(envelope, running ? 1f : 0f, Time.deltaTime * 7f);
+
+        engineSource.pitch = FerrariSF90SpiderAudioModel.EnginePitch(normalized);
+        engineSource.volume = envelope * master *
+                              FerrariSF90SpiderAudioModel.EngineVolume(smoothThrottle, normalized);
+        engineLowPass.cutoffFrequency = FerrariSF90SpiderAudioModel.EngineLowPass(
+            normalized, smoothThrottle);
+        engineDistortion.distortionLevel = FerrariSF90SpiderAudioModel.EngineDistortion(smoothThrottle);
+        engineSource.mute = false;
+
+        if (envelope <= 0f)
         {
-            var follow = 1f - Mathf.Exp(-Time.deltaTime / .1f);
-            smoothRpm = Mathf.Lerp(smoothRpm, rawRpm, follow);
-            smoothThrottle = Mathf.Lerp(smoothThrottle, Mathf.Clamp01(engine.ThrottlePosition), follow);
-            var normalized = FerrariSF90SpiderAudioModel.Normalize(smoothRpm, engine.idleRPM, engine.revLimiterRPM);
-            envelope = Mathf.MoveTowards(envelope, running ? 1f : 0f, Time.deltaTime * 6f);
-            var master = Mathf.Clamp01(physics.soundManager.masterVolume);
-            driveBlend = Mathf.MoveTowards(driveBlend,
-                FerrariSF90SpiderAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM), Time.deltaTime * 4f);
-            var gain = envelope * master * FerrariSF90SpiderAudioModel.EngineVolume(smoothThrottle) *
-                       Mathf.Sqrt(driveBlend);
-            // Keep the overall engine level unchanged under load, while
-            // restoring a more present, low-frequency idle bed. The high-RPM
-            // register is controlled by AudioModel.TargetHz below.
-            gain *= Mathf.Lerp(1.75f, 0.78f, normalized);
-            loadBlend = FerrariSF90SpiderAudioModel.LoadBlend(smoothThrottle);
-            for (var i = 0; i < EngineNames.Length; i++)
-            {
-                layers[i].pitch = FerrariSF90SpiderAudioModel.Pitch(normalized,i);
-                layers[i + 3].pitch = layers[i].pitch;
-                var bandGain = gain * FerrariSF90SpiderAudioModel.Weight(normalized, i);
-                // Matched-RMS variants change tone with load; linear interpolation
-                // avoids doubling the shared harmonic content at half throttle.
-                layers[i].volume = bandGain * (1f - loadBlend);
-                layers[i + 3].volume = bandGain * loadBlend;
-                layers[i].mute = layers[i + 3].mute = controlled && savedMute;
-            }
-            var crackleLoad = Mathf.SmoothStep(0f, 1f, smoothThrottle);
-            crackleSource.pitch = Mathf.Lerp(.90f, 1.22f, normalized);
-            crackleSource.volume = envelope * master * Mathf.Lerp(
-                FerrariSF90SpiderAudioModel.CrackleIdleVolume,
-                FerrariSF90SpiderAudioModel.CrackleLoadVolume,
-                crackleLoad);
-            crackleSource.mute = controlled && savedMute;
-            if (envelope <= 0f) StopLayers();
-            else if (!voicesStarted)
-            {
-                // Start all layers on the same DSP boundary. An inaudible layer
-                // keeps advancing so bringing it into the blend never restarts it.
-                var start = AudioSettings.dspTime + .03d;
-                foreach (var source in layers) source.PlayScheduled(start);
-                crackleSource.PlayScheduled(start);
-                voicesStarted = true;
-            }
+            StopEngineVoice();
+        }
+        else if (!voiceStarted)
+        {
+            engineSource.PlayScheduled(AudioSettings.dspTime + .03d);
+            voiceStarted = true;
         }
     }
 
     private void UpdateHorn(bool pressed, float master)
     {
-        if (hornSource == null || hornSupportSource == null) return;
-        var lowTarget = pressed ? master * FerrariSF90SpiderAudioModel.HornLowVolume : 0f;
-        var highTarget = pressed ? master * FerrariSF90SpiderAudioModel.HornHighVolume : 0f;
-        UpdateHornVoice(hornSource, pressed, lowTarget);
-        UpdateHornVoice(hornSupportSource, pressed, highTarget);
+        if (hornSource == null || hornSupportSource == null)
+            return;
+        UpdateHornVoice(hornSource, pressed,
+            pressed ? master * FerrariSF90SpiderAudioModel.HornLowVolume : 0f);
+        UpdateHornVoice(hornSupportSource, pressed,
+            pressed ? master * FerrariSF90SpiderAudioModel.HornHighVolume : 0f);
     }
 
     private static void UpdateHornVoice(AudioSource source, bool pressed, float target)
@@ -244,65 +244,160 @@ internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
             source.Stop();
     }
 
-    private void Warn(string message) => context?.Logger.Warn($"FerrariSF90Spider audio vehicle={vehicle?.GetInstanceID()}: {message}");
-
-    private void RestoreMute()
+    private void UpdateNativeEngineSuppression(bool suppress)
     {
-        if (ownsMute && native != null) native.mute = savedMute;
-        ownsMute = false;
+        if (!suppress)
+        {
+            RestoreNativeEngineAudio();
+            return;
+        }
+        if (physics == null)
+            return;
+
+        var liveComponent = physics.soundManager.engineRunningComponent;
+        if (liveComponent != null)
+        {
+            engineSound = liveComponent;
+            ZeroNativeEngineBaseVolume(liveComponent);
+            if (liveComponent.source != null)
+            {
+                native = liveComponent.source;
+                SuppressNativeSource(liveComponent.source);
+            }
+        }
+
+        // Suppress every native continuous engine/exhaust bed. Our horn lives
+        // below audioHost and is explicitly excluded by SuppressNativeSource().
+        SuppressSourcesUnder(physics.soundManager.engineSourceGO);
+        SuppressSourcesUnder(physics.soundManager.exhaustSourceGO);
     }
 
-    private void StopLayers()
+    private void SuppressSourcesUnder(GameObject? host)
     {
-        if (layers != null) foreach (var source in layers) if (source != null) source.Stop();
-        if (crackleSource != null) crackleSource.Stop();
-        voicesStarted = false;
+        if (host == null)
+            return;
+        foreach (var source in host.GetComponentsInChildren<AudioSource>(true))
+            SuppressNativeSource(source);
     }
+
+    private void SuppressNativeSource(AudioSource source)
+    {
+        if (source == null || (audioHost != null && source.transform.IsChildOf(audioHost.transform)))
+            return;
+        if (!suppressedNativeSources.ContainsKey(source))
+            suppressedNativeSources[source] = new NativeSourceState(source);
+        source.volume = 0f;
+        source.mute = true;
+    }
+
+    private void ZeroNativeEngineBaseVolume(object component)
+    {
+        var type = component.GetType();
+        engineBaseVolumeField ??= FindField(type, "baseVolume");
+        if (engineBaseVolumeField != null && engineBaseVolumeField.FieldType == typeof(float))
+        {
+            if (!hasOriginalEngineBaseVolume)
+            {
+                originalEngineBaseVolume = (float)(engineBaseVolumeField.GetValue(component) ?? 0f);
+                hasOriginalEngineBaseVolume = true;
+            }
+            engineBaseVolumeField.SetValue(component, 0f);
+            return;
+        }
+        engineBaseVolumeProperty ??= type.GetProperty(
+            "baseVolume",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.NonPublic);
+        if (engineBaseVolumeProperty?.CanRead == true && engineBaseVolumeProperty.CanWrite &&
+            engineBaseVolumeProperty.PropertyType == typeof(float))
+        {
+            if (!hasOriginalEngineBaseVolume)
+            {
+                originalEngineBaseVolume = (float)(engineBaseVolumeProperty.GetValue(component) ?? 0f);
+                hasOriginalEngineBaseVolume = true;
+            }
+            engineBaseVolumeProperty.SetValue(component, 0f);
+        }
+    }
+
+    private static System.Reflection.FieldInfo? FindField(Type type, string name)
+    {
+        for (var current = type; current != null; current = current.BaseType)
+        {
+            var field = current.GetField(
+                name,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field;
+        }
+        return null;
+    }
+
+    private void RestoreNativeEngineAudio()
+    {
+        foreach (var pair in suppressedNativeSources)
+        {
+            if (pair.Key == null)
+                continue;
+            pair.Key.mute = pair.Value.Mute;
+            pair.Key.volume = pair.Value.Volume;
+        }
+        suppressedNativeSources.Clear();
+
+        if (hasOriginalEngineBaseVolume && engineSound != null)
+        {
+            if (engineBaseVolumeField != null)
+                engineBaseVolumeField.SetValue(engineSound, originalEngineBaseVolume);
+            else if (engineBaseVolumeProperty?.CanWrite == true)
+                engineBaseVolumeProperty.SetValue(engineSound, originalEngineBaseVolume);
+        }
+        hasOriginalEngineBaseVolume = false;
+    }
+
+    private void StopEngineVoice()
+    {
+        if (engineSource != null)
+            engineSource.Stop();
+        voiceStarted = false;
+    }
+
+    private void Warn(string message) =>
+        context?.Logger.Warn($"FerrariSF90Spider audio vehicle={vehicle?.GetInstanceID()}: {message}");
 
     private void OnDisable()
     {
-        StopLayers();
-        if (hornSource != null)
-        {
-            hornSource.Stop();
-            hornSource.volume = 0f;
-        }
-        if (hornSupportSource != null)
-        {
-            hornSupportSource.Stop();
-            hornSupportSource.volume = 0f;
-        }
-        RestoreMute();
-        if (configured && engineSound != null) engineSound.maxDistortion = originalDistortion;
-        envelope = smoothRpm = smoothThrottle = driveBlend = loadBlend = 0f;
+        StopEngineVoice();
+        if (hornSource != null) { hornSource.Stop(); hornSource.volume = 0f; }
+        if (hornSupportSource != null) { hornSupportSource.Stop(); hornSupportSource.volume = 0f; }
+        RestoreNativeEngineAudio();
+        if (configured && engineSound != null)
+            engineSound.maxDistortion = originalDistortion;
+        envelope = smoothRpm = smoothThrottle = 0f;
         paused = wasControlled = false;
     }
 
     private void OnEnable()
     {
-        if (configured && engineSound != null) engineSound.maxDistortion = 0f;
+        if (configured && engineSound != null)
+            engineSound.maxDistortion = 0f;
     }
 
     private void Cleanup()
     {
         OnDisable();
         configured = false;
-        if (audioHost != null) Destroy(audioHost);
+        if (audioHost != null)
+            Destroy(audioHost);
         audioHost = null;
-        layers = null;
-        crackleSource = null;
+        engineSource = null;
         hornSource = null;
         hornSupportSource = null;
-        if (crackleClip != null) Destroy(crackleClip);
-        crackleClip = null;
-        foreach (var clip in ownedClips) if (clip != null) Destroy(clip);
+        foreach (var clip in ownedClips)
+            if (clip != null)
+                Destroy(clip);
         ownedClips.Clear();
     }
 
-    private void OnDestroy()
-    {
-        Cleanup();
-    }
+    private void OnDestroy() => Cleanup();
 }
-
-

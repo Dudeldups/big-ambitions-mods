@@ -12,6 +12,7 @@ using UnityEngine;
 internal sealed class FerrariSF90SpiderImpactDamageController : MonoBehaviour
 {
     private const float Tolerance = 0.0001f;
+    private const float RecoveryScale = 0.75f;
     private readonly HashSet<Collider> impactColliders = new HashSet<Collider>();
     private VehicleController? vehicle;
     private DamageHandler? handler;
@@ -138,7 +139,7 @@ internal sealed class FerrariSF90SpiderImpactDamageController : MonoBehaviour
             }
             GlobalEvents.onVehicleVariablesChanged?.Invoke();
             if (correctionLogs++ < 6)
-                context?.Logger.Warn($"FerrariSF90Spider impact damage recovered vehicle={vehicle!.GetInstanceID()} " +
+                context?.Logger.Warn($"FerrariSF90Spider impact damage recovered V24 vehicle={vehicle!.GetInstanceID()} " +
                     $"contact='{contactName}' closingSpeed={contactSpeed:0.00}mps impulse={contactImpulse:0.0}Ns " +
                     $"baseline={windowBaseline:0.0000} native={current:0.0000} corrected={target:0.0000}; " +
                     "strongest contact in native cooldown, existing damage credited.");
@@ -174,10 +175,10 @@ internal sealed class FerrariSF90SpiderImpactDamageController : MonoBehaviour
             $"observed={observedDamage:0.0000}, restored={warehouseDamageBaseline:0.0000}.");
     }
 
-    // Same native impulse-to-condition scale and the existing 0.8 intensity.
-    // When overlap recovery yields a tiny solver impulse, use normal closing
-    // speed and reduced mass as a conservative, inelastic impact estimate.
-    // Tangential scraping and separating motion do not contribute to that floor.
+    // Recovery is intentionally closing-speed based. Raw PhysX solver impulse
+    // can spike during overlap correction or a secondary contact (V23 logs showed
+    // >80 kNs at only ~2 m/s), which could total the car after the real impact.
+    // Native NWH damage remains authoritative; this only fills a missed cooldown hit.
     internal static float ClosingSpeed(Vector3 relativeVelocity, Vector3 normal) =>
         // Unity's Collision reports other-relative-to-self velocity: approach
         // projects positively onto the receiving collider's contact normal.
@@ -186,12 +187,20 @@ internal sealed class FerrariSF90SpiderImpactDamageController : MonoBehaviour
     internal static float ImpactDamage(float closingSpeed, float impulse, float mass,
         float otherDynamicMass, float fixedStep, float intensity, float threshold)
     {
-        if (mass <= 0f || fixedStep <= 0f || intensity <= 0f) return 0f;
-        var impulseDeltaV = Mathf.Max(0f, impulse) / mass;
-        if (closingSpeed < threshold && impulseDeltaV < threshold) return 0f;
-        var massFraction = otherDynamicMass > 0f ? otherDynamicMass / (mass + otherDynamicMass) : 1f;
-        var deltaV = Mathf.Max(impulseDeltaV, Mathf.Max(0f, closingSpeed) * massFraction);
-        return Mathf.Clamp01(deltaV / (fixedStep * 10f) * Mathf.Clamp(intensity, 0f, 0.99f) * 0.005f);
+        if (mass <= 0f || fixedStep <= 0f || intensity <= 0f || closingSpeed < threshold)
+            return 0f;
+
+        // Use the normal closing speed and reduced-mass share only. The impulse is
+        // still logged for diagnostics, but it is not trusted as a damage floor.
+        var massFraction = otherDynamicMass > 0f
+            ? otherDynamicMass / (mass + otherDynamicMass)
+            : 1f;
+        var deltaV = Mathf.Max(0f, closingSpeed) * massFraction;
+        return Mathf.Clamp01(
+            deltaV / (fixedStep * 10f) *
+            Mathf.Clamp(intensity, 0f, 0.99f) *
+            0.005f *
+            RecoveryScale);
     }
 
     internal static float ReconcileDamage(float current, float baseline, float strongest) =>

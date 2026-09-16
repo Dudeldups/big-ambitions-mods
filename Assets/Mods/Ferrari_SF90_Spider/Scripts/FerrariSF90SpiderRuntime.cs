@@ -57,32 +57,41 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.075f;
     private const float RearSuspensionTravel = 0.075f;
+    private const float VisualRideHeightOffsetY = -0.040f;
     private static readonly Vector3 FrontContactColliderCenter =
-        new Vector3(0f, 0.52f, 1.82f);
+        new Vector3(0f, 0.52f + VisualRideHeightOffsetY, 1.82f);
     private static readonly Vector3 FrontContactColliderSize =
         new Vector3(1.86f, 0.38f, 0.92f);
     private const float DeformationStrength = 0.20f;
     private const float DeformationRadius = 0.22f;
     private const float DeformationRandomness = 0.005f;
-    private const float DamageIntensity = 0.8f;
-    private const float DamageDecelerationThreshold = 350f;
+    private const float DamageIntensity = 0.50f;
+    private const float DamageDecelerationThreshold = 500f;
+    // Keep visual crumpling responsive at the previous ~12.6 km/h threshold
+    // while mechanical condition damage uses the tougher 18 km/h threshold above.
+    private const float VisualDamageImpactThresholdMps = 3.5f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.09f, -0.13f);
+    private const float FrontTrack = 1.679f;
+    private const float RearTrack = 1.652f;
+    // Final visually verified positions from the SF90 prefab. Do not derive
+    // these from the nominal wheelbase: the imported model origin is offset.
+    private const float CalibratedFrontWheelZ = 1.166f;
+    private const float CalibratedRearWheelZ = -1.547f;
     private static readonly Dictionary<string, Vector3> WheelPlacementOverrides =
         new Dictionary<string, Vector3>
         {
-            // Ferrari-published wheelbase / tracks as the first prefab baseline.
-            { "FrontLeft_WheelController", new Vector3(-0.8395f, 0.343f, 1.3245f) },
-            { "FrontRight_WheelController", new Vector3(0.8395f, 0.343f, 1.3245f) },
-            { "RearLeft_WheelController", new Vector3(-0.8260f, 0.349f, -1.3245f) },
-            { "RearRight_WheelController", new Vector3(0.8260f, 0.349f, -1.3245f) },
-            { "FerrariSF90SpiderWheelFrontLeft", new Vector3(-0.8395f, 0.343f, 1.3245f) },
-            { "FerrariSF90SpiderWheelFrontRight", new Vector3(0.8395f, 0.343f, 1.3245f) },
-            { "FerrariSF90SpiderWheelRearLeft", new Vector3(-0.8260f, 0.349f, -1.3245f) },
-            { "FerrariSF90SpiderWheelRearRight", new Vector3(0.8260f, 0.349f, -1.3245f) },
-            { "FerrariSF90SpiderFixedCaliperFrontLeft", new Vector3(-0.8395f, 0.343f, 1.3245f) },
-            { "FerrariSF90SpiderFixedCaliperFrontRight", new Vector3(0.8395f, 0.343f, 1.3245f) },
-            { "FerrariSF90SpiderFixedCaliperRearLeft", new Vector3(-0.8260f, 0.349f, -1.3245f) },
-            { "FerrariSF90SpiderFixedCaliperRearRight", new Vector3(0.8260f, 0.349f, -1.3245f) },
+            { "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f, 0.34325f, CalibratedFrontWheelZ) },
+            { "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f, 0.34325f, CalibratedFrontWheelZ) },
+            { "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f, 0.34850f, CalibratedRearWheelZ) },
+            { "RearRight_WheelController", new Vector3(RearTrack * 0.5f, 0.34850f, CalibratedRearWheelZ) },
+            { "FerrariSF90SpiderWheelFrontLeft", new Vector3(-FrontTrack * 0.5f, 0.34325f, CalibratedFrontWheelZ) },
+            { "FerrariSF90SpiderWheelFrontRight", new Vector3(FrontTrack * 0.5f, 0.34325f, CalibratedFrontWheelZ) },
+            { "FerrariSF90SpiderWheelRearLeft", new Vector3(-RearTrack * 0.5f, 0.34850f, CalibratedRearWheelZ) },
+            { "FerrariSF90SpiderWheelRearRight", new Vector3(RearTrack * 0.5f, 0.34850f, CalibratedRearWheelZ) },
+            { "FerrariSF90SpiderFixedCaliperFrontLeft", new Vector3(-FrontTrack * 0.5f, 0.34325f, CalibratedFrontWheelZ) },
+            { "FerrariSF90SpiderFixedCaliperFrontRight", new Vector3(FrontTrack * 0.5f, 0.34325f, CalibratedFrontWheelZ) },
+            { "FerrariSF90SpiderFixedCaliperRearLeft", new Vector3(-RearTrack * 0.5f, 0.34850f, CalibratedRearWheelZ) },
+            { "FerrariSF90SpiderFixedCaliperRearRight", new Vector3(RearTrack * 0.5f, 0.34850f, CalibratedRearWheelZ) },
         };
 
     private static readonly float[] SF90SpiderGears =
@@ -1035,7 +1044,7 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
         return wheelControllers >= 4 && hasNormalBody;
     }
 
-    private static bool IsSf90BodyPaintFilter(MeshFilter filter)
+    internal static bool IsSf90BodyPaintFilter(MeshFilter filter)
     {
         if (filter.name.IndexOf("body:Paint_Geo_lodA", StringComparison.OrdinalIgnoreCase) >= 0)
             return true;
@@ -1296,12 +1305,12 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
             var colliders = transform.GetComponents<BoxCollider>();
             if (colliders.Length > 0)
             {
-                colliders[0].center = new Vector3(0f, 0.36f, 0f);
+                colliders[0].center = new Vector3(0f, 0.36f + VisualRideHeightOffsetY, 0f);
                 colliders[0].size = new Vector3(1.93f, 0.44f, 4.66f);
             }
             if (colliders.Length > 1)
             {
-                colliders[1].center = new Vector3(0f, 0.73f, -0.16f);
+                colliders[1].center = new Vector3(0f, 0.73f + VisualRideHeightOffsetY, -0.16f);
                 colliders[1].size = new Vector3(1.68f, 0.58f, 2.46f);
             }
 
@@ -1581,11 +1590,12 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
             damageHandler,
             context,
             filters,
-            DamageDecelerationThreshold / 100f);
+            VisualDamageImpactThresholdMps);
 
         FerrariSF90SpiderDiagnostics.Info(context,
             $"FerrariSF90Spider damage vehicle={vehicle.GetInstanceID()}: enabled inward deformation " +
-            $"bodyMeshes={filters.Count} threshold={DamageDecelerationThreshold / 100f:0.0}mps " +
+            $"bodyMeshes={filters.Count} visualThreshold={VisualDamageImpactThresholdMps:0.0}mps " +
+            $"conditionThreshold={DamageDecelerationThreshold / 100f:0.0}mps " +
             $"filters=[{string.Join(", ", filters.ConvertAll(filter => filter.name))}]; " +
             "legacy deformation disabled.");
         return filters.Count;
@@ -1615,10 +1625,23 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
                 return false;
         }
 
+        // The authored paint shell is the actual visible SF90 body. V17 only
+        // admitted end-zone attachments here, so damage could increase while
+        // the main yellow/painted body stayed visually rigid. Always own the
+        // paint shell explicitly before applying the narrower attachment rules.
+        if (IsSf90BodyPaintFilter(filter))
+            return true;
+
         var explicitImpactAttachment =
             name.IndexOf("Light_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("FRONTBUMPER", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("FerrariSF90Spider_Light_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Badge_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("ManufacturerPlate_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Grille", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Base_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Carbon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Coloured_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("FRONTBUMPER", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("WING_REAR", StringComparison.OrdinalIgnoreCase) >= 0;
         if (explicitImpactAttachment)
             return true;
@@ -1655,6 +1678,7 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
                name.IndexOf("Front", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Rear", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Carbon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Coloured_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Plastic", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
@@ -2314,8 +2338,16 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
     private const float MaximumRearDentDepth = 0.52f;
     private const float RearDepthPerExcessMps = 0.0153f;
     private const float EndContactMinimumLongitudinalOffset = 1.35f;
+    private const float ShellFollowerLongitudinalScale = 0.08f;
+    private const float ShellFollowerLateralScale = 1.28f;
+    private const float ShellFollowerVerticalScale = 1.22f;
+    private const float ShellFollowerDepthScale = 1.03f;
+    private const float HeadlampFollowerDepthScale = 1.16f;
+    // Do not let the compressed shell-follower Z distance make a front impact
+    // pull rear lamps (or vice versa). Only nearby end-zone hardware follows.
+    private const float ShellFollowerMaximumLongitudinalSetback = 1.30f;
     private const float CollisionCooldown = 0.5f;
-    private const int MaximumDiagnosticLogs = 6;
+    private const int MaximumDiagnosticLogs = 10;
 
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
     private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
@@ -2365,6 +2397,7 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
                 continue;
             var runtimeMesh = Instantiate(filter.sharedMesh);
             runtimeMesh.name = filter.sharedMesh.name + "_RuntimeDamage";
+            runtimeMesh.MarkDynamic();
             filter.sharedMesh = runtimeMesh;
             deformableFilters.Add(filter);
             originalVertices[filter] = runtimeMesh.vertices;
@@ -2381,45 +2414,66 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
 
         var currentDamage = damageHandler.Damage;
         var currentSavedDamage = vehicle?.vehicleInstance?.damage ?? 0f;
-        if (currentDamage > 0.001f || currentSavedDamage > 0.001f)
+        var savedRepairTransition =
+            previousSavedDamage > 0.001f && currentSavedDamage <= 0.001f;
+        var nativeRepairTransition =
+            previousDamage > 0.001f && currentDamage <= 0.001f &&
+            currentSavedDamage <= 0.001f;
+
+        // The vanilla repair UI writes the saved vehicle damage first on some
+        // paths while NWH can still retain disabled powertrain state and stale
+        // component damage for another frame. Treat the saved transition as the
+        // authoritative repair signal, then explicitly repair NWH and recover
+        // the drivetrain in the coroutine below.
+        if (savedRepairTransition || nativeRepairTransition)
+        {
+            BeginRepairRecovery(savedRepairTransition ? "saved-damage-cleared" : "native-damage-cleared");
+        }
+        else if (currentDamage <= 0.001f && currentSavedDamage <= 0.001f &&
+                 (previousDamage > 0.001f || previousSavedDamage > 0.001f))
+        {
+            if (repairClearSince < 0f)
+                repairClearSince = Time.unscaledTime;
+            else if (Time.unscaledTime - repairClearSince >= 0.35f)
+                BeginRepairRecovery("sustained-clear-fallback");
+        }
+        else if (currentDamage > 0.001f || currentSavedDamage > 0.001f)
         {
             repairClearSince = -1f;
         }
-        else if ((previousDamage > 0.001f || previousSavedDamage > 0.001f) &&
-                 repairClearSince < 0f)
-        {
-            // The native handler can briefly clear one damage source while the
-            // saved vehicle value is still synchronizing after an impact. Only
-            // treat a sustained clear state as an actual repair.
-            repairClearSince = Time.unscaledTime;
-        }
-        else if (repairClearSince >= 0f && Time.unscaledTime - repairClearSince >= 0.75f)
-        {
-            foreach (var pair in originalVertices)
-            {
-                if (pair.Key == null || !damageMeshes.TryGetValue(pair.Key, out var mesh) ||
-                    mesh == null)
-                    continue;
-                // Native repair may restore the serialized prefab mesh even
-                // though legacy deformation is disabled. Rebind this instance's
-                // private mesh before restoring it so repair never mutates a
-                // shared asset and later impacts still deform correctly.
-                pair.Key.sharedMesh = mesh;
-                mesh.vertices = pair.Value;
-                mesh.RecalculateBounds();
-                mesh.RecalculateNormals();
-                mesh.RecalculateTangents();
-            }
-            if (repairRecoveryCoroutine != null)
-                StopCoroutine(repairRecoveryCoroutine);
-            repairRecoveryCoroutine = StartCoroutine(RestoreDrivingStateAfterRepair());
-            FerrariSF90SpiderDiagnostics.Info(context,
-                $"FerrariSF90Spider damage vehicle={vehicle?.GetInstanceID()}: visual body repaired; " +
-                "post-repair driving recovery scheduled.");
-            repairClearSince = -1f;
-        }
+
         previousDamage = currentDamage;
         previousSavedDamage = currentSavedDamage;
+    }
+
+    private void BeginRepairRecovery(string reason)
+    {
+        RestoreVisualMeshesAfterRepair();
+        if (repairRecoveryCoroutine != null)
+            StopCoroutine(repairRecoveryCoroutine);
+        repairRecoveryCoroutine = StartCoroutine(RestoreDrivingStateAfterRepair());
+        repairClearSince = -1f;
+        context?.Logger.Info(
+            $"FerrariSF90Spider repair V24 vehicle={vehicle?.GetInstanceID()}: " +
+            $"detected reason={reason}; visual meshes restored and drivetrain recovery scheduled.");
+    }
+
+    private void RestoreVisualMeshesAfterRepair()
+    {
+        foreach (var pair in originalVertices)
+        {
+            if (pair.Key == null || !damageMeshes.TryGetValue(pair.Key, out var mesh) ||
+                mesh == null)
+                continue;
+            // CarController.Repair() / the disabled legacy deformation path can
+            // swap a serialized source mesh back onto the filter. Rebind the
+            // vehicle-owned runtime mesh before resetting its vertices.
+            pair.Key.sharedMesh = mesh;
+            mesh.vertices = pair.Value;
+            mesh.RecalculateBounds();
+            mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
+        }
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -2463,6 +2517,13 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
                 var vertices = mesh.vertices;
                 var meshChanged = false;
                 var frontLowerLip = IsFrontLowerLip(filter);
+                var attachedDetail = IsAttachedExteriorDetail(filter, vertices.Length);
+                var followOuterShell = ShouldFollowOuterShell(filter);
+                var appliedWorldDisplacements = attachedDetail
+                    ? new Vector3[vertices.Length]
+                    : null;
+                var totalWorldDisplacement = Vector3.zero;
+                var changedVerticesInMesh = 0;
                 for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
                 {
                     var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
@@ -2492,6 +2553,20 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
                             var longitudinalRadius = isFrontContact
                                 ? frontLowerLip ? FrontLipDentLongitudinalRadius : FrontDentLongitudinalRadius
                                 : RearDentLongitudinalRadius;
+                            if (followOuterShell)
+                            {
+                                // Keep shell followers tied to the same end of the car. V23's
+                                // compressed Z distance could otherwise make a front crash move
+                                // rear lamps and other remote trim.
+                                if (Mathf.Abs(localDelta.z) > ShellFollowerMaximumLongitudinalSetback)
+                                    continue;
+                                // Lamp/grille/base/carbon/coloured exterior pieces can sit
+                                // behind the paint shell. Compress only the remaining local
+                                // setback and widen the field so the visible hardware follows.
+                                localDelta.z *= ShellFollowerLongitudinalScale;
+                                lateralRadius *= ShellFollowerLateralScale;
+                                verticalRadius *= ShellFollowerVerticalScale;
+                            }
                             var normalizedDistance = Mathf.Sqrt(
                                 localDelta.x * localDelta.x /
                                 (lateralRadius * lateralRadius) +
@@ -2518,9 +2593,12 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
                             continue;
                         strongestInfluence = influence;
                         inwardDirection = candidateDirection;
-                        selectedDepth = isEndContact
+                        var followerDepthScale = followOuterShell
+                            ? GetShellFollowerDepthScale(filter, isFrontContact)
+                            : 1f;
+                        selectedDepth = (isEndContact
                             ? isFrontContact ? frontDentDepth : rearDentDepth
-                            : dentDepth;
+                            : dentDepth) * followerDepthScale;
                         selectedEndImpact = isEndContact;
                         selectedFrontImpact = isFrontContact;
                     }
@@ -2530,16 +2608,134 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
                     var falloff = selectedEndImpact
                         ? Mathf.Pow(strongestInfluence, 1.35f)
                         : strongestInfluence * strongestInfluence;
-                    worldVertex += inwardDirection * (selectedDepth * falloff);
+                    var worldDisplacement = inwardDirection * (selectedDepth * falloff);
+                    worldVertex += worldDisplacement;
                     vertices[vertexIndex] = filter.transform.InverseTransformPoint(worldVertex);
+                    if (appliedWorldDisplacements != null)
+                        appliedWorldDisplacements[vertexIndex] = worldDisplacement;
+                    totalWorldDisplacement += worldDisplacement;
+                    changedVerticesInMesh++;
                     changedVertices++;
                     meshChanged = true;
                     frontImpact |= selectedEndImpact && selectedFrontImpact;
                     rearImpact |= selectedEndImpact && !selectedFrontImpact;
                 }
 
+                if (!meshChanged && attachedDetail)
+                {
+                    // A badge, grille, lamp insert or other small rigid detail can sit
+                    // just behind the painted shell and have no vertex inside the dent
+                    // radius even though the panel in front of it moved. Sample the
+                    // deformation field at the detail's bounds center and translate the
+                    // whole part so it follows that panel instead of floating in place.
+                    var detailRenderer = filter.GetComponent<Renderer>();
+                    var samplePoint = detailRenderer != null
+                        ? detailRenderer.bounds.center
+                        : filter.transform.position;
+                    var strongestInfluence = 0f;
+                    var inwardDirection = Vector3.zero;
+                    var selectedDepth = dentDepth;
+                    var selectedEndImpact = false;
+                    var selectedFrontImpact = false;
+                    foreach (var contact in contacts)
+                    {
+                        var localContact = transform.InverseTransformPoint(contact.point);
+                        var isEndContact =
+                            Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
+                            Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
+                        var isFrontContact = isEndContact && localContact.z >= 0f;
+                        float influence;
+                        Vector3 candidateDirection;
+                        if (isEndContact)
+                        {
+                            var localDelta = transform.InverseTransformVector(samplePoint - contact.point);
+                            var lateralRadius = (isFrontContact
+                                ? frontLowerLip ? FrontLipDentLateralRadius : FrontDentLateralRadius
+                                : RearDentLateralRadius) * 1.16f;
+                            var verticalRadius = (isFrontContact
+                                ? frontLowerLip ? FrontLipDentVerticalRadius : FrontDentVerticalRadius
+                                : RearDentVerticalRadius) * 1.16f;
+                            var longitudinalRadius = (isFrontContact
+                                ? frontLowerLip ? FrontLipDentLongitudinalRadius : FrontDentLongitudinalRadius
+                                : RearDentLongitudinalRadius) * 1.22f;
+                            if (followOuterShell)
+                            {
+                                if (Mathf.Abs(localDelta.z) > ShellFollowerMaximumLongitudinalSetback)
+                                    continue;
+                                localDelta.z *= ShellFollowerLongitudinalScale;
+                            }
+                            var normalizedDistance = Mathf.Sqrt(
+                                localDelta.x * localDelta.x / (lateralRadius * lateralRadius) +
+                                localDelta.y * localDelta.y / (verticalRadius * verticalRadius) +
+                                localDelta.z * localDelta.z / (longitudinalRadius * longitudinalRadius));
+                            influence = 1f - normalizedDistance;
+                            candidateDirection = localContact.z >= 0f
+                                ? -transform.forward
+                                : transform.forward;
+                        }
+                        else
+                        {
+                            influence = 1f - Vector3.Distance(samplePoint, contact.point) / (DentRadius * 1.15f);
+                            var towardCenter = (center - contact.point).normalized;
+                            var contactNormal = contact.normal.normalized;
+                            candidateDirection = Vector3.Dot(contactNormal, towardCenter) >= 0f
+                                ? contactNormal
+                                : -contactNormal;
+                        }
+
+                        if (influence <= strongestInfluence)
+                            continue;
+                        strongestInfluence = influence;
+                        inwardDirection = candidateDirection;
+                        var followerDepthScale = followOuterShell
+                            ? GetShellFollowerDepthScale(filter, isFrontContact)
+                            : 1f;
+                        selectedDepth = (isEndContact
+                            ? isFrontContact ? frontDentDepth : rearDentDepth
+                            : dentDepth) * followerDepthScale;
+                        selectedEndImpact = isEndContact;
+                        selectedFrontImpact = isFrontContact;
+                    }
+
+                    if (strongestInfluence > 0f && inwardDirection.sqrMagnitude >= .5f)
+                    {
+                        var falloff = selectedEndImpact
+                            ? Mathf.Pow(strongestInfluence, 1.35f)
+                            : strongestInfluence * strongestInfluence;
+                        var detailDisplacement = inwardDirection * (selectedDepth * falloff);
+                        for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+                        {
+                            var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
+                            vertices[vertexIndex] = filter.transform.InverseTransformPoint(
+                                worldVertex + detailDisplacement);
+                        }
+                        changedVertices += vertices.Length;
+                        meshChanged = true;
+                        appliedWorldDisplacements = null;
+                        frontImpact |= selectedEndImpact && selectedFrontImpact;
+                        rearImpact |= selectedEndImpact && !selectedFrontImpact;
+                    }
+                }
+
                 if (!meshChanged)
                     continue;
+                if (attachedDetail && appliedWorldDisplacements != null &&
+                    changedVerticesInMesh > 0)
+                {
+                    // Small lamps, badges, aero inserts and trim should follow
+                    // the panel rather than deforming only a few vertices and
+                    // floating in front of the dent. Translate the whole detail
+                    // by the sampled local damage displacement.
+                    var averageDisplacement = totalWorldDisplacement / changedVerticesInMesh;
+                    for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+                    {
+                        var undeformedWorld = filter.transform.TransformPoint(vertices[vertexIndex]) -
+                                              appliedWorldDisplacements[vertexIndex];
+                        vertices[vertexIndex] = filter.transform.InverseTransformPoint(
+                            undeformedWorld + averageDisplacement);
+                    }
+                    changedVertices += vertices.Length - changedVerticesInMesh;
+                }
                 mesh.vertices = vertices;
                 mesh.RecalculateBounds();
                 mesh.RecalculateNormals();
@@ -2550,8 +2746,11 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
             {
-                FerrariSF90SpiderDiagnostics.Info(context,
-                    $"FerrariSF90Spider damage vehicle={vehicle?.GetInstanceID()}: inward dent " +
+                // Keep the first few real impacts visible in Player.log while
+                // V18 deformation is being validated; this is bounded and does
+                // not create a permanent polling/logging path.
+                context?.Logger.Info(
+                    $"FerrariSF90Spider damage V24 vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
                     $"localContact=({primaryLocalContact.x:0.00}," +
@@ -2578,40 +2777,158 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
     private IEnumerator RestoreDrivingStateAfterRepair()
     {
         yield return null;
-        for (var pass = 1; pass <= 3; pass++)
+        if (vehicle == null || damageHandler == null)
         {
-            yield return new WaitForFixedUpdate();
+            repairRecoveryCoroutine = null;
+            yield break;
+        }
+
+        // Cadillac / Porsche / Jesko all need an explicit post-repair wake-up on
+        // current NWH builds. Repair the native component state first, then make
+        // the player vehicle dynamic again before restarting its powertrain.
+        damageHandler.Repair();
+        vehicle.SetFreeze(false);
+
+        var physics = vehicle.GetComponent<PhysicsVehicle>() ??
+                      vehicle.GetComponentInChildren<PhysicsVehicle>(true);
+        var rigidbody = vehicle.GetComponent<Rigidbody>() ??
+                        vehicle.GetComponentInParent<Rigidbody>();
+        foreach (var wheelController in
+                 vehicle.GetComponentsInChildren<NWH.WheelController3D.WheelController>(true))
+            wheelController.enabled = true;
+        if (rigidbody != null)
+        {
+            rigidbody.isKinematic = false;
+            rigidbody.WakeUp();
+        }
+        if (physics == null)
+        {
+            context?.Logger.Warn(
+                $"FerrariSF90Spider repair V24 vehicle={vehicle.GetInstanceID()}: " +
+                "NWH vehicle controller missing during drivetrain recovery.");
+            repairRecoveryCoroutine = null;
+            yield break;
+        }
+
+        physics.enabled = true;
+        if (!vehicle.controlledByPlayer)
+        {
+            // A repair can complete while the player is outside. Native entry
+            // recovery will start the engine later; the vehicle must nevertheless
+            // leave repair in a movable/non-frozen state now.
+            context?.Logger.Info(
+                $"FerrariSF90Spider repair V24 vehicle={vehicle.GetInstanceID()}: " +
+                "physics/wheels restored while vehicle is not player-controlled.");
+            repairRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var engine = physics.powertrain.engine;
+        var transmission = physics.powertrain.transmission;
+        engine.StopEngine();
+        transmission.ShiftInto(0, true);
+        transmission.currentGearRatio = 0f;
+        yield return new WaitForSecondsRealtime(.15f);
+        if (vehicle == null || !vehicle.controlledByPlayer)
+        {
+            repairRecoveryCoroutine = null;
+            yield break;
+        }
+
+        engine.StartEngine();
+        for (var pass = 1; pass <= 5; pass++)
+        {
+            yield return new WaitForSecondsRealtime(.35f);
             if (vehicle == null || !vehicle.controlledByPlayer)
-                continue;
+                break;
 
             vehicle.SetFreeze(false);
-            var physics = vehicle.GetComponent<PhysicsVehicle>() ??
-                          vehicle.GetComponentInChildren<PhysicsVehicle>(true);
-            if (physics != null)
-            {
-                physics.enabled = true;
-                if (!physics.powertrain.engine.IsRunning)
-                    physics.powertrain.engine.StartEngine();
-                if (physics.powertrain.transmission.Gear == 0)
-                    physics.powertrain.transmission.ShiftInto(1, true);
-            }
+            physics.enabled = true;
             foreach (var wheelController in
                      vehicle.GetComponentsInChildren<NWH.WheelController3D.WheelController>(true))
                 wheelController.enabled = true;
-            var rigidbody = vehicle.GetComponent<Rigidbody>() ??
-                            vehicle.GetComponentInParent<Rigidbody>();
             if (rigidbody != null)
             {
                 rigidbody.isKinematic = false;
                 rigidbody.WakeUp();
             }
-            FerrariSF90SpiderDiagnostics.Info(context,
-                $"FerrariSF90Spider damage vehicle={vehicle.GetInstanceID()}: post-repair " +
-                $"driving recovery pass={pass} physics={physics?.enabled} " +
-                $"engine={physics?.powertrain.engine.IsRunning} " +
-                $"gear={physics?.powertrain.transmission.Gear} kinematic={rigidbody?.isKinematic}.");
+
+            var rpm = engine.RPMPercent * engine.revLimiterRPM;
+            if (!engine.IsRunning || !engine.ignition || !engine.canRun || rpm < 300f)
+            {
+                engine.StartEngine();
+                continue;
+            }
+
+            if (transmission.Gear == 0)
+                transmission.ShiftInto(1, true);
+            context?.Logger.Info(
+                $"FerrariSF90Spider repair V24 vehicle={vehicle.GetInstanceID()}: " +
+                $"drivetrain recovered pass={pass}, rpm={rpm:0}, gear={transmission.Gear}, " +
+                $"physics={physics.enabled}, kinematic={rigidbody?.isKinematic}.");
+            repairRecoveryCoroutine = null;
+            yield break;
         }
+
+        context?.Logger.Warn(
+            $"FerrariSF90Spider repair V24 vehicle={vehicle?.GetInstanceID()}: " +
+            $"engine remained unavailable after repair; running={engine.IsRunning}, " +
+            $"ignition={engine.ignition}, canRun={engine.canRun}, " +
+            $"rpm={engine.RPMPercent * engine.revLimiterRPM:0}, gear={transmission.Gear}.");
         repairRecoveryCoroutine = null;
+    }
+
+    private static float GetShellFollowerDepthScale(MeshFilter filter, bool frontImpact)
+    {
+        if (!frontImpact)
+            return ShellFollowerDepthScale;
+
+        // The transparent LightA mesh is the physical headlamp cover/lens. It sits
+        // slightly behind the painted nose in the source GLB, so make it follow
+        // the front shell a little more strongly instead of protruding after a dent.
+        var name = filter.name;
+        if (name.IndexOf("Light_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("FerrariSF90Spider_Light_DRL_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("FerrariSF90Spider_Light_FrontIndicator_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("FerrariSF90Spider_Light_Headlamps", StringComparison.OrdinalIgnoreCase) >= 0)
+            return HeadlampFollowerDepthScale;
+
+        return ShellFollowerDepthScale;
+    }
+
+    private static bool ShouldFollowOuterShell(MeshFilter filter)
+    {
+        if (FerrariSF90SpiderRuntime.IsSf90BodyPaintFilter(filter))
+            return false;
+        var name = filter.name;
+        return name.IndexOf("Base_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Coloured_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Carbon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Grille", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Light_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Badge_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("ManufacturerPlate_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("FerrariSF90Spider_Light_", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsAttachedExteriorDetail(MeshFilter filter, int vertexCount)
+    {
+        var renderer = filter.GetComponent<Renderer>();
+        if (renderer == null)
+            return false;
+        // Only truly small rigid pieces are translated as a whole. Combined
+        // meshes such as Grille1/Light_Geo span both ends of the vehicle and
+        // must instead follow the dent field per vertex.
+        if (FerrariSF90SpiderRuntime.IsSf90BodyPaintFilter(filter))
+            return false;
+        var name = filter.name;
+        if (name.IndexOf("Badge_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("ManufacturerPlate_Geo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("FerrariSF90Spider_Light_", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        var size = renderer.bounds.size;
+        var longestSide = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+        return vertexCount <= 420 || longestSide <= .34f;
     }
 
     private static bool IsFrontLowerLip(MeshFilter filter)

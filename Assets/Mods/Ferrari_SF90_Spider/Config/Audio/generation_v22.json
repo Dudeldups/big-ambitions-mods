@@ -1,0 +1,43 @@
+{
+  "engine": "Ferrari SF90 Spider 4.0L twin-turbo flat-plane V8 inspired synthetic voice",
+  "recorded_samples": false,
+  "architecture": "phase-aligned three-band coast/load synthesis; constant-power RPM crossfade",
+  "references_hz": [
+    76.0,
+    205.0,
+    410.0
+  ],
+  "layers": [
+    {
+      "name": "EngineLow.wav",
+      "seconds": 2.0,
+      "peak": 0.2011478639660376
+    },
+    {
+      "name": "EngineLowLoad.wav",
+      "seconds": 2.0,
+      "peak": 0.1768579562680986
+    },
+    {
+      "name": "EngineMid.wav",
+      "seconds": 2.0,
+      "peak": 0.19929302345815345
+    },
+    {
+      "name": "EngineMidLoad.wav",
+      "seconds": 2.0,
+      "peak": 0.17723893409097852
+    },
+    {
+      "name": "EngineHigh.wav",
+      "seconds": 2.0,
+      "peak": 0.19326725422985094
+    },
+    {
+      "name": "EngineHighLoad.wav",
+      "seconds": 2.0,
+      "peak": 0.178361878847136
+    }
+  ],
+  "notes": "No native donor engine bed is audible; turbo/crackle are intentionally very low non-engine texture."
+}
