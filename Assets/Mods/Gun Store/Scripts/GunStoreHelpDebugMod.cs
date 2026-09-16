@@ -289,7 +289,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // shelf. Gun Store used the same template for several products, which left destroyed
         // visual references in unrelated shops. Add an independent visual slot only to shelves
         // that actually contain Gun Store stock instead.
-        for (var pass = 0; pass < 16; pass++)
+        for (var pass = 0; !shuttingDown; pass++)
         {
             // StartCoroutine runs until its first yield immediately. Correct shelf glass on
             // the scene-loaded callback, before the first frame can show iridescence. Keep
@@ -298,6 +298,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
                 yield return null;
             else if (pass > 1)
                 yield return new WaitForSeconds(2f);
+
+            // Rival interiors can load long after the city startup window. Keep this
+            // product-scoped pass alive so their displays and glass are repaired too.
 
             var installedCount = 0;
             foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
@@ -822,6 +825,32 @@ internal static class GunStoreNpcBannerRuntime
     {
         LogoSize.SquareSign, LogoSize.WideSign, LogoSize.Billboard
     };
+    private static readonly FieldInfo? BusinessLogosField = typeof(LogoHelper).GetField(
+        "BusinessLogos", BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly Type? BusinessLogoKeyType = typeof(LogoHelper).GetNestedType(
+        "BusinessLogoKey", BindingFlags.NonPublic);
+
+    private static bool TryCacheGeneratedBanner(string name, LogoSize size, Texture2D texture)
+    {
+        // The current game only replaces an existing key in StoreGeneratedTexture.
+        // Missing AI logo files do not create that key, so seed it with the game's
+        // own cache-entry type before asking storefront signs to refresh.
+        if (BusinessLogosField?.GetValue(null) is not IDictionary cache || BusinessLogoKeyType == null)
+            return false;
+
+        var key = Activator.CreateInstance(BusinessLogoKeyType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new object[] { name, size, false }, null);
+        if (key == null)
+            return false;
+
+        if (cache.Contains(key))
+            LogoHelper.StoreGeneratedTexture(name, size, false, texture);
+        else
+            cache.Add(key, new BusinessLogoCacheEntry(texture, default));
+
+        return ReferenceEquals(LogoHelper.GetBusinessLogoTexture(name, size, false), texture);
+    }
 
     internal static void Prime(ModContext context)
     {
@@ -847,7 +876,7 @@ internal static class GunStoreNpcBannerRuntime
     internal static IEnumerator Generate(ModContext context)
     {
         // The game's late-loaded callback can precede this mod's city-load entry point.
-        // Wait for the NPC defaults and logo cache instead of permanently abandoning signs.
+        // Wait for the NPC defaults and logo generator instead of permanently abandoning signs.
         var ready = false;
         for (var attempt = 0; attempt < 60; attempt++)
         {
@@ -884,12 +913,9 @@ internal static class GunStoreNpcBannerRuntime
                 completed = true;
                 try
                 {
+                    var cachedCount = 0;
                     foreach (var size in BannerSizes)
                     {
-                        var cached = LogoHelper.GetBusinessLogoTexture(name, size, false);
-                        if (cached != null && cached != LogoHelper.GetNullTexture())
-                            continue;
-
                         var file = Path.Combine(path, size + ".jpg");
                         if (!File.Exists(file))
                         {
@@ -905,17 +931,27 @@ internal static class GunStoreNpcBannerRuntime
                             continue;
                         }
 
-                        LogoHelper.StoreGeneratedTexture(name, size, false, texture);
+                        if (!TryCacheGeneratedBanner(name, size, texture))
+                        {
+                            UnityEngine.Object.Destroy(texture);
+                            context.Logger.Warn($"Gun Store: could not register generated banner in game logo cache: business='{name}', size={size}.");
+                        }
+                        else
+                        {
+                            cachedCount++;
+                        }
                     }
 
                     var wideSign = LogoHelper.GetBusinessLogoTexture(name, LogoSize.WideSign, false);
-                    var success = wideSign != null && wideSign != LogoHelper.GetNullTexture();
+                    var success = cachedCount == BannerSizes.Length &&
+                                  wideSign != null && wideSign != LogoHelper.GetNullTexture();
                     if (!success)
                     {
-                        context.Logger.Warn($"Gun Store: storefront banner generation failed for '{name}'.");
+                        context.Logger.Warn($"Gun Store: storefront banner generation incomplete for '{name}': cached={cachedCount}/{BannerSizes.Length}.");
                         return;
                     }
 
+                    var refreshedSigns = 0;
                     foreach (var registration in SaveGameManager.Current?.BuildingRegistrations?.AsEnumerable()
                                  ?? Enumerable.Empty<BuildingRegistration>())
                     {
@@ -923,11 +959,15 @@ internal static class GunStoreNpcBannerRuntime
                             !string.Equals(registration.BusinessName, name, StringComparison.Ordinal))
                             continue;
 
-                        InstanceBehavior<CityManager>.Instance?
-                            .FindCityBuildingController(registration.Address)?.UpdateSign();
+                        var building = InstanceBehavior<CityManager>.Instance?
+                            .FindCityBuildingController(registration.Address);
+                        if (building == null)
+                            continue;
+                        building.UpdateSign();
+                        refreshedSigns++;
                     }
 
-                    context.Logger.Info($"Gun Store: generated square and wide storefront banners for '{name}'.");
+                    context.Logger.Info($"Gun Store: cached {cachedCount} NPC banner sizes for '{name}' and refreshed {refreshedSigns} loaded storefront sign(s).");
                 }
                 catch (Exception exception)
                 {
