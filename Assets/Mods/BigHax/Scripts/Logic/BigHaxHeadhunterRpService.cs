@@ -17,7 +17,8 @@ namespace BigHax
     {
         private const string CandidateReceivedEvent = "ba:gameevent_candidatereceived";
         private const int DiagnosticCalculationLimit = 12;
-        private const int CandidateCleanupLogLimit = 12;
+        private const int CandidateCleanupDetailLogLimit = 5;
+        private const int CandidateCleanupSummaryInterval = 100;
 
         private static readonly FieldInfo? CandidateDemandsToIgnoreField = typeof(EmployeeInstance).GetField(
             "DemandsToIgnore",
@@ -32,7 +33,10 @@ namespace BigHax
 
         private ModContext? context;
         private BigHaxMethodDetour? candidateDemandsDetour;
+        private int candidateCleanupCheckedCount;
         private int candidateCleanupLogCount;
+        private int candidateCleanupRemovedDemandCount;
+        private int candidateCleanupTouchedCandidateCount;
         private BigHaxMethodDetour? helperDetour;
         private bool isSubscribed;
         private BigHaxMethodDetour? planGetterDetour;
@@ -63,7 +67,7 @@ namespace BigHax
             {
                 diagnosticCalculationCount = 0;
                 diagnosticCandidateCount = 0;
-                candidateCleanupLogCount = 0;
+                ResetCandidateCleanupLogCounters();
                 BigHaxLogger.Diagnostic(
                     "Headhunter RP configured: enabled=" + enabled +
                     ", override=" + BigHaxSettings.MaximumHeadhunterRecruitmentPoints +
@@ -111,7 +115,7 @@ namespace BigHax
             candidateDemandsDetour = null;
             diagnosticCalculationCount = 0;
             diagnosticCandidateCount = 0;
-            candidateCleanupLogCount = 0;
+            ResetCandidateCleanupLogCounters();
         }
 
         internal static int GetConfiguredPoints(float skill)
@@ -215,17 +219,36 @@ namespace BigHax
             }
 
             var removedDemandCount = originalDemandCount - candidate.demands.Count;
-            var shouldLog = removedDemandCount > 0 || candidateCleanupLogCount < CandidateCleanupLogLimit;
+            candidateCleanupCheckedCount++;
+            if (removedDemandCount > 0)
+            {
+                candidateCleanupTouchedCandidateCount++;
+                candidateCleanupRemovedDemandCount += removedDemandCount;
+            }
+
+            var shouldLogDetail = candidateCleanupLogCount < CandidateCleanupDetailLogLimit;
+            var shouldLogSummary =
+                candidateCleanupCheckedCount > 0 &&
+                candidateCleanupCheckedCount % CandidateCleanupSummaryInterval == 0;
+            var shouldLog = shouldLogDetail || shouldLogSummary;
             if (shouldLog)
             {
-                candidateCleanupLogCount++;
+                if (shouldLogDetail)
+                    candidateCleanupLogCount++;
+
+                var prefix = shouldLogSummary && !shouldLogDetail
+                    ? "BigHax: headhunter candidate demand cleanup summary"
+                    : "BigHax: checked headhunter candidate demands";
                 BigHaxLogger.Info(
                     context,
-                    "BigHax: checked headhunter candidate demands; removed=" + removedDemandCount +
+                    prefix + "; removed=" + removedDemandCount +
                     ", originalDemands=" + originalDemandCount +
                     ", remainingDemands=" + candidate.demands.Count +
                     ", exclusions=" + demandsToIgnore.Count +
                     ", allPossibleDealBreakersExcluded=" + allPossibleDealBreakersExcluded +
+                    ", checkedCandidates=" + candidateCleanupCheckedCount +
+                    ", touchedCandidates=" + candidateCleanupTouchedCandidateCount +
+                    ", totalRemovedDemands=" + candidateCleanupRemovedDemandCount +
                     ", plan=" + (plan?.id ?? "unknown") +
                     ", skill=" + (plan?.skillRecruiting ?? candidate.GetPrimarySkill()) + ".");
             }
@@ -235,6 +258,14 @@ namespace BigHax
 
             SaveGameManager.Current!.hasEverUsedMods = true;
             SaveGameManager.MarkChange();
+        }
+
+        private void ResetCandidateCleanupLogCounters()
+        {
+            candidateCleanupCheckedCount = 0;
+            candidateCleanupLogCount = 0;
+            candidateCleanupRemovedDemandCount = 0;
+            candidateCleanupTouchedCandidateCount = 0;
         }
 
         private static List<string>? GetRandomDemandsForCandidate(HeadhunterPlan plan, float totalSkillValue)
