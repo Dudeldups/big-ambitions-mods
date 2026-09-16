@@ -839,27 +839,9 @@ internal static class GunStoreNpcBannerRuntime
                 icon.texture, icon.rect, new Vector2(0.5f, 0.5f), icon.pixelsPerUnit);
         }
 
-        // AI signs do not invoke the game's generator when a logo is missing. Prime only
-        // our own names so its completion callback can replace these entries in the cache.
-        var placeholder = LogoHelper.GetNullTexture();
-        if (placeholder == null)
-        {
-            context.Logger.Warn("Gun Store: NPC banner cache not primed: game placeholder texture unavailable.");
-            return;
-        }
-        foreach (var name in GunStoreBusinessTypeCityMod.AiRivalBusinessNames)
-        {
-            foreach (var size in BannerSizes)
-            {
-                var key = (name, size, false);
-                if (!LogoHelper.BusinessLogoTextures.ContainsKey(key))
-                    LogoHelper.BusinessLogoTextures[key] = placeholder;
-            }
-        }
-
         if (addedShape)
             context.Logger.Info(
-                $"Gun Store: primed storefront banner cache for {GunStoreBusinessTypeCityMod.AiRivalBusinessNames.Count} NPC names.");
+                $"Gun Store: registered storefront pistol logo shape for {GunStoreBusinessTypeCityMod.AiRivalBusinessNames.Count} NPC names.");
     }
 
     internal static IEnumerator Generate(ModContext context)
@@ -873,9 +855,7 @@ internal static class GunStoreNpcBannerRuntime
                 CompetitionHelper.GetBusinessDefault(GunStoreBusinessTypeCityMod.AiRivalBusinessNames[0]) != null)
             {
                 Prime(context);
-                ready = LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey) &&
-                        LogoHelper.BusinessLogoTextures.ContainsKey(
-                            (GunStoreBusinessTypeCityMod.AiRivalBusinessNames[0], LogoSize.WideSign, false));
+                ready = LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey);
                 if (ready)
                     break;
             }
@@ -904,9 +884,32 @@ internal static class GunStoreNpcBannerRuntime
                 completed = true;
                 try
                 {
-                    var key = (name, LogoSize.WideSign, false);
-                    var success = LogoHelper.BusinessLogoTextures.TryGetValue(key, out var texture) &&
-                                  texture != null && texture != LogoHelper.GetNullTexture();
+                    foreach (var size in BannerSizes)
+                    {
+                        var cached = LogoHelper.GetBusinessLogoTexture(name, size, false);
+                        if (cached != null && cached != LogoHelper.GetNullTexture())
+                            continue;
+
+                        var file = Path.Combine(path, size + ".jpg");
+                        if (!File.Exists(file))
+                        {
+                            context.Logger.Warn($"Gun Store: generated banner file missing: business='{name}', size={size}.");
+                            continue;
+                        }
+
+                        var texture = new Texture2D(2, 2);
+                        if (!ImageConversion.LoadImage(texture, File.ReadAllBytes(file)))
+                        {
+                            UnityEngine.Object.Destroy(texture);
+                            context.Logger.Warn($"Gun Store: generated banner image invalid: business='{name}', size={size}.");
+                            continue;
+                        }
+
+                        LogoHelper.StoreGeneratedTexture(name, size, false, texture);
+                    }
+
+                    var wideSign = LogoHelper.GetBusinessLogoTexture(name, LogoSize.WideSign, false);
+                    var success = wideSign != null && wideSign != LogoHelper.GetNullTexture();
                     if (!success)
                     {
                         context.Logger.Warn($"Gun Store: storefront banner generation failed for '{name}'.");

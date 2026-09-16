@@ -260,9 +260,17 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
         for (var i = 0; i < 6; i++)
         {
-            GunStoreNpcBannerRuntime.Prime(context);
             RegisterRivalLayouts(context);
             PatchAiBusinessDefaults(context);
+            try
+            {
+                GunStoreNpcBannerRuntime.Prime(context);
+            }
+            catch (Exception exception)
+            {
+                context.Logger.Warn("Gun Store: NPC banner initialization failed; rival layouts remain registered.");
+                context.Logger.Error(exception);
+            }
             AddToImporter();
             PatchImportPartnerships();
             PatchConsumerGoodsWorkstation();
