@@ -31,6 +31,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
     private const int GeneratedDisplayVersion = 21;
+    private static readonly float[] ShelfVisualRetryDelays = { 0f, 0f, 2f, 3f, 5f, 10f, 10f };
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -84,8 +85,14 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         LocalizorManager.OnLanguageChanged += existing.HandleLanguageChanged;
         SceneManager.sceneLoaded -= existing.HandleSceneLoaded;
         SceneManager.sceneLoaded += existing.HandleSceneLoaded;
+        GlobalEvents.onEnterBuilding -= existing.HandleEnterBuilding;
+        GlobalEvents.onEnterBuilding += existing.HandleEnterBuilding;
         GlobalEvents.onEnterBuildingDelayed -= existing.HandleEnterBuildingDelayed;
         GlobalEvents.onEnterBuildingDelayed += existing.HandleEnterBuildingDelayed;
+        GlobalEvents.onCityMapClosed -= existing.HandleCityMapClosed;
+        GlobalEvents.onCityMapClosed += existing.HandleCityMapClosed;
+        GlobalEvents.onItemDropped -= existing.HandleItemDropped;
+        GlobalEvents.onItemDropped += existing.HandleItemDropped;
         if (!existing.gameLoadedLateCallbackRegistered)
         {
             GlobalEvents.RegisterOnGameLoadedLateCallback(existing.HandleGameLoadedLate);
@@ -144,11 +151,25 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         shuttingDown = true;
         LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
         SceneManager.sceneLoaded -= HandleSceneLoaded;
+        GlobalEvents.onEnterBuilding -= HandleEnterBuilding;
         GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
+        GlobalEvents.onCityMapClosed -= HandleCityMapClosed;
+        GlobalEvents.onItemDropped -= HandleItemDropped;
         if (pendingNavigationPatch != null)
             StopCoroutine(pendingNavigationPatch);
+        if (gunStoreVisualSetupCoroutine != null)
+            StopCoroutine(gunStoreVisualSetupCoroutine);
         if (npcBannerCoroutine != null)
             StopCoroutine(npcBannerCoroutine);
+
+        foreach (var observer in Resources.FindObjectsOfTypeAll<GunStoreNpcShelfVisualObserver>())
+        {
+            if (observer != null && observer.gameObject.scene.IsValid())
+            {
+                observer.enabled = false;
+                Destroy(observer);
+            }
+        }
 
         foreach (var material in displayMaterialCache.Values)
         {
@@ -183,22 +204,53 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void HandleEnterBuildingDelayed(Address address)
     {
+        ScheduleGunStoreInteriorVisuals(address, "enter-building-delayed");
+    }
+
+    private void HandleEnterBuilding(Address address)
+    {
+        ScheduleGunStoreInteriorVisuals(address, "enter-building");
+    }
+
+    private void HandleCityMapClosed()
+    {
+        // Teleporting from the map can instantiate nearby rival interiors without
+        // producing a new Unity sceneLoaded callback.
+        if (postCitySaveRepairCompleted)
+            StartGunStoreVisualSetup("city-map-closed");
+    }
+
+    private void HandleItemDropped(ItemController item)
+    {
+        if (item?.BuildingContext?.Registration?.businessTypeName ==
+            "gunstore-businesstype:businesstype_gunstore")
+            StartGunStoreVisualSetup("item-dropped-in-gun-store");
+    }
+
+    private void ScheduleGunStoreInteriorVisuals(Address address, string reason)
+    {
         var registration = SaveGameManager.Current?.BuildingRegistrations?
             .FirstOrDefault(item => item != null && item.Address.Equals(address));
-        if (registration == null || registration.RentedByPlayer ||
-            !string.Equals(registration.businessTypeName,
+        if (registration == null || !string.Equals(registration.businessTypeName,
                 "gunstore-businesstype:businesstype_gunstore", StringComparison.Ordinal))
             return;
 
         context?.Logger.Info(
-            $"Gun Store: NPC interior ready for shelf visuals: name='{registration.BusinessName}', address={address}.");
-        StartGunStoreVisualSetup($"npc-entered:{registration.BusinessName}:{address}");
+            $"Gun Store: interior visual setup triggered: name='{registration.BusinessName}', " +
+            $"address={address}, playerOwned={registration.RentedByPlayer}, reason='{reason}'.");
+        StartGunStoreVisualSetup($"entered:{registration.BusinessName}:{reason}");
     }
 
     private void HandleGameLoadedLate()
     {
+        GlobalEvents.onEnterBuilding -= HandleEnterBuilding;
+        GlobalEvents.onEnterBuilding += HandleEnterBuilding;
         GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
         GlobalEvents.onEnterBuildingDelayed += HandleEnterBuildingDelayed;
+        GlobalEvents.onCityMapClosed -= HandleCityMapClosed;
+        GlobalEvents.onCityMapClosed += HandleCityMapClosed;
+        GlobalEvents.onItemDropped -= HandleItemDropped;
+        GlobalEvents.onItemDropped += HandleItemDropped;
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
         GunStoreBusinessTypeCityMod.RestoreAiRivalsAfterGameLoaded(context);
         StartNpcBannerGeneration();
@@ -290,7 +342,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // shelf. Gun Store used the same template for several products, which left destroyed
         // visual references in unrelated shops. Add an independent visual slot only to shelves
         // that actually contain Gun Store stock instead.
-        for (var pass = 0; !shuttingDown; pass++)
+        for (var pass = 0; pass < ShelfVisualRetryDelays.Length && !shuttingDown; pass++)
         {
             // StartCoroutine runs until its first yield immediately. Correct shelf glass on
             // the scene-loaded callback, before the first frame can show iridescence. Keep
@@ -298,10 +350,10 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             if (pass == 1)
                 yield return null;
             else if (pass > 1)
-                yield return new WaitForSeconds(2f);
+                yield return new WaitForSeconds(ShelfVisualRetryDelays[pass]);
 
-            // Rival interiors can load long after the city startup window. Keep this
-            // product-scoped pass alive so their displays and glass are repaired too.
+            // This retry window is finite. Later interiors start a fresh window via
+            // building-entry or map-close events; there is no permanent world scan.
 
             var installedCount = 0;
             foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
@@ -360,6 +412,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             var existingMarker = existingVisualSlot.GetComponent<GunStoreMeshOnlyDisplayMarker>();
             if (existingMarker != null && existingMarker.Generation == GeneratedDisplayVersion)
             {
+                AttachNpcShelfObserver(shelf, owner, existingVisualSlot, itemName);
                 EnsureNpcShelfDisplayVisible(shelf, owner, existingVisualSlot, itemName);
                 return false;
             }
@@ -428,6 +481,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // copies keep the display visual separate from product gameplay state.
         shelf.ShowItemVisuals(itemName, showDefault: false);
         shelf.UpdateVisuals();
+        AttachNpcShelfObserver(shelf, owner, visualSlot, itemName);
         EnsureNpcShelfDisplayVisible(shelf, owner, visualSlot, itemName);
         context.Logger.Info(
             $"Gun Store: installed mesh-only shelf display: product='{itemName}', shelf='{shelfName}', " +
@@ -436,9 +490,31 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         return true;
     }
 
-    private void EnsureNpcShelfDisplayVisible(
+    private void AttachNpcShelfObserver(
         ShelfController shelf, ItemController? owner, Transform visualSlot, string itemName)
     {
+        if (owner?.BuildingContext?.Registration?.RentedByPlayer != false ||
+            owner.playerItemPurchaserSettings?.enabled != true ||
+            !string.Equals(owner.playerItemPurchaserSettings.itemName, itemName, StringComparison.Ordinal))
+            return;
+
+        var observer = shelf.GetComponent<GunStoreNpcShelfVisualObserver>();
+        if (observer == null)
+        {
+            observer = shelf.gameObject.AddComponent<GunStoreNpcShelfVisualObserver>();
+            context?.Logger.Info(
+                $"Gun Store: attached NPC shelf visual observer: product='{itemName}', " +
+                $"position={shelf.transform.position}.");
+        }
+        observer.Initialize(this, shelf, owner, visualSlot, itemName);
+    }
+
+    internal void EnsureNpcShelfDisplayVisible(
+        ShelfController shelf, ItemController? owner, Transform visualSlot, string itemName)
+    {
+        if (shuttingDown)
+            return;
+
         // AI fixtures advertise virtual stock through PlayerItemPurchaserSettings, but
         // their cargo fill can be zero. The native UpdateVisuals then disables every
         // child of the otherwise correctly selected Gun Store visual slot.
@@ -1113,6 +1189,107 @@ internal static class GunStoreNpcBannerRuntime
 internal sealed class GunStoreMeshOnlyDisplayMarker : MonoBehaviour
 {
     public int Generation;
+}
+
+// React to the game's shelf cargo/visibility lifecycle after the bounded scene setup
+// has ended. This keeps virtual-stock NPC displays visible without global polling.
+internal sealed class GunStoreNpcShelfVisualObserver : MonoBehaviour
+{
+    private GunStoreHelpDebugRuntime? runtime;
+    private ShelfController? shelf;
+    private ItemController? owner;
+    private Transform? visualSlot;
+    private string? itemName;
+    private ItemInstance? itemInstance;
+    private Coroutine? pendingRefresh;
+
+    internal void Initialize(
+        GunStoreHelpDebugRuntime runtime,
+        ShelfController shelf,
+        ItemController owner,
+        Transform visualSlot,
+        string itemName)
+    {
+        if (ReferenceEquals(this.runtime, runtime) && ReferenceEquals(this.shelf, shelf) &&
+            ReferenceEquals(this.owner, owner) && ReferenceEquals(this.visualSlot, visualSlot) &&
+            string.Equals(this.itemName, itemName, StringComparison.Ordinal))
+        {
+            BindItemInstance();
+            return;
+        }
+
+        Unbind();
+        this.runtime = runtime;
+        this.shelf = shelf;
+        this.owner = owner;
+        this.visualSlot = visualSlot;
+        this.itemName = itemName;
+        owner.onItemInitialized?.AddListener(HandleItemInitialized);
+        BindItemInstance();
+    }
+
+    private void OnEnable()
+    {
+        QueueRefresh();
+    }
+
+    private void OnDisable()
+    {
+        if (pendingRefresh != null)
+            StopCoroutine(pendingRefresh);
+        pendingRefresh = null;
+    }
+
+    private void OnDestroy()
+    {
+        Unbind();
+    }
+
+    private void HandleItemInitialized()
+    {
+        BindItemInstance();
+        QueueRefresh();
+    }
+
+    private void HandleCargoUpdated()
+    {
+        QueueRefresh();
+    }
+
+    private void BindItemInstance()
+    {
+        var current = owner?.ItemInstance;
+        if (ReferenceEquals(itemInstance, current))
+            return;
+
+        itemInstance?.RemoveCallFromOnItemsInCargoUpdated(HandleCargoUpdated);
+        itemInstance = current;
+        itemInstance?.AddCallToOnItemsInCargoUpdated(HandleCargoUpdated);
+    }
+
+    private void QueueRefresh()
+    {
+        if (!isActiveAndEnabled || runtime == null || shelf == null || visualSlot == null ||
+            string.IsNullOrEmpty(itemName) || pendingRefresh != null)
+            return;
+
+        pendingRefresh = StartCoroutine(RefreshNextFrame());
+    }
+
+    private IEnumerator RefreshNextFrame()
+    {
+        yield return null;
+        pendingRefresh = null;
+        if (runtime != null && shelf != null && visualSlot != null && itemName != null)
+            runtime.EnsureNpcShelfDisplayVisible(shelf, owner, visualSlot, itemName);
+    }
+
+    private void Unbind()
+    {
+        itemInstance?.RemoveCallFromOnItemsInCargoUpdated(HandleCargoUpdated);
+        itemInstance = null;
+        owner?.onItemInitialized?.RemoveListener(HandleItemInitialized);
+    }
 }
 
 internal enum GunStoreHelpNavigationPatchResult
