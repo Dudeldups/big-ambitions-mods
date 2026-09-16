@@ -1,4 +1,5 @@
 #nullable enable
+using System.Collections.Generic;
 using System.Diagnostics;
 using BAModAPI;
 
@@ -6,10 +7,20 @@ namespace BigHax
 {
     internal static class BigHaxLogger
     {
-        // These compatibility hooks keep focused diagnostic call sites out of
-        // release builds without retaining a file-writing logger in the mod.
-        public static void Info(ModContext? context, string message) { }
-        public static void WarnOnce(ModContext? context, string key, string message) { }
+        private static readonly HashSet<string> Warnings = new HashSet<string>();
+
+        public static void Info(ModContext? context, string message)
+        {
+            context?.Logger.Info(message);
+        }
+
+        public static void WarnOnce(ModContext? context, string key, string message)
+        {
+            if (!Warnings.Add(key))
+                return;
+
+            context?.Logger.Warn(message);
+        }
 
         [Conditional("BIGHAX_DIAGNOSTICS")]
         public static void StartDiagnosticSession() { }

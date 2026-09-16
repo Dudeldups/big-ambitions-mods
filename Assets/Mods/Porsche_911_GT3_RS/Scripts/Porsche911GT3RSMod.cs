@@ -15,7 +15,11 @@ using Vehicles.VehicleTypes;
 
 internal static class Porsche911GT3RSDiagnostics
 {
+    // Release defaults. Focused diagnostics remain available for a future
+    // regression, but are opt-in and require this global flag as well.
     internal static bool DebugEnabled { get; set; } = false;
+    internal static bool DealerEntryDebugEnabled { get; set; } = false;
+    internal static bool WarehouseExitDebugEnabled { get; set; } = false;
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool DamageDebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
@@ -29,6 +33,18 @@ internal static class Porsche911GT3RSDiagnostics
     internal static void PaintInfo(ModContext? context, string message)
     {
         if (DebugEnabled && PaintDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void DealerEntryInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && DealerEntryDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void WarehouseExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && WarehouseExitDebugEnabled)
             context?.Logger.Info(message);
     }
 

@@ -7,6 +7,7 @@ using BAModAPI;
 using BusinessLayoutSets;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Vehicles.VehicleTypes;
 
@@ -18,6 +19,11 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         "vehicle-repainter:color-preview";
     private const string VehicleRepainterColorResetEvent =
         "vehicle-repainter:color-reset";
+    // Match the established Alfa approach: reuse the game's native player-car
+    // sleep configuration instead of synthesizing one or scanning all loaded
+    // vehicles. This is valid for dealer and developer-tool spawned Cadillacs.
+    private const string NativeCarSleepDonorPrefabPath =
+        "Vehicles/PlayerVehicles/HonzaMimic";
     private const int InitializationRetryCount = 20;
     private const int RequiredStablePasses = 5;
     private const float InitializationRetryDelay = 0.25f;
@@ -52,6 +58,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private const float DamageDecelerationThreshold = 300f;
     private const float MinimumHealthyEngineRpm = 300f;
     private const int EngineStartAttemptCount = 3;
+    private const float WarehouseExitEntranceSearchRadius = 12f;
+    private const float WarehouseExitGuardDuration = 8f;
+    private const float WarehouseExitGuardClearDistance = 4f;
     private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.22f, -0.10f);
     private static readonly Vector3 LowerColliderCenter = new Vector3(0f, 0.30f, -0.05f);
     private static readonly Vector3 LowerColliderSize = new Vector3(1.94f, 0.50f, 5.12f);
@@ -88,6 +97,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
     private Coroutine? initializationCoroutine;
     private Coroutine? powertrainReadinessCoroutine;
+    private Coroutine? exitedPlayerRecoveryCoroutine;
+    private Coroutine? warehouseExitGuardCoroutine;
+    private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
     private ModContext? context;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
@@ -97,6 +109,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     private bool privateDriverReady;
     private bool privateDriverRegistrationAllowed;
     private bool privateDriverPreparationExceptionLogged;
+    private UnityEngine.Object? nativeCarSleepConfig;
+    private bool nativeCarSleepConfigUnavailableLogged;
     private int cachedPlayerVehicleCount = -1;
     private int cachedTargetVehicleCount;
 
@@ -131,12 +145,16 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        StopPlayerExitRecovery();
+        StopWarehouseExitGuard();
         CadillacEscaladePrivateDriverSupport.RemoveVehicle(vehicleTypeName);
         playerVehiclePrefab = null;
         privateDriverPoolReady = false;
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+        nativeCarSleepConfig = null;
+        nativeCarSleepConfigUnavailableLogged = false;
         configuredVehicleIds.Clear();
         ResetPlayerVehicleSnapshot();
         Destroy(gameObject);
@@ -153,6 +171,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeEvents();
+        StopPlayerExitRecovery();
+        StopWarehouseExitGuard();
     }
 
     private void Update()
@@ -171,8 +191,12 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         GameEvent.onGameEventTriggered += HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
         GlobalEvents.onEnterVehicle += HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
+        GlobalEvents.onExitVehicle += HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
         GlobalEvents.onEnterBuilding += HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
+        GlobalEvents.onExitBuilding += HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onFullMenuToggle += HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
@@ -183,7 +207,9 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
     {
         GameEvent.onGameEventTriggered -= HandleGameEvent;
         GlobalEvents.onEnterVehicle -= HandleVehicleEntered;
+        GlobalEvents.onExitVehicle -= HandleVehicleExited;
         GlobalEvents.onEnterBuilding -= HandleBuildingEntered;
+        GlobalEvents.onExitBuilding -= HandleBuildingExited;
         GlobalEvents.onFullMenuToggle -= HandleFullMenuToggle;
         GlobalEvents.onGameUnloaded -= HandleGameUnloaded;
     }
@@ -211,6 +237,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             StopCoroutine(powertrainReadinessCoroutine);
         initializationCoroutine = null;
         powertrainReadinessCoroutine = null;
+        StopPlayerExitRecovery();
+        StopWarehouseExitGuard();
         configuredVehicleIds.Clear();
         ResetPlayerVehicleSnapshot();
         dealerReady = false;
@@ -219,6 +247,8 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         privateDriverReady = false;
         privateDriverRegistrationAllowed = false;
         privateDriverPreparationExceptionLogged = false;
+        nativeCarSleepConfig = null;
+        nativeCarSleepConfigUnavailableLogged = false;
     }
 
     private void HandleGameEvent(string eventName)
@@ -257,6 +287,172 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         if (powertrainReadinessCoroutine != null)
             StopCoroutine(powertrainReadinessCoroutine);
         powertrainReadinessCoroutine = StartCoroutine(EnsurePowertrainReadyAfterEntry(vehicle));
+    }
+
+    private void HandleVehicleExited(VehicleController vehicle)
+    {
+        if (!IsTargetVehicle(vehicle))
+            return;
+
+        StopPlayerExitRecovery();
+        exitedPlayerRecoveryCoroutine = StartCoroutine(RecoverPlayerNavMeshAfterExit(vehicle));
+    }
+
+    private void StopPlayerExitRecovery()
+    {
+        if (exitedPlayerRecoveryCoroutine != null)
+            StopCoroutine(exitedPlayerRecoveryCoroutine);
+        exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private IEnumerator RecoverPlayerNavMeshAfterExit(VehicleController exitedVehicle)
+    {
+        // Native exit first completes its animation and transfers input. Check
+        // once afterwards instead of changing every normal, successful exit.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        var root = PlayerHelper.PlayerController?.transform;
+        if (root == null)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        Physics.SyncTransforms();
+        var agents = root.GetComponentsInChildren<NavMeshAgent>(true);
+        var anyAgentOffNavMesh = false;
+        foreach (var agent in agents)
+            anyAgentOffNavMesh |= agent != null && agent.enabled && !agent.isOnNavMesh;
+
+        var initialExitClear = IsPlayerExitClear(root, root.position);
+        var needsRecovery = anyAgentOffNavMesh || !initialExitClear;
+        CadillacEscaladeDiagnostics.PlayerExitInfo(
+            context,
+            $"CadillacEscalade player-exit: deferred validation vehicle={exitedVehicle.GetInstanceID()}, " +
+            $"playerPosition={root.position}, agentCount={agents.Length}, " +
+            $"anyAgentOffNavMesh={anyAgentOffNavMesh}, initialClear={initialExitClear}, " +
+            $"needsRecovery={needsRecovery}.");
+        if (!needsRecovery)
+        {
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        if (!TryFindClearExitPosition(root, exitedVehicle, out var target))
+        {
+            CadillacEscaladeDiagnostics.PlayerExitInfo(
+                context,
+                $"CadillacEscalade player-exit: recovery failed vehicle={exitedVehicle.GetInstanceID()}; " +
+                "no NavMesh/capsule-clear candidate was found.");
+            exitedPlayerRecoveryCoroutine = null;
+            yield break;
+        }
+
+        var characterControllers = root.GetComponentsInChildren<CharacterController>(true);
+        var controllerStates = Array.ConvertAll(
+            characterControllers,
+            controller => controller != null && controller.enabled);
+        var agentStates = Array.ConvertAll(agents, agent => agent != null && agent.enabled);
+        try
+        {
+            foreach (var controller in characterControllers)
+            {
+                if (controller != null)
+                    controller.enabled = false;
+            }
+            foreach (var agent in agents)
+            {
+                if (agent != null)
+                    agent.enabled = false;
+            }
+
+            root.position = target;
+            Physics.SyncTransforms();
+        }
+        finally
+        {
+            for (var index = 0; index < agents.Length; index++)
+            {
+                var agent = agents[index];
+                if (agent == null)
+                    continue;
+
+                agent.enabled = agentStates[index];
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Warp(target);
+                    agent.ResetPath();
+                }
+            }
+            for (var index = 0; index < characterControllers.Length; index++)
+            {
+                if (characterControllers[index] != null)
+                    characterControllers[index].enabled = controllerStates[index];
+            }
+
+            Physics.SyncTransforms();
+        }
+
+        CadillacEscaladeDiagnostics.PlayerExitInfo(
+            context,
+            $"CadillacEscalade player-exit: recovery moved player to {target}.");
+        exitedPlayerRecoveryCoroutine = null;
+    }
+
+    private static bool TryFindClearExitPosition(
+        Transform playerRoot,
+        VehicleController exitedVehicle,
+        out Vector3 target)
+    {
+        var vehicleTransform = exitedVehicle.transform;
+        var candidates = new[]
+        {
+            playerRoot.position,
+            vehicleTransform.position - vehicleTransform.right * 2.25f,
+            vehicleTransform.position + vehicleTransform.right * 2.25f,
+            vehicleTransform.position - vehicleTransform.forward * 3.00f,
+            vehicleTransform.position + vehicleTransform.forward * 3.00f,
+            vehicleTransform.position - vehicleTransform.right * 2.25f - vehicleTransform.forward * 1.75f,
+            vehicleTransform.position + vehicleTransform.right * 2.25f - vehicleTransform.forward * 1.75f,
+            vehicleTransform.position - vehicleTransform.right * 2.55f + vehicleTransform.forward * 1.30f,
+            vehicleTransform.position + vehicleTransform.right * 2.55f + vehicleTransform.forward * 1.30f,
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!NavMesh.SamplePosition(candidate, out var hit, 1.25f, NavMesh.AllAreas))
+                continue;
+
+            var sampled = hit.position + Vector3.up * 0.05f;
+            if (!IsPlayerExitClear(playerRoot, sampled))
+                continue;
+
+            target = sampled;
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private static bool IsPlayerExitClear(Transform playerRoot, Vector3 position)
+    {
+        var overlaps = Physics.OverlapCapsule(
+            position + Vector3.up * 0.42f,
+            position + Vector3.up * 1.55f,
+            0.30f,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+        foreach (var overlap in overlaps)
+        {
+            if (overlap == null || overlap.transform.IsChildOf(playerRoot))
+                continue;
+
+            return false;
+        }
+
+        return true;
     }
 
     private bool IsTargetVehicle(VehicleController? vehicle) =>
@@ -349,6 +545,177 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         var registration = BuildingHelper.GetBuildingRegistration(address);
         if (CadillacEscaladeLuxuryDealerStock.IsTargetDealer(registration?.BusinessName))
             ScheduleInitialization("dealer-entered");
+    }
+
+    private void HandleBuildingExited(Address address)
+    {
+        if (address == null ||
+            !string.Equals(
+                BuildingHelper.GetBuilding(address)?.BuildingType,
+                "ba:buildingtype_warehouse",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var vehicle = VehicleHelper.GetCurrentVehicleBase();
+        if (vehicle == null || !vehicle.controlledByPlayer || !IsTargetVehicle(vehicle))
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                "CadillacEscalade warehouse-exit: guard skipped because the current vehicle " +
+                "is not a player-controlled Escalade.");
+            return;
+        }
+
+        var entrance = FindClosestDriveInEntrance(vehicle.transform.position, out var distance);
+        if (entrance == null || distance > WarehouseExitEntranceSearchRadius)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                $"CadillacEscalade warehouse-exit: guard skipped because no nearby drive-in " +
+                $"entrance was found; vehicle={vehicle.GetInstanceID()}, distance={distance:0.00}m.");
+            return;
+        }
+
+        StopWarehouseExitGuard();
+        foreach (var enterTrigger in entrance.GetComponentsInChildren<DriveInEntranceEnterTrigger>(true))
+        foreach (var collider in enterTrigger.GetComponents<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.isTrigger)
+                continue;
+
+            warehouseExitGuardColliders.Add(collider);
+            collider.enabled = false;
+        }
+
+        if (warehouseExitGuardColliders.Count == 0)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                $"CadillacEscalade warehouse-exit: guard skipped because entrance='{entrance.name}' " +
+                "had no enabled child entry-trigger colliders.");
+            return;
+        }
+
+        var outward = Vector3.ProjectOnPlane(
+            vehicle.transform.position - entrance.transform.position,
+            Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+            outward = Vector3.ProjectOnPlane(entrance.transform.forward, Vector3.up);
+        if (outward.sqrMagnitude < 0.0001f)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                "CadillacEscalade warehouse-exit: guard aborted because the outward direction was zero.");
+            RestoreWarehouseExitTriggers("zero-outward-direction");
+            return;
+        }
+
+        outward.Normalize();
+        var startingProjection = Vector3.Dot(vehicle.transform.position, outward);
+        var placementCollider = vehicle.GetComponent<MeshCollider>();
+        Physics.SyncTransforms();
+        CadillacEscaladeDiagnostics.WarehouseExitInfo(
+            context,
+            $"CadillacEscalade warehouse-exit: guard started vehicle={vehicle.GetInstanceID()}, " +
+            $"entrance='{entrance.name}', entranceDistance={distance:0.00}m, " +
+            $"triggerCount={warehouseExitGuardColliders.Count}, outward={outward}, " +
+            $"startProjection={startingProjection:0.000}, " +
+            $"nativeMesh='{placementCollider?.name ?? "missing"}', " +
+            $"nativeMeshLength={placementCollider?.sharedMesh?.bounds.size.z:0.000}, " +
+            $"clearDistance={WarehouseExitGuardClearDistance:0.00}m, " +
+            $"timeout={WarehouseExitGuardDuration:0.0}s.");
+        warehouseExitGuardCoroutine = StartCoroutine(GuardWarehouseExit(
+            vehicle,
+            outward,
+            startingProjection));
+    }
+
+    private IEnumerator GuardWarehouseExit(
+        VehicleController vehicle,
+        Vector3 outward,
+        float startingProjection)
+    {
+        var expiresAt = Time.unscaledTime + WarehouseExitGuardDuration;
+        var reason = "timeout";
+        while (vehicle != null && vehicle.controlledByPlayer &&
+               Time.unscaledTime < expiresAt)
+        {
+            if (Vector3.Dot(vehicle.transform.position, outward) >=
+                startingProjection + WarehouseExitGuardClearDistance)
+            {
+                reason = "moved-away";
+                break;
+            }
+
+            yield return new WaitForFixedUpdate();
+        }
+
+        if (vehicle == null)
+            reason = "vehicle-destroyed";
+        else if (!vehicle.controlledByPlayer)
+            reason = "player-left-vehicle";
+
+        CadillacEscaladeDiagnostics.WarehouseExitInfo(
+            context,
+            $"CadillacEscalade warehouse-exit: guard ending reason={reason}, " +
+            $"projection={(vehicle == null ? float.NaN : Vector3.Dot(vehicle.transform.position, outward)):0.000}, " +
+            $"startProjection={startingProjection:0.000}.");
+        RestoreWarehouseExitTriggers(reason);
+    }
+
+    private void StopWarehouseExitGuard()
+    {
+        if (warehouseExitGuardCoroutine != null)
+            StopCoroutine(warehouseExitGuardCoroutine);
+        RestoreWarehouseExitTriggers("cancelled-or-reset");
+    }
+
+    private void RestoreWarehouseExitTriggers(string reason)
+    {
+        if (warehouseExitGuardColliders.Count > 0)
+        {
+            CadillacEscaladeDiagnostics.WarehouseExitInfo(
+                context,
+                $"CadillacEscalade warehouse-exit: restoring triggerCount={warehouseExitGuardColliders.Count}, " +
+                $"reason={reason}.");
+        }
+
+        foreach (var collider in warehouseExitGuardColliders)
+        {
+            if (collider != null)
+                collider.enabled = true;
+        }
+
+        warehouseExitGuardColliders.Clear();
+        warehouseExitGuardCoroutine = null;
+        Physics.SyncTransforms();
+    }
+
+    private static DriveInEntrance? FindClosestDriveInEntrance(
+        Vector3 vehiclePosition,
+        out float distance)
+    {
+        DriveInEntrance? nearest = null;
+        var nearestDistanceSquared = float.PositiveInfinity;
+        foreach (var entrance in FindObjectsOfType<DriveInEntrance>(true))
+        {
+            if (entrance == null)
+                continue;
+
+            var distanceSquared = (entrance.transform.position - vehiclePosition).sqrMagnitude;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearest = entrance;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        distance = nearest == null
+            ? float.PositiveInfinity
+            : Mathf.Sqrt(nearestDistanceSquared);
+        return nearest;
     }
 
     private void HandleFullMenuToggle(bool isOpen)
@@ -577,6 +944,10 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
         if (!IsTargetVehicle(vehicle) || vehicle == null)
             return;
 
+        // This must run before checking vehicleInstance: developer-tool spawns
+        // can have no saved instance yet, but still need to support sleeping.
+        ConfigureSleepEnvironment(vehicle);
+
         if (vehicle.vehicleInstance == null)
         {
             ConfigurePresentationOnly(vehicle);
@@ -608,6 +979,14 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
             const int bakedPositiveWheelMeshes = 8;
             ConfigureBodyColliders(vehicle.gameObject);
             ConfigureExitMarkers(vehicle.gameObject);
+            var normalizedNavMeshObstacles = ConfigureNavMeshObstacles(vehicle.gameObject);
+            var warehouseBounds = vehicle.GetComponent<CadillacEscaladeWarehouseBoundsController>();
+            if (warehouseBounds == null)
+            {
+                warehouseBounds = vehicle.gameObject
+                    .AddComponent<CadillacEscaladeWarehouseBoundsController>();
+            }
+            warehouseBounds.Initialize();
             var powertrainConfigured = ConfigurePowertrain(vehicle.gameObject);
             var caliperController = vehicle.GetComponent<CadillacEscaladeCaliperController>();
             if (caliperController == null)
@@ -654,6 +1033,7 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 $"centerOfMass={StableCenterOfMass}, antiRoll={AntiRollBarForce:0}, " +
                 $"tireFriction={TireFrictionCircleStrength:0.00}, " +
                 $"suspensionTravel={FrontSuspensionTravel:0.00}/{RearSuspensionTravel:0.00}, " +
+                $"navMeshObstaclesNormalized={normalizedNavMeshObstacles}, " +
                 $"deformableBodyMeshes={deformableBodyMeshes}, " +
                 $"damageThreshold={DamageDecelerationThreshold / 100f:0.0}mps, " +
                 $"launchClutch={ClutchEngagementRpm:0}+{ClutchThrottleOffsetRpm:0}rpm/" +
@@ -678,6 +1058,90 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 $"CadillacEscalade: vehicle configuration failed instance={instanceId}: " +
                 $"{exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    private bool ConfigureSleepEnvironment(VehicleController vehicle)
+    {
+        try
+        {
+            var environmentField = FindField(typeof(VehicleController), "sleepEnvironment");
+            var environment = environmentField?.GetValue(vehicle);
+            if (environmentField == null || environment == null)
+                return false;
+
+            var configField = FindField(environment.GetType(), "config");
+            if (configField == null)
+                return false;
+
+            if (configField.GetValue(environment) is UnityEngine.Object currentConfig &&
+                currentConfig != null)
+            {
+                return IsCarSleepConfig(currentConfig);
+            }
+
+            var carSleepConfig = ResolveNativeCarSleepConfig();
+            if (carSleepConfig == null)
+            {
+                if (!nativeCarSleepConfigUnavailableLogged)
+                {
+                    nativeCarSleepConfigUnavailableLogged = true;
+                    context?.Logger.Warn(
+                        "CadillacEscalade: native car sleep configuration was unavailable; " +
+                        "sleeping in this vehicle will remain disabled.");
+                }
+
+                return false;
+            }
+
+            configField.SetValue(environment, carSleepConfig);
+            environmentField.SetValue(vehicle, environment);
+            CadillacEscaladeDiagnostics.Info(context,
+                $"CadillacEscalade: configured native car sleep environment " +
+                $"vehicle={vehicle.GetInstanceID()} donor=HonzaMimic.");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            if (!nativeCarSleepConfigUnavailableLogged)
+            {
+                nativeCarSleepConfigUnavailableLogged = true;
+                context?.Logger.Warn(
+                    "CadillacEscalade: could not configure the native car sleep environment: " +
+                    $"{exception.GetType().Name}: {exception.Message}");
+            }
+
+            return false;
+        }
+    }
+
+    private UnityEngine.Object? ResolveNativeCarSleepConfig()
+    {
+        if (nativeCarSleepConfig != null)
+            return nativeCarSleepConfig;
+
+        var donor = PrefabHelper.LoadPrefabAssetByName(NativeCarSleepDonorPrefabPath);
+        var donorVehicle = donor?.GetComponent<VehicleController>() ??
+                           donor?.GetComponentInChildren<VehicleController>(true);
+        if (donorVehicle == null)
+            return null;
+
+        var environmentField = FindField(typeof(VehicleController), "sleepEnvironment");
+        var donorEnvironment = environmentField?.GetValue(donorVehicle);
+        var configField = donorEnvironment == null
+            ? null
+            : FindField(donorEnvironment.GetType(), "config");
+        var candidate = configField?.GetValue(donorEnvironment) as UnityEngine.Object;
+        if (candidate == null || !IsCarSleepConfig(candidate))
+            return null;
+
+        nativeCarSleepConfig = candidate;
+        return nativeCarSleepConfig;
+    }
+
+    private static bool IsCarSleepConfig(UnityEngine.Object candidate)
+    {
+        var environmentType = GetMember(candidate, "sleepEnvironmentType");
+        return environmentType != null && Convert.ToInt32(environmentType) == 1;
     }
 
     private void ConfigurePresentationOnly(VehicleController vehicle)
@@ -780,6 +1244,93 @@ public sealed class CadillacEscaladeRuntime : MonoBehaviour
                 colliders[1].size = UpperColliderSize;
             }
         }
+    }
+
+    private static int ConfigureNavMeshObstacles(GameObject root)
+    {
+        if (!TryGetBodyColliderBounds(root.transform, out var bodyBounds))
+            return 0;
+
+        var normalized = 0;
+        foreach (var obstacle in root.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle == null || obstacle.shape != NavMeshObstacleShape.Box)
+                continue;
+
+            var obstacleTransform = obstacle.transform;
+            var scale = obstacleTransform.lossyScale;
+            if (Mathf.Abs(scale.x) < 0.0001f ||
+                Mathf.Abs(scale.y) < 0.0001f ||
+                Mathf.Abs(scale.z) < 0.0001f)
+            {
+                continue;
+            }
+
+            var rootTransform = root.transform;
+            obstacle.center = obstacleTransform.InverseTransformPoint(
+                rootTransform.TransformPoint(bodyBounds.center));
+            obstacle.size = new Vector3(
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.right) /
+                Mathf.Abs(scale.x),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.up) /
+                Mathf.Abs(scale.y),
+                ProjectBodySizeOntoAxis(bodyBounds.size, rootTransform, obstacleTransform.forward) /
+                Mathf.Abs(scale.z));
+            normalized++;
+        }
+
+        return normalized;
+    }
+
+    private static bool TryGetBodyColliderBounds(Transform root, out Bounds bounds)
+    {
+        bounds = default;
+        var found = false;
+        foreach (var child in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!string.Equals(child.name, "BodyCollider", StringComparison.Ordinal))
+                continue;
+
+            foreach (var collider in child.GetComponents<BoxCollider>())
+            {
+                if (collider == null || collider.isTrigger)
+                    continue;
+
+                var halfSize = collider.size * 0.5f;
+                for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                for (var z = -1; z <= 1; z += 2)
+                {
+                    var corner = collider.center + Vector3.Scale(
+                        halfSize,
+                        new Vector3(x, y, z));
+                    var rootCorner = root.InverseTransformPoint(
+                        collider.transform.TransformPoint(corner));
+                    if (!found)
+                    {
+                        bounds = new Bounds(rootCorner, Vector3.zero);
+                        found = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(rootCorner);
+                    }
+                }
+            }
+        }
+
+        return found;
+    }
+
+    private static float ProjectBodySizeOntoAxis(
+        Vector3 bodySize,
+        Transform root,
+        Vector3 worldAxis)
+    {
+        worldAxis.Normalize();
+        return Mathf.Abs(Vector3.Dot(worldAxis, root.right)) * bodySize.x +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.up)) * bodySize.y +
+               Mathf.Abs(Vector3.Dot(worldAxis, root.forward)) * bodySize.z;
     }
 
     private int ConfigureVisualDamage(VehicleController vehicle)

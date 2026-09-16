@@ -86,7 +86,11 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
 
 internal static class CadillacEscaladeDiagnostics
 {
+    // Release defaults. The focused guards retain their diagnostics for any
+    // future regression, but they are opt-in to keep normal play quiet.
     internal static readonly bool DebugEnabled = false;
+    internal static readonly bool WarehouseExitDebugEnabled = false;
+    internal static readonly bool PlayerExitDebugEnabled = false;
     internal static readonly bool AccelerationTelemetryDebugEnabled = false;
 
     internal static bool AccelerationTelemetryEnabled =>
@@ -101,6 +105,18 @@ internal static class CadillacEscaladeDiagnostics
     internal static void TelemetryInfo(ModContext? context, string message)
     {
         if (AccelerationTelemetryEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void WarehouseExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && WarehouseExitDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void PlayerExitInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && PlayerExitDebugEnabled)
             context?.Logger.Info(message);
     }
 }

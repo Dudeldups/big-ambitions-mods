@@ -125,7 +125,7 @@ namespace BigHax
                 return;
 
             employee.IncreaseSkill(skillName, extraGain);
-            employee.IncreaseWageFromTraining(skill, currentSkillValue);
+            employee.IncreaseWageFromTraining(extraGain);
             BigHaxLogger.Info(
                 context,
                 $"BigHax: boosted completed training for {employee.characterData.name} in {skillName} by +{extraGain:0.##} skill.");

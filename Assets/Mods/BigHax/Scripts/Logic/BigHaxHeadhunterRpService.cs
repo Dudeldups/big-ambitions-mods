@@ -3,9 +3,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
 using BigAmbitions.Characters.Skills;
 using BigAmbitions.Tags;
 using Buildings.Office.Headquarters;
+using Entities;
 using Entities.Employee.JobDemands;
 using UnityEngine;
 
@@ -13,14 +15,30 @@ namespace BigHax
 {
     internal sealed class BigHaxHeadhunterRpService
     {
+        private const string CandidateReceivedEvent = "ba:gameevent_candidatereceived";
         private const int DiagnosticCalculationLimit = 12;
+        private const int CandidateCleanupDetailLogLimit = 5;
+        private const int CandidateCleanupSummaryInterval = 100;
+
+        private static readonly FieldInfo? CandidateDemandsToIgnoreField = typeof(EmployeeInstance).GetField(
+            "DemandsToIgnore",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        private static readonly FieldInfo? PlanDemandsToIgnoreField = typeof(HeadhunterPlan).GetField(
+            "DemandsToIgnore",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
         private static bool enabled;
         private static int diagnosticCalculationCount;
         private static int diagnosticCandidateCount;
 
+        private ModContext? context;
         private BigHaxMethodDetour? candidateDemandsDetour;
+        private int candidateCleanupCheckedCount;
+        private int candidateCleanupLogCount;
+        private int candidateCleanupRemovedDemandCount;
+        private int candidateCleanupTouchedCandidateCount;
         private BigHaxMethodDetour? helperDetour;
+        private bool isSubscribed;
         private BigHaxMethodDetour? planGetterDetour;
 
         public void Initialize()
@@ -40,14 +58,16 @@ namespace BigHax
             AttachUiHooks();
         }
 
-        public void ApplyConfiguredBehavior(BigHaxSettings settings)
+        public void ApplyConfiguredBehavior(ModContext context, BigHaxSettings settings)
         {
+            this.context = context;
             var changed = enabled != settings.EnableMaximumHeadhunterRecruitmentPoints;
             enabled = settings.EnableMaximumHeadhunterRecruitmentPoints;
             if (changed)
             {
                 diagnosticCalculationCount = 0;
                 diagnosticCandidateCount = 0;
+                ResetCandidateCleanupLogCounters();
                 BigHaxLogger.Diagnostic(
                     "Headhunter RP configured: enabled=" + enabled +
                     ", override=" + BigHaxSettings.MaximumHeadhunterRecruitmentPoints +
@@ -55,6 +75,11 @@ namespace BigHax
                     ", planGetterDetour=" + (planGetterDetour?.IsApplied == true) +
                     ", candidateDemandsDetour=" + (candidateDemandsDetour?.IsApplied == true) + ".");
             }
+
+            if (enabled)
+                Subscribe();
+            else
+                Unsubscribe();
 
             AttachUiHooks();
             BigHaxHeadhunterRpUiHook.RefreshAll();
@@ -79,15 +104,18 @@ namespace BigHax
         public void Shutdown()
         {
             enabled = false;
+            Unsubscribe();
             BigHaxHeadhunterRpUiHook.RefreshAll();
             Restore(candidateDemandsDetour, "headhunter RP/candidate demand generation");
             Restore(planGetterDetour, "headhunter RP/plan getter");
             Restore(helperDetour, "headhunter RP/helper");
+            context = null;
             planGetterDetour = null;
             helperDetour = null;
             candidateDemandsDetour = null;
             diagnosticCalculationCount = 0;
             diagnosticCandidateCount = 0;
+            ResetCandidateCleanupLogCounters();
         }
 
         internal static int GetConfiguredPoints(float skill)
@@ -117,10 +145,141 @@ namespace BigHax
             return GetConfiguredPoints(plan?.HeadhunterSkillValue ?? 0f);
         }
 
+        private void Subscribe()
+        {
+            if (isSubscribed)
+                return;
+
+            GameEvent.onGameEventTriggered += HandleGameEvent;
+            isSubscribed = true;
+        }
+
+        private void Unsubscribe()
+        {
+            if (!isSubscribed)
+                return;
+
+            GameEvent.onGameEventTriggered -= HandleGameEvent;
+            isSubscribed = false;
+        }
+
+        private void HandleGameEvent(string eventId)
+        {
+            if (!enabled || eventId != CandidateReceivedEvent)
+                return;
+
+            try
+            {
+                CleanLatestCandidateDemands();
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Headhunter candidate demand cleanup", exception);
+            }
+        }
+
+        private void CleanLatestCandidateDemands()
+        {
+            var candidates = SaveGameManager.Current?.CandidateEmployeeInstances;
+            if (candidates == null || candidates.Count == 0)
+                return;
+
+            var candidate = candidates[candidates.Count - 1];
+            if (candidate?.demands == null || candidate.demands.Count == 0)
+                return;
+
+            var plan = candidate.GetAssignedHeadhunterPlan();
+            var demandsToIgnore = plan != null
+                ? GetDemandsToIgnore(plan)
+                : new List<string>();
+            var allPossibleDealBreakersExcluded = plan != null && AreAllPossibleDealBreakersExcluded(plan);
+            AddUniqueRange(demandsToIgnore, GetStringListField(CandidateDemandsToIgnoreField, candidate));
+            if (!allPossibleDealBreakersExcluded && demandsToIgnore.Count == 0)
+            {
+                BigHaxLogger.WarnOnce(
+                    context,
+                    "headhunter-candidate-cleanup-no-exclusions",
+                    "BigHax: headhunter candidate demand cleanup found no exclusions for the latest candidate.");
+                return;
+            }
+
+            var originalDemandCount = candidate.demands.Count;
+            if (allPossibleDealBreakersExcluded)
+            {
+                candidate.demands.Clear();
+            }
+            else
+            {
+                for (var index = candidate.demands.Count - 1; index >= 0; index--)
+                {
+                    if (demandsToIgnore.Contains(candidate.demands[index]))
+                        candidate.demands.RemoveAt(index);
+                }
+            }
+
+            var removedDemandCount = originalDemandCount - candidate.demands.Count;
+            candidateCleanupCheckedCount++;
+            if (removedDemandCount > 0)
+            {
+                candidateCleanupTouchedCandidateCount++;
+                candidateCleanupRemovedDemandCount += removedDemandCount;
+            }
+
+            var shouldLogDetail = candidateCleanupLogCount < CandidateCleanupDetailLogLimit;
+            var shouldLogSummary =
+                candidateCleanupCheckedCount > 0 &&
+                candidateCleanupCheckedCount % CandidateCleanupSummaryInterval == 0;
+            var shouldLog = shouldLogDetail || shouldLogSummary;
+            if (shouldLog)
+            {
+                if (shouldLogDetail)
+                    candidateCleanupLogCount++;
+
+                var prefix = shouldLogSummary && !shouldLogDetail
+                    ? "BigHax: headhunter candidate demand cleanup summary"
+                    : "BigHax: checked headhunter candidate demands";
+                BigHaxLogger.Info(
+                    context,
+                    prefix + "; removed=" + removedDemandCount +
+                    ", originalDemands=" + originalDemandCount +
+                    ", remainingDemands=" + candidate.demands.Count +
+                    ", exclusions=" + demandsToIgnore.Count +
+                    ", allPossibleDealBreakersExcluded=" + allPossibleDealBreakersExcluded +
+                    ", checkedCandidates=" + candidateCleanupCheckedCount +
+                    ", touchedCandidates=" + candidateCleanupTouchedCandidateCount +
+                    ", totalRemovedDemands=" + candidateCleanupRemovedDemandCount +
+                    ", plan=" + (plan?.id ?? "unknown") +
+                    ", skill=" + (plan?.skillRecruiting ?? candidate.GetPrimarySkill()) + ".");
+            }
+
+            if (removedDemandCount <= 0)
+                return;
+
+            SaveGameManager.Current!.hasEverUsedMods = true;
+            SaveGameManager.MarkChange();
+        }
+
+        private void ResetCandidateCleanupLogCounters()
+        {
+            candidateCleanupCheckedCount = 0;
+            candidateCleanupLogCount = 0;
+            candidateCleanupRemovedDemandCount = 0;
+            candidateCleanupTouchedCandidateCount = 0;
+        }
+
         private static List<string>? GetRandomDemandsForCandidate(HeadhunterPlan plan, float totalSkillValue)
         {
             var requiredDemandCount = JobDemandHelper.GetIdealNumberOfDemands(plan.skillRecruiting, totalSkillValue);
             var demands = new List<string>();
+            if (enabled && AreAllPossibleDealBreakersExcluded(plan))
+            {
+                LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "all possible deal-breakers excluded by hax", requiredDemandCount);
+                return demands;
+            }
+
+            var demandsToIgnore = GetDemandsToIgnore(plan);
+            var excludedDemandSlotCount = 0;
             if (requiredDemandCount == 0)
             {
                 LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "no demands required");
@@ -136,8 +295,18 @@ namespace BigHax
 
             if (skillData.HasTag(TagRef.Skilltag.forcefulltime))
             {
-                demands.Add("ba:jobdemand_fulltime");
-                requiredDemandCount--;
+                if (!TryAddDemandOrAcceptExcluded(
+                    plan,
+                    totalSkillValue,
+                    demands,
+                    demandsToIgnore,
+                    "ba:jobdemand_fulltime",
+                    "forced full-time demand",
+                    ref requiredDemandCount,
+                    ref excludedDemandSlotCount))
+                {
+                    return null;
+                }
             }
             else if (skillData.HasTag(TagRef.Skilltag.hashoursperweekdemand))
             {
@@ -154,16 +323,37 @@ namespace BigHax
                     // With the 1000-RP hax, excluding every schedule demand means
                     // this candidate simply has no schedule demand.
                     requiredDemandCount--;
+                    excludedDemandSlotCount++;
                 }
                 else if (excludePartTime)
                 {
-                    demands.Add("ba:jobdemand_fulltime");
-                    requiredDemandCount--;
+                    if (!TryAddDemandOrAcceptExcluded(
+                        plan,
+                        totalSkillValue,
+                        demands,
+                        demandsToIgnore,
+                        "ba:jobdemand_fulltime",
+                        "full-time fallback demand",
+                        ref requiredDemandCount,
+                        ref excludedDemandSlotCount))
+                    {
+                        return null;
+                    }
                 }
                 else if (excludeFullTime)
                 {
-                    demands.Add("ba:jobdemand_parttime");
-                    requiredDemandCount--;
+                    if (!TryAddDemandOrAcceptExcluded(
+                        plan,
+                        totalSkillValue,
+                        demands,
+                        demandsToIgnore,
+                        "ba:jobdemand_parttime",
+                        "part-time fallback demand",
+                        ref requiredDemandCount,
+                        ref excludedDemandSlotCount))
+                    {
+                        return null;
+                    }
                 }
                 else
                 {
@@ -174,27 +364,36 @@ namespace BigHax
                         return null;
                     }
 
-                    demands.Add(scheduleDemand);
-                    requiredDemandCount--;
+                    if (!TryAddDemandOrAcceptExcluded(
+                        plan,
+                        totalSkillValue,
+                        demands,
+                        demandsToIgnore,
+                        scheduleDemand,
+                        "schedule demand",
+                        ref requiredDemandCount,
+                        ref excludedDemandSlotCount))
+                    {
+                        return null;
+                    }
                 }
             }
 
             var jobSpecificDemand = JobDemandHelper.GetRandomJobSpecificDemandForSkill(plan.skillRecruiting);
             if (!string.IsNullOrEmpty(jobSpecificDemand))
             {
-                demands.Add(jobSpecificDemand);
-                requiredDemandCount--;
-            }
-
-            var demandsToIgnore = new List<string>();
-            if (plan.skillRecruiting == "ba:skill_hrmanager")
-                demandsToIgnore.AddRange(JobDemandHelper.HealthInsuranceDemands);
-
-            foreach (var dealBreakerType in plan.dealBreakerTypes)
-            {
-                var dealBreaker = HeadhunterHelper.GetData(dealBreakerType);
-                if (dealBreaker?.applicableJobDemands != null)
-                    demandsToIgnore.AddRange(dealBreaker.applicableJobDemands);
+                if (!TryAddDemandOrAcceptExcluded(
+                    plan,
+                    totalSkillValue,
+                    demands,
+                    demandsToIgnore,
+                    jobSpecificDemand,
+                    "job-specific demand",
+                    ref requiredDemandCount,
+                    ref excludedDemandSlotCount))
+                {
+                    return null;
+                }
             }
 
             while (requiredDemandCount > 0)
@@ -210,6 +409,7 @@ namespace BigHax
 
                     // All remaining demands were deliberately excluded. Treat that
                     // as a successful no-demand result instead of stopping recruitment.
+                    excludedDemandSlotCount += requiredDemandCount;
                     break;
                 }
 
@@ -217,13 +417,97 @@ namespace BigHax
                 requiredDemandCount--;
             }
 
+            var result = "candidate demands generated";
+            if (excludedDemandSlotCount > 0 || requiredDemandCount > 0)
+                result = "excluded demand slots accepted by hax";
+
             LogCandidateResult(
                 plan,
                 totalSkillValue,
                 requiredDemandCount,
                 demands,
-                requiredDemandCount > 0 ? "excluded demand slots accepted by hax" : "candidate demands generated");
+                result,
+                excludedDemandSlotCount);
             return demands;
+        }
+
+        private static List<string> GetDemandsToIgnore(HeadhunterPlan plan)
+        {
+            var demandsToIgnore = new List<string>();
+            AddUniqueRange(demandsToIgnore, GetStringListField(PlanDemandsToIgnoreField, plan));
+            if (plan.skillRecruiting == "ba:skill_hrmanager")
+                AddUniqueRange(demandsToIgnore, JobDemandHelper.HealthInsuranceDemands);
+
+            foreach (var dealBreakerType in plan.dealBreakerTypes)
+            {
+                var dealBreaker = HeadhunterHelper.GetData(dealBreakerType);
+                if (dealBreaker?.applicableJobDemands != null)
+                    AddUniqueRange(demandsToIgnore, dealBreaker.applicableJobDemands);
+            }
+
+            return demandsToIgnore;
+        }
+
+        private static bool AreAllPossibleDealBreakersExcluded(HeadhunterPlan plan)
+        {
+            var skillData = SkillHelper.GetData(plan.skillRecruiting);
+            var possibleDealBreakers = skillData?.possibleDealbreakers;
+            if (possibleDealBreakers == null || possibleDealBreakers.Count == 0)
+                return false;
+
+            for (var index = 0; index < possibleDealBreakers.Count; index++)
+            {
+                var dealBreakerType = possibleDealBreakers[index];
+                if (!string.IsNullOrEmpty(dealBreakerType) && !plan.dealBreakerTypes.Contains(dealBreakerType))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static IEnumerable<string>? GetStringListField(FieldInfo? field, object instance)
+        {
+            return field?.GetValue(instance) as IEnumerable<string>;
+        }
+
+        private static void AddUniqueRange(List<string> destination, IEnumerable<string>? values)
+        {
+            if (values == null)
+                return;
+
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrEmpty(value) && !destination.Contains(value))
+                    destination.Add(value);
+            }
+        }
+
+        private static bool TryAddDemandOrAcceptExcluded(
+            HeadhunterPlan plan,
+            float totalSkillValue,
+            List<string> demands,
+            List<string> demandsToIgnore,
+            string demand,
+            string source,
+            ref int requiredDemandCount,
+            ref int excludedDemandSlotCount)
+        {
+            if (!demandsToIgnore.Contains(demand))
+            {
+                demands.Add(demand);
+                requiredDemandCount--;
+                return true;
+            }
+
+            if (!enabled)
+            {
+                LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, source + " excluded; vanilla rejection");
+                return false;
+            }
+
+            requiredDemandCount--;
+            excludedDemandSlotCount++;
+            return true;
         }
 
         private static void LogCandidateResult(
@@ -231,7 +515,8 @@ namespace BigHax
             float totalSkillValue,
             int remainingDemandCount,
             List<string> demands,
-            string result)
+            string result,
+            int excludedDemandSlotCount = 0)
         {
             if (diagnosticCandidateCount >= 24)
                 return;
@@ -244,6 +529,7 @@ namespace BigHax
                 ", haxEnabled=" + enabled +
                 ", exclusions=" + plan.dealBreakerTypes.Count +
                 ", generatedDemands=" + demands.Count +
+                ", excludedDemandSlots=" + excludedDemandSlotCount +
                 ", remainingDemandSlots=" + remainingDemandCount +
                 ", result=" + result +
                 ", demands=[" + string.Join(",", demands.ToArray()) + "].");
