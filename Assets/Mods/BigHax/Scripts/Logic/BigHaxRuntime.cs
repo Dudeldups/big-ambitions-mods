@@ -227,7 +227,7 @@ namespace BigHax
                 SafeApply("customer traffic", () => TryApplyCustomerTraffic(context, settings, forceRefresh: true));
                 SafeApply("item capacities", () => itemCapacityService.ApplyConfiguredCapacities(context, settings));
                 SafeApply("loan limit", () => loanLimitService.ApplyConfiguredLimit(settings));
-                SafeApply("headhunter recruitment points", () => headhunterRpService.ApplyConfiguredBehavior(settings));
+                SafeApply("headhunter recruitment points", () => headhunterRpService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("HR manager capacity", () => hrManagerCapacityService.ApplyConfiguredBehavior(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));

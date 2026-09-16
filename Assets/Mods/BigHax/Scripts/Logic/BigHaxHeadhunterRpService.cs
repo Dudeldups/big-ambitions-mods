@@ -3,9 +3,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
 using BigAmbitions.Characters.Skills;
 using BigAmbitions.Tags;
 using Buildings.Office.Headquarters;
+using Entities;
 using Entities.Employee.JobDemands;
 using UnityEngine;
 
@@ -13,14 +15,26 @@ namespace BigHax
 {
     internal sealed class BigHaxHeadhunterRpService
     {
+        private const string CandidateReceivedEvent = "ba:gameevent_candidatereceived";
         private const int DiagnosticCalculationLimit = 12;
+        private const int CandidateCleanupLogLimit = 12;
+
+        private static readonly FieldInfo? CandidateDemandsToIgnoreField = typeof(EmployeeInstance).GetField(
+            "DemandsToIgnore",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        private static readonly FieldInfo? PlanDemandsToIgnoreField = typeof(HeadhunterPlan).GetField(
+            "DemandsToIgnore",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
         private static bool enabled;
         private static int diagnosticCalculationCount;
         private static int diagnosticCandidateCount;
 
+        private ModContext? context;
         private BigHaxMethodDetour? candidateDemandsDetour;
+        private int candidateCleanupLogCount;
         private BigHaxMethodDetour? helperDetour;
+        private bool isSubscribed;
         private BigHaxMethodDetour? planGetterDetour;
 
         public void Initialize()
@@ -40,14 +54,16 @@ namespace BigHax
             AttachUiHooks();
         }
 
-        public void ApplyConfiguredBehavior(BigHaxSettings settings)
+        public void ApplyConfiguredBehavior(ModContext context, BigHaxSettings settings)
         {
+            this.context = context;
             var changed = enabled != settings.EnableMaximumHeadhunterRecruitmentPoints;
             enabled = settings.EnableMaximumHeadhunterRecruitmentPoints;
             if (changed)
             {
                 diagnosticCalculationCount = 0;
                 diagnosticCandidateCount = 0;
+                candidateCleanupLogCount = 0;
                 BigHaxLogger.Diagnostic(
                     "Headhunter RP configured: enabled=" + enabled +
                     ", override=" + BigHaxSettings.MaximumHeadhunterRecruitmentPoints +
@@ -55,6 +71,11 @@ namespace BigHax
                     ", planGetterDetour=" + (planGetterDetour?.IsApplied == true) +
                     ", candidateDemandsDetour=" + (candidateDemandsDetour?.IsApplied == true) + ".");
             }
+
+            if (enabled)
+                Subscribe();
+            else
+                Unsubscribe();
 
             AttachUiHooks();
             BigHaxHeadhunterRpUiHook.RefreshAll();
@@ -79,15 +100,18 @@ namespace BigHax
         public void Shutdown()
         {
             enabled = false;
+            Unsubscribe();
             BigHaxHeadhunterRpUiHook.RefreshAll();
             Restore(candidateDemandsDetour, "headhunter RP/candidate demand generation");
             Restore(planGetterDetour, "headhunter RP/plan getter");
             Restore(helperDetour, "headhunter RP/helper");
+            context = null;
             planGetterDetour = null;
             helperDetour = null;
             candidateDemandsDetour = null;
             diagnosticCalculationCount = 0;
             diagnosticCandidateCount = 0;
+            candidateCleanupLogCount = 0;
         }
 
         internal static int GetConfiguredPoints(float skill)
@@ -115,6 +139,93 @@ namespace BigHax
         private static int GetAvailableDealBreakersPoints(HeadhunterPlan plan)
         {
             return GetConfiguredPoints(plan?.HeadhunterSkillValue ?? 0f);
+        }
+
+        private void Subscribe()
+        {
+            if (isSubscribed)
+                return;
+
+            GameEvent.onGameEventTriggered += HandleGameEvent;
+            isSubscribed = true;
+        }
+
+        private void Unsubscribe()
+        {
+            if (!isSubscribed)
+                return;
+
+            GameEvent.onGameEventTriggered -= HandleGameEvent;
+            isSubscribed = false;
+        }
+
+        private void HandleGameEvent(string eventId)
+        {
+            if (!enabled || eventId != CandidateReceivedEvent)
+                return;
+
+            try
+            {
+                CleanLatestCandidateDemands();
+            }
+            catch (Exception exception)
+            {
+                context?.Logger.Error(exception);
+                BigHaxLogger.DiagnosticException("Headhunter candidate demand cleanup", exception);
+            }
+        }
+
+        private void CleanLatestCandidateDemands()
+        {
+            var candidates = SaveGameManager.Current?.CandidateEmployeeInstances;
+            if (candidates == null || candidates.Count == 0)
+                return;
+
+            var candidate = candidates[candidates.Count - 1];
+            if (candidate?.demands == null || candidate.demands.Count == 0)
+                return;
+
+            var plan = candidate.GetAssignedHeadhunterPlan();
+            var demandsToIgnore = plan != null
+                ? GetDemandsToIgnore(plan)
+                : new List<string>();
+            AddUniqueRange(demandsToIgnore, GetStringListField(CandidateDemandsToIgnoreField, candidate));
+            if (demandsToIgnore.Count == 0)
+            {
+                BigHaxLogger.WarnOnce(
+                    context,
+                    "headhunter-candidate-cleanup-no-exclusions",
+                    "BigHax: headhunter candidate demand cleanup found no exclusions for the latest candidate.");
+                return;
+            }
+
+            var originalDemandCount = candidate.demands.Count;
+            for (var index = candidate.demands.Count - 1; index >= 0; index--)
+            {
+                if (demandsToIgnore.Contains(candidate.demands[index]))
+                    candidate.demands.RemoveAt(index);
+            }
+
+            var removedDemandCount = originalDemandCount - candidate.demands.Count;
+            var shouldLog = removedDemandCount > 0 || candidateCleanupLogCount < CandidateCleanupLogLimit;
+            if (shouldLog)
+            {
+                candidateCleanupLogCount++;
+                BigHaxLogger.Info(
+                    context,
+                    "BigHax: checked headhunter candidate demands; removed=" + removedDemandCount +
+                    ", originalDemands=" + originalDemandCount +
+                    ", remainingDemands=" + candidate.demands.Count +
+                    ", exclusions=" + demandsToIgnore.Count +
+                    ", plan=" + (plan?.id ?? "unknown") +
+                    ", skill=" + (plan?.skillRecruiting ?? candidate.GetPrimarySkill()) + ".");
+            }
+
+            if (removedDemandCount <= 0)
+                return;
+
+            SaveGameManager.Current!.hasEverUsedMods = true;
+            SaveGameManager.MarkChange();
         }
 
         private static List<string>? GetRandomDemandsForCandidate(HeadhunterPlan plan, float totalSkillValue)
@@ -277,17 +388,35 @@ namespace BigHax
         private static List<string> GetDemandsToIgnore(HeadhunterPlan plan)
         {
             var demandsToIgnore = new List<string>();
+            AddUniqueRange(demandsToIgnore, GetStringListField(PlanDemandsToIgnoreField, plan));
             if (plan.skillRecruiting == "ba:skill_hrmanager")
-                demandsToIgnore.AddRange(JobDemandHelper.HealthInsuranceDemands);
+                AddUniqueRange(demandsToIgnore, JobDemandHelper.HealthInsuranceDemands);
 
             foreach (var dealBreakerType in plan.dealBreakerTypes)
             {
                 var dealBreaker = HeadhunterHelper.GetData(dealBreakerType);
                 if (dealBreaker?.applicableJobDemands != null)
-                    demandsToIgnore.AddRange(dealBreaker.applicableJobDemands);
+                    AddUniqueRange(demandsToIgnore, dealBreaker.applicableJobDemands);
             }
 
             return demandsToIgnore;
+        }
+
+        private static IEnumerable<string>? GetStringListField(FieldInfo? field, object instance)
+        {
+            return field?.GetValue(instance) as IEnumerable<string>;
+        }
+
+        private static void AddUniqueRange(List<string> destination, IEnumerable<string>? values)
+        {
+            if (values == null)
+                return;
+
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrEmpty(value) && !destination.Contains(value))
+                    destination.Add(value);
+            }
         }
 
         private static bool TryAddDemandOrAcceptExcluded(
