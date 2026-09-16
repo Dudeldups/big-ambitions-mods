@@ -2,7 +2,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -121,23 +120,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         "gunstore-businesstype:itemname_gunpartscheap",
         "gunstore-businesstype:itemname_gunpartsexpensive"
     };
-
-    private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
-    private const string CheapGiftItemName = "ba:itemname_cheapgift";
-    private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
-    private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
-    private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
-    private const string BusinessLayoutSetHelperTypeName = "BusinessLayoutSets.BusinessLayoutSetHelper";
-    private const string CompetitionHelperTypeName = "Helpers.CompetitionHelper";
-    private static readonly LayoutRegistration[] RivalLayouts =
-    {
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsC1.json", "GunStoreRivalsC1.json", "GunStoreRivalsC1"),
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsA1.json", "GunStoreRivalsA1.json", "GunStoreRivalsA1"),
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsC2.json", "GunStoreRivalsC2.json", "GunStoreRivalsC2"),
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsD2.json", "GunStoreRivalsD2.json", "GunStoreRivalsD2"),
-        new("Assets/Mods/Gun Store/Layouts/GunStoreRivalsM1.json", "GunStoreRivalsM1.json", "GunStoreRivalsM1")
-    };
-    private static readonly string[] GunStoreRivalBusinessNames =
+    private static readonly string[] RetiredAiRivalBusinessNames =
     {
         "Friendly Fire Department",
         "Pew Pew Defense",
@@ -149,29 +132,17 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         "Boom Boom & Beyond",
         "Safety Third Firearms"
     };
-    private static readonly string[] GunStoreRivalLayoutNames =
-    {
-        "GunStoreRivalsC1",
-        "GunStoreRivalsC1",
-        "GunStoreRivalsA1",
-        "GunStoreRivalsA1",
-        "GunStoreRivalsC2",
-        "GunStoreRivalsD2",
-        "GunStoreRivalsM1"
-    };
-    private static readonly string[] RivalTemplateLayouts =
-    {
-        "GiftShopRivals",
-        "LiquorRivals",
-        "ElectronicsRivals",
-        "JewelryRivals"
-    };
+
+    private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
+    private const string CheapGiftItemName = "ba:itemname_cheapgift";
+    private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
+    private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
+    private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
     private readonly Dictionary<BigAmbitions.Items.Item, string[]> patchedShowcaseShelves = new();
     private readonly List<IList> patchedRecipeLists = new();
-    private readonly List<ScriptableObject> injectedAiBusinessDefaults = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
 
@@ -209,6 +180,57 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             SaveGameManager.MarkChange();
     }
 
+    internal static void RetireLegacyAiRivalsAfterGameLoaded(ModContext? context)
+    {
+        var registrations = SaveGameManager.Current?.BuildingRegistrations;
+        if (registrations == null)
+            return;
+
+        var repairedCount = 0;
+        var removedItemInstanceCount = 0;
+        foreach (var registration in registrations)
+        {
+            if (registration == null ||
+                registration.RentedByPlayer ||
+                !RetiredAiRivalBusinessNames.Contains(registration.BusinessName, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            var wasAlreadyClosed = registration.temporarilyClosed;
+            var itemInstanceCount = registration.itemInstances?.Count ?? 0;
+            var changed = !wasAlreadyClosed || itemInstanceCount > 0;
+
+            // These businesses were created by the removed AI-rival integration. Their saved
+            // fixture instances can contain a broken ShowcaseShelf visual reference; when that
+            // reference is updated, the base game's customer task loop aborts for every shop.
+            // Clear the obsolete rival fixtures before BuildingManager instantiates them. Do not
+            // call TemporarilyClose here: its game-side UI refresh is not safe this early in load.
+            registration.temporarilyClosed = true;
+            registration.itemInstances?.Clear();
+
+            if (!changed)
+                continue;
+
+            repairedCount++;
+            removedItemInstanceCount += itemInstanceCount;
+            context?.Logger.Warn(
+                $"Gun Store: quarantined legacy AI rival fixtures: name='{registration.BusinessName}', " +
+                $"address={registration.Address}, businessType='{registration.businessTypeName}', " +
+                $"businessOwnerRivalId='{registration.businessOwnerRivalId ?? "<none>"}', " +
+                $"wasAlreadyClosed={wasAlreadyClosed}, removedItemInstances={itemInstanceCount}. " +
+                "It is not player-owned; its obsolete fixtures were removed before customer simulation.");
+        }
+
+        if (repairedCount <= 0)
+            return;
+
+        SaveGameManager.MarkChange();
+        context?.Logger.Info(
+            $"Gun Store: quarantined {repairedCount} legacy AI rival business(es), removing " +
+            $"{removedItemInstanceCount} obsolete fixture instance(s). Player-owned businesses were not changed.");
+    }
+
     private static bool HasLoadedGunStoreStock(BuildingRegistration registration)
     {
         if (registration.itemInstances == null)
@@ -229,14 +251,12 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public async Task OnLoadAsync(ModContext context)
     {
+        context.Logger.Info(
+            "Gun Store city integration loaded with AI-rival and layout-cache patches disabled; " +
+            "global showcase-fixture mappings are disabled while customer navigation is repaired.");
+
         for (var i = 0; i < 6; i++)
         {
-            RegisterBundledLayout(context);
-            PatchCompetitionDefaults();
-
-            if (i == 0)
-                PatchShowcaseShelves();
-
             AddToImporter();
             PatchImportPartnerships();
             PatchConsumerGoodsWorkstation();
@@ -250,17 +270,22 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     public Task OnUnloadAsync()
     {
         RestoreConsumerGoodsWorkstation();
-        RestoreCompetitionDefaults();
         RestoreShowcaseShelves();
         RemoveFromImporter();
         return Task.CompletedTask;
     }
 
-    private void PatchShowcaseShelves()
+    private void PatchShowcaseShelves(ModContext context)
     {
+        // ShelfController stores visual mappings globally. Clear mappings left by a hot reload
+        // before registering only the base-game fixtures this mod supports.
+        foreach (var gunStoreItemName in GunStoreShelfItemNames)
+            ShelfController.UnregisterItemToShow(gunStoreItemName);
+
         if (ItemsGetter.AllItems == null)
             return;
 
+        var patchedShelfCount = 0;
         foreach (var item in ItemsGetter.AllItems)
         {
             if (!ShouldPatchShowcaseShelf(item))
@@ -283,12 +308,18 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             }
 
             item.itemsThatCanShowcase = item.itemsThatCanShowcase.Concat(missingGunStoreItems).ToArray();
+            patchedShelfCount++;
         }
+
+        context.Logger.Info(
+            $"Gun Store showcase integration registered {GunStoreShelfItemNames.Length} products on " +
+            $"{patchedShelfCount} base-game fixture catalog(s). Custom-mod fixtures were not modified.");
     }
 
     private static bool ShouldPatchShowcaseShelf(BigAmbitions.Items.Item item)
     {
-        if (item == null || item.itemsThatCanShowcase == null)
+        if (item == null || item.itemsThatCanShowcase == null ||
+            !item.itemName.StartsWith("ba:", StringComparison.Ordinal))
             return false;
 
         if (item.itemName == RoundedShelfItemName)
@@ -492,94 +523,6 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         patchedRecipeLists.Clear();
     }
 
-    private static void RegisterBundledLayout(ModContext context)
-    {
-        var bundle = AssetService.GetBundle(context.ModId, BundleKey);
-        var helperType = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(assembly => assembly.GetType(BusinessLayoutSetHelperTypeName, false))
-            .FirstOrDefault(type => type != null);
-        if (helperType == null)
-            return;
-
-        var setBusinessLayoutMethod = helperType.GetMethod(
-            "SetBusinessLayoutSynchronous",
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
-            null,
-            new[] { typeof(string) },
-            null);
-        if (setBusinessLayoutMethod == null)
-            return;
-
-        var tempDirectory = Path.Combine(Application.temporaryCachePath, "BAModLayouts", context.ModId);
-        Directory.CreateDirectory(tempDirectory);
-
-        foreach (var rivalLayout in RivalLayouts)
-        {
-            var layoutAsset = bundle.LoadAsset<TextAsset>(rivalLayout.AssetPath);
-            if (layoutAsset == null || string.IsNullOrWhiteSpace(layoutAsset.text))
-                continue;
-
-            var tempPath = Path.Combine(tempDirectory, rivalLayout.FileName);
-            File.WriteAllText(tempPath, layoutAsset.text);
-            setBusinessLayoutMethod.Invoke(null, new object[] { tempPath });
-        }
-    }
-
-    private void PatchCompetitionDefaults()
-    {
-        var helperType = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(assembly => assembly.GetType(CompetitionHelperTypeName, false))
-            .FirstOrDefault(type => type != null);
-        if (helperType == null)
-            return;
-
-        EnsureCompetitionDefaultsCacheInitialized(helperType);
-
-        EnsureInjectedAiBusinessDefaults();
-        if (injectedAiBusinessDefaults.Count == 0)
-            return;
-
-        var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-        PatchBusinessDefaultsCached(helperType.GetField("BusinessDefaultsCached", bindingFlags));
-        PatchBusinessDefaultsByType(helperType.GetField("BusinessDefaultsByType", bindingFlags));
-    }
-
-    private static void EnsureCompetitionDefaultsCacheInitialized(Type helperType)
-    {
-        const BindingFlags bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-        if (helperType.GetField("BusinessDefaultsCached", bindingFlags)?.GetValue(null) != null)
-            return;
-
-        try
-        {
-            helperType.GetMethod("FillBusinessDefaultsCacheIfNeeded", bindingFlags)?.Invoke(null, null);
-        }
-        catch
-        {
-            // The city-load retries below will patch the cache once the native data is ready.
-        }
-    }
-
-    private void EnsureInjectedAiBusinessDefaults()
-    {
-        if (injectedAiBusinessDefaults.Count > 0)
-            return;
-
-        var templates = FindAiBusinessDefaultTemplates().ToArray();
-        if (templates.Length == 0 || GunStoreRivalLayoutNames.Length == 0)
-            return;
-
-        for (var i = 0; i < GunStoreRivalBusinessNames.Length; i++)
-        {
-            var clone = UnityEngine.Object.Instantiate(templates[i % templates.Length]);
-            clone.name = GunStoreRivalBusinessNames[i].Replace(" ", string.Empty);
-            SetFieldValue(clone, "businessTypeName", GunStoreBusinessTypeName);
-            SetFieldValue(clone, "businessName", GunStoreRivalBusinessNames[i]);
-            SetFieldValue(clone, "buildingLayout", GunStoreRivalLayoutNames[i % GunStoreRivalLayoutNames.Length]);
-            injectedAiBusinessDefaults.Add(clone);
-        }
-    }
-
     private void PatchImportPartnerships()
     {
         var importPartnerships = SaveGameManager.Current?.importPartnerships;
@@ -661,247 +604,6 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         removeMethod?.Invoke(collection, new[] { value });
     }
 
-    private static IEnumerable<ScriptableObject> FindAiBusinessDefaultTemplates()
-    {
-        return Resources.FindObjectsOfTypeAll<ScriptableObject>()
-            .Where(IsAiBusinessDefaultObject)
-            .Where(scriptableObject =>
-            {
-                var businessTypeName = GetStringFieldValue(scriptableObject, "businessTypeName");
-                return !string.Equals(businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal);
-            })
-            .Where(scriptableObject =>
-            {
-                var layoutName = GetStringFieldValue(scriptableObject, "buildingLayout");
-                return layoutName != null && RivalTemplateLayouts.Contains(layoutName);
-            })
-            .OrderBy(scriptableObject =>
-            {
-                var layoutName = GetStringFieldValue(scriptableObject, "buildingLayout");
-                return Array.IndexOf(RivalTemplateLayouts, layoutName);
-            })
-            .ThenBy(scriptableObject => scriptableObject.name)
-            .GroupBy(scriptableObject => GetStringFieldValue(scriptableObject, "buildingLayout"))
-            .Select(group => group.First());
-    }
-
-    private static bool IsAiBusinessDefaultObject(ScriptableObject scriptableObject)
-    {
-        if (scriptableObject == null)
-            return false;
-
-        return HasField(scriptableObject, "businessTypeName")
-               && HasField(scriptableObject, "businessName")
-               && HasField(scriptableObject, "buildingLayout")
-               && HasField(scriptableObject, "corporationRivalId")
-               && HasField(scriptableObject, "goodsSource")
-               && HasField(scriptableObject, "schedule");
-    }
-
-    private void PatchBusinessDefaultsCached(FieldInfo? field)
-    {
-        if (field == null)
-            return;
-
-        var cachedDefaultsValue = field.GetValue(null);
-        if (cachedDefaultsValue == null)
-            return;
-
-        if (cachedDefaultsValue.GetType().IsArray)
-        {
-            field.SetValue(null, AppendUniqueValues(cachedDefaultsValue.GetType(), cachedDefaultsValue as IEnumerable));
-            return;
-        }
-
-        if (cachedDefaultsValue is not IList cachedDefaults)
-            return;
-
-        foreach (var injectedDefault in injectedAiBusinessDefaults)
-        {
-            if (!cachedDefaults.Contains(injectedDefault))
-                cachedDefaults.Add(injectedDefault);
-        }
-    }
-
-    private void PatchBusinessDefaultsByType(FieldInfo? field)
-    {
-        if (field?.GetValue(null) is not IDictionary defaultsByType)
-            return;
-
-        var existingDefaults = defaultsByType[GunStoreBusinessTypeName];
-        if (existingDefaults != null && existingDefaults.GetType().IsArray)
-        {
-            defaultsByType[GunStoreBusinessTypeName] =
-                AppendUniqueValues(existingDefaults.GetType(), existingDefaults as IEnumerable);
-            return;
-        }
-
-        if (existingDefaults is IList defaultsForType)
-        {
-            foreach (var injectedDefault in injectedAiBusinessDefaults)
-            {
-                if (!defaultsForType.Contains(injectedDefault))
-                    defaultsForType.Add(injectedDefault);
-            }
-
-            return;
-        }
-
-        var dictionaryValueType = field.FieldType.IsGenericType
-            ? field.FieldType.GetGenericArguments().LastOrDefault()
-            : null;
-        if (dictionaryValueType == null)
-            return;
-
-        defaultsByType[GunStoreBusinessTypeName] = CreateCollection(dictionaryValueType, injectedAiBusinessDefaults);
-    }
-
-    private void RestoreCompetitionDefaults()
-    {
-        var helperType = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(assembly => assembly.GetType(CompetitionHelperTypeName, false))
-            .FirstOrDefault(type => type != null);
-        if (helperType == null)
-            return;
-
-        var bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-
-        var cachedDefaultsField = helperType.GetField("BusinessDefaultsCached", bindingFlags);
-        var cachedDefaultsValue = cachedDefaultsField?.GetValue(null);
-        if (cachedDefaultsValue?.GetType().IsArray == true)
-        {
-            cachedDefaultsField!.SetValue(
-                null,
-                RemoveInjectedValues(cachedDefaultsValue.GetType(), cachedDefaultsValue as IEnumerable));
-        }
-        else if (cachedDefaultsValue is IList cachedDefaults)
-        {
-            foreach (var injectedDefault in injectedAiBusinessDefaults)
-                cachedDefaults.Remove(injectedDefault);
-        }
-
-        if (helperType.GetField("BusinessDefaultsByType", bindingFlags)?.GetValue(null) is IDictionary defaultsByType)
-        {
-            var defaultsForTypeValue = defaultsByType[GunStoreBusinessTypeName];
-            if (defaultsForTypeValue?.GetType().IsArray == true)
-            {
-                var restoredDefaults = RemoveInjectedValues(
-                    defaultsForTypeValue.GetType(),
-                    defaultsForTypeValue as IEnumerable);
-                if (restoredDefaults is Array restoredArray && restoredArray.Length > 0)
-                    defaultsByType[GunStoreBusinessTypeName] = restoredArray;
-                else
-                    defaultsByType.Remove(GunStoreBusinessTypeName);
-            }
-            else if (defaultsForTypeValue is IList defaultsForType)
-            {
-                foreach (var injectedDefault in injectedAiBusinessDefaults)
-                    defaultsForType.Remove(injectedDefault);
-
-                if (defaultsForType.Count == 0)
-                    defaultsByType.Remove(GunStoreBusinessTypeName);
-            }
-            else
-            {
-                defaultsByType.Remove(GunStoreBusinessTypeName);
-            }
-        }
-
-        foreach (var injectedDefault in injectedAiBusinessDefaults)
-            UnityEngine.Object.Destroy(injectedDefault);
-
-        injectedAiBusinessDefaults.Clear();
-    }
-
-    private object? RemoveInjectedValues(Type collectionType, IEnumerable? existingValues)
-    {
-        var remainingValues = new List<object>();
-        if (existingValues != null)
-        {
-            foreach (var value in existingValues)
-            {
-                if (value != null &&
-                    !injectedAiBusinessDefaults.Any(injectedDefault => ReferenceEquals(injectedDefault, value)))
-                {
-                    remainingValues.Add(value);
-                }
-            }
-        }
-
-        return CreateCollection(collectionType, remainingValues);
-    }
-
-    private static object? CreateCollection<T>(Type collectionType, IReadOnlyList<T> values)
-    {
-        if (collectionType.IsArray)
-        {
-            var elementType = collectionType.GetElementType();
-            if (elementType == null)
-                return null;
-
-            var array = Array.CreateInstance(elementType, values.Count);
-            for (var i = 0; i < values.Count; i++)
-                array.SetValue(values[i], i);
-
-            return array;
-        }
-
-        if (Activator.CreateInstance(collectionType) is not IList list)
-            return null;
-
-        foreach (var value in values)
-            list.Add(value);
-
-        return list;
-    }
-
-    private object? AppendUniqueValues(Type collectionType, IEnumerable? existingValues)
-    {
-        var combined = new List<object>();
-
-        if (existingValues != null)
-        {
-            foreach (var value in existingValues)
-            {
-                if (value != null)
-                    combined.Add(value);
-            }
-        }
-
-        foreach (var injectedDefault in injectedAiBusinessDefaults)
-        {
-            if (!combined.Contains(injectedDefault))
-                combined.Add(injectedDefault);
-        }
-
-        if (collectionType.IsArray)
-        {
-            var elementType = collectionType.GetElementType();
-            if (elementType == null)
-                return null;
-
-            var array = Array.CreateInstance(elementType, combined.Count);
-            for (var i = 0; i < combined.Count; i++)
-                array.SetValue(combined[i], i);
-
-            return array;
-        }
-
-        if (Activator.CreateInstance(collectionType) is not IList list)
-            return null;
-
-        foreach (var value in combined)
-            list.Add(value);
-
-        return list;
-    }
-
-    private static bool HasField(object owner, string fieldName)
-    {
-        return owner.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) !=
-               null;
-    }
-
     private static object? GetMemberValue(object owner, string memberName)
     {
         const BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -925,31 +627,4 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         }
     }
 
-    private static string? GetStringFieldValue(object owner, string fieldName)
-    {
-        return owner.GetType()
-            .GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?.GetValue(owner) as string;
-    }
-
-    private static void SetFieldValue(object owner, string fieldName, object? value)
-    {
-        owner.GetType()
-            .GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?.SetValue(owner, value);
-    }
-
-    private readonly struct LayoutRegistration
-    {
-        public LayoutRegistration(string assetPath, string fileName, string layoutName)
-        {
-            AssetPath = assetPath;
-            FileName = fileName;
-            LayoutName = layoutName;
-        }
-
-        public string AssetPath { get; }
-        public string FileName { get; }
-        public string LayoutName { get; }
-    }
 }

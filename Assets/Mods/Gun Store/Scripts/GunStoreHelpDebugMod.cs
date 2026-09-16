@@ -10,9 +10,14 @@ using System.Runtime.CompilerServices;
 using System.Text;
 #endif
 using BAModAPI;
+using BAModAPI.Services;
+using BigAmbitions.Items;
+using BigAmbitions.SaveSystem;
+using Helpers;
 using Localizor;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Rendering;
 #if GUN_STORE_HELP_UI_DEBUG
 using UnityEngine.EventSystems;
 #endif
@@ -21,11 +26,38 @@ using UnityEngine.SceneManagement;
 [DefaultExecutionOrder(10000)]
 internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 {
+    private const string GunStoreBundleKey = "AssetBundles/gunstore-businesstype.unity3d";
+    private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
+    private const string CheapGiftItemName = "ba:itemname_cheapgift";
+    private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
+    private const int GeneratedDisplayVersion = 21;
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
     private bool pendingForcedNavigationRefresh;
     private bool gameLoadedLateCallbackRegistered;
+    private bool postCitySaveRepairCompleted;
+    private Coroutine? shelfVisualRepairCoroutine;
+    private Coroutine? gunStoreVisualSetupCoroutine;
+    private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
+    private readonly Dictionary<Material, Material> displayMaterialCache = new();
+    private readonly Dictionary<Material, Material> shelfGlassMaterialCache = new();
+    private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
+        "_visualItems",
+        BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo? ShelfItemsVisualsContainerField = typeof(ShelfController).GetField(
+        "itemsVisualsContainer",
+        BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly IReadOnlyDictionary<string, string> GunStoreVisualPrefabPaths =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["gunstore-businesstype:itemname_ak47"] = "Assets/Mods/Gun Store/Prefabs/Ak47.prefab",
+            ["gunstore-businesstype:itemname_ammosmall"] = "Assets/Mods/Gun Store/Prefabs/AmmoSmall.prefab",
+            ["gunstore-businesstype:itemname_wincheatersxp"] = "Assets/Mods/Gun Store/Prefabs/WinCheaterSXP.prefab",
+            ["gunstore-businesstype:itemname_berettam9"] = "Assets/Mods/Gun Store/Prefabs/BerettaM9.prefab",
+            ["gunstore-businesstype:itemname_ammolarge"] = "Assets/Mods/Gun Store/Prefabs/AmmoLarge.prefab",
+            ["gunstore-businesstype:itemname_rpg"] = "Assets/Mods/Gun Store/Prefabs/Rpg.prefab"
+        };
 
     public static GunStoreHelpDebugRuntime Initialize(ModContext context)
     {
@@ -110,6 +142,22 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         if (pendingNavigationPatch != null)
             StopCoroutine(pendingNavigationPatch);
+
+        foreach (var material in displayMaterialCache.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+
+        displayMaterialCache.Clear();
+
+        foreach (var material in shelfGlassMaterialCache.Values)
+        {
+            if (material != null)
+                Destroy(material);
+        }
+
+        shelfGlassMaterialCache.Clear();
         Destroy(gameObject);
     }
 
@@ -120,12 +168,19 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (postCitySaveRepairCompleted)
+            StartGunStoreVisualSetup($"scene-loaded:{scene.name}:{mode}");
+
         ScheduleNavigationPatch(reason: $"scene-loaded:{scene.name}:{mode}");
     }
 
     private void HandleGameLoadedLate()
     {
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        if (postCitySaveRepairCompleted)
+            StartGunStoreVisualSetup("game-loaded-late");
+
         ScheduleNavigationPatch(forceRefresh: true, reason: "game-loaded-late");
     }
 
@@ -134,6 +189,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // Let the native Help and localization callbacks finish rebuilding their UI first.
         yield return null;
         pendingNavigationPatch = null;
+        RunPostCitySaveRepair();
         var forceRefresh = pendingForcedNavigationRefresh;
         pendingForcedNavigationRefresh = false;
 #if GUN_STORE_HELP_UI_DEBUG
@@ -153,6 +209,580 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             context?.Logger.Error(exception);
         }
     }
+
+    private void RunPostCitySaveRepair()
+    {
+        if (postCitySaveRepairCompleted || SaveGameManager.Current?.BuildingRegistrations == null)
+            return;
+
+        GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        postCitySaveRepairCompleted = true;
+        context?.Logger.Info("Gun Store: completed post-city save repair after building registrations became available.");
+
+        if (shelfVisualRepairCoroutine != null)
+            StopCoroutine(shelfVisualRepairCoroutine);
+
+        shelfVisualRepairCoroutine = StartCoroutine(RepairMalformedShelfVisuals());
+
+        StartGunStoreVisualSetup("post-city-save-repair");
+        StartCoroutine(LogGunStoreVisualDiagnostics());
+    }
+
+    private void StartGunStoreVisualSetup(string reason)
+    {
+        if (gunStoreVisualSetupCoroutine != null)
+            StopCoroutine(gunStoreVisualSetupCoroutine);
+
+        gunStoreVisualSetupCoroutine = StartCoroutine(InstallGunStoreShelfVisuals());
+        context?.Logger.Info($"Gun Store: scheduled isolated shelf-visual setup; reason='{reason}'.");
+    }
+
+    private IEnumerator RepairMalformedShelfVisuals()
+    {
+        // Affected shelf controllers can be instantiated after the city callback. Keep the
+        // fallback bounded, but cover the first half-minute when business simulation begins.
+        for (var pass = 0; pass < 6; pass++)
+        {
+            yield return pass == 0 ? null : new WaitForSeconds(5f);
+            RepairMalformedShelfVisualsInLoadedScenes();
+        }
+
+        shelfVisualRepairCoroutine = null;
+    }
+
+    private IEnumerator InstallGunStoreShelfVisuals()
+    {
+        // The game's mod showcase API replaces a template visual on every matching base-game
+        // shelf. Gun Store used the same template for several products, which left destroyed
+        // visual references in unrelated shops. Add an independent visual slot only to shelves
+        // that actually contain Gun Store stock instead.
+        for (var pass = 0; pass < 16; pass++)
+        {
+            // StartCoroutine runs until its first yield immediately. Correct shelf glass on
+            // the scene-loaded callback, before the first frame can show iridescence. Keep
+            // a next-frame pass for fixtures whose stock is assigned during scene startup.
+            if (pass == 1)
+                yield return null;
+            else if (pass > 1)
+                yield return new WaitForSeconds(2f);
+
+            var installedCount = 0;
+            foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
+            {
+                if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+                    continue;
+
+                if (TryInstallGunStoreVisualSlot(shelf, out var itemName, out var shelfName))
+                {
+                    installedCount++;
+                    context?.Logger.Info(
+                        $"Gun Store: installed isolated shelf visual: product='{itemName}', shelf='{shelfName}', " +
+                        $"position={shelf.transform.position}.");
+                }
+            }
+
+            if (installedCount > 0)
+            {
+                context?.Logger.Info(
+                    $"Gun Store: installed {installedCount} isolated shelf visual slot(s) on pass {pass + 1}. " +
+                    "No base-game showcase fixture definitions were changed.");
+            }
+        }
+
+        gunStoreVisualSetupCoroutine = null;
+    }
+
+    private bool TryInstallGunStoreVisualSlot(
+        ShelfController shelf,
+        out string itemName,
+        out string shelfName)
+    {
+        itemName = "<none>";
+        shelfName = shelf.name;
+
+        if (ShelfItemsVisualsContainerField?.GetValue(shelf) is not Transform visualsContainer)
+            return false;
+
+        var owner = shelf.GetComponentInParent<ItemController>();
+        var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
+        if (context == null || stock == null || string.IsNullOrEmpty(stock.itemName) ||
+            !GunStoreVisualPrefabPaths.TryGetValue(stock.itemName, out var prefabPath))
+            return false;
+
+        itemName = stock.itemName;
+        shelfName = owner?.Item?.itemName ?? shelf.name;
+        DisableIridescenceOnGunStoreShelfGlass(shelf, itemName);
+        var visualSlotName = itemName.GetIdWithoutType();
+        var existingVisualSlot = visualsContainer.Find(visualSlotName);
+        if (existingVisualSlot != null)
+        {
+            var existingMarker = existingVisualSlot.GetComponent<GunStoreMeshOnlyDisplayMarker>();
+            if (existingMarker != null && existingMarker.Generation == GeneratedDisplayVersion)
+                return false;
+
+            // Upgrade visual slots created by 0.1.13/0.1.14 in an already-loaded city. They
+            // have the same product name but contain the unbounded placement layout.
+            DestroyImmediate(existingVisualSlot.gameObject);
+            context.Logger.Info(
+                $"Gun Store: replaced legacy shelf display slot: product='{itemName}', shelf='{shelfName}', " +
+                $"position={shelf.transform.position}.");
+        }
+
+        // Match the exact layouts used by the original showcase registration. The first
+        // populated slot is not stable across fixtures and can be a dense gift layout.
+        var placementTemplateName = (owner?.Item?.itemName == RoundedShelfItemName
+            ? ExpensiveFlowerItemName
+            : CheapGiftItemName).GetIdWithoutType();
+        var template = visualsContainer.Cast<Transform>().FirstOrDefault(candidate =>
+            candidate.name.Equals(placementTemplateName, StringComparison.InvariantCultureIgnoreCase));
+        var visualPrefab = AssetService.GetBundle(context.ModId, GunStoreBundleKey)
+            .LoadAsset<GameObject>(prefabPath);
+        if (template == null)
+        {
+            LogGunStoreVisualSetupFailure(itemName, shelfName, "no populated base visual slot was available");
+            return false;
+        }
+
+        if (visualPrefab == null)
+        {
+            LogGunStoreVisualSetupFailure(itemName, shelfName, $"visual prefab '{prefabPath}' was not found in the Gun Store bundle");
+            return false;
+        }
+
+        if (template.childCount == 0)
+        {
+            LogGunStoreVisualSetupFailure(itemName, shelfName, "the base visual slot has no child placement transforms");
+            return false;
+        }
+
+        var visualSlot = Instantiate(template, visualsContainer);
+        visualSlot.name = visualSlotName;
+        visualSlot.gameObject.AddComponent<GunStoreMeshOnlyDisplayMarker>().Generation = GeneratedDisplayVersion;
+        for (var index = visualSlot.childCount - 1; index >= 0; index--)
+            DestroyImmediate(visualSlot.GetChild(index).gameObject);
+
+        var displayCount = 0;
+        var meshCount = 0;
+        foreach (var placement in template.Cast<Transform>())
+        {
+            var displayVisual = new GameObject(visualPrefab.name + " Display");
+            displayVisual.transform.SetParent(visualSlot, false);
+            displayVisual.transform.SetPositionAndRotation(placement.position, placement.rotation);
+            meshCount += CopyDisplayMeshHierarchy(visualPrefab.transform, displayVisual.transform);
+            displayCount++;
+        }
+
+        if (meshCount == 0)
+        {
+            Destroy(visualSlot.gameObject);
+            LogGunStoreVisualSetupFailure(itemName, shelfName, "the product prefab contains no static display meshes");
+            return false;
+        }
+
+        // Never instantiate the product prefab itself here. It has an ItemController, and Awake
+        // registers cargo and interaction overlays before a later Disable can run. Mesh-only
+        // copies keep the display visual separate from product gameplay state.
+        shelf.ShowItemVisuals(itemName, showDefault: false);
+        shelf.UpdateVisuals();
+        context.Logger.Info(
+            $"Gun Store: installed mesh-only shelf display: product='{itemName}', shelf='{shelfName}', " +
+            $"template='{template.name}', displayCount={displayCount}, meshCount={meshCount}, " +
+            $"position={shelf.transform.position}.");
+        return true;
+    }
+
+    private void DisableIridescenceOnGunStoreShelfGlass(ShelfController shelf, string itemName)
+    {
+        // RoundedShelf's fixture mesh has M_GlassTransparent_01 as a submaterial. The game
+        // asset enables full-strength HDRP iridescence on that glass, producing the colored
+        // view-angle-dependent polygons even when the shelf contains no display items.
+        // Change only this stocked fixture's renderer; never mutate the game's shared asset.
+        var fixtureRenderer = shelf.GetComponent<MeshRenderer>();
+        if (fixtureRenderer == null)
+            return;
+
+        var materials = fixtureRenderer.sharedMaterials;
+        var changed = false;
+        for (var index = 0; index < materials.Length; index++)
+        {
+            var source = materials[index];
+            if (source == null || !source.name.StartsWith("M_GlassTransparent", StringComparison.Ordinal) ||
+                !source.IsKeywordEnabled("_MATERIAL_FEATURE_IRIDESCENCE") ||
+                !source.HasProperty("_IridescenceMask") ||
+                source.GetFloat("_IridescenceMask") <= 0f)
+            {
+                continue;
+            }
+
+            if (!shelfGlassMaterialCache.TryGetValue(source, out var corrected))
+            {
+                corrected = new Material(source)
+                {
+                    name = source.name + " (Gun Store non-iridescent glass)",
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+                // Keep the original transparent HDRP shader variant and material type.
+                // Unity specifies a zero mask as the supported way to disable only the
+                // angle-dependent iridescence contribution.
+                corrected.SetFloat("_IridescenceMask", 0f);
+                shelfGlassMaterialCache.Add(source, corrected);
+                context?.Logger.Info(
+                    $"Gun Store: prepared non-iridescent shelf glass: source='{source.name}', " +
+                    $"shader='{source.shader?.name ?? "<missing>"}', " +
+                    $"sourceMaterialID={(source.HasProperty("_MaterialID") ? source.GetFloat("_MaterialID").ToString() : "<missing>")}, " +
+                    $"sourceIridescenceMask={(source.HasProperty("_IridescenceMask") ? source.GetFloat("_IridescenceMask").ToString() : "<missing>")}, " +
+                    $"surfaceType={(source.HasProperty("_SurfaceType") ? source.GetFloat("_SurfaceType").ToString() : "<missing>")}. ");
+            }
+
+            materials[index] = corrected;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        fixtureRenderer.sharedMaterials = materials;
+        context?.Logger.Info(
+            $"Gun Store: disabled iridescence on stocked shelf glass: product='{itemName}', " +
+            $"shelf='{shelf.name}', position={shelf.transform.position}. " +
+            "The original fixture material and all other stores are unchanged.");
+    }
+
+    private int CopyDisplayMeshHierarchy(Transform source, Transform destination)
+    {
+        var copiedMeshCount = 0;
+        var sourceFilter = source.GetComponent<MeshFilter>();
+        var sourceRenderer = source.GetComponent<MeshRenderer>();
+        if (sourceFilter?.sharedMesh != null && sourceRenderer != null)
+        {
+            var destinationFilter = destination.gameObject.AddComponent<MeshFilter>();
+            destinationFilter.sharedMesh = sourceFilter.sharedMesh;
+
+            var destinationRenderer = destination.gameObject.AddComponent<MeshRenderer>();
+            destinationRenderer.sharedMaterials = sourceRenderer.sharedMaterials
+                .Select(GetCompatibleDisplayMaterial)
+                .ToArray();
+            destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+            destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
+            destinationRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
+            destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+            copiedMeshCount++;
+        }
+
+        foreach (var sourceChild in source.Cast<Transform>())
+        {
+            var destinationChild = new GameObject(sourceChild.name).transform;
+            destinationChild.SetParent(destination, false);
+            destinationChild.localPosition = sourceChild.localPosition;
+            destinationChild.localRotation = sourceChild.localRotation;
+            destinationChild.localScale = sourceChild.localScale;
+            copiedMeshCount += CopyDisplayMeshHierarchy(sourceChild, destinationChild);
+        }
+
+        return copiedMeshCount;
+    }
+
+    private Material? GetCompatibleDisplayMaterial(Material? sourceMaterial)
+    {
+        if (sourceMaterial == null)
+            return null;
+
+        if (displayMaterialCache.TryGetValue(sourceMaterial, out var cachedMaterial))
+            return cachedMaterial;
+
+        var hdrpLit = Shader.Find("HDRP/Lit") ??
+                      Shader.Find("High Definition Render Pipeline/Lit");
+        if (hdrpLit == null)
+        {
+            var failureKey = $"missing-hdrp-lit:{sourceMaterial.name}";
+            if (loggedGunStoreVisualSetupFailures.Add(failureKey))
+            {
+                context?.Logger.Warn(
+                    $"Gun Store: cannot remap display material '{sourceMaterial.name}' because the HDRP/Lit shader was not found.");
+            }
+
+            return sourceMaterial;
+        }
+
+        var sourceShaderName = sourceMaterial.shader?.name ?? "<missing>";
+        var baseColor = GetMaterialColor(
+            sourceMaterial,
+            Color.white,
+            "baseColorFactor",
+            "_BaseColor",
+            "_Color");
+        baseColor.a = 1f;
+
+        var baseTextureProperty = FirstTextureProperty(
+            sourceMaterial,
+            "baseColorTexture",
+            "_BaseColorMap",
+            "_MainTex");
+        var baseTexture = baseTextureProperty == null
+            ? null
+            : sourceMaterial.GetTexture(baseTextureProperty);
+        var baseTextureScale = baseTextureProperty == null
+            ? Vector2.one
+            : sourceMaterial.GetTextureScale(baseTextureProperty);
+        var baseTextureOffset = baseTextureProperty == null
+            ? Vector2.zero
+            : sourceMaterial.GetTextureOffset(baseTextureProperty);
+
+        var normalTextureProperty = FirstTextureProperty(
+            sourceMaterial,
+            "normalTexture",
+            "_NormalMap",
+            "_BumpMap");
+        var normalTexture = normalTextureProperty == null
+            ? null
+            : sourceMaterial.GetTexture(normalTextureProperty);
+        var normalScale = GetMaterialFloat(
+            sourceMaterial,
+            1f,
+            "normalTexture_scale",
+            "normalScale",
+            "_NormalScale");
+        var metallic = GetMaterialFloat(sourceMaterial, 0f, "metallicFactor", "_Metallic");
+        var roughness = GetMaterialFloat(sourceMaterial, 1f, "roughnessFactor");
+        var smoothness = 1f - Mathf.Clamp01(roughness);
+
+        var compatibleMaterial = new Material(hdrpLit)
+        {
+            name = sourceMaterial.name + " (Gun Store HDRP Display)",
+            hideFlags = HideFlags.HideAndDontSave,
+            renderQueue = (int)RenderQueue.Geometry
+        };
+        SetMaterialColor(compatibleMaterial, "_BaseColor", baseColor);
+        SetMaterialTexture(
+            compatibleMaterial,
+            "_BaseColorMap",
+            baseTexture,
+            baseTextureScale,
+            baseTextureOffset);
+        SetMaterialTexture(
+            compatibleMaterial,
+            "_NormalMap",
+            normalTexture,
+            Vector2.one,
+            Vector2.zero);
+        SetMaterialFloat(compatibleMaterial, "_NormalScale", normalScale);
+        SetMaterialFloat(compatibleMaterial, "_Metallic", metallic);
+        SetMaterialFloat(compatibleMaterial, "_Smoothness", smoothness);
+        SetMaterialFloat(compatibleMaterial, "_SurfaceType", 0f);
+        SetMaterialFloat(compatibleMaterial, "_AlphaCutoffEnable", 0f);
+        SetMaterialFloat(compatibleMaterial, "_SupportDecals", 0f);
+        SetMaterialFloat(compatibleMaterial, "_ReceivesSSR", 0f);
+        SetMaterialFloat(compatibleMaterial, "_ReceivesSSRTransparent", 0f);
+        SetMaterialFloat(compatibleMaterial, "_RefractionModel", 0f);
+        SetMaterialFloat(compatibleMaterial, "_ZWrite", 1f);
+        SetMaterialFloat(compatibleMaterial, "_SrcBlend", (float)BlendMode.One);
+        SetMaterialFloat(compatibleMaterial, "_DstBlend", (float)BlendMode.Zero);
+        compatibleMaterial.SetOverrideTag("RenderType", "Opaque");
+        compatibleMaterial.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        compatibleMaterial.DisableKeyword("_ALPHATEST_ON");
+        compatibleMaterial.EnableKeyword("_DISABLE_DECALS");
+        compatibleMaterial.EnableKeyword("_DISABLE_SSR");
+        compatibleMaterial.EnableKeyword("_DISABLE_SSR_TRANSPARENT");
+        if (normalTexture != null)
+            compatibleMaterial.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
+
+        displayMaterialCache[sourceMaterial] = compatibleMaterial;
+        context?.Logger.Info(
+            $"Gun Store: remapped display material: source='{sourceMaterial.name}', " +
+            $"sourceShader='{sourceShaderName}', targetShader='{hdrpLit.name}', " +
+            $"baseColor={baseColor}, metallic={metallic:0.###}, smoothness={smoothness:0.###}, " +
+            $"baseTexture='{baseTexture?.name ?? "<none>"}'.");
+        return compatibleMaterial;
+    }
+
+    private static string? FirstTextureProperty(Material material, params string[] properties)
+    {
+        return properties.FirstOrDefault(property =>
+            material.HasProperty(property) && material.GetTexture(property) != null);
+    }
+
+    private static Color GetMaterialColor(
+        Material material,
+        Color fallback,
+        params string[] properties)
+    {
+        foreach (var property in properties)
+        {
+            if (material.HasProperty(property))
+                return material.GetColor(property);
+        }
+
+        return fallback;
+    }
+
+    private static float GetMaterialFloat(
+        Material material,
+        float fallback,
+        params string[] properties)
+    {
+        foreach (var property in properties)
+        {
+            if (material.HasProperty(property))
+                return material.GetFloat(property);
+        }
+
+        return fallback;
+    }
+
+    private static void SetMaterialColor(Material material, string property, Color value)
+    {
+        if (material.HasProperty(property))
+            material.SetColor(property, value);
+    }
+
+    private static void SetMaterialFloat(Material material, string property, float value)
+    {
+        if (material.HasProperty(property))
+            material.SetFloat(property, value);
+    }
+
+    private static void SetMaterialTexture(
+        Material material,
+        string property,
+        Texture? texture,
+        Vector2 scale,
+        Vector2 offset)
+    {
+        if (!material.HasProperty(property))
+            return;
+
+        material.SetTexture(property, texture);
+        material.SetTextureScale(property, scale);
+        material.SetTextureOffset(property, offset);
+    }
+
+    private IEnumerator LogGunStoreVisualDiagnostics()
+    {
+        // The shelf instances become available asynchronously. Inspect once after the bounded
+        // visual setup window rather than logging inside an update loop.
+        yield return new WaitForSeconds(32f);
+
+        if (context == null)
+            yield break;
+
+        var sourceMeshes = new HashSet<Mesh>();
+        var bundle = AssetService.GetBundle(context.ModId, GunStoreBundleKey);
+        foreach (var prefabPath in GunStoreVisualPrefabPaths.Values)
+        {
+            var prefab = bundle.LoadAsset<GameObject>(prefabPath);
+            if (prefab == null)
+                continue;
+
+            foreach (var meshFilter in prefab.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (meshFilter.sharedMesh != null)
+                    sourceMeshes.Add(meshFilter.sharedMesh);
+            }
+        }
+
+        var generatedMeshCount = 0;
+        var orphanMeshCount = 0;
+        var orphanDescriptions = new List<string>();
+        foreach (var meshFilter in Resources.FindObjectsOfTypeAll<MeshFilter>())
+        {
+            if (meshFilter == null || !meshFilter.gameObject.scene.IsValid() ||
+                !meshFilter.gameObject.scene.isLoaded || !sourceMeshes.Contains(meshFilter.sharedMesh))
+            {
+                continue;
+            }
+
+            if (meshFilter.GetComponentInParent<GunStoreMeshOnlyDisplayMarker>() != null)
+            {
+                generatedMeshCount++;
+                continue;
+            }
+
+            orphanMeshCount++;
+            if (orphanDescriptions.Count < 8)
+            {
+                orphanDescriptions.Add(
+                    $"mesh='{meshFilter.sharedMesh.name}', object='{meshFilter.name}', parent='{meshFilter.transform.parent?.name ?? "<none>"}', " +
+                    $"position={meshFilter.transform.position}");
+            }
+        }
+
+        context.Logger.Info(
+            $"Gun Store display diagnostic: generatedGunMeshes={generatedMeshCount}, orphanGunMeshes={orphanMeshCount}. " +
+            $"Orphans={string.Join(" | ", orphanDescriptions)}");
+
+        var matchingShelfStates = new List<string>();
+        foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
+        {
+            if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+                continue;
+
+            var owner = shelf.GetComponentInParent<ItemController>();
+            var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
+            if (stock == null || string.IsNullOrEmpty(stock.itemName) ||
+                !GunStoreVisualPrefabPaths.ContainsKey(stock.itemName))
+            {
+                continue;
+            }
+
+            var visualsContainer = ShelfItemsVisualsContainerField?.GetValue(shelf) as Transform;
+            var slotName = stock.itemName.GetIdWithoutType();
+            var existingSlot = visualsContainer?.Find(slotName);
+            matchingShelfStates.Add(
+                $"stock='{stock.itemName}', fixture='{owner?.Item?.itemName ?? shelf.name}', " +
+                $"container={(visualsContainer != null)}, slot={(existingSlot != null)}, " +
+                $"markerGeneration={existingSlot?.GetComponent<GunStoreMeshOnlyDisplayMarker>()?.Generation.ToString() ?? "<none>"}, " +
+                $"position={shelf.transform.position}");
+        }
+
+        context.Logger.Info(
+            $"Gun Store shelf-state diagnostic: matchingShelves={matchingShelfStates.Count}. " +
+            $"States={string.Join(" | ", matchingShelfStates.Take(20))}");
+    }
+
+    private void LogGunStoreVisualSetupFailure(string itemName, string shelfName, string reason)
+    {
+        var key = $"{itemName}|{shelfName}|{reason}";
+        if (loggedGunStoreVisualSetupFailures.Add(key))
+        {
+            context?.Logger.Warn(
+                $"Gun Store: could not install isolated shelf visual: product='{itemName}', shelf='{shelfName}', reason={reason}.");
+        }
+    }
+
+    private void RepairMalformedShelfVisualsInLoadedScenes()
+    {
+        if (ShelfVisualItemsField == null)
+            return;
+
+        foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
+        {
+            if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded ||
+                ShelfVisualItemsField.GetValue(shelf) is not GameObject[] visualItems ||
+                !visualItems.Any(visualItem => visualItem == null))
+            {
+                continue;
+            }
+
+            var repairedVisualItems = visualItems.Where(visualItem => visualItem != null).ToArray();
+            ShelfVisualItemsField.SetValue(shelf, repairedVisualItems);
+
+            var owner = shelf.GetComponentInParent<ItemController>();
+            var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
+            context?.Logger.Warn(
+                $"Gun Store: repaired malformed shelf visuals: shelf='{owner?.Item?.itemName ?? shelf.name}', " +
+                $"stock='{stock?.itemName ?? "<none>"}', position={shelf.transform.position}, " +
+                $"removedNullVisuals={visualItems.Length - repairedVisualItems.Length}. " +
+                "This prevents the base game ShelfController from aborting customer purchases.");
+        }
+    }
+}
+
+// Runtime-only marker that makes the one-time shelf-display migration idempotent across scene
+// reloads while still allowing a newer implementation to replace older generated slots.
+internal sealed class GunStoreMeshOnlyDisplayMarker : MonoBehaviour
+{
+    public int Generation;
 }
 
 internal enum GunStoreHelpNavigationPatchResult
