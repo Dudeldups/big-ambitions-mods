@@ -121,6 +121,8 @@ namespace BigHax
         {
             var requiredDemandCount = JobDemandHelper.GetIdealNumberOfDemands(plan.skillRecruiting, totalSkillValue);
             var demands = new List<string>();
+            var demandsToIgnore = GetDemandsToIgnore(plan);
+            var excludedDemandSlotCount = 0;
             if (requiredDemandCount == 0)
             {
                 LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, "no demands required");
@@ -136,8 +138,18 @@ namespace BigHax
 
             if (skillData.HasTag(TagRef.Skilltag.forcefulltime))
             {
-                demands.Add("ba:jobdemand_fulltime");
-                requiredDemandCount--;
+                if (!TryAddDemandOrAcceptExcluded(
+                    plan,
+                    totalSkillValue,
+                    demands,
+                    demandsToIgnore,
+                    "ba:jobdemand_fulltime",
+                    "forced full-time demand",
+                    ref requiredDemandCount,
+                    ref excludedDemandSlotCount))
+                {
+                    return null;
+                }
             }
             else if (skillData.HasTag(TagRef.Skilltag.hashoursperweekdemand))
             {
@@ -154,16 +166,37 @@ namespace BigHax
                     // With the 1000-RP hax, excluding every schedule demand means
                     // this candidate simply has no schedule demand.
                     requiredDemandCount--;
+                    excludedDemandSlotCount++;
                 }
                 else if (excludePartTime)
                 {
-                    demands.Add("ba:jobdemand_fulltime");
-                    requiredDemandCount--;
+                    if (!TryAddDemandOrAcceptExcluded(
+                        plan,
+                        totalSkillValue,
+                        demands,
+                        demandsToIgnore,
+                        "ba:jobdemand_fulltime",
+                        "full-time fallback demand",
+                        ref requiredDemandCount,
+                        ref excludedDemandSlotCount))
+                    {
+                        return null;
+                    }
                 }
                 else if (excludeFullTime)
                 {
-                    demands.Add("ba:jobdemand_parttime");
-                    requiredDemandCount--;
+                    if (!TryAddDemandOrAcceptExcluded(
+                        plan,
+                        totalSkillValue,
+                        demands,
+                        demandsToIgnore,
+                        "ba:jobdemand_parttime",
+                        "part-time fallback demand",
+                        ref requiredDemandCount,
+                        ref excludedDemandSlotCount))
+                    {
+                        return null;
+                    }
                 }
                 else
                 {
@@ -174,27 +207,36 @@ namespace BigHax
                         return null;
                     }
 
-                    demands.Add(scheduleDemand);
-                    requiredDemandCount--;
+                    if (!TryAddDemandOrAcceptExcluded(
+                        plan,
+                        totalSkillValue,
+                        demands,
+                        demandsToIgnore,
+                        scheduleDemand,
+                        "schedule demand",
+                        ref requiredDemandCount,
+                        ref excludedDemandSlotCount))
+                    {
+                        return null;
+                    }
                 }
             }
 
             var jobSpecificDemand = JobDemandHelper.GetRandomJobSpecificDemandForSkill(plan.skillRecruiting);
             if (!string.IsNullOrEmpty(jobSpecificDemand))
             {
-                demands.Add(jobSpecificDemand);
-                requiredDemandCount--;
-            }
-
-            var demandsToIgnore = new List<string>();
-            if (plan.skillRecruiting == "ba:skill_hrmanager")
-                demandsToIgnore.AddRange(JobDemandHelper.HealthInsuranceDemands);
-
-            foreach (var dealBreakerType in plan.dealBreakerTypes)
-            {
-                var dealBreaker = HeadhunterHelper.GetData(dealBreakerType);
-                if (dealBreaker?.applicableJobDemands != null)
-                    demandsToIgnore.AddRange(dealBreaker.applicableJobDemands);
+                if (!TryAddDemandOrAcceptExcluded(
+                    plan,
+                    totalSkillValue,
+                    demands,
+                    demandsToIgnore,
+                    jobSpecificDemand,
+                    "job-specific demand",
+                    ref requiredDemandCount,
+                    ref excludedDemandSlotCount))
+                {
+                    return null;
+                }
             }
 
             while (requiredDemandCount > 0)
@@ -210,6 +252,7 @@ namespace BigHax
 
                     // All remaining demands were deliberately excluded. Treat that
                     // as a successful no-demand result instead of stopping recruitment.
+                    excludedDemandSlotCount += requiredDemandCount;
                     break;
                 }
 
@@ -217,13 +260,62 @@ namespace BigHax
                 requiredDemandCount--;
             }
 
+            var result = "candidate demands generated";
+            if (excludedDemandSlotCount > 0 || requiredDemandCount > 0)
+                result = "excluded demand slots accepted by hax";
+
             LogCandidateResult(
                 plan,
                 totalSkillValue,
                 requiredDemandCount,
                 demands,
-                requiredDemandCount > 0 ? "excluded demand slots accepted by hax" : "candidate demands generated");
+                result,
+                excludedDemandSlotCount);
             return demands;
+        }
+
+        private static List<string> GetDemandsToIgnore(HeadhunterPlan plan)
+        {
+            var demandsToIgnore = new List<string>();
+            if (plan.skillRecruiting == "ba:skill_hrmanager")
+                demandsToIgnore.AddRange(JobDemandHelper.HealthInsuranceDemands);
+
+            foreach (var dealBreakerType in plan.dealBreakerTypes)
+            {
+                var dealBreaker = HeadhunterHelper.GetData(dealBreakerType);
+                if (dealBreaker?.applicableJobDemands != null)
+                    demandsToIgnore.AddRange(dealBreaker.applicableJobDemands);
+            }
+
+            return demandsToIgnore;
+        }
+
+        private static bool TryAddDemandOrAcceptExcluded(
+            HeadhunterPlan plan,
+            float totalSkillValue,
+            List<string> demands,
+            List<string> demandsToIgnore,
+            string demand,
+            string source,
+            ref int requiredDemandCount,
+            ref int excludedDemandSlotCount)
+        {
+            if (!demandsToIgnore.Contains(demand))
+            {
+                demands.Add(demand);
+                requiredDemandCount--;
+                return true;
+            }
+
+            if (!enabled)
+            {
+                LogCandidateResult(plan, totalSkillValue, requiredDemandCount, demands, source + " excluded; vanilla rejection");
+                return false;
+            }
+
+            requiredDemandCount--;
+            excludedDemandSlotCount++;
+            return true;
         }
 
         private static void LogCandidateResult(
@@ -231,7 +323,8 @@ namespace BigHax
             float totalSkillValue,
             int remainingDemandCount,
             List<string> demands,
-            string result)
+            string result,
+            int excludedDemandSlotCount = 0)
         {
             if (diagnosticCandidateCount >= 24)
                 return;
@@ -244,6 +337,7 @@ namespace BigHax
                 ", haxEnabled=" + enabled +
                 ", exclusions=" + plan.dealBreakerTypes.Count +
                 ", generatedDemands=" + demands.Count +
+                ", excludedDemandSlots=" + excludedDemandSlotCount +
                 ", remainingDemandSlots=" + remainingDemandCount +
                 ", result=" + result +
                 ", demands=[" + string.Join(",", demands.ToArray()) + "].");
