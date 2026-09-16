@@ -1,0 +1,54 @@
+from pathlib import Path
+import os
+import runpy
+import shutil
+import subprocess
+
+REPO = Path(__file__).resolve().parents[1]
+TOOLS = REPO / "tools"
+MOD = REPO / "Assets/Mods/Volkswagen_Amarok"
+MODELS = MOD / "Models"
+
+runpy.run_path(str(TOOLS / "generate_volkswagen_amarok.py"), run_name="__main__")
+runpy.run_path(str(TOOLS / "finalize_volkswagen_amarok.py"), run_name="__main__")
+
+model = MODELS / "2017_volkswagen_amarok_v6.glb"
+blend = MODELS / "VolkswagenAmarokLightOverlays.blend"
+overlays = MODELS / "AmarokLightOverlays.glb"
+missing = [str(path) for path in (model, blend) if not path.exists()]
+if missing:
+    raise SystemExit(
+        "Volkswagen Amarok source was generated, but the supplied binary source assets still need "
+        "to be copied into Assets/Mods/Volkswagen_Amarok/Models:\n- " + "\n- ".join(missing)
+    )
+
+def find_blender():
+    configured = os.environ.get("BLENDER_PATH")
+    if configured and Path(configured).is_file():
+        return configured
+    found = shutil.which("blender")
+    if found:
+        return found
+    root = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Blender Foundation"
+    candidates = sorted(root.glob("Blender */blender.exe")) if root.exists() else []
+    return str(candidates[-1]) if candidates else None
+
+blender = find_blender()
+if not blender:
+    raise SystemExit(
+        "Amarok source and model are ready, but Blender was not found. Set BLENDER_PATH to blender.exe "
+        "and run this script again so AmarokLightOverlays.glb can be generated."
+    )
+
+needs_export = (not overlays.exists() or overlays.stat().st_mtime < blend.stat().st_mtime or
+                overlays.stat().st_mtime < (TOOLS / "export_volkswagen_amarok_lights.py").stat().st_mtime)
+if needs_export:
+    subprocess.run([
+        blender,
+        "--background", str(blend),
+        "--python", str(TOOLS / "export_volkswagen_amarok_lights.py"),
+        "--", str(overlays),
+    ], check=True)
+
+print("Volkswagen Amarok source is ready for Unity.")
+print("In Unity run: Big Ambitions Mods > Setup Volkswagen Amarok")
