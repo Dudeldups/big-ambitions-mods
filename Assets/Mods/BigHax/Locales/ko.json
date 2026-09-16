@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "차량 피해 없음",
   "bighax_infinite_vehicle_fuel_label": "무한 차량 연료",
   "bighax_never_dirty_vehicles_label": "차량이 더러워지지 않음",
+  "bighax_disable_traffic_label": "AI 차량 교통 비활성화",
+  "bighax_disable_parked_cars_label": "주차된 차량 비활성화",
   "bighax_category_unlock": "잠금 해제 핵",
   "bighax_unlock_all_contacts_button": "모든 연락처 잠금 해제",
   "bighax_unlock_all_courses_button": "모든 과정 잠금 해제",

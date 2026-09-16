@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Fără daune la vehicul",
   "bighax_infinite_vehicle_fuel_label": "Combustibil infinit pentru vehicul",
   "bighax_never_dirty_vehicles_label": "Vehiculele nu se murdăresc niciodată",
+  "bighax_disable_traffic_label": "Dezactivează traficul vehiculelor AI",
+  "bighax_disable_parked_cars_label": "Dezactivează mașinile parcate",
   "bighax_category_unlock": "Trucuri de deblocare",
   "bighax_unlock_all_contacts_button": "Deblochează toate contactele",
   "bighax_unlock_all_courses_button": "Deblochează toate cursurile",

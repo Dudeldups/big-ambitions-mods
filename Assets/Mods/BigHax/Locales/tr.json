@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Araç hasarı yok",
   "bighax_infinite_vehicle_fuel_label": "Sonsuz araç yakıtı",
   "bighax_never_dirty_vehicles_label": "Araçlar hiç kirlenmez",
+  "bighax_disable_traffic_label": "Yapay zekâ araç trafiğini devre dışı bırak",
+  "bighax_disable_parked_cars_label": "Park etmiş araçları devre dışı bırak",
   "bighax_category_unlock": "Kilit açma hileleri",
   "bighax_unlock_all_contacts_button": "Tüm kişileri aç",
   "bighax_unlock_all_courses_button": "Tüm kursları aç",

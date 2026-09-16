@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Нет повреждений транспорта",
   "bighax_infinite_vehicle_fuel_label": "Бесконечное топливо",
   "bighax_never_dirty_vehicles_label": "Транспорт никогда не пачкается",
+  "bighax_disable_traffic_label": "Отключить движение транспорта ИИ",
+  "bighax_disable_parked_cars_label": "Отключить припаркованные автомобили",
   "bighax_category_unlock": "Хаки разблокировки",
   "bighax_unlock_all_contacts_button": "Разблокировать все контакты",
   "bighax_unlock_all_courses_button": "Разблокировать все курсы",

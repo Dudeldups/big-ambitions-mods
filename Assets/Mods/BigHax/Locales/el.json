@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Χωρίς ζημιά οχήματος",
   "bighax_infinite_vehicle_fuel_label": "Άπειρα καύσιμα οχήματος",
   "bighax_never_dirty_vehicles_label": "Τα οχήματα δεν λερώνουν ποτέ",
+  "bighax_disable_traffic_label": "Απενεργοποίηση κυκλοφορίας οχημάτων AI",
+  "bighax_disable_parked_cars_label": "Απενεργοποίηση σταθμευμένων αυτοκινήτων",
   "bighax_category_unlock": "Χακ ξεκλειδώματος",
   "bighax_unlock_all_contacts_button": "Ξεκλείδωμα όλων των επαφών",
   "bighax_unlock_all_courses_button": "Ξεκλείδωμα όλων των μαθημάτων",

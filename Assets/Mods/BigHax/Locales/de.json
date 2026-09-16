@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Kein Fahrzeugschaden",
   "bighax_infinite_vehicle_fuel_label": "Unendlicher Fahrzeugkraftstoff",
   "bighax_never_dirty_vehicles_label": "Fahrzeuge werden nie schmutzig",
+  "bighax_disable_traffic_label": "KI-Fahrzeugverkehr deaktivieren",
+  "bighax_disable_parked_cars_label": "Geparkte Autos deaktivieren",
   "bighax_category_unlock": "Freischalt-Hax",
   "bighax_unlock_all_contacts_button": "Alle Kontakte freischalten",
   "bighax_unlock_all_courses_button": "Alle Kurse freischalten",

@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Geen voertuigschade",
   "bighax_infinite_vehicle_fuel_label": "Oneindige voertuigbrandstof",
   "bighax_never_dirty_vehicles_label": "Voertuigen worden nooit vies",
+  "bighax_disable_traffic_label": "AI-voertuigverkeer uitschakelen",
+  "bighax_disable_parked_cars_label": "Geparkeerde auto's uitschakelen",
   "bighax_category_unlock": "Ontgrendel-hacks",
   "bighax_unlock_all_contacts_button": "Alle contacten ontgrendelen",
   "bighax_unlock_all_courses_button": "Alle cursussen ontgrendelen",

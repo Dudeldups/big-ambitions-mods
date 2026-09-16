@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "车辆无损坏",
   "bighax_infinite_vehicle_fuel_label": "车辆无限燃料",
   "bighax_never_dirty_vehicles_label": "车辆永不变脏",
+  "bighax_disable_traffic_label": "禁用 AI 车辆交通",
+  "bighax_disable_parked_cars_label": "禁用停放车辆",
   "bighax_category_unlock": "解锁功能",
   "bighax_unlock_all_contacts_button": "解锁所有联系人",
   "bighax_unlock_all_courses_button": "解锁所有课程",

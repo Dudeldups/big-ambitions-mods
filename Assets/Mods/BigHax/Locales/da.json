@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Ingen køretøjsskade",
   "bighax_infinite_vehicle_fuel_label": "Uendeligt køretøjsbrændstof",
   "bighax_never_dirty_vehicles_label": "Køretøjer bliver aldrig beskidte",
+  "bighax_disable_traffic_label": "Deaktiver AI-køretøjstrafik",
+  "bighax_disable_parked_cars_label": "Deaktiver parkerede biler",
   "bighax_category_unlock": "Oplåsningshacks",
   "bighax_unlock_all_contacts_button": "Lås alle kontakter op",
   "bighax_unlock_all_courses_button": "Lås alle kurser op",

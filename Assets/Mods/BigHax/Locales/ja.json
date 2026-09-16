@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "車両ダメージなし",
   "bighax_infinite_vehicle_fuel_label": "車両燃料無限",
   "bighax_never_dirty_vehicles_label": "車両が汚れない",
+  "bighax_disable_traffic_label": "AI車両交通を無効化",
+  "bighax_disable_parked_cars_label": "駐車車両を無効化",
   "bighax_category_unlock": "アンロックハック",
   "bighax_unlock_all_contacts_button": "すべての連絡先をアンロック",
   "bighax_unlock_all_courses_button": "すべてのコースをアンロック",

@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Aucun dégât au véhicule",
   "bighax_infinite_vehicle_fuel_label": "Carburant de véhicule illimité",
   "bighax_never_dirty_vehicles_label": "Véhicules toujours propres",
+  "bighax_disable_traffic_label": "Désactiver la circulation des véhicules IA",
+  "bighax_disable_parked_cars_label": "Désactiver les voitures garées",
   "bighax_category_unlock": "Hacks de déblocage",
   "bighax_unlock_all_contacts_button": "Débloquer tous les contacts",
   "bighax_unlock_all_courses_button": "Débloquer tous les cours",

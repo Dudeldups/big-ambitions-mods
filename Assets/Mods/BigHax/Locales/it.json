@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Nessun danno al veicolo",
   "bighax_infinite_vehicle_fuel_label": "Carburante veicolo infinito",
   "bighax_never_dirty_vehicles_label": "Veicoli mai sporchi",
+  "bighax_disable_traffic_label": "Disattiva traffico veicoli IA",
+  "bighax_disable_parked_cars_label": "Disattiva auto parcheggiate",
   "bighax_category_unlock": "Trucchi di sblocco",
   "bighax_unlock_all_contacts_button": "Sblocca tutti i contatti",
   "bighax_unlock_all_courses_button": "Sblocca tutti i corsi",

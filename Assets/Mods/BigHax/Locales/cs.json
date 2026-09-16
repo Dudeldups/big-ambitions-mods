@@ -35,6 +35,8 @@
   "bighax_no_vehicle_damage_label": "Žádné poškození vozidla",
   "bighax_infinite_vehicle_fuel_label": "Nekonečné palivo vozidla",
   "bighax_never_dirty_vehicles_label": "Vozidla se nikdy nezašpiní",
+  "bighax_disable_traffic_label": "Zakázat provoz vozidel AI",
+  "bighax_disable_parked_cars_label": "Zakázat zaparkovaná auta",
   "bighax_category_unlock": "Haxy pro odemykání",
   "bighax_unlock_all_contacts_button": "Odemknout všechny kontakty",
   "bighax_unlock_all_courses_button": "Odemknout všechny kurzy",
