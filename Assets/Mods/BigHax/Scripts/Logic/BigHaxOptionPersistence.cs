@@ -88,6 +88,8 @@ namespace BigHax
             settings.EnableNoVehicleDamage = LoadBool(modId, BigHaxOptionIds.EnableNoVehicleDamage, BigHaxSettings.DefaultEnableNoVehicleDamage);
             settings.EnableInfiniteVehicleFuel = LoadBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, BigHaxSettings.DefaultEnableInfiniteVehicleFuel);
             settings.EnableNeverDirtyVehicles = LoadBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, BigHaxSettings.DefaultEnableNeverDirtyVehicles);
+            settings.DisableTraffic = LoadBool(modId, BigHaxOptionIds.DisableTraffic, BigHaxSettings.DefaultDisableTraffic);
+            settings.DisableParkedCars = LoadBool(modId, BigHaxOptionIds.DisableParkedCars, BigHaxSettings.DefaultDisableParkedCars);
             settings.InstallationFirmFeePercentage = LoadSteppedInt(
                 modId,
                 BigHaxOptionIds.InstallationFirmFeePercentage,
@@ -218,6 +220,10 @@ namespace BigHax
         public static void SaveEnableInfiniteVehicleFuel(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableInfiniteVehicleFuel, value);
 
         public static void SaveEnableNeverDirtyVehicles(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.EnableNeverDirtyVehicles, value);
+
+        public static void SaveDisableTraffic(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.DisableTraffic, value);
+
+        public static void SaveDisableParkedCars(string modId, bool value) => SaveBool(modId, BigHaxOptionIds.DisableParkedCars, value);
 
         public static void SaveInstallationFirmFeePercentage(string modId, int value) => SaveInt(modId, BigHaxOptionIds.InstallationFirmFeePercentage, UnityEngine.Mathf.Clamp(value, 0, 100));
 

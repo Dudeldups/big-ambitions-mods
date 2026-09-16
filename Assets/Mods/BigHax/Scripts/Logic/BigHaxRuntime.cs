@@ -45,6 +45,7 @@ namespace BigHax
         private readonly BigHaxUpdateNoticeUi updateNoticeUi = new BigHaxUpdateNoticeUi();
         private readonly BigHaxVehicleCapacityService vehicleCapacityService = new BigHaxVehicleCapacityService();
         private readonly BigHaxVehicleConditionService vehicleConditionService = new BigHaxVehicleConditionService();
+        private readonly BigHaxTrafficService trafficService = new BigHaxTrafficService();
 
         private bool applyRequested;
         private bool sleepDurationApplyRequested;
@@ -167,6 +168,7 @@ namespace BigHax
             extendedBedSleepLabelService.Detach();
             sleepTimeAccelerationService.RestoreOriginalCurve();
             vehicleCapacityService.RestoreOriginalCapacities();
+            trafficService.Shutdown();
             updateNoticeUi.Shutdown();
             overlayUi.Shutdown();
             if (instance == this)
@@ -230,6 +232,7 @@ namespace BigHax
                 SafeApply("headhunter recruitment points", () => headhunterRpService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("HR manager capacity", () => hrManagerCapacityService.ApplyConfiguredBehavior(settings));
                 SafeApply("recruitment candidate maximum skill", () => recruitmentCandidateService.ApplyConfiguredMaximum(context, settings));
+                SafeApply("AI vehicle traffic", () => trafficService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("employee demands", () => employeeDemandService.ApplyConfiguredBehavior(context, settings));
                 SafeApply("player hax", () => playerHaxService.ApplyConfiguredBehavior(settings));
                 SafeApply("instant deliveries", () => instantDeliveryService.ApplyConfiguredBehavior(settings));
@@ -321,6 +324,7 @@ namespace BigHax
             loanLimitService.InvalidateCache();
             sleepRestDurationService.InvalidateCache();
             vehicleCapacityService.InvalidateCache();
+            trafficService.InvalidateCache();
             applyRequested = true;
         }
 
@@ -357,6 +361,7 @@ namespace BigHax
             GlobalEvents.onTimeMachineEnded += HandleTimeMachineEnded;
             instantDeliveryService.AttachUiHooks();
             headhunterRpService.AttachUiHooks();
+            SafeApply("AI vehicle traffic after game load", () => trafficService.ApplyConfiguredBehavior(context!, settings!));
             ScheduleEmployeeDemandMessageCleanup();
             if (sleepDurationApplyCoroutine == null && sleepRestDurationService.NeedsSettingsApply(settings!))
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());

@@ -250,6 +250,8 @@ namespace BigHax
             AddToggle(Localize("bighax_no_vehicle_damage_label"), () => settings.EnableNoVehicleDamage, value => { settings.EnableNoVehicleDamage = value; BigHaxOptionPersistence.SaveEnableNoVehicleDamage(context.ModId, value); });
             AddToggle(Localize("bighax_infinite_vehicle_fuel_label"), () => settings.EnableInfiniteVehicleFuel, value => { settings.EnableInfiniteVehicleFuel = value; BigHaxOptionPersistence.SaveEnableInfiniteVehicleFuel(context.ModId, value); });
             AddToggle(Localize("bighax_never_dirty_vehicles_label"), () => settings.EnableNeverDirtyVehicles, value => { settings.EnableNeverDirtyVehicles = value; BigHaxOptionPersistence.SaveEnableNeverDirtyVehicles(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_traffic_label"), () => settings.DisableTraffic, value => { settings.DisableTraffic = value; BigHaxOptionPersistence.SaveDisableTraffic(context.ModId, value); });
+            AddToggle(Localize("bighax_disable_parked_cars_label"), () => settings.DisableParkedCars, value => { settings.DisableParkedCars = value; BigHaxOptionPersistence.SaveDisableParkedCars(context.ModId, value); });
             AddSteppedSlider(Localize("bighax_freight_truck_delivery_places_label", new Dictionary<string, string> { { "vehicleName", Localize("ba:vehicletype_freighttruckt1") } }), () => settings.FreightTruckT1DeliveryPlaces, BigHaxSettings.FreightTruckT1DeliveryPlacesValues, value => { settings.FreightTruckT1DeliveryPlaces = value; BigHaxOptionPersistence.SaveFreightTruckT1DeliveryPlaces(context.ModId, value); }, value => value.ToString());
             AddSeparator();
 
@@ -360,6 +362,8 @@ namespace BigHax
                 Localize("bighax_no_vehicle_damage_label"),
                 Localize("bighax_infinite_vehicle_fuel_label"),
                 Localize("bighax_never_dirty_vehicles_label"),
+                Localize("bighax_disable_traffic_label"),
+                Localize("bighax_disable_parked_cars_label"),
                 Localize("bighax_active_vehicle_enabled_label"),
                 Localize("bighax_customer_traffic_multiplier_label"),
                 Localize("bighax_employee_training_skill_increase_label"),
