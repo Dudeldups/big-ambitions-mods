@@ -10,6 +10,7 @@ using PhysicsVehicle = NWH.VehiclePhysics2.VehicleController;
 [DefaultExecutionOrder(200)]
 internal sealed class BugattiChironAudioController : MonoBehaviour
 {
+    private const float DirectFallbackMixGain = 0.16f;
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new();
     private VehicleController? vehicle;
@@ -17,6 +18,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
     private ModContext? context;
     private EngineRunningComponent? engineSound;
     private AudioSource? native;
+    private AudioSource? sourceTemplate;
     private GameObject? audioHost;
     private AudioSource[]? layers;
     private AudioSource? idleSource;
@@ -31,6 +33,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
     private bool paused;
     private bool wasControlled;
     private bool voicesStarted;
+    private bool usesDirectFallbackMix;
     private int attempts;
     private float nextAttempt;
     private float smoothRpm;
@@ -61,7 +64,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
                 {
                     if (attempts == 20)
                         Warn(
-                            "native engine audio unavailable after 20 attempts; " +
+                            "custom audio prerequisites unavailable after 20 attempts; " +
                             $"physics={physics != null} engineSound={engineSound != null} " +
                             $"source={native != null} clip={native?.clip != null} " +
                             $"mixer={native?.outputAudioMixerGroup != null} " +
@@ -86,49 +89,52 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.clip == null || context == null)
-        {
+        if (physics == null || context == null)
             return false;
-        }
 
-        originalDistortion = engineSound!.maxDistortion;
+        var otherSource = physics.soundManager.otherSourceGO?.GetComponent<AudioSource>();
+        sourceTemplate = native ?? otherSource;
+        usesDirectFallbackMix = sourceTemplate == null ||
+                                sourceTemplate.outputAudioMixerGroup == null;
+        originalDistortion = engineSound?.maxDistortion ?? 0f;
         audioHost = new GameObject("BugattiChiron_EngineLayers");
         audioHost.transform.SetParent(vehicle.transform, false);
-        audioHost.transform.position = native.transform.position;
+        audioHost.transform.position = EnginePosition();
 
         // Retain a quiet copy of the game's idle bed for low-speed mechanical
         // texture, then hand the audible engine character to the W16 layers.
-        idleSource = CreateSource(audioHost, native.clip, true);
+        idleSource = CreateSource(
+            audioHost, native?.clip ?? LoadClip("EngineLow"), true, sourceTemplate);
         layers = new AudioSource[6];
         for (var index = 0; index < EngineNames.Length; index++)
         {
-            layers[index] = CreateSource(audioHost, LoadClip(EngineNames[index]), true);
+            layers[index] = CreateSource(audioHost, LoadClip(EngineNames[index]), true, sourceTemplate);
             layers[index + 3] =
-                CreateSource(audioHost, LoadClip(EngineNames[index] + "Load"), true);
+                CreateSource(audioHost, LoadClip(EngineNames[index] + "Load"), true, sourceTemplate);
         }
 
         turboClip = BugattiChironTurboWave.Create();
         var turboHost = new GameObject("BugattiChiron_QuadTurbo");
         turboHost.transform.SetParent(audioHost.transform, false);
-        turboSource = CreateSource(turboHost, turboClip, true);
+        turboSource = CreateSource(turboHost, turboClip, true, sourceTemplate);
         ConfigureTurboFilters(turboHost);
 
         var hornHost = new GameObject("BugattiChiron_Horn");
         hornHost.transform.SetParent(audioHost.transform, false);
-        var hornTemplate = physics!.soundManager.otherSourceGO?.GetComponent<AudioSource>();
-        if (hornTemplate == null || hornTemplate.outputAudioMixerGroup == null)
-            hornTemplate = native;
+        var hornTemplate = otherSource ?? sourceTemplate;
         hornSource = CreateSource(hornHost, LoadClip("Horn"), true, hornTemplate);
 
-        engineSound.maxDistortion = 0f;
+        if (engineSound != null)
+            engineSound.maxDistortion = 0f;
         configured = true;
         if (BugattiChironDiagnostics.DebugEnabled &&
             BugattiChironDiagnostics.AudioDebugEnabled)
         {
             context.Logger.Info(
                 $"BugattiChiron audio vehicle={vehicle.GetInstanceID()}: custom layers ready " +
-                $"nativeClip='{native.clip.name}' " +
-                $"nativeMixer='{native.outputAudioMixerGroup?.name ?? "<default output>"}'.");
+                $"source={(native != null ? "native" : sourceTemplate != null ? "auxiliary" : "direct")} " +
+                $"mixer='{sourceTemplate?.outputAudioMixerGroup?.name ?? "<default output>"}' " +
+                $"directMixGain={(usesDirectFallbackMix ? DirectFallbackMixGain : 1f):0.00}.");
         }
         return true;
     }
@@ -157,36 +163,50 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         GameObject host,
         AudioClip clip,
         bool loop,
-        AudioSource? template = null)
+        AudioSource? template)
     {
-        template ??= native!;
         var source = host.AddComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = loop;
         source.clip = clip;
         source.volume = 0f;
-        source.outputAudioMixerGroup = template.outputAudioMixerGroup;
-        source.spatialBlend = template.spatialBlend;
-        source.minDistance = template.minDistance;
-        source.maxDistance = template.maxDistance;
-        source.SetCustomCurve(
-            AudioSourceCurveType.CustomRolloff,
-            template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
-        source.rolloffMode = template.rolloffMode;
+        if (template != null)
+        {
+            source.outputAudioMixerGroup = template.outputAudioMixerGroup;
+            source.spatialBlend = template.spatialBlend;
+            source.minDistance = template.minDistance;
+            source.maxDistance = template.maxDistance;
+            source.SetCustomCurve(
+                AudioSourceCurveType.CustomRolloff,
+                template.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+            source.rolloffMode = template.rolloffMode;
+            source.priority = template.priority;
+        }
+        else
+        {
+            source.spatialBlend = 1f;
+            source.minDistance = 4f;
+            source.maxDistance = 50f;
+            source.rolloffMode = AudioRolloffMode.Logarithmic;
+            source.priority = 128;
+        }
         source.dopplerLevel = 0f;
-        source.priority = template.priority;
         return source;
     }
 
+    private Vector3 EnginePosition() => native != null
+        ? native.transform.position
+        : vehicle!.transform.TransformPoint(new Vector3(0f, 0.45f, -0.8f));
+
     private void UpdatePlayback()
     {
-        if (physics == null || native == null || layers == null || audioHost == null ||
+        if (physics == null || layers == null || audioHost == null ||
             turboSource == null || hornSource == null || idleSource == null)
         {
             throw new InvalidOperationException("Configured audio source or vehicle was removed.");
         }
 
-        audioHost.transform.position = native.transform.position;
+        audioHost.transform.position = EnginePosition();
         var exhaust = physics.soundManager.exhaustSourceGO;
         turboSource.transform.position = exhaust != null
             ? exhaust.transform.position
@@ -200,6 +220,16 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
             smoothRpm = engine.RPMPercent * engine.revLimiterRPM;
             smoothThrottle = Mathf.Clamp01(engine.ThrottlePosition);
         }
+        if (controlled != wasControlled &&
+            BugattiChironDiagnostics.DebugEnabled &&
+            BugattiChironDiagnostics.AudioDebugEnabled)
+        {
+            context?.Logger.Info(
+                $"BugattiChiron audio vehicle={vehicle.GetInstanceID()}: " +
+                $"controlled={controlled} ignition={engine.ignition} " +
+                $"running={engine.IsRunning} canRun={engine.canRun} " +
+                $"source={(native != null ? "native" : sourceTemplate != null ? "auxiliary" : "direct")}.");
+        }
         wasControlled = controlled;
 
         var shouldPause = Time.timeScale <= 0f || AudioListener.pause;
@@ -210,7 +240,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
             paused = shouldPause;
         }
 
-        if (controlled)
+        if (controlled && native != null)
         {
             if (!ownsMute)
             {
@@ -225,9 +255,10 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         }
 
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
+        var mixGain = usesDirectFallbackMix ? DirectFallbackMixGain : 1f;
         UpdateHorn(
             controlled && !paused && physics.input.Horn,
-            Mathf.Clamp01(physics.soundManager.masterVolume));
+            Mathf.Clamp01(physics.soundManager.masterVolume) * mixGain);
         if (paused)
             return;
 
@@ -248,12 +279,14 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
             BugattiChironAudioModel.DrivingBlend(rawRpm, engine.idleRPM, engine.revLimiterRPM),
             Time.deltaTime * 6f);
 
-        idleSource.pitch = BugattiChironAudioModel.IdlePitch;
+        idleSource.pitch = native?.clip != null
+            ? BugattiChironAudioModel.IdlePitch
+            : BugattiChironAudioModel.Pitch(normalized, 0);
         idleSource.volume =
-            envelope * master * BugattiChironAudioModel.IdleVolume(driveBlend);
+            envelope * master * mixGain * BugattiChironAudioModel.IdleVolume(driveBlend);
         idleSource.mute = controlled && savedMute;
 
-        var gain = envelope * master *
+        var gain = envelope * master * mixGain *
                    BugattiChironAudioModel.EngineVolume(smoothThrottle) *
                    Mathf.Sqrt(driveBlend);
         loadBlend = BugattiChironAudioModel.LoadBlend(smoothThrottle);
@@ -268,7 +301,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         }
 
         turboSource.pitch = Mathf.Lerp(0.65f, 0.95f, normalized);
-        turboSource.volume = envelope * master *
+        turboSource.volume = envelope * master * mixGain *
                              BugattiChironAudioModel.TurboVolume(normalized, smoothThrottle);
         turboSource.mute = controlled && savedMute;
 
