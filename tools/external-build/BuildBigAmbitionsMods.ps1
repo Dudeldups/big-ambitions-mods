@@ -871,7 +871,10 @@ Write-InstallLog -Plan $plan -Message ("Deferred install completed for " + $plan
 
     Set-Content -LiteralPath $scriptPath -Value $watcherScript -Encoding UTF8
     Start-Process -FilePath "powershell.exe" `
-        -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath, "-ManifestPath", $manifestPath) `
+        -ArgumentList @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", ('"' + $scriptPath + '"'),
+            "-ManifestPath", ('"' + $manifestPath + '"')) `
         -WindowStyle Hidden
 
     Write-BuildWarning ("Big Ambitions is running; queued install for after the game exits.")
