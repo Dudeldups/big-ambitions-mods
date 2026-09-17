@@ -11,7 +11,11 @@ namespace DeveloperTools
     {
         internal static readonly bool Enabled = false;
         internal static readonly bool TeleportEnabled = false;
+        internal static readonly bool TrafficEnabled = false;
+        internal static readonly bool VehicleColorEnabled = false;
         internal static bool Teleport => Enabled && TeleportEnabled;
+        internal static bool Traffic => Enabled && TrafficEnabled;
+        internal static bool VehicleColor => Enabled && VehicleColorEnabled;
     }
 
     [ModEntryOnInitializationLoad]

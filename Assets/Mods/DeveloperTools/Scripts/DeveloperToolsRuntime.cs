@@ -92,6 +92,7 @@ namespace DeveloperTools
             GlobalEvents.onExitVehicle -= HandleExitVehicle;
             GlobalEvents.onExitVehicle += HandleExitVehicle;
             vehicleDiagnostics?.HandleSceneChanged();
+            trafficService?.HandleSceneChanged();
             trafficService?.PrepareTrafficPoolCapacity();
             overlay?.Hide();
         }
@@ -136,8 +137,9 @@ namespace DeveloperTools
 
                 if (restored > 0)
                 {
-                    context?.Logger.Info(
-                        $"DeveloperTools: checked {restored} player vehicle color(s) after save load pass={pass}.");
+                    if (DeveloperToolsDiagnostics.VehicleColor)
+                        context?.Logger.Info(
+                            $"DeveloperTools: checked {restored} player vehicle color(s) after save load pass={pass}.");
                     yield break;
                 }
             }
