@@ -15,6 +15,16 @@ using Vehicles.VehicleTypes;
 
 internal static class LamborghiniRevueltoDiagnostics
 {
+    internal static bool NpcTrafficDebugEnabled { get; set; } = false;
+
+    internal static bool TrafficEnabled => DebugEnabled && NpcTrafficDebugEnabled;
+
+    internal static void TrafficInfo(string message)
+    {
+        if (DebugEnabled && NpcTrafficDebugEnabled)
+            Debug.Log(message);
+    }
+
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
 
