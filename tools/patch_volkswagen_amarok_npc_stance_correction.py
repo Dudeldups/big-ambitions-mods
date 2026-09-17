@@ -2,9 +2,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PRIVATE_DRIVER = REPO / "Assets/Mods/Volkswagen_Amarok/Scripts/VolkswagenAmarokPrivateDriverSupport.cs"
+SETUP = REPO / "Assets/Mods/Volkswagen_Amarok/Editor/VolkswagenAmarokSetup.cs"
 
-if not PRIVATE_DRIVER.is_file():
-    raise SystemExit(f"Generated Amarok private-driver source is missing: {PRIVATE_DRIVER}")
+for path in (PRIVATE_DRIVER, SETUP):
+    if not path.is_file():
+        raise SystemExit(f"Generated Amarok source is missing: {path}")
 
 text = PRIVATE_DRIVER.read_text(encoding="utf-8")
 
@@ -27,4 +29,22 @@ if "body.localPosition += new Vector3(0f, 0.040f, 0f);" not in check:
 if "body.localPosition += new Vector3(0f, 0.025f, 0f);" in check:
     raise SystemExit("Amarok NPC stance correction left the old centre offset active.")
 
+# AmarokLightSources is now intentionally parented below AmarokVisual. The model
+# body-bounds helper is used again on every feedback build, so it must ignore the
+# disabled lamp-source renderers just like it ignores wheel assemblies. Otherwise
+# a second build could measure lamp geometry as part of the body and change scale
+# or ride height again.
+setup = SETUP.read_text(encoding="utf-8")
+old_condition = '''                if (n == "vw_amorak_2018:wheel" || n == "wheel" || n == "wheel1" || n == "wheel2" || n.StartsWith("AmarokWheel", StringComparison.Ordinal)) { wheel=true; break; }'''
+new_condition = '''                if (n == "AmarokLightSources" || n == "vw_amorak_2018:wheel" || n == "wheel" || n == "wheel1" || n == "wheel2" || n.StartsWith("AmarokWheel", StringComparison.Ordinal)) { wheel=true; break; }'''
+if "n == \"AmarokLightSources\"" not in setup:
+    if old_condition not in setup:
+        raise SystemExit("Could not add AmarokLightSources body-bounds exclusion.")
+    setup = setup.replace(old_condition, new_condition, 1)
+SETUP.write_text(setup, encoding="utf-8", newline="\n")
+
+if 'n == "AmarokLightSources"' not in SETUP.read_text(encoding="utf-8"):
+    raise SystemExit("Amarok light-source body-bounds guard failed.")
+
 print("Adjusted Amarok NPC/private-driver stance to net +4 cm front / +1 cm rear versus the previous build.")
+print("Excluded AmarokLightSources from repeat-build body bounds after reparenting it under AmarokVisual.")
