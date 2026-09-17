@@ -154,9 +154,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     };
 
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
-    private const string CheapGiftItemName = "ba:itemname_cheapgift";
-    private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
-    private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
+    private const string ProductPanelItemName = "ba:itemname_productpanel";
     private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
@@ -256,12 +254,13 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     public async Task OnLoadAsync(ModContext context)
     {
         context.Logger.Info(
-            "Gun Store city integration loading NPC rivals and layouts; global showcase-fixture mappings remain disabled.");
+            "Gun Store city integration loading NPC rivals, layouts, and fixture product catalogs; global visual mappings remain disabled.");
 
         for (var i = 0; i < 6; i++)
         {
             RegisterRivalLayouts(context);
             PatchAiBusinessDefaults(context);
+            PatchShowcaseShelves(context);
             try
             {
                 GunStoreNpcBannerRuntime.Prime(context);
@@ -408,8 +407,9 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     private void PatchShowcaseShelves(ModContext context)
     {
-        // ShelfController stores visual mappings globally. Clear mappings left by a hot reload
-        // before registering only the base-game fixtures this mod supports.
+        // Only extend the selectable product catalog. ShelfController visual mappings are
+        // global and replacing vanilla templates there corrupts unrelated shop fixtures.
+        // Clear any mapping left by an older hot-reloaded version instead.
         foreach (var gunStoreItemName in GunStoreShelfItemNames)
             ShelfController.UnregisterItemToShow(gunStoreItemName);
 
@@ -430,14 +430,6 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
             patchedShowcaseShelves[item] = item.itemsThatCanShowcase.ToArray();
 
-            foreach (var gunStoreItemName in missingGunStoreItems)
-            {
-                ShelfController.RegisterItemToShow(
-                    gunStoreItemName,
-                    item.itemName,
-                    item.itemName == RoundedShelfItemName ? ExpensiveFlowersItemName : CheapGiftItemName);
-            }
-
             item.itemsThatCanShowcase = item.itemsThatCanShowcase.Concat(missingGunStoreItems).ToArray();
             patchedShelfCount++;
         }
@@ -453,12 +445,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             !item.itemName.StartsWith("ba:", StringComparison.Ordinal))
             return false;
 
-        if (item.itemName == RoundedShelfItemName)
-            return true;
-
-        return (item.type & ItemType.ShowcaseShelf) != 0
-            && (item.itemsThatCanShowcase.Contains(CheapGiftItemName)
-                || item.itemsThatCanShowcase.Contains(ExpensiveGiftItemName));
+        return item.itemName == RoundedShelfItemName || item.itemName == ProductPanelItemName;
     }
 
     private void RestoreShowcaseShelves()

@@ -229,16 +229,22 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
     private void ScheduleGunStoreInteriorVisuals(Address address, string reason)
     {
-        var registration = SaveGameManager.Current?.BuildingRegistrations?
-            .FirstOrDefault(item => item != null && item.Address.Equals(address));
-        if (registration == null || !string.Equals(registration.businessTypeName,
-                "gunstore-businesstype:businesstype_gunstore", StringComparison.Ordinal))
+        if (!postCitySaveRepairCompleted)
             return;
 
+        // Building addresses may be reconstructed between the entry event and save
+        // registrations, so equality can miss a real Gun Store entry. This is a bounded
+        // event-triggered pass; TryInstallGunStoreVisualSlot filters to actual Gun Store stock.
+        var registration = SaveGameManager.Current?.BuildingRegistrations?
+            .FirstOrDefault(item => item != null &&
+                (item.Address.Equals(address) || item.Address.ToString() == address.ToString()));
+        if (registration != null && !string.Equals(registration.businessTypeName,
+                "gunstore-businesstype:businesstype_gunstore", StringComparison.Ordinal))
+            return;
         context?.Logger.Info(
-            $"Gun Store: interior visual setup triggered: name='{registration.BusinessName}', " +
-            $"address={address}, playerOwned={registration.RentedByPlayer}, reason='{reason}'.");
-        StartGunStoreVisualSetup($"entered:{registration.BusinessName}:{reason}");
+            $"Gun Store: building entry visual check: name='{registration?.BusinessName ?? "<unresolved>"}', " +
+            $"address={address}, businessType='{registration?.businessTypeName ?? "<unresolved>"}', reason='{reason}'.");
+        StartGunStoreVisualSetup($"entered:{address}:{reason}");
     }
 
     private void HandleGameLoadedLate()
