@@ -7,6 +7,8 @@ GROUP_ALIASES = {
     "BHeadlights": ["BHeadlights", "Headlights"],
     "BDRL_Indicator_FL": ["BDRL_Indicator_FL", "DRL_Indicator_FL"],
     "BDRL_Indicator_FR": ["BDRL_Indicator_FR", "DRL_Indicator_FR"],
+    "SideIndicatorFL": ["SideIndicatorFL", "Side_Indicator_FL"],
+    "SideIndicatorFR": ["SideIndicatorFR", "Side_Indicator_FR"],
     "1RearDrivingLights": ["1RearDrivingLights", "RearDrivingLights"],
     "1BrakeLights": ["1BrakeLights", "BrakeLights"],
     "ThirdBrakeLight": ["ThirdBrakeLight"],
@@ -37,9 +39,6 @@ def group_member_count(source, group):
 
 
 def find_group(source, expected):
-    # Prefer an exact/explicit alias. This matters because the supplied .blend uses
-    # plain names for several groups while the vehicle-light contract keeps the
-    # B/1 prefixes used by the original setup notes.
     for alias in GROUP_ALIASES[expected]:
         group = source.vertex_groups.get(alias)
         if group is not None and group_member_count(source, group) > 0:
@@ -76,8 +75,6 @@ def collect_polygons(mesh, group_index):
     return assigned, [], "none"
 
 
-# Print the actual non-empty groups once. If a future source .blend changes its
-# naming this makes the mismatch obvious without having to open Blender manually.
 print("[Amarok lights] non-empty Blender vertex groups:")
 for source in list(bpy.context.scene.objects):
     if source.type != "MESH":
