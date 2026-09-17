@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 REPO = Path(__file__).resolve().parents[1]
 SETUP = REPO / "Assets/Mods/Volkswagen_Amarok/Editor/VolkswagenAmarokSetup.cs"
@@ -105,10 +106,28 @@ if method_name not in text:
 
 '''
     text = text.replace(marker, method + marker, 1)
-    SETUP.write_text(text, encoding="utf-8", newline="\n")
     print("Added existing-prefab Amarok feedback + bundle build method (no donor regeneration required).")
 else:
     print("Existing-prefab Amarok feedback + bundle build method is already present.")
+
+# Keep the old public executeMethod name used by the PowerShell wrapper, but make
+# it operate on the already-generated Amarok prefab instead of calling Generate().
+# Generate() requires the Audi donor VehicleType and is unnecessary for this
+# feedback iteration because the working Amarok asset/prefab already exists.
+wrapper_pattern = re.compile(
+    r"    public static void RegenerateAndBuildStandaloneWindowsAssetBundle\(\)\s*"
+    r"\{.*?\n    \}",
+    re.S,
+)
+wrapper_replacement = '''    public static void RegenerateAndBuildStandaloneWindowsAssetBundle()
+    {
+        ApplyInGameFeedbackToExistingPrefabAndBuildStandaloneWindowsAssetBundle();
+    }'''
+text, wrapper_count = wrapper_pattern.subn(wrapper_replacement, text, count=1)
+if wrapper_count != 1:
+    raise SystemExit("Could not redirect RegenerateAndBuildStandaloneWindowsAssetBundle away from donor regeneration.")
+
+SETUP.write_text(text, encoding="utf-8", newline="\n")
 
 check = SETUP.read_text(encoding="utf-8")
 required = [
@@ -121,9 +140,14 @@ required = [
     "CreateDeformableBody(root, visual.gameObject)",
     "ConfigurePowertrain(root);",
     "BuildStandaloneWindowsAssetBundle();",
+    "ApplyInGameFeedbackToExistingPrefabAndBuildStandaloneWindowsAssetBundle();",
 ]
 missing = [item for item in required if item not in check]
 if missing:
     raise SystemExit("Existing-prefab Amarok feedback build patch failed; missing: " + ", ".join(missing))
 
+if "RegenerateAndBuildStandaloneWindowsAssetBundle()\n    {\n        Generate();" in check:
+    raise SystemExit("Existing-prefab Amarok feedback build patch failed: donor Generate() call is still active.")
+
+print("Redirected the existing batch executeMethod to patch the current Amarok prefab without the Audi donor.")
 print("Volkswagen Amarok existing-prefab feedback build preflight passed.")
