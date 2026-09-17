@@ -15,6 +15,16 @@ using Vehicles.VehicleTypes;
 
 internal static class Porsche911GT3RSDiagnostics
 {
+    internal static bool NpcTrafficDebugEnabled { get; set; } = false;
+
+    internal static bool TrafficEnabled => DebugEnabled && NpcTrafficDebugEnabled;
+
+    internal static void TrafficInfo(string message)
+    {
+        if (DebugEnabled && NpcTrafficDebugEnabled)
+            Debug.Log(message);
+    }
+
     // Release defaults. Focused diagnostics remain available for a future
     // regression, but are opt-in and require this global flag as well.
     internal static bool DebugEnabled { get; set; } = false;

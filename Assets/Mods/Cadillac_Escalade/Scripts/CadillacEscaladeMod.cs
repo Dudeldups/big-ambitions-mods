@@ -86,6 +86,16 @@ public sealed class CadillacEscaladeMod : IModBigAmbitions
 
 internal static class CadillacEscaladeDiagnostics
 {
+    internal static bool NpcTrafficDebugEnabled { get; set; } = false;
+
+    internal static bool TrafficEnabled => DebugEnabled && NpcTrafficDebugEnabled;
+
+    internal static void TrafficInfo(string message)
+    {
+        if (DebugEnabled && NpcTrafficDebugEnabled)
+            Debug.Log(message);
+    }
+
     // Release defaults. The focused guards retain their diagnostics for any
     // future regression, but they are opt-in to keep normal play quiet.
     internal static readonly bool DebugEnabled = false;
