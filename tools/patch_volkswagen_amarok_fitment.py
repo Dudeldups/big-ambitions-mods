@@ -12,7 +12,7 @@ if not SETUP.is_file():
 WHEEL_Y = 0.306
 FRONT_AXLE_Z = 1.733
 REAR_AXLE_Z = -1.361
-WHEEL_INSET = 0.100
+WHEEL_INSET = 0.000
 
 
 def save(path: Path, text: str):
@@ -43,6 +43,8 @@ if count != 1:
 # These are the measured wheel-arch centers from the generated Amarok prefab.
 # Front/rear Z preserve a 3.094 m visual wheelbase, effectively matching the
 # 3.097 m real specification while shifting the axle pair forward as observed.
+# The official track values already describe wheel-center to wheel-center width,
+# so no additional inward inset belongs in the final wheel positions.
 wheel_positions_pattern = re.compile(
     r"private static readonly Dictionary<string, Vector3> WheelControllerPositions =\s*"
     r"new Dictionary<string, Vector3>\s*\{.*?\n\s*\};",
@@ -92,5 +94,5 @@ rear_x = 1.658 * 0.5 - WHEEL_INSET
 print("Removed the previous +0.136 m Amarok body lift; the complete body stays at its normalized GLB position.")
 print(f"Patched wheel Y to {WHEEL_Y:.3f} m for all four wheels.")
 print(f"Patched axle Z: front={FRONT_AXLE_Z:.3f}, rear={REAR_AXLE_Z:.3f} (visual wheelbase={FRONT_AXLE_Z - REAR_AXLE_Z:.3f} m).")
-print(f"Patched wheel inset: 0.100 m per side (front X=±{front_x:.3f}, rear X=±{rear_x:.3f}).")
+print(f"Patched wheel inset: 0.000 m per side (front X=±{front_x:.3f}, rear X=±{rear_x:.3f}).")
 print("Volkswagen Amarok fitment preflight passed.")
