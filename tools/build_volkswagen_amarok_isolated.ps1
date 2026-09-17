@@ -125,9 +125,6 @@ try {
         Move-OutOfAssets -Name $sibling.Name
     }
 
-    # Force Unity to regenerate its script compile graph after the isolation. The
-    # previous implementation left Library/Bee intact, so batchmode continued to
-    # compile removed BigHax/MCG_Doom source paths from the stale DAG.
     Clear-StaleUnityCompileCaches
 
     New-Item -ItemType Directory -Path (Split-Path -Parent $logPath) -Force | Out-Null
@@ -144,17 +141,30 @@ try {
     Write-Host "[amarok-bundle] Starting isolated Unity batch build with a fresh script compile graph..."
     Write-Host "[amarok-bundle] Log: $logPath"
 
-    & $UnityExe `
-        -batchmode `
-        -quit `
-        -projectPath $repoRoot `
-        -executeMethod VolkswagenAmarokSetup.BuildStandaloneWindowsAssetBundle `
-        -logFile $logPath
+    # Unity.exe is a Windows GUI-subsystem executable. Invoking it with '&' from
+    # Windows PowerShell can return control before the batch-mode editor process is
+    # actually finished. That caused the finally block to restore all sibling mods
+    # while Unity was still compiling, re-introducing BigHax/MCG_Doom mid-build.
+    # Start-Process -Wait keeps the isolation active until Unity has truly exited.
+    $unityArguments = @(
+        "-batchmode",
+        "-quit",
+        "-projectPath `"$repoRoot`"",
+        "-executeMethod VolkswagenAmarokSetup.BuildStandaloneWindowsAssetBundle",
+        "-logFile `"$logPath`""
+    ) -join " "
 
-    $unityExitCode = $LASTEXITCODE
+    $unityProcess = Start-Process `
+        -FilePath $UnityExe `
+        -ArgumentList $unityArguments `
+        -PassThru `
+        -Wait `
+        -NoNewWindow
+
+    $unityExitCode = $unityProcess.ExitCode
+    Write-Host "[amarok-bundle] Unity batch process finished with exit code $unityExitCode."
 
     if (-not (Test-Path -LiteralPath $windowsBundle -PathType Leaf)) {
-        Write-Host "[amarok-bundle] Unity exit code: $unityExitCode"
         Show-RelevantLogTail
         throw "Unity did not create the Amarok AssetBundle. See $logPath"
     }
