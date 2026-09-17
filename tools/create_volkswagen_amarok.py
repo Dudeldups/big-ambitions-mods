@@ -30,6 +30,7 @@ with tempfile.TemporaryDirectory(prefix="volkswagen_amarok_setup_") as temp_dir:
 
     runpy.run_path(str(TOOLS / "generate_volkswagen_amarok.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "finalize_volkswagen_amarok.py"), run_name="__main__")
+    runpy.run_path(str(TOOLS / "repair_volkswagen_amarok_setup.py"), run_name="__main__")
 
     MODELS.mkdir(parents=True, exist_ok=True)
     for name in preserved:
