@@ -30,6 +30,7 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
     private bool warehouseDamageRestorePending;
     private float warehouseDamageBaseline;
     private string warehouseContactName = "";
+    private int collisionDebugEvents;
 
     internal void Initialize(VehicleController owner, DamageHandler damage, ModContext? modContext)
     {
@@ -39,6 +40,7 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
         context = modContext;
         preStepDamage = lastObservedDamage = damage.Damage;
         ClearImpact();
+        LogColliderLayout();
     }
 
     private bool CanApplyDamage => vehicle?.vehicleInstance != null &&
@@ -55,7 +57,11 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
         preStepDamage = lastObservedDamage = handler.Damage;
     }
 
-    private void OnCollisionEnter(Collision collision) => Observe(collision, true);
+    private void OnCollisionEnter(Collision collision)
+    {
+        LogCollision(collision);
+        Observe(collision, true);
+    }
     private void OnCollisionStay(Collision collision) => Observe(collision, false);
     private void OnDisable()
     {
@@ -203,5 +209,62 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
         windowEnd = -1f;
         strongestImpact = 0f;
         impactColliders.Clear();
+    }
+
+    private void LogColliderLayout()
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled || vehicle == null)
+            return;
+
+        var root = vehicle.transform;
+        var renderFront = float.NegativeInfinity;
+        foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>())
+        {
+            if (!renderer.enabled) continue;
+            var bounds = renderer.bounds;
+            // A world AABB is conservative, but useful as a visual reference.
+            for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                    for (var z = -1; z <= 1; z += 2)
+                        renderFront = Mathf.Max(renderFront, root.InverseTransformPoint(
+                            bounds.center + Vector3.Scale(bounds.extents,
+                                new Vector3(x, y, z))).z);
+        }
+
+        KoenigseggJeskoDiagnostics.CollisionInfo(context,
+            $"KoenigseggJesko collision layout vehicle={vehicle.GetInstanceID()} " +
+            $"visualFrontLocalZ={renderFront:0.000} rootScale={root.lossyScale}.");
+        foreach (var collider in vehicle.GetComponentsInChildren<Collider>())
+        {
+            if (!collider.enabled || collider.isTrigger) continue;
+            var localCenter = root.InverseTransformPoint(collider.bounds.center);
+            var box = collider as BoxCollider;
+            KoenigseggJeskoDiagnostics.CollisionInfo(context,
+                $"KoenigseggJesko collider vehicle={vehicle.GetInstanceID()} " +
+                $"name='{collider.name}' type={collider.GetType().Name} " +
+                $"localCenter={localCenter} worldSize={collider.bounds.size} " +
+                $"boxCenter={(box != null ? box.center.ToString() : "n/a")} " +
+                $"boxSize={(box != null ? box.size.ToString() : "n/a")}.");
+        }
+    }
+
+    private void LogCollision(Collision collision)
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled ||
+            vehicle == null || collision.contactCount == 0 || collisionDebugEvents++ >= 24)
+            return;
+
+        var contact = collision.GetContact(0);
+        var localPoint = vehicle.transform.InverseTransformPoint(contact.point);
+        KoenigseggJeskoDiagnostics.CollisionInfo(context,
+            $"KoenigseggJesko collision enter vehicle={vehicle.GetInstanceID()} " +
+            $"self='{contact.thisCollider?.name}' other='{contact.otherCollider?.name}' " +
+            $"otherLayer={collision.collider.gameObject.layer} " +
+            $"localPoint={localPoint} normal={contact.normal} " +
+            $"relativeSpeed={collision.relativeVelocity.magnitude:0.00}mps " +
+            $"impulse={collision.impulse.magnitude:0.0}Ns " +
+            $"contacts={collision.contactCount}.");
     }
 }
