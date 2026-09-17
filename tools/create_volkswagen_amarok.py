@@ -50,6 +50,7 @@ with tempfile.TemporaryDirectory(prefix="volkswagen_amarok_setup_") as temp_dir:
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_fitment.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_bundle_build.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_ingame_feedback.py"), run_name="__main__")
+    runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_lighting_source_helper.py"), run_name="__main__")
 
 model = MODELS / "2017_volkswagen_amarok_v6.glb"
 blend = MODELS / "VolkswagenAmarokLightOverlays.blend"
