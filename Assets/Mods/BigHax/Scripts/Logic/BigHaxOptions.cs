@@ -11,6 +11,7 @@ namespace BigHax
         public const string UpdateNoticeSeenVersion = "big_hax_update_notice_seen_version";
         public const string UiToggleHotkey = "big_hax_ui_toggle_hotkey";
         public const string CustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier_v2";
+        public const string BuildingCustomerCapacityMultiplier = "big_hax_building_customer_capacity_multiplier";
         public const string LegacyCustomerTrafficMultiplier = "big_hax_customer_traffic_multiplier";
         public const string DisableInvestmentLimit = "big_hax_disable_investment_limit";
         public const string MaximumInvestmentHundredsMillions = "big_hax_maximum_investment_hundreds_millions";

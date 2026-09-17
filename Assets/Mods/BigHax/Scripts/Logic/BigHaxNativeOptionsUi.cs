@@ -11,7 +11,7 @@ namespace BigHax
     {
         private const string BaUnifiedUiWorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3790426259";
         private const float RowHeight = 50f;
-        private const float ContentHeight = 2262f;
+        private const float ContentHeight = 2319f;
         private GameObject? root;
         private GameObject? panel;
         private Transform? content;
@@ -148,6 +148,7 @@ namespace BigHax
                 Toggle(Localize("bighax_disable_purchase_limits_label"), arePurchaseLimitsDisabled, setPurchaseLimitsDisabled);
             SteppedSlider(Localize("bighax_installation_firm_fee_percentage_label"), () => settings!.InstallationFirmFeePercentage, BigHaxSettings.InstallationFirmFeePercentageValues, v => { settings!.InstallationFirmFeePercentage = v; BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context!.ModId, v); }, v => v + "%");
             Slider(Localize("bighax_customer_traffic_multiplier_label"), () => settings!.CustomerTrafficMultiplierIndex, 0, 5, v => { settings!.CustomerTrafficMultiplierIndex = v; BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
+            Slider(Localize("bighax_building_customer_capacity_multiplier_label"), () => settings!.BuildingCustomerCapacityMultiplierIndex, 0, 5, v => { settings!.BuildingCustomerCapacityMultiplierIndex = v; BigHaxOptionPersistence.SaveBuildingCustomerCapacityMultiplierIndex(context!.ModId, v); }, v => new[] { "1x", "1.5x", "2x", "3x", "5x", "10x" }[v]);
             Separator();
             Section(Localize("bighax_category_vehicle"));
             Toggle(Localize("bighax_disable_illegal_parking_penalties_label"), () => settings!.DisableIllegalParkingPenalties, v => { settings!.DisableIllegalParkingPenalties = v; BigHaxOptionPersistence.SaveDisableIllegalParkingPenalties(context!.ModId, v); });
