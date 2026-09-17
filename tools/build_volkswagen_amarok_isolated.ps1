@@ -10,7 +10,6 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $modsRoot = Join-Path $repoRoot "Assets\Mods"
 $amarokModName = "Volkswagen_Amarok"
-$donorModName = "AudiRS6R"
 $amarokRoot = Join-Path $modsRoot $amarokModName
 $windowsBundle = Join-Path $amarokRoot "AssetBundles\Windows\volkswagenamarok.unity3d"
 $flatBundle = Join-Path $amarokRoot "AssetBundles\volkswagenamarok.unity3d"
@@ -18,6 +17,7 @@ $logPath = Join-Path $repoRoot "Temp\VolkswagenAmarokIsolatedBuild.log"
 $holdRoot = Join-Path $repoRoot ("Temp\VolkswagenAmarokBundleIsolation\" + [Guid]::NewGuid().ToString("N"))
 $feedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_ingame_feedback.py"
 $lightingHelperPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_lighting_source_helper.py"
+$existingPrefabBuildPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_existing_prefab_feedback_build.py"
 
 if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
     throw "Unity executable not found: $UnityExe"
@@ -25,7 +25,7 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
-foreach ($patch in @($feedbackPatch, $lightingHelperPatch)) {
+foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch)) {
     if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
         throw "Volkswagen Amarok source patch not found: $patch"
     }
@@ -40,16 +40,20 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw "Amarok lighting helper patch failed with exit code $LASTEXITCODE."
 }
+& python $existingPrefabBuildPatch
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok existing-prefab build patch failed with exit code $LASTEXITCODE."
+}
 
-# BuildPipeline.BuildAssetBundles triggers a Player-mode script compile for the whole
-# Unity project. A worktree can contain many unrelated mods that are stale against
-# the currently imported Big Ambitions DLLs. Keep only the Amarok plus AudiRS6R,
-# which the deterministic Amarok setup uses as its generic donor prefab/VehicleType.
+# The current feedback build no longer calls Generate() and therefore no longer
+# needs AudiRS6R at all. BuildPipeline still compiles every script assembly under
+# Assets, so keep ONLY Volkswagen_Amarok present while Unity is running. This is
+# the same isolation model that produced the previously successful Amarok bundle.
 $moved = New-Object System.Collections.Generic.List[object]
 
 function Is-KeptMod {
     param([string] $Name)
-    return $Name -ieq $amarokModName -or $Name -ieq $donorModName
+    return $Name -ieq $amarokModName
 }
 
 function Move-OutOfAssets {
@@ -127,8 +131,8 @@ function Show-RelevantLogTail {
     }
 
     Write-Host "[amarok-bundle] Relevant Unity failure details:"
-    Get-Content -LiteralPath $logPath -Tail 900 |
-        Select-String -Pattern "executeMethod|InvalidOperationException|ArgumentException|NullReferenceException|error CS|error building|compiler error|exception|failed|missing|Could not|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors|overlay sources" -CaseSensitive:$false |
+    Get-Content -LiteralPath $logPath -Tail 1200 |
+        Select-String -Pattern "error CS|Script Compilation Error|executeMethod|InvalidOperationException|ArgumentException|NullReferenceException|error building|compiler error|exception|failed|missing|Could not|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors|overlay sources" -CaseSensitive:$false |
         ForEach-Object { Write-Host $_.Line }
 }
 
@@ -139,7 +143,7 @@ try {
             Sort-Object Name
     )
 
-    Write-Host "[amarok-bundle] Isolating $($siblings.Count) unrelated mod folder(s); keeping $amarokModName + $donorModName."
+    Write-Host "[amarok-bundle] Isolating $($siblings.Count) non-Amarok mod folder(s); only $amarokModName remains in Assets/Mods."
     foreach ($sibling in $siblings) {
         Move-OutOfAssets -Name $sibling.Name
     }
@@ -157,7 +161,7 @@ try {
         Remove-Item -LiteralPath ($windowsBundle + ".manifest") -Force
     }
 
-    Write-Host "[amarok-bundle] Regenerating Amarok prefab and building Windows AssetBundle in isolated Unity..."
+    Write-Host "[amarok-bundle] Patching existing Amarok prefab and building Windows AssetBundle in isolated Unity..."
     Write-Host "[amarok-bundle] Log: $logPath"
 
     $unityArguments = @(
@@ -180,7 +184,7 @@ try {
 
     if ($unityExitCode -ne 0) {
         Show-RelevantLogTail
-        throw "Unity Amarok regenerate/build executeMethod failed with exit code $unityExitCode. See $logPath"
+        throw "Unity Amarok prefab-patch/build executeMethod failed with exit code $unityExitCode. See $logPath"
     }
 
     if (-not (Test-Path -LiteralPath $windowsBundle -PathType Leaf)) {
