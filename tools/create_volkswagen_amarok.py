@@ -29,6 +29,14 @@ with tempfile.TemporaryDirectory(prefix="volkswagen_amarok_setup_") as temp_dir:
             preserved.append(name)
 
     runpy.run_path(str(TOOLS / "generate_volkswagen_amarok.py"), run_name="__main__")
+
+    # Restore the supplied binaries immediately. Several later deterministic
+    # patches (especially source-material reconstruction) need the GLB at its
+    # normal project path and must not run while Models/ is still empty.
+    MODELS.mkdir(parents=True, exist_ok=True)
+    for name in preserved:
+        shutil.copy2(temp / name, MODELS / name)
+
     runpy.run_path(str(TOOLS / "finalize_volkswagen_amarok.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "repair_volkswagen_amarok_setup.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_side_indicators.py"), run_name="__main__")
@@ -41,10 +49,7 @@ with tempfile.TemporaryDirectory(prefix="volkswagen_amarok_setup_") as temp_dir:
     runpy.run_path(str(TOOLS / "repair_volkswagen_amarok_prefab_material_persistence.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_fitment.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_bundle_build.py"), run_name="__main__")
-
-    MODELS.mkdir(parents=True, exist_ok=True)
-    for name in preserved:
-        shutil.copy2(temp / name, MODELS / name)
+    runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_ingame_feedback.py"), run_name="__main__")
 
 model = MODELS / "2017_volkswagen_amarok_v6.glb"
 blend = MODELS / "VolkswagenAmarokLightOverlays.blend"
@@ -88,5 +93,4 @@ if needs_export:
     ], check=True)
 
 print("Volkswagen Amarok source is ready for Unity.")
-print("In Unity run: Big Ambitions Mods > Setup Volkswagen Amarok")
-print("Then run: Big Ambitions Mods > Build Volkswagen Amarok AssetBundle")
+print("For local testing run: .\\tools\\build_volkswagen_amarok_isolated.ps1 -Install")
