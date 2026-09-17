@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch] $Install,
-    [string] $UnityExe = "C:\Program Files\Unity\Hub\Editor\2022.3.62f2\Editor\Unity.exe"
+    [string] $UnityExe = "C:\Program Files\Unity\Hub\Editor\2022.3.62f2\Editor\Unity.exe",
+    [int] $MaxBuildAttempts = 8
 )
 
 Set-StrictMode -Version Latest
@@ -21,25 +22,36 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
+if ($MaxBuildAttempts -lt 1) {
+    throw "MaxBuildAttempts must be at least 1."
+}
 
-# BuildPipeline.BuildAssetBundles asks Unity for Player-mode script assemblies.
-# The current shared SDK worktree contains unrelated mods that do not compile
-# against the current game DLLs. Keep their files intact, but move the known
-# blockers outside Assets while the batch-mode bundle build runs.
-$blockers = @(
+# BuildPipeline.BuildAssetBundles asks Unity for Player-mode script assemblies for
+# the whole project. This worktree intentionally contains unrelated mods that can
+# be stale against the current imported game DLLs. Keep their files intact, move
+# compile blockers outside Assets only for the bundle build, then restore them.
+$initialBlockers = @(
     "BigHax",
     "MCG_Doom"
 )
 
 $moved = New-Object System.Collections.Generic.List[object]
+$movedNames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
 function Move-OutOfAssets {
     param([string] $Name)
 
+    if ([string]::IsNullOrWhiteSpace($Name) -or $Name -ieq "Volkswagen_Amarok") {
+        return $false
+    }
+    if ($movedNames.Contains($Name)) {
+        return $false
+    }
+
     $sourceDir = Join-Path $modsRoot $Name
     $sourceMeta = $sourceDir + ".meta"
     if (-not (Test-Path -LiteralPath $sourceDir -PathType Container)) {
-        return
+        return $false
     }
 
     New-Item -ItemType Directory -Path $holdRoot -Force | Out-Null
@@ -58,11 +70,15 @@ function Move-OutOfAssets {
         SourceMeta = $sourceMeta
         TargetMeta = $targetMeta
     }) | Out-Null
+    $null = $movedNames.Add($Name)
     Write-Host "[amarok-bundle] Temporarily isolated $Name from Assets."
+    return $true
 }
 
 function Restore-IsolatedMods {
-    foreach ($entry in $moved) {
+    # Restore in reverse order to mirror the isolation sequence.
+    for ($index = $moved.Count - 1; $index -ge 0; $index--) {
+        $entry = $moved[$index]
         if (Test-Path -LiteralPath $entry.TargetDir -PathType Container) {
             Move-Item -LiteralPath $entry.TargetDir -Destination $entry.SourceDir
         }
@@ -77,39 +93,99 @@ function Restore-IsolatedMods {
     }
 }
 
+function Get-CompileErrorModNames {
+    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+        return @()
+    }
+
+    $names = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($line in Get-Content -LiteralPath $logPath) {
+        # Typical Unity compiler output:
+        # Assets\Mods\SomeMod\Scripts\Foo.cs(12,3): error CS1234: ...
+        $match = [regex]::Match(
+            $line,
+            'Assets[\\/]+Mods[\\/]+([^\\/]+)[\\/]+.*?:\s*error\s+CS\d+',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($match.Success) {
+            $null = $names.Add($match.Groups[1].Value)
+        }
+    }
+    return @($names | Sort-Object)
+}
+
+function Show-RelevantLogTail {
+    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+        return
+    }
+
+    Write-Host "[amarok-bundle] Last relevant Unity log lines:"
+    Get-Content -LiteralPath $logPath -Tail 180 |
+        Select-String -Pattern "error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline|compiler" -CaseSensitive:$false |
+        ForEach-Object { Write-Host $_.Line }
+}
+
 try {
-    foreach ($blocker in $blockers) {
-        Move-OutOfAssets -Name $blocker
+    foreach ($blocker in $initialBlockers) {
+        $null = Move-OutOfAssets -Name $blocker
     }
 
     New-Item -ItemType Directory -Path (Split-Path -Parent $logPath) -Force | Out-Null
-    if (Test-Path -LiteralPath $logPath -PathType Leaf) {
-        Remove-Item -LiteralPath $logPath -Force
-    }
 
-    Write-Host "[amarok-bundle] Starting isolated Unity batch build..."
-    Write-Host "[amarok-bundle] Log: $logPath"
-
-    & $UnityExe `
-        -batchmode `
-        -quit `
-        -projectPath $repoRoot `
-        -executeMethod VolkswagenAmarokSetup.BuildStandaloneWindowsAssetBundle `
-        -logFile $logPath
-
-    $unityExitCode = $LASTEXITCODE
-    if ($unityExitCode -ne 0) {
-        Write-Host "[amarok-bundle] Unity exited with code $unityExitCode. Last relevant log lines:"
-        if (Test-Path -LiteralPath $logPath -PathType Leaf) {
-            Get-Content -LiteralPath $logPath -Tail 120 |
-                Select-String -Pattern "error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline" -CaseSensitive:$false |
-                ForEach-Object { Write-Host $_.Line }
+    $bundleBuilt = $false
+    for ($attempt = 1; $attempt -le $MaxBuildAttempts; $attempt++) {
+        if (Test-Path -LiteralPath $windowsBundle -PathType Leaf) {
+            Remove-Item -LiteralPath $windowsBundle -Force
         }
-        throw "Isolated Unity AssetBundle build failed. See $logPath"
+        if (Test-Path -LiteralPath ($windowsBundle + ".manifest") -PathType Leaf) {
+            Remove-Item -LiteralPath ($windowsBundle + ".manifest") -Force
+        }
+        if (Test-Path -LiteralPath $logPath -PathType Leaf) {
+            Remove-Item -LiteralPath $logPath -Force
+        }
+
+        Write-Host "[amarok-bundle] Starting isolated Unity batch build (attempt $attempt/$MaxBuildAttempts)..."
+        Write-Host "[amarok-bundle] Log: $logPath"
+
+        & $UnityExe `
+            -batchmode `
+            -quit `
+            -projectPath $repoRoot `
+            -executeMethod VolkswagenAmarokSetup.BuildStandaloneWindowsAssetBundle `
+            -logFile $logPath
+
+        $unityExitCode = $LASTEXITCODE
+        if ((Test-Path -LiteralPath $windowsBundle -PathType Leaf) -and $unityExitCode -eq 0) {
+            $bundleBuilt = $true
+            break
+        }
+
+        $errorMods = @(Get-CompileErrorModNames)
+        $amarokErrors = @($errorMods | Where-Object { $_ -ieq "Volkswagen_Amarok" })
+        if ($amarokErrors.Count -gt 0) {
+            Show-RelevantLogTail
+            throw "Volkswagen_Amarok itself has Player-mode compiler errors. See $logPath"
+        }
+
+        $newBlockers = @(
+            $errorMods |
+                Where-Object { $_ -notieq "Volkswagen_Amarok" -and -not $movedNames.Contains($_) }
+        )
+
+        if ($newBlockers.Count -eq 0) {
+            Write-Host "[amarok-bundle] Unity exit code: $unityExitCode"
+            Show-RelevantLogTail
+            throw "Isolated Unity AssetBundle build failed and no new unrelated compiler blocker could be identified. See $logPath"
+        }
+
+        Write-Host ("[amarok-bundle] Additional unrelated compile blocker(s): " + ($newBlockers -join ", "))
+        foreach ($blocker in $newBlockers) {
+            $null = Move-OutOfAssets -Name $blocker
+        }
     }
 
-    if (-not (Test-Path -LiteralPath $windowsBundle -PathType Leaf)) {
-        throw "Unity completed, but the Amarok bundle was not created: $windowsBundle"
+    if (-not $bundleBuilt) {
+        Show-RelevantLogTail
+        throw "Amarok AssetBundle was not created after $MaxBuildAttempts isolated build attempts. See $logPath"
     }
 
     # Keep the SDK-style platform output, but also keep a flat copy because the
