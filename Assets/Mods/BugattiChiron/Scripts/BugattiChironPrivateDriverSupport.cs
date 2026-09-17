@@ -31,6 +31,18 @@ internal static class BugattiChironPrivateDriverSupport
 
     internal static void SetContext(ModContext modContext) => context = modContext;
 
+    internal static void ReportWheelBinding(
+        int instanceId, string wheelName, Transform visual, Transform source)
+    {
+        if (!BugattiChironDiagnostics.DebugEnabled ||
+            !BugattiChironDiagnostics.WheelDebugEnabled)
+            return;
+        context?.Logger.Info(
+            $"BugattiChiron NPC wheel binding instance={instanceId} wheel={wheelName} " +
+            $"visualLocalPos={visual.localPosition:F3} sourceLocalPos={source.localPosition:F3} " +
+            $"sourceLocalEuler={source.localEulerAngles:F1}.");
+    }
+
     internal static bool PrepareTrafficPool(GameObject playerPrefab)
     {
         if (playerPrefab == null || !EnsureAiPrefab(playerPrefab) || customAiPrefab == null)
@@ -583,6 +595,8 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
             if (visual == null || source == null)
                 continue;
             wheelBindings.Add(new WheelBinding(transform, visual, source));
+            BugattiChironPrivateDriverSupport.ReportWheelBinding(
+                GetInstanceID(), WheelNames[index, 0], visual, source);
         }
     }
 
@@ -590,7 +604,6 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
 
     private void OnEnable()
     {
-        BindWheelVisuals();
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = StartCoroutine(InitializePrivateDriverState());

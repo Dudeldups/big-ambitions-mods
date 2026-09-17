@@ -13,6 +13,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
     private const float DirectFallbackMixGain = 0.16f;
     private static readonly string[] EngineNames = { "EngineLow", "EngineMid", "EngineHigh" };
     private readonly List<AudioClip> ownedClips = new();
+    private readonly Dictionary<AudioSource, bool> mutedDefaultVoices = new();
     private VehicleController? vehicle;
     private PhysicsVehicle? physics;
     private ModContext? context;
@@ -34,6 +35,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
     private bool wasControlled;
     private bool voicesStarted;
     private bool usesDirectFallbackMix;
+    private bool reportedDefaultVoiceSearch;
     private int attempts;
     private float nextAttempt;
     private float smoothRpm;
@@ -41,6 +43,8 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
     private float envelope;
     private float driveBlend;
     private float loadBlend;
+    private float nextDefaultVoiceScan;
+    private float defaultVoiceScanUntil;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -219,6 +223,9 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         {
             smoothRpm = engine.RPMPercent * engine.revLimiterRPM;
             smoothThrottle = Mathf.Clamp01(engine.ThrottlePosition);
+            defaultVoiceScanUntil = Time.unscaledTime + 10f;
+            nextDefaultVoiceScan = 0f;
+            reportedDefaultVoiceSearch = false;
         }
         if (controlled != wasControlled &&
             BugattiChironDiagnostics.DebugEnabled &&
@@ -253,6 +260,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         {
             RestoreMute();
         }
+        MuteDefaultEngineVoices(controlled);
 
         var rawRpm = engine.RPMPercent * engine.revLimiterRPM;
         var mixGain = usesDirectFallbackMix ? DirectFallbackMixGain : 1f;
@@ -346,6 +354,77 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         ownsMute = false;
     }
 
+    private void MuteDefaultEngineVoices(bool controlled)
+    {
+        if (!controlled)
+        {
+            RestoreDefaultEngineVoices();
+            return;
+        }
+
+        if (Time.unscaledTime <= defaultVoiceScanUntil &&
+            Time.unscaledTime >= nextDefaultVoiceScan)
+        {
+            nextDefaultVoiceScan = Time.unscaledTime + 0.5f;
+            foreach (var source in vehicle!.GetComponentsInChildren<AudioSource>(true))
+            {
+                if (source == null || source == native ||
+                    (audioHost != null && source.transform.IsChildOf(audioHost.transform)) ||
+                    source.clip == null ||
+                    !string.Equals(source.clip.name, "Car", StringComparison.OrdinalIgnoreCase) ||
+                    mutedDefaultVoices.ContainsKey(source))
+                    continue;
+
+                mutedDefaultVoices.Add(source, source.mute);
+                if (BugattiChironDiagnostics.DebugEnabled &&
+                    BugattiChironDiagnostics.AudioDebugEnabled)
+                {
+                    context?.Logger.Info(
+                        $"BugattiChiron audio vehicle={vehicle.GetInstanceID()}: " +
+                        $"muted stock Car voice object='{source.gameObject.name}' " +
+                        $"mixer='{source.outputAudioMixerGroup?.name ?? "<default output>"}'.");
+                }
+            }
+        }
+
+        if (!reportedDefaultVoiceSearch && Time.unscaledTime > defaultVoiceScanUntil)
+        {
+            reportedDefaultVoiceSearch = true;
+            if (BugattiChironDiagnostics.DebugEnabled &&
+                BugattiChironDiagnostics.AudioDebugEnabled)
+            {
+                var candidates = new List<string>();
+                if (mutedDefaultVoices.Count == 0)
+                {
+                    foreach (var source in vehicle!.GetComponentsInChildren<AudioSource>(true))
+                    {
+                        if (audioHost != null && source.transform.IsChildOf(audioHost.transform))
+                            continue;
+                        candidates.Add($"{source.gameObject.name}:{source.clip?.name ?? "<no clip>"}");
+                        if (candidates.Count == 8)
+                            break;
+                    }
+                }
+                context?.Logger.Info(
+                    $"BugattiChiron audio vehicle={vehicle!.GetInstanceID()}: " +
+                    $"stock Car voice scan complete found={mutedDefaultVoices.Count} " +
+                    $"otherSources=[{string.Join(", ", candidates)}].");
+            }
+        }
+
+        foreach (var voice in mutedDefaultVoices)
+            if (voice.Key != null)
+                voice.Key.mute = true;
+    }
+
+    private void RestoreDefaultEngineVoices()
+    {
+        foreach (var voice in mutedDefaultVoices)
+            if (voice.Key != null)
+                voice.Key.mute = voice.Value;
+        mutedDefaultVoices.Clear();
+    }
+
     private void StopLayers()
     {
         if (idleSource != null)
@@ -372,6 +451,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
             hornSource.volume = 0f;
         }
         RestoreMute();
+        RestoreDefaultEngineVoices();
         if (configured && engineSound != null)
             engineSound.maxDistortion = originalDistortion;
         envelope = 0f;
