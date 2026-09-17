@@ -9,6 +9,7 @@ using Data.VehicleColors;
 using GleyTrafficSystem;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 
 internal static class BugattiChironPrivateDriverSupport
 {
@@ -41,6 +42,72 @@ internal static class BugattiChironPrivateDriverSupport
             $"BugattiChiron NPC wheel binding instance={instanceId} wheel={wheelName} " +
             $"visualLocalPos={visual.localPosition:F3} sourceLocalPos={source.localPosition:F3} " +
             $"sourceLocalEuler={source.localEulerAngles:F1}.");
+    }
+
+    internal static void ReportNpcCollisionGeometry(GameObject npc)
+    {
+        if (!BugattiChironDiagnostics.DebugEnabled ||
+            !BugattiChironDiagnostics.NpcCollisionDebugEnabled)
+            return;
+
+        var root = npc.transform;
+        var colliders = npc.GetComponentsInChildren<Collider>(true);
+        var obstacles = npc.GetComponentsInChildren<NavMeshObstacle>(true);
+        context?.Logger.Info(
+            $"BugattiChiron NPC collision instance={npc.GetInstanceID()} " +
+            $"active={npc.activeInHierarchy} colliders={colliders.Length} " +
+            $"navObstacles={obstacles.Length} rootScale={root.lossyScale:F3}.");
+
+        foreach (var collider in colliders)
+        {
+            if (!collider.enabled || !collider.gameObject.activeInHierarchy)
+                continue;
+            var bounds = collider.bounds;
+            var rear = float.PositiveInfinity;
+            var front = float.NegativeInfinity;
+            for (var x = -1; x <= 1; x += 2)
+            for (var y = -1; y <= 1; y += 2)
+            for (var z = -1; z <= 1; z += 2)
+            {
+                var corner = bounds.center + Vector3.Scale(
+                    bounds.extents, new Vector3(x, y, z));
+                var localZ = root.InverseTransformPoint(corner).z;
+                rear = Mathf.Min(rear, localZ);
+                front = Mathf.Max(front, localZ);
+            }
+            context?.Logger.Info(
+                $"BugattiChiron NPC collision instance={npc.GetInstanceID()} " +
+                $"collider={collider.transform.name} type={collider.GetType().Name} " +
+                $"trigger={collider.isTrigger} layer={collider.gameObject.layer} " +
+                $"localRear={rear:0.000} localFront={front:0.000} " +
+                $"worldBounds={bounds.center:F3}/{bounds.size:F3}.");
+        }
+
+        foreach (var obstacle in obstacles)
+        {
+            context?.Logger.Info(
+                $"BugattiChiron NPC collision instance={npc.GetInstanceID()} " +
+                $"navObstacle={obstacle.transform.name} enabled={obstacle.enabled} " +
+                $"active={obstacle.gameObject.activeInHierarchy} shape={obstacle.shape} " +
+                $"center={obstacle.center:F3} size={obstacle.size:F3} " +
+                $"position={obstacle.transform.localPosition:F3} " +
+                $"scale={obstacle.transform.lossyScale:F3}.");
+        }
+
+        foreach (var localZ in new[] { 1.525f, 2.225f, 2.9f })
+        {
+            var point = root.TransformPoint(new Vector3(0f, 0.85f, localZ));
+            var hits = Physics.OverlapSphere(point, 0.12f, ~0, QueryTriggerInteraction.Collide);
+            foreach (var hit in hits)
+            {
+                if (!hit.transform.IsChildOf(root))
+                    continue;
+                context?.Logger.Info(
+                    $"BugattiChiron NPC collision instance={npc.GetInstanceID()} " +
+                    $"frontProbeZ={localZ:0.000} hit={hit.transform.name} " +
+                    $"type={hit.GetType().Name} trigger={hit.isTrigger}.");
+            }
+        }
     }
 
     internal static bool PrepareTrafficPool(GameObject playerPrefab)
@@ -562,6 +629,7 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
     private readonly List<WheelBinding> wheelBindings = new(4);
     private Coroutine? initializationCoroutine;
     private Coroutine? departureCheckCoroutine;
+    private Coroutine? collisionTraceCoroutine;
     private PrivateDriverVehicle? privateDriver;
     private VehicleComponent? trafficVehicle;
     private bool trafficEventsSubscribed;
@@ -588,6 +656,17 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = StartCoroutine(InitializePrivateDriverState());
+        if (BugattiChironDiagnostics.DebugEnabled &&
+            BugattiChironDiagnostics.NpcCollisionDebugEnabled)
+            collisionTraceCoroutine = StartCoroutine(ReportCollisionAfterSpawn());
+    }
+
+    private IEnumerator ReportCollisionAfterSpawn()
+    {
+        yield return new WaitForFixedUpdate();
+        yield return new WaitForFixedUpdate();
+        BugattiChironPrivateDriverSupport.ReportNpcCollisionGeometry(gameObject);
+        collisionTraceCoroutine = null;
     }
 
     private IEnumerator InitializePrivateDriverState()
@@ -746,8 +825,11 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
             StopCoroutine(initializationCoroutine);
         if (departureCheckCoroutine != null)
             StopCoroutine(departureCheckCoroutine);
+        if (collisionTraceCoroutine != null)
+            StopCoroutine(collisionTraceCoroutine);
         initializationCoroutine = null;
         departureCheckCoroutine = null;
+        collisionTraceCoroutine = null;
 
         if (trafficEventsSubscribed)
         {
