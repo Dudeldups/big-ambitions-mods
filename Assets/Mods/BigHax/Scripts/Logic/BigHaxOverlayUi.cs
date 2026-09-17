@@ -320,6 +320,7 @@ namespace BigHax
                         BigHaxOptionPersistence.SaveInstallationFirmFeePercentage(context.ModId, value);
                     });
                 DrawCustomerMultiplier(context, settings);
+                DrawBuildingCustomerCapacityMultiplier(context, settings);
                 DrawSteppedIntSlider(
                     context,
                     settings,
@@ -475,6 +476,45 @@ namespace BigHax
 
             settings.CustomerTrafficMultiplierIndex = selectedIndex;
             BigHaxOptionPersistence.SaveCustomerTrafficMultiplierIndex(context.ModId, selectedIndex);
+        }
+
+        private void DrawBuildingCustomerCapacityMultiplier(ModContext context, BigHaxSettings settings)
+        {
+            DrawSectionTitle(Localize("bighax_building_customer_capacity_multiplier_label"));
+            const float buttonGap = 10f;
+            var availableWidth = windowRect.width - 44f - 22f - 14f;
+            var buttonWidth = Mathf.Floor((availableWidth - (buttonGap * 2f)) / 3f);
+            var selectedIndex = settings.BuildingCustomerCapacityMultiplierIndex;
+            for (var row = 0; row < 2; row++)
+            {
+                GUILayout.BeginHorizontal();
+                for (var column = 0; column < 3; column++)
+                {
+                    var optionIndex = (row * 3) + column;
+                    var style = optionIndex == settings.BuildingCustomerCapacityMultiplierIndex
+                        ? selectedButtonStyle!
+                        : primaryButtonStyle!;
+                    if (GUILayout.Button(
+                            CustomerTrafficLabels[optionIndex],
+                            style,
+                            GUILayout.Height(36f),
+                            GUILayout.Width(buttonWidth)))
+                        selectedIndex = optionIndex;
+
+                    if (column < 2)
+                        GUILayout.Space(buttonGap);
+                }
+
+                GUILayout.EndHorizontal();
+                if (row == 0)
+                    GUILayout.Space(buttonGap);
+            }
+
+            if (selectedIndex == settings.BuildingCustomerCapacityMultiplierIndex)
+                return;
+
+            settings.BuildingCustomerCapacityMultiplierIndex = selectedIndex;
+            BigHaxOptionPersistence.SaveBuildingCustomerCapacityMultiplierIndex(context.ModId, selectedIndex);
         }
 
         private void DrawToggleOption(
