@@ -3,14 +3,37 @@ import os
 import runpy
 import shutil
 import subprocess
+import tempfile
 
 REPO = Path(__file__).resolve().parents[1]
 TOOLS = REPO / "tools"
 MOD = REPO / "Assets/Mods/Volkswagen_Amarok"
 MODELS = MOD / "Models"
 
-runpy.run_path(str(TOOLS / "generate_volkswagen_amarok.py"), run_name="__main__")
-runpy.run_path(str(TOOLS / "finalize_volkswagen_amarok.py"), run_name="__main__")
+SOURCE_ASSET_NAMES = (
+    "2017_volkswagen_amarok_v6.glb",
+    "VolkswagenAmarokLightOverlays.blend",
+    "AmarokLightOverlays.glb",
+)
+
+# generate_volkswagen_amarok.py deliberately recreates the mod folder from the
+# current Porsche architecture. Preserve user-supplied binary source assets first
+# so repeated/idempotent setup runs do not destroy the GLB or Blender file.
+with tempfile.TemporaryDirectory(prefix="volkswagen_amarok_setup_") as temp_dir:
+    temp = Path(temp_dir)
+    preserved = []
+    for name in SOURCE_ASSET_NAMES:
+        src = MODELS / name
+        if src.is_file():
+            shutil.copy2(src, temp / name)
+            preserved.append(name)
+
+    runpy.run_path(str(TOOLS / "generate_volkswagen_amarok.py"), run_name="__main__")
+    runpy.run_path(str(TOOLS / "finalize_volkswagen_amarok.py"), run_name="__main__")
+
+    MODELS.mkdir(parents=True, exist_ok=True)
+    for name in preserved:
+        shutil.copy2(temp / name, MODELS / name)
 
 model = MODELS / "2017_volkswagen_amarok_v6.glb"
 blend = MODELS / "VolkswagenAmarokLightOverlays.blend"
@@ -40,8 +63,11 @@ if not blender:
         "and run this script again so AmarokLightOverlays.glb can be generated."
     )
 
-needs_export = (not overlays.exists() or overlays.stat().st_mtime < blend.stat().st_mtime or
-                overlays.stat().st_mtime < (TOOLS / "export_volkswagen_amarok_lights.py").stat().st_mtime)
+needs_export = (
+    not overlays.exists()
+    or overlays.stat().st_mtime < blend.stat().st_mtime
+    or overlays.stat().st_mtime < (TOOLS / "export_volkswagen_amarok_lights.py").stat().st_mtime
+)
 if needs_export:
     subprocess.run([
         blender,
