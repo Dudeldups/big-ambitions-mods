@@ -10,11 +10,13 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $modsRoot = Join-Path $repoRoot "Assets\Mods"
 $amarokModName = "Volkswagen_Amarok"
+$donorModName = "AudiRS6R"
 $amarokRoot = Join-Path $modsRoot $amarokModName
 $windowsBundle = Join-Path $amarokRoot "AssetBundles\Windows\volkswagenamarok.unity3d"
 $flatBundle = Join-Path $amarokRoot "AssetBundles\volkswagenamarok.unity3d"
 $logPath = Join-Path $repoRoot "Temp\VolkswagenAmarokIsolatedBuild.log"
 $holdRoot = Join-Path $repoRoot ("Temp\VolkswagenAmarokBundleIsolation\" + [Guid]::NewGuid().ToString("N"))
+$feedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_ingame_feedback.py"
 
 if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
     throw "Unity executable not found: $UnityExe"
@@ -22,17 +24,31 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
+if (-not (Test-Path -LiteralPath $feedbackPatch -PathType Leaf)) {
+    throw "Volkswagen Amarok in-game feedback patch not found: $feedbackPatch"
+}
+
+Write-Host "[amarok-bundle] Applying current Amarok in-game tuning patch..."
+& python $feedbackPatch
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok in-game feedback patch failed with exit code $LASTEXITCODE."
+}
 
 # BuildPipeline.BuildAssetBundles triggers a Player-mode script compile for the whole
 # Unity project. A worktree can contain many unrelated mods that are stale against
-# the currently imported Big Ambitions DLLs. For this build we therefore isolate
-# every sibling mod and leave only Volkswagen_Amarok under Assets/Mods.
+# the currently imported Big Ambitions DLLs. Keep only the Amarok plus AudiRS6R,
+# which the deterministic Amarok setup uses as its generic donor prefab/VehicleType.
 $moved = New-Object System.Collections.Generic.List[object]
+
+function Is-KeptMod {
+    param([string] $Name)
+    return $Name -ieq $amarokModName -or $Name -ieq $donorModName
+}
 
 function Move-OutOfAssets {
     param([string] $Name)
 
-    if ([string]::IsNullOrWhiteSpace($Name) -or $Name -ieq $amarokModName) {
+    if ([string]::IsNullOrWhiteSpace($Name) -or (Is-KeptMod -Name $Name)) {
         return
     }
 
@@ -84,9 +100,8 @@ function Restore-IsolatedMods {
 
 function Clear-StaleUnityCompileCaches {
     # Moving source folders outside Assets is not sufficient when Library/Bee still
-    # contains a compile DAG generated while those mods existed. Unity can otherwise
-    # keep compiling paths such as Assets/Mods/BigHax even though the folders are gone.
-    # Remove only generated script/build caches; do not touch the imported asset DB.
+    # contains a compile DAG generated while those mods existed. Remove only
+    # generated script/build caches; do not touch the imported asset database.
     $cachePaths = @(
         (Join-Path $repoRoot "Library\Bee"),
         (Join-Path $repoRoot "Library\ScriptAssemblies"),
@@ -108,19 +123,19 @@ function Show-RelevantLogTail {
     }
 
     Write-Host "[amarok-bundle] Last relevant Unity log lines:"
-    Get-Content -LiteralPath $logPath -Tail 400 |
-        Select-String -Pattern "error CS|error building|compiler error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors" -CaseSensitive:$false |
+    Get-Content -LiteralPath $logPath -Tail 500 |
+        Select-String -Pattern "error CS|error building|compiler error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors|overlay sources" -CaseSensitive:$false |
         ForEach-Object { Write-Host $_.Line }
 }
 
 try {
     $siblings = @(
         Get-ChildItem -LiteralPath $modsRoot -Directory |
-            Where-Object { $_.Name -ne $amarokModName } |
+            Where-Object { -not (Is-KeptMod -Name $_.Name) } |
             Sort-Object Name
     )
 
-    Write-Host "[amarok-bundle] Isolating $($siblings.Count) unrelated mod folder(s); only $amarokModName remains in Assets/Mods."
+    Write-Host "[amarok-bundle] Isolating $($siblings.Count) unrelated mod folder(s); keeping $amarokModName + $donorModName."
     foreach ($sibling in $siblings) {
         Move-OutOfAssets -Name $sibling.Name
     }
@@ -138,19 +153,16 @@ try {
         Remove-Item -LiteralPath ($windowsBundle + ".manifest") -Force
     }
 
-    Write-Host "[amarok-bundle] Starting isolated Unity batch build with a fresh script compile graph..."
+    Write-Host "[amarok-bundle] Regenerating Amarok prefab and building Windows AssetBundle in isolated Unity..."
     Write-Host "[amarok-bundle] Log: $logPath"
 
-    # Unity.exe is a Windows GUI-subsystem executable. Invoking it with '&' from
-    # Windows PowerShell can return control before the batch-mode editor process is
-    # actually finished. That caused the finally block to restore all sibling mods
-    # while Unity was still compiling, re-introducing BigHax/MCG_Doom mid-build.
-    # Start-Process -Wait keeps the isolation active until Unity has truly exited.
+    # Unity.exe is a Windows GUI-subsystem executable. Start-Process -Wait keeps
+    # all unrelated mods isolated until the batch-mode editor has truly exited.
     $unityArguments = @(
         "-batchmode",
         "-quit",
         "-projectPath `"$repoRoot`"",
-        "-executeMethod VolkswagenAmarokSetup.BuildStandaloneWindowsAssetBundle",
+        "-executeMethod VolkswagenAmarokSetup.RegenerateAndBuildStandaloneWindowsAssetBundle",
         "-logFile `"$logPath`""
     ) -join " "
 
