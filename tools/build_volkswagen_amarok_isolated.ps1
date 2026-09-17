@@ -106,9 +106,6 @@ function Restore-IsolatedMods {
 }
 
 function Clear-StaleUnityCompileCaches {
-    # Moving source folders outside Assets is not sufficient when Library/Bee still
-    # contains a compile DAG generated while those mods existed. Remove only
-    # generated script/build caches; do not touch the imported asset database.
     $cachePaths = @(
         (Join-Path $repoRoot "Library\Bee"),
         (Join-Path $repoRoot "Library\ScriptAssemblies"),
@@ -129,9 +126,9 @@ function Show-RelevantLogTail {
         return
     }
 
-    Write-Host "[amarok-bundle] Last relevant Unity log lines:"
-    Get-Content -LiteralPath $logPath -Tail 500 |
-        Select-String -Pattern "error CS|error building|compiler error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors|overlay sources" -CaseSensitive:$false |
+    Write-Host "[amarok-bundle] Relevant Unity failure details:"
+    Get-Content -LiteralPath $logPath -Tail 900 |
+        Select-String -Pattern "executeMethod|InvalidOperationException|ArgumentException|NullReferenceException|error CS|error building|compiler error|exception|failed|missing|Could not|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors|overlay sources" -CaseSensitive:$false |
         ForEach-Object { Write-Host $_.Line }
 }
 
@@ -163,8 +160,6 @@ try {
     Write-Host "[amarok-bundle] Regenerating Amarok prefab and building Windows AssetBundle in isolated Unity..."
     Write-Host "[amarok-bundle] Log: $logPath"
 
-    # Unity.exe is a Windows GUI-subsystem executable. Start-Process -Wait keeps
-    # all unrelated mods isolated until the batch-mode editor has truly exited.
     $unityArguments = @(
         "-batchmode",
         "-quit",
@@ -183,14 +178,16 @@ try {
     $unityExitCode = $unityProcess.ExitCode
     Write-Host "[amarok-bundle] Unity batch process finished with exit code $unityExitCode."
 
+    if ($unityExitCode -ne 0) {
+        Show-RelevantLogTail
+        throw "Unity Amarok regenerate/build executeMethod failed with exit code $unityExitCode. See $logPath"
+    }
+
     if (-not (Test-Path -LiteralPath $windowsBundle -PathType Leaf)) {
         Show-RelevantLogTail
         throw "Unity did not create the Amarok AssetBundle. See $logPath"
     }
 
-    # Keep the SDK-style platform output, but also keep a flat copy because the
-    # current Big Ambitions ModsLocal loader resolves the declared relative key
-    # AssetBundles/volkswagenamarok.unity3d directly.
     New-Item -ItemType Directory -Path (Split-Path -Parent $flatBundle) -Force | Out-Null
     Copy-Item -LiteralPath $windowsBundle -Destination $flatBundle -Force
     if (Test-Path -LiteralPath ($windowsBundle + ".manifest") -PathType Leaf) {
