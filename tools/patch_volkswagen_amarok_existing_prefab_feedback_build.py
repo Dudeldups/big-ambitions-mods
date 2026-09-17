@@ -1,7 +1,9 @@
 from pathlib import Path
 import re
+import runpy
 
 REPO = Path(__file__).resolve().parents[1]
+TOOLS = REPO / "tools"
 SETUP = REPO / "Assets/Mods/Volkswagen_Amarok/Editor/VolkswagenAmarokSetup.cs"
 
 if not SETUP.is_file():
@@ -151,3 +153,11 @@ if "RegenerateAndBuildStandaloneWindowsAssetBundle()\n    {\n        Generate();
 
 print("Redirected the existing batch executeMethod to patch the current Amarok prefab without the Audi donor.")
 print("Volkswagen Amarok existing-prefab feedback build preflight passed.")
+
+# Apply the next in-game feedback pass only after the existing-prefab method is
+# guaranteed to exist, so clean worktrees and already-generated worktrees follow
+# the same deterministic path.
+runpy.run_path(
+    str(TOOLS / "patch_volkswagen_amarok_second_ingame_feedback.py"),
+    run_name="__main__",
+)
