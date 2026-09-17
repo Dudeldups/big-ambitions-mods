@@ -58,3 +58,7 @@ runpy.run_path(
     str(TOOLS / "patch_volkswagen_amarok_fourth_ingame_feedback.py"),
     run_name="__main__",
 )
+runpy.run_path(
+    str(TOOLS / "patch_volkswagen_amarok_fourth_safety.py"),
+    run_name="__main__",
+)
