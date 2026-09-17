@@ -22,12 +22,10 @@ internal static class BugattiChironDiagnostics
 {
     private const string WheelDebugMarker = "wheel-diagnostics.enabled";
     private const string AudioDebugMarker = "audio-diagnostics.enabled";
-    private const string NpcCollisionDebugMarker = "npc-collision-diagnostics.enabled";
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
     internal static bool WheelDebugEnabled { get; set; } = false;
     internal static bool AudioDebugEnabled { get; set; } = false;
-    internal static bool NpcCollisionDebugEnabled { get; set; } = false;
 
     internal static void EnableLocalDiagnostics(ModContext context)
     {
@@ -53,15 +51,6 @@ internal static class BugattiChironDiagnostics
             context.Logger.Info("BugattiChiron: local audio diagnostics enabled.");
         }
 
-        var npcCollisionMarkerPath = Path.Combine(
-            Application.persistentDataPath,
-            "ModsLocal", "BugattiChiron", "Config", NpcCollisionDebugMarker);
-        if (File.Exists(npcCollisionMarkerPath))
-        {
-            DebugEnabled = true;
-            NpcCollisionDebugEnabled = true;
-            context.Logger.Info("BugattiChiron: local NPC collision diagnostics enabled.");
-        }
     }
 
     internal static void LoadRecoveryInfo(ModContext? context, string message)
