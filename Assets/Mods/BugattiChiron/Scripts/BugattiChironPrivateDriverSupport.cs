@@ -460,6 +460,8 @@ internal static class BugattiChironPrivateDriverSupport
             fittedFront = Mathf.Max(fittedFront, front);
         }
 
+        FitAiNavigationObstacles(clone, fittedFront);
+
         if (BugattiChironDiagnostics.DebugEnabled)
         {
             context?.Logger.Info(
@@ -468,6 +470,62 @@ internal static class BugattiChironPrivateDriverSupport
                 $"fittedRear={fittedRear:0.000} fittedFront={fittedFront:0.000}.");
         }
         return true;
+    }
+
+    private static void FitAiNavigationObstacles(GameObject clone, float bodyFront)
+    {
+        // The traffic template enables this obstacle while parked. Its original
+        // front plus the pedestrian agent's clearance caused the standing-car wall.
+        const float pedestrianClearance = 0.40f;
+        var root = clone.transform;
+        foreach (var obstacle in clone.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle.shape != NavMeshObstacleShape.Box ||
+                Vector3.Dot(root.forward, obstacle.transform.forward) < 0.99f)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: NPC navigation obstacle could not be fitted " +
+                    $"name={obstacle.transform.name} shape={obstacle.shape}.");
+                continue;
+            }
+
+            var oldRearLocal = obstacle.center.z - obstacle.size.z * 0.5f;
+            var oldFrontLocal = obstacle.center.z + obstacle.size.z * 0.5f;
+            var oldRear = root.InverseTransformPoint(
+                obstacle.transform.TransformPoint(
+                    new Vector3(obstacle.center.x, obstacle.center.y, oldRearLocal))).z;
+            var oldFront = root.InverseTransformPoint(
+                obstacle.transform.TransformPoint(
+                    new Vector3(obstacle.center.x, obstacle.center.y, oldFrontLocal))).z;
+            var targetFront = Mathf.Min(oldFront, bodyFront - pedestrianClearance);
+            var newFrontLocal = obstacle.transform.InverseTransformPoint(
+                root.TransformPoint(new Vector3(0f, 0f, targetFront))).z;
+            if (newFrontLocal <= oldRearLocal + 0.05f)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: NPC navigation obstacle front fit was too short " +
+                    $"name={obstacle.transform.name} rear={oldRear:0.000} " +
+                    $"targetFront={targetFront:0.000}.");
+                continue;
+            }
+
+            var center = obstacle.center;
+            center.z = (oldRearLocal + newFrontLocal) * 0.5f;
+            var size = obstacle.size;
+            size.z = newFrontLocal - oldRearLocal;
+            obstacle.center = center;
+            obstacle.size = size;
+
+            if (BugattiChironDiagnostics.DebugEnabled &&
+                BugattiChironDiagnostics.NpcCollisionDebugEnabled)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron: NPC navigation obstacle fitted " +
+                    $"name={obstacle.transform.name} rear={oldRear:0.000} " +
+                    $"oldFront={oldFront:0.000} newFront={targetFront:0.000} " +
+                    $"bodyFront={bodyFront:0.000}.");
+            }
+        }
     }
 
     private static bool IsWheelColliderTransform(Transform candidate, Transform root)
