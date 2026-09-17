@@ -31,6 +31,8 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
     private float warehouseDamageBaseline;
     private string warehouseContactName = "";
     private int collisionDebugEvents;
+    private int playerDebugEvents;
+    private int groundDebugEvents;
 
     internal void Initialize(VehicleController owner, DamageHandler damage, ModContext? modContext)
     {
@@ -219,22 +221,40 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
 
         var root = vehicle.transform;
         var renderFront = float.NegativeInfinity;
+        var renderFrontSource = "none";
+        var ignoredRenderers = 0;
         foreach (var renderer in vehicle.GetComponentsInChildren<Renderer>())
         {
             if (!renderer.enabled) continue;
             var bounds = renderer.bounds;
-            // A world AABB is conservative, but useful as a visual reference.
+            // Some helpers have enormous renderer bounds unrelated to bodywork.
+            // Keep the comparison within the car's plausible local footprint.
+            var rendererFront = float.NegativeInfinity;
+            var rendererRear = float.PositiveInfinity;
             for (var x = -1; x <= 1; x += 2)
                 for (var y = -1; y <= 1; y += 2)
                     for (var z = -1; z <= 1; z += 2)
-                        renderFront = Mathf.Max(renderFront, root.InverseTransformPoint(
+                    {
+                        var localZ = root.InverseTransformPoint(
                             bounds.center + Vector3.Scale(bounds.extents,
-                                new Vector3(x, y, z))).z);
+                                new Vector3(x, y, z))).z;
+                        rendererFront = Mathf.Max(rendererFront, localZ);
+                        rendererRear = Mathf.Min(rendererRear, localZ);
+                    }
+            if (rendererFront > 10f || rendererRear < -10f)
+            {
+                ignoredRenderers++;
+                continue;
+            }
+            if (rendererFront <= renderFront) continue;
+            renderFront = rendererFront;
+            renderFrontSource = renderer.name;
         }
 
         KoenigseggJeskoDiagnostics.CollisionInfo(context,
             $"KoenigseggJesko collision layout vehicle={vehicle.GetInstanceID()} " +
-            $"visualFrontLocalZ={renderFront:0.000} rootScale={root.lossyScale}.");
+            $"visualFrontLocalZ={renderFront:0.000} visualSource='{renderFrontSource}' " +
+            $"ignoredVisualRenderers={ignoredRenderers} rootScale={root.lossyScale}.");
         foreach (var collider in vehicle.GetComponentsInChildren<Collider>())
         {
             if (!collider.enabled || collider.isTrigger) continue;
@@ -242,7 +262,7 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
             var box = collider as BoxCollider;
             KoenigseggJeskoDiagnostics.CollisionInfo(context,
                 $"KoenigseggJesko collider vehicle={vehicle.GetInstanceID()} " +
-                $"name='{collider.name}' type={collider.GetType().Name} " +
+                $"id={collider.GetInstanceID()} name='{collider.name}' type={collider.GetType().Name} " +
                 $"localCenter={localCenter} worldSize={collider.bounds.size} " +
                 $"boxCenter={(box != null ? box.center.ToString() : "n/a")} " +
                 $"boxSize={(box != null ? box.size.ToString() : "n/a")}.");
@@ -253,14 +273,25 @@ internal sealed class KoenigseggJeskoImpactDamageController : MonoBehaviour
     {
         if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
             !KoenigseggJeskoDiagnostics.CollisionDebugEnabled ||
-            vehicle == null || collision.contactCount == 0 || collisionDebugEvents++ >= 24)
+            vehicle == null || collision.contactCount == 0)
             return;
 
         var contact = collision.GetContact(0);
+        if (collision.collider.name == "Player")
+        {
+            if (playerDebugEvents++ >= 12) return;
+        }
+        else if (collision.collider.name == "GroundPlane")
+        {
+            if (groundDebugEvents++ >= 4) return;
+        }
+        else if (collisionDebugEvents++ >= 24)
+            return;
         var localPoint = vehicle.transform.InverseTransformPoint(contact.point);
         KoenigseggJeskoDiagnostics.CollisionInfo(context,
             $"KoenigseggJesko collision enter vehicle={vehicle.GetInstanceID()} " +
-            $"self='{contact.thisCollider?.name}' other='{contact.otherCollider?.name}' " +
+            $"self='{contact.thisCollider?.name}' selfId={contact.thisCollider?.GetInstanceID()} " +
+            $"other='{contact.otherCollider?.name}' " +
             $"otherLayer={collision.collider.gameObject.layer} " +
             $"localPoint={localPoint} normal={contact.normal} " +
             $"relativeSpeed={collision.relativeVelocity.magnitude:0.00}mps " +
