@@ -1,22 +1,28 @@
 import bpy
 import math
+import re
 import sys
 
-GROUPS = [
-    "BHeadlights",
-    "BDRL_Indicator_FL",
-    "BDRL_Indicator_FR",
-    "1RearDrivingLights",
-    "1BrakeLights",
-    "ThirdBrakeLight",
-    "ReverseLights",
-    "1IndicatorRL",
-    "1IndicatorRR",
-]
+GROUP_ALIASES = {
+    "BHeadlights": ["BHeadlights", "Headlights"],
+    "BDRL_Indicator_FL": ["BDRL_Indicator_FL", "DRL_Indicator_FL"],
+    "BDRL_Indicator_FR": ["BDRL_Indicator_FR", "DRL_Indicator_FR"],
+    "1RearDrivingLights": ["1RearDrivingLights", "RearDrivingLights"],
+    "1BrakeLights": ["1BrakeLights", "BrakeLights"],
+    "ThirdBrakeLight": ["ThirdBrakeLight"],
+    "ReverseLights": ["ReverseLights"],
+    "1IndicatorRL": ["1IndicatorRL", "IndicatorRL", "RearIndicatorLeft"],
+    "1IndicatorRR": ["1IndicatorRR", "IndicatorRR", "RearIndicatorRight"],
+}
+GROUPS = list(GROUP_ALIASES)
 
 if "--" not in sys.argv:
     raise RuntimeError("Pass the output GLB after --")
 output = sys.argv[sys.argv.index("--") + 1]
+
+
+def normalized_name(value):
+    return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
 def vertex_weight(vertex, group_index):
@@ -24,6 +30,26 @@ def vertex_weight(vertex, group_index):
         if item.group == group_index:
             return item.weight
     return 0.0
+
+
+def group_member_count(source, group):
+    return sum(1 for vertex in source.data.vertices if vertex_weight(vertex, group.index) > 0.001)
+
+
+def find_group(source, expected):
+    # Prefer an exact/explicit alias. This matters because the supplied .blend uses
+    # plain names for several groups while the vehicle-light contract keeps the
+    # B/1 prefixes used by the original setup notes.
+    for alias in GROUP_ALIASES[expected]:
+        group = source.vertex_groups.get(alias)
+        if group is not None and group_member_count(source, group) > 0:
+            return group, alias
+
+    aliases = {normalized_name(alias) for alias in GROUP_ALIASES[expected]}
+    for group in source.vertex_groups:
+        if normalized_name(group.name) in aliases and group_member_count(source, group) > 0:
+            return group, group.name
+    return None, None
 
 
 def collect_polygons(mesh, group_index):
@@ -50,21 +76,36 @@ def collect_polygons(mesh, group_index):
     return assigned, [], "none"
 
 
-created = []
-created_names = set()
+# Print the actual non-empty groups once. If a future source .blend changes its
+# naming this makes the mismatch obvious without having to open Blender manually.
+print("[Amarok lights] non-empty Blender vertex groups:")
 for source in list(bpy.context.scene.objects):
     if source.type != "MESH":
         continue
+    entries = []
+    for group in source.vertex_groups:
+        count = group_member_count(source, group)
+        if count:
+            entries.append(f"{group.name}({count})")
+    if entries:
+        print(f"  {source.name}: " + ", ".join(entries))
 
-    for name in GROUPS:
-        group = source.vertex_groups.get(name)
+created = []
+created_names = set()
+resolved = set()
+for expected in GROUPS:
+    for source in list(bpy.context.scene.objects):
+        if source.type != "MESH":
+            continue
+
+        group, actual_name = find_group(source, expected)
         if group is None:
             continue
 
         mesh = source.data
         assigned, polys, mode = collect_polygons(mesh, group.index)
         print(
-            f"[Amarok lights] object='{source.name}' group='{name}' "
+            f"[Amarok lights] object='{source.name}' expected='{expected}' actual='{actual_name}' "
             f"assignedVertices={len(assigned)} faces={len(polys)} selection={mode}"
         )
         if not polys:
@@ -75,31 +116,30 @@ for source in list(bpy.context.scene.objects):
         verts = [mesh.vertices[index].co.copy() for index in used]
         faces = [[remap[index] for index in poly.vertices] for poly in polys]
 
-        out_mesh = bpy.data.meshes.new(name + "_Mesh")
+        out_mesh = bpy.data.meshes.new(expected + "_Mesh")
         out_mesh.from_pydata(verts, [], faces)
         out_mesh.update()
 
-        object_name = name
+        object_name = expected
         if object_name in created_names:
             suffix = 2
-            while f"{name}_{suffix}" in created_names:
+            while f"{expected}_{suffix}" in created_names:
                 suffix += 1
-            object_name = f"{name}_{suffix}"
+            object_name = f"{expected}_{suffix}"
 
         out_object = bpy.data.objects.new(object_name, out_mesh)
         out_object.matrix_world = source.matrix_world.copy()
         bpy.context.collection.objects.link(out_object)
         created.append(out_object)
         created_names.add(object_name)
+        resolved.add(expected)
 
-missing = [
-    name for name in GROUPS
-    if not any(obj.name == name or obj.name.startswith(name + "_") for obj in created)
-]
+missing = [name for name in GROUPS if name not in resolved]
 if missing:
     raise RuntimeError(
-        "Missing or empty Amarok light groups after partial-face fallback: "
+        "Could not resolve Amarok light groups from the supplied Blender file: "
         + ", ".join(missing)
+        + ". See the non-empty vertex-group list above for the actual saved names."
     )
 
 bpy.ops.object.select_all(action="DESELECT")
