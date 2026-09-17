@@ -21,6 +21,7 @@ internal static class BugattiChironDiagnostics
 {
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
+    internal static bool WheelDebugEnabled { get; set; } = false;
 
     internal static void LoadRecoveryInfo(ModContext? context, string message)
     {
