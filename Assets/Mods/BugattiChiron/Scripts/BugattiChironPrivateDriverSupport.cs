@@ -9,6 +9,7 @@ using Data.VehicleColors;
 using GleyTrafficSystem;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 
 internal static class BugattiChironPrivateDriverSupport
 {
@@ -30,6 +31,18 @@ internal static class BugattiChironPrivateDriverSupport
     private static ModContext? context;
 
     internal static void SetContext(ModContext modContext) => context = modContext;
+
+    internal static void ReportWheelBinding(
+        int instanceId, string wheelName, Transform visual, Transform source)
+    {
+        if (!BugattiChironDiagnostics.DebugEnabled ||
+            !BugattiChironDiagnostics.WheelDebugEnabled)
+            return;
+        context?.Logger.Info(
+            $"BugattiChiron NPC wheel binding instance={instanceId} wheel={wheelName} " +
+            $"visualLocalPos={visual.localPosition:F3} sourceLocalPos={source.localPosition:F3} " +
+            $"sourceLocalEuler={source.localEulerAngles:F1}.");
+    }
 
     internal static bool PrepareTrafficPool(GameObject playerPrefab)
     {
@@ -312,6 +325,12 @@ internal static class BugattiChironPrivateDriverSupport
             SetLayerRecursively(visual.transform, clone.layer);
         }
 
+        if (!FitAiBodyColliders(clone, playerPrefab))
+        {
+            UnityEngine.Object.Destroy(clone);
+            return null;
+        }
+
         BugattiChironMaterials.FixSolidMaterials(clone);
         clone.AddComponent<BugattiChironAmbientTrafficAppearance>();
         var appearance = clone.AddComponent<BugattiChironPrivateDriverAppearance>();
@@ -330,6 +349,128 @@ internal static class BugattiChironPrivateDriverSupport
         }
 
         return clone;
+    }
+
+    private static bool FitAiBodyColliders(GameObject clone, GameObject playerPrefab)
+    {
+        var source = FindTransform(playerPrefab.transform, "BodyCollider");
+        var sourceBoxes = source?.GetComponents<BoxCollider>();
+        if (source == null || sourceBoxes == null || sourceBoxes.Length == 0)
+        {
+            context?.Logger.Warn(
+                "BugattiChiron: AI body collider setup failed; player body boxes are missing.");
+            return false;
+        }
+
+        var disabled = 0;
+        foreach (var collider in clone.GetComponentsInChildren<Collider>(true))
+        {
+            if (collider.isTrigger || collider is WheelCollider ||
+                IsWheelColliderTransform(collider.transform, clone.transform))
+                continue;
+            collider.enabled = false;
+            disabled++;
+        }
+
+        var holder = new GameObject("BugattiAiBodyCollider");
+        holder.layer = clone.layer;
+        holder.transform.SetParent(clone.transform, false);
+        holder.transform.localPosition = source.localPosition;
+        holder.transform.localRotation = source.localRotation;
+        holder.transform.localScale = source.localScale;
+        var fittedRear = float.PositiveInfinity;
+        var fittedFront = float.NegativeInfinity;
+        foreach (var sourceBox in sourceBoxes)
+        {
+            if (sourceBox.isTrigger)
+                continue;
+            var box = holder.AddComponent<BoxCollider>();
+            box.center = sourceBox.center;
+            box.size = sourceBox.size;
+            box.sharedMaterial = sourceBox.sharedMaterial;
+            var rear = box.center.z - box.size.z * 0.5f;
+            var front = box.center.z + box.size.z * 0.5f;
+            fittedRear = Mathf.Min(fittedRear, rear);
+            fittedFront = Mathf.Max(fittedFront, front);
+        }
+
+        FitAiNavigationObstacles(clone, fittedFront);
+
+        if (BugattiChironDiagnostics.DebugEnabled)
+        {
+            context?.Logger.Info(
+                $"BugattiChiron: AI body collider fitted boxes={holder.GetComponents<BoxCollider>().Length} " +
+                $"disabledTemplateColliders={disabled} sourceLocalPos={source.localPosition:F3} " +
+                $"fittedRear={fittedRear:0.000} fittedFront={fittedFront:0.000}.");
+        }
+        return true;
+    }
+
+    private static void FitAiNavigationObstacles(GameObject clone, float bodyFront)
+    {
+        // The traffic template enables this obstacle while parked. Its original
+        // front plus the pedestrian agent's clearance caused the standing-car wall.
+        const float pedestrianClearance = 0.40f;
+        var root = clone.transform;
+        foreach (var obstacle in clone.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle.shape != NavMeshObstacleShape.Box ||
+                Vector3.Dot(root.forward, obstacle.transform.forward) < 0.99f)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: NPC navigation obstacle could not be fitted " +
+                    $"name={obstacle.transform.name} shape={obstacle.shape}.");
+                continue;
+            }
+
+            var oldRearLocal = obstacle.center.z - obstacle.size.z * 0.5f;
+            var oldFrontLocal = obstacle.center.z + obstacle.size.z * 0.5f;
+            var oldRear = root.InverseTransformPoint(
+                obstacle.transform.TransformPoint(
+                    new Vector3(obstacle.center.x, obstacle.center.y, oldRearLocal))).z;
+            var oldFront = root.InverseTransformPoint(
+                obstacle.transform.TransformPoint(
+                    new Vector3(obstacle.center.x, obstacle.center.y, oldFrontLocal))).z;
+            var targetFront = Mathf.Min(oldFront, bodyFront - pedestrianClearance);
+            var newFrontLocal = obstacle.transform.InverseTransformPoint(
+                root.TransformPoint(new Vector3(0f, 0f, targetFront))).z;
+            if (newFrontLocal <= oldRearLocal + 0.05f)
+            {
+                context?.Logger.Warn(
+                    $"BugattiChiron: NPC navigation obstacle front fit was too short " +
+                    $"name={obstacle.transform.name} rear={oldRear:0.000} " +
+                    $"targetFront={targetFront:0.000}.");
+                continue;
+            }
+
+            var center = obstacle.center;
+            center.z = (oldRearLocal + newFrontLocal) * 0.5f;
+            var size = obstacle.size;
+            size.z = newFrontLocal - oldRearLocal;
+            obstacle.center = center;
+            obstacle.size = size;
+
+            if (BugattiChironDiagnostics.DebugEnabled)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron: NPC navigation obstacle fitted " +
+                    $"name={obstacle.transform.name} rear={oldRear:0.000} " +
+                    $"oldFront={oldFront:0.000} newFront={targetFront:0.000} " +
+                    $"bodyFront={bodyFront:0.000}.");
+            }
+        }
+    }
+
+    private static bool IsWheelColliderTransform(Transform candidate, Transform root)
+    {
+        for (var current = candidate; current != null && current != root; current = current.parent)
+        {
+            var name = current.name;
+            if (name.IndexOf("Wheel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name == "FL" || name == "FR" || name == "BL" || name == "BR")
+                return true;
+        }
+        return false;
     }
 
     private static IDictionary? GetPrefabCache()
@@ -478,6 +619,8 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
             if (visual == null || source == null)
                 continue;
             wheelBindings.Add(new WheelBinding(transform, visual, source));
+            BugattiChironPrivateDriverSupport.ReportWheelBinding(
+                GetInstanceID(), WheelNames[index, 0], visual, source);
         }
     }
 
@@ -485,7 +628,6 @@ internal sealed class BugattiChironPrivateDriverAppearance : MonoBehaviour
 
     private void OnEnable()
     {
-        BindWheelVisuals();
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = StartCoroutine(InitializePrivateDriverState());

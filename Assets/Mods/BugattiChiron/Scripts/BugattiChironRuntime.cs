@@ -83,6 +83,15 @@ public sealed class BugattiChironRuntime : MonoBehaviour
     private int cachedPlayerVehicleCount = -1;
     private string vehicleTypeName = string.Empty;
     private GameObject? playerVehiclePrefab;
+    private VehicleController? wheelDiagnosticVehicle;
+    private Transform?[]? wheelDiagnosticControllers;
+    private Transform?[]? wheelDiagnosticVisuals;
+    private float nextWheelDiagnosticTime;
+
+    private static readonly string[] WheelDiagnosticCorners =
+    {
+        "FrontLeft", "FrontRight", "RearLeft", "RearRight",
+    };
 
     public static BugattiChironRuntime Initialize(
         ModContext context,
@@ -143,6 +152,78 @@ public sealed class BugattiChironRuntime : MonoBehaviour
         var currentCount = vehicles?.Count ?? 0;
         if (currentCount != cachedPlayerVehicleCount)
             ConfigureExistingVehicles(out _);
+    }
+
+    private void LateUpdate()
+    {
+        if (!BugattiChironDiagnostics.DebugEnabled ||
+            !BugattiChironDiagnostics.WheelDebugEnabled)
+            return;
+
+        var selected = InstanceBehavior<GameManager>.Instance?.selectedVehicle;
+        if (!IsTargetVehicle(selected))
+        {
+            wheelDiagnosticVehicle = null;
+            return;
+        }
+
+        if (wheelDiagnosticVehicle != selected)
+        {
+            wheelDiagnosticVehicle = selected;
+            wheelDiagnosticControllers = new Transform?[WheelDiagnosticCorners.Length];
+            wheelDiagnosticVisuals = new Transform?[WheelDiagnosticCorners.Length];
+            var transforms = selected!.GetComponentsInChildren<Transform>(true);
+            for (var corner = 0; corner < WheelDiagnosticCorners.Length; corner++)
+            {
+                var controllerName = WheelDiagnosticCorners[corner] + "_WheelController";
+                var visualName = "BugattiWheel" + WheelDiagnosticCorners[corner];
+                foreach (var candidate in transforms)
+                {
+                    if (candidate.name == controllerName)
+                        wheelDiagnosticControllers[corner] = candidate;
+                    else if (candidate.name == visualName)
+                        wheelDiagnosticVisuals[corner] = candidate;
+                }
+            }
+            nextWheelDiagnosticTime = 0f;
+        }
+
+        if (Time.unscaledTime < nextWheelDiagnosticTime)
+            return;
+        nextWheelDiagnosticTime = Time.unscaledTime + 3f;
+
+        var chassis = selected!.transform;
+        var rigidbody = selected.GetComponent<Rigidbody>() ?? selected.GetComponentInParent<Rigidbody>();
+        var speed = rigidbody != null ? rigidbody.velocity.magnitude * 3.6f : 0f;
+        for (var corner = 0; corner < WheelDiagnosticCorners.Length; corner++)
+        {
+            var controller = wheelDiagnosticControllers![corner];
+            var visual = wheelDiagnosticVisuals![corner];
+            if (controller == null || visual == null)
+            {
+                context?.Logger.Info(
+                    $"BugattiChiron wheel diagnostic instance={selected.GetInstanceID()} " +
+                    $"corner={WheelDiagnosticCorners[corner]} controllerFound={controller != null} " +
+                    $"visualFound={visual != null}");
+                continue;
+            }
+
+            var geometry = visual.Find("Geometry");
+            var axle = chassis.InverseTransformDirection(visual.right);
+            var controllerOffset = chassis.InverseTransformPoint(visual.position) -
+                                   chassis.InverseTransformPoint(controller.position);
+            context?.Logger.Info(
+                $"BugattiChiron wheel diagnostic instance={selected.GetInstanceID()} " +
+                $"corner={WheelDiagnosticCorners[corner]} speedKph={speed:0.0} " +
+                $"controllerLocalPos={controller.localPosition:F3} " +
+                $"controllerLocalEuler={controller.localEulerAngles:F1} " +
+                $"visualParent={visual.parent?.name ?? "<none>"} " +
+                $"visualLocalPos={visual.localPosition:F3} " +
+                $"visualLocalEuler={visual.localEulerAngles:F1} " +
+                $"visualAxleInChassis={axle:F3} " +
+                $"visualOffsetFromController={controllerOffset:F3} " +
+                $"geometryLocalEuler={(geometry != null ? geometry.localEulerAngles.ToString("F1") : "<missing>")}");
+        }
     }
 
     private void SubscribeEvents()

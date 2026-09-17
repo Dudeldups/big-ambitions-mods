@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using BAModAPI;
@@ -19,8 +20,38 @@ using Vehicles.VehicleTypes;
 
 internal static class BugattiChironDiagnostics
 {
+    private const string WheelDebugMarker = "wheel-diagnostics.enabled";
+    private const string AudioDebugMarker = "audio-diagnostics.enabled";
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
+    internal static bool WheelDebugEnabled { get; set; } = false;
+    internal static bool AudioDebugEnabled { get; set; } = false;
+
+    internal static void EnableLocalDiagnostics(ModContext context)
+    {
+        var markerPath = Path.Combine(
+            Application.persistentDataPath,
+            "ModsLocal", "BugattiChiron", "Config", WheelDebugMarker);
+        if (File.Exists(markerPath))
+        {
+            DebugEnabled = true;
+            WheelDebugEnabled = true;
+            context.Logger.Info(
+                "BugattiChiron: local wheel diagnostics enabled; " +
+                "logging selected vehicle wheel poses every three seconds.");
+        }
+
+        var audioMarkerPath = Path.Combine(
+            Application.persistentDataPath,
+            "ModsLocal", "BugattiChiron", "Config", AudioDebugMarker);
+        if (File.Exists(audioMarkerPath))
+        {
+            DebugEnabled = true;
+            AudioDebugEnabled = true;
+            context.Logger.Info("BugattiChiron: local audio diagnostics enabled.");
+        }
+
+    }
 
     internal static void LoadRecoveryInfo(ModContext? context, string message)
     {
@@ -48,6 +79,7 @@ public sealed class BugattiChironMod : IModBigAmbitions
 
     public Task OnLoadAsync(ModContext context)
     {
+        BugattiChironDiagnostics.EnableLocalDiagnostics(context);
         var bundle = AssetService.GetBundle(context.ModId, BundleKey);
         if (bundle == null)
         {
