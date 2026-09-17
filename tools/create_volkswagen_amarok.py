@@ -40,6 +40,7 @@ with tempfile.TemporaryDirectory(prefix="volkswagen_amarok_setup_") as temp_dir:
     runpy.run_path(str(TOOLS / "repair_volkswagen_amarok_material_assignments.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "repair_volkswagen_amarok_prefab_material_persistence.py"), run_name="__main__")
     runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_fitment.py"), run_name="__main__")
+    runpy.run_path(str(TOOLS / "patch_volkswagen_amarok_bundle_build.py"), run_name="__main__")
 
     MODELS.mkdir(parents=True, exist_ok=True)
     for name in preserved:
@@ -88,3 +89,4 @@ if needs_export:
 
 print("Volkswagen Amarok source is ready for Unity.")
 print("In Unity run: Big Ambitions Mods > Setup Volkswagen Amarok")
+print("Then run: Big Ambitions Mods > Build Volkswagen Amarok AssetBundle")
