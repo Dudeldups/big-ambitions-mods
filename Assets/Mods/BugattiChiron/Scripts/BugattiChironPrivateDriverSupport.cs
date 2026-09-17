@@ -377,8 +377,16 @@ internal static class BugattiChironPrivateDriverSupport
         holder.transform.localPosition = source.localPosition;
         holder.transform.localRotation = source.localRotation;
         holder.transform.localScale = source.localScale;
-        var hasVisualFront = TryGetVisualFront(clone.transform, out var visualFront);
+        // The mesh bounds include forward detail that does not match the walkable nose.
+        // Keep the confirmed rear fit and pull only the NPC body collider's front back.
+        const float frontClearanceCorrection = 0.70f;
         var originalFront = float.NegativeInfinity;
+        foreach (var sourceBox in sourceBoxes)
+        {
+            if (!sourceBox.isTrigger)
+                originalFront = Mathf.Max(originalFront, sourceBox.center.z + sourceBox.size.z * 0.5f);
+        }
+        var frontLimit = originalFront - frontClearanceCorrection;
         var fittedFront = float.NegativeInfinity;
         foreach (var sourceBox in sourceBoxes)
         {
@@ -390,51 +398,24 @@ internal static class BugattiChironPrivateDriverSupport
             box.sharedMaterial = sourceBox.sharedMaterial;
             var rear = box.center.z - box.size.z * 0.5f;
             var front = box.center.z + box.size.z * 0.5f;
-            originalFront = Mathf.Max(originalFront, front);
-            if (hasVisualFront && front > visualFront + 0.05f)
+            if (front > frontLimit)
             {
-                front = Mathf.Max(rear + 0.05f, visualFront + 0.05f);
+                front = Mathf.Max(rear + 0.05f, frontLimit);
                 box.center = new Vector3(box.center.x, box.center.y, (rear + front) * 0.5f);
                 box.size = new Vector3(box.size.x, box.size.y, front - rear);
             }
             fittedFront = Mathf.Max(fittedFront, front);
         }
 
-        if (!hasVisualFront)
-            context?.Logger.Warn("BugattiChiron: AI visual front could not be measured; collider length was unchanged.");
         if (BugattiChironDiagnostics.DebugEnabled)
         {
             context?.Logger.Info(
                 $"BugattiChiron: AI body collider fitted boxes={holder.GetComponents<BoxCollider>().Length} " +
                 $"disabledTemplateColliders={disabled} sourceLocalPos={source.localPosition:F3} " +
-                $"visualFront={visualFront:0.000} originalFront={originalFront:0.000} " +
+                $"frontCorrection={frontClearanceCorrection:0.000} originalFront={originalFront:0.000} " +
                 $"fittedFront={fittedFront:0.000}.");
         }
         return true;
-    }
-
-    private static bool TryGetVisualFront(Transform root, out float front)
-    {
-        front = float.NegativeInfinity;
-        var visual = FindTransform(root, "BugattiVisual");
-        if (visual == null)
-            return false;
-        foreach (var filter in visual.GetComponentsInChildren<MeshFilter>(true))
-        {
-            if (filter.sharedMesh == null)
-                continue;
-            var bounds = filter.sharedMesh.bounds;
-            for (var x = -1; x <= 1; x += 2)
-            for (var y = -1; y <= 1; y += 2)
-            for (var z = -1; z <= 1; z += 2)
-            {
-                var corner = bounds.center + Vector3.Scale(
-                    bounds.extents, new Vector3(x, y, z));
-                var local = root.InverseTransformPoint(filter.transform.TransformPoint(corner));
-                front = Mathf.Max(front, local.z);
-            }
-        }
-        return front > 1f && front < 3f;
     }
 
     private static bool IsWheelColliderTransform(Transform candidate, Transform root)
