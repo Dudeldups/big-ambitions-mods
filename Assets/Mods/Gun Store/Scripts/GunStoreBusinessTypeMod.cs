@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -132,17 +133,35 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
         "Boom Boom & Beyond",
         "Safety Third Firearms"
     };
+    internal static IReadOnlyList<string> AiRivalBusinessNames => RetiredAiRivalBusinessNames;
+    private static readonly (string FileName, string LayoutName)[] RivalLayouts =
+    {
+        ("GunStoreRivalsA1.json", "GunStoreRivalsA1"),
+        ("GunStoreRivalsC1.json", "GunStoreRivalsC1"),
+        ("GunStoreRivalsC2.json", "GunStoreRivalsC2"),
+        ("GunStoreRivalsD2.json", "GunStoreRivalsD2"),
+        ("GunStoreRivalsM1.json", "GunStoreRivalsM1")
+    };
+    private static readonly string[] RivalLayoutByBusiness =
+    {
+        "GunStoreRivalsC1", "GunStoreRivalsC1", "GunStoreRivalsA1",
+        "GunStoreRivalsA1", "GunStoreRivalsC2", "GunStoreRivalsD2",
+        "GunStoreRivalsM1", "GunStoreRivalsC1", "GunStoreRivalsD2"
+    };
+    private static readonly string[] PreferredTemplateLayouts =
+    {
+        "GiftShopRivals", "LiquorRivals", "ElectronicsRivals", "JewelryRivals"
+    };
 
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
-    private const string CheapGiftItemName = "ba:itemname_cheapgift";
-    private const string ExpensiveGiftItemName = "ba:itemname_expensivegift";
-    private const string ExpensiveFlowersItemName = "ba:itemname_expensiveflower";
+    private const string ProductPanelItemName = "ba:itemname_productpanel";
     private const string ConsumerGoodsWorkstationType = "ba:factoryworkstationtype_consumergoodsworkstation";
 
     public string[] RelativeAssetBundlePaths => new[] { BundleKey };
 
     private readonly Dictionary<BigAmbitions.Items.Item, string[]> patchedShowcaseShelves = new();
     private readonly List<IList> patchedRecipeLists = new();
+    private readonly List<AiBusinessDefault> injectedAiDefaults = new();
     private ImportExportSettings? blueStoneImportSettings;
     private ImportExportSettings? maritimeImportSettings;
 
@@ -180,55 +199,38 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             SaveGameManager.MarkChange();
     }
 
-    internal static void RetireLegacyAiRivalsAfterGameLoaded(ModContext? context)
+    internal static void RestoreAiRivalsAfterGameLoaded(ModContext? context)
     {
         var registrations = SaveGameManager.Current?.BuildingRegistrations;
         if (registrations == null)
             return;
 
-        var repairedCount = 0;
-        var removedItemInstanceCount = 0;
+        var reopenedCount = 0;
         foreach (var registration in registrations)
         {
             if (registration == null ||
                 registration.RentedByPlayer ||
+                !string.Equals(registration.businessTypeName, GunStoreBusinessTypeName, StringComparison.Ordinal) ||
+                registration.Layout == null ||
+                !registration.Layout.StartsWith("GunStoreRivals", StringComparison.Ordinal) ||
                 !RetiredAiRivalBusinessNames.Contains(registration.BusinessName, StringComparer.Ordinal))
             {
                 continue;
             }
 
-            var wasAlreadyClosed = registration.temporarilyClosed;
-            var itemInstanceCount = registration.itemInstances?.Count ?? 0;
-            var changed = !wasAlreadyClosed || itemInstanceCount > 0;
-
-            // These businesses were created by the removed AI-rival integration. Their saved
-            // fixture instances can contain a broken ShowcaseShelf visual reference; when that
-            // reference is updated, the base game's customer task loop aborts for every shop.
-            // Clear the obsolete rival fixtures before BuildingManager instantiates them. Do not
-            // call TemporarilyClose here: its game-side UI refresh is not safe this early in load.
-            registration.temporarilyClosed = true;
-            registration.itemInstances?.Clear();
-
-            if (!changed)
+            if (!registration.temporarilyClosed)
                 continue;
-
-            repairedCount++;
-            removedItemInstanceCount += itemInstanceCount;
-            context?.Logger.Warn(
-                $"Gun Store: quarantined legacy AI rival fixtures: name='{registration.BusinessName}', " +
-                $"address={registration.Address}, businessType='{registration.businessTypeName}', " +
-                $"businessOwnerRivalId='{registration.businessOwnerRivalId ?? "<none>"}', " +
-                $"wasAlreadyClosed={wasAlreadyClosed}, removedItemInstances={itemInstanceCount}. " +
-                "It is not player-owned; its obsolete fixtures were removed before customer simulation.");
+            registration.temporarilyClosed = false;
+            reopenedCount++;
+            context?.Logger.Info(
+                $"Gun Store: reopened NPC rival '{registration.BusinessName}' at {registration.Address}; " +
+                $"layout='{registration.Layout}', savedFixtures={registration.itemInstances?.Count ?? 0}.");
         }
-
-        if (repairedCount <= 0)
-            return;
-
-        SaveGameManager.MarkChange();
-        context?.Logger.Info(
-            $"Gun Store: quarantined {repairedCount} legacy AI rival business(es), removing " +
-            $"{removedItemInstanceCount} obsolete fixture instance(s). Player-owned businesses were not changed.");
+        if (reopenedCount > 0)
+        {
+            SaveGameManager.MarkChange();
+            context?.Logger.Info($"Gun Store: reopened {reopenedCount} previously quarantined NPC rival(s).");
+        }
     }
 
     private static bool HasLoadedGunStoreStock(BuildingRegistration registration)
@@ -252,11 +254,22 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
     public async Task OnLoadAsync(ModContext context)
     {
         context.Logger.Info(
-            "Gun Store city integration loaded with AI-rival and layout-cache patches disabled; " +
-            "global showcase-fixture mappings are disabled while customer navigation is repaired.");
+            "Gun Store city integration loading NPC rivals, layouts, and fixture product catalogs; global visual mappings remain disabled.");
 
         for (var i = 0; i < 6; i++)
         {
+            RegisterRivalLayouts(context);
+            PatchAiBusinessDefaults(context);
+            PatchShowcaseShelves(context);
+            try
+            {
+                GunStoreNpcBannerRuntime.Prime(context);
+            }
+            catch (Exception exception)
+            {
+                context.Logger.Warn("Gun Store: NPC banner initialization failed; rival layouts remain registered.");
+                context.Logger.Error(exception);
+            }
             AddToImporter();
             PatchImportPartnerships();
             PatchConsumerGoodsWorkstation();
@@ -269,16 +282,134 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
     public Task OnUnloadAsync()
     {
+        RestoreAiBusinessDefaults();
         RestoreConsumerGoodsWorkstation();
         RestoreShowcaseShelves();
         RemoveFromImporter();
         return Task.CompletedTask;
     }
 
+    private static void RegisterRivalLayouts(ModContext context)
+    {
+        var registered = BusinessLayoutSets.BusinessLayoutSetHelper.GetAllBusinessLayoutSets();
+        var bundle = AssetService.GetBundle(context.ModId, BundleKey);
+        var register = typeof(BusinessLayoutSets.BusinessLayoutSetHelper).GetMethod(
+            "SetBusinessLayoutSynchronous", BindingFlags.Static | BindingFlags.NonPublic,
+            null, new[] { typeof(string) }, null);
+        if (register == null)
+        {
+            context.Logger.Warn("Gun Store: NPC layout registration unavailable: game layout loader not found.");
+            return;
+        }
+
+        var directory = Path.Combine(Application.temporaryCachePath, "BAModLayouts", context.ModId);
+        Directory.CreateDirectory(directory);
+        foreach (var layout in RivalLayouts)
+        {
+            if (registered.Values.Any(item => item.BusinessType == GunStoreBusinessTypeName &&
+                                              item.LayoutName == layout.LayoutName))
+                continue;
+
+            var assetPath = "Assets/Mods/Gun Store/Layouts/" + layout.FileName;
+            var asset = bundle.LoadAsset<TextAsset>(assetPath);
+            if (asset == null || string.IsNullOrWhiteSpace(asset.text))
+            {
+                context.Logger.Warn($"Gun Store: NPC layout missing from bundle: '{assetPath}'.");
+                continue;
+            }
+
+            var path = Path.Combine(directory, layout.FileName);
+            File.WriteAllText(path, asset.text);
+            register.Invoke(null, new object[] { path });
+            if (registered.Values.Any(item => item.BusinessType == GunStoreBusinessTypeName &&
+                                              item.LayoutName == layout.LayoutName))
+                context.Logger.Info($"Gun Store: registered NPC layout '{layout.LayoutName}'.");
+            else
+                context.Logger.Warn($"Gun Store: NPC layout '{layout.LayoutName}' did not enter the game cache.");
+        }
+    }
+
+    private void PatchAiBusinessDefaults(ModContext context)
+    {
+        var allDefaults = CompetitionHelper.GetAllBusinessDefaults();
+        if (injectedAiDefaults.Count == 0)
+        {
+            var templates = allDefaults
+                .Where(item => item != null && item.businessTypeName != GunStoreBusinessTypeName &&
+                               string.IsNullOrEmpty(item.corporationRivalId))
+                .OrderBy(item =>
+                {
+                    var index = Array.IndexOf(PreferredTemplateLayouts, item.buildingLayout);
+                    return index < 0 ? int.MaxValue : index;
+                })
+                .ThenBy(item => item.name)
+                .GroupBy(item => item.buildingLayout)
+                .Select(group => group.First())
+                .ToArray();
+            if (templates.Length == 0)
+            {
+                context.Logger.Warn("Gun Store: NPC rivals unavailable: no base-game AI business templates found.");
+                return;
+            }
+
+            for (var index = 0; index < RetiredAiRivalBusinessNames.Length; index++)
+            {
+                var clone = UnityEngine.Object.Instantiate(templates[index % templates.Length]);
+                clone.name = "GunStoreNpc" + index;
+                clone.businessName = RetiredAiRivalBusinessNames[index];
+                clone.businessTypeName = GunStoreBusinessTypeName;
+                clone.buildingLayout = RivalLayoutByBusiness[index];
+                clone.logoSettings = (clone.logoSettings ?? new LogoSettings()).Clone();
+                clone.logoSettings.logoShape = GunStoreNpcBannerRuntime.LogoShapeKey;
+                injectedAiDefaults.Add(clone);
+            }
+        }
+
+        var cacheField = typeof(CompetitionHelper).GetField("BusinessDefaultsCached", BindingFlags.Static | BindingFlags.NonPublic);
+        if (cacheField?.GetValue(null) is AiBusinessDefault[] cached &&
+            injectedAiDefaults.Any(item => !cached.Contains(item)))
+        {
+            cacheField.SetValue(null, cached.Concat(injectedAiDefaults.Where(item => !cached.Contains(item))).ToArray());
+            context.Logger.Info($"Gun Store: registered {injectedAiDefaults.Count} NPC business defaults.");
+        }
+
+        var byTypeField = typeof(CompetitionHelper).GetField("BusinessDefaultsByType", BindingFlags.Static | BindingFlags.NonPublic);
+        if (byTypeField?.GetValue(null) is Dictionary<string, AiBusinessDefault[]> byType)
+        {
+            byType.TryGetValue(GunStoreBusinessTypeName, out var existing);
+            existing ??= Array.Empty<AiBusinessDefault>();
+            byType[GunStoreBusinessTypeName] = existing
+                .Concat(injectedAiDefaults.Where(item => !existing.Contains(item))).ToArray();
+        }
+    }
+
+    private void RestoreAiBusinessDefaults()
+    {
+        var cacheField = typeof(CompetitionHelper).GetField("BusinessDefaultsCached", BindingFlags.Static | BindingFlags.NonPublic);
+        if (cacheField?.GetValue(null) is AiBusinessDefault[] cached)
+            cacheField.SetValue(null, cached.Where(item => !injectedAiDefaults.Contains(item)).ToArray());
+
+        var byTypeField = typeof(CompetitionHelper).GetField("BusinessDefaultsByType", BindingFlags.Static | BindingFlags.NonPublic);
+        if (byTypeField?.GetValue(null) is Dictionary<string, AiBusinessDefault[]> byType &&
+            byType.TryGetValue(GunStoreBusinessTypeName, out var defaults))
+        {
+            var remaining = defaults.Where(item => !injectedAiDefaults.Contains(item)).ToArray();
+            if (remaining.Length == 0)
+                byType.Remove(GunStoreBusinessTypeName);
+            else
+                byType[GunStoreBusinessTypeName] = remaining;
+        }
+
+        foreach (var item in injectedAiDefaults)
+            UnityEngine.Object.Destroy(item);
+        injectedAiDefaults.Clear();
+    }
+
     private void PatchShowcaseShelves(ModContext context)
     {
-        // ShelfController stores visual mappings globally. Clear mappings left by a hot reload
-        // before registering only the base-game fixtures this mod supports.
+        // Only extend the selectable product catalog. ShelfController visual mappings are
+        // global and replacing vanilla templates there corrupts unrelated shop fixtures.
+        // Clear any mapping left by an older hot-reloaded version instead.
         foreach (var gunStoreItemName in GunStoreShelfItemNames)
             ShelfController.UnregisterItemToShow(gunStoreItemName);
 
@@ -299,14 +430,6 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
 
             patchedShowcaseShelves[item] = item.itemsThatCanShowcase.ToArray();
 
-            foreach (var gunStoreItemName in missingGunStoreItems)
-            {
-                ShelfController.RegisterItemToShow(
-                    gunStoreItemName,
-                    item.itemName,
-                    item.itemName == RoundedShelfItemName ? ExpensiveFlowersItemName : CheapGiftItemName);
-            }
-
             item.itemsThatCanShowcase = item.itemsThatCanShowcase.Concat(missingGunStoreItems).ToArray();
             patchedShelfCount++;
         }
@@ -322,12 +445,7 @@ public class GunStoreBusinessTypeCityMod : IModBigAmbitions
             !item.itemName.StartsWith("ba:", StringComparison.Ordinal))
             return false;
 
-        if (item.itemName == RoundedShelfItemName)
-            return true;
-
-        return (item.type & ItemType.ShowcaseShelf) != 0
-            && (item.itemsThatCanShowcase.Contains(CheapGiftItemName)
-                || item.itemsThatCanShowcase.Contains(ExpensiveGiftItemName));
+        return item.itemName == RoundedShelfItemName || item.itemName == ProductPanelItemName;
     }
 
     private void RestoreShowcaseShelves()

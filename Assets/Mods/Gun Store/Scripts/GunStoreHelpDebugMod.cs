@@ -2,10 +2,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 #if GUN_STORE_HELP_UI_DEBUG
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 #endif
@@ -23,14 +23,22 @@ using UnityEngine.EventSystems;
 #endif
 using UnityEngine.SceneManagement;
 
+internal static class GunStoreDiagnosticFlags
+{
+    internal static readonly bool Debug = false;
+    internal static readonly bool ShelfLifecycle = false;
+}
+
 [DefaultExecutionOrder(10000)]
 internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 {
+    internal static GunStoreHelpDebugRuntime? Active { get; private set; }
     private const string GunStoreBundleKey = "AssetBundles/gunstore-businesstype.unity3d";
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
     private const string ExpensiveFlowerItemName = "ba:itemname_expensiveflower";
     private const int GeneratedDisplayVersion = 21;
+    private static readonly float[] ShelfVisualRetryDelays = { 0f, 0f, 2f, 3f, 5f, 10f, 10f };
     private ModContext? context;
     private bool shuttingDown;
     private Coroutine? pendingNavigationPatch;
@@ -39,9 +47,14 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private bool postCitySaveRepairCompleted;
     private Coroutine? shelfVisualRepairCoroutine;
     private Coroutine? gunStoreVisualSetupCoroutine;
+    private Coroutine? npcBannerCoroutine;
     private readonly HashSet<string> loggedGunStoreVisualSetupFailures = new(StringComparer.Ordinal);
+    private readonly HashSet<int> loggedNpcShelfVisualRestorations = new();
     private readonly Dictionary<Material, Material> displayMaterialCache = new();
     private readonly Dictionary<Material, Material> shelfGlassMaterialCache = new();
+    private readonly HashSet<int> failedShelfLifecycleHooks = new();
+    private readonly HashSet<int> hookedShelfPrefabIds = new();
+    private bool loggedMissingShelfPrefabHook;
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
         "_visualItems",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -71,6 +84,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
 
         existing.context = context;
+        Active = existing;
         existing.shuttingDown = false;
 #if GUN_STORE_HELP_UI_DEBUG
         GunStoreHelpDebugLogger.StartSession();
@@ -82,6 +96,14 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         LocalizorManager.OnLanguageChanged += existing.HandleLanguageChanged;
         SceneManager.sceneLoaded -= existing.HandleSceneLoaded;
         SceneManager.sceneLoaded += existing.HandleSceneLoaded;
+        GlobalEvents.onEnterBuilding -= existing.HandleEnterBuilding;
+        GlobalEvents.onEnterBuilding += existing.HandleEnterBuilding;
+        GlobalEvents.onEnterBuildingDelayed -= existing.HandleEnterBuildingDelayed;
+        GlobalEvents.onEnterBuildingDelayed += existing.HandleEnterBuildingDelayed;
+        GlobalEvents.onCityMapClosed -= existing.HandleCityMapClosed;
+        GlobalEvents.onCityMapClosed += existing.HandleCityMapClosed;
+        GlobalEvents.onItemDropped -= existing.HandleItemDropped;
+        GlobalEvents.onItemDropped += existing.HandleItemDropped;
         if (!existing.gameLoadedLateCallbackRegistered)
         {
             GlobalEvents.RegisterOnGameLoadedLateCallback(existing.HandleGameLoadedLate);
@@ -138,10 +160,29 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return;
 
         shuttingDown = true;
+        if (ReferenceEquals(Active, this))
+            Active = null;
         LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
         SceneManager.sceneLoaded -= HandleSceneLoaded;
+        GlobalEvents.onEnterBuilding -= HandleEnterBuilding;
+        GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
+        GlobalEvents.onCityMapClosed -= HandleCityMapClosed;
+        GlobalEvents.onItemDropped -= HandleItemDropped;
         if (pendingNavigationPatch != null)
             StopCoroutine(pendingNavigationPatch);
+        if (gunStoreVisualSetupCoroutine != null)
+            StopCoroutine(gunStoreVisualSetupCoroutine);
+        if (npcBannerCoroutine != null)
+            StopCoroutine(npcBannerCoroutine);
+
+        foreach (var observer in Resources.FindObjectsOfTypeAll<GunStoreNpcShelfVisualObserver>())
+        {
+            if (observer != null && observer.gameObject.scene.IsValid())
+            {
+                observer.enabled = false;
+                Destroy(observer);
+            }
+        }
 
         foreach (var material in displayMaterialCache.Values)
         {
@@ -174,10 +215,64 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         ScheduleNavigationPatch(reason: $"scene-loaded:{scene.name}:{mode}");
     }
 
+    private void HandleEnterBuildingDelayed(Address address)
+    {
+        ScheduleGunStoreInteriorVisuals(address, "enter-building-delayed");
+    }
+
+    private void HandleEnterBuilding(Address address)
+    {
+        ScheduleGunStoreInteriorVisuals(address, "enter-building");
+    }
+
+    private void HandleCityMapClosed()
+    {
+        // Teleporting from the map can instantiate nearby rival interiors without
+        // producing a new Unity sceneLoaded callback.
+        if (postCitySaveRepairCompleted)
+            StartGunStoreVisualSetup("city-map-closed");
+    }
+
+    private void HandleItemDropped(ItemController item)
+    {
+        if (item?.BuildingContext?.Registration?.businessTypeName ==
+            "gunstore-businesstype:businesstype_gunstore")
+            StartGunStoreVisualSetup("item-dropped-in-gun-store");
+    }
+
+    private void ScheduleGunStoreInteriorVisuals(Address address, string reason)
+    {
+        if (!postCitySaveRepairCompleted)
+            return;
+
+        // Building addresses may be reconstructed between the entry event and save
+        // registrations, so equality can miss a real Gun Store entry. This is a bounded
+        // event-triggered pass; TryInstallGunStoreVisualSlot filters to actual Gun Store stock.
+        var registration = SaveGameManager.Current?.BuildingRegistrations?
+            .FirstOrDefault(item => item != null &&
+                (item.Address.Equals(address) || item.Address.ToString() == address.ToString()));
+        if (registration != null && !string.Equals(registration.businessTypeName,
+                "gunstore-businesstype:businesstype_gunstore", StringComparison.Ordinal))
+            return;
+        context?.Logger.Info(
+            $"Gun Store: building entry visual check: name='{registration?.BusinessName ?? "<unresolved>"}', " +
+            $"address={address}, businessType='{registration?.businessTypeName ?? "<unresolved>"}', reason='{reason}'.");
+        StartGunStoreVisualSetup($"entered:{address}:{reason}");
+    }
+
     private void HandleGameLoadedLate()
     {
+        GlobalEvents.onEnterBuilding -= HandleEnterBuilding;
+        GlobalEvents.onEnterBuilding += HandleEnterBuilding;
+        GlobalEvents.onEnterBuildingDelayed -= HandleEnterBuildingDelayed;
+        GlobalEvents.onEnterBuildingDelayed += HandleEnterBuildingDelayed;
+        GlobalEvents.onCityMapClosed -= HandleCityMapClosed;
+        GlobalEvents.onCityMapClosed += HandleCityMapClosed;
+        GlobalEvents.onItemDropped -= HandleItemDropped;
+        GlobalEvents.onItemDropped += HandleItemDropped;
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
-        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RestoreAiRivalsAfterGameLoaded(context);
+        StartNpcBannerGeneration();
         if (postCitySaveRepairCompleted)
             StartGunStoreVisualSetup("game-loaded-late");
 
@@ -216,9 +311,11 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return;
 
         GunStoreBusinessTypeCityMod.RepairEmptyProductCachesAfterGameLoaded(context);
-        GunStoreBusinessTypeCityMod.RetireLegacyAiRivalsAfterGameLoaded(context);
+        GunStoreBusinessTypeCityMod.RestoreAiRivalsAfterGameLoaded(context);
         postCitySaveRepairCompleted = true;
         context?.Logger.Info("Gun Store: completed post-city save repair after building registrations became available.");
+
+        StartNpcBannerGeneration();
 
         if (shelfVisualRepairCoroutine != null)
             StopCoroutine(shelfVisualRepairCoroutine);
@@ -236,6 +333,13 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         gunStoreVisualSetupCoroutine = StartCoroutine(InstallGunStoreShelfVisuals());
         context?.Logger.Info($"Gun Store: scheduled isolated shelf-visual setup; reason='{reason}'.");
+    }
+
+    private void StartNpcBannerGeneration()
+    {
+        if (context == null || npcBannerCoroutine != null)
+            return;
+        npcBannerCoroutine = StartCoroutine(GunStoreNpcBannerRuntime.Generate(context));
     }
 
     private IEnumerator RepairMalformedShelfVisuals()
@@ -257,7 +361,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // shelf. Gun Store used the same template for several products, which left destroyed
         // visual references in unrelated shops. Add an independent visual slot only to shelves
         // that actually contain Gun Store stock instead.
-        for (var pass = 0; pass < 16; pass++)
+        for (var pass = 0; pass < ShelfVisualRetryDelays.Length && !shuttingDown; pass++)
         {
             // StartCoroutine runs until its first yield immediately. Correct shelf glass on
             // the scene-loaded callback, before the first frame can show iridescence. Keep
@@ -265,12 +369,19 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             if (pass == 1)
                 yield return null;
             else if (pass > 1)
-                yield return new WaitForSeconds(2f);
+                yield return new WaitForSeconds(ShelfVisualRetryDelays[pass]);
+
+            // This retry window is finite. Later interiors start a fresh window via
+            // building-entry or map-close events; there is no permanent world scan.
 
             var installedCount = 0;
             foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
             {
-                if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+                if (shelf == null)
+                    continue;
+
+                AttachShelfLifecycleHook(shelf);
+                if (!shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
                     continue;
 
                 if (TryInstallGunStoreVisualSlot(shelf, out var itemName, out var shelfName))
@@ -290,7 +401,55 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             }
         }
 
+        if (hookedShelfPrefabIds.Count == 0 && !loggedMissingShelfPrefabHook)
+        {
+            loggedMissingShelfPrefabHook = true;
+            context?.Logger.Warn("Gun Store: no source shelf prefab accepted the lifecycle hook; newly loaded interiors may need another setup event.");
+        }
+
         gunStoreVisualSetupCoroutine = null;
+    }
+
+    private void AttachShelfLifecycleHook(ShelfController shelf)
+    {
+        if (shelf.itemName != RoundedShelfItemName && shelf.itemName != "ba:itemname_productpanel")
+            return;
+
+        if (shelf.GetComponent<GunStoreShelfLifecycleHook>() != null ||
+            failedShelfLifecycleHooks.Contains(shelf.GetInstanceID()))
+            return;
+
+        try
+        {
+            // Include loaded prefab assets (invalid scene) as well as live fixtures.
+            // The component is inherited by future instances, unlike a one-time scene scan.
+            shelf.gameObject.AddComponent<GunStoreShelfLifecycleHook>();
+            if (!shelf.gameObject.scene.IsValid())
+                hookedShelfPrefabIds.Add(shelf.GetInstanceID());
+            if (GunStoreDiagnosticFlags.Debug && GunStoreDiagnosticFlags.ShelfLifecycle)
+                context?.Logger.Info(
+                    $"Gun Store: hooked shelf lifecycle: fixture='{shelf.itemName}', " +
+                    $"sourceAsset={!shelf.gameObject.scene.IsValid()}, object='{shelf.name}'.");
+        }
+        catch (Exception exception)
+        {
+            failedShelfLifecycleHooks.Add(shelf.GetInstanceID());
+            context?.Logger.Warn(
+                $"Gun Store: could not hook shelf lifecycle: fixture='{shelf.itemName}', object='{shelf.name}'.");
+            context?.Logger.Error(exception);
+        }
+    }
+
+    internal void InstallShelfVisualOnInitialization(ShelfController shelf)
+    {
+        if (shuttingDown || context == null || shelf == null ||
+            !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+            return;
+
+        if (TryInstallGunStoreVisualSlot(shelf, out var itemName, out var shelfName))
+            context.Logger.Info(
+                $"Gun Store: installed shelf visual on fixture initialization: product='{itemName}', " +
+                $"fixture='{shelfName}', position={shelf.transform.position}.");
     }
 
     private bool TryInstallGunStoreVisualSlot(
@@ -306,11 +465,15 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 
         var owner = shelf.GetComponentInParent<ItemController>();
         var stock = owner?.ItemInstance == null ? null : ItemHelper.GetStockInstance(owner.ItemInstance);
-        if (context == null || stock == null || string.IsNullOrEmpty(stock.itemName) ||
-            !GunStoreVisualPrefabPaths.TryGetValue(stock.itemName, out var prefabPath))
+        var npcProductName = owner?.playerItemPurchaserSettings?.enabled == true
+            ? owner.playerItemPurchaserSettings.itemName
+            : null;
+        var productName = stock?.itemName ?? npcProductName ?? string.Empty;
+        if (context == null || productName.Length == 0 ||
+            !GunStoreVisualPrefabPaths.TryGetValue(productName, out var prefabPath))
             return false;
 
-        itemName = stock.itemName;
+        itemName = productName;
         shelfName = owner?.Item?.itemName ?? shelf.name;
         DisableIridescenceOnGunStoreShelfGlass(shelf, itemName);
         var visualSlotName = itemName.GetIdWithoutType();
@@ -319,7 +482,11 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         {
             var existingMarker = existingVisualSlot.GetComponent<GunStoreMeshOnlyDisplayMarker>();
             if (existingMarker != null && existingMarker.Generation == GeneratedDisplayVersion)
+            {
+                AttachNpcShelfObserver(shelf, owner, existingVisualSlot, itemName);
+                EnsureNpcShelfDisplayVisible(shelf, owner, existingVisualSlot, itemName);
                 return false;
+            }
 
             // Upgrade visual slots created by 0.1.13/0.1.14 in an already-loaded city. They
             // have the same product name but contain the unbounded placement layout.
@@ -385,11 +552,64 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         // copies keep the display visual separate from product gameplay state.
         shelf.ShowItemVisuals(itemName, showDefault: false);
         shelf.UpdateVisuals();
+        AttachNpcShelfObserver(shelf, owner, visualSlot, itemName);
+        EnsureNpcShelfDisplayVisible(shelf, owner, visualSlot, itemName);
         context.Logger.Info(
             $"Gun Store: installed mesh-only shelf display: product='{itemName}', shelf='{shelfName}', " +
             $"template='{template.name}', displayCount={displayCount}, meshCount={meshCount}, " +
             $"position={shelf.transform.position}.");
         return true;
+    }
+
+    private void AttachNpcShelfObserver(
+        ShelfController shelf, ItemController? owner, Transform visualSlot, string itemName)
+    {
+        if (owner?.BuildingContext?.Registration?.RentedByPlayer != false ||
+            owner.playerItemPurchaserSettings?.enabled != true ||
+            !string.Equals(owner.playerItemPurchaserSettings.itemName, itemName, StringComparison.Ordinal))
+            return;
+
+        var observer = shelf.GetComponent<GunStoreNpcShelfVisualObserver>();
+        if (observer == null)
+        {
+            observer = shelf.gameObject.AddComponent<GunStoreNpcShelfVisualObserver>();
+            context?.Logger.Info(
+                $"Gun Store: attached NPC shelf visual observer: product='{itemName}', " +
+                $"position={shelf.transform.position}.");
+        }
+        observer.Initialize(this, shelf, owner, visualSlot, itemName);
+    }
+
+    internal void EnsureNpcShelfDisplayVisible(
+        ShelfController shelf, ItemController? owner, Transform visualSlot, string itemName)
+    {
+        if (shuttingDown)
+            return;
+
+        // AI fixtures advertise virtual stock through PlayerItemPurchaserSettings, but
+        // their cargo fill can be zero. The native UpdateVisuals then disables every
+        // child of the otherwise correctly selected Gun Store visual slot.
+        if (owner?.BuildingContext?.Registration?.RentedByPlayer != false ||
+            owner.playerItemPurchaserSettings?.enabled != true ||
+            !string.Equals(owner.playerItemPurchaserSettings.itemName, itemName, StringComparison.Ordinal) ||
+            !shelf.gameObject.activeInHierarchy)
+            return;
+
+        var wasActive = visualSlot.gameObject.activeSelf;
+        var firstVisualActive = visualSlot.childCount > 0 &&
+                                visualSlot.GetChild(0).gameObject.activeSelf;
+        var previousFill = shelf.fillState;
+        if (wasActive && firstVisualActive && previousFill >= 0.99d)
+            return;
+
+        shelf.ShowItemVisuals(itemName, showDefault: false);
+        visualSlot.gameObject.SetActive(true);
+        shelf.UpdateFillState(1d);
+        if (loggedNpcShelfVisualRestorations.Add(shelf.GetInstanceID()))
+            context?.Logger.Info(
+                $"Gun Store: restored NPC shelf display: product='{itemName}', position={shelf.transform.position}, " +
+                $"slotActiveBefore={wasActive}, firstVisualActiveBefore={firstVisualActive}, " +
+                $"fillBefore={previousFill:0.###}, visualCount={visualSlot.childCount}.");
     }
 
     private void DisableIridescenceOnGunStoreShelfGlass(ShelfController shelf, string itemName)
@@ -778,11 +998,390 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     }
 }
 
+internal static class GunStoreNpcBannerRuntime
+{
+    internal const string LogoShapeKey = "gunstore_npc_pistol";
+    private const string BusinessTypeName = "gunstore-businesstype:businesstype_gunstore";
+    private static readonly LogoSize[] BannerSizes =
+    {
+        LogoSize.SquareSign, LogoSize.WideSign, LogoSize.Billboard
+    };
+    private static readonly FieldInfo? BusinessLogosField = typeof(LogoHelper).GetField(
+        "BusinessLogos", BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly Type? BusinessLogoKeyType = typeof(LogoHelper).GetNestedType(
+        "BusinessLogoKey", BindingFlags.NonPublic);
+
+    private static bool TryCacheGeneratedBanner(string name, LogoSize size, Texture2D texture)
+    {
+        // The current game only replaces an existing key in StoreGeneratedTexture.
+        // Missing AI logo files do not create that key, so seed it with the game's
+        // own cache-entry type before asking storefront signs to refresh.
+        if (BusinessLogosField?.GetValue(null) is not IDictionary cache || BusinessLogoKeyType == null)
+            return false;
+
+        var key = Activator.CreateInstance(BusinessLogoKeyType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null, new object[] { name, size, false }, null);
+        if (key == null)
+            return false;
+
+        if (cache.Contains(key))
+            LogoHelper.StoreGeneratedTexture(name, size, false, texture);
+        else
+            cache.Add(key, new BusinessLogoCacheEntry(texture, default));
+
+        return ReferenceEquals(LogoHelper.GetBusinessLogoTexture(name, size, false), texture);
+    }
+
+    private static bool TryAddPistolToWideSign(Texture2D wideSign)
+    {
+        // Big Ambitions' WideSign capture contains only the business name. Its
+        // square and billboard captures include the shape, so compose the same
+        // existing Gun Store icon into the unused left margin of the wide sign.
+        var source = BusinessTypeHelper.GetData(BusinessTypeName)?.icon?.texture;
+        if (source == null || wideSign.width < wideSign.height * 3)
+            return false;
+
+        var renderTexture = RenderTexture.GetTemporary(source.width, source.height, 0,
+            RenderTextureFormat.ARGB32);
+        var previousActive = RenderTexture.active;
+        var readableIcon = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
+        try
+        {
+            Graphics.Blit(source, renderTexture);
+            RenderTexture.active = renderTexture;
+            readableIcon.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+            readableIcon.Apply();
+
+            var sourcePixels = readableIcon.GetPixels32();
+            var signPixels = wideSign.GetPixels32();
+            var minX = source.width;
+            var minY = source.height;
+            var maxX = -1;
+            var maxY = -1;
+            for (var y = 0; y < source.height; y++)
+            {
+                for (var x = 0; x < source.width; x++)
+                {
+                    if (sourcePixels[y * source.width + x].a <= 16)
+                        continue;
+                    minX = Mathf.Min(minX, x);
+                    minY = Mathf.Min(minY, y);
+                    maxX = Mathf.Max(maxX, x);
+                    maxY = Mathf.Max(maxY, y);
+                }
+            }
+
+            if (maxX < minX || maxY < minY)
+                return false;
+
+            // The 50x50 icon contains substantial transparent padding. Enlarge the
+            // actual silhouette into the 240-pixel margin beside the name, not the
+            // padded image, so it remains recognizable at normal camera distance.
+            var iconWidth = Mathf.Min(220, wideSign.width / 4 - 20);
+            var iconHeight = wideSign.height - 12;
+            var left = 12;
+            var bottom = (wideSign.height - iconHeight) / 2;
+            for (var y = 0; y < iconHeight; y++)
+            {
+                var sourceY = minY + (y + 0.5f) * (maxY - minY + 1) / iconHeight;
+                for (var x = 0; x < iconWidth; x++)
+                {
+                    var sourceX = minX + (x + 0.5f) * (maxX - minX + 1) / iconWidth;
+                    var alpha = readableIcon.GetPixelBilinear(
+                        sourceX / source.width, sourceY / source.height).a;
+                    if (alpha == 0)
+                        continue;
+
+                    var index = (bottom + y) * wideSign.width + left + x;
+                    var background = signPixels[index];
+                    var remaining = 255 - Mathf.RoundToInt(alpha * 255f);
+                    signPixels[index] = new Color32(
+                        (byte)(background.r * remaining / 255),
+                        (byte)(background.g * remaining / 255),
+                        (byte)(background.b * remaining / 255), 255);
+                }
+            }
+
+            wideSign.SetPixels32(signPixels);
+            wideSign.Apply(false, false);
+            return true;
+        }
+        finally
+        {
+            RenderTexture.active = previousActive;
+            RenderTexture.ReleaseTemporary(renderTexture);
+            UnityEngine.Object.Destroy(readableIcon);
+        }
+    }
+
+    internal static void Prime(ModContext context)
+    {
+        var addedShape = !LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey);
+        if (addedShape)
+        {
+            var icon = BusinessTypeHelper.GetData(BusinessTypeName)?.icon;
+            if (icon == null)
+            {
+                context.Logger.Warn("Gun Store: NPC banner pistol icon was not available.");
+                return;
+            }
+
+            LogoHelper.LogoShapeSprites[LogoShapeKey] = Sprite.Create(
+                icon.texture, icon.rect, new Vector2(0.5f, 0.5f), icon.pixelsPerUnit);
+        }
+
+        if (addedShape)
+            context.Logger.Info(
+                $"Gun Store: registered storefront pistol logo shape for {GunStoreBusinessTypeCityMod.AiRivalBusinessNames.Count} NPC names.");
+    }
+
+    internal static IEnumerator Generate(ModContext context)
+    {
+        // The game's late-loaded callback can precede this mod's city-load entry point.
+        // Wait for the NPC defaults and logo generator instead of permanently abandoning signs.
+        var ready = false;
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            if (BusinessLogoGenerator.Instance != null &&
+                CompetitionHelper.GetBusinessDefault(GunStoreBusinessTypeCityMod.AiRivalBusinessNames[0]) != null)
+            {
+                Prime(context);
+                ready = LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey);
+                if (ready)
+                    break;
+            }
+
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        if (!ready)
+        {
+            context.Logger.Warn("Gun Store: NPC banners could not be generated within 30 seconds: " +
+                                $"generatorReady={BusinessLogoGenerator.Instance != null}, " +
+                                $"logoShapeReady={LogoHelper.LogoShapeSprites.ContainsKey(LogoShapeKey)}.");
+            yield break;
+        }
+
+        foreach (var name in GunStoreBusinessTypeCityMod.AiRivalBusinessNames)
+        {
+            var settings = CompetitionHelper.GetBusinessDefault(name)?.logoSettings?.Clone()
+                ?? new LogoSettings();
+            settings.logoShape = LogoShapeKey;
+            var path = Path.Combine(Application.persistentDataPath, "GunStoreAiLogos",
+                LogoHelper.GetBusinessNamePathSafe(name));
+            var completed = false;
+            BusinessLogoGenerator.Create(name, settings, path, false, () =>
+            {
+                completed = true;
+                try
+                {
+                    var cachedCount = 0;
+                    foreach (var size in BannerSizes)
+                    {
+                        var file = Path.Combine(path, size + ".jpg");
+                        if (!File.Exists(file))
+                        {
+                            context.Logger.Warn($"Gun Store: generated banner file missing: business='{name}', size={size}.");
+                            continue;
+                        }
+
+                        var texture = new Texture2D(2, 2);
+                        if (!ImageConversion.LoadImage(texture, File.ReadAllBytes(file)))
+                        {
+                            UnityEngine.Object.Destroy(texture);
+                            context.Logger.Warn($"Gun Store: generated banner image invalid: business='{name}', size={size}.");
+                            continue;
+                        }
+
+                        if (size == LogoSize.WideSign && !TryAddPistolToWideSign(texture))
+                        {
+                            UnityEngine.Object.Destroy(texture);
+                            context.Logger.Warn($"Gun Store: could not add the pistol icon to wide banner for '{name}'.");
+                            continue;
+                        }
+                        if (size == LogoSize.WideSign)
+                            context.Logger.Info($"Gun Store: enlarged pistol silhouette on wide banner for '{name}'.");
+
+                        if (!TryCacheGeneratedBanner(name, size, texture))
+                        {
+                            UnityEngine.Object.Destroy(texture);
+                            context.Logger.Warn($"Gun Store: could not register generated banner in game logo cache: business='{name}', size={size}.");
+                        }
+                        else
+                        {
+                            cachedCount++;
+                        }
+                    }
+
+                    var wideSign = LogoHelper.GetBusinessLogoTexture(name, LogoSize.WideSign, false);
+                    var success = cachedCount == BannerSizes.Length &&
+                                  wideSign != null && wideSign != LogoHelper.GetNullTexture();
+                    if (!success)
+                    {
+                        context.Logger.Warn($"Gun Store: storefront banner generation incomplete for '{name}': cached={cachedCount}/{BannerSizes.Length}.");
+                        return;
+                    }
+
+                    var refreshedSigns = 0;
+                    foreach (var registration in SaveGameManager.Current?.BuildingRegistrations?.AsEnumerable()
+                                 ?? Enumerable.Empty<BuildingRegistration>())
+                    {
+                        if (registration == null || registration.RentedByPlayer ||
+                            !string.Equals(registration.BusinessName, name, StringComparison.Ordinal))
+                            continue;
+
+                        var building = InstanceBehavior<CityManager>.Instance?
+                            .FindCityBuildingController(registration.Address);
+                        if (building == null)
+                            continue;
+                        building.UpdateSign();
+                        refreshedSigns++;
+                    }
+
+                    context.Logger.Info($"Gun Store: cached {cachedCount} NPC banner sizes for '{name}' and refreshed {refreshedSigns} loaded storefront sign(s).");
+                }
+                catch (Exception exception)
+                {
+                    context.Logger.Warn($"Gun Store: failed to refresh storefront banner for '{name}': {exception.Message}");
+                }
+            });
+
+            for (var attempt = 0; !completed && attempt < 40; attempt++)
+                yield return new WaitForSeconds(0.25f);
+            if (!completed)
+                context.Logger.Warn($"Gun Store: storefront banner generation timed out for '{name}'.");
+        }
+    }
+}
+
 // Runtime-only marker that makes the one-time shelf-display migration idempotent across scene
 // reloads while still allowing a newer implementation to replace older generated slots.
 internal sealed class GunStoreMeshOnlyDisplayMarker : MonoBehaviour
 {
     public int Generation;
+}
+
+// Attached to the loaded vanilla fixture prefabs, so each future interior gets an
+// initialization callback even when the game does not emit a building-entry event.
+[DefaultExecutionOrder(10001)]
+internal sealed class GunStoreShelfLifecycleHook : MonoBehaviour
+{
+    private IEnumerator Start()
+    {
+        var shelf = GetComponent<ShelfController>();
+        if (shelf == null)
+            yield break;
+
+        // ShelfController.Start selects its stock after Awake. Give saved cargo and NPC
+        // purchaser settings a few bounded chances to arrive, without a permanent scan.
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            yield return attempt == 0 ? null : new WaitForSeconds(attempt == 1 ? 0.1f : 0.5f);
+            GunStoreHelpDebugRuntime.Active?.InstallShelfVisualOnInitialization(shelf);
+        }
+    }
+}
+
+// React to the game's shelf cargo/visibility lifecycle after the bounded scene setup
+// has ended. This keeps virtual-stock NPC displays visible without global polling.
+internal sealed class GunStoreNpcShelfVisualObserver : MonoBehaviour
+{
+    private GunStoreHelpDebugRuntime? runtime;
+    private ShelfController? shelf;
+    private ItemController? owner;
+    private Transform? visualSlot;
+    private string? itemName;
+    private ItemInstance? itemInstance;
+    private Coroutine? pendingRefresh;
+
+    internal void Initialize(
+        GunStoreHelpDebugRuntime runtime,
+        ShelfController shelf,
+        ItemController owner,
+        Transform visualSlot,
+        string itemName)
+    {
+        if (ReferenceEquals(this.runtime, runtime) && ReferenceEquals(this.shelf, shelf) &&
+            ReferenceEquals(this.owner, owner) && ReferenceEquals(this.visualSlot, visualSlot) &&
+            string.Equals(this.itemName, itemName, StringComparison.Ordinal))
+        {
+            BindItemInstance();
+            return;
+        }
+
+        Unbind();
+        this.runtime = runtime;
+        this.shelf = shelf;
+        this.owner = owner;
+        this.visualSlot = visualSlot;
+        this.itemName = itemName;
+        owner.onItemInitialized?.AddListener(HandleItemInitialized);
+        BindItemInstance();
+    }
+
+    private void OnEnable()
+    {
+        QueueRefresh();
+    }
+
+    private void OnDisable()
+    {
+        if (pendingRefresh != null)
+            StopCoroutine(pendingRefresh);
+        pendingRefresh = null;
+    }
+
+    private void OnDestroy()
+    {
+        Unbind();
+    }
+
+    private void HandleItemInitialized()
+    {
+        BindItemInstance();
+        QueueRefresh();
+    }
+
+    private void HandleCargoUpdated()
+    {
+        QueueRefresh();
+    }
+
+    private void BindItemInstance()
+    {
+        var current = owner?.ItemInstance;
+        if (ReferenceEquals(itemInstance, current))
+            return;
+
+        itemInstance?.RemoveCallFromOnItemsInCargoUpdated(HandleCargoUpdated);
+        itemInstance = current;
+        itemInstance?.AddCallToOnItemsInCargoUpdated(HandleCargoUpdated);
+    }
+
+    private void QueueRefresh()
+    {
+        if (!isActiveAndEnabled || runtime == null || shelf == null || visualSlot == null ||
+            string.IsNullOrEmpty(itemName) || pendingRefresh != null)
+            return;
+
+        pendingRefresh = StartCoroutine(RefreshNextFrame());
+    }
+
+    private IEnumerator RefreshNextFrame()
+    {
+        yield return null;
+        pendingRefresh = null;
+        if (runtime != null && shelf != null && visualSlot != null && itemName != null)
+            runtime.EnsureNpcShelfDisplayVisible(shelf, owner, visualSlot, itemName);
+    }
+
+    private void Unbind()
+    {
+        itemInstance?.RemoveCallFromOnItemsInCargoUpdated(HandleCargoUpdated);
+        itemInstance = null;
+        owner?.onItemInitialized?.RemoveListener(HandleItemInitialized);
+    }
 }
 
 internal enum GunStoreHelpNavigationPatchResult
