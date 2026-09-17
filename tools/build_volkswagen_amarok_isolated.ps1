@@ -17,6 +17,7 @@ $flatBundle = Join-Path $amarokRoot "AssetBundles\volkswagenamarok.unity3d"
 $logPath = Join-Path $repoRoot "Temp\VolkswagenAmarokIsolatedBuild.log"
 $holdRoot = Join-Path $repoRoot ("Temp\VolkswagenAmarokBundleIsolation\" + [Guid]::NewGuid().ToString("N"))
 $feedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_ingame_feedback.py"
+$lightingHelperPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_lighting_source_helper.py"
 
 if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
     throw "Unity executable not found: $UnityExe"
@@ -24,14 +25,20 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
-if (-not (Test-Path -LiteralPath $feedbackPatch -PathType Leaf)) {
-    throw "Volkswagen Amarok in-game feedback patch not found: $feedbackPatch"
+foreach ($patch in @($feedbackPatch, $lightingHelperPatch)) {
+    if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
+        throw "Volkswagen Amarok source patch not found: $patch"
+    }
 }
 
-Write-Host "[amarok-bundle] Applying current Amarok in-game tuning patch..."
+Write-Host "[amarok-bundle] Applying current Amarok in-game tuning patches..."
 & python $feedbackPatch
 if ($LASTEXITCODE -ne 0) {
     throw "Amarok in-game feedback patch failed with exit code $LASTEXITCODE."
+}
+& python $lightingHelperPatch
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok lighting helper patch failed with exit code $LASTEXITCODE."
 }
 
 # BuildPipeline.BuildAssetBundles triggers a Player-mode script compile for the whole
