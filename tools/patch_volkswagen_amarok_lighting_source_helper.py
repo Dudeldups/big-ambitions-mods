@@ -1,6 +1,8 @@
 from pathlib import Path
+import runpy
 
 REPO = Path(__file__).resolve().parents[1]
+TOOLS = REPO / "tools"
 LIGHTING = REPO / "Assets/Mods/Volkswagen_Amarok/Scripts/VolkswagenAmarokLightingController.cs"
 
 if not LIGHTING.is_file():
@@ -53,3 +55,12 @@ if missing:
     raise SystemExit("Amarok lighting helper patch failed; missing: " + ", ".join(missing))
 
 print("Volkswagen Amarok authored-light helper preflight passed.")
+
+# The PowerShell builder already invokes this helper immediately before launching
+# Unity. Chain the feedback-prefab build patch here so the existing public
+# executeMethod is redirected away from Generate(), which unnecessarily depended
+# on a loadable Audi donor VehicleType asset.
+runpy.run_path(
+    str(TOOLS / "patch_volkswagen_amarok_existing_prefab_feedback_build.py"),
+    run_name="__main__",
+)
