@@ -9,7 +9,7 @@ RUNTIME = MOD / "Scripts/VolkswagenAmarokRuntime.cs"
 if not SETUP.is_file():
     raise SystemExit(f"Generated Amarok setup file was not found: {SETUP}")
 
-BODY_Y_OFFSET = 0.136
+WHEEL_Y = 0.306
 FRONT_AXLE_Z = 1.733
 REAR_AXLE_Z = -1.361
 WHEEL_INSET = 0.100
@@ -21,9 +21,16 @@ def save(path: Path, text: str):
 
 setup = SETUP.read_text(encoding="utf-8")
 
-# Keep the real 255/60 R18 wheel center at its physically plausible height.
-# The visual correction requested in Unity is achieved by lifting the Amarok
-# body instead of burying the tires below the vehicle/root ground plane.
+# The previous fitment attempt lifted the whole visual by 13.6 cm. That exposed
+# independent/generated visual roots at different heights. Keep the complete
+# body at the normalized GLB position and instead use the wheel centers measured
+# directly against the Amarok arches in Unity.
+setup = re.sub(
+    r"\n\s*modelInstance\.transform\.localPosition \+= new Vector3\(0f, [^,]+f, 0f\); // Amarok body-to-wheel fitment",
+    "",
+    setup,
+)
+
 setup, count = re.subn(
     r"private const float WheelInset = [^;]+;",
     f"private const float WheelInset = {WHEEL_INSET:.3f}f;",
@@ -33,8 +40,9 @@ setup, count = re.subn(
 if count != 1:
     raise SystemExit("Could not set Amarok WheelInset in VolkswagenAmarokSetup.cs.")
 
-# The measured arch centers preserve essentially the real wheelbase (3.094 m vs
-# the 3.097 m spec) but shift the complete axle pair about 18.6 cm forward.
+# These are the measured wheel-arch centers from the generated Amarok prefab.
+# Front/rear Z preserve a 3.094 m visual wheelbase, effectively matching the
+# 3.097 m real specification while shifting the axle pair forward as observed.
 wheel_positions_pattern = re.compile(
     r"private static readonly Dictionary<string, Vector3> WheelControllerPositions =\s*"
     r"new Dictionary<string, Vector3>\s*\{.*?\n\s*\};",
@@ -43,39 +51,19 @@ wheel_positions_pattern = re.compile(
 wheel_positions = f'''private static readonly Dictionary<string, Vector3> WheelControllerPositions =
         new Dictionary<string, Vector3>
         {{
-            {{ "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f + WheelInset, FrontTireRadius + WheelCenterRideHeightOffset, {FRONT_AXLE_Z:.3f}f) }},
-            {{ "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f - WheelInset, FrontTireRadius + WheelCenterRideHeightOffset, {FRONT_AXLE_Z:.3f}f) }},
-            {{ "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f + WheelInset, RearTireRadius + WheelCenterRideHeightOffset, {REAR_AXLE_Z:.3f}f) }},
-            {{ "RearRight_WheelController", new Vector3(RearTrack * 0.5f - WheelInset, RearTireRadius + WheelCenterRideHeightOffset, {REAR_AXLE_Z:.3f}f) }},
+            {{ "FrontLeft_WheelController", new Vector3(-FrontTrack * 0.5f + WheelInset, {WHEEL_Y:.3f}f, {FRONT_AXLE_Z:.3f}f) }},
+            {{ "FrontRight_WheelController", new Vector3(FrontTrack * 0.5f - WheelInset, {WHEEL_Y:.3f}f, {FRONT_AXLE_Z:.3f}f) }},
+            {{ "RearLeft_WheelController", new Vector3(-RearTrack * 0.5f + WheelInset, {WHEEL_Y:.3f}f, {REAR_AXLE_Z:.3f}f) }},
+            {{ "RearRight_WheelController", new Vector3(RearTrack * 0.5f - WheelInset, {WHEEL_Y:.3f}f, {REAR_AXLE_Z:.3f}f) }},
         }};'''
 setup, count = wheel_positions_pattern.subn(wheel_positions, setup, count=1)
 if count != 1:
     raise SystemExit("Could not replace Amarok WheelControllerPositions.")
 
-# NormalizeModel() puts the supplied GLB on the root ground plane. The wheel-arch
-# inspection showed the body 13.6 cm too low relative to correctly sized tires.
-# Lift the full visual before wheels are detached. AttachLightOverlaySources copies
-# this transform and CreateDeformableBody bakes it, so lights and damage geometry
-# stay aligned automatically.
-body_offset_line = f"            modelInstance.transform.localPosition += new Vector3(0f, {BODY_Y_OFFSET:.3f}f, 0f); // Amarok body-to-wheel fitment"
-if "// Amarok body-to-wheel fitment" not in setup:
-    normalize_call = "            NormalizeModel(modelInstance);"
-    if normalize_call not in setup:
-        raise SystemExit("Could not locate NormalizeModel(modelInstance) in VolkswagenAmarokSetup.cs.")
-    setup = setup.replace(normalize_call, normalize_call + "\n" + body_offset_line, 1)
-else:
-    setup = re.sub(
-        r"\s*modelInstance\.transform\.localPosition \+= new Vector3\(0f, [^,]+f, 0f\); // Amarok body-to-wheel fitment",
-        "\n" + body_offset_line,
-        setup,
-        count=1,
-    )
-
 save(SETUP, setup)
 
-# Runtime currently does not own the visual mounts, but if a generated runtime
-# variant contains the same fitment constants, keep them from restoring an old
-# wider wheel position after vehicle initialization.
+# Runtime does not normally rewrite mount transforms, but keep its inset constant
+# synchronized if a generated variant contains one.
 if RUNTIME.is_file():
     runtime = RUNTIME.read_text(encoding="utf-8")
     if re.search(r"private const float WheelInset = [^;]+;", runtime):
@@ -90,17 +78,19 @@ if RUNTIME.is_file():
 check = SETUP.read_text(encoding="utf-8")
 required = [
     f"private const float WheelInset = {WHEEL_INSET:.3f}f;",
-    f"{FRONT_AXLE_Z:.3f}f",
-    f"{REAR_AXLE_Z:.3f}f",
-    f"new Vector3(0f, {BODY_Y_OFFSET:.3f}f, 0f); // Amarok body-to-wheel fitment",
+    f"{WHEEL_Y:.3f}f, {FRONT_AXLE_Z:.3f}f",
+    f"{WHEEL_Y:.3f}f, {REAR_AXLE_Z:.3f}f",
 ]
 missing = [needle for needle in required if needle not in check]
 if missing:
     raise SystemExit("Amarok fitment patch failed; missing: " + ", ".join(missing))
+if "// Amarok body-to-wheel fitment" in check:
+    raise SystemExit("Amarok fitment patch failed: old body-lift line is still present.")
 
 front_x = 1.654 * 0.5 - WHEEL_INSET
 rear_x = 1.658 * 0.5 - WHEEL_INSET
-print(f"Patched Amarok body height: visual/light/damage geometry +{BODY_Y_OFFSET:.3f} m; wheel Y remains 0.442 m.")
+print("Removed the previous +0.136 m Amarok body lift; the complete body stays at its normalized GLB position.")
+print(f"Patched wheel Y to {WHEEL_Y:.3f} m for all four wheels.")
 print(f"Patched axle Z: front={FRONT_AXLE_Z:.3f}, rear={REAR_AXLE_Z:.3f} (visual wheelbase={FRONT_AXLE_Z - REAR_AXLE_Z:.3f} m).")
 print(f"Patched wheel inset: 0.100 m per side (front X=±{front_x:.3f}, rear X=±{rear_x:.3f}).")
 print("Volkswagen Amarok fitment preflight passed.")
