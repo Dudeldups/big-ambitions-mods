@@ -168,7 +168,7 @@ try {
 
         $newBlockers = @(
             $errorMods |
-                Where-Object { $_ -notieq "Volkswagen_Amarok" -and -not $movedNames.Contains($_) }
+                Where-Object { $_ -ne "Volkswagen_Amarok" -and -not $movedNames.Contains($_) }
         )
 
         if ($newBlockers.Count -eq 0) {
