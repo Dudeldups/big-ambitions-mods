@@ -23,9 +23,16 @@ using UnityEngine.EventSystems;
 #endif
 using UnityEngine.SceneManagement;
 
+internal static class GunStoreDiagnosticFlags
+{
+    internal static readonly bool Debug = false;
+    internal static readonly bool ShelfLifecycle = false;
+}
+
 [DefaultExecutionOrder(10000)]
 internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
 {
+    internal static GunStoreHelpDebugRuntime? Active { get; private set; }
     private const string GunStoreBundleKey = "AssetBundles/gunstore-businesstype.unity3d";
     private const string RoundedShelfItemName = "ba:itemname_roundedshelf";
     private const string CheapGiftItemName = "ba:itemname_cheapgift";
@@ -45,6 +52,9 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
     private readonly HashSet<int> loggedNpcShelfVisualRestorations = new();
     private readonly Dictionary<Material, Material> displayMaterialCache = new();
     private readonly Dictionary<Material, Material> shelfGlassMaterialCache = new();
+    private readonly HashSet<int> failedShelfLifecycleHooks = new();
+    private readonly HashSet<int> hookedShelfPrefabIds = new();
+    private bool loggedMissingShelfPrefabHook;
     private static readonly FieldInfo? ShelfVisualItemsField = typeof(ShelfController).GetField(
         "_visualItems",
         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -74,6 +84,7 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
         }
 
         existing.context = context;
+        Active = existing;
         existing.shuttingDown = false;
 #if GUN_STORE_HELP_UI_DEBUG
         GunStoreHelpDebugLogger.StartSession();
@@ -149,6 +160,8 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             return;
 
         shuttingDown = true;
+        if (ReferenceEquals(Active, this))
+            Active = null;
         LocalizorManager.OnLanguageChanged -= HandleLanguageChanged;
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         GlobalEvents.onEnterBuilding -= HandleEnterBuilding;
@@ -364,7 +377,11 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             var installedCount = 0;
             foreach (var shelf in Resources.FindObjectsOfTypeAll<ShelfController>())
             {
-                if (shelf == null || !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+                if (shelf == null)
+                    continue;
+
+                AttachShelfLifecycleHook(shelf);
+                if (!shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
                     continue;
 
                 if (TryInstallGunStoreVisualSlot(shelf, out var itemName, out var shelfName))
@@ -384,7 +401,55 @@ internal sealed class GunStoreHelpDebugRuntime : MonoBehaviour
             }
         }
 
+        if (hookedShelfPrefabIds.Count == 0 && !loggedMissingShelfPrefabHook)
+        {
+            loggedMissingShelfPrefabHook = true;
+            context?.Logger.Warn("Gun Store: no source shelf prefab accepted the lifecycle hook; newly loaded interiors may need another setup event.");
+        }
+
         gunStoreVisualSetupCoroutine = null;
+    }
+
+    private void AttachShelfLifecycleHook(ShelfController shelf)
+    {
+        if (shelf.itemName != RoundedShelfItemName && shelf.itemName != "ba:itemname_productpanel")
+            return;
+
+        if (shelf.GetComponent<GunStoreShelfLifecycleHook>() != null ||
+            failedShelfLifecycleHooks.Contains(shelf.GetInstanceID()))
+            return;
+
+        try
+        {
+            // Include loaded prefab assets (invalid scene) as well as live fixtures.
+            // The component is inherited by future instances, unlike a one-time scene scan.
+            shelf.gameObject.AddComponent<GunStoreShelfLifecycleHook>();
+            if (!shelf.gameObject.scene.IsValid())
+                hookedShelfPrefabIds.Add(shelf.GetInstanceID());
+            if (GunStoreDiagnosticFlags.Debug && GunStoreDiagnosticFlags.ShelfLifecycle)
+                context?.Logger.Info(
+                    $"Gun Store: hooked shelf lifecycle: fixture='{shelf.itemName}', " +
+                    $"sourceAsset={!shelf.gameObject.scene.IsValid()}, object='{shelf.name}'.");
+        }
+        catch (Exception exception)
+        {
+            failedShelfLifecycleHooks.Add(shelf.GetInstanceID());
+            context?.Logger.Warn(
+                $"Gun Store: could not hook shelf lifecycle: fixture='{shelf.itemName}', object='{shelf.name}'.");
+            context?.Logger.Error(exception);
+        }
+    }
+
+    internal void InstallShelfVisualOnInitialization(ShelfController shelf)
+    {
+        if (shuttingDown || context == null || shelf == null ||
+            !shelf.gameObject.scene.IsValid() || !shelf.gameObject.scene.isLoaded)
+            return;
+
+        if (TryInstallGunStoreVisualSlot(shelf, out var itemName, out var shelfName))
+            context.Logger.Info(
+                $"Gun Store: installed shelf visual on fixture initialization: product='{itemName}', " +
+                $"fixture='{shelfName}', position={shelf.transform.position}.");
     }
 
     private bool TryInstallGunStoreVisualSlot(
@@ -1195,6 +1260,27 @@ internal static class GunStoreNpcBannerRuntime
 internal sealed class GunStoreMeshOnlyDisplayMarker : MonoBehaviour
 {
     public int Generation;
+}
+
+// Attached to the loaded vanilla fixture prefabs, so each future interior gets an
+// initialization callback even when the game does not emit a building-entry event.
+[DefaultExecutionOrder(10001)]
+internal sealed class GunStoreShelfLifecycleHook : MonoBehaviour
+{
+    private IEnumerator Start()
+    {
+        var shelf = GetComponent<ShelfController>();
+        if (shelf == null)
+            yield break;
+
+        // ShelfController.Start selects its stock after Awake. Give saved cargo and NPC
+        // purchaser settings a few bounded chances to arrive, without a permanent scan.
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            yield return attempt == 0 ? null : new WaitForSeconds(attempt == 1 ? 0.1f : 0.5f);
+            GunStoreHelpDebugRuntime.Active?.InstallShelfVisualOnInitialization(shelf);
+        }
+    }
 }
 
 // React to the game's shelf cargo/visibility lifecycle after the bounded scene setup
