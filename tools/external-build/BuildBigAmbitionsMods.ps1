@@ -640,13 +640,61 @@ function Copy-DirectoryUpdate {
     }
 }
 
-function Install-ModOutput {
+function Test-BigAmbitionsRunning {
+    $processNames = @("Big Ambitions", "BigAmbitions")
+    return [bool] @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ProcessName -in $processNames -or $_.MainWindowTitle -eq "Big Ambitions"
+        } | Select-Object -First 1)
+}
+
+function Add-InstallFileOperation {
+    param(
+        [System.Collections.Generic.List[object]] $Operations,
+        [string] $Source,
+        [string] $Destination
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
+        return
+    }
+
+    $Operations.Add([pscustomobject]@{
+            Source = [System.IO.Path]::GetFullPath($Source)
+            Destination = [System.IO.Path]::GetFullPath($Destination)
+        }) | Out-Null
+}
+
+function Add-InstallDirectoryOperations {
+    param(
+        [System.Collections.Generic.List[object]] $Operations,
+        [string] $Source,
+        [string] $Destination
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        return
+    }
+
+    foreach ($file in Get-ChildItem -LiteralPath $Source -Recurse -File) {
+        if ($file.Name.EndsWith(".meta", [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+
+        $relative = Get-RelativePathCompat -BasePath $Source -Path $file.FullName
+        Add-InstallFileOperation -Operations $Operations -Source $file.FullName -Destination (Join-Path $Destination $relative)
+    }
+}
+
+function New-ModInstallPlan {
     param(
         [object] $Mod,
         [string] $RepoRoot,
         [string] $DllPath,
         [string] $ModsLocalRoot
     )
+
+    $operations = [System.Collections.Generic.List[object]]::new()
+    $messages = [System.Collections.Generic.List[string]]::new()
 
     $installRoot = Join-Path $ModsLocalRoot $Mod.ModsLocalFolder
     $dllDir = if ([string]::IsNullOrWhiteSpace($Mod.DllTargetSubfolder)) {
@@ -655,17 +703,15 @@ function Install-ModOutput {
         Join-Path $installRoot $Mod.DllTargetSubfolder
     }
 
-    New-Item -ItemType Directory -Path $dllDir -Force | Out-Null
     $dllTarget = Join-Path $dllDir ([System.IO.Path]::GetFileName($DllPath))
-    Copy-ItemWithRetry -Source $DllPath -Destination $dllTarget
-    Write-Step ("Install target path: " + $dllTarget)
+    Add-InstallFileOperation -Operations $operations -Source $DllPath -Destination $dllTarget
+    $messages.Add("Install target path: " + $dllTarget) | Out-Null
 
     $thumbnail = Join-Path $Mod.SourceDir "thumbnail.png"
     if (Test-Path -LiteralPath $thumbnail -PathType Leaf) {
         $thumbnailTarget = Join-Path $installRoot "thumbnail.png"
-        New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
-        Copy-ItemWithRetry -Source $thumbnail -Destination $thumbnailTarget
-        Write-Step ("Copied thumbnail path (overwritten if present): " + $thumbnailTarget)
+        Add-InstallFileOperation -Operations $operations -Source $thumbnail -Destination $thumbnailTarget
+        $messages.Add("Copied thumbnail path (overwritten if present): " + $thumbnailTarget) | Out-Null
     } else {
         Write-BuildWarning ("Mod '" + $Mod.ModName + "' is missing thumbnail.png at " + $thumbnail)
     }
@@ -673,8 +719,8 @@ function Install-ModOutput {
     $locales = Join-Path $Mod.SourceDir "Locales"
     if (Test-Path -LiteralPath $locales -PathType Container) {
         $localesTarget = Join-Path $installRoot "Locales"
-        Copy-DirectoryUpdate -Source $locales -Destination $localesTarget
-        Write-Step ("Copied Locales path: " + $localesTarget)
+        Add-InstallDirectoryOperations -Operations $operations -Source $locales -Destination $localesTarget
+        $messages.Add("Copied Locales path: " + $localesTarget) | Out-Null
     } else {
         Write-BuildWarning ("Mod '" + $Mod.ModName + "' is missing Locales folder at " + $locales)
     }
@@ -682,15 +728,15 @@ function Install-ModOutput {
     $config = Join-Path $Mod.SourceDir "Config"
     if (Test-Path -LiteralPath $config -PathType Container) {
         $configTarget = Join-Path $installRoot "Config"
-        Copy-DirectoryUpdate -Source $config -Destination $configTarget
-        Write-Step ("Copied Config path: " + $configTarget)
+        Add-InstallDirectoryOperations -Operations $operations -Source $config -Destination $configTarget
+        $messages.Add("Copied Config path: " + $configTarget) | Out-Null
     }
 
     $layouts = Join-Path $Mod.SourceDir "Layouts"
     if (Test-Path -LiteralPath $layouts -PathType Container) {
         $layoutsTarget = Join-Path $installRoot "Layouts"
-        Copy-DirectoryUpdate -Source $layouts -Destination $layoutsTarget
-        Write-Step ("Copied Layouts path: " + $layoutsTarget)
+        Add-InstallDirectoryOperations -Operations $operations -Source $layouts -Destination $layoutsTarget
+        $messages.Add("Copied Layouts path: " + $layoutsTarget) | Out-Null
     }
 
     $assetBundleCandidates = @(
@@ -706,16 +752,150 @@ function Install-ModOutput {
     )
     if ($assetBundles.Count -gt 0) {
         $assetBundlesTarget = Join-Path $installRoot "AssetBundles"
-        Copy-DirectoryUpdate -Source $assetBundles[0] -Destination $assetBundlesTarget
-        Write-Step ("Copied AssetBundles from '" + $assetBundles[0] + "' to: " + $assetBundlesTarget)
+        Add-InstallDirectoryOperations -Operations $operations -Source $assetBundles[0] -Destination $assetBundlesTarget
+        $messages.Add("Copied AssetBundles from '" + $assetBundles[0] + "' to: " + $assetBundlesTarget) | Out-Null
     }
 
     $personIcon = Join-Path $Mod.SourceDir "person.png"
     if (Test-Path -LiteralPath $personIcon -PathType Leaf) {
         $personIconTarget = Join-Path $installRoot "person.png"
-        New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
-        Copy-ItemWithRetry -Source $personIcon -Destination $personIconTarget
-        Write-Step ("Copied marker icon path: " + $personIconTarget)
+        Add-InstallFileOperation -Operations $operations -Source $personIcon -Destination $personIconTarget
+        $messages.Add("Copied marker icon path: " + $personIconTarget) | Out-Null
+    }
+
+    return [pscustomobject]@{
+        ModName = $Mod.ModName
+        CreatedAt = [DateTimeOffset]::Now.ToString("o")
+        InstallRoot = [System.IO.Path]::GetFullPath($installRoot)
+        DllTarget = [System.IO.Path]::GetFullPath($dllTarget)
+        Operations = @($operations)
+        SummaryMessages = @($messages)
+    }
+}
+
+function Invoke-ModInstallPlan {
+    param([object] $Plan)
+
+    foreach ($operation in @($Plan.Operations)) {
+        $targetDir = Split-Path -Parent ([string] $operation.Destination)
+        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+        Copy-ItemWithRetry -Source ([string] $operation.Source) -Destination ([string] $operation.Destination)
+    }
+}
+
+function Start-DeferredModInstall {
+    param(
+        [object] $Plan,
+        [string] $RepoRoot
+    )
+
+    $safeName = ([string] $Plan.ModName) -replace "[^A-Za-z0-9_.-]", "_"
+    $pendingRoot = Join-Path $RepoRoot "obj\ExternalModBuild\PendingInstalls"
+    New-Item -ItemType Directory -Path $pendingRoot -Force | Out-Null
+
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $manifestPath = Join-Path $pendingRoot ($safeName + "-" + $stamp + ".json")
+    $scriptPath = Join-Path $pendingRoot ($safeName + "-" + $stamp + ".install.ps1")
+    $logPath = Join-Path $pendingRoot ($safeName + "-" + $stamp + ".log")
+
+    $Plan | Add-Member -NotePropertyName LogPath -NotePropertyValue $logPath -Force
+    $Plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+
+    $watcherScript = @'
+param(
+    [Parameter(Mandatory = $true)]
+    [string] $ManifestPath
+)
+
+$ErrorActionPreference = "Stop"
+
+function Write-InstallLog {
+    param(
+        [object] $Plan,
+        [string] $Message
+    )
+
+    $line = "[" + (Get-Date -Format "yyyy-MM-dd HH:mm:ss") + "] " + $Message
+    Add-Content -LiteralPath $Plan.LogPath -Value $line
+}
+
+function Test-BigAmbitionsRunning {
+    $processNames = @("Big Ambitions", "BigAmbitions")
+    return [bool] @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ProcessName -in $processNames -or $_.MainWindowTitle -eq "Big Ambitions"
+        } | Select-Object -First 1)
+}
+
+function Copy-ItemWithRetry {
+    param(
+        [string] $Source,
+        [string] $Destination,
+        [int] $MaxAttempts = 8,
+        [int] $DelayMilliseconds = 250
+    )
+
+    $attempt = 0
+    while ($true) {
+        try {
+            Copy-Item -LiteralPath $Source -Destination $Destination -Force
+            return
+        } catch {
+            $attempt++
+            if ($attempt -ge $MaxAttempts) {
+                throw
+            }
+
+            Start-Sleep -Milliseconds ($DelayMilliseconds * $attempt)
+        }
+    }
+}
+
+$plan = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+Write-InstallLog -Plan $plan -Message ("Deferred install queued for " + $plan.ModName + ".")
+while (Test-BigAmbitionsRunning) {
+    Start-Sleep -Seconds 5
+}
+
+Write-InstallLog -Plan $plan -Message "Big Ambitions is closed; starting install."
+foreach ($operation in @($plan.Operations)) {
+    $targetDir = Split-Path -Parent ([string] $operation.Destination)
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    Copy-ItemWithRetry -Source ([string] $operation.Source) -Destination ([string] $operation.Destination)
+}
+
+foreach ($message in @($plan.SummaryMessages)) {
+    Write-InstallLog -Plan $plan -Message ([string] $message)
+}
+Write-InstallLog -Plan $plan -Message ("Deferred install completed for " + $plan.ModName + ".")
+'@
+
+    Set-Content -LiteralPath $scriptPath -Value $watcherScript -Encoding UTF8
+    Start-Process -FilePath "powershell.exe" `
+        -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath, "-ManifestPath", $manifestPath) `
+        -WindowStyle Hidden
+
+    Write-BuildWarning ("Big Ambitions is running; queued install for after the game exits.")
+    Write-Step ("Deferred install manifest: " + $manifestPath)
+    Write-Step ("Deferred install log: " + $logPath)
+}
+
+function Install-ModOutput {
+    param(
+        [object] $Mod,
+        [string] $RepoRoot,
+        [string] $DllPath,
+        [string] $ModsLocalRoot
+    )
+
+    $installPlan = New-ModInstallPlan -Mod $Mod -RepoRoot $RepoRoot -DllPath $DllPath -ModsLocalRoot $ModsLocalRoot
+    if (Test-BigAmbitionsRunning) {
+        Start-DeferredModInstall -Plan $installPlan -RepoRoot $RepoRoot
+        return
+    }
+
+    Invoke-ModInstallPlan -Plan $installPlan
+    foreach ($message in @($installPlan.SummaryMessages)) {
+        Write-Step ([string] $message)
     }
 }
 

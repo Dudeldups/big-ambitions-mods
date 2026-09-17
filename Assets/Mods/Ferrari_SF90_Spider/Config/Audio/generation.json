@@ -1,0 +1,63 @@
+{
+  "engine": "Ferrari SF90 Spider 4.0L twin-turbo flat-plane V8 inspired synthetic profile",
+  "recorded_samples": false,
+  "design": "damped combustion-pulse synthesis; no donor engine recording",
+  "layers": [
+    {
+      "name": "EngineIdle.wav",
+      "seconds": 2.0,
+      "peak": 0.14949478265717212,
+      "rms": 0.084,
+      "method": "flat-plane V8 damped combustion pulses"
+    },
+    {
+      "name": "EngineLow.wav",
+      "seconds": 2.0,
+      "peak": 0.149445974801636,
+      "rms": 0.084,
+      "method": "phase-coherent flat-plane V8 coast/light-load combustion pulses"
+    },
+    {
+      "name": "EngineLowLoad.wav",
+      "seconds": 2.0,
+      "peak": 0.18358523897182696,
+      "rms": 0.092,
+      "method": "phase-coherent flat-plane V8 loaded combustion pulses"
+    },
+    {
+      "name": "EngineMid.wav",
+      "seconds": 2.0,
+      "peak": 0.14944802267927568,
+      "rms": 0.08400000000000002,
+      "method": "phase-coherent flat-plane V8 coast/light-load combustion pulses"
+    },
+    {
+      "name": "EngineMidLoad.wav",
+      "seconds": 2.0,
+      "peak": 0.18349296176897964,
+      "rms": 0.09200000000000001,
+      "method": "phase-coherent flat-plane V8 loaded combustion pulses"
+    },
+    {
+      "name": "EngineHigh.wav",
+      "seconds": 2.0,
+      "peak": 0.14863907616597657,
+      "rms": 0.084,
+      "method": "phase-coherent flat-plane V8 coast/light-load combustion pulses"
+    },
+    {
+      "name": "EngineHighLoad.wav",
+      "seconds": 2.0,
+      "peak": 0.18336437793960003,
+      "rms": 0.092,
+      "method": "phase-coherent flat-plane V8 loaded combustion pulses"
+    },
+    {
+      "name": "TurboSpool.wav",
+      "seconds": 2.0,
+      "peak": 0.14428118446870092,
+      "rms": 0.045,
+      "method": "restrained multi-partial turbo airflow"
+    }
+  ]
+}
