@@ -312,6 +312,12 @@ internal static class BugattiChironPrivateDriverSupport
             SetLayerRecursively(visual.transform, clone.layer);
         }
 
+        if (!FitAiBodyColliders(clone, playerPrefab))
+        {
+            UnityEngine.Object.Destroy(clone);
+            return null;
+        }
+
         BugattiChironMaterials.FixSolidMaterials(clone);
         clone.AddComponent<BugattiChironAmbientTrafficAppearance>();
         var appearance = clone.AddComponent<BugattiChironPrivateDriverAppearance>();
@@ -330,6 +336,64 @@ internal static class BugattiChironPrivateDriverSupport
         }
 
         return clone;
+    }
+
+    private static bool FitAiBodyColliders(GameObject clone, GameObject playerPrefab)
+    {
+        var source = FindTransform(playerPrefab.transform, "BodyCollider");
+        var sourceBoxes = source?.GetComponents<BoxCollider>();
+        if (source == null || sourceBoxes == null || sourceBoxes.Length == 0)
+        {
+            context?.Logger.Warn(
+                "BugattiChiron: AI body collider setup failed; player body boxes are missing.");
+            return false;
+        }
+
+        var disabled = 0;
+        foreach (var collider in clone.GetComponentsInChildren<Collider>(true))
+        {
+            if (collider.isTrigger || collider is WheelCollider ||
+                IsWheelColliderTransform(collider.transform, clone.transform))
+                continue;
+            collider.enabled = false;
+            disabled++;
+        }
+
+        var holder = new GameObject("BugattiAiBodyCollider");
+        holder.layer = clone.layer;
+        holder.transform.SetParent(clone.transform, false);
+        holder.transform.localPosition = source.localPosition;
+        holder.transform.localRotation = source.localRotation;
+        holder.transform.localScale = source.localScale;
+        foreach (var sourceBox in sourceBoxes)
+        {
+            if (sourceBox.isTrigger)
+                continue;
+            var box = holder.AddComponent<BoxCollider>();
+            box.center = sourceBox.center;
+            box.size = sourceBox.size;
+            box.sharedMaterial = sourceBox.sharedMaterial;
+        }
+
+        if (BugattiChironDiagnostics.DebugEnabled)
+        {
+            context?.Logger.Info(
+                $"BugattiChiron: AI body collider fitted boxes={holder.GetComponents<BoxCollider>().Length} " +
+                $"disabledTemplateColliders={disabled} sourceLocalPos={source.localPosition:F3}.");
+        }
+        return true;
+    }
+
+    private static bool IsWheelColliderTransform(Transform candidate, Transform root)
+    {
+        for (var current = candidate; current != null && current != root; current = current.parent)
+        {
+            var name = current.name;
+            if (name.IndexOf("Wheel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name == "FL" || name == "FR" || name == "BL" || name == "BR")
+                return true;
+        }
+        return false;
     }
 
     private static IDictionary? GetPrefabCache()

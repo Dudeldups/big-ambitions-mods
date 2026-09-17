@@ -60,7 +60,12 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
                 if (!TryConfigure())
                 {
                     if (attempts == 20)
-                        Warn("native engine audio unavailable after 20 attempts; custom audio was not initialized.");
+                        Warn(
+                            "native engine audio unavailable after 20 attempts; " +
+                            $"physics={physics != null} engineSound={engineSound != null} " +
+                            $"source={native != null} clip={native?.clip != null} " +
+                            $"mixer={native?.outputAudioMixerGroup != null} " +
+                            $"context={context != null}; custom audio was not initialized.");
                     return;
                 }
             }
@@ -81,8 +86,7 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
         physics = vehicle!.GetComponent<PhysicsVehicle>();
         engineSound = physics?.soundManager.engineRunningComponent;
         native = engineSound?.source;
-        if (native == null || native.clip == null ||
-            native.outputAudioMixerGroup == null || context == null)
+        if (native == null || native.clip == null || context == null)
         {
             return false;
         }
@@ -118,6 +122,14 @@ internal sealed class BugattiChironAudioController : MonoBehaviour
 
         engineSound.maxDistortion = 0f;
         configured = true;
+        if (BugattiChironDiagnostics.DebugEnabled &&
+            BugattiChironDiagnostics.AudioDebugEnabled)
+        {
+            context.Logger.Info(
+                $"BugattiChiron audio vehicle={vehicle.GetInstanceID()}: custom layers ready " +
+                $"nativeClip='{native.clip.name}' " +
+                $"nativeMixer='{native.outputAudioMixerGroup?.name ?? "<default output>"}'.");
+        }
         return true;
     }
 
