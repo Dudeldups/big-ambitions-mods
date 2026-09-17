@@ -33,6 +33,7 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
     public Task OnLoadAsync(ModContext context)
     {
         KoenigseggJeskoDiagnostics.LoadCollisionSetting(context);
+        KoenigseggJeskoDiagnostics.LoadNpcColorSetting(context);
         var bundle = AssetService.GetBundle(context.ModId, BundleKey);
         if (bundle == null)
         {
@@ -92,10 +93,13 @@ internal static class KoenigseggJeskoDiagnostics
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool WarehouseTransitionDebugEnabled { get; set; } = false;
     internal static bool CollisionDebugEnabled { get; set; } = false;
+    internal static bool NpcColorDebugEnabled { get; set; } = false;
     internal static bool TelemetryEnabled { get; set; } = false;
+    private static ModContext? logContext;
 
     internal static void LoadCollisionSetting(ModContext context)
     {
+        logContext = context;
         DebugEnabled = CollisionDebugEnabled = false;
         try
         {
@@ -118,6 +122,40 @@ internal static class KoenigseggJeskoDiagnostics
             context.Logger.Warn($"KoenigseggJesko: could not read collision diagnostics setting: {exception.Message}");
         }
     }
+
+    internal static void LoadNpcColorSetting(ModContext context)
+    {
+        NpcColorDebugEnabled = false;
+        try
+        {
+            var assemblyDirectory = Path.GetDirectoryName(typeof(KoenigseggJeskoMod).Assembly.Location);
+            if (string.IsNullOrEmpty(assemblyDirectory)) return;
+            var settingPath = Path.Combine(assemblyDirectory, "Config", "NpcColorDiagnostics.txt");
+            if (!File.Exists(settingPath)) return;
+            var setting = File.ReadAllText(settingPath).Trim();
+            if (bool.TryParse(setting, out var enabled))
+            {
+                NpcColorDebugEnabled = enabled;
+                DebugEnabled |= enabled;
+                if (enabled)
+                    context.Logger.Info("KoenigseggJesko NPC color diagnostics enabled for this session.");
+            }
+            else
+                context.Logger.Warn($"KoenigseggJesko: invalid NpcColorDiagnostics.txt value '{setting}'; expected true or false.");
+        }
+        catch (Exception exception)
+        {
+            context.Logger.Warn($"KoenigseggJesko: could not read NPC color diagnostics setting: {exception.Message}");
+        }
+    }
+
+    internal static void NpcColorInfo(string message)
+    {
+        if (DebugEnabled && NpcColorDebugEnabled)
+            logContext?.Logger.Info(message);
+    }
+
+    internal static void Warn(string message) => logContext?.Logger.Warn(message);
 
     internal static void Info(ModContext? context, string message)
     {

@@ -374,6 +374,7 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         RepairPrivateDriverBodyShell(clone);
 
         KoenigseggJeskoMaterials.FixSolidMaterials(clone);
+        clone.AddComponent<KoenigseggJeskoAmbientTrafficAppearance>();
         var appearance = clone.AddComponent<KoenigseggJeskoPrivateDriverAppearance>();
         appearance.BindWheelVisuals();
 
@@ -556,6 +557,66 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         for (var index = values.Count - 1; index >= 0; index--)
             if (string.Equals(values[index], target, StringComparison.Ordinal))
                 values.RemoveAt(index);
+    }
+}
+
+[DefaultExecutionOrder(1001)]
+internal sealed class KoenigseggJeskoAmbientTrafficAppearance : MonoBehaviour
+{
+    private const int NativeColorAssignmentFrameLimit = 4;
+    private Coroutine? initializationCoroutine;
+    private int colorLogs;
+
+    private void OnEnable()
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = StartCoroutine(ApplyNativeTrafficColor());
+    }
+
+    private void OnDisable()
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = null;
+    }
+
+    private IEnumerator ApplyNativeTrafficColor()
+    {
+        for (var frame = 0; frame < NativeColorAssignmentFrameLimit; frame++)
+        {
+            if (GetComponent<PrivateDriverVehicle>() != null)
+            {
+                initializationCoroutine = null;
+                yield break;
+            }
+            yield return null;
+        }
+
+        if (GetComponent<PrivateDriverVehicle>() == null)
+        {
+            var liveColor = GetComponent<CarFeatures>()?.VehicleColor;
+            var paintApplied = false;
+            if (liveColor != null)
+            {
+                var paint = GetComponent<KoenigseggJeskoPaintController>();
+                if (paint == null)
+                    paint = gameObject.AddComponent<KoenigseggJeskoPaintController>();
+                paint.InitializeForAmbientTraffic(liveColor);
+                paintApplied = paint.HasAppliedColor;
+            }
+
+            if (colorLogs++ < 8)
+                KoenigseggJeskoDiagnostics.NpcColorInfo(
+                    $"KoenigseggJesko ambient NPC id={GetInstanceID()} " +
+                    $"trafficColor='{(liveColor != null ? liveColor.name : "<none>")}' " +
+                    $"paintApplied={paintApplied}.");
+            if (liveColor != null && !paintApplied)
+                KoenigseggJeskoDiagnostics.Warn(
+                    $"KoenigseggJesko ambient NPC id={GetInstanceID()} " +
+                    $"failed to apply traffic color='{liveColor.name}'.");
+        }
+        initializationCoroutine = null;
     }
 }
 
