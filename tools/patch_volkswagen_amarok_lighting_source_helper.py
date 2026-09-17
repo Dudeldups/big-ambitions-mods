@@ -1,12 +1,14 @@
 from pathlib import Path
-import runpy
+import re
 
 REPO = Path(__file__).resolve().parents[1]
-TOOLS = REPO / "tools"
 LIGHTING = REPO / "Assets/Mods/Volkswagen_Amarok/Scripts/VolkswagenAmarokLightingController.cs"
+SETUP = REPO / "Assets/Mods/Volkswagen_Amarok/Editor/VolkswagenAmarokSetup.cs"
 
 if not LIGHTING.is_file():
     raise SystemExit(f"Generated Amarok lighting source is missing: {LIGHTING}")
+if not SETUP.is_file():
+    raise SystemExit(f"Generated Amarok setup source is missing: {SETUP}")
 
 text = LIGHTING.read_text(encoding="utf-8")
 method_signature = "    private MeshRenderer? PrepareSourceOverlay(\n"
@@ -54,13 +56,21 @@ missing = [item for item in required if item not in check]
 if missing:
     raise SystemExit("Amarok lighting helper patch failed; missing: " + ", ".join(missing))
 
-print("Volkswagen Amarok authored-light helper preflight passed.")
-
-# The PowerShell builder already invokes this helper immediately before launching
-# Unity. Chain the feedback-prefab build patch here so the existing public
-# executeMethod is redirected away from Generate(), which unnecessarily depended
-# on a loadable Audi donor VehicleType asset.
-runpy.run_path(
-    str(TOOLS / "patch_volkswagen_amarok_existing_prefab_feedback_build.py"),
-    run_name="__main__",
+# Older feedback-patch runs used a plain string replacement for TargetWidth.
+# Because VisualTargetWidth itself contains that substring, repeated builds could
+# expand it to VisualVisualTargetWidth (and beyond). Normalize both legacy damage
+# and a plain TargetWidth use to exactly one VisualTargetWidth before Unity compiles.
+setup_text = SETUP.read_text(encoding="utf-8")
+setup_text, normalized_count = re.subn(
+    r"(?<![A-Za-z0-9_])(?:Visual)*TargetWidth(?=\s*/\s*bounds\.size\.x)",
+    "VisualTargetWidth",
+    setup_text,
 )
+SETUP.write_text(setup_text, encoding="utf-8", newline="\n")
+if normalized_count > 0:
+    print(f"Normalized {normalized_count} Amarok visual-width reference(s) to VisualTargetWidth.")
+
+if re.search(r"VisualVisual+TargetWidth", setup_text):
+    raise SystemExit("Amarok visual-width symbol normalization failed.")
+
+print("Volkswagen Amarok authored-light helper preflight passed.")
