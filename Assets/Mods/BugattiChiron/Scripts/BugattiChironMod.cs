@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using BAModAPI;
@@ -19,9 +20,25 @@ using Vehicles.VehicleTypes;
 
 internal static class BugattiChironDiagnostics
 {
+    private const string WheelDebugMarker = "wheel-diagnostics.enabled";
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool LoadRecoveryDebugEnabled { get; set; } = false;
     internal static bool WheelDebugEnabled { get; set; } = false;
+
+    internal static void EnableLocalWheelDiagnostics(ModContext context)
+    {
+        var markerPath = Path.Combine(
+            Application.persistentDataPath,
+            "ModsLocal", "BugattiChiron", "Config", WheelDebugMarker);
+        if (!File.Exists(markerPath))
+            return;
+
+        DebugEnabled = true;
+        WheelDebugEnabled = true;
+        context.Logger.Info(
+            "BugattiChiron: local wheel diagnostics enabled; " +
+            "logging selected vehicle wheel poses every three seconds.");
+    }
 
     internal static void LoadRecoveryInfo(ModContext? context, string message)
     {
@@ -49,6 +66,7 @@ public sealed class BugattiChironMod : IModBigAmbitions
 
     public Task OnLoadAsync(ModContext context)
     {
+        BugattiChironDiagnostics.EnableLocalWheelDiagnostics(context);
         var bundle = AssetService.GetBundle(context.ModId, BundleKey);
         if (bundle == null)
         {
