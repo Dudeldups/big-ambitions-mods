@@ -1,6 +1,8 @@
 from pathlib import Path
+import runpy
 
 REPO = Path(__file__).resolve().parents[1]
+TOOLS = REPO / "tools"
 PRIVATE_DRIVER = REPO / "Assets/Mods/Volkswagen_Amarok/Scripts/VolkswagenAmarokPrivateDriverSupport.cs"
 SETUP = REPO / "Assets/Mods/Volkswagen_Amarok/Editor/VolkswagenAmarokSetup.cs"
 
@@ -48,3 +50,11 @@ if 'n == "AmarokLightSources"' not in SETUP.read_text(encoding="utf-8"):
 
 print("Adjusted Amarok NPC/private-driver stance to net +4 cm front / +1 cm rear versus the previous build.")
 print("Excluded AmarokLightSources from repeat-build body bounds after reparenting it under AmarokVisual.")
+
+# Chain the current fourth in-game feedback pass after all legacy feedback
+# preflights have succeeded. This keeps old intermediate-value checks from
+# rejecting the final player/NPC/light/collider corrections.
+runpy.run_path(
+    str(TOOLS / "patch_volkswagen_amarok_fourth_ingame_feedback.py"),
+    run_name="__main__",
+)
