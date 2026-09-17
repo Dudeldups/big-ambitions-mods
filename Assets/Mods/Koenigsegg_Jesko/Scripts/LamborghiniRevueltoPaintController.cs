@@ -66,6 +66,11 @@ internal sealed class KoenigseggJeskoPaintController : MonoBehaviour
         ApplyCurrentColor("private-driver");
     }
 
+    internal void InitializeForAmbientTraffic(VehicleColor vehicleColor)
+    {
+        InitializeForPrivateDriver(vehicleColor.name, vehicleColor);
+    }
+
     internal bool HasAppliedColor => hasAppliedTint;
 
     internal void RestoreAfterVehicleEntered() =>
