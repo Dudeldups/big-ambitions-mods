@@ -2,5 +2,22 @@
   "developer_tools_options_header": "Developer Tools",
   "developer_tools_ui_hotkey_label": "Testing UI Hotkey",
   "developer_tools_money_hotkey_label": "Quick Add $10,000,000 Hotkey",
-  "developer_tools_needs_hotkey_label": "Quick Reset Player Needs Hotkey"
+  "developer_tools_needs_hotkey_label": "Quick Reset Player Needs Hotkey",
+  "developer_tools_ai_heading": "AI Vehicle Types",
+  "developer_tools_ai_restore_vanilla": "Restore Vanilla AI Cars",
+  "developer_tools_ai_remove_vanilla": "Remove Vanilla AI Cars",
+  "developer_tools_ai_frequent_label": "Frequent modded AI car (uses only this model while active)",
+  "developer_tools_ai_no_models": "No modded AI-capable cars found in the traffic pool.",
+  "developer_tools_ai_select": "Select AI car...",
+  "developer_tools_ai_favor": "Spawn Selected AI Car Frequently",
+  "developer_tools_ai_stop_favor": "Stop Favoring Selected AI Car",
+  "developer_tools_ai_model_unavailable": "That modded AI vehicle is no longer available in the traffic pool.",
+  "developer_tools_ai_unavailable": "AI vehicle traffic is unavailable in the current scene.",
+  "developer_tools_ai_lookup_failed": "Could not inspect the AI vehicle pool.",
+  "developer_tools_ai_not_ready": "The AI vehicle pool is not ready.",
+  "developer_tools_ai_no_match": "No matching AI vehicles were found in the initialized traffic pool.",
+  "developer_tools_ai_recycle_failed": "Could not recycle current AI traffic.",
+  "developer_tools_ai_favored": "Prioritizing {0} in AI traffic ({1} pooled vehicles).",
+  "developer_tools_ai_modded_only": "Only modded AI cars will spawn ({0} pooled vehicles).",
+  "developer_tools_ai_restored": "Restored all AI vehicle types."
 }

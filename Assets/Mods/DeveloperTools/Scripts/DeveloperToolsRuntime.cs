@@ -92,6 +92,7 @@ namespace DeveloperTools
             GlobalEvents.onExitVehicle -= HandleExitVehicle;
             GlobalEvents.onExitVehicle += HandleExitVehicle;
             vehicleDiagnostics?.HandleSceneChanged();
+            trafficService?.HandleSceneChanged();
             trafficService?.PrepareTrafficPoolCapacity();
             overlay?.Hide();
         }
