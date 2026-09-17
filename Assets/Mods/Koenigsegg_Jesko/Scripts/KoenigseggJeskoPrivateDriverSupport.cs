@@ -9,6 +9,7 @@ using Data.VehicleColors;
 using GleyTrafficSystem;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 
 internal static class KoenigseggJeskoPrivateDriverSupport
 {
@@ -31,6 +32,9 @@ internal static class KoenigseggJeskoPrivateDriverSupport
     private static ModContext? context;
 
     internal static void SetContext(ModContext modContext) => context = modContext;
+
+    internal static void ReportCollisionDiagnostic(string message) =>
+        KoenigseggJeskoDiagnostics.CollisionInfo(context, message);
 
     internal static bool PrepareTrafficPool(GameObject playerPrefab)
     {
@@ -273,6 +277,59 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         foreach (var renderer in clone.GetComponentsInChildren<Renderer>(true))
             renderer.enabled = false;
 
+        // The Anselmo traffic template's body collider is centered for its own
+        // body. Keeping it makes the Jesko solid ahead of its visible nose and
+        // leaves the rear penetrable. Use the Jesko's own body volumes instead.
+        var playerBody = FindTransform(playerPrefab.transform, "BodyCollider");
+        var playerBodyBoxes = playerBody?.GetComponents<BoxCollider>();
+        if (playerBody == null || playerBodyBoxes == null || playerBodyBoxes.Length < 3)
+        {
+            context?.Logger.Warn("KoenigseggJesko private-driver prefab missing fitted body colliders.");
+            UnityEngine.Object.Destroy(clone);
+            return null;
+        }
+
+        var disabledTemplateColliders = 0;
+        foreach (var collider in clone.GetComponentsInChildren<Collider>(true))
+        {
+            if (!collider.enabled || collider.isTrigger || collider is WheelCollider)
+                continue;
+            var box = collider as BoxCollider;
+            KoenigseggJeskoDiagnostics.CollisionInfo(context,
+                $"KoenigseggJesko NPC template collider disabled name='{collider.name}' " +
+                $"type={collider.GetType().Name} " +
+                $"localPosition={clone.transform.InverseTransformPoint(collider.transform.position)} " +
+                $"boxCenter={(box != null ? box.center.ToString() : "n/a")} " +
+                $"boxSize={(box != null ? box.size.ToString() : "n/a")}.");
+            collider.enabled = false;
+            disabledTemplateColliders++;
+        }
+
+        var npcBody = UnityEngine.Object.Instantiate(playerBody.gameObject, clone.transform, false);
+        npcBody.name = "KoenigseggJeskoNpcBodyCollider";
+        SetLayerRecursively(npcBody.transform, clone.layer);
+        var npcBodyBoxes = npcBody.GetComponents<BoxCollider>();
+        npcBodyBoxes[0].center = new Vector3(0f, 0.38f, -0.02f);
+        npcBodyBoxes[0].size = new Vector3(1.96f, 0.46f, 4.82f);
+        npcBodyBoxes[1].center = new Vector3(0f, 0.78f, -0.18f);
+        npcBodyBoxes[1].size = new Vector3(1.72f, 0.62f, 2.62f);
+        var bodyRear = float.PositiveInfinity;
+        var bodyFront = float.NegativeInfinity;
+        foreach (var box in npcBodyBoxes)
+        {
+            var rear = clone.transform.InverseTransformPoint(
+                box.transform.TransformPoint(box.center - Vector3.forward * box.size.z * 0.5f)).z;
+            var front = clone.transform.InverseTransformPoint(
+                box.transform.TransformPoint(box.center + Vector3.forward * box.size.z * 0.5f)).z;
+            bodyRear = Mathf.Min(bodyRear, rear);
+            bodyFront = Mathf.Max(bodyFront, front);
+        }
+        FitAiNavigationObstacles(clone, bodyRear, bodyFront);
+        KoenigseggJeskoDiagnostics.CollisionInfo(context,
+            $"KoenigseggJesko NPC body fitted disabledTemplateColliders={disabledTemplateColliders} " +
+            $"localPosition={npcBody.transform.localPosition} boxes={npcBodyBoxes.Length} " +
+            $"frontLocalZ={bodyFront:0.00} rearLocalZ={bodyRear:0.00}.");
+
         var requiredVisuals = new[]
         {
             "KoenigseggVisual",
@@ -371,6 +428,58 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         sourceRenderer.enabled = sourceRenderer.sharedMaterials.Length > 0;
         if (damageRenderer != null)
             damageRenderer.enabled = false;
+    }
+
+    private static void FitAiNavigationObstacles(GameObject clone, float bodyRear, float bodyFront)
+    {
+        // Pedestrians stop at the navigation obstacle plus their own clearance.
+        // Fit both ends because the Anselmo template is longitudinally offset
+        // from the Jesko, even though the new physical body boxes are centered.
+        const float pedestrianClearance = 0.40f;
+        var root = clone.transform;
+        foreach (var obstacle in clone.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle.shape != NavMeshObstacleShape.Box ||
+                Vector3.Dot(root.forward, obstacle.transform.forward) < 0.99f)
+            {
+                context?.Logger.Warn(
+                    $"KoenigseggJesko NPC navigation obstacle not fitted " +
+                    $"name='{obstacle.name}' shape={obstacle.shape}.");
+                continue;
+            }
+
+            var oldRearLocal = obstacle.center.z - obstacle.size.z * 0.5f;
+            var oldFrontLocal = obstacle.center.z + obstacle.size.z * 0.5f;
+            var oldRear = root.InverseTransformPoint(obstacle.transform.TransformPoint(
+                new Vector3(obstacle.center.x, obstacle.center.y, oldRearLocal))).z;
+            var oldFront = root.InverseTransformPoint(obstacle.transform.TransformPoint(
+                new Vector3(obstacle.center.x, obstacle.center.y, oldFrontLocal))).z;
+            var targetRear = bodyRear + pedestrianClearance;
+            var targetFront = bodyFront - pedestrianClearance;
+            var newRearLocal = obstacle.transform.InverseTransformPoint(root.TransformPoint(
+                new Vector3(0f, 0f, targetRear))).z;
+            var newFrontLocal = obstacle.transform.InverseTransformPoint(root.TransformPoint(
+                new Vector3(0f, 0f, targetFront))).z;
+            if (newFrontLocal <= newRearLocal + 0.05f)
+            {
+                context?.Logger.Warn(
+                    $"KoenigseggJesko NPC navigation obstacle fit invalid " +
+                    $"name='{obstacle.name}' rear={targetRear:0.000} front={targetFront:0.000}.");
+                continue;
+            }
+
+            var center = obstacle.center;
+            center.z = (newRearLocal + newFrontLocal) * 0.5f;
+            var size = obstacle.size;
+            size.z = newFrontLocal - newRearLocal;
+            obstacle.center = center;
+            obstacle.size = size;
+            KoenigseggJeskoDiagnostics.CollisionInfo(context,
+                $"KoenigseggJesko NPC navigation obstacle fitted name='{obstacle.name}' " +
+                $"oldRear={oldRear:0.000} oldFront={oldFront:0.000} " +
+                $"newRear={targetRear:0.000} newFront={targetFront:0.000} " +
+                $"bodyRear={bodyRear:0.000} bodyFront={bodyFront:0.000}.");
+        }
     }
 
     private static GameObject? LoadAiTemplate()
@@ -473,6 +582,18 @@ internal sealed class KoenigseggJeskoPrivateDriverAppearance : MonoBehaviour
     private PrivateDriverVehicle? privateDriver;
     private VehicleComponent? trafficVehicle;
     private bool trafficEventsSubscribed;
+    private MeshCollider? templateBodyCollider;
+    private BoxCollider? npcBodyCollider;
+    private NavMeshObstacle? npcObstacle;
+    private Transform? npcVisual;
+    private Vector3 previousPosition;
+    private bool previousMoving;
+    private bool previousTemplateEnabled;
+    private bool previousObstacleEnabled;
+    private Vector3 previousTemplateLocalPosition;
+    private Vector3 previousVisualLocalPosition;
+    private int collisionStateLogs;
+    private int playerContactLogs;
 
     internal void BindWheelVisuals()
     {
@@ -508,6 +629,18 @@ internal sealed class KoenigseggJeskoPrivateDriverAppearance : MonoBehaviour
     private void OnEnable()
     {
         BindWheelVisuals();
+        templateBodyCollider = FindTransform(transform, "BodyCollider")?.GetComponent<MeshCollider>();
+        npcBodyCollider = FindTransform(transform, "KoenigseggJeskoNpcBodyCollider")?.GetComponent<BoxCollider>();
+        npcObstacle = GetComponentInChildren<NavMeshObstacle>(true);
+        npcVisual = FindTransform(transform, "KoenigseggVisual");
+        previousPosition = transform.position;
+        previousMoving = false;
+        previousTemplateEnabled = templateBodyCollider != null && templateBodyCollider.enabled;
+        previousObstacleEnabled = npcObstacle != null && npcObstacle.enabled;
+        previousTemplateLocalPosition = templateBodyCollider != null
+            ? templateBodyCollider.transform.localPosition : Vector3.zero;
+        previousVisualLocalPosition = npcVisual != null ? npcVisual.localPosition : Vector3.zero;
+        LogCollisionState("spawn", 0f);
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = StartCoroutine(InitializePrivateDriverState());
@@ -622,6 +755,76 @@ internal sealed class KoenigseggJeskoPrivateDriverAppearance : MonoBehaviour
             binding.Apply(transform);
         foreach (var binding in caliperBindings)
             binding.Apply(transform);
+        ObserveCollisionState();
+    }
+
+
+    private void ObserveCollisionState()
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled || collisionStateLogs >= 12)
+            return;
+        var speed = Time.deltaTime > 0f
+            ? Vector3.Distance(transform.position, previousPosition) / Time.deltaTime
+            : 0f;
+        previousPosition = transform.position;
+        var moving = speed > 0.5f || (previousMoving && speed >= 0.05f);
+        var templateEnabled = templateBodyCollider != null && templateBodyCollider.enabled;
+        var obstacleEnabled = npcObstacle != null && npcObstacle.enabled;
+        var templatePosition = templateBodyCollider != null
+            ? templateBodyCollider.transform.localPosition : Vector3.zero;
+        var visualPosition = npcVisual != null ? npcVisual.localPosition : Vector3.zero;
+        if (moving == previousMoving && templateEnabled == previousTemplateEnabled &&
+            obstacleEnabled == previousObstacleEnabled &&
+            Vector3.Distance(templatePosition, previousTemplateLocalPosition) < 0.05f &&
+            Vector3.Distance(visualPosition, previousVisualLocalPosition) < 0.05f)
+            return;
+        previousMoving = moving;
+        previousTemplateEnabled = templateEnabled;
+        previousObstacleEnabled = obstacleEnabled;
+        previousTemplateLocalPosition = templatePosition;
+        previousVisualLocalPosition = visualPosition;
+        LogCollisionState(moving ? "moving" : "stopped", speed);
+    }
+
+    private void LogCollisionState(string reason, float speed)
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled || collisionStateLogs++ >= 12)
+            return;
+        var obstacleRear = npcObstacle != null
+            ? transform.InverseTransformPoint(npcObstacle.transform.TransformPoint(
+                npcObstacle.center - Vector3.forward * npcObstacle.size.z * 0.5f)).z
+            : float.NaN;
+        var obstacleFront = npcObstacle != null
+            ? transform.InverseTransformPoint(npcObstacle.transform.TransformPoint(
+                npcObstacle.center + Vector3.forward * npcObstacle.size.z * 0.5f)).z
+            : float.NaN;
+        KoenigseggJeskoPrivateDriverSupport.ReportCollisionDiagnostic(
+            $"KoenigseggJesko NPC collision state instance={GetInstanceID()} " +
+            $"reason={reason} speed={speed:0.00}mps " +
+            $"templateEnabled={templateBodyCollider?.enabled} " +
+            $"templateLocalPosition={templateBodyCollider?.transform.localPosition} " +
+            $"npcBodyEnabled={npcBodyCollider?.enabled} " +
+            $"npcBodyLocalPosition={npcBodyCollider?.transform.localPosition} " +
+            $"visualLocalPosition={npcVisual?.localPosition} " +
+            $"obstacleEnabled={npcObstacle?.enabled} " +
+            $"obstacleRear={obstacleRear:0.00} obstacleFront={obstacleFront:0.00}.");
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled ||
+            collision.contactCount == 0 || collision.collider.name != "Player" ||
+            playerContactLogs++ >= 8)
+            return;
+        var contact = collision.GetContact(0);
+        KoenigseggJeskoPrivateDriverSupport.ReportCollisionDiagnostic(
+            $"KoenigseggJesko NPC player contact instance={GetInstanceID()} " +
+            $"self='{contact.thisCollider?.name}' selfId={contact.thisCollider?.GetInstanceID()} " +
+            $"localPoint={transform.InverseTransformPoint(contact.point)} " +
+            $"templateEnabled={templateBodyCollider?.enabled} speed={collision.relativeVelocity.magnitude:0.00}mps.");
     }
 
     private void OnDisable()

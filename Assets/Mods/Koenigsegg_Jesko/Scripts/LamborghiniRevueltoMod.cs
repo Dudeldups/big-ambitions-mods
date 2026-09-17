@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using BAModAPI;
 using BAModAPI.Services;
@@ -31,6 +32,7 @@ public sealed class KoenigseggJeskoMod : IModBigAmbitions
 
     public Task OnLoadAsync(ModContext context)
     {
+        KoenigseggJeskoDiagnostics.LoadCollisionSetting(context);
         var bundle = AssetService.GetBundle(context.ModId, BundleKey);
         if (bundle == null)
         {
@@ -89,7 +91,33 @@ internal static class KoenigseggJeskoDiagnostics
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool WarehouseTransitionDebugEnabled { get; set; } = false;
+    internal static bool CollisionDebugEnabled { get; set; } = false;
     internal static bool TelemetryEnabled { get; set; } = false;
+
+    internal static void LoadCollisionSetting(ModContext context)
+    {
+        DebugEnabled = CollisionDebugEnabled = false;
+        try
+        {
+            var assemblyDirectory = Path.GetDirectoryName(typeof(KoenigseggJeskoMod).Assembly.Location);
+            if (string.IsNullOrEmpty(assemblyDirectory)) return;
+            var settingPath = Path.Combine(assemblyDirectory, "Config", "CollisionDiagnostics.txt");
+            if (!File.Exists(settingPath)) return;
+            var setting = File.ReadAllText(settingPath).Trim();
+            if (bool.TryParse(setting, out var enabled))
+            {
+                DebugEnabled = CollisionDebugEnabled = enabled;
+                if (enabled)
+                    context.Logger.Info("KoenigseggJesko collision diagnostics enabled for this session.");
+            }
+            else
+                context.Logger.Warn($"KoenigseggJesko: invalid CollisionDiagnostics.txt value '{setting}'; expected true or false.");
+        }
+        catch (Exception exception)
+        {
+            context.Logger.Warn($"KoenigseggJesko: could not read collision diagnostics setting: {exception.Message}");
+        }
+    }
 
     internal static void Info(ModContext? context, string message)
     {
@@ -106,6 +134,12 @@ internal static class KoenigseggJeskoDiagnostics
     internal static void WarehouseInfo(ModContext? context, string message)
     {
         if (WarehouseTransitionDebugEnabled)
+            context?.Logger.Info(message);
+    }
+
+    internal static void CollisionInfo(ModContext? context, string message)
+    {
+        if (DebugEnabled && CollisionDebugEnabled)
             context?.Logger.Info(message);
     }
 }
