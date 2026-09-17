@@ -273,6 +273,48 @@ internal static class KoenigseggJeskoPrivateDriverSupport
         foreach (var renderer in clone.GetComponentsInChildren<Renderer>(true))
             renderer.enabled = false;
 
+        // The Anselmo traffic template's body collider is centered for its own
+        // body. Keeping it makes the Jesko solid ahead of its visible nose and
+        // leaves the rear penetrable. Use the Jesko's own body volumes instead.
+        var playerBody = FindTransform(playerPrefab.transform, "BodyCollider");
+        var playerBodyBoxes = playerBody?.GetComponents<BoxCollider>();
+        if (playerBody == null || playerBodyBoxes == null || playerBodyBoxes.Length < 3)
+        {
+            context?.Logger.Warn("KoenigseggJesko private-driver prefab missing fitted body colliders.");
+            UnityEngine.Object.Destroy(clone);
+            return null;
+        }
+
+        var disabledTemplateColliders = 0;
+        foreach (var collider in clone.GetComponentsInChildren<Collider>(true))
+        {
+            if (!collider.enabled || collider.isTrigger || collider is WheelCollider)
+                continue;
+            var box = collider as BoxCollider;
+            KoenigseggJeskoDiagnostics.CollisionInfo(context,
+                $"KoenigseggJesko NPC template collider disabled name='{collider.name}' " +
+                $"type={collider.GetType().Name} " +
+                $"localPosition={clone.transform.InverseTransformPoint(collider.transform.position)} " +
+                $"boxCenter={(box != null ? box.center.ToString() : "n/a")} " +
+                $"boxSize={(box != null ? box.size.ToString() : "n/a")}.");
+            collider.enabled = false;
+            disabledTemplateColliders++;
+        }
+
+        var npcBody = UnityEngine.Object.Instantiate(playerBody.gameObject, clone.transform, false);
+        npcBody.name = "KoenigseggJeskoNpcBodyCollider";
+        SetLayerRecursively(npcBody.transform, clone.layer);
+        var npcBodyBoxes = npcBody.GetComponents<BoxCollider>();
+        npcBodyBoxes[0].center = new Vector3(0f, 0.38f, -0.02f);
+        npcBodyBoxes[0].size = new Vector3(1.96f, 0.46f, 4.82f);
+        npcBodyBoxes[1].center = new Vector3(0f, 0.78f, -0.18f);
+        npcBodyBoxes[1].size = new Vector3(1.72f, 0.62f, 2.62f);
+        KoenigseggJeskoDiagnostics.CollisionInfo(context,
+            $"KoenigseggJesko NPC body fitted disabledTemplateColliders={disabledTemplateColliders} " +
+            $"localPosition={npcBody.transform.localPosition} boxes={npcBodyBoxes.Length} " +
+            $"frontLocalZ={npcBodyBoxes[0].center.z + npcBodyBoxes[0].size.z * 0.5f:0.00} " +
+            $"rearLocalZ={npcBodyBoxes[0].center.z - npcBodyBoxes[0].size.z * 0.5f:0.00}.");
+
         var requiredVisuals = new[]
         {
             "KoenigseggVisual",
