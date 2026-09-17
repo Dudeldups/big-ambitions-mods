@@ -385,12 +385,12 @@ namespace DeveloperTools
             GUILayout.Label("Traffic", GUI.skin.box);
             GUILayout.Label("NPC Vehicle Traffic");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Vanilla (1x)"))
+            if (GUILayout.Button(DeveloperToolsTrafficService.Text("developer_tools_traffic_1x", "NPC Traffic 1x")))
                 traffic.SetTrafficMultiplier(1f, out status);
-            if (GUILayout.Button("NPC Traffic 2x"))
-                traffic.SetTrafficMultiplier(2f, out status);
-            if (GUILayout.Button("NPC Traffic 5x"))
+            if (GUILayout.Button(DeveloperToolsTrafficService.Text("developer_tools_traffic_5x", "NPC Traffic 5x")))
                 traffic.SetTrafficMultiplier(5f, out status);
+            if (GUILayout.Button(DeveloperToolsTrafficService.Text("developer_tools_traffic_10x", "NPC Traffic 10x")))
+                traffic.SetTrafficMultiplier(10f, out status);
             GUILayout.EndHorizontal();
 
             var previousBackgroundColor = GUI.backgroundColor;

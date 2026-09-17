@@ -19,5 +19,8 @@
   "developer_tools_ai_recycle_failed": "Could not recycle current AI traffic.",
   "developer_tools_ai_favored": "Prioritizing {0} in AI traffic ({1} pooled vehicles).",
   "developer_tools_ai_modded_only": "Only modded AI cars will spawn ({0} pooled vehicles).",
-  "developer_tools_ai_restored": "Restored all AI vehicle types."
+  "developer_tools_ai_restored": "Restored all AI vehicle types.",
+  "developer_tools_traffic_1x": "NPC Traffic 1x",
+  "developer_tools_traffic_5x": "NPC Traffic 5x",
+  "developer_tools_traffic_10x": "NPC Traffic 10x"
 }

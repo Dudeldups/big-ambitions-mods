@@ -21,7 +21,7 @@ namespace DeveloperTools
             Disabled
         }
 
-        private const int MaximumTrafficMultiplier = 5;
+        private const int MaximumTrafficMultiplier = 10;
         private static readonly FieldInfo? LastTrafficDensityField = typeof(TimeOfDayController).GetField(
             "_lastTrafficDensity",
             BindingFlags.Instance | BindingFlags.NonPublic);
