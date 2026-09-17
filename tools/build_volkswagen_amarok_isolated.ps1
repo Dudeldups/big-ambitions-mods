@@ -82,14 +82,34 @@ function Restore-IsolatedMods {
     }
 }
 
+function Clear-StaleUnityCompileCaches {
+    # Moving source folders outside Assets is not sufficient when Library/Bee still
+    # contains a compile DAG generated while those mods existed. Unity can otherwise
+    # keep compiling paths such as Assets/Mods/BigHax even though the folders are gone.
+    # Remove only generated script/build caches; do not touch the imported asset DB.
+    $cachePaths = @(
+        (Join-Path $repoRoot "Library\Bee"),
+        (Join-Path $repoRoot "Library\ScriptAssemblies"),
+        (Join-Path $repoRoot "Library\PlayerScriptAssemblies"),
+        (Join-Path $repoRoot "Library\BuildPlayerData")
+    )
+
+    foreach ($cachePath in $cachePaths) {
+        if (Test-Path -LiteralPath $cachePath) {
+            Write-Host "[amarok-bundle] Clearing stale Unity compile cache: $cachePath"
+            Remove-Item -LiteralPath $cachePath -Recurse -Force
+        }
+    }
+}
+
 function Show-RelevantLogTail {
     if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
         return
     }
 
     Write-Host "[amarok-bundle] Last relevant Unity log lines:"
-    Get-Content -LiteralPath $logPath -Tail 300 |
-        Select-String -Pattern "error CS|error building|compiler error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode" -CaseSensitive:$false |
+    Get-Content -LiteralPath $logPath -Tail 400 |
+        Select-String -Pattern "error CS|error building|compiler error|exception|Volkswagen|Amarok|AssetBundle|BuildPipeline|aborting batchmode|Scripts have compiler errors" -CaseSensitive:$false |
         ForEach-Object { Write-Host $_.Line }
 }
 
@@ -105,6 +125,11 @@ try {
         Move-OutOfAssets -Name $sibling.Name
     }
 
+    # Force Unity to regenerate its script compile graph after the isolation. The
+    # previous implementation left Library/Bee intact, so batchmode continued to
+    # compile removed BigHax/MCG_Doom source paths from the stale DAG.
+    Clear-StaleUnityCompileCaches
+
     New-Item -ItemType Directory -Path (Split-Path -Parent $logPath) -Force | Out-Null
     if (Test-Path -LiteralPath $logPath -PathType Leaf) {
         Remove-Item -LiteralPath $logPath -Force
@@ -116,7 +141,7 @@ try {
         Remove-Item -LiteralPath ($windowsBundle + ".manifest") -Force
     }
 
-    Write-Host "[amarok-bundle] Starting isolated Unity batch build..."
+    Write-Host "[amarok-bundle] Starting isolated Unity batch build with a fresh script compile graph..."
     Write-Host "[amarok-bundle] Log: $logPath"
 
     & $UnityExe `
