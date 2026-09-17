@@ -444,16 +444,7 @@ internal static class BugattiChironPrivateDriverSupport
         holder.transform.localPosition = source.localPosition;
         holder.transform.localRotation = source.localRotation;
         holder.transform.localScale = source.localScale;
-        // The mesh bounds include forward detail that does not match the walkable nose.
-        // Keep the confirmed rear fit and pull only the NPC body collider's front back.
-        const float frontClearanceCorrection = 0.70f;
-        var originalFront = float.NegativeInfinity;
-        foreach (var sourceBox in sourceBoxes)
-        {
-            if (!sourceBox.isTrigger)
-                originalFront = Mathf.Max(originalFront, sourceBox.center.z + sourceBox.size.z * 0.5f);
-        }
-        var frontLimit = originalFront - frontClearanceCorrection;
+        var fittedRear = float.PositiveInfinity;
         var fittedFront = float.NegativeInfinity;
         foreach (var sourceBox in sourceBoxes)
         {
@@ -465,12 +456,7 @@ internal static class BugattiChironPrivateDriverSupport
             box.sharedMaterial = sourceBox.sharedMaterial;
             var rear = box.center.z - box.size.z * 0.5f;
             var front = box.center.z + box.size.z * 0.5f;
-            if (front > frontLimit)
-            {
-                front = Mathf.Max(rear + 0.05f, frontLimit);
-                box.center = new Vector3(box.center.x, box.center.y, (rear + front) * 0.5f);
-                box.size = new Vector3(box.size.x, box.size.y, front - rear);
-            }
+            fittedRear = Mathf.Min(fittedRear, rear);
             fittedFront = Mathf.Max(fittedFront, front);
         }
 
@@ -479,8 +465,7 @@ internal static class BugattiChironPrivateDriverSupport
             context?.Logger.Info(
                 $"BugattiChiron: AI body collider fitted boxes={holder.GetComponents<BoxCollider>().Length} " +
                 $"disabledTemplateColliders={disabled} sourceLocalPos={source.localPosition:F3} " +
-                $"frontCorrection={frontClearanceCorrection:0.000} originalFront={originalFront:0.000} " +
-                $"fittedFront={fittedFront:0.000}.");
+                $"fittedRear={fittedRear:0.000} fittedFront={fittedFront:0.000}.");
         }
         return true;
     }
