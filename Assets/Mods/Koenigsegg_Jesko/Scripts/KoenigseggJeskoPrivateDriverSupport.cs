@@ -32,6 +32,9 @@ internal static class KoenigseggJeskoPrivateDriverSupport
 
     internal static void SetContext(ModContext modContext) => context = modContext;
 
+    internal static void ReportCollisionDiagnostic(string message) =>
+        KoenigseggJeskoDiagnostics.CollisionInfo(context, message);
+
     internal static bool PrepareTrafficPool(GameObject playerPrefab)
     {
         if (playerPrefab == null || !EnsureAiPrefab(playerPrefab) || customAiPrefab == null)
@@ -515,6 +518,16 @@ internal sealed class KoenigseggJeskoPrivateDriverAppearance : MonoBehaviour
     private PrivateDriverVehicle? privateDriver;
     private VehicleComponent? trafficVehicle;
     private bool trafficEventsSubscribed;
+    private MeshCollider? templateBodyCollider;
+    private BoxCollider? npcBodyCollider;
+    private Transform? npcVisual;
+    private Vector3 previousPosition;
+    private bool previousMoving;
+    private bool previousTemplateEnabled;
+    private Vector3 previousTemplateLocalPosition;
+    private Vector3 previousVisualLocalPosition;
+    private int collisionStateLogs;
+    private int playerContactLogs;
 
     internal void BindWheelVisuals()
     {
@@ -550,6 +563,18 @@ internal sealed class KoenigseggJeskoPrivateDriverAppearance : MonoBehaviour
     private void OnEnable()
     {
         BindWheelVisuals();
+        templateBodyCollider = FindTransform(transform, "BodyCollider")?.GetComponent<MeshCollider>();
+        npcBodyCollider = FindTransform(transform, "KoenigseggJeskoNpcBodyCollider")?.GetComponent<BoxCollider>();
+        npcVisual = FindTransform(transform, "KoenigseggVisual");
+        previousPosition = transform.position;
+        previousMoving = false;
+        previousTemplateEnabled = templateBodyCollider != null && templateBodyCollider.enabled;
+        previousTemplateLocalPosition = templateBodyCollider != null
+            ? templateBodyCollider.transform.localPosition : Vector3.zero;
+        previousVisualLocalPosition = npcVisual != null ? npcVisual.localPosition : Vector3.zero;
+        collisionStateLogs = 0;
+        playerContactLogs = 0;
+        LogCollisionState("spawn", 0f);
         if (initializationCoroutine != null)
             StopCoroutine(initializationCoroutine);
         initializationCoroutine = StartCoroutine(InitializePrivateDriverState());
@@ -664,6 +689,62 @@ internal sealed class KoenigseggJeskoPrivateDriverAppearance : MonoBehaviour
             binding.Apply(transform);
         foreach (var binding in caliperBindings)
             binding.Apply(transform);
+        ObserveCollisionState();
+    }
+
+    private void ObserveCollisionState()
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled || collisionStateLogs >= 12)
+            return;
+        var speed = Time.deltaTime > 0f
+            ? Vector3.Distance(transform.position, previousPosition) / Time.deltaTime
+            : 0f;
+        previousPosition = transform.position;
+        var moving = speed > 0.5f || (previousMoving && speed >= 0.05f);
+        var templateEnabled = templateBodyCollider != null && templateBodyCollider.enabled;
+        var templatePosition = templateBodyCollider != null
+            ? templateBodyCollider.transform.localPosition : Vector3.zero;
+        var visualPosition = npcVisual != null ? npcVisual.localPosition : Vector3.zero;
+        if (moving == previousMoving && templateEnabled == previousTemplateEnabled &&
+            Vector3.Distance(templatePosition, previousTemplateLocalPosition) < 0.05f &&
+            Vector3.Distance(visualPosition, previousVisualLocalPosition) < 0.05f)
+            return;
+        previousMoving = moving;
+        previousTemplateEnabled = templateEnabled;
+        previousTemplateLocalPosition = templatePosition;
+        previousVisualLocalPosition = visualPosition;
+        LogCollisionState(moving ? "moving" : "stopped", speed);
+    }
+
+    private void LogCollisionState(string reason, float speed)
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled || collisionStateLogs++ >= 12)
+            return;
+        KoenigseggJeskoPrivateDriverSupport.ReportCollisionDiagnostic(
+            $"KoenigseggJesko NPC collision state instance={GetInstanceID()} " +
+            $"reason={reason} speed={speed:0.00}mps " +
+            $"templateEnabled={templateBodyCollider?.enabled} " +
+            $"templateLocalPosition={templateBodyCollider?.transform.localPosition} " +
+            $"npcBodyEnabled={npcBodyCollider?.enabled} " +
+            $"npcBodyLocalPosition={npcBodyCollider?.transform.localPosition} " +
+            $"visualLocalPosition={npcVisual?.localPosition}.");
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!KoenigseggJeskoDiagnostics.DebugEnabled ||
+            !KoenigseggJeskoDiagnostics.CollisionDebugEnabled ||
+            collision.contactCount == 0 || collision.collider.name != "Player" ||
+            playerContactLogs++ >= 8)
+            return;
+        var contact = collision.GetContact(0);
+        KoenigseggJeskoPrivateDriverSupport.ReportCollisionDiagnostic(
+            $"KoenigseggJesko NPC player contact instance={GetInstanceID()} " +
+            $"self='{contact.thisCollider?.name}' selfId={contact.thisCollider?.GetInstanceID()} " +
+            $"localPoint={transform.InverseTransformPoint(contact.point)} " +
+            $"templateEnabled={templateBodyCollider?.enabled} speed={collision.relativeVelocity.magnitude:0.00}mps.");
     }
 
     private void OnDisable()
