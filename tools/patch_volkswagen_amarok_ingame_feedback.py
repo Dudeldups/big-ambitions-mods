@@ -342,7 +342,7 @@ save(AUDIO_MODEL, audio)
 checks = {
     SETUP: [
         "private const float VisualTargetWidth = 2.228f;",
-        "private const float BodyVisualBottomY = -0.055f;",
+        "private const float BodyVisualBottomY = ",
         "VisualTargetWidth / bounds.size.x",
         "BodyVisualBottomY, 0f",
         '"powertrain.transmission._downshiftRPM", 1900f',
@@ -381,7 +381,7 @@ if missing:
     raise SystemExit("Amarok in-game feedback patch failed:\n- " + "\n- ".join(missing))
 
 print("Patched Amarok visual width to 2.228 m including mirrors while keeping 1.954 m physical body width.")
-print("Lowered Amarok body by 5.5 cm relative to the confirmed wheel positions.")
+print("Confirmed Amarok body-height tuning constant is present; later feedback passes may override its value.")
 print("Raised downshift threshold from 1500 to 1900 rpm in setup and runtime.")
 print("Anchored the seated player to the visible steering-wheel center and raised the seat by 20 cm.")
 print("Neutralized the source blue body diffuse map so the selected VehicleColor is applied directly.")
