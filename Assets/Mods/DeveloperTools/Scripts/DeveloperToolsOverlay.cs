@@ -44,9 +44,11 @@ namespace DeveloperTools
         private Vector2 mainScroll;
         private Vector2 vanillaVehicleScroll;
         private Vector2 moddedVehicleScroll;
+        private Vector2 aiModelScroll;
         private Vector2 itemScroll;
         private bool vanillaVehicleDropdownOpen;
         private bool moddedVehicleDropdownOpen;
+        private bool aiModelDropdownOpen;
         private bool itemDropdownOpen;
         private bool visible;
         private int inputReleaseBlockFrames;
@@ -55,6 +57,7 @@ namespace DeveloperTools
         private CursorLockMode previousCursorLock;
         private string selectedVanillaVehicleId = string.Empty;
         private string selectedModdedVehicleId = string.Empty;
+        private string selectedAiModelId = string.Empty;
         private string selectedVehicleColorName = string.Empty;
         private string selectedRecolorColorName = string.Empty;
         private string selectedItemId = string.Empty;
@@ -118,9 +121,11 @@ namespace DeveloperTools
             SuspendGameplayActions();
             pause.PauseForOverlay();
             vehicles.Refresh();
+            traffic.RefreshAvailableModels();
             items.EnsurePopulated();
             SelectFirstAvailable(vehicles.VanillaEntries, ref selectedVanillaVehicleId);
             SelectFirstAvailable(vehicles.ModdedEntries, ref selectedModdedVehicleId);
+            SelectFirstAvailable(traffic.ModdedAiModels, ref selectedAiModelId);
             if (vehicles.ColorEntries.All(entry => entry.Name != selectedVehicleColorName))
                 selectedVehicleColorName = vehicles.GetDefaultRedColorName();
             if (vehicles.RecolorColorEntries.All(entry => entry.Name != selectedRecolorColorName))
@@ -380,18 +385,59 @@ namespace DeveloperTools
             GUILayout.Label("Traffic", GUI.skin.box);
             GUILayout.Label("NPC Vehicle Traffic");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Vanilla (1x)"))
+            if (GUILayout.Button(DeveloperToolsTrafficService.Text("developer_tools_traffic_1x", "NPC Traffic 1x")))
                 traffic.SetTrafficMultiplier(1f, out status);
-            if (GUILayout.Button("NPC Traffic 2x"))
-                traffic.SetTrafficMultiplier(2f, out status);
-            if (GUILayout.Button("NPC Traffic 5x"))
+            if (GUILayout.Button(DeveloperToolsTrafficService.Text("developer_tools_traffic_5x", "NPC Traffic 5x")))
                 traffic.SetTrafficMultiplier(5f, out status);
+            if (GUILayout.Button(DeveloperToolsTrafficService.Text("developer_tools_traffic_10x", "NPC Traffic 10x")))
+                traffic.SetTrafficMultiplier(10f, out status);
             GUILayout.EndHorizontal();
 
             var previousBackgroundColor = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0.82f, 0.38f, 0.32f, 1f);
             if (GUILayout.Button("Disable Traffic"))
                 traffic.DisableTraffic(out status);
+            GUI.backgroundColor = previousBackgroundColor;
+
+            GUILayout.Space(5f);
+            GUILayout.Label(DeveloperToolsTrafficService.Text("developer_tools_ai_heading", "AI Vehicle Types"));
+            if (GUILayout.Button(traffic.ModdedOnly
+                    ? DeveloperToolsTrafficService.Text("developer_tools_ai_restore_vanilla", "Restore Vanilla AI Cars")
+                    : DeveloperToolsTrafficService.Text("developer_tools_ai_remove_vanilla", "Remove Vanilla AI Cars")))
+                traffic.SetModdedOnly(!traffic.ModdedOnly, out status);
+            GUILayout.Label(DeveloperToolsTrafficService.Text("developer_tools_ai_frequent_label", "Frequent modded AI car (uses only this model while active)"));
+            if (traffic.ModdedAiModels.Count == 0)
+            {
+                GUILayout.Label(DeveloperToolsTrafficService.Text("developer_tools_ai_no_models", "No modded AI-capable cars found in the traffic pool."), GUI.skin.box);
+            }
+            else
+            {
+                var selectedAiModel = traffic.ModdedAiModels.FirstOrDefault(entry => entry.Id == selectedAiModelId);
+                if (GUILayout.Button(selectedAiModel == null
+                        ? DeveloperToolsTrafficService.Text("developer_tools_ai_select", "Select AI car...")
+                        : selectedAiModel.DisplayName + "  ▼"))
+                    aiModelDropdownOpen = !aiModelDropdownOpen;
+                if (aiModelDropdownOpen)
+                {
+                    aiModelScroll = GUILayout.BeginScrollView(aiModelScroll, GUI.skin.box, GUILayout.Height(200f));
+                    foreach (var entry in traffic.ModdedAiModels)
+                    {
+                        if (!GUILayout.Button(entry.DisplayName)) continue;
+                        selectedAiModelId = entry.Id;
+                        aiModelDropdownOpen = false;
+                    }
+                    GUILayout.EndScrollView();
+                }
+                if (GUILayout.Button(traffic.FavoredPrefabName.Length == 0
+                        ? DeveloperToolsTrafficService.Text("developer_tools_ai_favor", "Spawn Selected AI Car Frequently")
+                        : DeveloperToolsTrafficService.Text("developer_tools_ai_stop_favor", "Stop Favoring Selected AI Car")))
+                {
+                    if (traffic.FavoredPrefabName.Length == 0)
+                        traffic.FavorModel(selectedAiModelId, out status);
+                    else
+                        traffic.StopFavoringModel(out status);
+                }
+            }
 
             GUILayout.Space(5f);
             GUILayout.Label("Parked Cars");

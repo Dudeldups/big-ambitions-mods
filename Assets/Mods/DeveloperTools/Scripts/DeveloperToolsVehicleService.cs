@@ -257,11 +257,12 @@ namespace DeveloperTools
                     .FirstOrDefault(entry => entry.Name == colorName)?.DisplayName ?? colorName;
                 message = "Recolored " + Localize(controller.vehicleInstance.vehicleTypeName) +
                           " to " + displayName + ".";
-                context.Logger.Info(
-                    "DeveloperTools: recolored vehicle type=" + controller.vehicleInstance.vehicleTypeName +
-                    ", id=" + controller.vehicleInstance.id +
-                    ", color=" + colorName +
-                    ", extended=" + developerColors.ContainsKey(colorName) + ".");
+                if (DeveloperToolsDiagnostics.VehicleColor)
+                    context.Logger.Info(
+                        "DeveloperTools: recolored vehicle type=" + controller.vehicleInstance.vehicleTypeName +
+                        ", id=" + controller.vehicleInstance.id +
+                        ", color=" + colorName +
+                        ", extended=" + developerColors.ContainsKey(colorName) + ".");
                 return true;
             }
             catch (Exception exception)

@@ -4,6 +4,9 @@ Developer/testing utility mod for Big Ambitions. The testing window defaults to 
 
 The vanilla and modded vehicle catalogs are shown separately and refresh each time the window opens. The spawn palette uses the game's registered colors, while the final Vehicle Recolor section provides an expanded test palette for the current or last spawned vehicle. The vanilla item catalog is populated lazily and cached. Opening the testing window pauses gameplay and closing it restores the player's previous game-speed state. City-map teleport input only runs while the map is open. Time advancement uses the game's `TimeMachine` at a temporary 6x speed, so normal hourly and daily simulation ticks continue to run.
 
+The Traffic section can remove vanilla ambient AI vehicles from the spawn pool, restore them, or temporarily favor one selected modded AI model. The model list includes only mod vehicles that actually registered an AI-capable prefab in the game's traffic pool; a player-driveable mod vehicle without an AI traffic prefab cannot appear there. Changing the filter recycles current ambient traffic through the game's traffic API. The filter changes only the current session's pooled AI vehicles and restores their original group settings when turned off or the mod unloads; parked cars remain controlled separately.
+The 1x, 5x, and 10x buttons change ambient traffic density independently of the vehicle-type filter. The traffic pool is expanded once before city initialization to support higher densities; 10x can be demanding on slower systems.
+
 ## Vehicle diagnostics quick start
 
 Vehicle mods do not need diagnostic code or a Developer Tools reference. The recorder reads the active game's standard vehicle, NWH physics, wheel, and damage components.
