@@ -116,16 +116,28 @@ namespace BigHax
             float trackedStartValue)
         {
             if (!TryGetSkill(employee, skillName, out var skill))
+            {
+                BigHaxLogger.WarnOnce(context, "training-skill-missing:" + skillName,
+                    "BigHax: completed employee training could not be boosted because skill '" + skillName + "' was not found.");
                 return;
+            }
 
             var currentSkillValue = skill.value;
             var targetValue = Mathf.Min(100f, trackedStartValue + configuredGain);
             var extraGain = targetValue - currentSkillValue;
             if (extraGain <= 0f)
+            {
+                BigHaxLogger.EmployeeDiagnostic(context,
+                    "Training boost skipped for employee " + employee.id + ", skill=" + skillName +
+                    ", start=" + trackedStartValue.ToString("0.##") + ", current=" + currentSkillValue.ToString("0.##") + ".");
                 return;
+            }
 
             employee.IncreaseSkill(skillName, extraGain);
-            employee.IncreaseWageFromTraining(extraGain);
+            employee.IncreaseWageFromTraining(skill, currentSkillValue);
+            BigHaxLogger.EmployeeDiagnostic(context,
+                "Training boost applied for employee " + employee.id + ", skill=" + skillName +
+                ", before=" + currentSkillValue.ToString("0.##") + ", after=" + skill.value.ToString("0.##") + ".");
             BigHaxLogger.Info(
                 context,
                 $"BigHax: boosted completed training for {employee.characterData.name} in {skillName} by +{extraGain:0.##} skill.");

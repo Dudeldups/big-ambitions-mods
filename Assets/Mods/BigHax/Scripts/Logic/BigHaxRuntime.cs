@@ -351,6 +351,11 @@ namespace BigHax
 
         private void HandleGameLoadedLate()
         {
+            if (context != null && settings != null)
+            {
+                SafeApply("employee events after game load", () => employeeDemandService.RebindAfterGameLoad(context, settings));
+                SafeApply("recruitment events after game load", () => recruitmentCandidateService.RebindAfterGameLoad(context, settings));
+            }
             playerHaxService.ApplyConfiguredBehavior(settings!);
             extendedBedSleepLabelService.Attach(settings!);
             // These callbacks are cleared while a save is loading and are required
