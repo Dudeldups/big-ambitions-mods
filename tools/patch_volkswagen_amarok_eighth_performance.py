@@ -173,6 +173,12 @@ for path in (SETUP, RUNTIME):
         count=1,
     )
     text = re.sub(
+        r'(SetRelativeNumber\(serialized, "powertrain\.engine\.inertia", )[^;]+;',
+        r'\g<1>0.18f);',
+        text,
+        count=1,
+    )
+    text = re.sub(
         r'(SetRelativeNumber\(serialized, "powertrain\.engine\.forcedInduction\.spoolUpTime", )[^;]+;',
         r'\g<1>0.45f);',
         text,
@@ -220,9 +226,9 @@ checks = {
         "new Keyframe(0.89f, 1.00f)",
         "new Keyframe(1.00f, 0.99f)",
         "private const float VehicleLinearDrag = 0.020f;",
-        "private const float EngineInertia = 0.18f;",
-        '"_upshiftRPM", 4100f',
-        '"spoolUpTime", 0.45f',
+        '"powertrain.engine.inertia", 0.18f',
+        '"powertrain.transmission._upshiftRPM", 4100f',
+        '"powertrain.engine.forcedInduction.spoolUpTime", 0.45f',
     ],
     RUNTIME: [
         "new Keyframe(0.67f, 0.99f)",
