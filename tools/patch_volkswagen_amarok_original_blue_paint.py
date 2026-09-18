@@ -124,7 +124,22 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
     }
 
 '''
-if "private static void ConfigureOriginalBluePaintSurface(" not in setup:
+paint_helper_start_marker = (
+    "    private static void ConfigureOriginalBluePaintSurface("
+)
+paint_helper_start = setup.find(paint_helper_start_marker)
+paint_helper_end = setup.find(
+    helper_marker,
+    paint_helper_start + len(paint_helper_start_marker)
+    if paint_helper_start >= 0 else 0,
+)
+if paint_helper_start >= 0:
+    if paint_helper_end < 0 or paint_helper_end <= paint_helper_start:
+        raise SystemExit(
+            "Could not locate end of existing Amarok original-blue paint helper."
+        )
+    setup = setup[:paint_helper_start] + paint_helper + setup[paint_helper_end:]
+else:
     if helper_marker not in setup:
         raise SystemExit(
             "Could not locate ConfigureRendererReferences() for Amarok paint helper."
