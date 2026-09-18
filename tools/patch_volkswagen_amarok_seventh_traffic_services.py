@@ -300,11 +300,11 @@ PRIVATE_DRIVER.write_text(text, encoding="utf-8", newline="\n")
 setup = SETUP.read_text(encoding="utf-8")
 
 service_call_pattern = re.compile(
-    r'(            ConfigureBodyColliders\\(root\\);\\n)'
-    r'(?!            ConfigureServiceCompatibility\\(root\\);)'
+    r'(            ConfigureBodyColliders\(root\);\n)'
+    r'(?!            ConfigureServiceCompatibility\(root\);)'
 )
 setup, service_call_count = service_call_pattern.subn(
-    r'\\1            ConfigureServiceCompatibility(root);\\n',
+    r'\1            ConfigureServiceCompatibility(root);\n',
     setup,
 )
 if service_call_count == 0 and "ConfigureServiceCompatibility(root);" not in setup:
