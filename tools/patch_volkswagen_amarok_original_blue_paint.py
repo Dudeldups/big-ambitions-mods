@@ -232,6 +232,26 @@ if deform_signature not in runtime:
 
 deform_guard = '''    private static bool IsDeformableExterior(MeshFilter filter)
     {
+        // These front surfaces are authored under AmarokLightSources, which is
+        // normally excluded from crash deformation. Allow the shared white DRL
+        // meshes plus the amber runtime copies before that broad exclusion so
+        // DRL and indicator geometry follows the damaged front corner.
+        var deformFrontDrlIndicator =
+            filter.name.IndexOf(
+                "BDRL_Indicator_FL",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "BDRL_Indicator_FR",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "VolkswagenAmarok_IndicatorLeft",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "VolkswagenAmarok_IndicatorRight",
+                StringComparison.OrdinalIgnoreCase) >= 0;
+        if (deformFrontDrlIndicator)
+            return true;
+
         if (filter.name.IndexOf(
                 "VehiclePaint_Blue",
                 StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -266,6 +286,11 @@ checks = {
     RUNTIME: [
         '"VolkswagenAmarok_VehiclePaint"',
         '"VehiclePaint_Blue"',
+        '"BDRL_Indicator_FL"',
+        '"BDRL_Indicator_FR"',
+        '"VolkswagenAmarok_IndicatorLeft"',
+        '"VolkswagenAmarok_IndicatorRight"',
+        "if (deformFrontDrlIndicator)",
     ],
 }
 missing = []
@@ -318,4 +343,5 @@ if missing:
 print("Switched Amarok VehicleColor mapping from broad phong5/dorr_R materials to the automatically derived original-blue paint surface.")
 print("Original black grille/plastic/chrome geometry now keeps the source model appearance unless explicitly overridden.")
 print("VehiclePaint_Blue is reparented into AmarokVisual and included in visible crash deformation.")
+print("Front DRL/indicator meshes are explicitly included in crash deformation before the AmarokLightSources exclusion.")
 print("Volkswagen Amarok original-blue paint preflight passed.")
