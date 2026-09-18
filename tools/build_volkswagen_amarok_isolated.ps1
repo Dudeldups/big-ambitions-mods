@@ -32,6 +32,7 @@ $sideIndicatorPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_side_in
 $eighthBlackGeometryPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_eighth_black_geometry.py"
 $eighthPerformancePatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_eighth_performance.py"
 $originalBluePaintPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_original_blue_paint.py"
+$damagePerformancePatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_damage_performance.py"
 $refreshLightOverlay = Join-Path $repoRoot "tools\refresh_volkswagen_amarok_light_overlays.py"
 
 if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
@@ -40,7 +41,7 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
-foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch, $thirdFeedbackPrepPatch, $thirdFeedbackPatch, $npcStancePatch, $fourthFeedbackPatch, $fourthSafetyPatch, $fifthFeedbackPatch, $sixthFeedbackPatch, $seventhMaterialsPatch, $seventhTrafficServicesPatch, $seventhPerformancePatch, $sideIndicatorPatch, $eighthBlackGeometryPatch, $eighthPerformancePatch, $originalBluePaintPatch, $refreshLightOverlay)) {
+foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch, $thirdFeedbackPrepPatch, $thirdFeedbackPatch, $npcStancePatch, $fourthFeedbackPatch, $fourthSafetyPatch, $fifthFeedbackPatch, $sixthFeedbackPatch, $seventhMaterialsPatch, $seventhTrafficServicesPatch, $seventhPerformancePatch, $sideIndicatorPatch, $eighthBlackGeometryPatch, $eighthPerformancePatch, $originalBluePaintPatch, $damagePerformancePatch, $refreshLightOverlay)) {
     if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
         throw "Volkswagen Amarok source patch not found: $patch"
     }
@@ -120,6 +121,10 @@ if ($LASTEXITCODE -ne 0) {
 & python $originalBluePaintPatch
 if ($LASTEXITCODE -ne 0) {
     throw "Amarok original-blue paint patch failed with exit code $LASTEXITCODE."
+}
+& python $damagePerformancePatch
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok damage-performance patch failed with exit code $LASTEXITCODE."
 }
 
 # The current feedback build no longer calls Generate() and therefore no longer
