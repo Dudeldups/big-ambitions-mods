@@ -91,6 +91,6 @@ if missing:
     raise SystemExit("Amarok seventh performance patch failed:\n- " + "\n- ".join(missing))
 
 print("Kept Amarok acceleration physics at the real 165 kW / 550 Nm / 2078 kg drivetrain model.")
-print("Raised longitudinal tire/friction-circle authority to target the measured ~8.0 s 0-100 and 36.7-37.0 m 100-0 envelope.")
+print("Raised longitudinal tire/friction-circle authority to target the real-world ~8.0 s 0-100 and 36.7-37.0 m 100-0 envelope.")
 print("Raised brake torque/VehicleType brake force modestly from 2600 to 2800 while retaining road-tire-limited braking.")
 print("Volkswagen Amarok seventh performance preflight passed.")
