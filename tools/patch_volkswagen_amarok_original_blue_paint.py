@@ -110,6 +110,7 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
             $"{paintRenderers.Count}.");
     }
 
+'''
 if "private static void ConfigureOriginalBluePaintSurface(" not in setup:
     if helper_marker not in setup:
         raise SystemExit(
