@@ -258,8 +258,9 @@ checks = {
         "paintRenderer.transform.SetParent(visual, true);",
     ],
     MATERIALS: [
-        'material.name.IndexOf("_BA_VehiclePaint"',
+        '"_BA_VehiclePaint"',
         '"VehiclePaint_Blue"',
+        "private static bool IsAmarokBodyPaintMaterial(Renderer renderer, Material material)",
         "private static bool IsRawAmarokBodyPaintMaterial",
     ],
     RUNTIME: [
@@ -278,16 +279,32 @@ for path, needles in checks.items():
 # material matching is intentionally retained only for factory-black fallback
 # code, never for VehicleColor slots.
 materials_check = MATERIALS.read_text(encoding="utf-8")
-paint_helper_match = re.search(
-    r'''private static bool IsAmarokBodyPaintMaterial\(Renderer renderer, Material material\)
-        \s*\{.*?\}''',
-    materials_check,
-    re.S | re.X,
+paint_helper_start_marker = (
+    "    private static bool IsAmarokBodyPaintMaterial(Renderer renderer, Material material)"
 )
-if paint_helper_match is None:
-    missing.append("VolkswagenAmarokMaterials.cs: final paint helper")
+paint_helper_end_marker = "    private static bool IsRawAmarokBodyPaintMaterial"
+paint_helper_start = materials_check.find(paint_helper_start_marker)
+paint_helper_end = materials_check.find(
+    paint_helper_end_marker,
+    paint_helper_start + len(paint_helper_start_marker)
+    if paint_helper_start >= 0 else 0,
+)
+if (
+    paint_helper_start < 0
+    or paint_helper_end < 0
+    or paint_helper_end <= paint_helper_start
+):
+    missing.append(
+        "VolkswagenAmarokMaterials.cs: final paint helper boundaries "
+        f"start={paint_helper_start} end={paint_helper_end}"
+    )
 else:
-    helper_text = paint_helper_match.group(0)
+    helper_text = materials_check[paint_helper_start:paint_helper_end]
+    if "_BA_VehiclePaint" not in helper_text or "VehiclePaint_Blue" not in helper_text:
+        missing.append(
+            "VolkswagenAmarokMaterials.cs: final paint helper does not target "
+            "VehiclePaint_Blue/_BA_VehiclePaint"
+        )
     if "phong5" in helper_text or "dorr_R" in helper_text:
         missing.append(
             "VolkswagenAmarokMaterials.cs: broad phong5/dorr_R paint classifier remained"
