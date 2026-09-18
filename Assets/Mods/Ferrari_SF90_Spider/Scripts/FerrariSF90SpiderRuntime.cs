@@ -37,7 +37,7 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     // solver calibration starting point. Tune it against the included 0-100 and
     // 0-200 telemetry targets rather than replacing the public VehicleType rating.
     private const float EnginePowerKw = 510f;
-    private const float BrakeTorque = 3200f;
+    private const float BrakeTorque = 2900f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8000f;
     private const float MinimumHealthyEngineRpm = 300f;
