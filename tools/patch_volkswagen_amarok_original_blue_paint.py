@@ -287,7 +287,8 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         return new string(chars).Trim('_');
     }
 
-'''paint_helper_start_marker = (
+'''
+paint_helper_start_marker = (
     "    private static void ConfigureOriginalBluePaintSurface("
 )
 paint_helper_start = setup.find(paint_helper_start_marker)
