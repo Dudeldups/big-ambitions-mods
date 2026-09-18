@@ -161,6 +161,28 @@ for path in (SETUP, RUNTIME):
     if path == RUNTIME:
         text = restore_runtime_instance_fields(text)
 
+        # Re-apply the calibrated drag before the configuredVehicleIds early-return.
+        # The latest telemetry showed drag=0 even though the constant was 0.020,
+        # which makes the truck ~0.7-1.0 s too quick to 100 km/h. Applying here
+        # covers both first-time setup and later vehicle-variable callbacks.
+        drag_guard_marker = "        var instanceId = vehicle.GetInstanceID();\n"
+        if "runtimeBody.drag = VehicleLinearDrag;" not in text:
+            if drag_guard_marker not in text:
+                raise SystemExit(
+                    "Could not locate Amarok runtime vehicle-configuration marker for drag guard."
+                )
+            drag_guard = """        var runtimeBody = vehicle.GetComponent<Rigidbody>() ??
+                          vehicle.GetComponentInParent<Rigidbody>();
+        if (runtimeBody != null)
+            runtimeBody.drag = VehicleLinearDrag;
+
+"""
+            text = text.replace(
+                drag_guard_marker,
+                drag_guard + drag_guard_marker,
+                1,
+            )
+
     # Latest in-game runs are consistently quicker than the ~8.0 s real-world
     # 0-100 target (roughly 7.1-7.6 s) while the 150-193 km/h pull is now healthy.
     # Slow only launch/midrange response: preserve 165 kW peak/top speed, bring
@@ -238,6 +260,7 @@ checks = {
         "private const float EnginePowerKw = 165f;",
         "private const float EngineLimitRpm = 4500f;",
         "private const float VehicleLinearDrag = 0.020f;",
+        "runtimeBody.drag = VehicleLinearDrag;",
         "private const float EngineInertia = 0.18f;",
         '"_upshiftRPM", 4100f',
         '"spoolUpTime", 0.45f',
@@ -262,6 +285,6 @@ if missing:
 
 print("Kept the Amarok at 165 kW / ~550 Nm instead of increasing nominal engine output.")
 print("Kept the upper-rpm pull while trimming low/mid torque toward the real ~550 Nm target.")
-print("Retuned launch response toward ~8.0 s 0-100: EngineInertia=0.18, turbo spool=0.45 s, upshift=4100 rpm; motorway pull remains intact.")
+print("Retuned launch response toward ~8.0 s 0-100 and re-applied VehicleLinearDrag=0.020 before the runtime configured-vehicle guard.")
 print("Restored VolkswagenAmarokRuntime instance state fields if an earlier power-curve patch removed them.")
 print("Volkswagen Amarok eighth performance preflight passed.")
