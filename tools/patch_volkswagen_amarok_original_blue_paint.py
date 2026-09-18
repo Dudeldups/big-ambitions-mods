@@ -262,6 +262,30 @@ deform_guard = '''    private static bool IsDeformableExterior(MeshFilter filter
 '''
 if "VolkswagenAmarok_VehiclePaint" not in runtime:
     runtime = runtime.replace(deform_signature, deform_guard, 1)
+elif "deformFrontDrlIndicator" not in runtime:
+    # Existing worktrees may already have the VehiclePaint_Blue deformation
+    # guard from an earlier build. Retrofit only the new front-light exception
+    # at the very start of IsDeformableExterior(), before AmarokLightSources can
+    # reject those filters.
+    front_light_guard = '''    private static bool IsDeformableExterior(MeshFilter filter)
+    {
+        var deformFrontDrlIndicator =
+            filter.name.IndexOf(
+                "BDRL_Indicator_FL",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "BDRL_Indicator_FR",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "VolkswagenAmarok_IndicatorLeft",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "VolkswagenAmarok_IndicatorRight",
+                StringComparison.OrdinalIgnoreCase) >= 0;
+        if (deformFrontDrlIndicator)
+            return true;
+'''
+    runtime = runtime.replace(deform_signature, front_light_guard, 1)
 
 RUNTIME.write_text(runtime, encoding="utf-8", newline="\n")
 
