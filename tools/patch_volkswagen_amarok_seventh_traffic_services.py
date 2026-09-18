@@ -39,7 +39,8 @@ if "var templateRenderers = clone.GetComponentsInChildren<Renderer>(true);" not 
     text = text.replace(old_template_disable, new_template_disable, 1)
 
 material_marker = "        VolkswagenAmarokMaterials.FixSolidMaterials(clone);\n"
-traffic_setup = '''        VolkswagenAmarokMaterials.FixSolidMaterials(clone);
+traffic_setup = '''        PrepareAiPaintPanels(clone);
+        VolkswagenAmarokMaterials.FixSolidMaterials(clone);
         foreach (var renderer in templateRenderers)
             renderer.enabled = false;
         clone.AddComponent<VolkswagenAmarokAmbientTrafficAppearance>();
@@ -53,6 +54,30 @@ if "clone.AddComponent<VolkswagenAmarokAmbientTrafficAppearance>();" not in text
     if material_marker not in text:
         raise SystemExit("Could not locate Amarok private-driver material setup.")
     text = text.replace(material_marker, traffic_setup, 1)
+
+# Existing generated worktrees may already contain CreateAiPrefab() from an
+# earlier traffic pass. Inject the paint-panel lift directly into that method so
+# ambient traffic cannot z-fight with the original blue source shell.
+create_ai_marker = "    private static GameObject? CreateAiPrefab(GameObject playerPrefab)"
+create_ai_start = text.find(create_ai_marker)
+create_ai_end = text.find(
+    "    private static bool FitAiBodyColliders(",
+    create_ai_start + len(create_ai_marker) if create_ai_start >= 0 else 0,
+)
+if create_ai_start < 0 or create_ai_end < 0:
+    raise SystemExit("Could not locate Amarok CreateAiPrefab() for NPC paint-panel fix.")
+create_ai_text = text[create_ai_start:create_ai_end]
+if "PrepareAiPaintPanels(clone);" not in create_ai_text:
+    material_call = "        VolkswagenAmarokMaterials.FixSolidMaterials(clone);\n"
+    material_at = create_ai_text.find(material_call)
+    if material_at < 0:
+        raise SystemExit("Could not locate Amarok NPC material setup for paint-panel lift.")
+    absolute_at = create_ai_start + material_at
+    text = (
+        text[:absolute_at]
+        + "        PrepareAiPaintPanels(clone);\n"
+        + text[absolute_at:]
+    )
 
 load_marker = "    private static GameObject? LoadAiTemplate()\n"
 traffic_helpers = r'''    private static bool FitAiBodyColliders(GameObject clone, GameObject playerPrefab)
@@ -190,6 +215,48 @@ if "private static bool FitAiBodyColliders(" not in text:
     if load_marker not in text:
         raise SystemExit("Could not locate Amarok AI template loader.")
     text = text.replace(load_marker, traffic_helpers + load_marker, 1)
+
+npc_paint_helper = r'''    private static int PrepareAiPaintPanels(GameObject clone)
+    {
+        var adjusted = 0;
+        foreach (var filter in clone.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null ||
+                filter.name.IndexOf(
+                    "VehiclePaint_Blue",
+                    StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            var sourceMesh = filter.sharedMesh;
+            var runtimeMesh = UnityEngine.Object.Instantiate(sourceMesh);
+            runtimeMesh.name = sourceMesh.name + "_NpcPaintLift";
+            var vertices = runtimeMesh.vertices;
+            var normals = runtimeMesh.normals;
+            var size = runtimeMesh.bounds.size;
+            var span = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            var offset = Mathf.Max(span * 0.00012f, 0.00010f);
+            if (normals.Length == vertices.Length)
+            {
+                for (var index = 0; index < vertices.Length; index++)
+                    vertices[index] += normals[index].normalized * offset;
+                runtimeMesh.vertices = vertices;
+                runtimeMesh.RecalculateBounds();
+            }
+            filter.sharedMesh = runtimeMesh;
+            adjusted++;
+        }
+
+        Debug.Log(
+            $"VolkswagenAmarok NPC paint panels lifted={adjusted} " +
+            "to prevent source-blue z-fighting.");
+        return adjusted;
+    }
+
+'''
+if "private static int PrepareAiPaintPanels(GameObject clone)" not in text:
+    if load_marker not in text:
+        raise SystemExit("Could not locate Amarok AI template loader for NPC paint helper.")
+    text = text.replace(load_marker, npc_paint_helper + load_marker, 1)
 
 # Add the ambient traffic color path used by BMW and Lamborghini.
 appearance_marker = "[DefaultExecutionOrder(1000)]\ninternal sealed class VolkswagenAmarokPrivateDriverAppearance"
@@ -418,6 +485,9 @@ checks = {
     PRIVATE_DRIVER: [
         "using UnityEngine.AI;",
         "VolkswagenAmarokAmbientTrafficAppearance",
+        "PrepareAiPaintPanels(clone);",
+        "private static int PrepareAiPaintPanels(GameObject clone)",
+        "_NpcPaintLift",
         "FitAiBodyColliders(clone, playerPrefab)",
         '"VolkswagenAmarok NpcBodyCollider"',
         "FitAiNavigationObstacles",
@@ -442,7 +512,7 @@ for path, needles in checks.items():
 if missing:
     raise SystemExit("Amarok seventh traffic/services patch failed:\n- " + "\n- ".join(missing))
 
-print("Ported BMW/Lamborghini ambient traffic color assignment to Amarok NPCs.")
+print("Ported BMW/Lamborghini ambient traffic color assignment to Amarok NPCs and lifted BA paint panels above the original blue source shell.")
 print("Replaced donor NPC body colliders/NavMesh bounds with fitted Amarok BodyCollider copies.")
 print("Added one-time private-driver wheel binding to prevent wobbly/offset NPC wheels.")
 print("Rebound vanilla vehicleCollider/refueling anchors and made repair reset arrays safe.")
