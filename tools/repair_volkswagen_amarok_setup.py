@@ -113,7 +113,7 @@ if count != 1:
 
 text, count = re.subn(
     r"private static AnimationCurve CreateGT3RSPowerCurve\(\) =>\s*new AnimationCurve\(.*?\);",
-    '''private static AnimationCurve CreateGT3RSPowerCurve() =>\n        new AnimationCurve(\n            new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),\n            new Keyframe(0.31f, 0.49f), new Keyframe(0.44f, 0.70f),\n            new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),\n            new Keyframe(0.78f, 0.96f), new Keyframe(0.89f, 0.88f),\n            new Keyframe(1.00f, 0.70f));''',
+    '''private static AnimationCurve CreateGT3RSPowerCurve() =>\n        new AnimationCurve(\n            new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),\n            new Keyframe(0.31f, 0.49f), new Keyframe(0.44f, 0.70f),\n            new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),\n            new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f),\n            new Keyframe(1.00f, 0.99f));''',
     text,
     count=1,
     flags=re.S,
@@ -274,7 +274,7 @@ if count != 1:
     raise SystemExit("Could not patch Amarok runtime gear ratios.")
 runtime, count = re.subn(
     r"private static AnimationCurve CreateGT3RSPowerCurve\(\) =>\s*new AnimationCurve\(.*?\);",
-    '''private static AnimationCurve CreateGT3RSPowerCurve() =>\n        new AnimationCurve(\n            new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),\n            new Keyframe(0.31f, 0.49f), new Keyframe(0.44f, 0.70f),\n            new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),\n            new Keyframe(0.78f, 0.96f), new Keyframe(0.89f, 0.88f),\n            new Keyframe(1.00f, 0.70f));''',
+    '''private static AnimationCurve CreateGT3RSPowerCurve() =>\n        new AnimationCurve(\n            new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),\n            new Keyframe(0.31f, 0.49f), new Keyframe(0.44f, 0.70f),\n            new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),\n            new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f),\n            new Keyframe(1.00f, 0.99f));''',
     runtime,
     count=1,
     flags=re.S,
