@@ -23,6 +23,7 @@ $thirdFeedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_third_i
 $npcStancePatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_npc_stance_correction.py"
 $fourthFeedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_fourth_ingame_feedback.py"
 $fourthSafetyPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_fourth_safety.py"
+$fifthFeedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_fifth_ingame_feedback.py"
 
 if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
     throw "Unity executable not found: $UnityExe"
@@ -30,7 +31,7 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
-foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch, $thirdFeedbackPrepPatch, $thirdFeedbackPatch, $npcStancePatch, $fourthFeedbackPatch, $fourthSafetyPatch)) {
+foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch, $thirdFeedbackPrepPatch, $thirdFeedbackPatch, $npcStancePatch, $fourthFeedbackPatch, $fourthSafetyPatch, $fifthFeedbackPatch)) {
     if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
         throw "Volkswagen Amarok source patch not found: $patch"
     }
@@ -68,6 +69,10 @@ if ($LASTEXITCODE -ne 0) {
 & python $fourthSafetyPatch
 if ($LASTEXITCODE -ne 0) {
     throw "Amarok fourth-feedback safety patch failed with exit code $LASTEXITCODE."
+}
+& python $fifthFeedbackPatch
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok fifth in-game feedback patch failed with exit code $LASTEXITCODE."
 }
 
 # The current feedback build no longer calls Generate() and therefore no longer
