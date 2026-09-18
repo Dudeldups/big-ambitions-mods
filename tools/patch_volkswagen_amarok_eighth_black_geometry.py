@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 REPO = Path(__file__).resolve().parents[1]
 MATERIALS = REPO / "Assets/Mods/Volkswagen_Amarok/Scripts/VolkswagenAmarokMaterials.cs"
@@ -9,13 +8,15 @@ if not MATERIALS.is_file():
 
 text = MATERIALS.read_text(encoding="utf-8")
 
-# Both remaining black parts live inside mixed source meshes:
-# - aventuramodular_phong5_0 contains the body-color cab bar AND low side-step covers
-# - the splash/mud guards are disconnected islands inside a body-paint renderer
+# The previous disconnected-island approach cannot work when the black plastic is
+# topologically connected to a painted source object. The in-game log confirmed
+# that no side-step or mudguard component was extracted:
+#   sideStepRenderers=0, mudGuardRenderers=0
 #
-# A renderer-wide property block can therefore never solve this correctly. Split
-# disconnected mesh islands first, then let the normal VehicleColor path color only
-# the remainder while the extracted low islands receive dedicated black materials.
+# Split by triangle position/normal instead. This deliberately removes selected
+# triangles from the VehicleColor mesh and recreates those exact triangles in a
+# separate black renderer, so sharing one Blender object/material is no longer a
+# blocker.
 replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
     {
         if (explicitFactoryBlackGeometryPrepared)
@@ -32,24 +33,24 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
         }
         if (visual == null)
         {
-            context?.Logger.Warn("VolkswagenAmarok paint: AmarokVisual is missing for black-part splitting.");
+            context?.Logger.Warn(
+                "VolkswagenAmarok paint: AmarokVisual is missing for black-part splitting.");
             return;
         }
 
-        var sideStepSplits = 0;
-        var mudGuardSplits = 0;
-        var renderers = GetComponentsInChildren<MeshRenderer>(true);
-        foreach (var renderer in renderers)
+        var sideStepTriangles = 0;
+        var mudGuardTriangles = 0;
+        var candidates = GetComponentsInChildren<MeshRenderer>(true);
+        foreach (var renderer in candidates)
         {
             if (renderer == null ||
-                renderer.name.StartsWith("VolkswagenAmarok_FactoryBlack_", StringComparison.Ordinal))
+                renderer.name.StartsWith(
+                    "VolkswagenAmarok_FactoryBlack_",
+                    StringComparison.Ordinal))
                 continue;
 
-            var isAventura = string.Equals(
-                renderer.name,
-                "vw_amorak_2018:aventuramodular_phong5_0",
-                StringComparison.OrdinalIgnoreCase);
-
+            var isAventura = HasNameFragmentInHierarchy(renderer, "aventuramodular");
+            var isRearBumper = HasNameFragmentInHierarchy(renderer, "bump_rear_ok");
             var hasBodyPaint = false;
             foreach (var material in renderer.sharedMaterials)
             {
@@ -62,161 +63,101 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
 
             if (isAventura)
             {
-                if (SplitFactoryBlackIslands(
-                        renderer,
-                        visual,
-                        "SideSteps",
-                        bounds =>
-                            bounds.center.y < 0.78f &&
-                            Mathf.Abs(bounds.center.x) > 0.42f &&
-                            bounds.size.y < 0.85f))
-                {
-                    sideStepSplits++;
-                }
-                continue;
-            }
-
-            if (!hasBodyPaint ||
-                string.Equals(
-                    renderer.name,
-                    "vw_amorak_2018:bump_rear_ok_phong5_0",
-                    StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            // The mud guards are separate mesh islands even though Blender groups
-            // them inside a body-paint object. Select only small, low, outer islands
-            // around either axle; the large body/fender components fail the size test.
-            if (SplitFactoryBlackIslands(
+                sideStepTriangles += SplitFactoryBlackTriangles(
                     renderer,
                     visual,
-                    "Mudguards",
-                    bounds =>
-                    {
-                        var center = bounds.center;
-                        var size = bounds.size;
-                        var nearAxle =
-                            (center.z > 1.00f && center.z < 2.15f) ||
-                            (center.z < -0.65f && center.z > -1.95f);
-                        return nearAxle &&
-                               Mathf.Abs(center.x) > 0.68f &&
-                               center.y < 0.68f &&
-                               size.x < 0.80f &&
-                               size.y < 0.95f &&
-                               size.z < 0.80f;
-                    }))
-            {
-                mudGuardSplits++;
+                    "SideSteps",
+                    (center, normal) =>
+                        Mathf.Abs(center.x) > 0.52f &&
+                        center.y > -0.20f &&
+                        center.y < 0.82f &&
+                        center.z > -1.55f &&
+                        center.z < 1.55f);
+                continue;
             }
+
+            if (!hasBodyPaint || isRearBumper)
+                continue;
+
+            mudGuardTriangles += SplitFactoryBlackTriangles(
+                renderer,
+                visual,
+                "Mudguards",
+                (center, normal) =>
+                {
+                    var frontBehindWheel = center.z > 1.02f && center.z < 1.58f;
+                    var rearBehindWheel = center.z > -2.02f && center.z < -1.42f;
+                    return (frontBehindWheel || rearBehindWheel) &&
+                           Mathf.Abs(center.x) > 0.70f &&
+                           center.y > -0.20f &&
+                           center.y < 0.72f &&
+                           Mathf.Abs(normal.z) > 0.28f;
+                });
         }
 
         context?.Logger.Info(
-            $"VolkswagenAmarok paint geometry split: sideStepRenderers={sideStepSplits}, " +
-            $"mudGuardRenderers={mudGuardSplits}.");
+            $"VolkswagenAmarok paint triangle split: sideStepTriangles={sideStepTriangles}, " +
+            $"mudGuardTriangles={mudGuardTriangles}.");
     }
 
-    private bool SplitFactoryBlackIslands(
+    private static bool HasNameFragmentInHierarchy(
+        Renderer renderer,
+        string fragment)
+    {
+        for (var current = renderer.transform; current != null; current = current.parent)
+        {
+            if (current.name.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+        return false;
+    }
+
+    private int SplitFactoryBlackTriangles(
         MeshRenderer sourceRenderer,
         Transform visual,
         string suffix,
-        Func<Bounds, bool> shouldExtract)
+        Func<Vector3, Vector3, bool> shouldExtract)
     {
         var filter = sourceRenderer.GetComponent<MeshFilter>();
         var sourceMesh = filter?.sharedMesh;
         if (filter == null || sourceMesh == null || sourceMesh.vertexCount == 0)
-            return false;
+            return 0;
 
         var vertices = sourceMesh.vertices;
-        var parent = new int[vertices.Length];
-        for (var index = 0; index < parent.Length; index++)
-            parent[index] = index;
-
-        int Find(int value)
-        {
-            while (parent[value] != value)
-            {
-                parent[value] = parent[parent[value]];
-                value = parent[value];
-            }
-            return value;
-        }
-
-        void Union(int a, int b)
-        {
-            var rootA = Find(a);
-            var rootB = Find(b);
-            if (rootA != rootB)
-                parent[rootB] = rootA;
-        }
-
-        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
-        {
-            var triangles = sourceMesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < triangles.Length; index += 3)
-            {
-                Union(triangles[index], triangles[index + 1]);
-                Union(triangles[index], triangles[index + 2]);
-            }
-        }
-
-        var boundsByRoot = new Dictionary<int, Bounds>();
-        var rootInitialized = new HashSet<int>();
-        for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
-        {
-            var triangles = sourceMesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < triangles.Length; index += 3)
-            {
-                for (var corner = 0; corner < 3; corner++)
-                {
-                    var vertexIndex = triangles[index + corner];
-                    var root = Find(vertexIndex);
-                    var point = visual.InverseTransformPoint(
-                        sourceRenderer.transform.TransformPoint(vertices[vertexIndex]));
-                    if (!rootInitialized.Add(root))
-                    {
-                        var bounds = boundsByRoot[root];
-                        bounds.Encapsulate(point);
-                        boundsByRoot[root] = bounds;
-                    }
-                    else
-                    {
-                        boundsByRoot[root] = new Bounds(point, Vector3.zero);
-                    }
-                }
-            }
-        }
-
-        var extractedRoots = new HashSet<int>();
-        foreach (var pair in boundsByRoot)
-        {
-            if (shouldExtract(pair.Value))
-            {
-                extractedRoots.Add(pair.Key);
-                context?.Logger.Info(
-                    $"VolkswagenAmarok paint extract source='{sourceRenderer.name}' " +
-                    $"part='{suffix}' center={pair.Value.center} size={pair.Value.size}.");
-            }
-        }
-        if (extractedRoots.Count == 0)
-            return false;
-
         var keepBySubMesh = new List<int>[sourceMesh.subMeshCount];
         var blackBySubMesh = new List<int>[sourceMesh.subMeshCount];
         var keptTriangles = 0;
         var blackTriangles = 0;
+
         for (var subMesh = 0; subMesh < sourceMesh.subMeshCount; subMesh++)
         {
             keepBySubMesh[subMesh] = new List<int>();
             blackBySubMesh[subMesh] = new List<int>();
             var triangles = sourceMesh.GetTriangles(subMesh);
+
             for (var index = 0; index + 2 < triangles.Length; index += 3)
             {
-                var target = extractedRoots.Contains(Find(triangles[index]))
+                var ia = triangles[index];
+                var ib = triangles[index + 1];
+                var ic = triangles[index + 2];
+                var aWorld = sourceRenderer.transform.TransformPoint(vertices[ia]);
+                var bWorld = sourceRenderer.transform.TransformPoint(vertices[ib]);
+                var cWorld = sourceRenderer.transform.TransformPoint(vertices[ic]);
+                var a = visual.InverseTransformPoint(aWorld);
+                var b = visual.InverseTransformPoint(bWorld);
+                var c = visual.InverseTransformPoint(cWorld);
+                var center = (a + b + c) / 3f;
+                var normal = Vector3.Cross(b - a, c - a).normalized;
+
+                var extracted = shouldExtract(center, normal);
+                var target = extracted
                     ? blackBySubMesh[subMesh]
                     : keepBySubMesh[subMesh];
-                target.Add(triangles[index]);
-                target.Add(triangles[index + 1]);
-                target.Add(triangles[index + 2]);
-                if (ReferenceEquals(target, blackBySubMesh[subMesh]))
+                target.Add(ia);
+                target.Add(ib);
+                target.Add(ic);
+
+                if (extracted)
                     blackTriangles++;
                 else
                     keptTriangles++;
@@ -224,7 +165,12 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
         }
 
         if (blackTriangles == 0 || keptTriangles == 0)
-            return false;
+        {
+            context?.Logger.Info(
+                $"VolkswagenAmarok paint triangle candidate source='{sourceRenderer.name}' " +
+                $"part='{suffix}' extracted={blackTriangles} kept={keptTriangles}.");
+            return 0;
+        }
 
         var remainder = Instantiate(sourceMesh);
         remainder.name = sourceMesh.name + "_VehicleColorRemainder";
@@ -237,11 +183,13 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
         }
         remainder.RecalculateBounds();
         blackMesh.RecalculateBounds();
+
         filter.sharedMesh = remainder;
         ownedFactoryBlackMeshes.Add(remainder);
         ownedFactoryBlackMeshes.Add(blackMesh);
 
-        var host = new GameObject("VolkswagenAmarok_FactoryBlack_" + suffix + "_" + sourceRenderer.name);
+        var host = new GameObject(
+            "VolkswagenAmarok_FactoryBlack_" + suffix + "_" + sourceRenderer.name);
         host.layer = sourceRenderer.gameObject.layer;
         host.transform.SetParent(sourceRenderer.transform, false);
         host.AddComponent<MeshFilter>().sharedMesh = blackMesh;
@@ -261,66 +209,66 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
             var source = sourceMaterials[index];
             if (source == null)
                 continue;
+
             var material = Instantiate(source);
             material.name = source.name + "_FactoryBlack_" + suffix;
-            if (IsRawAmarokBodyPaintMaterial(material))
-            {
-                if (material.HasProperty(BaseColor)) material.SetColor(BaseColor, black);
-                if (material.HasProperty(ColorProperty)) material.SetColor(ColorProperty, black);
-                if (material.HasProperty(BaseColorFactor)) material.SetColor(BaseColorFactor, black);
-                if (material.HasProperty("_BaseColorMap")) material.SetTexture("_BaseColorMap", null);
-                if (material.HasProperty("baseColorTexture")) material.SetTexture("baseColorTexture", null);
-                if (material.HasProperty("_MainTex")) material.SetTexture("_MainTex", null);
-            }
+            if (material.HasProperty(BaseColor))
+                material.SetColor(BaseColor, black);
+            if (material.HasProperty(ColorProperty))
+                material.SetColor(ColorProperty, black);
+            if (material.HasProperty(BaseColorFactor))
+                material.SetColor(BaseColorFactor, black);
+            if (material.HasProperty("_BaseColorMap"))
+                material.SetTexture("_BaseColorMap", null);
+            if (material.HasProperty("baseColorTexture"))
+                material.SetTexture("baseColorTexture", null);
+            if (material.HasProperty("_MainTex"))
+                material.SetTexture("_MainTex", null);
+
             blackMaterials[index] = material;
             ownedFactoryBlackMaterials.Add(material);
         }
         blackRenderer.sharedMaterials = blackMaterials;
 
-        return true;
+        context?.Logger.Info(
+            $"VolkswagenAmarok paint extracted source='{sourceRenderer.name}' " +
+            $"part='{suffix}' triangles={blackTriangles}.");
+        return blackTriangles;
     }
 
-    private void ApplyFactoryBlackExteriorParts'''
+'''
 
-# Do not depend on formatting produced by earlier feedback passes.
-# Replace the method by declaration boundaries and accept an already-patched source.
-if "private bool SplitFactoryBlackIslands(" not in text:
-    start_marker = "    private void PrepareExplicitFactoryBlackGeometry()"
-    end_marker = "    private void ApplyFactoryBlackExteriorParts()"
-    start = text.find(start_marker)
-    end = text.find(end_marker, start + len(start_marker)) if start >= 0 else -1
-    if start < 0 or end < 0 or end <= start:
-        raise SystemExit(
-            "Could not locate Amarok mixed-mesh black-part method boundaries. "
-            f"start={start} end={end}"
-        )
+start_marker = "    private void PrepareExplicitFactoryBlackGeometry()"
+end_marker = "    private void ApplyFactoryBlackExteriorParts()"
+start = text.find(start_marker)
+end = text.find(end_marker, start + len(start_marker)) if start >= 0 else -1
+if start < 0 or end < 0 or end <= start:
+    raise SystemExit(
+        "Could not locate Amarok factory-black geometry method boundaries. "
+        f"start={start} end={end}"
+    )
 
-    replacement_marker = "\n\n    private void ApplyFactoryBlackExteriorParts"
-    if replacement_marker not in replacement:
-        raise SystemExit("Internal Amarok black-geometry replacement marker is missing.")
-    replacement_body = replacement.split(replacement_marker, 1)[0] + "\n\n"
-    text = text[:start] + replacement_body + text[end:]
-    print("Installed disconnected-island Amarok black-part splitter.")
-else:
-    print("Disconnected-island Amarok black-part splitter is already installed.")
-
+text = text[:start] + replacement + text[end:]
 MATERIALS.write_text(text, encoding="utf-8", newline="\n")
 
 check = MATERIALS.read_text(encoding="utf-8")
 required = [
-    "SplitFactoryBlackIslands(",
-    '"vw_amorak_2018:aventuramodular_phong5_0"',
+    "SplitFactoryBlackTriangles(",
+    'HasNameFragmentInHierarchy(renderer, "aventuramodular")',
     '"SideSteps"',
     '"Mudguards"',
-    "var boundsByRoot = new Dictionary<int, Bounds>();",
-    "Mathf.Abs(center.x) > 0.68f",
-    '"VolkswagenAmarok_FactoryBlack_" + suffix',
+    "frontBehindWheel",
+    "rearBehindWheel",
+    "Mathf.Abs(normal.z) > 0.28f",
+    "paint triangle split: sideStepTriangles=",
 ]
 missing = [needle for needle in required if needle not in check]
 if missing:
-    raise SystemExit("Amarok eighth black-geometry patch failed:\n- " + "\n- ".join(missing))
+    raise SystemExit(
+        "Amarok eighth black-geometry patch failed:\n- " + "\n- ".join(missing)
+    )
 
-print("Replaced renderer-wide black heuristics with disconnected-island mesh splitting.")
-print("Side-step covers are extracted from aventuramodular while the upper cab bar stays VehicleColor.")
-print("Mudguards are extracted as small low outer islands from their shared body-paint mesh.")
+print("Replaced disconnected-island black-part detection with direct triangle extraction.")
+print("Side-step covers are cut from the low aventuramodular geometry while the upper cab bar stays VehicleColor.")
+print("Mudguards are cut by wheel-local position and front/back-facing triangle normals even when connected to the body mesh.")
 print("Volkswagen Amarok eighth black-geometry preflight passed.")
