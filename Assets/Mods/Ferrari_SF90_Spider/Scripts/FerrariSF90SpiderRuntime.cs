@@ -2860,9 +2860,8 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
 
             if (diagnosticLogs++ < MaximumDiagnosticLogs)
             {
-                // Keep the first few real impacts visible in Player.log while
-                // V18 deformation is being validated; this is bounded and does
-                // not create a permanent polling/logging path.
+                // Retain bounded impact diagnostics for opt-in debugging without
+                // writing routine deformation events to release Player.log output.
                 FerrariSF90SpiderDiagnostics.Info(
                     context,
                     $"FerrariSF90Spider damage V24 vehicle={vehicle?.GetInstanceID()}: inward dent " +
