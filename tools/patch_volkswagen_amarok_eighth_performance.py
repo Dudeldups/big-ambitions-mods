@@ -215,4 +215,5 @@ if missing:
 print("Kept the Amarok at 165 kW / ~550 Nm instead of increasing nominal engine output.")
 print("Removed the unrealistic upper-rpm power collapse: 3000-4500 rpm now stays at ~99-100% peak power.")
 print("Reduced Rigidbody linear drag from 0.045 to 0.020 so the 2078 kg truck can still accelerate realistically at motorway speeds.")
-print("Restored VolkswagenAmarokRuntime instance state fields if an earlier power-curve patch removed them.")\nprint("Volkswagen Amarok eighth performance preflight passed.")
+print("Restored VolkswagenAmarokRuntime instance state fields if an earlier power-curve patch removed them.")
+print("Volkswagen Amarok eighth performance preflight passed.")
