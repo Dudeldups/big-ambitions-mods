@@ -205,8 +205,6 @@ for path in (SETUP, RUNTIME):
     text, drag_count = re.subn(
         r"private const float VehicleLinearDrag = [^;]+;",
         "private const float VehicleLinearDrag = 0.020f;",
-        "private const float EngineInertia = 0.18f;",
-        '"_upshiftRPM", 4100f',
         text,
         count=1,
     )
@@ -222,6 +220,9 @@ checks = {
         "new Keyframe(0.89f, 1.00f)",
         "new Keyframe(1.00f, 0.99f)",
         "private const float VehicleLinearDrag = 0.020f;",
+        "private const float EngineInertia = 0.18f;",
+        '"_upshiftRPM", 4100f',
+        '"spoolUpTime", 0.45f',
     ],
     RUNTIME: [
         "new Keyframe(0.67f, 0.99f)",
@@ -233,6 +234,7 @@ checks = {
         "private const float VehicleLinearDrag = 0.020f;",
         "private const float EngineInertia = 0.18f;",
         '"_upshiftRPM", 4100f',
+        '"spoolUpTime", 0.45f',
         "private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();",
         "private Coroutine? initializationCoroutine;",
         "private Coroutine? warehouseExitGuardCoroutine;",
