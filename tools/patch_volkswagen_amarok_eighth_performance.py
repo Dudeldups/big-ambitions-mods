@@ -39,6 +39,21 @@ for path in (SETUP, RUNTIME):
     text, count = pattern.subn(curve, text, count=1)
     if count != 1:
         raise SystemExit(f"Could not flatten Amarok upper-rpm power curve in {path.name}.")
+
+    # Rigidbody.drag is linear velocity damping, not a physical Cd coefficient.
+    # 0.045 on a 2078 kg truck consumes implausibly large power as speed rises and
+    # is the main reason the current build runs out of acceleration at the top end.
+    # 0.020 keeps the pickup visibly less slippery than the sports-car mods while
+    # allowing the real 165 kW drivetrain to pull toward the 193 km/h limiter.
+    text, drag_count = re.subn(
+        r"private const float VehicleLinearDrag = [^;]+;",
+        "private const float VehicleLinearDrag = 0.020f;",
+        text,
+        count=1,
+    )
+    if drag_count != 1:
+        raise SystemExit(f"Could not set Amarok linear drag in {path.name}.")
+
     path.write_text(text, encoding="utf-8", newline="\n")
 
 checks = {
@@ -47,6 +62,7 @@ checks = {
         "new Keyframe(0.78f, 1.00f)",
         "new Keyframe(0.89f, 1.00f)",
         "new Keyframe(1.00f, 0.99f)",
+        "private const float VehicleLinearDrag = 0.020f;",
     ],
     RUNTIME: [
         "new Keyframe(0.67f, 1.00f)",
@@ -55,6 +71,7 @@ checks = {
         "new Keyframe(1.00f, 0.99f)",
         "private const float EnginePowerKw = 165f;",
         "private const float EngineLimitRpm = 4500f;",
+        "private const float VehicleLinearDrag = 0.020f;",
     ],
 }
 missing = []
@@ -68,4 +85,5 @@ if missing:
 
 print("Kept the Amarok at 165 kW / ~550 Nm instead of increasing nominal engine output.")
 print("Removed the unrealistic upper-rpm power collapse: 3000-4500 rpm now stays at ~99-100% peak power.")
+print("Reduced Rigidbody linear drag from 0.045 to 0.020 so the 2078 kg truck can still accelerate realistically at motorway speeds.")
 print("Volkswagen Amarok eighth performance preflight passed.")
