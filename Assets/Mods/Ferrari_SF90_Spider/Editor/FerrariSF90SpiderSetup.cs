@@ -76,15 +76,16 @@ public static class FerrariSF90SpiderSetupV15
     private const float PeriodSpiderMsrp = 558000f;
     private const float FuelCapacityLitres = 68f;
     private const float RatedSystemPowerKw = 735f;
-    // NWH solver starting value, deliberately separate from the displayed real
-    // system output. Final value must be calibrated against 2.5 s / 7.0 s targets.
-    private const float RoadCalibrationPowerKw = 490f;
+    // NWH solver calibration is deliberately separate from the displayed real
+    // system output. Current road-test target is Ferrari's 2.5 s / 7.0 s envelope;
+    // launch traction is calibrated separately below so high-speed power remains realistic.
+    private const float RoadCalibrationPowerKw = 510f;
     private const float BrakeTorque = 3200f;
     private const float BrakeActuationTime = 0.08f;
     private const float FinalDriveRatio = 4.51f;
     private const float TireFrictionCircleStrength = 0.96f;
-    private const float FrontLongitudinalGrip = 0.50f;
-    private const float RearLongitudinalGrip = 0.75f;
+    private const float FrontLongitudinalGrip = 0.49f;
+    private const float RearLongitudinalGrip = 0.65f;
     private const float FrontLateralGrip = 0.98f;
     private const float RearLateralGrip = 0.96f;
     private const float AntiRollBarForce = 7200f;
