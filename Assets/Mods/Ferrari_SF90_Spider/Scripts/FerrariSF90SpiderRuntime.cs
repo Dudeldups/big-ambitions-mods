@@ -36,7 +36,7 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     // maxPower setting more directly than real crank/system output, so this is a
     // solver calibration starting point. Tune it against the included 0-100 and
     // 0-200 telemetry targets rather than replacing the public VehicleType rating.
-    private const float EnginePowerKw = 560f;
+    private const float EnginePowerKw = 490f;
     private const float BrakeTorque = 3200f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8000f;
@@ -1738,8 +1738,8 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
             var transmission = GetMember(powertrain, "transmission");
             SetFloat(transmission, "finalGearRatio", FinalDriveRatio);
             SetFloat(transmission, "shiftDuration", 0.065f);
-            SetFloat(transmission, "_downshiftRPM", 5000f);
-            SetFloat(transmission, "_upshiftRPM", 7600f);
+            SetFloat(transmission, "_downshiftRPM", 4300f);
+            SetFloat(transmission, "_upshiftRPM", 7500f);
             SetInt(transmission, "forwardGearCount", 8);
             SetInt(transmission, "reverseGearCount", 1);
             SetInt(transmission, "transmissionType", 1);
