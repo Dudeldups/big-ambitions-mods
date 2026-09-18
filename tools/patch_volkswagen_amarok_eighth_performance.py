@@ -20,7 +20,7 @@ for path in (SETUP, RUNTIME):
 # CreateGT3RSPowerCurve() and sanitized CreateAmarokPowerCurve() names. Match
 # either name and preserve whichever one the current worktree contains.
 curve_decl_pattern = re.compile(
-    r"private static AnimationCurve (?P<name>Create(?:GT3RS|Amarok)PowerCurve)\\(\\)"
+    r"private static AnimationCurve (?P<name>Create(?:GT3RS|Amarok)PowerCurve)\(\)"
 )
 
 
@@ -28,7 +28,7 @@ def replace_power_curve(text: str, source_name: str) -> str:
     match = curve_decl_pattern.search(text)
     if match is None:
         candidates = sorted(set(re.findall(
-            r"private static AnimationCurve\\s+([A-Za-z0-9_]+PowerCurve)\\s*\\(",
+            r"private static AnimationCurve\s+([A-Za-z0-9_]+PowerCurve)\s*\(",
             text,
         )))
         raise SystemExit(
@@ -39,7 +39,7 @@ def replace_power_curve(text: str, source_name: str) -> str:
     method_name = match.group("name")
     search_from = match.end()
     next_member = re.search(
-        r"\\n    (?:private|internal|public) static ",
+        r"\n    (?:private|internal|public) static ",
         text[search_from:],
     )
     if next_member is not None:
@@ -47,7 +47,7 @@ def replace_power_curve(text: str, source_name: str) -> str:
     else:
         # Fallback for a power-curve helper that happens to be the final static
         # member in the class.
-        class_end = text.find("\\n}", search_from)
+        class_end = text.find("\n}", search_from)
         if class_end < 0:
             raise SystemExit(
                 f"Could not determine end of Amarok power curve in {source_name}."
