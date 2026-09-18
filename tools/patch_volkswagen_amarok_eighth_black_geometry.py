@@ -38,6 +38,11 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
             return;
         }
 
+        var authoredSideSteps = PrepareAuthoredFactoryBlackOverlay(
+            "FactoryBlack_SideSteps");
+        var authoredMudguards = PrepareAuthoredFactoryBlackOverlay(
+            "FactoryBlack_Mudguards");
+
         var sideStepTriangles = 0;
         var mudGuardTriangles = 0;
         var candidates = GetComponentsInChildren<MeshRenderer>(true);
@@ -61,7 +66,7 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
                 }
             }
 
-            if (isAventura)
+            if (isAventura && !authoredSideSteps)
             {
                 sideStepTriangles += SplitFactoryBlackTriangles(
                     renderer,
@@ -76,7 +81,7 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
                 continue;
             }
 
-            if (!hasBodyPaint || isRearBumper)
+            if (!hasBodyPaint || isRearBumper || authoredMudguards)
                 continue;
 
             mudGuardTriangles += SplitFactoryBlackTriangles(
@@ -96,8 +101,65 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
         }
 
         context?.Logger.Info(
-            $"VolkswagenAmarok paint triangle split: sideStepTriangles={sideStepTriangles}, " +
-            $"mudGuardTriangles={mudGuardTriangles}.");
+            $"VolkswagenAmarok paint black trim: authoredSideSteps={authoredSideSteps}, " +
+            $"authoredMudguards={authoredMudguards}, " +
+            $"fallbackSideStepTriangles={sideStepTriangles}, " +
+            $"fallbackMudGuardTriangles={mudGuardTriangles}.");
+    }
+
+    private bool PrepareAuthoredFactoryBlackOverlay(string marker)
+    {
+        MeshRenderer? found = null;
+        foreach (var renderer in GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (renderer == null ||
+                renderer.name.IndexOf(marker, StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            found = renderer;
+            break;
+        }
+        if (found == null)
+            return false;
+
+        var shader = Shader.Find("HDRP/Lit") ??
+                     Shader.Find("High Definition Render Pipeline/Lit");
+        if (shader == null)
+        {
+            context?.Logger.Warn(
+                $"VolkswagenAmarok paint: HDRP/Lit missing for authored black trim '{marker}'.");
+            return false;
+        }
+
+        var material = new Material(shader)
+        {
+            name = "VolkswagenAmarok_" + marker + "_Material",
+        };
+        var black = new Color(0.018f, 0.018f, 0.018f, 1f);
+        if (material.HasProperty(BaseColor))
+            material.SetColor(BaseColor, black);
+        if (material.HasProperty(ColorProperty))
+            material.SetColor(ColorProperty, black);
+        if (material.HasProperty(BaseColorFactor))
+            material.SetColor(BaseColorFactor, black);
+        if (material.HasProperty("_Metallic"))
+            material.SetFloat("_Metallic", 0f);
+        if (material.HasProperty("_Smoothness"))
+            material.SetFloat("_Smoothness", 0.30f);
+        if (material.HasProperty("_SurfaceType"))
+            material.SetFloat("_SurfaceType", 0f);
+        if (material.HasProperty("_ZWrite"))
+            material.SetFloat("_ZWrite", 1f);
+
+        found.sharedMaterial = material;
+        found.shadowCastingMode = ShadowCastingMode.On;
+        found.receiveShadows = true;
+        found.enabled = true;
+        found.transform.localScale *= 1.0015f;
+        ownedFactoryBlackMaterials.Add(material);
+
+        context?.Logger.Info(
+            $"VolkswagenAmarok paint: authored factory-black overlay '{marker}' enabled.");
+        return true;
     }
 
     private static bool HasNameFragmentInHierarchy(
@@ -260,7 +322,11 @@ required = [
     "frontBehindWheel",
     "rearBehindWheel",
     "Mathf.Abs(normal.z) > 0.28f",
-    "paint triangle split: sideStepTriangles=",
+    "PrepareAuthoredFactoryBlackOverlay(",
+    '"FactoryBlack_SideSteps"',
+    '"FactoryBlack_Mudguards"',
+    "authoredSideSteps=",
+    "fallbackSideStepTriangles=",
 ]
 missing = [needle for needle in required if needle not in check]
 if missing:
@@ -268,7 +334,6 @@ if missing:
         "Amarok eighth black-geometry patch failed:\n- " + "\n- ".join(missing)
     )
 
-print("Replaced disconnected-island black-part detection with direct triangle extraction.")
-print("Side-step covers are cut from the low aventuramodular geometry while the upper cab bar stays VehicleColor.")
-print("Mudguards are cut by wheel-local position and front/back-facing triangle normals even when connected to the body mesh.")
+print("Added exact authored FactoryBlack_SideSteps / FactoryBlack_Mudguards overlay support.")
+print("Kept triangle extraction only as a fallback when those Blender vertex groups are absent.")
 print("Volkswagen Amarok eighth black-geometry preflight passed.")
