@@ -24,6 +24,8 @@ $npcStancePatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_npc_stance_
 $fourthFeedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_fourth_ingame_feedback.py"
 $fourthSafetyPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_fourth_safety.py"
 $fifthFeedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_fifth_ingame_feedback.py"
+$sixthFeedbackPatch = Join-Path $repoRoot "tools\patch_volkswagen_amarok_sixth_ingame_feedback.py"
+$refreshLightOverlay = Join-Path $repoRoot "tools\refresh_volkswagen_amarok_light_overlays.py"
 
 if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
     throw "Unity executable not found: $UnityExe"
@@ -31,10 +33,16 @@ if (-not (Test-Path -LiteralPath $UnityExe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $amarokRoot -PathType Container)) {
     throw "Volkswagen Amarok mod folder not found: $amarokRoot"
 }
-foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch, $thirdFeedbackPrepPatch, $thirdFeedbackPatch, $npcStancePatch, $fourthFeedbackPatch, $fourthSafetyPatch, $fifthFeedbackPatch)) {
+foreach ($patch in @($feedbackPatch, $lightingHelperPatch, $existingPrefabBuildPatch, $thirdFeedbackPrepPatch, $thirdFeedbackPatch, $npcStancePatch, $fourthFeedbackPatch, $fourthSafetyPatch, $fifthFeedbackPatch, $sixthFeedbackPatch, $refreshLightOverlay)) {
     if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
         throw "Volkswagen Amarok source patch not found: $patch"
     }
+}
+
+Write-Host "[amarok-bundle] Refreshing authored Amarok light overlays when the .blend changed..."
+& python $refreshLightOverlay
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok authored-light refresh failed with exit code $LASTEXITCODE."
 }
 
 Write-Host "[amarok-bundle] Applying current Amarok in-game tuning patches..."
@@ -73,6 +81,10 @@ if ($LASTEXITCODE -ne 0) {
 & python $fifthFeedbackPatch
 if ($LASTEXITCODE -ne 0) {
     throw "Amarok fifth in-game feedback patch failed with exit code $LASTEXITCODE."
+}
+& python $sixthFeedbackPatch
+if ($LASTEXITCODE -ne 0) {
+    throw "Amarok sixth in-game feedback patch failed with exit code $LASTEXITCODE."
 }
 
 # The current feedback build no longer calls Generate() and therefore no longer
