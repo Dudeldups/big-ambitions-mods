@@ -197,8 +197,13 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
                         sourceRenderer.transform.TransformPoint(originalVertices[b]),
                         sourceRenderer.transform.TransformPoint(originalVertices[c]));
 
-                    if (panelKeys.Contains(key))
+                    if (panelKeys.TryGetValue(key, out var remainingMatches) &&
+                        remainingMatches > 0)
                     {
+                        if (remainingMatches == 1)
+                            panelKeys.Remove(key);
+                        else
+                            panelKeys[key] = remainingMatches - 1;
                         removedForPanel++;
                         continue;
                     }
@@ -230,6 +235,14 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
             EditorUtility.SetDirty(sourceFilter);
             strippedPanels++;
             strippedTriangles += removedForPanel;
+
+            var unmatchedPanelTriangles = 0;
+            foreach (var remaining in panelKeys.Values)
+                unmatchedPanelTriangles += remaining;
+            if (unmatchedPanelTriangles != 0)
+                throw new InvalidOperationException(
+                    $"Amarok paint panel '{paintRenderer.name}' still has " +
+                    $"{unmatchedPanelTriangles} unmatched authored triangles after source cutout.");
 
             if (removedForPanel == 0)
             {
@@ -331,21 +344,27 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         return string.IsNullOrEmpty(sanitized) ? "Unknown" : sanitized;
     }
 
-    private static HashSet<string> BuildAmarokWorldTriangleKeys(
+    private static Dictionary<string, int> BuildAmarokWorldTriangleKeys(
         MeshFilter filter,
         Mesh mesh)
     {
-        var keys = new HashSet<string>(StringComparer.Ordinal);
+        // Preserve multiplicity. The source model contains some coincident
+        // triangles/layers. A HashSet collapsed those duplicates and the cutout
+        // pass then removed every source triangle with the same three positions,
+        // which made unrelated inner/back-side geometry disappear.
+        var keys = new Dictionary<string, int>(StringComparer.Ordinal);
         var vertices = mesh.vertices;
         for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
         {
             var triangles = mesh.GetTriangles(subMesh);
             for (var index = 0; index + 2 < triangles.Length; index += 3)
             {
-                keys.Add(BuildAmarokTriangleKey(
+                var key = BuildAmarokTriangleKey(
                     filter.transform.TransformPoint(vertices[triangles[index]]),
                     filter.transform.TransformPoint(vertices[triangles[index + 1]]),
-                    filter.transform.TransformPoint(vertices[triangles[index + 2]])));
+                    filter.transform.TransformPoint(vertices[triangles[index + 2]]));
+                keys.TryGetValue(key, out var count);
+                keys[key] = count + 1;
             }
         }
         return keys;
