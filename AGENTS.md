@@ -34,9 +34,16 @@
   handing it back for testing. Local installation is a standard completion step
   and does not require a separate user request.
 - If Big Ambitions is running and locks the installed DLL, keep using the normal
-  `-Install` command. The external build script should build and verify the DLL,
-  queue the `ModsLocal` copy for after the game exits, and report that runtime
-  testing must wait for the queued install to complete.
+  `-Install` command and do not ask the user to close the game. The external
+  build script should build and verify the DLL, stage the completed install
+  payload only under the repository-local
+  `obj\ExternalModBuild\PendingInstalls\<ModName>\` folder, queue the final
+  copy from that folder into the real `ModsLocal` folder for after the game
+  exits, and report the exact pending-install folder and final `ModsLocal`
+  target path. Do not invent other temporary install locations, and do not
+  write staged DLLs into Steam game folders or random user temp folders.
+  Runtime testing must wait until the queued install has completed and the game
+  has been restarted.
 - If a changed mod cannot be installed, report the blocker and do not present it
   as ready for runtime testing.
 - Do not claim that behavior is verified in game unless Big Ambitions was
