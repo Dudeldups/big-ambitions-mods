@@ -36,6 +36,19 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         GameObject root,
         Transform visual)
     {
+        // Paint panels are reparented out of AmarokLightSources. Remove panels
+        // persisted by the previous existing-prefab build before adopting the
+        // freshly imported GLB panels, otherwise every build stacks another
+        // paint shell on the vehicle.
+        foreach (var current in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!current.name.StartsWith(
+                    "VolkswagenAmarok_VehiclePaint_Blue",
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+            UnityEngine.Object.DestroyImmediate(current.gameObject);
+        }
+
         var paintRenderers = new List<MeshRenderer>();
         foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
         {
@@ -303,7 +316,9 @@ checks = {
         'material.name.IndexOf("_BA_VehiclePaint"',
         "paintRenderer.transform.SetParent(visual, true);",
         "var paintRenderers = new List<MeshRenderer>();",
-        '"panels=" +',
+        '"VolkswagenAmarok_VehiclePaint_Blue"',
+        "DestroyImmediate(current.gameObject);",
+        "paintRenderers.Count",
     ],
     MATERIALS: [
         '"_BA_VehiclePaint"',
