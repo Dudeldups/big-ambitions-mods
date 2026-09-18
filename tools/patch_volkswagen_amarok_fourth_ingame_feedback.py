@@ -63,8 +63,8 @@ setup = setup.replace("downshiftRPM=2800.", "downshiftRPM=2400.")
 # ends. Extend only the end caps to the measured vehicle length.
 setup = set_vector3_constant(setup, "FrontContactColliderCenter", "0f, 0.46f, 2.08f")
 setup = set_vector3_constant(setup, "FrontContactColliderSize", "1.86f, 0.72f, 1.14f")
-setup = set_vector3_constant(setup, "RearContactColliderCenter", "0f, 0.60f, -2.08f")
-setup = set_vector3_constant(setup, "RearContactColliderSize", "1.86f, 0.56f, 1.14f")
+setup = set_vector3_constant(setup, "RearContactColliderCenter", "0f, 0.46f, -2.08f")
+setup = set_vector3_constant(setup, "RearContactColliderSize", "1.86f, 0.72f, 1.14f")
 
 # Existing-prefab feedback previously refreshed deformation/powertrain only.
 # Re-author the collider values too so the bundle itself contains the corrected
@@ -224,8 +224,8 @@ runtime = re.sub(
 )
 runtime = set_vector3_constant(runtime, "FrontContactColliderCenter", "0f, 0.46f, 2.08f")
 runtime = set_vector3_constant(runtime, "FrontContactColliderSize", "1.86f, 0.72f, 1.14f")
-runtime = set_vector3_constant(runtime, "RearContactColliderCenter", "0f, 0.60f, -2.08f")
-runtime = set_vector3_constant(runtime, "RearContactColliderSize", "1.86f, 0.56f, 1.14f")
+runtime = set_vector3_constant(runtime, "RearContactColliderCenter", "0f, 0.46f, -2.08f")
+runtime = set_vector3_constant(runtime, "RearContactColliderSize", "1.86f, 0.72f, 1.14f")
 
 # Expand the world-space visual deformation allowlist to ordinary detachable
 # exterior trim too. License/registration plates were previously omitted entirely.
@@ -490,7 +490,7 @@ print("Lowered the player Amarok body another 3 cm to BodyVisualBottomY=-0.070 m
 print("Raised the complete NPC/private-driver Amarok visual presentation a net 3 cm.")
 print("Lowered the seated player another 10 cm while keeping the 17-degree recline.")
 print("Lowered automatic downshift threshold from 2800 to 2400 rpm.")
-print("Extended the Amarok end caps and lowered the front contact wall so flat car noses cannot wedge underneath.")
+print("Extended the Amarok end caps and lowered both front and rear contact walls so flat car noses cannot wedge underneath in either direction.")
 print("Expanded visual deformation to registration plates and additional exterior trim.")
 print("Excluded mud flaps/splash guards from vehicle paint and forced them factory black.")
 print("Resolved the authored lamp GLB's remaining 90-degree axis conversion in AmarokVisual local space.")
