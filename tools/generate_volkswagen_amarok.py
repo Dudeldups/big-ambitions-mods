@@ -125,7 +125,7 @@ for a,b in [
  ('bias.floatValue = 1f;','bias.floatValue = 0.60f;'),
 ]: r=r.replace(a,b)
 r=re.sub(r'private static readonly float\[] AmarokGears =\s*\{.*?\};','''private static readonly float[] AmarokGears =\n    { -3.317f, 0f, 4.714f, 3.143f, 2.106f, 1.667f, 1.285f, 1.000f, 0.839f, 0.667f };''',r,flags=re.S)
-r=re.sub(r'private static AnimationCurve CreateAmarokPowerCurve\(\) =>\s*new AnimationCurve\(.*?\);','''private static AnimationCurve CreateAmarokPowerCurve() => new AnimationCurve(\n        new Keyframe(0f,0f), new Keyframe(.16f,.18f), new Keyframe(.31f,.49f), new Keyframe(.44f,.70f),\n        new Keyframe(.61f,.96f), new Keyframe(.67f,1f), new Keyframe(.78f,.96f), new Keyframe(.89f,.88f), new Keyframe(1f,.70f));''',r,flags=re.S)
+r=re.sub(r'private static AnimationCurve CreateAmarokPowerCurve\(\) =>\s*new AnimationCurve\(.*?\);','''private static AnimationCurve CreateAmarokPowerCurve() => new AnimationCurve(\n        new Keyframe(0f,0f), new Keyframe(.16f,.18f), new Keyframe(.31f,.49f), new Keyframe(.44f,.70f),\n        new Keyframe(.61f,.96f), new Keyframe(.67f,1f), new Keyframe(.78f,1f), new Keyframe(.89f,1f), new Keyframe(1f,.99f));''',r,flags=re.S)
 r=r.replace('transmission=7-speed-PDK, rwd=true','transmission=8-speed-automatic, awd=true').replace('official-flat-six-profile','V6-TDI-low-rpm-profile')
 runtime.write_text(r,encoding="utf-8")
 
