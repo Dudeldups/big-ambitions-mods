@@ -169,9 +169,11 @@ if missing:
 # Background Blender does not always provide the UI context required by
 # bpy.ops.object.select_all(). Remove the source scene objects instead and export
 # the remaining generated overlay objects without relying on selection operators.
-for source in source_objects:
-    if source.name in bpy.data.objects:
-        bpy.data.objects.remove(source, do_unlink=True)
+for obj in list(bpy.context.scene.objects):
+    if obj in created:
+        continue
+    if obj.name in bpy.data.objects:
+        bpy.data.objects.remove(obj, do_unlink=True)
 
 bpy.ops.export_scene.gltf(
     filepath=output,
