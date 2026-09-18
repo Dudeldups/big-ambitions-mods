@@ -214,6 +214,7 @@ namespace BigHax
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
             RefreshActiveBedSleep();
+            sleepTimeAccelerationService.RefreshActiveSleep(context, settings);
             PollLoanLimitChanges();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
@@ -496,7 +497,7 @@ namespace BigHax
 
         private void HandleTimeMachineStarted()
         {
-            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
+            sleepTimeAccelerationService.HandleTimeMachineStarted(context, settings);
         }
 
         private void HandleTimeMachineEnded()
