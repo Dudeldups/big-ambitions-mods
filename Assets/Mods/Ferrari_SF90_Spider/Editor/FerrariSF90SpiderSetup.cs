@@ -80,7 +80,7 @@ public static class FerrariSF90SpiderSetupV15
     // system output. Current road-test target is Ferrari's 2.5 s / 7.0 s envelope;
     // launch traction is calibrated separately below so high-speed power remains realistic.
     private const float RoadCalibrationPowerKw = 510f;
-    private const float BrakeTorque = 2200f;
+    private const float BrakeTorque = 2450f;
     private const float BrakeActuationTime = 0.08f;
     private const float FinalDriveRatio = 4.51f;
     private const float TireFrictionCircleStrength = 0.96f;
