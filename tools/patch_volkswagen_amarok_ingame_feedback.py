@@ -268,14 +268,25 @@ lighting, lookup_count = lookup_pattern.subn(lookup_replacement, lighting, count
 if lookup_count != 1:
     raise SystemExit("Could not replace Amarok light renderer lookup.")
 
-lighting = lighting.replace(
+# DRL is independent of low-beam/night lighting. Match the finished Cadillac
+# implementation: white DRL is on whenever the player controls the vehicle and
+# stays off for the full duration of the corresponding turn signal.
+for old in (
     "        SetEnabled(daylightOverlay, lightsOn);",
     "        SetEnabled(daylightOverlay, lightsOn && !(leftBlinker && flash));",
-)
-lighting = lighting.replace(
+):
+    lighting = lighting.replace(
+        old,
+        "        SetEnabled(daylightOverlay, controlled && !leftBlinker);",
+    )
+for old in (
     "        SetEnabled(daylightOverlayRight, lightsOn);",
     "        SetEnabled(daylightOverlayRight, lightsOn && !(rightBlinker && flash));",
-)
+):
+    lighting = lighting.replace(
+        old,
+        "        SetEnabled(daylightOverlayRight, controlled && !rightBlinker);",
+    )
 
 # Add one useful runtime diagnostic for the next in-game pass.
 diag_marker = "        ConfigureHeadlightBeams(); initialized=true; ApplyState();\n"
@@ -362,7 +373,8 @@ checks = {
     LIGHTING: [
         "PrepareSourceOverlay(head",
         "sharedMesh?.name",
-        "lightsOn && !(leftBlinker && flash)",
+        "controlled && !leftBlinker",
+        "controlled && !rightBlinker",
         "overlay sources head=",
     ],
     AUDIO_MODEL: [
