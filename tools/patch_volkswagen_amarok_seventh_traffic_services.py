@@ -234,7 +234,11 @@ npc_paint_helper = r'''    private static int PrepareAiPaintPanels(GameObject cl
             var normals = runtimeMesh.normals;
             var size = runtimeMesh.bounds.size;
             var span = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
-            var offset = Mathf.Max(span * 0.00012f, 0.00010f);
+            // Ambient traffic still showed isolated source-blue patches with the
+            // initial sub-millimetre lift. NPCs do not deform this paint shell,
+            // so give it a few millimetres of separation from the original blue
+            // source geometry. Player paint remains on the much smaller offset.
+            var offset = Mathf.Max(span * 0.00065f, 0.00120f);
             if (normals.Length == vertices.Length)
             {
                 for (var index = 0; index < vertices.Length; index++)
@@ -248,7 +252,7 @@ npc_paint_helper = r'''    private static int PrepareAiPaintPanels(GameObject cl
 
         Debug.Log(
             $"VolkswagenAmarok NPC paint panels lifted={adjusted} " +
-            "to prevent source-blue z-fighting.");
+            "to prevent source-blue z-fighting (strong NPC-only separation).");
         return adjusted;
     }
 
