@@ -23,6 +23,21 @@ text = PRIVATE_DRIVER.read_text(encoding="utf-8")
 if "using UnityEngine.AI;" not in text:
     text = text.replace("using UnityEngine;\n", "using UnityEngine;\nusing UnityEngine.AI;\n", 1)
 
+# Capture donor/template renderers before custom Amarok visuals are cloned. The
+# older Porsche-derived Amarok source disabled them with a direct foreach and did
+# not keep the array that the newer BMW/Lamborghini traffic fix uses.
+old_template_disable = '''        foreach (var renderer in clone.GetComponentsInChildren<Renderer>(true))
+            renderer.enabled = false;
+'''
+new_template_disable = '''        var templateRenderers = clone.GetComponentsInChildren<Renderer>(true);
+        foreach (var renderer in templateRenderers)
+            renderer.enabled = false;
+'''
+if "var templateRenderers = clone.GetComponentsInChildren<Renderer>(true);" not in text:
+    if old_template_disable not in text:
+        raise SystemExit("Could not capture Amarok donor AI template renderers.")
+    text = text.replace(old_template_disable, new_template_disable, 1)
+
 material_marker = "        VolkswagenAmarokMaterials.FixSolidMaterials(clone);\n"
 traffic_setup = '''        VolkswagenAmarokMaterials.FixSolidMaterials(clone);
         foreach (var renderer in templateRenderers)
