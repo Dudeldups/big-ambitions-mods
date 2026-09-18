@@ -1649,8 +1649,7 @@ public static class FerrariSF90SpiderSetupV15
     {
         foreach (var name in new[]
                  {
-                     "EngineLow.wav", "EngineLowLoad.wav", "EngineMid.wav", "EngineMidLoad.wav",
-                     "EngineHigh.wav", "EngineHighLoad.wav", "HornLow.wav", "HornHigh.wav"
+                     "EngineCore.wav", "HornLow.wav", "HornHigh.wav"
                  })
         {
             var path = ModRoot + "/Config/Audio/" + name;
