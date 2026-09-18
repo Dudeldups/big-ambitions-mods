@@ -417,11 +417,11 @@ def make_load_layer(frequency: float):
             + .13 * math.sin(2 * math.pi * frequency * 3 * t)
             + .06 * math.sin(2 * math.pi * frequency * .5 * t)
         )
-        # Keep only a restrained turbo presence. The old .055/.025 pair dominated
-        # the load layers and read as a constant whistle.
+        # Keep the turbo present but well behind the V6 combustion layer. The
+        # previous .022/.009 pair was still too prominent in-game.
         whistle = (
-            .022 * math.sin(2 * math.pi * (620 + frequency * 1.7) * t)
-            + .009 * math.sin(2 * math.pi * (980 + frequency * 2.1) * t)
+            .012 * math.sin(2 * math.pi * (620 + frequency * 1.7) * t)
+            + .004 * math.sin(2 * math.pi * (980 + frequency * 2.1) * t)
         )
         noise = (rng.random() * 2 - 1) * .022
         result.append((combustion + whistle + noise) * .72)
