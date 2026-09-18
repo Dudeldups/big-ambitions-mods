@@ -255,7 +255,7 @@ internal static class FerrariSF90SpiderDiagnostics
     internal static bool DebugEnabled { get; set; } = false;
     internal static bool PaintDebugEnabled { get; set; } = false;
     internal static bool WarehouseTransitionDebugEnabled { get; set; } = false;
-    internal static bool TelemetryEnabled { get; set; } = true;
+    internal static bool TelemetryEnabled { get; set; } = false;
 
     internal static void Info(ModContext? context, string message)
     {
