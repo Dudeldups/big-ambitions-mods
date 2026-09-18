@@ -239,9 +239,15 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
                 adoptedRemainders++;
             }
 
+            // A fully-blue source object legitimately has zero remainder
+            // renderers. Partial objects get one or more VehicleOriginal_* pieces
+            // from Blender; in both cases the old unsplit source is disabled.
             if (matchedRemainders == 0)
-                throw new InvalidOperationException(
-                    $"No VehicleOriginal remainder matched source key '{sourceKey}'.");
+            {
+                Debug.Log(
+                    $"VolkswagenAmarok paint source '{sourceKey}' is fully paint " +
+                    "and has no original remainder.");
+            }
 
             // The Blender export is complementary: VehiclePaint_Blue contains all
             // texture-detected blue faces and VehicleOriginal_* contains every
@@ -444,6 +450,12 @@ deform_guard = '''    private static bool IsDeformableExterior(MeshFilter filter
                 StringComparison.OrdinalIgnoreCase) >= 0 ||
             filter.name.IndexOf(
                 "VolkswagenAmarok_VehiclePaint",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "VehicleOriginal_",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            filter.name.IndexOf(
+                "VolkswagenAmarok_VehicleOriginal_",
                 StringComparison.OrdinalIgnoreCase) >= 0)
             return true;
 '''
@@ -505,6 +517,8 @@ checks = {
     RUNTIME: [
         '"VolkswagenAmarok_VehiclePaint"',
         '"VehiclePaint_Blue"',
+        '"VolkswagenAmarok_VehicleOriginal_"',
+        '"VehicleOriginal_"',
         '"BDRL_Indicator_FL"',
         '"BDRL_Indicator_FR"',
         '"VolkswagenAmarok_IndicatorLeft"',
