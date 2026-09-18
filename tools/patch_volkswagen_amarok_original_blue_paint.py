@@ -190,6 +190,17 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
                     $"back to source renderer key '{sourceKey}'.");
 
             var sourceMaterials = sourceRenderer.sharedMaterials;
+            if (sourceMaterials.Length == 0)
+            {
+                // The existing prefab's main body renderer can legitimately have
+                // its material slots cleared by CreateDeformableBody(). Resolve
+                // the pristine source material array from the imported Amarok GLB
+                // instead of depending on that already-processed prefab renderer.
+                sourceMaterials = ResolveAmarokSourceMaterials(sourceKey);
+                Debug.Log(
+                    $"VolkswagenAmarok complementary paint source '{sourceKey}' " +
+                    $"restored materials from ModelPath count={sourceMaterials.Length}.");
+            }
             var matchedRemainders = 0;
             foreach (var remainderRenderer in remainderRenderers)
             {
@@ -273,6 +284,34 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
             $"VolkswagenAmarok complementary paint replacement ready " +
             $"paintPanels={paintRenderers.Count}, remainderRenderers={adoptedRemainders}, " +
             $"disabledOriginalRenderers={replacedSources}.");
+    }
+
+    private static Material[] ResolveAmarokSourceMaterials(string sourceKey)
+    {
+        var sourceModel = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+        if (sourceModel == null)
+            throw new InvalidOperationException(
+                $"Could not load Amarok source model at '{ModelPath}'.");
+
+        foreach (var renderer in sourceModel.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (renderer == null)
+                continue;
+            if (!string.Equals(
+                    SanitizeAmarokSourceName(renderer.name),
+                    sourceKey,
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var materials = renderer.sharedMaterials;
+            if (materials.Length == 0)
+                throw new InvalidOperationException(
+                    $"Amarok source model renderer '{renderer.name}' has no materials.");
+            return materials;
+        }
+
+        throw new InvalidOperationException(
+            $"Could not resolve Amarok source materials for key '{sourceKey}' from ModelPath.");
     }
 
     private static string SanitizeAmarokSourceName(string value)
@@ -506,6 +545,8 @@ checks = {
         '"VehicleOriginal_"',
         "sourceRenderer.enabled = false;",
         "remainderRenderer.sharedMaterial = sourceMaterials[materialIndex];",
+        "ResolveAmarokSourceMaterials(sourceKey)",
+        "restored materials from ModelPath",
         "complementary paint replacement ready",
         "paintRenderers.Count",
     ],
