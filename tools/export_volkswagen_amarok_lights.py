@@ -105,6 +105,8 @@ for expected in GROUPS:
     merged_faces = []
     contributing_sources = 0
     contributing_faces = 0
+    reference_matrix = None
+    reference_inverse = None
 
     for source in source_objects:
         group, actual_name = find_group(source, expected)
@@ -121,18 +123,26 @@ for expected in GROUPS:
         if not polys:
             continue
 
+        # Preserve the exact transform basis used by the old, visible overlay
+        # exporter. The first contributing source becomes the logical overlay's
+        # transform. Geometry from any additional source object is converted into
+        # that local space before merging. Baking matrix_world into identity space
+        # caused Unity to apply the AmarokVisual/root transform a second time and
+        # moved every authored light away from the vehicle.
+        if reference_matrix is None:
+            reference_matrix = source.matrix_world.copy()
+            reference_inverse = reference_matrix.inverted_safe()
+
         contributing_sources += 1
         contributing_faces += len(polys)
 
         used = sorted({index for poly in polys for index in poly.vertices})
         base = len(merged_vertices)
         remap = {old: base + new for new, old in enumerate(used)}
+        source_to_reference = reference_inverse @ source.matrix_world
 
-        # Bake each source object's Blender transform into the combined geometry.
-        # The exported logical mesh can then use identity transform regardless of
-        # which original Amarok object the selected vertices came from.
         merged_vertices.extend([
-            source.matrix_world @ mesh.vertices[index].co
+            source_to_reference @ mesh.vertices[index].co
             for index in used
         ])
         merged_faces.extend([
@@ -140,7 +150,7 @@ for expected in GROUPS:
             for poly in polys
         ])
 
-    if not merged_faces:
+    if not merged_faces or reference_matrix is None:
         continue
 
     out_mesh = bpy.data.meshes.new(expected + "_Mesh")
@@ -148,6 +158,7 @@ for expected in GROUPS:
     out_mesh.update()
 
     out_object = bpy.data.objects.new(expected, out_mesh)
+    out_object.matrix_world = reference_matrix
     bpy.context.collection.objects.link(out_object)
     created.append(out_object)
     resolved.add(expected)
