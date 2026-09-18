@@ -139,26 +139,57 @@ text, wrapper_count = wrapper_pattern.subn(wrapper_replacement, text, count=1)
 if wrapper_count != 1:
     raise SystemExit("Could not redirect RegenerateAndBuildStandaloneWindowsAssetBundle away from donor regeneration.")
 
-# Existing worktrees may already contain the feedback-build method from an older
-# pass. Retrofit the overlay refresh into that method as well.
-if "AttachLightOverlaySources(root, visual.gameObject);" not in text:
-    old_alignment = '''            // Blender lamp meshes were authored against the model transform. Keep
-            // them exactly aligned with the corrected visual root.
-            var lightSources = FindTransform(root.transform, "AmarokLightSources");
-'''
-    refreshed_alignment = '''            // Always replace the instantiated overlay child from the current GLB.
-            // Existing prefabs otherwise retain a stale unpacked AmarokLightSources hierarchy.
+# Existing worktrees may already contain the feedback-build method after several
+# later light-alignment passes. Do not depend on comments/whitespace or the exact
+# contents of that light block. Find the lightSources declaration inside the
+# existing-prefab method and inject the refresh immediately before it.
+method_start_marker = (
+    "    public static void "
+    "ApplyInGameFeedbackToExistingPrefabAndBuildStandaloneWindowsAssetBundle()"
+)
+method_start = text.find(method_start_marker)
+method_end = text.find(
+    "    public static void RegenerateAndBuildStandaloneWindowsAssetBundle()",
+    method_start + len(method_start_marker),
+) if method_start >= 0 else -1
+if method_start < 0 or method_end < 0:
+    raise SystemExit(
+        "Could not locate existing-prefab Amarok build method boundaries "
+        f"start={method_start} end={method_end}."
+    )
+
+method_text = text[method_start:method_end]
+refresh_call = "AttachLightOverlaySources(root, visual.gameObject);"
+if refresh_call not in method_text:
+    light_marker = (
+        '            var lightSources = '
+        'FindTransform(root.transform, "AmarokLightSources");\n'
+    )
+    light_at = method_text.find(light_marker)
+    if light_at < 0:
+        raise SystemExit(
+            "Could not locate AmarokLightSources declaration inside "
+            "existing-prefab build method."
+        )
+
+    refresh_block = '''            // Refresh the unpacked overlay hierarchy from the current GLB on
+            // every existing-prefab build. This is required for newly authored
+            // Blender light/trim vertex groups to reach the saved vehicle prefab.
             var staleLightSources = FindTransform(root.transform, "AmarokLightSources");
             if (staleLightSources != null)
                 UnityEngine.Object.DestroyImmediate(staleLightSources.gameObject);
             AttachLightOverlaySources(root, visual.gameObject);
 
-            // Blender lamp/trim meshes were authored against the model transform.
-            var lightSources = FindTransform(root.transform, "AmarokLightSources");
 '''
-    if old_alignment not in text:
-        raise SystemExit("Could not retrofit refreshed Amarok overlay sources into existing-prefab build.")
-    text = text.replace(old_alignment, refreshed_alignment, 1)
+    absolute_light_at = method_start + light_at
+    text = (
+        text[:absolute_light_at]
+        + refresh_block
+        + text[absolute_light_at:]
+    )
+    print("Retrofitted current Amarok overlay GLB refresh into existing-prefab build.")
+else:
+    print("Existing-prefab Amarok overlay GLB refresh is already present.")
 
 SETUP.write_text(text, encoding="utf-8", newline="\n")
 
