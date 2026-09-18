@@ -245,7 +245,11 @@ def collect_original_blue_polygons(source):
             samples = [material_base_color(material)]
 
         blue_votes = sum(1 for sample in samples if is_source_blue(sample))
-        required_votes = max(1, math.ceil(len(samples) * 0.5))
+        # Mixed UV-border triangles around black trim (especially the B-pillars)
+        # could previously pass with only 2 of 4 samples blue. Require a clear
+        # blue majority so the creator-authored black surface wins at paint/trim
+        # boundaries while fully blue body panels remain repaintable.
+        required_votes = max(1, math.ceil(len(samples) * 0.75))
         if blue_votes >= required_votes:
             accepted.append(poly)
 
