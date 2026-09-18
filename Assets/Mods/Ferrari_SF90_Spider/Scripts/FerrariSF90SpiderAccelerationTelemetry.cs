@@ -14,6 +14,7 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
     private const float MaximumRunSeconds = 45f;
     private const float MaximumBrakingRunSeconds = 20f;
     private const float OfficialZeroToHundredSeconds = 2.5f;
+    private const float OfficialHundredToZeroMetres = 29.5f;
 
     private static readonly float[] MilestonesKph = { 100f, 200f, 300f };
 
@@ -34,6 +35,9 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
     private bool brakingRun;
     private float brakingElapsed;
     private float brakingStartSpeedKph;
+    private float brakingDistanceMetres;
+    private Vector3 brakingPreviousPosition;
+    private bool brakingHundredCaptured;
 
     public void Initialize(VehicleController controller, ModContext? modContext)
     {
@@ -45,7 +49,7 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
         physics = controller.GetComponent<PhysicsVehicle>();
         body = controller.GetComponent<Rigidbody>() ?? controller.GetComponentInParent<Rigidbody>();
         context = modContext;
-        FerrariSF90SpiderDiagnostics.Info(context,
+        FerrariSF90SpiderDiagnostics.TelemetryInfo(context,
             $"FerrariSF90Spider acceleration telemetry ready vehicle={controller.GetInstanceID()}, " +
             $"official0to100={OfficialZeroToHundredSeconds:0.0}s, " +
             "milestones=100/200/300kmh.");
@@ -146,7 +150,7 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
         elapsed = maximumYaw = maximumLateral = 0f;
         zeroToHundred = -1f;
         nextMilestone = 0;
-        FerrariSF90SpiderDiagnostics.Info(context,
+        FerrariSF90SpiderDiagnostics.TelemetryInfo(context,
             $"FerrariSF90Spider acceleration run started vehicle={vehicle.GetInstanceID()}, " +
             $"speed={speedKph:0.0}kmh. Hold full throttle on a flat straight.");
     }
@@ -171,7 +175,7 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
                 ? $", official={OfficialZeroToHundredSeconds:0.0}s, " +
                   $"delta={milestoneTime - OfficialZeroToHundredSeconds:+0.000;-0.000;0.000}s"
                 : string.Empty;
-            FerrariSF90SpiderDiagnostics.Info(context,
+            FerrariSF90SpiderDiagnostics.TelemetryInfo(context,
                 $"FerrariSF90Spider acceleration milestone vehicle={vehicle!.GetInstanceID()}, " +
                 $"0to{target:0}={milestoneTime:0.000}s{segment}{benchmark}, " +
                 $"yaw={maximumYaw:0.00}deg, lateral={maximumLateral:0.00}m, " +
@@ -185,7 +189,7 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
 
     private void Finish(string reason, float speedKph)
     {
-        FerrariSF90SpiderDiagnostics.Info(context,
+        FerrariSF90SpiderDiagnostics.TelemetryInfo(context,
             $"FerrariSF90Spider acceleration run ended vehicle={vehicle?.GetInstanceID()}, " +
             $"reason={reason}, elapsed={elapsed:0.000}s, speed={speedKph:0.0}kmh, " +
             $"milestones={nextMilestone}/{MilestonesKph.Length}, " +
@@ -198,15 +202,44 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
         brakingRun = true;
         brakingElapsed = 0f;
         brakingStartSpeedKph = speedKph;
+        brakingDistanceMetres = 0f;
+        brakingPreviousPosition = body!.position;
+        brakingHundredCaptured = speedKph <= 100.05f;
         maximumYaw = maximumLateral = 0f;
-        FerrariSF90SpiderDiagnostics.Info(context,
+        FerrariSF90SpiderDiagnostics.TelemetryInfo(context,
             $"FerrariSF90Spider braking run started vehicle={vehicle!.GetInstanceID()}, " +
-            $"speed={speedKph:0.0}kmh. Hold full brake in a straight line.");
+            $"speed={speedKph:0.0}kmh, waitingFor100={!brakingHundredCaptured}. " +
+            "Hold full brake in a straight line.");
     }
 
     private void UpdateBraking(float brake, float speedKph)
     {
-        brakingElapsed += Time.fixedDeltaTime;
+        var currentPosition = body!.position;
+        var stepDistance = Vector3.ProjectOnPlane(
+            currentPosition - brakingPreviousPosition, Vector3.up).magnitude;
+
+        if (!brakingHundredCaptured)
+        {
+            if (previousSpeedKph > 100f && speedKph <= 100f)
+            {
+                var speedSpan = previousSpeedKph - speedKph;
+                var fractionToHundred = speedSpan > 0.001f
+                    ? Mathf.Clamp01((previousSpeedKph - 100f) / speedSpan)
+                    : 1f;
+                var remainingFraction = 1f - fractionToHundred;
+                brakingDistanceMetres += stepDistance * remainingFraction;
+                brakingElapsed += Time.fixedDeltaTime * remainingFraction;
+                brakingHundredCaptured = true;
+            }
+        }
+        else
+        {
+            brakingDistanceMetres += stepDistance;
+            brakingElapsed += Time.fixedDeltaTime;
+        }
+
+        brakingPreviousPosition = currentPosition;
+
         if (speedKph <= 1f)
         {
             FinishBraking("0kmh-complete", speedKph);
@@ -225,12 +258,18 @@ internal sealed class FerrariSF90SpiderAccelerationTelemetry : MonoBehaviour
 
     private void FinishBraking(string reason, float speedKph)
     {
-        FerrariSF90SpiderDiagnostics.Info(context,
+        var benchmark = brakingHundredCaptured
+            ? $", official100to0<={OfficialHundredToZeroMetres:0.0}m, " +
+              $"distanceDelta={brakingDistanceMetres - OfficialHundredToZeroMetres:+0.00;-0.00;0.00}m"
+            : ", official100to0=not-captured";
+        FerrariSF90SpiderDiagnostics.TelemetryInfo(context,
             $"FerrariSF90Spider braking run ended vehicle={vehicle?.GetInstanceID()}, " +
-            $"reason={reason}, startSpeed={brakingStartSpeedKph:0.0}kmh, " +
-            $"100to0={brakingElapsed:0.000}s, endSpeed={speedKph:0.0}kmh. " +
-            "No official 100-to-0 benchmark was assumed.");
+            $"reason={reason}, initialBrakeSpeed={brakingStartSpeedKph:0.0}kmh, " +
+            $"100to0Time={brakingElapsed:0.000}s, " +
+            $"100to0Distance={brakingDistanceMetres:0.00}m, " +
+            $"endSpeed={speedKph:0.0}kmh{benchmark}.");
         brakingRun = false;
+        brakingHundredCaptured = false;
     }
 
     private static float ReadFloatMember(object target, string name)
