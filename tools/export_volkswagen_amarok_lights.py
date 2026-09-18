@@ -1,4 +1,5 @@
 import bpy
+import bmesh
 import colorsys
 import math
 import re
@@ -268,11 +269,46 @@ def collect_original_blue_polygons(source):
     return candidate_faces, accepted
 
 
+def create_source_remainder_object(source, polygon_indices, material_index, name):
+    keep = set(polygon_indices)
+    if not keep:
+        return None
+
+    bm = bmesh.new()
+    bm.from_mesh(source.data)
+    bm.faces.ensure_lookup_table()
+    delete_faces = [face for face in bm.faces if face.index not in keep]
+    if delete_faces:
+        bmesh.ops.delete(bm, geom=delete_faces, context="FACES")
+
+    # The remainder object carries only one original material slot. Reset the
+    # surviving faces to slot 0; Unity restores the corresponding material from
+    # the original renderer using the M<n> suffix in the object name.
+    for face in bm.faces:
+        face.material_index = 0
+
+    loose_vertices = [vertex for vertex in bm.verts if not vertex.link_faces]
+    if loose_vertices:
+        bmesh.ops.delete(bm, geom=loose_vertices, context="VERTS")
+
+    out_mesh = bpy.data.meshes.new(name + "_Mesh")
+    bm.to_mesh(out_mesh)
+    bm.free()
+    out_mesh.update()
+
+    out_object = bpy.data.objects.new(name, out_mesh)
+    out_object.matrix_world = source.matrix_world.copy()
+    bpy.context.collection.objects.link(out_object)
+    return out_object
+
+
 def build_original_blue_paint_overlays(source_objects):
     expected = "VehiclePaint_Blue"
     created_paint = []
+    created_remainders = []
     total_faces = 0
     total_vertices = 0
+    total_remainder_faces = 0
 
     for source in source_objects:
         candidate_faces, polys = collect_original_blue_polygons(source)
@@ -287,62 +323,84 @@ def build_original_blue_paint_overlays(source_objects):
             continue
 
         mesh = source.data
-        coords = [vertex.co for vertex in mesh.vertices]
-        min_x = min(v.x for v in coords)
-        max_x = max(v.x for v in coords)
-        min_y = min(v.y for v in coords)
-        max_y = max(v.y for v in coords)
-        min_z = min(v.z for v in coords)
-        max_z = max(v.z for v in coords)
-        local_span = max(max_x - min_x, max_y - min_y, max_z - min_z)
-        # VehiclePaint_Blue now REPLACES the original blue triangles instead of
-        # rendering as a second shell above them. Keep the authored panel vertices
-        # exactly on the source surface; the Unity editor patch removes the matching
-        # blue triangles from the source mesh before the prefab is saved.
-        normal_offset = 0.0
+        accepted_indices = {poly.index for poly in polys}
 
+        # BA paint panel: only the texture-detected blue polygons.
         used = sorted({index for poly in polys for index in poly.vertices})
         remap = {old: new for new, old in enumerate(used)}
-        paint_vertices = []
-        for index in used:
-            vertex = mesh.vertices[index]
-            displaced = vertex.co + vertex.normal.normalized() * normal_offset
-            paint_vertices.append(displaced)
-
+        paint_vertices = [mesh.vertices[index].co.copy() for index in used]
         paint_faces = [
             [remap[index] for index in poly.vertices]
             for poly in polys
         ]
 
         safe_source = re.sub(r"[^A-Za-z0-9_]+", "_", source.name).strip("_")
-        object_name = f"{expected}_{safe_source}"
-        out_mesh = bpy.data.meshes.new(object_name + "_Mesh")
-        out_mesh.from_pydata(paint_vertices, [], paint_faces)
-        out_mesh.update()
+        paint_name = f"{expected}_{safe_source}"
+        paint_mesh = bpy.data.meshes.new(paint_name + "_Mesh")
+        paint_mesh.from_pydata(paint_vertices, [], paint_faces)
+        paint_mesh.update()
 
-        out_object = bpy.data.objects.new(object_name, out_mesh)
-        out_object.matrix_world = source.matrix_world.copy()
-        bpy.context.collection.objects.link(out_object)
-        created_paint.append(out_object)
+        paint_object = bpy.data.objects.new(paint_name, paint_mesh)
+        paint_object.matrix_world = source.matrix_world.copy()
+        bpy.context.collection.objects.link(paint_object)
+        created_paint.append(paint_object)
 
         total_faces += len(paint_faces)
         total_vertices += len(paint_vertices)
         print(
-            f"[Amarok paint] generated panel='{object_name}' "
+            f"[Amarok paint] generated panel='{paint_name}' "
             f"faces={len(paint_faces)} vertices={len(paint_vertices)}"
         )
+
+        # Original remainder: EVERY polygon not classified as blue. Split it by
+        # original material index so Unity can restore the exact source material
+        # without relying on glTF material/submesh preservation.
+        material_indices = sorted({poly.material_index for poly in mesh.polygons})
+        for material_index in material_indices:
+            remainder_indices = [
+                poly.index
+                for poly in mesh.polygons
+                if poly.index not in accepted_indices
+                and poly.material_index == material_index
+            ]
+            if not remainder_indices:
+                continue
+
+            remainder_name = (
+                f"VehicleOriginal_{safe_source}_M{material_index}"
+            )
+            remainder = create_source_remainder_object(
+                source,
+                remainder_indices,
+                material_index,
+                remainder_name,
+            )
+            if remainder is None:
+                continue
+            created_remainders.append(remainder)
+            total_remainder_faces += len(remainder_indices)
+            print(
+                f"[Amarok paint] generated remainder='{remainder_name}' "
+                f"materialIndex={material_index} faces={len(remainder_indices)}"
+            )
 
     if not created_paint:
         raise RuntimeError(
             "Could not derive VehiclePaint_Blue from the original Amarok materials/textures. "
             "The exporter found no sufficiently blue phong5/dorr_R faces."
         )
+    if not created_remainders:
+        raise RuntimeError(
+            "Could not derive complementary VehicleOriginal remainder geometry."
+        )
 
     print(
         f"[Amarok paint] generated expected='{expected}' "
-        f"panels={len(created_paint)} faces={total_faces} vertices={total_vertices}"
+        f"panels={len(created_paint)} paintFaces={total_faces} "
+        f"paintVertices={total_vertices} remainders={len(created_remainders)} "
+        f"remainderFaces={total_remainder_faces}"
     )
-    return created_paint
+    return created_paint, created_remainders
 
 
 def collect_polygons(mesh, group_index):
@@ -386,8 +444,9 @@ for source in source_objects:
 created = []
 resolved = set()
 
-paint_objects = build_original_blue_paint_overlays(source_objects)
+paint_objects, remainder_objects = build_original_blue_paint_overlays(source_objects)
 created.extend(paint_objects)
+created.extend(remainder_objects)
 resolved.add("VehiclePaint_Blue")
 
 # Merge every source object carrying the same logical light group into ONE
@@ -528,4 +587,4 @@ bpy.ops.export_scene.gltf(
     export_materials="NONE",
 )
 
-print("Exported Amarok light/trim/paint groups:", ", ".join(obj.name for obj in created))
+print("Exported Amarok light/trim/paint/remainder groups:", ", ".join(obj.name for obj in created))
