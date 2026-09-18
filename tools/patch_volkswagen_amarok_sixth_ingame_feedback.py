@@ -80,7 +80,10 @@ new_tint = '''        var tint = rearLampLens
             tint.a = Mathf.Clamp(tint.a, 0.55f, 0.90f);'''
 if old_tint in materials:
     materials = materials.replace(old_tint, new_tint, 1)
-elif "rearLampLens\n            ? sourceTransparentTint" not in materials:
+elif (
+    "rearLampLens\n            ? sourceTransparentTint" not in materials
+    and "new Color(0.48f, 0.018f, 0.012f, 0.78f)" not in materials
+):
     raise SystemExit("Could not replace Amarok transparent tint selection.")
 
 # Rear-lamp role classification is position based so it does not depend on
