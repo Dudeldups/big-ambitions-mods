@@ -19,28 +19,41 @@ for path in (SETUP, RUNTIME):
 # The generated Amarok source has existed under both donor-era
 # CreateGT3RSPowerCurve() and sanitized CreateAmarokPowerCurve() names. Match
 # either name and preserve whichever one the current worktree contains.
-curve_pattern = re.compile(
-    r"""private static AnimationCurve (?P<name>Create(?:GT3RS|Amarok)PowerCurve)\(\)\s*=>\s*
-        new AnimationCurve\(.*?\);""",
-    re.S | re.X,
+curve_decl_pattern = re.compile(
+    r"private static AnimationCurve (?P<name>Create(?:GT3RS|Amarok)PowerCurve)\\(\\)"
 )
 
 
 def replace_power_curve(text: str, source_name: str) -> str:
-    match = curve_pattern.search(text)
+    match = curve_decl_pattern.search(text)
     if match is None:
-        # Helpful failure output for future source renames instead of a blind
-        # "could not flatten" message.
         candidates = sorted(set(re.findall(
-            r"private static AnimationCurve\s+([A-Za-z0-9_]+PowerCurve)\s*\(",
+            r"private static AnimationCurve\\s+([A-Za-z0-9_]+PowerCurve)\\s*\\(",
             text,
         )))
         raise SystemExit(
-            f"Could not locate Amarok power curve in {source_name}; "
+            f"Could not locate Amarok power-curve declaration in {source_name}; "
             f"found candidates={candidates or ['<none>']}."
         )
 
     method_name = match.group("name")
+    search_from = match.end()
+    next_member = re.search(
+        r"\\n    (?:private|internal|public) static ",
+        text[search_from:],
+    )
+    if next_member is not None:
+        method_end = search_from + next_member.start()
+    else:
+        # Fallback for a power-curve helper that happens to be the final static
+        # member in the class.
+        class_end = text.find("\\n}", search_from)
+        if class_end < 0:
+            raise SystemExit(
+                f"Could not determine end of Amarok power curve in {source_name}."
+            )
+        method_end = class_end
+
     replacement = f"""private static AnimationCurve {method_name}() =>
         new AnimationCurve(
             new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),
@@ -48,7 +61,7 @@ def replace_power_curve(text: str, source_name: str) -> str:
             new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),
             new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f),
             new Keyframe(1.00f, 0.99f));"""
-    return text[:match.start()] + replacement + text[match.end():]
+    return text[:match.start()] + replacement + text[method_end:]
 
 
 for path in (SETUP, RUNTIME):
