@@ -1120,6 +1120,17 @@ if "appliedWorldDisplacements" in method_check or "IsAttachedExteriorDetail(" in
         "Amarok damage-performance patch failed: per-impact attached-detail "
         "allocation path is still active in VisualDamageController."
     )
+for forbidden_hot_path in (
+    "var vertices = mesh.vertices;",
+    "filter.transform.TransformPoint(",
+    "filter.transform.InverseTransformPoint(",
+    "mesh.RecalculateBounds();",
+):
+    if forbidden_hot_path in method_check:
+        raise SystemExit(
+            "Amarok damage-performance patch failed: old crash hot-path token "
+            f"is still active: {forbidden_hot_path}"
+        )
 if check.find(collision_marker) == method_start:
     raise SystemExit(
         "Amarok damage-performance preflight expected earlier non-damage "
