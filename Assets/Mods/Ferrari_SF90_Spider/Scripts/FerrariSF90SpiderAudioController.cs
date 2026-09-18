@@ -119,7 +119,8 @@ internal sealed class FerrariSF90SpiderAudioController : MonoBehaviour
         engineSound.maxDistortion = 0f;
         UpdateNativeEngineSuppression(true);
         configured = true;
-        context.Logger.Info(
+        FerrariSF90SpiderDiagnostics.Info(
+            context,
             $"FerrariSF90Spider audio V24 configured vehicle={vehicle.GetInstanceID()}, " +
             "engine=single-additive-flat-plane-v8, audibleEngineSources=1, " +
             "nativeEngineExhaustSuppressed=true, turboLoop=false, crackleLoop=false, " +
