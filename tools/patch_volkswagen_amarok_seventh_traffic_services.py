@@ -20,15 +20,32 @@ for path in (PRIVATE_DRIVER, SETUP):
 # ---------------------------------------------------------------------------
 text = PRIVATE_DRIVER.read_text(encoding="utf-8")
 
-# Retrofit the latest NPC-only paint-shell separation into already-generated
-# worktrees. The helper may already exist, so changing only the helper template
-# below would otherwise leave the previous 0.00012/0.00010 calibration active.
-text = re.sub(
-    r"var offset = Mathf\.Max\(span \* [0-9.]+f, [0-9.]+f\);",
-    "var offset = Mathf.Max(span * 0.00065f, 0.00120f);",
-    text,
-    count=1,
+# Source-blue triangles are now removed from the saved player prefab before
+# traffic clones it, so the former NPC-only paint-shell lift is no longer needed.
+# Replace any previously generated helper with a no-op to avoid extra mesh clones.
+npc_helper_start_marker = "    private static int PrepareAiPaintPanels(GameObject clone)"
+npc_helper_end_marker = "    private static GameObject? LoadAiTemplate()"
+npc_helper_start = text.find(npc_helper_start_marker)
+npc_helper_end = text.find(
+    npc_helper_end_marker,
+    npc_helper_start + len(npc_helper_start_marker)
+    if npc_helper_start >= 0 else 0,
 )
+if npc_helper_start >= 0:
+    if npc_helper_end < 0 or npc_helper_end <= npc_helper_start:
+        raise SystemExit("Could not locate end of existing Amarok NPC paint helper.")
+    text = (
+        text[:npc_helper_start]
+        + '''    private static int PrepareAiPaintPanels(GameObject clone)
+    {
+        Debug.Log(
+            "VolkswagenAmarok NPC paint uses source-blue-stripped prefab geometry.");
+        return 0;
+    }
+
+'''
+        + text[npc_helper_end:]
+    )
 
 if "using UnityEngine.AI;" not in text:
     text = text.replace("using UnityEngine;\n", "using UnityEngine;\nusing UnityEngine.AI;\n", 1)
@@ -66,8 +83,8 @@ if "clone.AddComponent<VolkswagenAmarokAmbientTrafficAppearance>();" not in text
     text = text.replace(material_marker, traffic_setup, 1)
 
 # Existing generated worktrees may already contain CreateAiPrefab() from an
-# earlier traffic pass. Inject the paint-panel lift directly into that method so
-# ambient traffic cannot z-fight with the original blue source shell.
+# earlier traffic pass. Keep the helper call present; it is now a no-op because
+# the player prefab itself no longer contains the original blue paint triangles.
 create_ai_marker = "    private static GameObject? CreateAiPrefab(GameObject playerPrefab)"
 create_ai_start = text.find(create_ai_marker)
 create_ai_end = text.find(
@@ -228,45 +245,11 @@ if "private static bool FitAiBodyColliders(" not in text:
 
 npc_paint_helper = r'''    private static int PrepareAiPaintPanels(GameObject clone)
     {
-        var adjusted = 0;
-        foreach (var filter in clone.GetComponentsInChildren<MeshFilter>(true))
-        {
-            if (filter == null || filter.sharedMesh == null ||
-                filter.name.IndexOf(
-                    "VehiclePaint_Blue",
-                    StringComparison.OrdinalIgnoreCase) < 0)
-                continue;
-
-            var sourceMesh = filter.sharedMesh;
-            var runtimeMesh = UnityEngine.Object.Instantiate(sourceMesh);
-            runtimeMesh.name = sourceMesh.name + "_NpcPaintLift";
-            var vertices = runtimeMesh.vertices;
-            var normals = runtimeMesh.normals;
-            var size = runtimeMesh.bounds.size;
-            var span = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
-            // Ambient traffic still showed isolated source-blue patches with the
-            // initial sub-millimetre lift. NPCs do not deform this paint shell,
-            // so give it a few millimetres of separation from the original blue
-            // source geometry. Player paint remains on the much smaller offset.
-            var offset = Mathf.Max(span * 0.00065f, 0.00120f);
-            if (normals.Length == vertices.Length)
-            {
-                for (var index = 0; index < vertices.Length; index++)
-                    vertices[index] += normals[index].normalized * offset;
-                runtimeMesh.vertices = vertices;
-                runtimeMesh.RecalculateBounds();
-            }
-            filter.sharedMesh = runtimeMesh;
-            adjusted++;
-        }
-
         Debug.Log(
-            $"VolkswagenAmarok NPC paint panels lifted={adjusted} " +
-            "to prevent source-blue z-fighting (strong NPC-only separation).");
-        return adjusted;
+            "VolkswagenAmarok NPC paint uses source-blue-stripped prefab geometry.");
+        return 0;
     }
 
-'''
 if "private static int PrepareAiPaintPanels(GameObject clone)" not in text:
     if load_marker not in text:
         raise SystemExit("Could not locate Amarok AI template loader for NPC paint helper.")
@@ -501,8 +484,7 @@ checks = {
         "VolkswagenAmarokAmbientTrafficAppearance",
         "PrepareAiPaintPanels(clone);",
         "private static int PrepareAiPaintPanels(GameObject clone)",
-        "_NpcPaintLift",
-        "var offset = Mathf.Max(span * 0.00065f, 0.00120f);",
+        "NPC paint uses source-blue-stripped prefab geometry.",
         "FitAiBodyColliders(clone, playerPrefab)",
         '"VolkswagenAmarok NpcBodyCollider"',
         "FitAiNavigationObstacles",
@@ -527,7 +509,7 @@ for path, needles in checks.items():
 if missing:
     raise SystemExit("Amarok seventh traffic/services patch failed:\n- " + "\n- ".join(missing))
 
-print("Ported BMW/Lamborghini ambient traffic color assignment to Amarok NPCs and lifted BA paint panels above the original blue source shell.")
+print("Ported BMW/Lamborghini ambient traffic color assignment to Amarok NPCs; traffic now inherits the source-blue-stripped player prefab without extra paint-shell lifting.")
 print("Replaced donor NPC body colliders/NavMesh bounds with fitted Amarok BodyCollider copies.")
 print("Added one-time private-driver wheel binding to prevent wobbly/offset NPC wheels.")
 print("Rebound vanilla vehicleCollider/refueling anchors and made repair reset arrays safe.")
