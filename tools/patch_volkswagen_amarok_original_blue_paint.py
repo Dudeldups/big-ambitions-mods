@@ -346,7 +346,8 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
             Mathf.RoundToInt(point.z * scale);
     }
 
-'''paint_helper_start_marker = (
+'''
+paint_helper_start_marker = (
     "    private static void ConfigureOriginalBluePaintSurface("
 )
 paint_helper_start = setup.find(paint_helper_start_marker)
