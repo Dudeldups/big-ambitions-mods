@@ -61,7 +61,7 @@ for a,b in [
     ('private const float FrontTireWidth = 0.275f;','private const float FrontTireWidth = 0.255f;'),
     ('private const float RearTireWidth = 0.335f;','private const float RearTireWidth = 0.255f;'),
     ('private const float WheelInset = 0.085f;','private const float WheelInset = 0f;'),
-    ('private const float VehicleLinearDrag = 0.035f;','private const float VehicleLinearDrag = 0.045f;'),
+    ('private const float VehicleLinearDrag = 0.035f;','private const float VehicleLinearDrag = 0.020f;'),
     ('private const float VehicleBrakeForce = 2200f;','private const float VehicleBrakeForce = 2800f;'),
     ('private const float BrakeMaxTorque = 2200f;','private const float BrakeMaxTorque = 2800f;'),
     ('private const float AntiRollBarForce = 9000f;','private const float AntiRollBarForce = 3800f;'),
