@@ -35,7 +35,11 @@ def vertex_weight(vertex, group_index):
 
 
 def group_member_count(source, group):
-    return sum(1 for vertex in source.data.vertices if vertex_weight(vertex, group.index) > 0.001)
+    return sum(
+        1
+        for vertex in source.data.vertices
+        if vertex_weight(vertex, group.index) > 0.001
+    )
 
 
 def find_group(source, expected):
@@ -76,9 +80,11 @@ def collect_polygons(mesh, group_index):
 
 
 print("[Amarok lights] non-empty Blender vertex groups:")
-for source in list(bpy.context.scene.objects):
-    if source.type != "MESH":
-        continue
+source_objects = [
+    obj for obj in list(bpy.context.scene.objects)
+    if obj.type == "MESH"
+]
+for source in source_objects:
     entries = []
     for group in source.vertex_groups:
         count = group_member_count(source, group)
@@ -88,13 +94,19 @@ for source in list(bpy.context.scene.objects):
         print(f"  {source.name}: " + ", ".join(entries))
 
 created = []
-created_names = set()
 resolved = set()
-for expected in GROUPS:
-    for source in list(bpy.context.scene.objects):
-        if source.type != "MESH":
-            continue
 
+# Merge every source object carrying the same logical light group into ONE
+# exported mesh. The previous exporter created e.g. 1BrakeLights and
+# 1BrakeLights_2; the runtime controller only bound the first renderer, so newly
+# added inner rear-lamp selections were exported but never illuminated.
+for expected in GROUPS:
+    merged_vertices = []
+    merged_faces = []
+    contributing_sources = 0
+    contributing_faces = 0
+
+    for source in source_objects:
         group, actual_name = find_group(source, expected)
         if group is None:
             continue
@@ -102,34 +114,49 @@ for expected in GROUPS:
         mesh = source.data
         assigned, polys, mode = collect_polygons(mesh, group.index)
         print(
-            f"[Amarok lights] object='{source.name}' expected='{expected}' actual='{actual_name}' "
-            f"assignedVertices={len(assigned)} faces={len(polys)} selection={mode}"
+            f"[Amarok lights] object='{source.name}' expected='{expected}' "
+            f"actual='{actual_name}' assignedVertices={len(assigned)} "
+            f"faces={len(polys)} selection={mode}"
         )
         if not polys:
             continue
 
+        contributing_sources += 1
+        contributing_faces += len(polys)
+
         used = sorted({index for poly in polys for index in poly.vertices})
-        remap = {old: new for new, old in enumerate(used)}
-        verts = [mesh.vertices[index].co.copy() for index in used]
-        faces = [[remap[index] for index in poly.vertices] for poly in polys]
+        base = len(merged_vertices)
+        remap = {old: base + new for new, old in enumerate(used)}
 
-        out_mesh = bpy.data.meshes.new(expected + "_Mesh")
-        out_mesh.from_pydata(verts, [], faces)
-        out_mesh.update()
+        # Bake each source object's Blender transform into the combined geometry.
+        # The exported logical mesh can then use identity transform regardless of
+        # which original Amarok object the selected vertices came from.
+        merged_vertices.extend([
+            source.matrix_world @ mesh.vertices[index].co
+            for index in used
+        ])
+        merged_faces.extend([
+            [remap[index] for index in poly.vertices]
+            for poly in polys
+        ])
 
-        object_name = expected
-        if object_name in created_names:
-            suffix = 2
-            while f"{expected}_{suffix}" in created_names:
-                suffix += 1
-            object_name = f"{expected}_{suffix}"
+    if not merged_faces:
+        continue
 
-        out_object = bpy.data.objects.new(object_name, out_mesh)
-        out_object.matrix_world = source.matrix_world.copy()
-        bpy.context.collection.objects.link(out_object)
-        created.append(out_object)
-        created_names.add(object_name)
-        resolved.add(expected)
+    out_mesh = bpy.data.meshes.new(expected + "_Mesh")
+    out_mesh.from_pydata(merged_vertices, [], merged_faces)
+    out_mesh.update()
+
+    out_object = bpy.data.objects.new(expected, out_mesh)
+    bpy.context.collection.objects.link(out_object)
+    created.append(out_object)
+    resolved.add(expected)
+
+    print(
+        f"[Amarok lights] merged expected='{expected}' "
+        f"sources={contributing_sources} faces={contributing_faces} "
+        f"vertices={len(merged_vertices)}"
+    )
 
 missing = [name for name in GROUPS if name not in resolved]
 if missing:
@@ -139,17 +166,19 @@ if missing:
         + ". See the non-empty vertex-group list above for the actual saved names."
     )
 
-bpy.ops.object.select_all(action="DESELECT")
-for obj in created:
-    obj.select_set(True)
-bpy.context.view_layer.objects.active = created[0]
+# Background Blender does not always provide the UI context required by
+# bpy.ops.object.select_all(). Remove the source scene objects instead and export
+# the remaining generated overlay objects without relying on selection operators.
+for source in source_objects:
+    if source.name in bpy.data.objects:
+        bpy.data.objects.remove(source, do_unlink=True)
 
 bpy.ops.export_scene.gltf(
     filepath=output,
     export_format="GLB",
-    use_selection=True,
+    use_selection=False,
     export_apply=True,
     export_materials="NONE",
 )
 
-print("Exported Amarok light groups:", ", ".join(obj.name for obj in created))
+print("Exported merged Amarok light groups:", ", ".join(obj.name for obj in created))
