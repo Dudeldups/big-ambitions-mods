@@ -9,6 +9,7 @@ using Data.VehicleColors;
 using GleyTrafficSystem;
 using Helpers;
 using UnityEngine;
+using UnityEngine.AI;
 
 internal static class FerrariSF90SpiderPrivateDriverSupport
 {
@@ -317,6 +318,12 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
         RepairPrivateDriverBodyShell(clone);
 
         FerrariSF90SpiderMaterials.FixSolidMaterials(clone);
+        clone.AddComponent<FerrariSF90SpiderAmbientTrafficAppearance>();
+        if (!FitAiBodyColliders(clone, playerPrefab))
+        {
+            UnityEngine.Object.Destroy(clone);
+            return null;
+        }
         var appearance = clone.AddComponent<FerrariSF90SpiderPrivateDriverAppearance>();
         appearance.BindWheelVisuals();
 
@@ -383,6 +390,141 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
                 material.name.IndexOf("2021Paint_Material", StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
         return false;
+    }
+
+    private static bool FitAiBodyColliders(GameObject clone, GameObject playerPrefab)
+    {
+        var source = FindTransform(playerPrefab.transform, "BodyCollider");
+        var sourceBoxes = source?.GetComponents<BoxCollider>();
+        if (source == null || sourceBoxes == null || sourceBoxes.Length == 0)
+        {
+            Debug.LogWarning("FerrariSF90Spider NPC body collider source is missing.");
+            return false;
+        }
+
+        var disabled = 0;
+        foreach (var collider in clone.GetComponentsInChildren<Collider>(true))
+        {
+            if (!collider.enabled || collider.isTrigger || collider is WheelCollider ||
+                IsTrafficWheel(collider.transform, clone.transform))
+                continue;
+            collider.enabled = false;
+            disabled++;
+        }
+
+        var holder = new GameObject("FerrariSF90Spider NpcBodyCollider");
+        holder.layer = clone.layer;
+        holder.transform.SetParent(clone.transform, false);
+        holder.transform.localPosition = source.localPosition;
+        holder.transform.localRotation = source.localRotation;
+        holder.transform.localScale = source.localScale;
+
+        var rear = float.PositiveInfinity;
+        var front = float.NegativeInfinity;
+        var left = float.PositiveInfinity;
+        var right = float.NegativeInfinity;
+
+        foreach (var original in sourceBoxes)
+        {
+            if (!original.enabled || original.isTrigger)
+                continue;
+
+            var box = holder.AddComponent<BoxCollider>();
+            box.center = original.center;
+            box.size = original.size;
+            box.sharedMaterial = original.sharedMaterial;
+
+            rear = Mathf.Min(rear, clone.transform.InverseTransformPoint(
+                holder.transform.TransformPoint(box.center - Vector3.forward * box.size.z * 0.5f)).z);
+            front = Mathf.Max(front, clone.transform.InverseTransformPoint(
+                holder.transform.TransformPoint(box.center + Vector3.forward * box.size.z * 0.5f)).z);
+            left = Mathf.Min(left, clone.transform.InverseTransformPoint(
+                holder.transform.TransformPoint(box.center - Vector3.right * box.size.x * 0.5f)).x);
+            right = Mathf.Max(right, clone.transform.InverseTransformPoint(
+                holder.transform.TransformPoint(box.center + Vector3.right * box.size.x * 0.5f)).x);
+        }
+
+        if (front <= rear || right <= left)
+        {
+            Debug.LogWarning("FerrariSF90Spider NPC body colliders have invalid bounds.");
+            UnityEngine.Object.Destroy(holder);
+            return false;
+        }
+
+        FitAiNavigationObstacles(clone, left, right, rear, front);
+        FerrariSF90SpiderDiagnostics.TrafficInfo(
+            $"FerrariSF90Spider NPC body boxes={holder.GetComponents<BoxCollider>().Length} " +
+            $"disabledTemplate={disabled} rootRear={rear:0.000} rootFront={front:0.000}.");
+        return true;
+    }
+
+    private static bool IsTrafficWheel(Transform candidate, Transform root)
+    {
+        for (var current = candidate; current != null && current != root; current = current.parent)
+        {
+            var name = current.name;
+            if (name.IndexOf("Wheel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name == "FL" || name == "FR" || name == "BL" || name == "BR")
+                return true;
+        }
+        return false;
+    }
+
+    private static void FitAiNavigationObstacles(
+        GameObject clone, float bodyLeft, float bodyRight, float bodyRear, float bodyFront)
+    {
+        const float pedestrianClearance = 0.40f;
+        var root = clone.transform;
+        foreach (var obstacle in clone.GetComponentsInChildren<NavMeshObstacle>(true))
+        {
+            if (obstacle.shape != NavMeshObstacleShape.Box ||
+                Vector3.Dot(root.forward, obstacle.transform.forward) < 0.99f)
+            {
+                Debug.LogWarning(
+                    $"FerrariSF90Spider NPC obstacle could not be fitted name='{obstacle.name}'.");
+                continue;
+            }
+
+            var oldRear = root.InverseTransformPoint(obstacle.transform.TransformPoint(
+                obstacle.center - Vector3.forward * obstacle.size.z * 0.5f)).z;
+            var oldFront = root.InverseTransformPoint(obstacle.transform.TransformPoint(
+                obstacle.center + Vector3.forward * obstacle.size.z * 0.5f)).z;
+            var targetLeft = bodyLeft + pedestrianClearance;
+            var targetRight = bodyRight - pedestrianClearance;
+            var targetRear = bodyRear + pedestrianClearance;
+            var targetFront = bodyFront - pedestrianClearance;
+
+            var localLeft = obstacle.transform.InverseTransformPoint(
+                root.TransformPoint(new Vector3(targetLeft, 0f, 0f))).x;
+            var localRight = obstacle.transform.InverseTransformPoint(
+                root.TransformPoint(new Vector3(targetRight, 0f, 0f))).x;
+            var localRear = obstacle.transform.InverseTransformPoint(
+                root.TransformPoint(new Vector3(0f, 0f, targetRear))).z;
+            var localFront = obstacle.transform.InverseTransformPoint(
+                root.TransformPoint(new Vector3(0f, 0f, targetFront))).z;
+
+            if (localFront <= localRear + 0.05f || localRight <= localLeft + 0.05f)
+            {
+                Debug.LogWarning(
+                    $"FerrariSF90Spider NPC obstacle has invalid fitted bounds name='{obstacle.name}'.");
+                continue;
+            }
+
+            var center = obstacle.center;
+            center.x = (localLeft + localRight) * 0.5f;
+            center.z = (localRear + localFront) * 0.5f;
+            var size = obstacle.size;
+            size.x = localRight - localLeft;
+            size.z = localFront - localRear;
+            obstacle.center = center;
+            obstacle.size = size;
+
+            FerrariSF90SpiderDiagnostics.TrafficInfo(
+                $"FerrariSF90Spider NPC obstacle name='{obstacle.name}' " +
+                $"oldRear={oldRear:0.000} oldFront={oldFront:0.000} " +
+                $"rootLeft={targetLeft:0.000} rootRight={targetRight:0.000} " +
+                $"rootRear={targetRear:0.000} rootFront={targetFront:0.000}.");
+        }
     }
 
     private static GameObject? LoadAiTemplate()
@@ -459,6 +601,93 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
         for (var index = values.Count - 1; index >= 0; index--)
             if (string.Equals(values[index], target, StringComparison.Ordinal))
                 values.RemoveAt(index);
+    }
+}
+
+[DefaultExecutionOrder(1001)]
+internal sealed class FerrariSF90SpiderAmbientTrafficAppearance : MonoBehaviour
+{
+    private const int NativeColorAssignmentFrameLimit = 4;
+    private Coroutine? initializationCoroutine;
+    private NavMeshObstacle? obstacle;
+    private Vector3 lastPosition;
+    private bool? lastMoving;
+    private bool? lastObstacleEnabled;
+    private int stateLogs;
+    private int colorLogs;
+
+    private void OnEnable()
+    {
+        obstacle = GetComponentInChildren<NavMeshObstacle>(true);
+        lastPosition = transform.position;
+        lastMoving = null;
+        lastObstacleEnabled = null;
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = StartCoroutine(ApplyNativeTrafficColor());
+    }
+
+    private void LateUpdate()
+    {
+        if (!FerrariSF90SpiderDiagnostics.TrafficEnabled || stateLogs >= 12)
+            return;
+
+        var moving = (transform.position - lastPosition).sqrMagnitude > 0.0004f;
+        lastPosition = transform.position;
+        var obstacleEnabled = obstacle != null && obstacle.enabled;
+        if (lastMoving == moving && lastObstacleEnabled == obstacleEnabled)
+            return;
+
+        lastMoving = moving;
+        lastObstacleEnabled = obstacleEnabled;
+        stateLogs++;
+        FerrariSF90SpiderDiagnostics.TrafficInfo(
+            $"FerrariSF90Spider NPC id={GetInstanceID()} moving={moving} " +
+            $"standingObstacle={obstacleEnabled} transition={stateLogs}.");
+    }
+
+    private void OnDisable()
+    {
+        if (initializationCoroutine != null)
+            StopCoroutine(initializationCoroutine);
+        initializationCoroutine = null;
+    }
+
+    private IEnumerator ApplyNativeTrafficColor()
+    {
+        for (var frame = 0; frame < NativeColorAssignmentFrameLimit; frame++)
+        {
+            if (GetComponent<PrivateDriverVehicle>() != null)
+            {
+                initializationCoroutine = null;
+                yield break;
+            }
+            yield return null;
+        }
+
+        if (GetComponent<PrivateDriverVehicle>() == null)
+        {
+            var color = GetComponent<CarFeatures>()?.VehicleColor;
+            var applied = false;
+            if (color != null)
+            {
+                var paint = GetComponent<FerrariSF90SpiderPaintController>();
+                if (paint == null)
+                    paint = gameObject.AddComponent<FerrariSF90SpiderPaintController>();
+                paint.InitializeForPrivateDriver(color.name, color);
+                applied = paint.HasAppliedColor;
+            }
+
+            if (colorLogs++ < 8)
+                FerrariSF90SpiderDiagnostics.TrafficInfo(
+                    $"FerrariSF90Spider ambient NPC id={GetInstanceID()} " +
+                    $"color='{(color != null ? color.name : "<none>")}' applied={applied}.");
+            if (color != null && !applied && colorLogs <= 8)
+                Debug.LogWarning(
+                    $"FerrariSF90Spider ambient NPC id={GetInstanceID()} failed to apply '{color.name}'.");
+        }
+
+        initializationCoroutine = null;
     }
 }
 
