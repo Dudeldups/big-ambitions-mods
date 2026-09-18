@@ -84,18 +84,18 @@ for a,b in [
     ('SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 900f);','SetRelativeNumber(serialized, "powertrain.engine.idleRPM", 725f);'),
     ('SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 9000f);','SetRelativeNumber(serialized, "powertrain.engine.revLimiterRPM", 4500f);'),
     ('SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", false);','SetRelativeBool(serialized, "powertrain.engine.forcedInduction.useForcedInduction", true);'),
-    ('SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0f);','SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.32f);'),
+    ('SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0f);','SetRelativeNumber(serialized, "powertrain.engine.forcedInduction.spoolUpTime", 0.45f);'),
     ('SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 4.27f);','SetRelativeNumber(serialized, "powertrain.transmission.finalGearRatio", 3.70f);'),
     ('SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 7f);','SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 8f);'),
     ('SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);','SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.28f);'),
     ('SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 5500f);','SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 1900f);'),
-    ('SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 8850f);','SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 4200f);'),
+    ('SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 8850f);','SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 4100f);'),
     ('bias.floatValue = 1f;','bias.floatValue = 0.60f; // permanent 4MOTION, rear-biased 40:60 baseline'),
     ('SetRelativeNumber(serialized, "module.speedLimit", 296f);','SetRelativeNumber(serialized, "module.speedLimit", 193f);'),
     ('"gt3rs_bumper_F"','"bump_front_ok"'), ('"gt3rs_bumper_R"','"bump_rear_ok"'),
 ]: s=s.replace(a,b)
 s = re.sub(r'private static readonly float\[] AmarokGears =\s*\{.*?\};', '''private static readonly float[] AmarokGears =\n    {\n        -3.317f, 0f, 4.714f, 3.143f, 2.106f, 1.667f, 1.285f, 1.000f, 0.839f, 0.667f,\n    };''', s, flags=re.S)
-s = re.sub(r'private static AnimationCurve CreateAmarokPowerCurve\(\) =>\s*new AnimationCurve\(.*?\);', '''private static AnimationCurve CreateAmarokPowerCurve() =>\n        new AnimationCurve(\n            new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f), new Keyframe(0.31f, 0.49f),\n            new Keyframe(0.44f, 0.70f), new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),\n            new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f), new Keyframe(1.00f, 0.99f));''', s, flags=re.S)
+s = re.sub(r'private static AnimationCurve CreateAmarokPowerCurve\(\) =>\s*new AnimationCurve\(.*?\);', '''private static AnimationCurve CreateAmarokPowerCurve() =>\n        new AnimationCurve(\n            new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f), new Keyframe(0.31f, 0.47f),\n            new Keyframe(0.44f, 0.67f), new Keyframe(0.61f, 0.94f), new Keyframe(0.67f, 0.99f),\n            new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f), new Keyframe(1.00f, 0.99f));''', s, flags=re.S)
 s=s.replace('Math.Abs(price - 223800f) > 0.5f','Math.Abs(price - 49900f) > 0.5f').replace('Math.Abs(maxFuel - 64f) > 0.5f','Math.Abs(maxFuel - 80f) > 0.5f').replace('Math.Abs(maxSpeed - 296f) > 0.5f','Math.Abs(maxSpeed - 193f) > 0.5f').replace('Math.Abs(enginePower - 386f) > 0.5f','Math.Abs(enginePower - 165f) > 0.5f').replace('!luxury ||','luxury ||')
 setup.write_text(s, encoding="utf-8")
 
@@ -108,7 +108,7 @@ for a,b in [
  ('private const float EngineLimitRpm = 9000f;','private const float EngineLimitRpm = 4500f;'),
  ('private const float SpeedLimitKph = 296f;','private const float SpeedLimitKph = 193f;'),
  ('private const float FinalDriveRatio = 4.27f;','private const float FinalDriveRatio = 3.70f;'),
- ('private const float EngineInertia = 0.075f;','private const float EngineInertia = 0.16f;'),
+ ('private const float EngineInertia = 0.075f;','private const float EngineInertia = 0.18f;'),
  ('private const float TireFrictionCircleStrength = 1.02f;','private const float TireFrictionCircleStrength = 1.08f;'),
  ('private const float AntiRollBarForce = 9000f;','private const float AntiRollBarForce = 3800f;'),
  ('private const float FrontSuspensionTravel = 0.075f;','private const float FrontSuspensionTravel = 0.160f;'),
