@@ -62,8 +62,8 @@ for a,b in [
     ('private const float RearTireWidth = 0.335f;','private const float RearTireWidth = 0.255f;'),
     ('private const float WheelInset = 0.085f;','private const float WheelInset = 0f;'),
     ('private const float VehicleLinearDrag = 0.035f;','private const float VehicleLinearDrag = 0.020f;'),
-    ('private const float VehicleBrakeForce = 2200f;','private const float VehicleBrakeForce = 2800f;'),
-    ('private const float BrakeMaxTorque = 2200f;','private const float BrakeMaxTorque = 2800f;'),
+    ('private const float VehicleBrakeForce = 2200f;','private const float VehicleBrakeForce = 2700f;'),
+    ('private const float BrakeMaxTorque = 2200f;','private const float BrakeMaxTorque = 2700f;'),
     ('private const float AntiRollBarForce = 9000f;','private const float AntiRollBarForce = 3800f;'),
     ('private const float FrontSuspensionTravel = 0.075f;','private const float FrontSuspensionTravel = 0.160f;'),
     ('private const float RearSuspensionTravel = 0.080f;','private const float RearSuspensionTravel = 0.180f;'),
@@ -72,7 +72,7 @@ for a,b in [
     ('private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.08f, -0.28f);','private static readonly Vector3 StableCenterOfMass = new Vector3(0f, 0.34f, -0.05f);'),
     ('SetNumber(serialized, "price", 223800f);','SetNumber(serialized, "price", 49900f);'),
     ('SetNumber(serialized, "maxFuel", 64f);','SetNumber(serialized, "maxFuel", 80f);'),
-    ('SetNumber(serialized, "maxCargoCapacity", 2f);','SetNumber(serialized, "maxCargoCapacity", 0f); // No invented pickup cargo capacity.'),
+    ('SetNumber(serialized, "maxCargoCapacity", 2f);','SetNumber(serialized, "maxCargoCapacity", 24f);'),
     ('SetNumber(serialized, "maxSpeed", 296f);','SetNumber(serialized, "maxSpeed", 193f);'),
     ('SetNumber(serialized, "enginePower", 386f);','SetNumber(serialized, "enginePower", 165f);'),
     ('SetNumber(serialized, "turnRadius", 26f);','SetNumber(serialized, "turnRadius", 35f);'),
@@ -138,7 +138,7 @@ t=t.replace('internal static float ReferenceHz(int layer) => layer == 0 ? 70f : 
 a.write_text(t,encoding="utf-8")
 
 # Source notes and exact Blender vertex-group contract.
-(DST/"Config/VEHICLE_SPECS.md").write_text('''# Volkswagen Amarok MY2017 V6 TDI\n\nPrice $49,900; 3.0 V6 TDI 2967 cm3; 165 kW / 224 PS; 550 Nm; permanent 4MOTION AWD; 8-speed automatic 4.714 / 3.143 / 2.106 / 1.667 / 1.285 / 1.000 / 0.839 / 0.667; reverse 3.317; final drive 3.70; 0-100 km/h measured target 8.0 s; 100-0 km/h braking target 36.7-37.0 m; top speed 193 km/h; 2078 kg; 80 L; 5.254 x 1.954 x 1.834 m; wheelbase 3.097 m; ground clearance 0.192 m; 255/60 R18; track 1.654 / 1.658 m.\n\nCargo bed remains visual only until a verified vanilla pickup/van storage path is wired.\n''',encoding='utf-8')
+(DST/"Config/VEHICLE_SPECS.md").write_text('''# Volkswagen Amarok MY2017 V6 TDI\n\nPrice $49,900; 3.0 V6 TDI 2967 cm3; 165 kW / 224 PS; 550 Nm; permanent 4MOTION AWD; 8-speed automatic 4.714 / 3.143 / 2.106 / 1.667 / 1.285 / 1.000 / 0.839 / 0.667; reverse 3.317; final drive 3.70; 0-100 km/h measured target 8.0 s; 100-0 km/h braking target 36.7-37.0 m; top speed 193 km/h; 2078 kg; 80 L; 5.254 x 1.954 x 1.834 m; wheelbase 3.097 m; ground clearance 0.192 m; 255/60 R18; track 1.654 / 1.658 m.\n\nCargo capacity is configured to 24 inventory slots for the pickup bed.\n''',encoding='utf-8')
 (DST/"ATTRIBUTION.md").write_text('''# Attribution\n\n2017 Volkswagen Amarok V6 by Ddiaz Design\nhttps://sketchfab.com/3d-models/2017-volkswagen-amarok-v6-3272be01e2f946c4bda1c1b5ed73d3a4\nLicense shown by the source: CC Attribution-NonCommercial-ShareAlike (CC BY-NC-SA). The listing also credits a Volkswagen 3D model / https://vk.com/3d_car_models.\n''',encoding='utf-8')
 (DST/"Models/README.md").write_text('''Place the supplied files here before running Setup Volkswagen Amarok:\n- 2017_volkswagen_amarok_v6.glb\n- VolkswagenAmarokLightOverlays.blend\n\nBlender vertex groups supplied with the mod: BHeadlights, BDRL_Indicator_FL, BDRL_Indicator_FR, 1RearDrivingLights, 1BrakeLights, ThirdBrakeLight, ReverseLights, 1IndicatorRL, 1IndicatorRR. The two BDRL_Indicator groups intentionally drive both white DRL and amber indicator overlays.\n''',encoding='utf-8')
 
