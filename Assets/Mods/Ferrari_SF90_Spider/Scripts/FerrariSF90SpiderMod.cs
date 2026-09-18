@@ -82,7 +82,7 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
             SetRuntimeMember(type, "maxCargoCapacity", 2);
             SetRuntimeMember(type, "maxSpeed", 340);
             SetRuntimeMember(type, "enginePower", 735f);
-            SetRuntimeMember(type, "brakeForce", 2900f);
+            SetRuntimeMember(type, "brakeForce", 2200f);
             SetRuntimeMember(type, "turnRadius", 25f);
             SetRuntimeMember(type, "damageIntensity", 0.80f);
             SetRuntimeMember(type, "fitsHandTruck", false);
