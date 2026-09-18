@@ -457,7 +457,8 @@ checks = {
     RUNTIME: [
         'SetFloat(transmission, "_downshiftRPM", 2400f);',
         "new Vector3(0f, 0.46f, 2.08f);",
-        "new Vector3(0f, 0.60f, -2.08f);",
+        "new Vector3(0f, 0.46f, -2.08f);",
+        "new Vector3(1.86f, 0.72f, 1.14f);",
         '"kennzeichen"',
         '"numberplate"',
     ],
