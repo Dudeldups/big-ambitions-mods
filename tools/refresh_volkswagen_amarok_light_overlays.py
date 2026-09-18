@@ -47,19 +47,30 @@ if not blender:
     )
 
 print(f"Refreshing Amarok light GLB from: {BLEND}")
+temporary_output = OUTPUT.with_name(OUTPUT.stem + ".tmp.glb")
+if temporary_output.exists():
+    temporary_output.unlink()
+
 subprocess.run(
     [
         blender,
         "--background",
+        "--python-exit-code",
+        "17",
         str(BLEND),
         "--python",
         str(EXPORTER),
         "--",
-        str(OUTPUT),
+        str(temporary_output),
     ],
     check=True,
 )
-if not OUTPUT.is_file():
-    raise SystemExit("Blender completed without producing AmarokLightOverlays.glb.")
+if not temporary_output.is_file() or temporary_output.stat().st_size <= 0:
+    raise SystemExit(
+        "Blender completed without producing a valid AmarokLightOverlays temporary GLB."
+    )
 
+# Only replace the known-good overlay after Blender completed successfully. This
+# prevents an exception during export from being mistaken for a successful refresh.
+temporary_output.replace(OUTPUT)
 print(f"Refreshed Amarok authored light overlays: {OUTPUT}")
