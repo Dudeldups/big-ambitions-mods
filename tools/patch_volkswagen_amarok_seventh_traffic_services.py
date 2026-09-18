@@ -299,15 +299,16 @@ PRIVATE_DRIVER.write_text(text, encoding="utf-8", newline="\n")
 # ---------------------------------------------------------------------------
 setup = SETUP.read_text(encoding="utf-8")
 
-service_call_marker = "            ConfigureBodyColliders(root);\n"
-if "ConfigureServiceCompatibility(root);" not in setup:
-    if service_call_marker not in setup:
-        raise SystemExit("Could not locate Amarok BodyCollider feedback call.")
-    setup = setup.replace(
-        service_call_marker,
-        service_call_marker + "            ConfigureServiceCompatibility(root);\n",
-        1,
-    )
+service_call_pattern = re.compile(
+    r'(            ConfigureBodyColliders\\(root\\);\\n)'
+    r'(?!            ConfigureServiceCompatibility\\(root\\);)'
+)
+setup, service_call_count = service_call_pattern.subn(
+    r'\\1            ConfigureServiceCompatibility(root);\\n',
+    setup,
+)
+if service_call_count == 0 and "ConfigureServiceCompatibility(root);" not in setup:
+    raise SystemExit("Could not locate Amarok BodyCollider service-compatibility call sites.")
 
 helper_marker = "    private static void ConfigurePowertrain(GameObject root)\n"
 service_helper = r'''    private static void ConfigureServiceCompatibility(GameObject root)
