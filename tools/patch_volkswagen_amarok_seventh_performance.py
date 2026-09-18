@@ -33,18 +33,27 @@ def set_constant(text: str, name: str, value: str) -> str:
 # 0.96 friction circle, however, cap braking below the ~1.06 g average needed for
 # a 37 m 100-0 stop. Raise tire/brake authority while keeping engine output real.
 setup = SETUP.read_text(encoding="utf-8")
-setup = set_constant(setup, "VehicleBrakeForce", "2800f")
-setup = set_constant(setup, "BrakeMaxTorque", "2800f")
+setup = set_constant(setup, "VehicleBrakeForce", "2700f")
+setup = set_constant(setup, "BrakeMaxTorque", "2700f")
 setup = set_constant(setup, "FrontForwardGrip", "1.08f")
 setup = set_constant(setup, "RearForwardGrip", "1.05f")
 setup = set_constant(setup, "FrontForwardStiffness", "1.12f")
 setup = set_constant(setup, "RearForwardStiffness", "1.10f")
 setup = set_constant(setup, "TireFrictionCircleStrength", "1.08f")
+setup = re.sub(
+    r'SetNumber\(serialized, "maxCargoCapacity", [^;]+;',
+    'SetNumber(serialized, "maxCargoCapacity", 24f);',
+    setup,
+)
 
 # Existing VehicleType asset also needs the new brake force when we are patching
 # the already-generated prefab instead of running the full donor regeneration.
 feedback_marker = '        SetNumber(feedbackVehicleSerialized, "damageIntensity", 0.31f);\n'
-feedback_brake = feedback_marker + '        SetNumber(feedbackVehicleSerialized, "brakeForce", VehicleBrakeForce);\n'
+feedback_brake = (
+    feedback_marker
+    + '        SetNumber(feedbackVehicleSerialized, "brakeForce", VehicleBrakeForce);\n'
+    + '        SetNumber(feedbackVehicleSerialized, "maxCargoCapacity", 24f);\n'
+)
 if 'SetNumber(feedbackVehicleSerialized, "brakeForce", VehicleBrakeForce);' not in setup:
     if feedback_marker not in setup:
         raise SystemExit("Could not locate Amarok feedback VehicleType performance block.")
@@ -64,12 +73,14 @@ RUNTIME.write_text(runtime, encoding="utf-8", newline="\n")
 
 checks = {
     SETUP: [
-        "private const float VehicleBrakeForce = 2800f;",
-        "private const float BrakeMaxTorque = 2800f;",
+        "private const float VehicleBrakeForce = 2700f;",
+        "private const float BrakeMaxTorque = 2700f;",
         "private const float FrontForwardGrip = 1.08f;",
         "private const float RearForwardGrip = 1.05f;",
         "private const float TireFrictionCircleStrength = 1.08f;",
         'SetNumber(feedbackVehicleSerialized, "brakeForce", VehicleBrakeForce);',
+        'SetNumber(feedbackVehicleSerialized, "maxCargoCapacity", 24f);',
+        'SetNumber(serialized, "maxCargoCapacity", 24f);',
         'SetRelativeNumber(serialized, "powertrain.engine.maxPower", 165f);',
         "body.mass = 2078f;",
     ],
@@ -92,5 +103,5 @@ if missing:
 
 print("Kept Amarok acceleration physics at the real 165 kW / 550 Nm / 2078 kg drivetrain model.")
 print("Raised longitudinal tire/friction-circle authority to target the real-world ~8.0 s 0-100 and 36.7-37.0 m 100-0 envelope.")
-print("Raised brake torque/VehicleType brake force modestly from 2600 to 2800 while retaining road-tire-limited braking.")
+print("Set Amarok cargo capacity to 24 slots and softened brake torque/VehicleType brake force to 2700.")
 print("Volkswagen Amarok seventh performance preflight passed.")
