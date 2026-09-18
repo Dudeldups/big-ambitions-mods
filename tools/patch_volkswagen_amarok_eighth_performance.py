@@ -36,24 +36,36 @@ def replace_power_curve(text: str, source_name: str) -> str:
             f"found candidates={candidates or ['<none>']}."
         )
 
-    method_name = match.group("name")
-    search_from = match.end()
-    next_member = re.search(
-        r"\n    (?:private|internal|public) static ",
-        text[search_from:],
-    )
-    if next_member is not None:
-        method_end = search_from + next_member.start()
-    else:
-        # Fallback for a power-curve helper that happens to be the final static
-        # member in the class.
-        class_end = text.find("\n}", search_from)
-        if class_end < 0:
-            raise SystemExit(
-                f"Could not determine end of Amarok power curve in {source_name}."
-            )
-        method_end = class_end
+    arrow = text.find("=>", match.end())
+    curve_ctor = text.find("new AnimationCurve(", arrow + 2 if arrow >= 0 else match.end())
+    if arrow < 0 or curve_ctor < 0:
+        raise SystemExit(
+            f"Could not locate expression-bodied Amarok power curve in {source_name}."
+        )
 
+    open_paren = text.find("(", curve_ctor)
+    if open_paren < 0:
+        raise SystemExit(f"Amarok power curve opening parenthesis is missing in {source_name}.")
+
+    depth = 0
+    close_paren = -1
+    for index in range(open_paren, len(text)):
+        char = text[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                close_paren = index
+                break
+    if close_paren < 0:
+        raise SystemExit(f"Amarok power curve parentheses are unbalanced in {source_name}.")
+
+    semicolon = text.find(";", close_paren)
+    if semicolon < 0:
+        raise SystemExit(f"Amarok power curve terminator is missing in {source_name}.")
+
+    method_name = match.group("name")
     replacement = f"""private static AnimationCurve {method_name}() =>
         new AnimationCurve(
             new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),
@@ -61,12 +73,93 @@ def replace_power_curve(text: str, source_name: str) -> str:
             new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),
             new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f),
             new Keyframe(1.00f, 0.99f));"""
-    return text[:match.start()] + replacement + text[method_end:]
+    return text[:match.start()] + replacement + text[semicolon + 1:]
+
+
+def restore_runtime_instance_fields(text: str) -> str:
+    # A previous version of this patch used the next static member as the end of
+    # the power-curve method. In VolkswagenAmarokRuntime that deleted every
+    # instance field between the curve and public static Initialize(). Repair that
+    # exact damage once, while remaining a no-op for healthy generated sources.
+    if (
+        "private readonly HashSet<int> configuredVehicleIds" in text
+        and "private ModContext? context;" in text
+        and "private GameObject? playerVehiclePrefab;" in text
+    ):
+        return text
+
+    initialize_marker = "    public static VolkswagenAmarokRuntime Initialize("
+    initialize_at = text.find(initialize_marker)
+    if initialize_at < 0:
+        raise SystemExit(
+            "Could not locate VolkswagenAmarokRuntime.Initialize() while restoring instance fields."
+        )
+
+    field_block = """    private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();
+    private Coroutine? initializationCoroutine;
+    private Coroutine? enteredVehicleActivationCoroutine;
+    private int enteredVehicleActivationInstanceId;
+    private Coroutine? exitedPlayerRecoveryCoroutine;
+    private Coroutine? warehouseExitGuardCoroutine;
+    private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();
+    private VolkswagenAmarokWarehouseEntryController? warehouseExitGuardEntryController;
+    private ModContext? context;
+    private string vehicleTypeName = string.Empty;
+    private int cachedPlayerVehicleCount = -1;
+    private bool dealerRegistrationReady;
+    private bool dealerReadyLogged;
+    private bool privateDriverPoolReady;
+    private bool privateDriverReady;
+    private bool privateDriverRegistrationAllowed;
+    private bool privateDriverPreparationExceptionLogged;
+    private GameObject? playerVehiclePrefab;
+
+"""
+
+    # Remove any surviving subset of the damaged block first so the repair cannot
+    # create duplicate declarations on partially damaged worktrees.
+    field_names = [
+        "configuredVehicleIds",
+        "initializationCoroutine",
+        "enteredVehicleActivationCoroutine",
+        "enteredVehicleActivationInstanceId",
+        "exitedPlayerRecoveryCoroutine",
+        "warehouseExitGuardCoroutine",
+        "warehouseExitGuardColliders",
+        "warehouseExitGuardEntryController",
+        "context",
+        "vehicleTypeName",
+        "cachedPlayerVehicleCount",
+        "dealerRegistrationReady",
+        "dealerReadyLogged",
+        "privateDriverPoolReady",
+        "privateDriverReady",
+        "privateDriverRegistrationAllowed",
+        "privateDriverPreparationExceptionLogged",
+        "playerVehiclePrefab",
+    ]
+    lines = text[:initialize_at].splitlines(keepends=True)
+    kept = []
+    for line in lines:
+        if any(re.search(rf"\b{re.escape(name)}\b", line) for name in field_names):
+            # Only remove declaration lines before Initialize; method bodies begin
+            # after Initialize and are therefore unaffected.
+            if re.match(r"\s*private\s+", line):
+                continue
+        kept.append(line)
+
+    prefix = "".join(kept)
+    suffix = text[initialize_at:]
+    if prefix and not prefix.endswith("\n\n"):
+        prefix = prefix.rstrip() + "\n\n"
+    return prefix + field_block + suffix
 
 
 for path in (SETUP, RUNTIME):
     text = path.read_text(encoding="utf-8")
     text = replace_power_curve(text, path.name)
+    if path == RUNTIME:
+        text = restore_runtime_instance_fields(text)
 
     # Rigidbody.drag is linear velocity damping, not a physical Cd coefficient.
     # 0.045 on a 2078 kg truck consumes implausibly large power as speed rises and
@@ -100,6 +193,14 @@ checks = {
         "private const float EnginePowerKw = 165f;",
         "private const float EngineLimitRpm = 4500f;",
         "private const float VehicleLinearDrag = 0.020f;",
+        "private readonly HashSet<int> configuredVehicleIds = new HashSet<int>();",
+        "private Coroutine? initializationCoroutine;",
+        "private Coroutine? warehouseExitGuardCoroutine;",
+        "private readonly List<Collider> warehouseExitGuardColliders = new List<Collider>();",
+        "private VolkswagenAmarokWarehouseEntryController? warehouseExitGuardEntryController;",
+        "private ModContext? context;",
+        "private string vehicleTypeName = string.Empty;",
+        "private GameObject? playerVehiclePrefab;",
     ],
 }
 missing = []
@@ -114,4 +215,4 @@ if missing:
 print("Kept the Amarok at 165 kW / ~550 Nm instead of increasing nominal engine output.")
 print("Removed the unrealistic upper-rpm power collapse: 3000-4500 rpm now stays at ~99-100% peak power.")
 print("Reduced Rigidbody linear drag from 0.045 to 0.020 so the 2078 kg truck can still accelerate realistically at motorway speeds.")
-print("Volkswagen Amarok eighth performance preflight passed.")
+print("Restored VolkswagenAmarokRuntime instance state fields if an earlier power-curve patch removed them.")\nprint("Volkswagen Amarok eighth performance preflight passed.")
