@@ -8,6 +8,47 @@ if not RUNTIME.is_file():
 
 text = RUNTIME.read_text(encoding="utf-8")
 
+# Match the finished BMW/Cadillac pattern: disabled source renderers are not
+# deformation targets unless they are stateful lamp overlays that may become
+# visible after the crash. The older Amarok path included every MeshRenderer,
+# including hidden source geometry, which multiplied per-impact work.
+configure_start_marker = "    private int ConfigureVisualDamage(VehicleController vehicle)"
+configure_end_marker = "    private static bool IsDeformableExterior(MeshFilter filter)"
+configure_start = text.find(configure_start_marker)
+configure_end = text.find(
+    configure_end_marker,
+    configure_start + len(configure_start_marker) if configure_start >= 0 else 0,
+)
+if configure_start < 0 or configure_end < 0:
+    raise SystemExit("Could not locate Amarok ConfigureVisualDamage() boundaries.")
+
+configure_text = text[configure_start:configure_end]
+old_filter_add = '''            var renderer = filter.GetComponent<MeshRenderer>();
+            if (renderer != null)
+                filters.Add(filter);
+'''
+new_filter_add = '''            var renderer = filter.GetComponent<MeshRenderer>();
+            var statefulLampOverlay =
+                filter.name.IndexOf("BHeadlights", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("BDRL_Indicator_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("SideIndicator", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("1RearDrivingLights", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("1BrakeLights", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("ThirdBrakeLight", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("ReverseLights", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("1IndicatorR", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                filter.name.IndexOf("VolkswagenAmarok_Indicator", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (renderer != null && (renderer.enabled || statefulLampOverlay))
+                filters.Add(filter);
+'''
+if "statefulLampOverlay" not in configure_text:
+    if old_filter_add not in configure_text:
+        raise SystemExit(
+            "Could not locate Amarok deformable filter-add block for enabled-renderer gating."
+        )
+    configure_text = configure_text.replace(old_filter_add, new_filter_add, 1)
+    text = text[:configure_start] + configure_text + text[configure_end:]
+
 collision_marker = "    private void OnCollisionEnter(Collision collision)"
 visual_class_marker = "public sealed class VolkswagenAmarokVisualDamageController : MonoBehaviour"
 helper_marker = "    private static bool IsAttachedExteriorDetail("
@@ -954,6 +995,8 @@ RUNTIME.write_text(text, encoding="utf-8", newline="\n")
 
 check = RUNTIME.read_text(encoding="utf-8")
 required = [
+    "statefulLampOverlay",
+    "renderer.enabled || statefulLampOverlay",
     visual_class_marker,
     "public sealed class VolkswagenAmarokCollisionSeparationController",
     "internal sealed class VolkswagenAmarokHighwaySeamGuard",
@@ -987,6 +1030,7 @@ if check.find(collision_marker) == method_start:
         "OnCollisionEnter methods but none were restored."
     )
 
+print("Excluded hidden Amarok source renderers from crash deformation while retaining stateful lamp overlays.")
 print("Scoped Amarok crash deformation patch to VolkswagenAmarokVisualDamageController only.")
 print("Replaced per-impact attached-detail allocations with the finished-vehicle panel deformation path.")
 print("Added Audi-style whole-panel bounds culling before mesh vertex buffers are read.")
