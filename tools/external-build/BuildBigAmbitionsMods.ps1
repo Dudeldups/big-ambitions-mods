@@ -790,13 +790,38 @@ function Start-DeferredModInstall {
     )
 
     $safeName = ([string] $Plan.ModName) -replace "[^A-Za-z0-9_.-]", "_"
-    $pendingRoot = Join-Path $RepoRoot "obj\ExternalModBuild\PendingInstalls"
-    New-Item -ItemType Directory -Path $pendingRoot -Force | Out-Null
-
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $manifestPath = Join-Path $pendingRoot ($safeName + "-" + $stamp + ".json")
-    $scriptPath = Join-Path $pendingRoot ($safeName + "-" + $stamp + ".install.ps1")
-    $logPath = Join-Path $pendingRoot ($safeName + "-" + $stamp + ".log")
+    $pendingRoot = Join-Path $RepoRoot ("obj\ExternalModBuild\PendingInstalls\" + $safeName)
+    $pendingInstallRoot = Join-Path $pendingRoot $stamp
+    $payloadRoot = Join-Path $pendingInstallRoot "payload"
+    New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
+
+    $stagedOperations = [System.Collections.Generic.List[object]]::new()
+    foreach ($operation in @($Plan.Operations)) {
+        $finalDestination = [System.IO.Path]::GetFullPath([string] $operation.Destination)
+        $relativeDestination = Get-RelativePathCompat -BasePath ([string] $Plan.InstallRoot) -Path $finalDestination
+        if ([string]::IsNullOrWhiteSpace($relativeDestination) -or $relativeDestination.StartsWith("..")) {
+            $relativeDestination = [System.IO.Path]::GetFileName($finalDestination)
+        }
+
+        $stagedSource = Join-Path $payloadRoot $relativeDestination
+        $stagedSourceDir = Split-Path -Parent $stagedSource
+        New-Item -ItemType Directory -Path $stagedSourceDir -Force | Out-Null
+        Copy-ItemWithRetry -Source ([string] $operation.Source) -Destination $stagedSource
+
+        $stagedOperations.Add([pscustomobject]@{
+                Source = [System.IO.Path]::GetFullPath($stagedSource)
+                Destination = $finalDestination
+            }) | Out-Null
+    }
+
+    $Plan.Operations = @($stagedOperations)
+    $Plan | Add-Member -NotePropertyName PendingInstallRoot -NotePropertyValue ([System.IO.Path]::GetFullPath($pendingInstallRoot)) -Force
+    $Plan | Add-Member -NotePropertyName PayloadRoot -NotePropertyValue ([System.IO.Path]::GetFullPath($payloadRoot)) -Force
+
+    $manifestPath = Join-Path $pendingInstallRoot "install-plan.json"
+    $scriptPath = Join-Path $pendingInstallRoot "install-when-game-exits.ps1"
+    $logPath = Join-Path $pendingInstallRoot "install.log"
 
     $Plan | Add-Member -NotePropertyName LogPath -NotePropertyValue $logPath -Force
     $Plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -873,11 +898,14 @@ Write-InstallLog -Plan $plan -Message ("Deferred install completed for " + $plan
     Start-Process -FilePath "powershell.exe" `
         -ArgumentList @(
             "-NoProfile", "-ExecutionPolicy", "Bypass",
-            "-File", ('"' + $scriptPath + '"'),
-            "-ManifestPath", ('"' + $manifestPath + '"')) `
+            "-File", $scriptPath,
+            "-ManifestPath", $manifestPath) `
         -WindowStyle Hidden
 
-    Write-BuildWarning ("Big Ambitions is running; queued install for after the game exits.")
+    Write-BuildWarning ("Big Ambitions is running; staged install payload and queued final ModsLocal copy for after the game exits.")
+    Write-Step ("Pending install folder: " + $pendingInstallRoot)
+    Write-Step ("Pending payload folder: " + $payloadRoot)
+    Write-Step ("Final ModsLocal target: " + $Plan.InstallRoot)
     Write-Step ("Deferred install manifest: " + $manifestPath)
     Write-Step ("Deferred install log: " + $logPath)
 }
