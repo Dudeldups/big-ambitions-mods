@@ -250,6 +250,7 @@ npc_paint_helper = r'''    private static int PrepareAiPaintPanels(GameObject cl
         return 0;
     }
 
+'''
 if "private static int PrepareAiPaintPanels(GameObject clone)" not in text:
     if load_marker not in text:
         raise SystemExit("Could not locate Amarok AI template loader for NPC paint helper.")
