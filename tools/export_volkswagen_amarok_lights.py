@@ -156,19 +156,51 @@ for expected in GROUPS:
         contributing_sources += 1
         contributing_faces += len(polys)
 
-        used = sorted({index for poly in polys for index in poly.vertices})
-        base = len(merged_vertices)
-        remap = {old: base + new for new, old in enumerate(used)}
         source_to_reference = reference_inverse @ source.matrix_world
 
-        merged_vertices.extend([
-            source_to_reference @ mesh.vertices[index].co
-            for index in used
-        ])
-        merged_faces.extend([
-            [remap[index] for index in poly.vertices]
-            for poly in polys
-        ])
+        if expected.startswith("FactoryBlack_"):
+            # These trim masks render directly over the still-present VehicleColor
+            # source geometry. A coplanar duplicate z-fights: depending on face
+            # orientation, one side of a mudguard or only patches of a step become
+            # black. Duplicate each triangle's corners and move them slightly along
+            # that polygon's outward normal. This preserves both outer and inner
+            # surfaces instead of scaling the whole object around an arbitrary pivot.
+            coords = [vertex.co for vertex in mesh.vertices]
+            min_x = min(v.x for v in coords)
+            max_x = max(v.x for v in coords)
+            min_y = min(v.y for v in coords)
+            max_y = max(v.y for v in coords)
+            min_z = min(v.z for v in coords)
+            max_z = max(v.z for v in coords)
+            local_span = max(max_x - min_x, max_y - min_y, max_z - min_z)
+            normal_offset = max(local_span * 0.0005, 0.0002)
+
+            for poly in polys:
+                face = []
+                normal = poly.normal.normalized()
+                for index in poly.vertices:
+                    face.append(len(merged_vertices))
+                    displaced = mesh.vertices[index].co + normal * normal_offset
+                    merged_vertices.append(source_to_reference @ displaced)
+                merged_faces.append(face)
+
+            print(
+                f"[Amarok lights] factory-black normal offset expected='{expected}' "
+                f"source='{source.name}' offset={normal_offset:.6f}"
+            )
+        else:
+            used = sorted({index for poly in polys for index in poly.vertices})
+            base = len(merged_vertices)
+            remap = {old: base + new for new, old in enumerate(used)}
+
+            merged_vertices.extend([
+                source_to_reference @ mesh.vertices[index].co
+                for index in used
+            ])
+            merged_faces.extend([
+                [remap[index] for index in poly.vertices]
+                for poly in polys
+            ])
 
     if not merged_faces or reference_matrix is None:
         continue
