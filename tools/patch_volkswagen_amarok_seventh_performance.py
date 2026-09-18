@@ -33,8 +33,8 @@ def set_constant(text: str, name: str, value: str) -> str:
 # 0.96 friction circle, however, cap braking below the ~1.06 g average needed for
 # a 37 m 100-0 stop. Raise tire/brake authority while keeping engine output real.
 setup = SETUP.read_text(encoding="utf-8")
-setup = set_constant(setup, "VehicleBrakeForce", "2700f")
-setup = set_constant(setup, "BrakeMaxTorque", "2700f")
+setup = set_constant(setup, "VehicleBrakeForce", "2350f")
+setup = set_constant(setup, "BrakeMaxTorque", "2350f")
 setup = set_constant(setup, "FrontForwardGrip", "1.08f")
 setup = set_constant(setup, "RearForwardGrip", "1.05f")
 setup = set_constant(setup, "FrontForwardStiffness", "1.12f")
@@ -80,8 +80,8 @@ RUNTIME.write_text(runtime, encoding="utf-8", newline="\n")
 
 checks = {
     SETUP: [
-        "private const float VehicleBrakeForce = 2700f;",
-        "private const float BrakeMaxTorque = 2700f;",
+        "private const float VehicleBrakeForce = 2350f;",
+        "private const float BrakeMaxTorque = 2350f;",
         "private const float FrontForwardGrip = 1.08f;",
         "private const float RearForwardGrip = 1.05f;",
         "private const float TireFrictionCircleStrength = 1.08f;",
@@ -110,5 +110,5 @@ if missing:
 
 print("Kept Amarok acceleration physics at the real 165 kW / 550 Nm / 2078 kg drivetrain model.")
 print("Raised longitudinal tire/friction-circle authority to target the real-world ~8.0 s 0-100 and 36.7-37.0 m 100-0 envelope.")
-print("Set Amarok cargo capacity to 24 slots and softened brake torque/VehicleType brake force to 2700.")
+print("Set Amarok cargo capacity to 24 slots and calibrated brake torque/VehicleType brake force to 2350 for the measured ~36.7-37.0 m 100-0 target.")
 print("Volkswagen Amarok seventh performance preflight passed.")
