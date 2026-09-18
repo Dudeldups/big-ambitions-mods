@@ -2566,7 +2566,8 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
             StopCoroutine(repairRecoveryCoroutine);
         repairRecoveryCoroutine = StartCoroutine(RestoreDrivingStateAfterRepair());
         repairClearSince = -1f;
-        context?.Logger.Info(
+        FerrariSF90SpiderDiagnostics.Info(
+            context,
             $"FerrariSF90Spider repair V24 vehicle={vehicle?.GetInstanceID()}: " +
             $"detected reason={reason}; visual meshes restored and drivetrain recovery scheduled.");
     }
@@ -2862,7 +2863,8 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
                 // Keep the first few real impacts visible in Player.log while
                 // V18 deformation is being validated; this is bounded and does
                 // not create a permanent polling/logging path.
-                context?.Logger.Info(
+                FerrariSF90SpiderDiagnostics.Info(
+                    context,
                     $"FerrariSF90Spider damage V24 vehicle={vehicle?.GetInstanceID()}: inward dent " +
                     $"contact='{collision.collider?.name ?? "unknown"}' " +
                     $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
@@ -2929,7 +2931,8 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
             // A repair can complete while the player is outside. Native entry
             // recovery will start the engine later; the vehicle must nevertheless
             // leave repair in a movable/non-frozen state now.
-            context?.Logger.Info(
+            FerrariSF90SpiderDiagnostics.Info(
+                context,
                 $"FerrariSF90Spider repair V24 vehicle={vehicle.GetInstanceID()}: " +
                 "physics/wheels restored while vehicle is not player-controlled.");
             repairRecoveryCoroutine = null;
@@ -2975,7 +2978,8 @@ public sealed class FerrariSF90SpiderVisualDamageController : MonoBehaviour
 
             if (transmission.Gear == 0)
                 transmission.ShiftInto(1, true);
-            context?.Logger.Info(
+            FerrariSF90SpiderDiagnostics.Info(
+                context,
                 $"FerrariSF90Spider repair V24 vehicle={vehicle.GetInstanceID()}: " +
                 $"drivetrain recovered pass={pass}, rpm={rpm:0}, gear={transmission.Gear}, " +
                 $"physics={physics.enabled}, kinematic={rigidbody?.isKinematic}.");
