@@ -7,10 +7,10 @@ using System;
 // target range. RPM still comes directly from NWH.
 internal static class FerrariSF90SpiderAudioModel
 {
-    internal const float EngineBaseVolume = .42f;
-    internal const float EngineThrottleVolume = .30f;
-    internal const float HornLowVolume = .84f;
-    internal const float HornHighVolume = .54f;
+    internal const float EngineBaseVolume = .55f;
+    internal const float EngineThrottleVolume = .40f;
+    internal const float HornLowVolume = 1.00f;
+    internal const float HornHighVolume = .72f;
     internal const float EngineReferenceHz = 96f;
 
     internal static float Normalize(float rpm, float idle, float limiter) =>
