@@ -253,10 +253,13 @@ def collect_original_blue_polygons(source):
         # surfaces in the same source material family as the blue sheet metal.
         # Require every UV sample on those polygons to be blue. Other exterior
         # parts use a strong 75% majority to tolerate anti-aliased texture edges.
-        strict_door_surface = "door_" in source_name
+        strict_original_trim_boundary = (
+            "door_" in source_name
+            or "body_phong5" in source_name
+        )
         required_votes = (
             len(samples)
-            if strict_door_surface
+            if strict_original_trim_boundary
             else max(1, math.ceil(len(samples) * 0.75))
         )
         if blue_votes >= required_votes:
