@@ -78,7 +78,7 @@ public static class FerrariSF90SpiderSetupV15
     private const float RatedSystemPowerKw = 735f;
     // NWH solver starting value, deliberately separate from the displayed real
     // system output. Final value must be calibrated against 2.5 s / 7.0 s targets.
-    private const float RoadCalibrationPowerKw = 560f;
+    private const float RoadCalibrationPowerKw = 490f;
     private const float BrakeTorque = 3200f;
     private const float BrakeActuationTime = 0.08f;
     private const float FinalDriveRatio = 4.51f;
@@ -783,8 +783,8 @@ public static class FerrariSF90SpiderSetupV15
                 SetRelativeNumber(serialized, "powertrain.transmission.forwardGearCount", 8f);
                 SetRelativeNumber(serialized, "powertrain.transmission.reverseGearCount", 1f);
                 SetRelativeNumber(serialized, "powertrain.transmission.shiftDuration", 0.065f);
-                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 5000f);
-                SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7600f);
+                SetRelativeNumber(serialized, "powertrain.transmission._downshiftRPM", 4300f);
+                SetRelativeNumber(serialized, "powertrain.transmission._upshiftRPM", 7500f);
                 SetRelativeNumber(serialized, "powertrain.transmission.transmissionType", 1f);
                 var gears = FindRelativeProperty(serialized, "powertrain.transmission.gears");
                 if (gears == null || !gears.isArray)
