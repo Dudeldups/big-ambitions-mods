@@ -36,7 +36,7 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     // maxPower setting more directly than real crank/system output, so this is a
     // solver calibration starting point. Tune it against the included 0-100 and
     // 0-200 telemetry targets rather than replacing the public VehicleType rating.
-    private const float EnginePowerKw = 390f;
+    private const float EnginePowerKw = 560f;
     private const float BrakeTorque = 3200f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8000f;
@@ -54,6 +54,11 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     private const float ClutchEngagementRange = 650f;
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.96f;
+    // The first road test reached 100 km/h in ~1.9 s but needed ~8.3 s for
+    // 200 km/h. Keep the stronger high-speed solver power while traction-limiting
+    // the launch to reproduce Ferrari's 2.5 s / 7.0 s performance envelope.
+    private const float FrontLongitudinalGrip = 0.50f;
+    private const float RearLongitudinalGrip = 0.75f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.075f;
     private const float RearSuspensionTravel = 0.075f;
@@ -1257,6 +1262,11 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
                 var wheel = GetMember(component, "wheel");
                 SetFloat(wheel, "radius", isFront ? 0.3433f : 0.3485f);
                 SetFloat(wheel, "width", isFront ? 0.255f : 0.315f);
+                var forwardFriction = GetMember(component, "forwardFriction");
+                SetFloat(
+                    forwardFriction,
+                    "grip",
+                    isFront ? FrontLongitudinalGrip : RearLongitudinalGrip);
                 SetFloat(component, "frictionCircleStrength", TireFrictionCircleStrength);
             }
         }
