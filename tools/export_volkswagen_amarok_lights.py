@@ -15,7 +15,25 @@ GROUP_ALIASES = {
     "ReverseLights": ["ReverseLights"],
     "1IndicatorRL": ["1IndicatorRL", "IndicatorRL", "RearIndicatorLeft"],
     "1IndicatorRR": ["1IndicatorRR", "IndicatorRR", "RearIndicatorRight"],
+    # Optional authored factory-black masks. These are intentionally exported
+    # from the same Blender source as the lights so mixed body meshes can be
+    # marked precisely without guessing from runtime bounds.
+    "FactoryBlack_SideSteps": ["FactoryBlack_SideSteps", "Black_SideSteps"],
+    "FactoryBlack_Mudguards": ["FactoryBlack_Mudguards", "Black_Mudguards"],
 }
+REQUIRED_GROUPS = [
+    "BHeadlights",
+    "BDRL_Indicator_FL",
+    "BDRL_Indicator_FR",
+    "SideIndicatorFL",
+    "SideIndicatorFR",
+    "1RearDrivingLights",
+    "1BrakeLights",
+    "ThirdBrakeLight",
+    "ReverseLights",
+    "1IndicatorRL",
+    "1IndicatorRR",
+]
 GROUPS = list(GROUP_ALIASES)
 
 if "--" not in sys.argv:
@@ -169,7 +187,7 @@ for expected in GROUPS:
         f"vertices={len(merged_vertices)}"
     )
 
-missing = [name for name in GROUPS if name not in resolved]
+missing = [name for name in REQUIRED_GROUPS if name not in resolved]
 if missing:
     raise RuntimeError(
         "Could not resolve Amarok light groups from the supplied Blender file: "
@@ -194,4 +212,4 @@ bpy.ops.export_scene.gltf(
     export_materials="NONE",
 )
 
-print("Exported merged Amarok light groups:", ", ".join(obj.name for obj in created))
+print("Exported merged Amarok light/trim groups:", ", ".join(obj.name for obj in created))
