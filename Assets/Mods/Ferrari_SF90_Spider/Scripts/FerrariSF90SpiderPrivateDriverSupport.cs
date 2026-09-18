@@ -29,6 +29,7 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
     private static bool previousCacheEntryCaptured;
     private static VehiclePool? modifiedVehiclePool;
     private static CarType? customCarType;
+    private static bool ownsVehiclePoolEntry;
     private static ModContext? context;
 
     internal static void SetContext(ModContext modContext) => context = modContext;
@@ -51,14 +52,14 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
                  !string.Equals(carType.name, AiCarTypeName, StringComparison.Ordinal)))
                 continue;
 
-            carType.name = AiCarTypeName;
-            carType.vehiclePrefab = customAiPrefab;
-            carType.nrOfVehicles = PrivateDriverPoolSize;
-            carType.canBeRandomlyParked = false;
-            carType.hasParkedVersion = false;
-            carType.canBeAiDriven = true;
+            var wasOwned = ownsVehiclePoolEntry && ReferenceEquals(carType, customCarType);
             modifiedVehiclePool = pool;
             customCarType = carType;
+            ownsVehiclePoolEntry = wasOwned;
+            if (TrafficManager.IsInitialized)
+                return IsConfiguredCarType(carType);
+
+            ConfigureCarType(carType);
             return true;
         }
 
@@ -79,6 +80,7 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
         expanded[existing.Length] = customCarType;
         pool.trafficCars = expanded;
         modifiedVehiclePool = pool;
+        ownsVehiclePoolEntry = true;
         FerrariSF90SpiderDiagnostics.Info(context,
             $"FerrariSF90Spider private-driver traffic type registered name='{AiCarTypeName}' " +
             $"poolSize={PrivateDriverPoolSize}.");
@@ -110,39 +112,69 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
                 RemoveAll(contract.usableVehicleTypes, vehicleTypeName);
         ModifiedContracts.Clear();
 
-        foreach (var color in CapturedVehicleColors.Values)
-            if (color != null)
-                UnityEngine.Object.Destroy(color);
-        CapturedVehicleColors.Clear();
-
+        var keepAiResources = false;
         if (modifiedVehiclePool != null && customCarType != null)
         {
             var existing = modifiedVehiclePool.trafficCars ?? Array.Empty<CarType>();
-            var remaining = new List<CarType>(existing.Length);
+            var entryStillPresent = false;
             foreach (var carType in existing)
-                if (!ReferenceEquals(carType, customCarType))
-                    remaining.Add(carType);
-            modifiedVehiclePool.trafficCars = remaining.ToArray();
-        }
-        modifiedVehiclePool = null;
-        customCarType = null;
+            {
+                if (ReferenceEquals(carType, customCarType))
+                {
+                    entryStillPresent = true;
+                    break;
+                }
+            }
 
-        var cache = GetPrefabCache();
-        if (cache != null && customAiPrefab != null &&
-            cache.Contains(AiPrefabCacheKey) &&
-            ReferenceEquals(cache[AiPrefabCacheKey], customAiPrefab))
+            if (entryStillPresent && ownsVehiclePoolEntry && !TrafficManager.IsInitialized)
+            {
+                var remaining = new List<CarType>(Math.Max(0, existing.Length - 1));
+                foreach (var carType in existing)
+                {
+                    if (!ReferenceEquals(carType, customCarType))
+                        remaining.Add(carType);
+                }
+                modifiedVehiclePool.trafficCars = remaining.ToArray();
+            }
+            else if (entryStillPresent &&
+                     ReferenceEquals(customCarType.vehiclePrefab, customAiPrefab))
+            {
+                // Native traffic arrays are fixed after initialization. Keep the
+                // Ferrari prefab and captured colors alive instead of invalidating
+                // an entry which the traffic manager may still reference.
+                keepAiResources = true;
+            }
+        }
+
+        if (!keepAiResources)
         {
-            if (previousCachedPrefab != null)
-                cache[AiPrefabCacheKey] = previousCachedPrefab;
-            else
-                cache.Remove(AiPrefabCacheKey);
+            foreach (var color in CapturedVehicleColors.Values)
+                if (color != null)
+                    UnityEngine.Object.Destroy(color);
+            CapturedVehicleColors.Clear();
+
+            modifiedVehiclePool = null;
+            customCarType = null;
+            ownsVehiclePoolEntry = false;
+
+            var cache = GetPrefabCache();
+            if (cache != null && customAiPrefab != null &&
+                cache.Contains(AiPrefabCacheKey) &&
+                ReferenceEquals(cache[AiPrefabCacheKey], customAiPrefab))
+            {
+                if (previousCachedPrefab != null)
+                    cache[AiPrefabCacheKey] = previousCachedPrefab;
+                else
+                    cache.Remove(AiPrefabCacheKey);
+            }
+
+            if (customAiPrefab != null)
+                UnityEngine.Object.Destroy(customAiPrefab);
+            customAiPrefab = null;
+            previousCachedPrefab = null;
+            previousCacheEntryCaptured = false;
         }
 
-        if (customAiPrefab != null)
-            UnityEngine.Object.Destroy(customAiPrefab);
-        customAiPrefab = null;
-        previousCachedPrefab = null;
-        previousCacheEntryCaptured = false;
         context = null;
     }
 
@@ -224,6 +256,24 @@ internal static class FerrariSF90SpiderPrivateDriverSupport
         if (!ModifiedContracts.Contains(contract))
             ModifiedContracts.Add(contract);
     }
+
+    private static void ConfigureCarType(CarType carType)
+    {
+        carType.name = AiCarTypeName;
+        carType.vehiclePrefab = customAiPrefab;
+        carType.nrOfVehicles = PrivateDriverPoolSize;
+        carType.canBeRandomlyParked = false;
+        carType.hasParkedVersion = false;
+        carType.canBeAiDriven = true;
+    }
+
+    private static bool IsConfiguredCarType(CarType carType) =>
+        string.Equals(carType.name, AiCarTypeName, StringComparison.Ordinal) &&
+        ReferenceEquals(carType.vehiclePrefab, customAiPrefab) &&
+        carType.nrOfVehicles == PrivateDriverPoolSize &&
+        !carType.canBeRandomlyParked &&
+        !carType.hasParkedVersion &&
+        carType.canBeAiDriven;
 
     private static bool EnsureAiPrefab(GameObject playerPrefab)
     {
