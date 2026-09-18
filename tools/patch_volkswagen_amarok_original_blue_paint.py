@@ -14,8 +14,8 @@ for path in (SETUP, RUNTIME, MATERIALS):
 # ---------------------------------------------------------------------------
 # Editor/prefab build:
 # VehiclePaint_Blue is derived automatically by Blender from the ORIGINAL blue
-# source texture. Replace those exact blue source triangles with BA paint panels
-# while leaving black grille/plastic/chrome source geometry untouched.
+# source texture. Blender exports complementary BA-paint and original-remainder
+# geometry; Unity disables the old unsplit renderer instead of editing its mesh.
 # ---------------------------------------------------------------------------
 setup = SETUP.read_text(encoding="utf-8")
 
@@ -30,10 +30,8 @@ if paint_call not in setup:
         )
     setup = setup.replace(paint_call_marker, paint_call + "\n" + paint_call_marker, 1)
 
-# The old existing-prefab path deliberately copied the previous AmarokDamageBody
-# materials onto the newly baked body. That predates the source-blue replacement
-# architecture and can preserve stale blue/paint material state. Rebuild the damage
-# body from the freshly stripped source renderer and keep its current materials.
+# Keep the existing-prefab damage body rebuild, but do not restore stale material
+# references from a previous prefab build.
 old_damage_material_block = '''            var oldDamageBody = FindTransform(root.transform, "AmarokDamageBody");
             var oldDamageMaterials = oldDamageBody?.GetComponent<MeshRenderer>()?.sharedMaterials ??
                                      Array.Empty<Material>();
@@ -49,9 +47,8 @@ new_damage_material_block = '''            var oldDamageBody = FindTransform(roo
             if (oldDamageBody != null)
                 UnityEngine.Object.DestroyImmediate(oldDamageBody.gameObject);
 
-            // CreateDeformableBody now consumes the source-blue-stripped model.
-            // Keep the current source materials instead of restoring stale damage
-            // body material references from the previous prefab build.
+            // The visible body is now the complementary Blender split. Do not
+            // restore stale damage-body material references from the old prefab.
             var damageBody = CreateDeformableBody(root, visual.gameObject);
 '''
 if old_damage_material_block in setup:
@@ -66,214 +63,47 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         GameObject root,
         Transform visual)
     {
-        // Paint panels are reparented out of AmarokLightSources. Remove panels
-        // persisted by the previous existing-prefab build before adopting the
-        // freshly imported GLB panels, otherwise every build stacks another
-        // paint shell on the vehicle.
+        // Remove generated replacement geometry persisted by a previous build.
+        // Fresh VehiclePaint_Blue / VehicleOriginal objects are supplied by the
+        // newly imported AmarokLightOverlays.glb on every existing-prefab build.
         foreach (var current in root.GetComponentsInChildren<Transform>(true))
         {
             if (!current.name.StartsWith(
                     "VolkswagenAmarok_VehiclePaint_Blue",
+                    StringComparison.OrdinalIgnoreCase) &&
+                !current.name.StartsWith(
+                    "VolkswagenAmarok_VehicleOriginal_",
                     StringComparison.OrdinalIgnoreCase))
                 continue;
             UnityEngine.Object.DestroyImmediate(current.gameObject);
         }
 
         var paintRenderers = new List<MeshRenderer>();
+        var remainderRenderers = new List<MeshRenderer>();
         foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
         {
             if (renderer.name.IndexOf(
                     "VehiclePaint_Blue_",
-                    StringComparison.OrdinalIgnoreCase) < 0)
+                    StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                paintRenderers.Add(renderer);
                 continue;
-            paintRenderers.Add(renderer);
+            }
+
+            if (renderer.name.IndexOf(
+                    "VehicleOriginal_",
+                    StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                remainderRenderers.Add(renderer);
+            }
         }
 
         if (paintRenderers.Count == 0)
             throw new InvalidOperationException(
                 "VehiclePaint_Blue panels are missing from AmarokLightOverlays.glb.");
-
-        var generatedMeshFolder = ModRoot + "/Models/GeneratedMeshes";
-        if (!AssetDatabase.IsValidFolder(generatedMeshFolder))
-            AssetDatabase.CreateFolder(ModRoot + "/Models", "GeneratedMeshes");
-
-        // The old implementation placed VehiclePaint_Blue slightly above the
-        // creator's original blue geometry. That only hid the blue. NPCs and
-        // deformed player cars could expose the untouched source shell again.
-        //
-        // Replace it for real: use the auto-detected paint panels as triangle
-        // masks, remove those exact world-space triangles from the corresponding
-        // original source renderers, and keep the BA paint panels in their place.
-        var strippedPanels = 0;
-        var strippedTriangles = 0;
-        foreach (var paintRenderer in paintRenderers)
-        {
-            var marker = "VehiclePaint_Blue_";
-            var markerAt = paintRenderer.name.IndexOf(
-                marker,
-                StringComparison.OrdinalIgnoreCase);
-            if (markerAt < 0)
-                continue;
-            var sourceKey = paintRenderer.name.Substring(markerAt + marker.Length);
-            if (sourceKey.StartsWith(
-                    "VolkswagenAmarok_",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                sourceKey = sourceKey.Substring("VolkswagenAmarok_".Length);
-            }
-
-            MeshRenderer? sourceRenderer = null;
-            foreach (var candidate in visual.GetComponentsInChildren<MeshRenderer>(true))
-            {
-                if (candidate == null ||
-                    candidate.name.IndexOf(
-                        "VehiclePaint_Blue",
-                        StringComparison.OrdinalIgnoreCase) >= 0)
-                    continue;
-                if (!string.Equals(
-                        SanitizeAmarokSourceName(candidate.name),
-                        sourceKey,
-                        StringComparison.OrdinalIgnoreCase))
-                    continue;
-                sourceRenderer = candidate;
-                break;
-            }
-
-            if (sourceRenderer == null)
-                throw new InvalidOperationException(
-                    $"Could not map Amarok paint panel '{paintRenderer.name}' " +
-                    $"back to source renderer key '{sourceKey}'.");
-
-            var panelFilter = paintRenderer.GetComponent<MeshFilter>();
-            var sourceFilter = sourceRenderer.GetComponent<MeshFilter>();
-            if (panelFilter?.sharedMesh == null || sourceFilter?.sharedMesh == null)
-                throw new InvalidOperationException(
-                    $"Amarok paint/source mesh is missing for '{paintRenderer.name}'.");
-
-            var safeKey = SanitizeAmarokAssetName(sourceKey);
-            var originalPath =
-                generatedMeshFolder + "/VolkswagenAmarok_SourceOriginal_" +
-                safeKey + ".asset";
-            var remainderPath =
-                generatedMeshFolder + "/VolkswagenAmarok_SourceRemainder_" +
-                safeKey + ".asset";
-
-            var originalMesh = AssetDatabase.LoadAssetAtPath<Mesh>(originalPath);
-            if (originalMesh == null)
-            {
-                // Capture the pristine imported source mesh once. Subsequent
-                // builds always rebuild the remainder from this backup, so paint
-                // mask changes never accumulate or permanently lose triangles.
-                var originalClone = UnityEngine.Object.Instantiate(sourceFilter.sharedMesh);
-                originalClone.name =
-                    sourceFilter.sharedMesh.name + "_OriginalBeforeBAPaintCutout";
-                AssetDatabase.CreateAsset(originalClone, originalPath);
-                originalMesh = originalClone;
-            }
-
-            var panelKeys = BuildAmarokWorldTriangleKeys(
-                panelFilter,
-                panelFilter.sharedMesh);
-            if (panelKeys.Count == 0)
-                throw new InvalidOperationException(
-                    $"Amarok paint panel '{paintRenderer.name}' has no triangles.");
-
-            var remainder = UnityEngine.Object.Instantiate(originalMesh);
-            remainder.name = originalMesh.name + "_NoOriginalBlue";
-            var originalVertices = originalMesh.vertices;
-            var removedForPanel = 0;
-
-            for (var subMesh = 0; subMesh < originalMesh.subMeshCount; subMesh++)
-            {
-                var triangles = originalMesh.GetTriangles(subMesh);
-                var kept = new List<int>(triangles.Length);
-                for (var index = 0; index + 2 < triangles.Length; index += 3)
-                {
-                    var a = triangles[index];
-                    var b = triangles[index + 1];
-                    var c = triangles[index + 2];
-                    var key = BuildAmarokTriangleKey(
-                        sourceRenderer.transform.TransformPoint(originalVertices[a]),
-                        sourceRenderer.transform.TransformPoint(originalVertices[b]),
-                        sourceRenderer.transform.TransformPoint(originalVertices[c]));
-
-                    if (panelKeys.TryGetValue(key, out var remainingMatches) &&
-                        remainingMatches > 0)
-                    {
-                        if (remainingMatches == 1)
-                            panelKeys.Remove(key);
-                        else
-                            panelKeys[key] = remainingMatches - 1;
-                        removedForPanel++;
-                        continue;
-                    }
-
-                    kept.Add(a);
-                    kept.Add(b);
-                    kept.Add(c);
-                }
-
-                remainder.SetTriangles(kept, subMesh, true);
-            }
-            remainder.RecalculateBounds();
-
-            var persistentRemainder =
-                AssetDatabase.LoadAssetAtPath<Mesh>(remainderPath);
-            if (persistentRemainder == null)
-            {
-                AssetDatabase.CreateAsset(remainder, remainderPath);
-                persistentRemainder = remainder;
-            }
-            else
-            {
-                EditorUtility.CopySerialized(remainder, persistentRemainder);
-                UnityEngine.Object.DestroyImmediate(remainder);
-                EditorUtility.SetDirty(persistentRemainder);
-            }
-
-            sourceFilter.sharedMesh = persistentRemainder;
-            EditorUtility.SetDirty(sourceFilter);
-            strippedPanels++;
-            strippedTriangles += removedForPanel;
-
-            var unmatchedPanelTriangles = 0;
-            foreach (var remaining in panelKeys.Values)
-                unmatchedPanelTriangles += remaining;
-            if (unmatchedPanelTriangles != 0)
-            {
-                // Blender/glTF and Unity can triangulate a small number of source
-                // quads with opposite diagonals. Those authored paint triangles
-                // therefore have no exact 3-vertex counterpart in the imported
-                // source mesh. Never guess and delete neighboring geometry: keep
-                // the original source triangles for these rare cases and let the
-                // BA paint panel cover them normally.
-                Debug.LogWarning(
-                    $"VolkswagenAmarok paint panel '{paintRenderer.name}' kept " +
-                    $"{unmatchedPanelTriangles} unmatched source triangle(s) " +
-                    "because Blender/Unity triangulation differs.");
-            }
-
-            if (removedForPanel == 0)
-            {
-                Debug.LogWarning(
-                    $"VolkswagenAmarok original-blue replacement panel=" +
-                    $"'{paintRenderer.name}' matched zero source triangles; " +
-                    $"source='{sourceRenderer.name}'.");
-            }
-            else
-            {
-                Debug.Log(
-                    $"VolkswagenAmarok original-blue replacement panel=" +
-                    $"'{paintRenderer.name}' source='{sourceRenderer.name}' " +
-                    $"removedTriangles={removedForPanel}.");
-            }
-        }
-
-        if (strippedPanels != paintRenderers.Count || strippedTriangles == 0)
+        if (remainderRenderers.Count == 0)
             throw new InvalidOperationException(
-                $"Amarok original-blue geometry replacement incomplete: " +
-                $"panels={strippedPanels}/{paintRenderers.Count}, " +
-                $"removedTriangles={strippedTriangles}.");
+                "VehicleOriginal remainder geometry is missing from AmarokLightOverlays.glb.");
 
         if (!AssetDatabase.IsValidFolder(MaterialFolder))
             AssetDatabase.CreateFolder(ModRoot, "Materials");
@@ -317,22 +147,126 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         if (paintMaterial.HasProperty("_ZWrite"))
             paintMaterial.SetFloat("_ZWrite", 1f);
 
+        var replacedSources = 0;
+        var adoptedRemainders = 0;
         foreach (var paintRenderer in paintRenderers)
         {
-            // Keep each paint panel separate. This mirrors the finished vehicle
-            // mods' panel-based deformation path and lets crash handling cull
-            // distant doors/body sections before reading their vertex buffers.
+            const string paintMarker = "VehiclePaint_Blue_";
+            var markerAt = paintRenderer.name.IndexOf(
+                paintMarker,
+                StringComparison.OrdinalIgnoreCase);
+            if (markerAt < 0)
+                continue;
+
+            var sourceKey = paintRenderer.name.Substring(
+                markerAt + paintMarker.Length);
+
+            MeshRenderer? sourceRenderer = null;
+            foreach (var candidate in visual.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (candidate == null)
+                    continue;
+                if (candidate.name.IndexOf(
+                        "VehiclePaint_Blue",
+                        StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    candidate.name.IndexOf(
+                        "VehicleOriginal_",
+                        StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+
+                if (!string.Equals(
+                        SanitizeAmarokSourceName(candidate.name),
+                        sourceKey,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                sourceRenderer = candidate;
+                break;
+            }
+
+            if (sourceRenderer == null)
+                throw new InvalidOperationException(
+                    $"Could not map Amarok paint panel '{paintRenderer.name}' " +
+                    $"back to source renderer key '{sourceKey}'.");
+
+            var sourceMaterials = sourceRenderer.sharedMaterials;
+            var matchedRemainders = 0;
+            foreach (var remainderRenderer in remainderRenderers)
+            {
+                const string remainderMarker = "VehicleOriginal_";
+                var remainderAt = remainderRenderer.name.IndexOf(
+                    remainderMarker,
+                    StringComparison.OrdinalIgnoreCase);
+                if (remainderAt < 0)
+                    continue;
+
+                var remainderTail = remainderRenderer.name.Substring(
+                    remainderAt + remainderMarker.Length);
+                var materialMarkerAt = remainderTail.LastIndexOf(
+                    "_M",
+                    StringComparison.OrdinalIgnoreCase);
+                if (materialMarkerAt <= 0)
+                    continue;
+
+                var remainderSourceKey = remainderTail.Substring(
+                    0,
+                    materialMarkerAt);
+                if (!string.Equals(
+                        remainderSourceKey,
+                        sourceKey,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!int.TryParse(
+                        remainderTail.Substring(materialMarkerAt + 2),
+                        out var materialIndex))
+                    throw new InvalidOperationException(
+                        $"Could not parse original material slot from " +
+                        $"'{remainderRenderer.name}'.");
+
+                if (materialIndex < 0 || materialIndex >= sourceMaterials.Length)
+                    throw new InvalidOperationException(
+                        $"Original material slot {materialIndex} is out of range " +
+                        $"for source renderer '{sourceRenderer.name}' " +
+                        $"materials={sourceMaterials.Length}.");
+
+                remainderRenderer.transform.SetParent(visual, true);
+                remainderRenderer.gameObject.name =
+                    "VolkswagenAmarok_" + remainderRenderer.gameObject.name;
+                remainderRenderer.sharedMaterial = sourceMaterials[materialIndex];
+                remainderRenderer.enabled = true;
+                matchedRemainders++;
+                adoptedRemainders++;
+            }
+
+            if (matchedRemainders == 0)
+                throw new InvalidOperationException(
+                    $"No VehicleOriginal remainder matched source key '{sourceKey}'.");
+
+            // The Blender export is complementary: VehiclePaint_Blue contains all
+            // texture-detected blue faces and VehicleOriginal_* contains every
+            // remaining face. Disable the old unsplit source renderer instead of
+            // trying to edit/triangulate its Unity mesh.
+            sourceRenderer.enabled = false;
+
             paintRenderer.transform.SetParent(visual, true);
             paintRenderer.gameObject.name =
                 "VolkswagenAmarok_" + paintRenderer.gameObject.name;
             paintRenderer.sharedMaterial = paintMaterial;
             paintRenderer.enabled = true;
+            replacedSources++;
         }
-        EditorUtility.SetDirty(paintMaterial);
 
+        if (replacedSources != paintRenderers.Count)
+            throw new InvalidOperationException(
+                $"Amarok complementary paint replacement incomplete: " +
+                $"sources={replacedSources}/{paintRenderers.Count}.");
+
+        EditorUtility.SetDirty(paintMaterial);
         Debug.Log(
-            $"VolkswagenAmarok original-blue paint replacement ready " +
-            $"panels={paintRenderers.Count}, removedSourceTriangles={strippedTriangles}.");
+            $"VolkswagenAmarok complementary paint replacement ready " +
+            $"paintPanels={paintRenderers.Count}, remainderRenderers={adoptedRemainders}, " +
+            $"disabledOriginalRenderers={replacedSources}.");
     }
 
     private static string SanitizeAmarokSourceName(string value)
@@ -347,66 +281,7 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         return new string(chars).Trim('_');
     }
 
-    private static string SanitizeAmarokAssetName(string value)
-    {
-        var sanitized = SanitizeAmarokSourceName(value);
-        return string.IsNullOrEmpty(sanitized) ? "Unknown" : sanitized;
-    }
-
-    private static Dictionary<string, int> BuildAmarokWorldTriangleKeys(
-        MeshFilter filter,
-        Mesh mesh)
-    {
-        // Preserve multiplicity. The source model contains some coincident
-        // triangles/layers. A HashSet collapsed those duplicates and the cutout
-        // pass then removed every source triangle with the same three positions,
-        // which made unrelated inner/back-side geometry disappear.
-        var keys = new Dictionary<string, int>(StringComparer.Ordinal);
-        var vertices = mesh.vertices;
-        for (var subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-        {
-            var triangles = mesh.GetTriangles(subMesh);
-            for (var index = 0; index + 2 < triangles.Length; index += 3)
-            {
-                var key = BuildAmarokTriangleKey(
-                    filter.transform.TransformPoint(vertices[triangles[index]]),
-                    filter.transform.TransformPoint(vertices[triangles[index + 1]]),
-                    filter.transform.TransformPoint(vertices[triangles[index + 2]]));
-                keys.TryGetValue(key, out var count);
-                keys[key] = count + 1;
-            }
-        }
-        return keys;
-    }
-
-    private static string BuildAmarokTriangleKey(
-        Vector3 a,
-        Vector3 b,
-        Vector3 c)
-    {
-        var points = new[]
-        {
-            QuantizeAmarokPoint(a),
-            QuantizeAmarokPoint(b),
-            QuantizeAmarokPoint(c),
-        };
-        Array.Sort(points, StringComparer.Ordinal);
-        return points[0] + "|" + points[1] + "|" + points[2];
-    }
-
-    private static string QuantizeAmarokPoint(Vector3 point)
-    {
-        // 0.5 mm buckets tolerate tiny import/transform rounding while still
-        // identifying the exact authored triangles from the source GLB.
-        const float scale = 2000f;
-        return
-            Mathf.RoundToInt(point.x * scale) + ":" +
-            Mathf.RoundToInt(point.y * scale) + ":" +
-            Mathf.RoundToInt(point.z * scale);
-    }
-
-'''
-paint_helper_start_marker = (
+'''paint_helper_start_marker = (
     "    private static void ConfigureOriginalBluePaintSurface("
 )
 paint_helper_start = setup.find(paint_helper_start_marker)
@@ -615,13 +490,10 @@ checks = {
         "var paintRenderers = new List<MeshRenderer>();",
         '"VolkswagenAmarok_VehiclePaint_Blue"',
         "DestroyImmediate(current.gameObject);",
-        "BuildAmarokWorldTriangleKeys(",
-        "BuildAmarokTriangleKey(",
-        "VolkswagenAmarok_SourceOriginal_",
-        "VolkswagenAmarok_SourceRemainder_",
-        "removedSourceTriangles",
-        "Blender/Unity triangulation differs.",
-        "CreateDeformableBody now consumes the source-blue-stripped model.",
+        '"VehicleOriginal_"',
+        "sourceRenderer.enabled = false;",
+        "remainderRenderer.sharedMaterial = sourceMaterials[materialIndex];",
+        "complementary paint replacement ready",
         "paintRenderers.Count",
     ],
     MATERIALS: [
@@ -688,7 +560,7 @@ if missing:
     )
 
 print("Switched Amarok VehicleColor mapping from broad phong5/dorr_R materials to the automatically derived original-blue paint surface.")
-print("Original blue source triangles are now physically removed and replaced by VehiclePaint_Blue panels instead of being hidden underneath them.")
+print("Blender now supplies complementary VehiclePaint_Blue and VehicleOriginal geometry; Unity disables the old unsplit source renderer instead of deleting triangles.")
 print("Original black grille/plastic/chrome geometry keeps the source model appearance unless explicitly overridden.")
 print("VehiclePaint_Blue is reparented into AmarokVisual and included in visible crash deformation.")
 print("Front DRL/indicator meshes are explicitly included in crash deformation before the AmarokLightSources exclusion.")
