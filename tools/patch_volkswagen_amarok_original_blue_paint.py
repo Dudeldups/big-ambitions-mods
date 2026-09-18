@@ -30,6 +30,37 @@ if paint_call not in setup:
         )
     setup = setup.replace(paint_call_marker, paint_call + "\n" + paint_call_marker, 1)
 
+# The old existing-prefab path deliberately copied the previous AmarokDamageBody
+# materials onto the newly baked body. That predates the source-blue replacement
+# architecture and can preserve stale blue/paint material state. Rebuild the damage
+# body from the freshly stripped source renderer and keep its current materials.
+old_damage_material_block = '''            var oldDamageBody = FindTransform(root.transform, "AmarokDamageBody");
+            var oldDamageMaterials = oldDamageBody?.GetComponent<MeshRenderer>()?.sharedMaterials ??
+                                     Array.Empty<Material>();
+            if (oldDamageBody != null)
+                UnityEngine.Object.DestroyImmediate(oldDamageBody.gameObject);
+
+            var damageBody = CreateDeformableBody(root, visual.gameObject);
+            var damageRenderer = damageBody.GetComponent<MeshRenderer>();
+            if (damageRenderer != null && oldDamageMaterials.Length > 0)
+                damageRenderer.sharedMaterials = oldDamageMaterials;
+'''
+new_damage_material_block = '''            var oldDamageBody = FindTransform(root.transform, "AmarokDamageBody");
+            if (oldDamageBody != null)
+                UnityEngine.Object.DestroyImmediate(oldDamageBody.gameObject);
+
+            // CreateDeformableBody now consumes the source-blue-stripped model.
+            // Keep the current source materials instead of restoring stale damage
+            // body material references from the previous prefab build.
+            var damageBody = CreateDeformableBody(root, visual.gameObject);
+'''
+if old_damage_material_block in setup:
+    setup = setup.replace(old_damage_material_block, new_damage_material_block, 1)
+elif "oldDamageMaterials" in setup:
+    raise SystemExit(
+        "Could not replace stale AmarokDamageBody material preservation block."
+    )
+
 helper_marker = "    private static void ConfigureRendererReferences(GameObject root)\n"
 paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         GameObject root,
@@ -561,6 +592,7 @@ checks = {
         "VolkswagenAmarok_SourceOriginal_",
         "VolkswagenAmarok_SourceRemainder_",
         "removedSourceTriangles",
+        "CreateDeformableBody now consumes the source-blue-stripped model.",
         "paintRenderers.Count",
     ],
     MATERIALS: [
