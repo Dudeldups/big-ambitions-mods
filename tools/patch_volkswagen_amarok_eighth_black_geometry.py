@@ -16,14 +16,6 @@ text = MATERIALS.read_text(encoding="utf-8")
 # A renderer-wide property block can therefore never solve this correctly. Split
 # disconnected mesh islands first, then let the normal VehicleColor path color only
 # the remainder while the extracted low islands receive dedicated black materials.
-method_pattern = re.compile(
-    r'''    private void PrepareExplicitFactoryBlackGeometry\(\)\s*
-    \{.*?
-    \}\n\n
-    private void ApplyFactoryBlackExteriorParts''',
-    re.S,
-)
-
 replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
     {
         if (explicitFactoryBlackGeometryPrepared)
@@ -290,11 +282,27 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
 
     private void ApplyFactoryBlackExteriorParts'''
 
-text, count = method_pattern.subn(replacement, text, count=1)
-if count != 1:
-    raise SystemExit(
-        "Could not replace Amarok mixed-mesh black-part splitter with island-based implementation."
-    )
+# Do not depend on formatting produced by earlier feedback passes.
+# Replace the method by declaration boundaries and accept an already-patched source.
+if "private bool SplitFactoryBlackIslands(" not in text:
+    start_marker = "    private void PrepareExplicitFactoryBlackGeometry()"
+    end_marker = "    private void ApplyFactoryBlackExteriorParts()"
+    start = text.find(start_marker)
+    end = text.find(end_marker, start + len(start_marker)) if start >= 0 else -1
+    if start < 0 or end < 0 or end <= start:
+        raise SystemExit(
+            "Could not locate Amarok mixed-mesh black-part method boundaries. "
+            f"start={start} end={end}"
+        )
+
+    replacement_marker = "\n\n    private void ApplyFactoryBlackExteriorParts"
+    if replacement_marker not in replacement:
+        raise SystemExit("Internal Amarok black-geometry replacement marker is missing.")
+    replacement_body = replacement.split(replacement_marker, 1)[0] + "\n\n"
+    text = text[:start] + replacement_body + text[end:]
+    print("Installed disconnected-island Amarok black-part splitter.")
+else:
+    print("Disconnected-island Amarok black-part splitter is already installed.")
 
 MATERIALS.write_text(text, encoding="utf-8", newline="\n")
 
