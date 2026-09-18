@@ -5,6 +5,8 @@ using System;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using PlayerActivity;
+using UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -18,6 +20,8 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
+        private static readonly MethodInfo? SetUpActivitySliderMethod = typeof(PlayerActivityUI).GetMethod(
+            "SetUpSlider", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -67,6 +71,7 @@ namespace BigHax
         private float nextEmployeeTrainingPollAt;
         private float nextLoanLimitPollAt;
         private BigHaxSettings? settings;
+        private SleepActivity? lastBedSleepActivity;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
         {
@@ -208,6 +213,7 @@ namespace BigHax
             PollCasinoBetLimitChanges();
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
+            RefreshActiveBedSleep();
             PollLoanLimitChanges();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
@@ -294,6 +300,33 @@ namespace BigHax
 
             nextLoanLimitPollAt = Time.unscaledTime + LoanLimitPollIntervalSeconds;
             loanLimitService.ApplyConfiguredLimit(settings);
+        }
+
+        private void RefreshActiveBedSleep()
+        {
+            if (context == null || settings?.EnableExtendedBedSleep != true)
+            {
+                lastBedSleepActivity = null;
+                return;
+            }
+
+            var activityUi = InstanceBehavior<UIs>.Instance?.playerActivityUI;
+            if (activityUi == null || !PlayerActivityUI.IsPanelOpen ||
+                activityUi.GetCurrentActivity is not SleepActivity activity)
+            {
+                lastBedSleepActivity = null;
+                return;
+            }
+
+            if (ReferenceEquals(lastBedSleepActivity, activity))
+                return;
+
+            lastBedSleepActivity = activity;
+            SafeApply("active bed sleep duration", () =>
+            {
+                if (sleepRestDurationService.PatchActiveBedSleep(activity, context))
+                    SetUpActivitySliderMethod?.Invoke(activityUi, null);
+            });
         }
 
         private void PollUiToggleHotkey()
