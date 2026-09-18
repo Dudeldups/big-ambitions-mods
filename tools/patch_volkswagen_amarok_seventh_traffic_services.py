@@ -20,6 +20,16 @@ for path in (PRIVATE_DRIVER, SETUP):
 # ---------------------------------------------------------------------------
 text = PRIVATE_DRIVER.read_text(encoding="utf-8")
 
+# Retrofit the latest NPC-only paint-shell separation into already-generated
+# worktrees. The helper may already exist, so changing only the helper template
+# below would otherwise leave the previous 0.00012/0.00010 calibration active.
+text = re.sub(
+    r"var offset = Mathf\.Max\(span \* [0-9.]+f, [0-9.]+f\);",
+    "var offset = Mathf.Max(span * 0.00065f, 0.00120f);",
+    text,
+    count=1,
+)
+
 if "using UnityEngine.AI;" not in text:
     text = text.replace("using UnityEngine;\n", "using UnityEngine;\nusing UnityEngine.AI;\n", 1)
 
@@ -492,6 +502,7 @@ checks = {
         "PrepareAiPaintPanels(clone);",
         "private static int PrepareAiPaintPanels(GameObject clone)",
         "_NpcPaintLift",
+        "var offset = Mathf.Max(span * 0.00065f, 0.00120f);",
         "FitAiBodyColliders(clone, playerPrefab)",
         '"VolkswagenAmarok NpcBodyCollider"',
         "FitAiNavigationObstacles",
