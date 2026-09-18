@@ -86,7 +86,7 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
             SetRuntimeMember(type, "turnRadius", 25f);
             SetRuntimeMember(type, "damageIntensity", 0.80f);
             SetRuntimeMember(type, "fitsHandTruck", false);
-            SetRuntimeMember(type, "fitsFlatbed", true);
+            SetRuntimeMember(type, "fitsFlatbed", false);
             SetRuntimeMember(type, "autoParkSupported", true);
             SetRuntimeMember(type, "taxDeductible", false);
             SetRuntimeMember(type, "hasRadio", true);
@@ -240,6 +240,16 @@ public sealed class FerrariSF90SpiderMod : IModBigAmbitions
 
 internal static class FerrariSF90SpiderDiagnostics
 {
+    internal static bool NpcTrafficDebugEnabled { get; set; } = false;
+
+    internal static bool TrafficEnabled => DebugEnabled && NpcTrafficDebugEnabled;
+
+    internal static void TrafficInfo(string message)
+    {
+        if (DebugEnabled && NpcTrafficDebugEnabled)
+            UnityEngine.Debug.Log(message);
+    }
+
     // Repaint and warehouse-transition validation are complete. Keep release
     // logging quiet while warnings and errors remain available for failures.
     internal static bool DebugEnabled { get; set; } = false;
