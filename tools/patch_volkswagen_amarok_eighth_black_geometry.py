@@ -154,7 +154,9 @@ replacement = r'''    private void PrepareExplicitFactoryBlackGeometry()
         found.shadowCastingMode = ShadowCastingMode.On;
         found.receiveShadows = true;
         found.enabled = true;
-        found.transform.localScale *= 1.0015f;
+        // Geometry is already displaced outward per face by the Blender exporter.
+        // Do not scale around the object's pivot; that was the source of front/back
+        // inconsistencies on the mudguards and partial coverage on the side steps.
         ownedFactoryBlackMaterials.Add(material);
 
         context?.Logger.Info(
