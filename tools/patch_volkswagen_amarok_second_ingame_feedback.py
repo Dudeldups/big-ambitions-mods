@@ -206,8 +206,6 @@ checks = {
         feedback_marker,
         'SetLocalPosition(root, "FrontLeft_WheelController", frontLeftWheel);',
         'FindTransform(root.transform, "AmarokWheelFrontLeft")',
-        "var rotations = new[]",
-        "headBounds.center.z > rearBounds.center.z",
     ],
     RUNTIME: [
         "private const float DeformationStrength = 0.14f;",
@@ -223,6 +221,27 @@ for path, needles in checks.items():
     for needle in needles:
         if needle not in current:
             missing.append(f"{path.name}: {needle}")
+
+# Later feedback passes deliberately replace the second pass's original
+# rotation-search block. Accept either the legacy auto-orientation implementation
+# or the newer parent/local-space light alignment. This keeps repeated builds
+# idempotent instead of treating a newer fix as a regression.
+setup_check = SETUP.read_text(encoding="utf-8")
+legacy_light_alignment = (
+    "var rotations = new[]" in setup_check
+    and "headBounds.center.z > rearBounds.center.z" in setup_check
+)
+newer_light_alignment = (
+    "lightSources.SetParent(visual, false);" in setup_check
+    or "AmarokLightSources" in setup_check
+       and "lightSources.localRotation" in setup_check
+)
+if not (legacy_light_alignment or newer_light_alignment):
+    missing.append(
+        "VolkswagenAmarokSetup.cs: authored-light alignment strategy "
+        "(legacy rotation search or newer local-space alignment)"
+    )
+
 if missing:
     raise SystemExit("Amarok second in-game feedback patch failed:\n- " + "\n- ".join(missing))
 
