@@ -137,12 +137,6 @@ SETUP.write_text(setup, encoding="utf-8", newline="\n")
 # ---------------------------------------------------------------------------
 materials = MATERIALS.read_text(encoding="utf-8")
 
-neutralizer_pattern = re.compile(
-    r'''    private static void NeutralizeAmarokBodyPaintTexture\(Material material\)\s*
-    \{.*?
-    \}\n\n''',
-    re.S | re.X,
-)
 neutralizer = '''    private static void NeutralizeAmarokBodyPaintTexture(Material material)
     {
         if (material.name.IndexOf(
@@ -159,21 +153,39 @@ neutralizer = '''    private static void NeutralizeAmarokBodyPaintTexture(Materi
     }
 
 '''
-materials, neutralizer_count = neutralizer_pattern.subn(
-    neutralizer,
-    materials,
-    count=1,
-)
-if neutralizer_count != 1:
-    raise SystemExit("Could not narrow Amarok source-texture neutralizer.")
 
-body_helper_pattern = re.compile(
-    r'''    private static bool IsAmarokBodyPaintMaterial\(Renderer renderer, Material material\)\s*
-    \{.*?
-    \}\n\n
-    private static bool IsRawAmarokBodyPaintMaterial''',
-    re.S | re.X,
+# Earlier feedback passes have reformatted this helper multiple times. Replace
+# by declaration boundaries instead of depending on braces/newlines produced by
+# a specific generated-source version.
+neutralizer_start_marker = (
+    "    private static void NeutralizeAmarokBodyPaintTexture(Material material)"
 )
+neutralizer_end_markers = [
+    "    internal static bool FixSolidHdrpMaterial(Material material)",
+    "    private static bool IsTransparentMaterial(Material material)",
+]
+neutralizer_start = materials.find(neutralizer_start_marker)
+neutralizer_end = -1
+for marker in neutralizer_end_markers:
+    candidate = materials.find(
+        marker,
+        neutralizer_start + len(neutralizer_start_marker)
+        if neutralizer_start >= 0 else 0,
+    )
+    if candidate >= 0 and (neutralizer_end < 0 or candidate < neutralizer_end):
+        neutralizer_end = candidate
+
+if neutralizer_start < 0 or neutralizer_end < 0 or neutralizer_end <= neutralizer_start:
+    raise SystemExit(
+        "Could not locate Amarok source-texture neutralizer boundaries "
+        f"start={neutralizer_start} end={neutralizer_end}."
+    )
+materials = (
+    materials[:neutralizer_start]
+    + neutralizer
+    + materials[neutralizer_end:]
+)
+
 body_helper = '''    private static bool IsAmarokBodyPaintMaterial(Renderer renderer, Material material)
     {
         return renderer.name.IndexOf(
@@ -184,14 +196,23 @@ body_helper = '''    private static bool IsAmarokBodyPaintMaterial(Renderer rend
                    StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static bool IsRawAmarokBodyPaintMaterial'''
-materials, body_helper_count = body_helper_pattern.subn(
-    body_helper,
-    materials,
-    count=1,
+'''
+
+body_start_marker = (
+    "    private static bool IsAmarokBodyPaintMaterial(Renderer renderer, Material material)"
 )
-if body_helper_count != 1:
-    raise SystemExit("Could not replace Amarok runtime paint classifier.")
+body_end_marker = "    private static bool IsRawAmarokBodyPaintMaterial"
+body_start = materials.find(body_start_marker)
+body_end = materials.find(
+    body_end_marker,
+    body_start + len(body_start_marker) if body_start >= 0 else 0,
+)
+if body_start < 0 or body_end < 0 or body_end <= body_start:
+    raise SystemExit(
+        "Could not locate Amarok runtime paint-classifier boundaries "
+        f"start={body_start} end={body_end}."
+    )
+materials = materials[:body_start] + body_helper + materials[body_end:]
 
 MATERIALS.write_text(materials, encoding="utf-8", newline="\n")
 
