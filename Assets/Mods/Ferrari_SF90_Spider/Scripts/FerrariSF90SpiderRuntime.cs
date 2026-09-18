@@ -36,7 +36,7 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     // maxPower setting more directly than real crank/system output, so this is a
     // solver calibration starting point. Tune it against the included 0-100 and
     // 0-200 telemetry targets rather than replacing the public VehicleType rating.
-    private const float EnginePowerKw = 490f;
+    private const float EnginePowerKw = 510f;
     private const float BrakeTorque = 3200f;
     private const float EngineIdleRpm = 900f;
     private const float EngineLimitRpm = 8000f;
@@ -54,11 +54,13 @@ public sealed class FerrariSF90SpiderRuntime : MonoBehaviour
     private const float ClutchEngagementRange = 650f;
     private const float ClutchCreepTorque = 0f;
     private const float TireFrictionCircleStrength = 0.96f;
-    // The first road test reached 100 km/h in ~1.9 s but needed ~8.3 s for
-    // 200 km/h. Keep the stronger high-speed solver power while traction-limiting
-    // the launch to reproduce Ferrari's 2.5 s / 7.0 s performance envelope.
-    private const float FrontLongitudinalGrip = 0.50f;
-    private const float RearLongitudinalGrip = 0.75f;
+    // Repeated road tests with 490 kW averaged roughly 2.34 s to 100 km/h while
+    // clean 0-200 runs landed at 7.02-7.04 s. Preserve the factory-like high-speed
+    // pace with a small power increase, while trimming mostly rear longitudinal
+    // grip so the AWD launch moves toward Ferrari's 2.5 s target without coupling
+    // the correction entirely to engine output.
+    private const float FrontLongitudinalGrip = 0.49f;
+    private const float RearLongitudinalGrip = 0.65f;
     private const float AntiRollBarForce = 7200f;
     private const float FrontSuspensionTravel = 0.075f;
     private const float RearSuspensionTravel = 0.075f;
