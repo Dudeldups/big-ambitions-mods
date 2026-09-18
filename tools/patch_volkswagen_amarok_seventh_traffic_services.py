@@ -263,36 +263,30 @@ if "if (wheelVisualsBound)" not in text:
     )
 
 if "wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);" not in text:
-    # Prefer the point just before BindCaliper/Awake; both donor variants use one.
-    insertion_candidates = [
-        "    private void BindCaliper(",
-        "    private void Awake() => BindWheelVisuals();",
-    ]
-    inserted = False
-    for marker in insertion_candidates:
-        if marker in text:
-            text = text.replace(
-                marker,
-                "        wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);\n"
-                "    }\n\n"
-                + marker,
-                1,
-            )
-            # The insertion above closes the method, but the original method already
-            # has its own closing brace. Remove the duplicate immediately before it.
-            text = text.replace(
-                "        wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);\n"
-                "    }\n\n"
-                "    }\n\n"
-                + marker,
-                "        wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);\n"
-                "    }\n\n"
-                + marker,
-                1,
-            )
-            inserted = True
-            break
-    if not inserted:
+    bind_end_pattern = re.compile(
+        r'''(    internal void BindWheelVisuals\(\)\s*
+    \{.*?)(\n    \}\n\n    private void BindCaliper)''',
+        re.S,
+    )
+    text, bind_end_count = bind_end_pattern.subn(
+        r'''\1
+        wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);\2''',
+        text,
+        count=1,
+    )
+    if bind_end_count != 1:
+        bind_end_pattern = re.compile(
+            r'''(    internal void BindWheelVisuals\(\)\s*
+    \{.*?)(\n    \}\n\n    private void Awake\(\) => BindWheelVisuals\(\);)''',
+            re.S,
+        )
+        text, bind_end_count = bind_end_pattern.subn(
+            r'''\1
+        wheelVisualsBound = wheelBindings.Count == WheelNames.GetLength(0);\2''',
+            text,
+            count=1,
+        )
+    if bind_end_count != 1:
         raise SystemExit("Could not finalize Amarok wheel-binding guard.")
 
 PRIVATE_DRIVER.write_text(text, encoding="utf-8", newline="\n")
