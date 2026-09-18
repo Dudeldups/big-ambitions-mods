@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
+using PlayerActivity;
 using UnityEngine;
 
 namespace BigHax
@@ -20,10 +22,14 @@ namespace BigHax
         private static readonly string[] BedBehaviourTypeNames = { "BedController" };
         private static readonly BindingFlags InstanceFieldFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        private static readonly FieldInfo? ActiveBalanceConfigMaxDurationField =
+            typeof(PlayerActivityBalanceConfig).GetField("maxDurationMinutes", InstanceFieldFlags);
 
         private readonly Dictionary<int, OriginalRestDurations> originalEnvironmentDurationsByKey =
             new Dictionary<int, OriginalRestDurations>();
         private readonly Dictionary<int, int> originalBedConfigMaxMinutesByKey = new Dictionary<int, int>();
+        private readonly Dictionary<int, ActiveBedDuration> originalActiveBedDurationsByKey =
+            new Dictionary<int, ActiveBedDuration>();
         private readonly Dictionary<string, EnvironmentPatchDescriptor?> descriptorCache = new Dictionary<string, EnvironmentPatchDescriptor?>();
         private readonly Dictionary<string, Type?> targetTypeCache = new Dictionary<string, Type?>(StringComparer.Ordinal);
         private int loggedPatchExceptions;
@@ -32,6 +38,9 @@ namespace BigHax
 
         public void InvalidateCache()
         {
+            // Scene loading replaces the controllers even when the save and setting stay the same.
+            lastAppliedSaveGame = null;
+            lastAppliedExtendedBedSetting = null;
         }
 
         public bool NeedsSettingsApply(BigHaxSettings settings)
@@ -41,13 +50,45 @@ namespace BigHax
                    lastAppliedExtendedBedSetting.Value != settings.EnableExtendedBedSleep;
         }
 
-        public void ApplyConfiguredDurations(BigHaxSettings settings)
+        public bool PatchActiveBedSleep(SleepActivity activity, ModContext context)
+        {
+            var environmentField = typeof(SleepActivity).GetField("_sleepEnvironment", InstanceFieldFlags);
+            if (environmentField?.GetValue(activity) is not SleepEnvironment environment ||
+                environment.SleepEnvironmentType != SleepEnvironmentType.Bed)
+                return false;
+
+            var balanceConfig = environment.BalanceConfig;
+            if (balanceConfig == null || ActiveBalanceConfigMaxDurationField == null)
+                return false;
+
+            var previousMax = (int)ActiveBalanceConfigMaxDurationField.GetValue(balanceConfig);
+            var previousDefault = environment.GetDefaultMinutes();
+            if (previousMax >= ExtendedBedSleepMinutes && previousDefault >= ExtendedBedSleepMinutes)
+                return false;
+
+            var key = balanceConfig.GetInstanceID();
+            if (!originalActiveBedDurationsByKey.ContainsKey(key))
+                originalActiveBedDurationsByKey[key] =
+                    new ActiveBedDuration(environment, balanceConfig, previousDefault, previousMax,
+                        previousDefault < ExtendedBedSleepMinutes, previousMax < ExtendedBedSleepMinutes);
+
+            if (previousDefault < ExtendedBedSleepMinutes)
+                environment.SetDefaultMinutes(ExtendedBedSleepMinutes);
+            if (previousMax < ExtendedBedSleepMinutes)
+                ActiveBalanceConfigMaxDurationField.SetValue(balanceConfig, ExtendedBedSleepMinutes);
+            BigHaxLogger.SleepDiagnostic(context,
+                "Active bed sleep patched: previousMax=" + previousMax +
+                ", currentMax=" + activity.GetMaxSliderValue() + ".");
+            return true;
+        }
+
+        public void ApplyConfiguredDurations(ModContext context, BigHaxSettings settings)
         {
             var saveGame = SaveGameManager.Current;
             if (saveGame?.PlayerDefaults == null || saveGame.charactersData == null || saveGame.charactersData.Count == 0)
             {
-                BigHaxLogger.Diagnostic(
-                    "Freeze diagnostic/sleep-rest apply deferred: active save has no usable player defaults or character data.");
+                BigHaxLogger.SleepDiagnostic(context,
+                    "Sleep duration apply deferred: active save has no usable player defaults or character data.");
                 return;
             }
 
@@ -70,13 +111,14 @@ namespace BigHax
             {
                 bedResult = RestoreOriginalDurations("sleepEnvironment");
                 RestoreOriginalBedSleepConfigurations();
+                RestoreOriginalActiveBedDurations();
             }
 
             stopwatch.Stop();
             lastAppliedSaveGame = saveGame;
             lastAppliedExtendedBedSetting = settings.EnableExtendedBedSleep;
-            BigHaxLogger.Diagnostic(
-                "Freeze diagnostic/sleep-rest targeted apply completed: extendedBed=" + settings.EnableExtendedBedSleep +
+            BigHaxLogger.SleepDiagnostic(context,
+                "Sleep duration apply completed: extendedBed=" + settings.EnableExtendedBedSleep +
                 ", bench=" + benchResult +
                 ", bed=" + bedResult +
                 ", bedConfigs=" + bedConfigResult +
@@ -88,6 +130,7 @@ namespace BigHax
             RestoreOriginalDurations();
             originalEnvironmentDurationsByKey.Clear();
             RestoreOriginalBedSleepConfigurations();
+            RestoreOriginalActiveBedDurations();
             originalBedConfigMaxMinutesByKey.Clear();
             lastAppliedSaveGame = null;
             lastAppliedExtendedBedSetting = null;
@@ -297,6 +340,22 @@ namespace BigHax
             }
         }
 
+        private void RestoreOriginalActiveBedDurations()
+        {
+            foreach (var original in originalActiveBedDurationsByKey.Values)
+            {
+                if (original.BalanceConfig == null)
+                    continue;
+
+                if (original.DefaultChanged)
+                    original.Environment.SetDefaultMinutes(original.DefaultMinutes);
+                if (original.MaxChanged)
+                    ActiveBalanceConfigMaxDurationField?.SetValue(original.BalanceConfig, original.MaxMinutes);
+            }
+
+            originalActiveBedDurationsByKey.Clear();
+        }
+
         private IEnumerable<Component> FindLoadedComponents(IReadOnlyList<string> targetTypeNames)
         {
             var seenInstanceIds = new HashSet<int>();
@@ -420,6 +479,27 @@ namespace BigHax
 
             public int DefaultMinutes { get; }
             public int MaxMinutes { get; }
+        }
+
+        private readonly struct ActiveBedDuration
+        {
+            public ActiveBedDuration(SleepEnvironment environment, PlayerActivityBalanceConfig balanceConfig,
+                int defaultMinutes, int maxMinutes, bool defaultChanged, bool maxChanged)
+            {
+                Environment = environment;
+                BalanceConfig = balanceConfig;
+                DefaultMinutes = defaultMinutes;
+                MaxMinutes = maxMinutes;
+                DefaultChanged = defaultChanged;
+                MaxChanged = maxChanged;
+            }
+
+            public SleepEnvironment Environment { get; }
+            public PlayerActivityBalanceConfig BalanceConfig { get; }
+            public int DefaultMinutes { get; }
+            public int MaxMinutes { get; }
+            public bool DefaultChanged { get; }
+            public bool MaxChanged { get; }
         }
 
         private enum PatchOutcome

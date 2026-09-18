@@ -5,6 +5,8 @@ using System;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using PlayerActivity;
+using UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -18,6 +20,8 @@ namespace BigHax
         private const float CustomerTrafficPollIntervalSeconds = 5f;
         private const float EmployeeTrainingPollIntervalSeconds = 0.25f;
         private const float LoanLimitPollIntervalSeconds = 0.5f;
+        private static readonly MethodInfo? SetUpActivitySliderMethod = typeof(PlayerActivityUI).GetMethod(
+            "SetUpSlider", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static BigHaxRuntime? instance;
         private readonly BigHaxBusinessCapacityService businessCapacityService = new BigHaxBusinessCapacityService();
@@ -67,6 +71,7 @@ namespace BigHax
         private float nextEmployeeTrainingPollAt;
         private float nextLoanLimitPollAt;
         private BigHaxSettings? settings;
+        private SleepActivity? lastBedSleepActivity;
 
         public static BigHaxRuntime Initialize(ModContext context, BigHaxSettings settings)
         {
@@ -208,6 +213,8 @@ namespace BigHax
             PollCasinoBetLimitChanges();
             PollCustomerTrafficChanges();
             PollEmployeeTrainingChanges();
+            RefreshActiveBedSleep();
+            sleepTimeAccelerationService.RefreshActiveSleep(context, settings);
             PollLoanLimitChanges();
             updateNoticeUi.ConsumeGameplayInputIfNeeded();
             overlayUi.ConsumeGameplayInputIfNeeded();
@@ -239,7 +246,7 @@ namespace BigHax
                 if (sleepDurationApplyRequested)
                 {
                     if (sleepRestDurationService.NeedsSettingsApply(settings))
-                        SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                        SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                     sleepDurationApplyRequested = false;
                 }
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
@@ -296,6 +303,33 @@ namespace BigHax
             loanLimitService.ApplyConfiguredLimit(settings);
         }
 
+        private void RefreshActiveBedSleep()
+        {
+            if (context == null || settings?.EnableExtendedBedSleep != true)
+            {
+                lastBedSleepActivity = null;
+                return;
+            }
+
+            var activityUi = InstanceBehavior<UIs>.Instance?.playerActivityUI;
+            if (activityUi == null || !PlayerActivityUI.IsPanelOpen ||
+                activityUi.GetCurrentActivity is not SleepActivity activity)
+            {
+                lastBedSleepActivity = null;
+                return;
+            }
+
+            if (ReferenceEquals(lastBedSleepActivity, activity))
+                return;
+
+            lastBedSleepActivity = activity;
+            SafeApply("active bed sleep duration", () =>
+            {
+                if (sleepRestDurationService.PatchActiveBedSleep(activity, context))
+                    SetUpActivitySliderMethod?.Invoke(activityUi, null);
+            });
+        }
+
         private void PollUiToggleHotkey()
         {
             if (settings == null || !Input.GetKeyDown(settings.UiHotkey))
@@ -323,6 +357,8 @@ namespace BigHax
             headhunterRpService.AttachUiHooks();
             loanLimitService.InvalidateCache();
             sleepRestDurationService.InvalidateCache();
+            if (sleepDurationApplyCoroutine == null && context != null && settings != null)
+                sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             vehicleCapacityService.InvalidateCache();
             trafficService.InvalidateCache();
             applyRequested = true;
@@ -351,6 +387,11 @@ namespace BigHax
 
         private void HandleGameLoadedLate()
         {
+            if (context != null && settings != null)
+            {
+                SafeApply("employee events after game load", () => employeeDemandService.RebindAfterGameLoad(context, settings));
+                SafeApply("recruitment events after game load", () => recruitmentCandidateService.RebindAfterGameLoad(context, settings));
+            }
             playerHaxService.ApplyConfiguredBehavior(settings!);
             extendedBedSleepLabelService.Attach(settings!);
             // These callbacks are cleared while a save is loading and are required
@@ -363,7 +404,7 @@ namespace BigHax
             headhunterRpService.AttachUiHooks();
             SafeApply("AI vehicle traffic after game load", () => trafficService.ApplyConfiguredBehavior(context!, settings!));
             ScheduleEmployeeDemandMessageCleanup();
-            if (sleepDurationApplyCoroutine == null && sleepRestDurationService.NeedsSettingsApply(settings!))
+            if (sleepDurationApplyCoroutine == null)
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             if (optionsUiPrewarmCoroutine == null)
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
@@ -382,14 +423,14 @@ namespace BigHax
             yield return new WaitForEndOfFrame();
             if (context != null && settings != null)
             {
-                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 extendedBedSleepLabelService.Attach(settings);
             }
 
             yield return new WaitForSecondsRealtime(1f);
             if (context != null && settings != null)
             {
-                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 extendedBedSleepLabelService.Attach(settings);
             }
 
@@ -456,7 +497,7 @@ namespace BigHax
 
         private void HandleTimeMachineStarted()
         {
-            sleepTimeAccelerationService.HandleTimeMachineStarted(settings);
+            sleepTimeAccelerationService.HandleTimeMachineStarted(context, settings);
         }
 
         private void HandleTimeMachineEnded()

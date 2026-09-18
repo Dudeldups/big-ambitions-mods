@@ -28,6 +28,13 @@ namespace BigHax
             isSubscribed = false;
         }
 
+        public void RebindAfterGameLoad(ModContext context, BigHaxSettings settings)
+        {
+            GameEvent.onGameEventTriggered -= HandleGameEvent;
+            isSubscribed = false;
+            ApplyConfiguredMaximum(context, settings);
+        }
+
         private void Subscribe()
         {
             if (isSubscribed)

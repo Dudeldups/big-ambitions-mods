@@ -40,7 +40,7 @@ namespace BigHax
             this.context = context;
             demandRemovalEnabled = settings.RemoveEmployeeDemands;
             maximumSatisfactionEnabled = settings.EnableMaximumEmployeeSatisfaction;
-            BigHaxLogger.Diagnostic(
+            BigHaxLogger.EmployeeDiagnostic(context,
                 "Employee hax configured: removeDemands=" + demandRemovalEnabled +
                 ", maximumSatisfaction=" + maximumSatisfactionEnabled + ".");
             if (!demandRemovalEnabled)
@@ -64,6 +64,17 @@ namespace BigHax
             initialDemandRemovalProcessed = false;
             initialMaximumSatisfactionProcessed = false;
             dailyCleanupScheduled = false;
+        }
+
+        public void RebindAfterGameLoad(ModContext context, BigHaxSettings settings)
+        {
+            // GameEvent.ResetStaticData clears its delegate during save loading.
+            // Remove first so this also remains safe if the delegate survived.
+            GameEvent.onGameEventTriggered -= HandleGameEvent;
+            isSubscribed = false;
+            InvalidateCache();
+            ApplyConfiguredBehavior(context, settings);
+            BigHaxLogger.EmployeeDiagnostic(context, "Employee event handler rebound after game load.");
         }
 
         public bool TryScheduleDailyCleanup()
@@ -112,7 +123,7 @@ namespace BigHax
                 }
 
                 MarkSaveChangedIfNeeded(clearedEmployeeCount > 0 || removedMessageCount > 0 || satisfactionRaisedEmployeeCount > 0);
-                BigHaxLogger.Diagnostic(
+                BigHaxLogger.EmployeeDiagnostic(context,
                     "Employee hax daily cleanup: employees=" + employees.Count +
                     ", demandsRemoved=" + clearedEmployeeCount +
                     ", demandMessagesRemoved=" + removedMessageCount +
@@ -146,7 +157,7 @@ namespace BigHax
 
                 MarkSaveChangedIfNeeded(removedMessageCount > 0);
                 SaveDemandCleanupAfterLoadIfNeeded();
-                BigHaxLogger.Diagnostic(
+                BigHaxLogger.EmployeeDiagnostic(context,
                     "Employee hax post-load message cleanup: employees=" + employees.Count +
                     ", demandMessagesRemoved=" + removedMessageCount +
                     ", " + DescribeSatisfaction(employees));
@@ -188,7 +199,7 @@ namespace BigHax
                 var saveGame = SaveGameManager.Current;
                 if (saveGame == null)
                 {
-                    BigHaxLogger.Diagnostic("Employee hax initial pass deferred: no active save.");
+                    BigHaxLogger.EmployeeDiagnostic(context, "Employee hax initial pass deferred: no active save.");
                     return;
                 }
 
@@ -230,7 +241,7 @@ namespace BigHax
                 var changed = demandStateChanged || satisfactionChangedCount > 0;
                 MarkSaveChangedIfNeeded(changed);
                 saveCleanupAfterLoad |= demandStateChanged;
-                BigHaxLogger.Diagnostic(
+                BigHaxLogger.EmployeeDiagnostic(context,
                     "Employee hax initial pass: employees=" + (employees?.Count ?? 0) +
                     ", candidates=" + (candidates?.Count ?? 0) +
                     ", demandsRemoved=" + removedDemandCount +
@@ -314,7 +325,7 @@ namespace BigHax
                 }
 
                 MarkSaveChangedIfNeeded(removedDemandCount > 0 || removedMessageCount > 0 || satisfactionChangedCount > 0);
-                BigHaxLogger.Diagnostic(
+                BigHaxLogger.EmployeeDiagnostic(context,
                     "Employee hax employee hired: employees=" + employees.Count +
                     ", demandsRemoved=" + removedDemandCount +
                     ", demandMessagesRemoved=" + removedMessageCount +
