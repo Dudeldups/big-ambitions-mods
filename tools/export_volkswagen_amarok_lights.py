@@ -33,6 +33,8 @@ REQUIRED_GROUPS = [
     "ReverseLights",
     "1IndicatorRL",
     "1IndicatorRR",
+    "FactoryBlack_SideSteps",
+    "FactoryBlack_Mudguards",
 ]
 GROUPS = list(GROUP_ALIASES)
 
@@ -190,7 +192,7 @@ for expected in GROUPS:
 missing = [name for name in REQUIRED_GROUPS if name not in resolved]
 if missing:
     raise RuntimeError(
-        "Could not resolve Amarok light groups from the supplied Blender file: "
+        "Could not resolve required Amarok light/trim groups from the supplied Blender file: "
         + ", ".join(missing)
         + ". See the non-empty vertex-group list above for the actual saved names."
     )
