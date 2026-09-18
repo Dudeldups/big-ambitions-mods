@@ -295,7 +295,10 @@ def build_original_blue_paint_overlays(source_objects):
         min_z = min(v.z for v in coords)
         max_z = max(v.z for v in coords)
         local_span = max(max_x - min_x, max_y - min_y, max_z - min_z)
-        normal_offset = max(local_span * 0.00028, 0.00012)
+        # Keep the BA paint shell only fractionally above the original blue
+        # sheet metal. Larger offsets could poke through creator-authored black
+        # B-pillar/window trim that sits just above the painted body.
+        normal_offset = max(local_span * 0.000035, 0.000025)
 
         used = sorted({index for poly in polys for index in poly.vertices})
         remap = {old: new for new, old in enumerate(used)}
