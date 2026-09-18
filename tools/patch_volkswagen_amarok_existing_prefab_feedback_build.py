@@ -55,8 +55,18 @@ if method_name not in text:
             visual.position += root.transform.TransformVector(
                 new Vector3(0f, BodyVisualBottomY - bottomLocalY, 0f));
 
-            // Blender lamp meshes were authored against the model transform. Keep
-            // them exactly aligned with the corrected visual root.
+            // Always replace the instantiated overlay child from the current GLB.
+            // Merely refreshing/importing AmarokLightOverlays.glb is not enough:
+            // an existing prefab keeps its previously unpacked AmarokLightSources
+            // hierarchy, so newly authored light/trim vertex groups would never
+            // reach the built prefab.
+            var staleLightSources = FindTransform(root.transform, "AmarokLightSources");
+            if (staleLightSources != null)
+                UnityEngine.Object.DestroyImmediate(staleLightSources.gameObject);
+            AttachLightOverlaySources(root, visual.gameObject);
+
+            // Blender lamp/trim meshes were authored against the model transform.
+            // Keep them exactly aligned with the corrected visual root.
             var lightSources = FindTransform(root.transform, "AmarokLightSources");
             if (lightSources != null)
             {
@@ -129,6 +139,27 @@ text, wrapper_count = wrapper_pattern.subn(wrapper_replacement, text, count=1)
 if wrapper_count != 1:
     raise SystemExit("Could not redirect RegenerateAndBuildStandaloneWindowsAssetBundle away from donor regeneration.")
 
+# Existing worktrees may already contain the feedback-build method from an older
+# pass. Retrofit the overlay refresh into that method as well.
+if "AttachLightOverlaySources(root, visual.gameObject);" not in text:
+    old_alignment = '''            // Blender lamp meshes were authored against the model transform. Keep
+            // them exactly aligned with the corrected visual root.
+            var lightSources = FindTransform(root.transform, "AmarokLightSources");
+'''
+    refreshed_alignment = '''            // Always replace the instantiated overlay child from the current GLB.
+            // Existing prefabs otherwise retain a stale unpacked AmarokLightSources hierarchy.
+            var staleLightSources = FindTransform(root.transform, "AmarokLightSources");
+            if (staleLightSources != null)
+                UnityEngine.Object.DestroyImmediate(staleLightSources.gameObject);
+            AttachLightOverlaySources(root, visual.gameObject);
+
+            // Blender lamp/trim meshes were authored against the model transform.
+            var lightSources = FindTransform(root.transform, "AmarokLightSources");
+'''
+    if old_alignment not in text:
+        raise SystemExit("Could not retrofit refreshed Amarok overlay sources into existing-prefab build.")
+    text = text.replace(old_alignment, refreshed_alignment, 1)
+
 SETUP.write_text(text, encoding="utf-8", newline="\n")
 
 check = SETUP.read_text(encoding="utf-8")
@@ -138,6 +169,8 @@ required = [
     "VisualTargetWidth / Mathf.Max(0.001f, bounds.size.x)",
     "BodyVisualBottomY - bottomLocalY",
     'FindTransform(root.transform, "AmarokLightSources")',
+    'AttachLightOverlaySources(root, visual.gameObject);',
+    'DestroyImmediate(staleLightSources.gameObject);',
     'FindTransform(root.transform, "AmarokDamageBody")',
     "CreateDeformableBody(root, visual.gameObject)",
     "ConfigurePowertrain(root);",
