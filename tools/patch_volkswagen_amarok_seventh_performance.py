@@ -59,6 +59,13 @@ if 'SetNumber(feedbackVehicleSerialized, "brakeForce", VehicleBrakeForce);' not 
         raise SystemExit("Could not locate Amarok feedback VehicleType performance block.")
     setup = setup.replace(feedback_marker, feedback_brake, 1)
 
+cargo_feedback = '        SetNumber(feedbackVehicleSerialized, "maxCargoCapacity", 24f);\n'
+if cargo_feedback.strip() not in setup:
+    brake_feedback = '        SetNumber(feedbackVehicleSerialized, "brakeForce", VehicleBrakeForce);\n'
+    if brake_feedback not in setup:
+        raise SystemExit("Could not locate Amarok feedback brake line for cargo insertion.")
+    setup = setup.replace(brake_feedback, brake_feedback + cargo_feedback, 1)
+
 SETUP.write_text(setup, encoding="utf-8", newline="\n")
 
 
