@@ -421,6 +421,14 @@ public sealed class VolkswagenAmarokVisualDamageController : MonoBehaviour
     private readonly List<MeshFilter> deformableFilters = new List<MeshFilter>();
     private readonly Dictionary<MeshFilter, Vector3[]> originalVertices =
         new Dictionary<MeshFilter, Vector3[]>();
+    private readonly Dictionary<MeshFilter, Vector3[]> currentVertices =
+        new Dictionary<MeshFilter, Vector3[]>();
+    private readonly Dictionary<MeshFilter, Bounds> originalBounds =
+        new Dictionary<MeshFilter, Bounds>();
+    private readonly Dictionary<MeshFilter, Matrix4x4> filterToVehicleMatrices =
+        new Dictionary<MeshFilter, Matrix4x4>();
+    private readonly Dictionary<MeshFilter, Matrix4x4> vehicleToFilterMatrices =
+        new Dictionary<MeshFilter, Matrix4x4>();
     private readonly Dictionary<MeshFilter, Mesh> damageMeshes =
         new Dictionary<MeshFilter, Mesh>();
     private readonly List<Mesh> runtimeMeshes = new List<Mesh>();
@@ -456,6 +464,10 @@ public sealed class VolkswagenAmarokVisualDamageController : MonoBehaviour
         previousSavedDamage = controller.vehicleInstance?.damage ?? 0f;
         deformableFilters.Clear();
         originalVertices.Clear();
+        currentVertices.Clear();
+        originalBounds.Clear();
+        filterToVehicleMatrices.Clear();
+        vehicleToFilterMatrices.Clear();
         damageMeshes.Clear();
         runtimeMeshes.Clear();
         foreach (var filter in filters)
@@ -464,9 +476,23 @@ public sealed class VolkswagenAmarokVisualDamageController : MonoBehaviour
                 continue;
             var runtimeMesh = Instantiate(filter.sharedMesh);
             runtimeMesh.name = filter.sharedMesh.name + "_RuntimeDamage";
+            runtimeMesh.MarkDynamic();
             filter.sharedMesh = runtimeMesh;
+
+            var vertices = runtimeMesh.vertices;
+            var baseline = new Vector3[vertices.Length];
+            Array.Copy(vertices, baseline, vertices.Length);
+
+            var filterToVehicle =
+                controller.transform.worldToLocalMatrix *
+                filter.transform.localToWorldMatrix;
+
             deformableFilters.Add(filter);
-            originalVertices[filter] = runtimeMesh.vertices;
+            originalVertices[filter] = baseline;
+            currentVertices[filter] = vertices;
+            originalBounds[filter] = runtimeMesh.bounds;
+            filterToVehicleMatrices[filter] = filterToVehicle;
+            vehicleToFilterMatrices[filter] = filterToVehicle.inverse;
             damageMeshes[filter] = runtimeMesh;
             runtimeMeshes.Add(runtimeMesh);
         }
@@ -493,8 +519,16 @@ public sealed class VolkswagenAmarokVisualDamageController : MonoBehaviour
                 // filter. Restore this vehicle-owned mesh before resetting it so
                 // later impacts never mutate the shared prefab asset.
                 pair.Key.sharedMesh = mesh;
-                mesh.vertices = pair.Value;
-                mesh.RecalculateBounds();
+                if (!currentVertices.TryGetValue(pair.Key, out var working) ||
+                    working.Length != pair.Value.Length)
+                {
+                    working = new Vector3[pair.Value.Length];
+                    currentVertices[pair.Key] = working;
+                }
+                Array.Copy(pair.Value, working, pair.Value.Length);
+                mesh.vertices = working;
+                if (originalBounds.TryGetValue(pair.Key, out var bounds))
+                    mesh.bounds = bounds;
             }
             if (repairRecoveryCoroutine != null)
                 StopCoroutine(repairRecoveryCoroutine);
@@ -767,11 +801,13 @@ method = r'''    private void OnCollisionEnter(Collision collision)
         {
             var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
             nextCollisionTime = Time.unscaledTime + CollisionCooldown;
-            var contacts = collision.contacts;
-            if (contacts.Length == 0)
+
+            var contactCount = collision.contactCount;
+            if (contactCount <= 0)
                 return;
 
-            var excessSpeed = collision.relativeVelocity.magnitude - impactThresholdMps;
+            var relativeSpeed = collision.relativeVelocity.magnitude;
+            var excessSpeed = relativeSpeed - impactThresholdMps;
             var dentDepth = Mathf.Clamp(
                 excessSpeed * DepthPerExcessMps,
                 0.025f,
@@ -784,8 +820,78 @@ method = r'''    private void OnCollisionEnter(Collision collision)
                 excessSpeed * RearDepthPerExcessMps,
                 0.04f,
                 MaximumRearDentDepth);
-            var center = body != null ? body.worldCenterOfMass : transform.position;
-            var primaryLocalContact = transform.InverseTransformPoint(contacts[0].point);
+
+            // Contacts are tiny in number but used against tens of thousands of
+            // vertices. Convert them to vehicle-local space once instead of doing
+            // Transform/InverseTransform work inside the vertex/contact loop.
+            var worldContactPoints = new Vector3[contactCount];
+            var localContactPoints = new Vector3[contactCount];
+            var localInwardDirections = new Vector3[contactCount];
+            var contactIsEnd = new bool[contactCount];
+            var contactIsFront = new bool[contactCount];
+            var contactRadiusSquared = new float[contactCount];
+            var invLateralRadiusSquared = new float[contactCount];
+            var invVerticalRadiusSquared = new float[contactCount];
+            var invLongitudinalRadiusSquared = new float[contactCount];
+
+            var vehicleTransform = transform;
+            var center = body != null ? body.worldCenterOfMass : vehicleTransform.position;
+            for (var contactIndex = 0; contactIndex < contactCount; contactIndex++)
+            {
+                var contact = collision.GetContact(contactIndex);
+                var localContact = vehicleTransform.InverseTransformPoint(contact.point);
+                var isEndContact =
+                    Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
+                    Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
+                var isFrontContact = isEndContact && localContact.z >= 0f;
+
+                worldContactPoints[contactIndex] = contact.point;
+                localContactPoints[contactIndex] = localContact;
+                contactIsEnd[contactIndex] = isEndContact;
+                contactIsFront[contactIndex] = isFrontContact;
+
+                if (isEndContact)
+                {
+                    var lateralRadius = isFrontContact
+                        ? FrontDentLateralRadius
+                        : RearDentLateralRadius;
+                    var verticalRadius = isFrontContact
+                        ? FrontDentVerticalRadius
+                        : RearDentVerticalRadius;
+                    var longitudinalRadius = isFrontContact
+                        ? FrontDentLongitudinalRadius
+                        : RearDentLongitudinalRadius;
+
+                    invLateralRadiusSquared[contactIndex] =
+                        1f / (lateralRadius * lateralRadius);
+                    invVerticalRadiusSquared[contactIndex] =
+                        1f / (verticalRadius * verticalRadius);
+                    invLongitudinalRadiusSquared[contactIndex] =
+                        1f / (longitudinalRadius * longitudinalRadius);
+                    var maximumRadius = Mathf.Max(
+                        lateralRadius,
+                        Mathf.Max(verticalRadius, longitudinalRadius));
+                    contactRadiusSquared[contactIndex] =
+                        maximumRadius * maximumRadius;
+                    localInwardDirections[contactIndex] =
+                        isFrontContact ? Vector3.back : Vector3.forward;
+                }
+                else
+                {
+                    var towardCenter = (center - contact.point).normalized;
+                    var contactNormal = contact.normal.normalized;
+                    var worldDirection =
+                        Vector3.Dot(contactNormal, towardCenter) >= 0f
+                            ? contactNormal
+                            : -contactNormal;
+                    localInwardDirections[contactIndex] =
+                        vehicleTransform.InverseTransformDirection(
+                            worldDirection).normalized;
+                    contactRadiusSquared[contactIndex] = DentRadius * DentRadius;
+                }
+            }
+
+            var primaryLocalContact = localContactPoints[0];
             var changedMeshes = 0;
             var changedVertices = 0;
             var skippedMeshes = 0;
@@ -794,41 +900,22 @@ method = r'''    private void OnCollisionEnter(Collision collision)
 
             foreach (var filter in deformableFilters)
             {
-                if (filter == null || filter.sharedMesh == null)
+                if (filter == null || filter.sharedMesh == null ||
+                    !currentVertices.TryGetValue(filter, out var vertices) ||
+                    !originalVertices.TryGetValue(filter, out var baseline))
                     continue;
 
-                // Follow the finished Audi/BMW/Lamborghini damage path: reject
-                // whole panels before touching mesh.vertices. This is especially
-                // important for the Amarok's body/door paint panels.
                 var renderer = filter.GetComponent<Renderer>();
                 if (renderer != null)
                 {
                     var canReachFilter = false;
-                    foreach (var contact in contacts)
+                    var bounds = renderer.bounds;
+                    for (var contactIndex = 0;
+                         contactIndex < contactCount;
+                         contactIndex++)
                     {
-                        var localContact = transform.InverseTransformPoint(contact.point);
-                        var isEndContact =
-                            Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
-                            Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
-                        var isFrontContact = isEndContact && localContact.z >= 0f;
-                        var influenceRadius = DentRadius;
-                        if (isEndContact)
-                        {
-                            influenceRadius = isFrontContact
-                                ? Mathf.Max(
-                                    FrontDentLateralRadius,
-                                    Mathf.Max(
-                                        FrontDentVerticalRadius,
-                                        FrontDentLongitudinalRadius))
-                                : Mathf.Max(
-                                    RearDentLateralRadius,
-                                    Mathf.Max(
-                                        RearDentVerticalRadius,
-                                        RearDentLongitudinalRadius));
-                        }
-
-                        if (renderer.bounds.SqrDistance(contact.point) <=
-                            influenceRadius * influenceRadius)
+                        if (bounds.SqrDistance(worldContactPoints[contactIndex]) <=
+                            contactRadiusSquared[contactIndex])
                         {
                             canReachFilter = true;
                             break;
@@ -842,94 +929,96 @@ method = r'''    private void OnCollisionEnter(Collision collision)
                     }
                 }
 
-                var mesh = filter.sharedMesh;
-                var vertices = mesh.vertices;
-                var meshChanged = false;
-                for (var vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+                if (!filterToVehicleMatrices.TryGetValue(
+                        filter,
+                        out var filterToVehicle) ||
+                    !vehicleToFilterMatrices.TryGetValue(
+                        filter,
+                        out var vehicleToFilter))
                 {
-                    var worldVertex = filter.transform.TransformPoint(vertices[vertexIndex]);
+                    filterToVehicle =
+                        vehicleTransform.worldToLocalMatrix *
+                        filter.transform.localToWorldMatrix;
+                    vehicleToFilter = filterToVehicle.inverse;
+                    filterToVehicleMatrices[filter] = filterToVehicle;
+                    vehicleToFilterMatrices[filter] = vehicleToFilter;
+                }
+
+                var mesh = filter.sharedMesh;
+                var meshChanged = false;
+
+                for (var vertexIndex = 0;
+                     vertexIndex < vertices.Length;
+                     vertexIndex++)
+                {
+                    var vehicleVertex =
+                        filterToVehicle.MultiplyPoint3x4(vertices[vertexIndex]);
                     var strongestInfluence = 0f;
                     var inwardDirection = Vector3.zero;
                     var selectedDepth = dentDepth;
                     var selectedEndImpact = false;
                     var selectedFrontImpact = false;
 
-                    foreach (var contact in contacts)
+                    for (var contactIndex = 0;
+                         contactIndex < contactCount;
+                         contactIndex++)
                     {
-                        var localContact = transform.InverseTransformPoint(contact.point);
-                        var isEndContact =
-                            Mathf.Abs(localContact.z) >= EndContactMinimumLongitudinalOffset &&
-                            Mathf.Abs(localContact.z) > Mathf.Abs(localContact.x);
-                        var isFrontContact = isEndContact && localContact.z >= 0f;
+                        var localDelta =
+                            vehicleVertex - localContactPoints[contactIndex];
                         float influence;
-                        Vector3 candidateDirection;
 
-                        if (isEndContact)
+                        if (contactIsEnd[contactIndex])
                         {
-                            var localDelta =
-                                transform.InverseTransformVector(worldVertex - contact.point);
-                            var lateralRadius = isFrontContact
-                                ? FrontDentLateralRadius
-                                : RearDentLateralRadius;
-                            var verticalRadius = isFrontContact
-                                ? FrontDentVerticalRadius
-                                : RearDentVerticalRadius;
-                            var longitudinalRadius = isFrontContact
-                                ? FrontDentLongitudinalRadius
-                                : RearDentLongitudinalRadius;
-                            var normalizedDistance = Mathf.Sqrt(
-                                localDelta.x * localDelta.x /
-                                (lateralRadius * lateralRadius) +
-                                localDelta.y * localDelta.y /
-                                (verticalRadius * verticalRadius) +
-                                localDelta.z * localDelta.z /
-                                (longitudinalRadius * longitudinalRadius));
-                            influence = 1f - normalizedDistance;
-                            candidateDirection = localContact.z >= 0f
-                                ? -transform.forward
-                                : transform.forward;
+                            var normalizedDistanceSquared =
+                                localDelta.x * localDelta.x *
+                                invLateralRadiusSquared[contactIndex] +
+                                localDelta.y * localDelta.y *
+                                invVerticalRadiusSquared[contactIndex] +
+                                localDelta.z * localDelta.z *
+                                invLongitudinalRadiusSquared[contactIndex];
+                            if (normalizedDistanceSquared >= 1f)
+                                continue;
+                            influence =
+                                1f - Mathf.Sqrt(normalizedDistanceSquared);
                         }
                         else
                         {
+                            var distanceSquared = localDelta.sqrMagnitude;
+                            if (distanceSquared >= contactRadiusSquared[contactIndex])
+                                continue;
                             influence =
-                                1f - Vector3.Distance(worldVertex, contact.point) / DentRadius;
-                            var towardCenter = (center - contact.point).normalized;
-                            var contactNormal = contact.normal.normalized;
-                            candidateDirection =
-                                Vector3.Dot(contactNormal, towardCenter) >= 0f
-                                    ? contactNormal
-                                    : -contactNormal;
+                                1f - Mathf.Sqrt(distanceSquared) / DentRadius;
                         }
 
                         if (influence <= strongestInfluence)
                             continue;
 
                         strongestInfluence = influence;
-                        inwardDirection = candidateDirection;
-                        selectedDepth = isEndContact
-                            ? isFrontContact ? frontDentDepth : rearDentDepth
+                        inwardDirection =
+                            localInwardDirections[contactIndex];
+                        selectedEndImpact = contactIsEnd[contactIndex];
+                        selectedFrontImpact = contactIsFront[contactIndex];
+                        selectedDepth = selectedEndImpact
+                            ? selectedFrontImpact
+                                ? frontDentDepth
+                                : rearDentDepth
                             : dentDepth;
-                        selectedEndImpact = isEndContact;
-                        selectedFrontImpact = isFrontContact;
                     }
 
                     if (strongestInfluence <= 0f ||
                         inwardDirection.sqrMagnitude < 0.5f)
-                    {
                         continue;
-                    }
 
                     var falloff = selectedEndImpact
                         ? Mathf.Pow(strongestInfluence, 1.35f)
                         : strongestInfluence * strongestInfluence;
-                    worldVertex += inwardDirection * (selectedDepth * falloff);
-                    var localVertex =
-                        filter.transform.InverseTransformPoint(worldVertex);
+                    vehicleVertex +=
+                        inwardDirection * (selectedDepth * falloff);
 
-                    // BMW/Lamborghini-style cumulative cap: keep repeated impacts
-                    // bounded relative to the runtime mesh captured at spawn.
-                    if (originalVertices.TryGetValue(filter, out var baseline) &&
-                        vertexIndex < baseline.Length)
+                    var localVertex =
+                        vehicleToFilter.MultiplyPoint3x4(vehicleVertex);
+
+                    if (vertexIndex < baseline.Length)
                     {
                         var cumulativeLimit = selectedEndImpact
                             ? selectedFrontImpact
@@ -952,8 +1041,12 @@ method = r'''    private void OnCollisionEnter(Collision collision)
                 if (!meshChanged)
                     continue;
 
+                // Deformation is strictly inward, so the spawn-time mesh bounds
+                // remain a safe conservative rendering/culling volume. Avoid the
+                // expensive full-mesh RecalculateBounds() pass on every impact.
                 mesh.vertices = vertices;
-                mesh.RecalculateBounds();
+                if (originalBounds.TryGetValue(filter, out var originalMeshBounds))
+                    mesh.bounds = originalMeshBounds;
                 changedMeshes++;
             }
 
@@ -965,7 +1058,7 @@ method = r'''    private void OnCollisionEnter(Collision collision)
                 context?.Logger.Info(
                     $"VolkswagenAmarok damage vehicle={vehicle?.GetInstanceID()}: " +
                     $"inward dent contact='{collision.collider?.name ?? "unknown"}' " +
-                    $"relativeSpeed={collision.relativeVelocity.magnitude * 3.6f:0.0}kph " +
+                    $"relativeSpeed={relativeSpeed * 3.6f:0.0}kph " +
                     $"localContact=({primaryLocalContact.x:0.00}," +
                     $"{primaryLocalContact.y:0.00},{primaryLocalContact.z:0.00}) " +
                     $"region={(frontImpact ? "front" : rearImpact ? "rear" : "side")} " +
@@ -989,7 +1082,6 @@ method = r'''    private void OnCollisionEnter(Collision collision)
     }
 
 '''
-
 text = text[:start] + method + text[end:]
 RUNTIME.write_text(text, encoding="utf-8", newline="\n")
 
@@ -1001,11 +1093,15 @@ required = [
     "public sealed class VolkswagenAmarokCollisionSeparationController",
     "internal sealed class VolkswagenAmarokHighwaySeamGuard",
     "public sealed class VolkswagenAmarokGlassController",
-    "renderer.bounds.SqrDistance(contact.point)",
+    "bounds.SqrDistance(worldContactPoints[contactIndex])",
+    "currentVertices",
+    "filterToVehicleMatrices",
+    "runtimeMesh.MarkDynamic();",
+    "MultiplyPoint3x4",
+    "originalMeshBounds",
     "skippedMeshes",
     "processing={elapsedMilliseconds:0.0}ms",
     "Vector3.ClampMagnitude(",
-    "mesh.RecalculateBounds();",
 ]
 missing = [needle for needle in required if needle not in check]
 if missing:
@@ -1034,5 +1130,8 @@ print("Excluded hidden Amarok source renderers from crash deformation while reta
 print("Scoped Amarok crash deformation patch to VolkswagenAmarokVisualDamageController only.")
 print("Replaced per-impact attached-detail allocations with the finished-vehicle panel deformation path.")
 print("Added Audi-style whole-panel bounds culling before mesh vertex buffers are read.")
+print("Cached Amarok damage vertex arrays and relative transforms instead of rebuilding them per impact.")
+print("Precomputed collision contacts in vehicle-local space and removed per-vertex TransformPoint/InverseTransformPoint calls.")
+print("Marked runtime damage meshes dynamic and preserved conservative spawn-time bounds instead of recalculating bounds per impact.")
 print("Added crash deformation timing diagnostics for the first few impacts.")
 print("Volkswagen Amarok damage-performance preflight passed.")
