@@ -55,6 +55,13 @@ if method_name not in text:
             visual.position += root.transform.TransformVector(
                 new Vector3(0f, BodyVisualBottomY - bottomLocalY, 0f));
 
+            // Persist the calibrated linear drag in the prefab itself. Runtime also
+            // reapplies it, but the saved Rigidbody must not fall back to 0 between
+            // spawn and runtime configuration.
+            var feedbackRigidbody = root.GetComponent<Rigidbody>();
+            if (feedbackRigidbody != null)
+                feedbackRigidbody.drag = VehicleLinearDrag;
+
             // Always replace the instantiated overlay child from the current GLB.
             // Merely refreshing/importing AmarokLightOverlays.glb is not enough:
             // an existing prefab keeps its previously unpacked AmarokLightSources
@@ -191,6 +198,37 @@ if refresh_call not in method_text:
 else:
     print("Existing-prefab Amarok overlay GLB refresh is already present.")
 
+# Persist calibrated Rigidbody drag in existing-prefab builds as well. Older
+# generated methods may predate this assignment even when the overlay refresh is
+# already present.
+method_start = text.find(method_start_marker)
+method_end = text.find(
+    "    public static void RegenerateAndBuildStandaloneWindowsAssetBundle()",
+    method_start + len(method_start_marker),
+) if method_start >= 0 else -1
+if method_start < 0 or method_end < 0:
+    raise SystemExit("Could not re-open existing-prefab Amarok method for drag retrofit.")
+method_text = text[method_start:method_end]
+drag_assignment = "feedbackRigidbody.drag = VehicleLinearDrag;"
+if drag_assignment not in method_text:
+    light_refresh_marker = (
+        '            var staleLightSources = '
+        'FindTransform(root.transform, "AmarokLightSources");\n'
+    )
+    refresh_at = method_text.find(light_refresh_marker)
+    if refresh_at < 0:
+        raise SystemExit(
+            "Could not locate refreshed Amarok overlay block for drag insertion."
+        )
+    drag_block = '''            // Persist the calibrated linear drag in the prefab itself.
+            var feedbackRigidbody = root.GetComponent<Rigidbody>();
+            if (feedbackRigidbody != null)
+                feedbackRigidbody.drag = VehicleLinearDrag;
+
+'''
+    absolute_refresh_at = method_start + refresh_at
+    text = text[:absolute_refresh_at] + drag_block + text[absolute_refresh_at:]
+
 SETUP.write_text(text, encoding="utf-8", newline="\n")
 
 check = SETUP.read_text(encoding="utf-8")
@@ -202,6 +240,7 @@ required = [
     'FindTransform(root.transform, "AmarokLightSources")',
     'AttachLightOverlaySources(root, visual.gameObject);',
     'DestroyImmediate(staleLightSources.gameObject);',
+    'feedbackRigidbody.drag = VehicleLinearDrag;',
     'FindTransform(root.transform, "AmarokDamageBody")',
     "CreateDeformableBody(root, visual.gameObject)",
     "ConfigurePowertrain(root);",
