@@ -16,29 +16,44 @@ for path in (SETUP, RUNTIME):
 # 1980 rpm -> 0.70 * 165 kW ~= 557 Nm
 # 2745 rpm -> 0.96 * 165 kW ~= 551 Nm
 #
-# The problem is the old donor-derived tail: after the 165 kW peak around
-# 3000 rpm it fell to 70% by 4500 rpm, so higher gears felt almost powerless.
-# Keep the real 165 kW ceiling and flatten the power plateau through the usable
-# upper rev range instead of adding fake engine power.
-curve = '''private static AnimationCurve CreateGT3RSPowerCurve() =>
+# The generated Amarok source has existed under both donor-era
+# CreateGT3RSPowerCurve() and sanitized CreateAmarokPowerCurve() names. Match
+# either name and preserve whichever one the current worktree contains.
+curve_pattern = re.compile(
+    r"""private static AnimationCurve (?P<name>Create(?:GT3RS|Amarok)PowerCurve)\(\)\s*=>\s*
+        new AnimationCurve\(.*?\);""",
+    re.S | re.X,
+)
+
+
+def replace_power_curve(text: str, source_name: str) -> str:
+    match = curve_pattern.search(text)
+    if match is None:
+        # Helpful failure output for future source renames instead of a blind
+        # "could not flatten" message.
+        candidates = sorted(set(re.findall(
+            r"private static AnimationCurve\s+([A-Za-z0-9_]+PowerCurve)\s*\(",
+            text,
+        )))
+        raise SystemExit(
+            f"Could not locate Amarok power curve in {source_name}; "
+            f"found candidates={candidates or ['<none>']}."
+        )
+
+    method_name = match.group("name")
+    replacement = f"""private static AnimationCurve {method_name}() =>
         new AnimationCurve(
             new Keyframe(0f, 0f), new Keyframe(0.16f, 0.18f),
             new Keyframe(0.31f, 0.49f), new Keyframe(0.44f, 0.70f),
             new Keyframe(0.61f, 0.96f), new Keyframe(0.67f, 1.00f),
             new Keyframe(0.78f, 1.00f), new Keyframe(0.89f, 1.00f),
-            new Keyframe(1.00f, 0.99f));'''
+            new Keyframe(1.00f, 0.99f));"""
+    return text[:match.start()] + replacement + text[match.end():]
 
-pattern = re.compile(
-    r'''private static AnimationCurve CreateGT3RSPowerCurve\(\) =>\s*
-        new AnimationCurve\(.*?\);''',
-    re.S | re.X,
-)
 
 for path in (SETUP, RUNTIME):
     text = path.read_text(encoding="utf-8")
-    text, count = pattern.subn(curve, text, count=1)
-    if count != 1:
-        raise SystemExit(f"Could not flatten Amarok upper-rpm power curve in {path.name}.")
+    text = replace_power_curve(text, path.name)
 
     # Rigidbody.drag is linear velocity damping, not a physical Cd coefficient.
     # 0.045 on a 2078 kg truck consumes implausibly large power as speed rises and
