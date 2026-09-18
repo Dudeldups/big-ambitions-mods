@@ -36,27 +36,19 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         GameObject root,
         Transform visual)
     {
-        MeshRenderer? paintRenderer = null;
+        var paintRenderers = new List<MeshRenderer>();
         foreach (var renderer in root.GetComponentsInChildren<MeshRenderer>(true))
         {
             if (renderer.name.IndexOf(
                     "VehiclePaint_Blue",
                     StringComparison.OrdinalIgnoreCase) < 0)
                 continue;
-            paintRenderer = renderer;
-            break;
+            paintRenderers.Add(renderer);
         }
 
-        if (paintRenderer == null)
+        if (paintRenderers.Count == 0)
             throw new InvalidOperationException(
-                "VehiclePaint_Blue is missing from AmarokLightOverlays.glb.");
-
-        // The overlay GLB is rotated as one light/trim source root. Preserve the
-        // resolved world transform while moving the paint shell out of
-        // AmarokLightSources so runtime deformation can treat it as bodywork.
-        paintRenderer.transform.SetParent(visual, true);
-        paintRenderer.gameObject.name = "VolkswagenAmarok_VehiclePaint_Blue";
-        paintRenderer.enabled = true;
+                "VehiclePaint_Blue panels are missing from AmarokLightOverlays.glb.");
 
         if (!AssetDatabase.IsValidFolder(MaterialFolder))
             AssetDatabase.CreateFolder(ModRoot, "Materials");
@@ -100,15 +92,24 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
         if (paintMaterial.HasProperty("_ZWrite"))
             paintMaterial.SetFloat("_ZWrite", 1f);
 
-        paintRenderer.sharedMaterial = paintMaterial;
+        foreach (var paintRenderer in paintRenderers)
+        {
+            // Keep each paint panel separate. This mirrors the finished vehicle
+            // mods' panel-based deformation path and lets crash handling cull
+            // distant doors/body sections before reading their vertex buffers.
+            paintRenderer.transform.SetParent(visual, true);
+            paintRenderer.gameObject.name =
+                "VolkswagenAmarok_" + paintRenderer.gameObject.name;
+            paintRenderer.sharedMaterial = paintMaterial;
+            paintRenderer.enabled = true;
+        }
         EditorUtility.SetDirty(paintMaterial);
 
         Debug.Log(
-            $"VolkswagenAmarok original-blue paint surface ready renderer=" +
-            $"'{paintRenderer.name}' mesh='{paintRenderer.GetComponent<MeshFilter>()?.sharedMesh?.name}'.");
+            $"VolkswagenAmarok original-blue paint surfaces ready panels=" +
+            $"{paintRenderers.Count}.");
     }
 
-'''
 if "private static void ConfigureOriginalBluePaintSurface(" not in setup:
     if helper_marker not in setup:
         raise SystemExit(
@@ -300,6 +301,8 @@ checks = {
         '"VolkswagenAmarok_BA_VehiclePaint"',
         'material.name.IndexOf("_BA_VehiclePaint"',
         "paintRenderer.transform.SetParent(visual, true);",
+        "var paintRenderers = new List<MeshRenderer>();",
+        '"panels=" +',
     ],
     MATERIALS: [
         '"_BA_VehiclePaint"',
