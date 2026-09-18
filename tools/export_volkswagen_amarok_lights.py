@@ -295,10 +295,11 @@ def build_original_blue_paint_overlays(source_objects):
         min_z = min(v.z for v in coords)
         max_z = max(v.z for v in coords)
         local_span = max(max_x - min_x, max_y - min_y, max_z - min_z)
-        # Keep the BA paint shell only fractionally above the original blue
-        # sheet metal. Larger offsets could poke through creator-authored black
-        # B-pillar/window trim that sits just above the painted body.
-        normal_offset = max(local_span * 0.000035, 0.000025)
+        # VehiclePaint_Blue now REPLACES the original blue triangles instead of
+        # rendering as a second shell above them. Keep the authored panel vertices
+        # exactly on the source surface; the Unity editor patch removes the matching
+        # blue triangles from the source mesh before the prefab is saved.
+        normal_offset = 0.0
 
         used = sorted({index for poly in polys for index in poly.vertices})
         remap = {old: new for new, old in enumerate(used)}
