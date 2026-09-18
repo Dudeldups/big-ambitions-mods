@@ -10,6 +10,7 @@ namespace BigHax
         // Enable these only while investigating a specific report.
         internal static readonly bool DebugEnabled = false;
         internal static readonly bool EmployeeDebugEnabled = false;
+        internal static readonly bool SleepDebugEnabled = false;
         private static readonly HashSet<string> Warnings = new HashSet<string>();
 
         public static void Info(ModContext? context, string message)
@@ -28,6 +29,12 @@ namespace BigHax
         public static void EmployeeDiagnostic(ModContext? context, string message)
         {
             if (DebugEnabled && EmployeeDebugEnabled)
+                context?.Logger.Info("BigHax: " + message);
+        }
+
+        public static void SleepDiagnostic(ModContext? context, string message)
+        {
+            if (DebugEnabled && SleepDebugEnabled)
                 context?.Logger.Info("BigHax: " + message);
         }
 

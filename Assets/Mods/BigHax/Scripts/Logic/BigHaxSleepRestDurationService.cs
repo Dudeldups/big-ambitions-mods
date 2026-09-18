@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using BAModAPI;
 using UnityEngine;
 
 namespace BigHax
@@ -32,6 +33,9 @@ namespace BigHax
 
         public void InvalidateCache()
         {
+            // Scene loading replaces the controllers even when the save and setting stay the same.
+            lastAppliedSaveGame = null;
+            lastAppliedExtendedBedSetting = null;
         }
 
         public bool NeedsSettingsApply(BigHaxSettings settings)
@@ -41,13 +45,13 @@ namespace BigHax
                    lastAppliedExtendedBedSetting.Value != settings.EnableExtendedBedSleep;
         }
 
-        public void ApplyConfiguredDurations(BigHaxSettings settings)
+        public void ApplyConfiguredDurations(ModContext context, BigHaxSettings settings)
         {
             var saveGame = SaveGameManager.Current;
             if (saveGame?.PlayerDefaults == null || saveGame.charactersData == null || saveGame.charactersData.Count == 0)
             {
-                BigHaxLogger.Diagnostic(
-                    "Freeze diagnostic/sleep-rest apply deferred: active save has no usable player defaults or character data.");
+                BigHaxLogger.SleepDiagnostic(context,
+                    "Sleep duration apply deferred: active save has no usable player defaults or character data.");
                 return;
             }
 
@@ -75,8 +79,8 @@ namespace BigHax
             stopwatch.Stop();
             lastAppliedSaveGame = saveGame;
             lastAppliedExtendedBedSetting = settings.EnableExtendedBedSleep;
-            BigHaxLogger.Diagnostic(
-                "Freeze diagnostic/sleep-rest targeted apply completed: extendedBed=" + settings.EnableExtendedBedSleep +
+            BigHaxLogger.SleepDiagnostic(context,
+                "Sleep duration apply completed: extendedBed=" + settings.EnableExtendedBedSleep +
                 ", bench=" + benchResult +
                 ", bed=" + bedResult +
                 ", bedConfigs=" + bedConfigResult +

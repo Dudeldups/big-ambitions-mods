@@ -239,7 +239,7 @@ namespace BigHax
                 if (sleepDurationApplyRequested)
                 {
                     if (sleepRestDurationService.NeedsSettingsApply(settings))
-                        SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                        SafeApply("bench rest durations", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                     sleepDurationApplyRequested = false;
                 }
                 SafeApply("vehicle capacities", () => vehicleCapacityService.ApplyConfiguredCapacities(context, settings, forceRefresh: true));
@@ -323,6 +323,8 @@ namespace BigHax
             headhunterRpService.AttachUiHooks();
             loanLimitService.InvalidateCache();
             sleepRestDurationService.InvalidateCache();
+            if (sleepDurationApplyCoroutine == null && context != null && settings != null)
+                sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             vehicleCapacityService.InvalidateCache();
             trafficService.InvalidateCache();
             applyRequested = true;
@@ -368,7 +370,7 @@ namespace BigHax
             headhunterRpService.AttachUiHooks();
             SafeApply("AI vehicle traffic after game load", () => trafficService.ApplyConfiguredBehavior(context!, settings!));
             ScheduleEmployeeDemandMessageCleanup();
-            if (sleepDurationApplyCoroutine == null && sleepRestDurationService.NeedsSettingsApply(settings!))
+            if (sleepDurationApplyCoroutine == null)
                 sleepDurationApplyCoroutine = StartCoroutine(ApplySleepDurationsAfterGameLoad());
             if (optionsUiPrewarmCoroutine == null)
                 optionsUiPrewarmCoroutine = StartCoroutine(PrewarmOptionsUiWhenGameIsReady());
@@ -387,14 +389,14 @@ namespace BigHax
             yield return new WaitForEndOfFrame();
             if (context != null && settings != null)
             {
-                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                SafeApply("sleep durations after game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 extendedBedSleepLabelService.Attach(settings);
             }
 
             yield return new WaitForSecondsRealtime(1f);
             if (context != null && settings != null)
             {
-                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(settings));
+                SafeApply("sleep durations after delayed game load", () => sleepRestDurationService.ApplyConfiguredDurations(context, settings));
                 extendedBedSleepLabelService.Attach(settings);
             }
 
