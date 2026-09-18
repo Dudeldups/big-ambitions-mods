@@ -240,9 +240,18 @@ paint_helper = r'''    private static void ConfigureOriginalBluePaintSurface(
             foreach (var remaining in panelKeys.Values)
                 unmatchedPanelTriangles += remaining;
             if (unmatchedPanelTriangles != 0)
-                throw new InvalidOperationException(
-                    $"Amarok paint panel '{paintRenderer.name}' still has " +
-                    $"{unmatchedPanelTriangles} unmatched authored triangles after source cutout.");
+            {
+                // Blender/glTF and Unity can triangulate a small number of source
+                // quads with opposite diagonals. Those authored paint triangles
+                // therefore have no exact 3-vertex counterpart in the imported
+                // source mesh. Never guess and delete neighboring geometry: keep
+                // the original source triangles for these rare cases and let the
+                // BA paint panel cover them normally.
+                Debug.LogWarning(
+                    $"VolkswagenAmarok paint panel '{paintRenderer.name}' kept " +
+                    $"{unmatchedPanelTriangles} unmatched source triangle(s) " +
+                    "because Blender/Unity triangulation differs.");
+            }
 
             if (removedForPanel == 0)
             {
@@ -611,6 +620,7 @@ checks = {
         "VolkswagenAmarok_SourceOriginal_",
         "VolkswagenAmarok_SourceRemainder_",
         "removedSourceTriangles",
+        "Blender/Unity triangulation differs.",
         "CreateDeformableBody now consumes the source-blue-stripped model.",
         "paintRenderers.Count",
     ],
