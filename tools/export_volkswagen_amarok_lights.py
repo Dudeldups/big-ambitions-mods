@@ -232,38 +232,44 @@ def collect_original_blue_polygons(source):
         samples = []
         if image is not None and uv_data is not None and poly.loop_indices:
             uv_points = [uv_data[index].uv.copy() for index in poly.loop_indices]
-            for uv in uv_points:
+            sample_points = list(uv_points)
+            for index in range(len(uv_points)):
+                sample_points.append(
+                    (uv_points[index] + uv_points[(index + 1) % len(uv_points)]) * 0.5
+                )
+            centroid = sum(uv_points[1:], uv_points[0].copy()) / len(uv_points)
+            sample_points.append(centroid)
+            for uv in sample_points:
                 sampled = sample_image(image, uv)
                 if sampled is not None:
                     samples.append(sampled)
-            centroid = sum(uv_points[1:], uv_points[0].copy()) / len(uv_points)
-            sampled = sample_image(image, centroid)
-            if sampled is not None:
-                samples.append(sampled)
 
         if not samples:
             samples = [material_base_color(material)]
 
         blue_votes = sum(1 for sample in samples if is_source_blue(sample))
-        # Mixed UV-border triangles around black trim (especially the B-pillars)
-        # could previously pass with only 2 of 4 samples blue. Require a clear
-        # blue majority so the creator-authored black surface wins at paint/trim
-        # boundaries while fully blue body panels remain repaintable.
-        required_votes = max(1, math.ceil(len(samples) * 0.75))
+        source_name = source.name.lower()
+        # Doors contain the creator-authored black window frames / B-pillar
+        # surfaces in the same source material family as the blue sheet metal.
+        # Require every UV sample on those polygons to be blue. Other exterior
+        # parts use a strong 75% majority to tolerate anti-aliased texture edges.
+        strict_door_surface = "door_" in source_name
+        required_votes = (
+            len(samples)
+            if strict_door_surface
+            else max(1, math.ceil(len(samples) * 0.75))
+        )
         if blue_votes >= required_votes:
             accepted.append(poly)
 
     return candidate_faces, accepted
 
 
-def build_original_blue_paint_overlay(source_objects):
+def build_original_blue_paint_overlays(source_objects):
     expected = "VehiclePaint_Blue"
-    merged_vertices = []
-    merged_faces = []
-    reference_matrix = None
-    reference_inverse = None
-    contributing_sources = 0
-    contributing_faces = 0
+    created_paint = []
+    total_faces = 0
+    total_vertices = 0
 
     for source in source_objects:
         candidate_faces, polys = collect_original_blue_polygons(source)
@@ -277,14 +283,6 @@ def build_original_blue_paint_overlay(source_objects):
         if not polys:
             continue
 
-        if reference_matrix is None:
-            reference_matrix = source.matrix_world.copy()
-            reference_inverse = reference_matrix.inverted_safe()
-
-        contributing_sources += 1
-        contributing_faces += len(polys)
-        source_to_reference = reference_inverse @ source.matrix_world
-
         mesh = source.data
         coords = [vertex.co for vertex in mesh.vertices]
         min_x = min(v.x for v in coords)
@@ -297,39 +295,47 @@ def build_original_blue_paint_overlay(source_objects):
         normal_offset = max(local_span * 0.00028, 0.00012)
 
         used = sorted({index for poly in polys for index in poly.vertices})
-        base = len(merged_vertices)
-        remap = {old: base + new for new, old in enumerate(used)}
-
+        remap = {old: new for new, old in enumerate(used)}
+        paint_vertices = []
         for index in used:
             vertex = mesh.vertices[index]
             displaced = vertex.co + vertex.normal.normalized() * normal_offset
-            merged_vertices.append(source_to_reference @ displaced)
+            paint_vertices.append(displaced)
 
-        merged_faces.extend([
+        paint_faces = [
             [remap[index] for index in poly.vertices]
             for poly in polys
-        ])
+        ]
 
-    if not merged_faces or reference_matrix is None:
+        safe_source = re.sub(r"[^A-Za-z0-9_]+", "_", source.name).strip("_")
+        object_name = f"{expected}_{safe_source}"
+        out_mesh = bpy.data.meshes.new(object_name + "_Mesh")
+        out_mesh.from_pydata(paint_vertices, [], paint_faces)
+        out_mesh.update()
+
+        out_object = bpy.data.objects.new(object_name, out_mesh)
+        out_object.matrix_world = source.matrix_world.copy()
+        bpy.context.collection.objects.link(out_object)
+        created_paint.append(out_object)
+
+        total_faces += len(paint_faces)
+        total_vertices += len(paint_vertices)
+        print(
+            f"[Amarok paint] generated panel='{object_name}' "
+            f"faces={len(paint_faces)} vertices={len(paint_vertices)}"
+        )
+
+    if not created_paint:
         raise RuntimeError(
             "Could not derive VehiclePaint_Blue from the original Amarok materials/textures. "
             "The exporter found no sufficiently blue phong5/dorr_R faces."
         )
 
-    out_mesh = bpy.data.meshes.new(expected + "_Mesh")
-    out_mesh.from_pydata(merged_vertices, [], merged_faces)
-    out_mesh.update()
-
-    out_object = bpy.data.objects.new(expected, out_mesh)
-    out_object.matrix_world = reference_matrix
-    bpy.context.collection.objects.link(out_object)
-
     print(
         f"[Amarok paint] generated expected='{expected}' "
-        f"sources={contributing_sources} faces={contributing_faces} "
-        f"vertices={len(merged_vertices)}"
+        f"panels={len(created_paint)} faces={total_faces} vertices={total_vertices}"
     )
-    return out_object
+    return created_paint
 
 
 def collect_polygons(mesh, group_index):
@@ -373,8 +379,8 @@ for source in source_objects:
 created = []
 resolved = set()
 
-paint_object = build_original_blue_paint_overlay(source_objects)
-created.append(paint_object)
+paint_objects = build_original_blue_paint_overlays(source_objects)
+created.extend(paint_objects)
 resolved.add("VehiclePaint_Blue")
 
 # Merge every source object carrying the same logical light group into ONE
