@@ -86,11 +86,14 @@ def is_body_paint_candidate(material):
 
 
 def find_base_color_image(material):
-    if material is None or not material.use_nodes or material.node_tree is None:
+    if material is None:
+        return None
+    node_tree = getattr(material, "node_tree", None)
+    if node_tree is None:
         return None
 
     principled = next(
-        (node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"),
+        (node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"),
         None,
     )
     if principled is None:
@@ -118,9 +121,10 @@ def find_base_color_image(material):
 def material_base_color(material):
     if material is None:
         return (0.0, 0.0, 0.0)
-    if material.use_nodes and material.node_tree is not None:
+    node_tree = getattr(material, "node_tree", None)
+    if node_tree is not None:
         principled = next(
-            (node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"),
+            (node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"),
             None,
         )
         if principled is not None:
@@ -132,22 +136,33 @@ def material_base_color(material):
     return (float(value[0]), float(value[1]), float(value[2]))
 
 
+IMAGE_TEXEL_CACHE = {}
+
+
 def sample_image(image, uv):
     if image is None or image.size[0] <= 0 or image.size[1] <= 0:
         return None
     try:
-        pixels = image.pixels
         width, height = int(image.size[0]), int(image.size[1])
         u = float(uv.x) % 1.0
         v = float(uv.y) % 1.0
         x = min(width - 1, max(0, int(round(u * (width - 1)))))
         y = min(height - 1, max(0, int(round(v * (height - 1)))))
+
+        key = (image.as_pointer(), x, y)
+        cached = IMAGE_TEXEL_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+        pixels = image.pixels
         index = (y * width + x) * 4
-        return (
+        sampled = (
             float(pixels[index]),
             float(pixels[index + 1]),
             float(pixels[index + 2]),
         )
+        IMAGE_TEXEL_CACHE[key] = sampled
+        return sampled
     except Exception as exc:
         print(
             f"[Amarok paint] could not sample image='{getattr(image, 'name', '<unknown>')}' "
@@ -203,6 +218,11 @@ def collect_original_blue_polygons(source):
         if not is_body_paint_candidate(material):
             continue
         candidate_faces += 1
+        if candidate_faces % 5000 == 0:
+            print(
+                f"[Amarok paint] scanning object='{source.name}' "
+                f"candidateBodyFaces={candidate_faces} acceptedBlue={len(accepted)}"
+            )
 
         image = image_cache.get(material)
         if material not in image_cache:
