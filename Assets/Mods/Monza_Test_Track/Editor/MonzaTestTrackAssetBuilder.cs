@@ -93,10 +93,11 @@ namespace MonzaTestTrack.Editor
                 visual.name = "Visual";
                 visual.transform.localPosition = Vector3.zero;
 
-                // The GLB is already Y-up. Do not add an axis conversion here:
-                // the previous +90 degree X rotation turned the circuit scenery
-                // underneath the driving surface.
-                visual.transform.localRotation = Quaternion.identity;
+                // The source model's circuit lies in X/Y with Z as elevation.
+                // Convert source Z-up to Unity Y-up with -90 degrees around X.
+                // +90 degrees makes the road horizontal too, but inverts elevation
+                // and places grandstands/trees underneath the circuit.
+                visual.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
                 visual.transform.localScale = Vector3.one;
 
                 RemoveImportedLightsAndCameras(visual);
@@ -129,6 +130,18 @@ namespace MonzaTestTrack.Editor
                     "MonzaTestTrack corrected road bounds: min=" + roadBounds.min +
                     ", max=" + roadBounds.max +
                     ", size=" + roadBounds.size + ".");
+
+                // A valid Monza road surface must be kilometres wide/long in X/Z
+                // while remaining only a few tens of metres tall in Y. Fail fast
+                // if a future importer/transform change rotates it upright again.
+                if (roadBounds.size.y > 100f ||
+                    roadBounds.size.x < 1000f ||
+                    roadBounds.size.z < 500f)
+                {
+                    throw new InvalidOperationException(
+                        "Monza road orientation sanity check failed. Expected a flat X/Z circuit, got size=" +
+                        roadBounds.size + ".");
+                }
 
                 var trackGrip = GetOrCreateSurfaceMaterial(
                     PhysicsMaterialPath, "MonzaTrackGrip", 0.95f, 1.00f, PhysicMaterialCombine.Maximum);
