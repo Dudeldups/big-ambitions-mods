@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   ModId: MonzaTestTrack
   DisplayName: Monza Test Track
-  Author: Local Mod
+  Author: Dudeldups
   Version: 0.1.0
-  AssetBundleName:
+  AssetBundleName: monzatesttrack.unity3d
   ModAssembly: {fileID: 5897886265953266890, guid: 7d7c702d67714ddfbd57675a5cb947bd,
     type: 3}
   LocalesFolder: {fileID: 102900000, guid: 9b188a24d25a442f855fb8358a0bbd31, type: 3}
