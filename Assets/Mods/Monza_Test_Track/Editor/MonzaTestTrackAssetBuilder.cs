@@ -18,6 +18,9 @@ namespace MonzaTestTrack.Editor
         private const string PrefabPath = Root + "/Prefabs/MonzaTestTrack.prefab";
         private const string GeneratedFolder = Root + "/Generated";
         private const string PhysicsMaterialPath = GeneratedFolder + "/MonzaTrackGrip.physicMaterial";
+        private const string GrassPhysicsMaterialPath = GeneratedFolder + "/MonzaGrass.physicMaterial";
+        private const string GravelPhysicsMaterialPath = GeneratedFolder + "/MonzaGravel.physicMaterial";
+        private const string PavedRunoffPhysicsMaterialPath = GeneratedFolder + "/MonzaPavedRunoff.physicMaterial";
         private const string BundleName = "monzatesttrack.unity3d";
         private const string BootstrapScenePath = Root + "/Scenes/MonzaTestTrack_Bootstrap.unity";
 
@@ -90,14 +93,14 @@ namespace MonzaTestTrack.Editor
                 visual.name = "Visual";
                 visual.transform.localPosition = Vector3.zero;
 
-                // The source Monza model is authored Z-up (the circuit lies in
-                // source X/Y and source Z is elevation). Big Ambitions/Unity is
-                // Y-up, so rotate the complete imported hierarchy before any
-                // bounds, collision or spawn calculations.
-                visual.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                // The GLB is already Y-up. Do not add an axis conversion here:
+                // the previous +90 degree X rotation turned the circuit scenery
+                // underneath the driving surface.
+                visual.transform.localRotation = Quaternion.identity;
                 visual.transform.localScale = Vector3.one;
 
                 RemoveImportedLightsAndCameras(visual);
+                PrepareVisualRenderers(visual);
 
                 var roadRenderers = FindRoadRenderers(visual).ToArray();
                 if (roadRenderers.Length == 0)
@@ -127,15 +130,24 @@ namespace MonzaTestTrack.Editor
                     ", max=" + roadBounds.max +
                     ", size=" + roadBounds.size + ".");
 
-                var grip = GetOrCreateTrackGrip();
-                var colliders = CreateRoadColliders(root.transform, roadRenderers, grip);
+                var trackGrip = GetOrCreateSurfaceMaterial(
+                    PhysicsMaterialPath, "MonzaTrackGrip", 0.95f, 1.00f, PhysicMaterialCombine.Maximum);
+                var grassGrip = GetOrCreateSurfaceMaterial(
+                    GrassPhysicsMaterialPath, "MonzaGrass", 0.35f, 0.40f, PhysicMaterialCombine.Minimum);
+                var gravelGrip = GetOrCreateSurfaceMaterial(
+                    GravelPhysicsMaterialPath, "MonzaGravel", 0.18f, 0.22f, PhysicMaterialCombine.Minimum);
+                var pavedRunoffGrip = GetOrCreateSurfaceMaterial(
+                    PavedRunoffPhysicsMaterialPath, "MonzaPavedRunoff", 0.75f, 0.80f, PhysicMaterialCombine.Average);
+
+                var colliders = CreateRoadColliders(root.transform, roadRenderers, trackGrip);
                 if (colliders.Count == 0)
                     throw new InvalidOperationException("No MeshColliders were created for the Monza asphalt.");
 
-                var runoffColliders = CreateRunoffColliders(root.transform, runoffRenderers, grip);
+                var runoffColliders = CreateRunoffColliders(
+                    root.transform, runoffRenderers, grassGrip, gravelGrip, pavedRunoffGrip);
 
                 Physics.SyncTransforms();
-                CreateInvisibleSafetyBase(root.transform, roadBounds, grip);
+                CreateInvisibleSafetyBase(root.transform, roadBounds, grassGrip);
                 var spawn = CreateSpawnPoint(root.transform, colliders, roadBounds);
 
                 foreach (var transform in root.GetComponentsInChildren<Transform>(true))
@@ -395,6 +407,22 @@ namespace MonzaTestTrack.Editor
                     MeshColliderCookingOptions.UseFastMidphase;
                 collider.sharedMaterial = grip;
 
+                // High-speed safety layer: a second copy slightly below the
+                // authored road catches a vehicle that would otherwise tunnel
+                // through a thin MeshCollider between physics steps.
+                var backupObject = new GameObject("COL_Track_Backup_" + colliderIndex);
+                backupObject.transform.SetParent(collisionsRoot.transform, false);
+                backupObject.transform.localPosition = Vector3.down * 0.25f;
+                backupObject.layer = groundLayer;
+                backupObject.isStatic = true;
+
+                var backupCollider = backupObject.AddComponent<MeshCollider>();
+                backupCollider.sharedMesh = collisionMesh;
+                backupCollider.convex = false;
+                backupCollider.isTrigger = false;
+                backupCollider.cookingOptions = collider.cookingOptions;
+                backupCollider.sharedMaterial = grip;
+
                 result.Add(collider);
                 colliderIndex++;
             }
@@ -412,7 +440,9 @@ namespace MonzaTestTrack.Editor
         private static List<MeshCollider> CreateRunoffColliders(
             Transform parent,
             IEnumerable<MeshRenderer> runoffRenderers,
-            PhysicMaterial grip)
+            PhysicMaterial grassGrip,
+            PhysicMaterial gravelGrip,
+            PhysicMaterial pavedRunoffGrip)
         {
             var result = new List<MeshCollider>();
             int groundLayer = RequireLayer("Ground");
@@ -428,6 +458,18 @@ namespace MonzaTestTrack.Editor
 
             foreach (var renderer in runoffRenderers)
             {
+                bool isGrass = renderer.sharedMaterials.Any(material =>
+                    material != null &&
+                    string.Equals(material.name, "logoansa", StringComparison.OrdinalIgnoreCase));
+                bool isGravel = renderer.sharedMaterials.Any(material =>
+                    material != null &&
+                    (string.Equals(material.name, "logoansa_78", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(material.name, "logoansa_82", StringComparison.OrdinalIgnoreCase)));
+
+                string surfaceName = isGravel ? "Gravel" : (isGrass ? "Grass" : "PavedRunoff");
+                PhysicMaterial surfaceMaterial =
+                    isGravel ? gravelGrip : (isGrass ? grassGrip : pavedRunoffGrip);
+
                 var filter = renderer.GetComponent<MeshFilter>();
                 var sourceMesh = filter != null ? filter.sharedMesh : null;
                 if (sourceMesh == null)
@@ -488,13 +530,13 @@ namespace MonzaTestTrack.Editor
                 if (acceptedTriangles.Count < 3)
                     continue;
 
-                string meshPath = GeneratedFolder + "/COL_Runoff_" + colliderIndex + ".asset";
+                string meshPath = GeneratedFolder + "/COL_" + surfaceName + "_" + colliderIndex + ".asset";
                 if (AssetDatabase.LoadAssetAtPath<Mesh>(meshPath) != null)
                     AssetDatabase.DeleteAsset(meshPath);
 
                 var collisionMesh = new Mesh
                 {
-                    name = "COL_Runoff_" + colliderIndex,
+                    name = "COL_" + surfaceName + "_" + colliderIndex,
                     indexFormat = bakedVertices.Length > 65535
                         ? IndexFormat.UInt32
                         : IndexFormat.UInt16
@@ -505,7 +547,7 @@ namespace MonzaTestTrack.Editor
                 collisionMesh.RecalculateBounds();
                 AssetDatabase.CreateAsset(collisionMesh, meshPath);
 
-                var collisionObject = new GameObject("COL_Runoff_" + colliderIndex);
+                var collisionObject = new GameObject("COL_" + surfaceName + "_" + colliderIndex);
                 collisionObject.transform.SetParent(collisionsRoot.transform, false);
                 collisionObject.layer = groundLayer;
                 collisionObject.isStatic = true;
@@ -519,7 +561,7 @@ namespace MonzaTestTrack.Editor
                     MeshColliderCookingOptions.EnableMeshCleaning |
                     MeshColliderCookingOptions.WeldColocatedVertices |
                     MeshColliderCookingOptions.UseFastMidphase;
-                collider.sharedMaterial = grip;
+                collider.sharedMaterial = surfaceMaterial;
 
                 result.Add(collider);
                 colliderIndex++;
@@ -678,22 +720,38 @@ namespace MonzaTestTrack.Editor
                 UnityEngine.Object.DestroyImmediate(camera.gameObject);
         }
 
-        private static PhysicMaterial GetOrCreateTrackGrip()
+        private static PhysicMaterial GetOrCreateSurfaceMaterial(
+            string assetPath,
+            string name,
+            float dynamicFriction,
+            float staticFriction,
+            PhysicMaterialCombine frictionCombine)
         {
-            var material = AssetDatabase.LoadAssetAtPath<PhysicMaterial>(PhysicsMaterialPath);
+            var material = AssetDatabase.LoadAssetAtPath<PhysicMaterial>(assetPath);
             if (material == null)
             {
-                material = new PhysicMaterial("MonzaTrackGrip");
-                AssetDatabase.CreateAsset(material, PhysicsMaterialPath);
+                material = new PhysicMaterial(name);
+                AssetDatabase.CreateAsset(material, assetPath);
             }
 
-            material.dynamicFriction = 0.8f;
-            material.staticFriction = 0.8f;
+            material.dynamicFriction = dynamicFriction;
+            material.staticFriction = staticFriction;
             material.bounciness = 0f;
-            material.frictionCombine = PhysicMaterialCombine.Average;
+            material.frictionCombine = frictionCombine;
             material.bounceCombine = PhysicMaterialCombine.Minimum;
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        private static void PrepareVisualRenderers(GameObject visual)
+        {
+            foreach (var renderer in visual.GetComponentsInChildren<Renderer>(true))
+            {
+                // Runtime-added Monza renderers are not part of the city's baked
+                // occlusion data. Keep them out of dynamic occlusion culling;
+                // camera far-clip distance is raised while the player is on track.
+                renderer.allowOcclusionWhenDynamic = false;
+            }
         }
 
         private static void BuildWindowsBundle()
