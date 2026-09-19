@@ -61,6 +61,13 @@
         "Custom NPC API"
       ],
       "enabled": true
+    },
+    {
+      "modName": "Monza_Test_Track",
+      "sourceDir": "Assets/Mods/Monza_Test_Track",
+      "assemblyName": "MonzaTestTrack",
+      "modsLocalFolder": "Monza Test Track",
+      "enabled": true
     }
   ]
 }
