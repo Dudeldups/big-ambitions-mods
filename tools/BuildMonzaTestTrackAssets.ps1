@@ -61,25 +61,33 @@ Write-Host "[monza-assets] Log: $LogPath"
 $unityArgs = @(
     "-batchmode",
     "-quit",
-    "-projectPath", $RepoRoot,
+    "-projectPath", ('"' + $RepoRoot + '"'),
     "-executeMethod", "MonzaTestTrack.Editor.MonzaTestTrackAssetBuilder.BuildBatch",
-    "-logFile", $LogPath
+    "-logFile", ('"' + $LogPath + '"')
 )
 
-& $UnityExe @unityArgs
+# Unity.exe is a Windows GUI executable. A direct invocation can return control to
+# PowerShell before the Unity process has actually finished. Start-Process -Wait
+# guarantees that bundle existence is checked only after Unity has exited.
+$unityProcess = Start-Process -FilePath $UnityExe -ArgumentList $unityArgs -Wait -PassThru
 
-$exitCode = $LASTEXITCODE
+$exitCode = $unityProcess.ExitCode
 if ($exitCode -ne 0) {
     Write-Host ""
     Write-Host "===== MONZA UNITY BUILD LOG (tail) ====="
     if (Test-Path -LiteralPath $LogPath) {
-        Get-Content -LiteralPath $LogPath -Tail 160
+        Get-Content -LiteralPath $LogPath -Tail 200
     }
     throw "Unity Monza AssetBundle build failed with exit code $exitCode."
 }
 
 if (-not (Test-Path -LiteralPath $BundleTarget -PathType Leaf)) {
-    throw "Unity exited successfully but the expected bundle was not created: $BundleTarget"
+    Write-Host ""
+    Write-Host "===== MONZA UNITY BUILD LOG (tail) ====="
+    if (Test-Path -LiteralPath $LogPath) {
+        Get-Content -LiteralPath $LogPath -Tail 200
+    }
+    throw "Unity exited with code 0 but the expected bundle was not created: $BundleTarget"
 }
 
 $bundle = Get-Item -LiteralPath $BundleTarget
