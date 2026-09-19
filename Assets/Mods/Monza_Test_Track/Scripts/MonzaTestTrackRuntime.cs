@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -39,6 +40,10 @@ namespace MonzaTestTrack
         private bool _shuttingDown;
         private bool _usingVisualBundle;
 
+        private readonly Dictionary<Camera, float> _cameraFarClips = new Dictionary<Camera, float>();
+        private Rigidbody? _trackVehicleBody;
+        private CollisionDetectionMode? _previousCollisionDetectionMode;
+
         public void Initialize(string modRootPath, IModLogger logger, GameObject? bundledPrefab)
         {
             _modRootPath = modRootPath;
@@ -72,12 +77,23 @@ namespace MonzaTestTrack
 
         private void Update()
         {
-            if (_site == null || !Input.GetKeyDown(KeyCode.F7))
+            if (_site == null)
                 return;
 
             try
             {
-                ToggleVehicleTeleport();
+                if (_hasReturnPosition)
+                {
+                    EnsureTrackCameraRange();
+                    ApplyOffRoadSurfaceEffects();
+                }
+                else
+                {
+                    RestoreCameraRange();
+                }
+
+                if (Input.GetKeyDown(KeyCode.F7))
+                    ToggleVehicleTeleport();
             }
             catch (Exception ex)
             {
@@ -261,6 +277,7 @@ namespace MonzaTestTrack
                 Quaternion returnRotation = _returnRotation;
 
                 TeleportVehicle(car, returnPosition, returnRotation);
+                RestoreTrackRuntimeState();
 
                 _hasReturnPosition = false;
                 _logger?.Info(
@@ -276,10 +293,133 @@ namespace MonzaTestTrack
             _logger?.Info(
                 "[MonzaTestTrack] Stored city return position " + _returnPosition + ".");
 
+            EnableHighSpeedTrackPhysics(car);
             TeleportVehicle(car, _spawnPosition, _spawnRotation);
             _logger?.Info(
                 "[MonzaTestTrack] Teleported current vehicle to Monza " +
                 (_usingVisualBundle ? "full visual track." : "diagnostic surface."));
+        }
+
+        private void EnableHighSpeedTrackPhysics(CarController car)
+        {
+            Rigidbody? body = car.vehicleController?.vehicleRigidbody;
+            _trackVehicleBody = body;
+
+            if (body == null || body.isKinematic)
+                return;
+
+            _previousCollisionDetectionMode = body.collisionDetectionMode;
+            body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        }
+
+        private void RestoreTrackRuntimeState()
+        {
+            RestoreCameraRange();
+
+            if (_trackVehicleBody != null &&
+                _previousCollisionDetectionMode.HasValue &&
+                !_trackVehicleBody.isKinematic)
+            {
+                _trackVehicleBody.collisionDetectionMode = _previousCollisionDetectionMode.Value;
+            }
+
+            _trackVehicleBody = null;
+            _previousCollisionDetectionMode = null;
+        }
+
+        private void EnsureTrackCameraRange()
+        {
+            foreach (Camera camera in Camera.allCameras)
+            {
+                if (camera == null)
+                    continue;
+
+                if (!_cameraFarClips.ContainsKey(camera))
+                    _cameraFarClips[camera] = camera.farClipPlane;
+
+                if (camera.farClipPlane < 5500f)
+                    camera.farClipPlane = 5500f;
+            }
+        }
+
+        private void RestoreCameraRange()
+        {
+            if (_cameraFarClips.Count == 0)
+                return;
+
+            foreach (var entry in _cameraFarClips)
+            {
+                if (entry.Key != null)
+                    entry.Key.farClipPlane = entry.Value;
+            }
+
+            _cameraFarClips.Clear();
+        }
+
+        private void ApplyOffRoadSurfaceEffects()
+        {
+            if (_site == null)
+                return;
+
+            var car = VehicleHelper.GetCurrentVehicleBase() as CarController;
+            Rigidbody? body = car?.vehicleController?.vehicleRigidbody;
+            if (car == null || body == null || body.isKinematic)
+                return;
+
+            Vector3 origin = body.worldCenterOfMass + Vector3.up * 1.5f;
+            RaycastHit[] hits = Physics.RaycastAll(
+                origin,
+                Vector3.down,
+                6f,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+
+            if (hits == null || hits.Length == 0)
+                return;
+
+            Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+
+            foreach (RaycastHit hit in hits)
+            {
+                Collider collider = hit.collider;
+                if (collider == null || !collider.transform.IsChildOf(_site.transform))
+                    continue;
+
+                string name = collider.gameObject.name ?? string.Empty;
+
+                if (name.StartsWith("COL_Gravel_", StringComparison.Ordinal))
+                {
+                    ApplyHorizontalDeceleration(body, 4.5f);
+                    return;
+                }
+
+                if (name.StartsWith("COL_Grass_", StringComparison.Ordinal))
+                {
+                    ApplyHorizontalDeceleration(body, 1.4f);
+                    return;
+                }
+
+                // The nearest Monza collider is asphalt, paved runoff, or the
+                // safety base. No additional rolling resistance is needed.
+                return;
+            }
+        }
+
+        private static void ApplyHorizontalDeceleration(Rigidbody body, float metresPerSecondSquared)
+        {
+            Vector3 velocity = body.velocity;
+            Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
+            float speed = horizontal.magnitude;
+            if (speed < 0.05f)
+                return;
+
+            float nextSpeed = Mathf.Max(0f, speed - metresPerSecondSquared * Time.deltaTime);
+            float scale = nextSpeed / speed;
+
+            body.velocity = new Vector3(
+                horizontal.x * scale,
+                velocity.y,
+                horizontal.z * scale);
         }
 
         private static bool IsAtTestSite(Vector3 position)
@@ -444,6 +584,7 @@ namespace MonzaTestTrack
                 _logger?.Error(ex);
             }
 
+            RestoreTrackRuntimeState();
             _hasReturnPosition = false;
 
             if (_site != null)
