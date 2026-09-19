@@ -251,17 +251,30 @@ namespace MonzaTestTrack
                 return;
             }
 
-            if (IsAtTestSite(car.transform.position) && _hasReturnPosition)
+            // F7 is a strict two-state toggle. Do not infer the state from height:
+            // if the vehicle drives off the elevated circuit and falls below the
+            // previous Y threshold, the next F7 must still return to the original
+            // city position instead of overwriting it with the fall position.
+            if (_hasReturnPosition)
             {
-                TeleportVehicle(car, _returnPosition, _returnRotation);
+                Vector3 returnPosition = _returnPosition;
+                Quaternion returnRotation = _returnRotation;
+
+                TeleportVehicle(car, returnPosition, returnRotation);
+
                 _hasReturnPosition = false;
-                _logger?.Info("[MonzaTestTrack] Returned current vehicle to its previous city position.");
+                _logger?.Info(
+                    "[MonzaTestTrack] Returned current vehicle to its previous city position " +
+                    returnPosition + ".");
                 return;
             }
 
             _returnPosition = car.transform.position;
             _returnRotation = Quaternion.Euler(0f, car.transform.eulerAngles.y, 0f);
             _hasReturnPosition = true;
+
+            _logger?.Info(
+                "[MonzaTestTrack] Stored city return position " + _returnPosition + ".");
 
             TeleportVehicle(car, _spawnPosition, _spawnRotation);
             _logger?.Info(
@@ -418,7 +431,7 @@ namespace MonzaTestTrack
                 if (_hasReturnPosition)
                 {
                     var car = VehicleHelper.GetCurrentVehicleBase() as CarController;
-                    if (car != null && IsAtTestSite(car.transform.position))
+                    if (car != null)
                     {
                         TeleportVehicle(car, _returnPosition, _returnRotation);
                         _logger?.Info(
