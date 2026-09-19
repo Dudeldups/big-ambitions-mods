@@ -19,6 +19,7 @@ namespace MonzaTestTrack.Editor
         private const string GeneratedFolder = Root + "/Generated";
         private const string PhysicsMaterialPath = GeneratedFolder + "/MonzaTrackGrip.physicMaterial";
         private const string BundleName = "monzatesttrack.unity3d";
+        private const string BootstrapScenePath = Root + "/Scenes/MonzaTestTrack_Bootstrap.unity";
 
         [MenuItem("Big Ambitions Mods/Monza Test Track/Build Full Visual AssetBundle")]
         public static void BuildFromMenu()
@@ -49,6 +50,7 @@ namespace MonzaTestTrack.Editor
         {
             EnsureFolder(Root + "/Prefabs");
             EnsureFolder(GeneratedFolder);
+            EnsureFolder(Root + "/Scenes");
 
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
@@ -58,6 +60,14 @@ namespace MonzaTestTrack.Editor
                 throw new InvalidOperationException(
                     "Monza GLB did not import at '" + ModelPath + "'. " +
                     "Run tools/BuildMonzaTestTrackAssets.ps1 so the source GLB is copied into the project first.");
+            }
+
+            var activeScene = SceneManager.GetActiveScene();
+            if (!activeScene.IsValid() || string.IsNullOrEmpty(activeScene.path))
+            {
+                var bootstrap = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                if (!EditorSceneManager.SaveScene(bootstrap, BootstrapScenePath))
+                    throw new InvalidOperationException("Could not save Monza bootstrap scene.");
             }
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
