@@ -14,6 +14,46 @@ $IsolationRoot = Join-Path $RepoRoot "Library\MonzaTestTrackAssetBuildIsolation"
 $IsolationModsRoot = Join-Path $IsolationRoot "Mods"
 $MonzaFolderName = "Monza_Test_Track"
 
+function Show-MonzaBuildDiagnostics {
+    if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) {
+        Write-Host "[monza-assets] Unity log was not created: $LogPath"
+        return
+    }
+
+    Write-Host ""
+    Write-Host "===== MONZA UNITY BUILD DIAGNOSTICS ====="
+
+    $patterns = @(
+        "error CS",
+        "Exception:",
+        "Exception ",
+        "InvalidOperationException",
+        "NullReferenceException",
+        "ArgumentException",
+        "FileNotFoundException",
+        "MonzaTestTrack",
+        "MONZA_",
+        "did not import",
+        "Could not",
+        "AssetBundle build failed",
+        "Scripts have compiler errors",
+        "executeMethod"
+    )
+
+    $matches = Select-String -LiteralPath $LogPath -Pattern $patterns -SimpleMatch -Context 3,8
+
+    if ($matches) {
+        $matches |
+            ForEach-Object { $_.ToString() } |
+            Select-Object -Unique |
+            ForEach-Object { Write-Host $_ }
+    }
+    else {
+        Write-Host "[monza-assets] No targeted diagnostic lines found; showing the last 80 log lines."
+        Get-Content -LiteralPath $LogPath -Tail 80
+    }
+}
+
 function Restore-IsolatedMods {
     if (-not (Test-Path -LiteralPath $IsolationModsRoot -PathType Container)) {
         return
@@ -145,20 +185,12 @@ finally {
 }
 
 if ($unityExitCode -ne 0) {
-    Write-Host ""
-    Write-Host "===== MONZA UNITY BUILD LOG (tail) ====="
-    if (Test-Path -LiteralPath $LogPath) {
-        Get-Content -LiteralPath $LogPath -Tail 220
-    }
+    Show-MonzaBuildDiagnostics
     throw "Unity Monza AssetBundle build failed with exit code $unityExitCode."
 }
 
 if (-not (Test-Path -LiteralPath $BundleTarget -PathType Leaf)) {
-    Write-Host ""
-    Write-Host "===== MONZA UNITY BUILD LOG (tail) ====="
-    if (Test-Path -LiteralPath $LogPath) {
-        Get-Content -LiteralPath $LogPath -Tail 220
-    }
+    Show-MonzaBuildDiagnostics
     throw "Unity exited with code 0 but the expected bundle was not created: $BundleTarget"
 }
 
