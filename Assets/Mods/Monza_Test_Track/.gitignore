@@ -7,3 +7,7 @@ Generated/
 Prefabs/MonzaTestTrack.prefab
 Prefabs/MonzaTestTrack.prefab.meta
 AssetBundles/
+
+# Temporary bootstrap scene created by the batch asset builder.
+Scenes/MonzaTestTrack_Bootstrap.unity
+Scenes/MonzaTestTrack_Bootstrap.unity.meta
