@@ -89,7 +89,12 @@ namespace MonzaTestTrack.Editor
 
                 visual.name = "Visual";
                 visual.transform.localPosition = Vector3.zero;
-                visual.transform.localRotation = Quaternion.identity;
+
+                // The source Monza model is authored Z-up (the circuit lies in
+                // source X/Y and source Z is elevation). Big Ambitions/Unity is
+                // Y-up, so rotate the complete imported hierarchy before any
+                // bounds, collision or spawn calculations.
+                visual.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
                 visual.transform.localScale = Vector3.one;
 
                 RemoveImportedLightsAndCameras(visual);
@@ -113,6 +118,11 @@ namespace MonzaTestTrack.Editor
 
                 Physics.SyncTransforms();
                 roadBounds = CombinedBounds(roadRenderers);
+
+                Debug.Log(
+                    "MonzaTestTrack corrected road bounds: min=" + roadBounds.min +
+                    ", max=" + roadBounds.max +
+                    ", size=" + roadBounds.size + ".");
 
                 var grip = GetOrCreateTrackGrip();
                 var colliders = CreateRoadColliders(root.transform, roadRenderers, grip);
