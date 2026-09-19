@@ -1,0 +1,9 @@
+# The CC-BY source GLB is supplied locally and copied in by tools/BuildMonzaTestTrackAssets.ps1.
+Models/monza_circuit_1998_layout.glb
+Models/monza_circuit_1998_layout.glb.meta
+
+# Deterministic Unity-generated assets.
+Generated/
+Prefabs/MonzaTestTrack.prefab
+Prefabs/MonzaTestTrack.prefab.meta
+AssetBundles/
