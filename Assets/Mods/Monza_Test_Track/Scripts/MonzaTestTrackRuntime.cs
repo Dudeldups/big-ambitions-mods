@@ -40,15 +40,41 @@ namespace MonzaTestTrack
         private bool _shuttingDown;
         private bool _usingVisualBundle;
 
-        private readonly Dictionary<Camera, float> _cameraFarClips = new Dictionary<Camera, float>();
+        private enum SurfaceKind
+        {
+            Unknown,
+            Track,
+            PavedRunoff,
+            Grass,
+            Gravel
+        }
+
+        private sealed class CameraRuntimeState
+        {
+            public float FarClipPlane;
+            public float[] LayerCullDistances = Array.Empty<float>();
+            public bool LayerCullSpherical;
+            public bool UseOcclusionCulling;
+        }
+
+        private readonly Dictionary<Camera, CameraRuntimeState> _cameraStates =
+            new Dictionary<Camera, CameraRuntimeState>();
+        private readonly HashSet<int> _monzaRenderLayers = new HashSet<int>();
+        private readonly RaycastHit[] _surfaceHits = new RaycastHit[64];
+
         private Rigidbody? _trackVehicleBody;
         private CollisionDetectionMode? _previousCollisionDetectionMode;
+        private SurfaceKind _lastSurface = SurfaceKind.Unknown;
+        private int _groundLayerMask = ~0;
 
         public void Initialize(string modRootPath, IModLogger logger, GameObject? bundledPrefab)
         {
             _modRootPath = modRootPath;
             _logger = logger;
             _bundledPrefab = bundledPrefab;
+
+            int groundLayer = LayerMask.NameToLayer("Ground");
+            _groundLayerMask = groundLayer >= 0 ? (1 << groundLayer) : ~0;
 
             try
             {
@@ -85,7 +111,6 @@ namespace MonzaTestTrack
                 if (_hasReturnPosition)
                 {
                     EnsureTrackCameraRange();
-                    ApplyOffRoadSurfaceEffects();
                 }
                 else
                 {
@@ -94,6 +119,21 @@ namespace MonzaTestTrack
 
                 if (Input.GetKeyDown(KeyCode.F7))
                     ToggleVehicleTeleport();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex);
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (_site == null || !_hasReturnPosition)
+                return;
+
+            try
+            {
+                ApplyOffRoadSurfaceEffects();
             }
             catch (Exception ex)
             {
@@ -114,8 +154,19 @@ namespace MonzaTestTrack
             _spawnPosition = spawn.position;
             _spawnRotation = spawn.rotation;
 
-            int renderers = _site.GetComponentsInChildren<Renderer>(true).Length;
-            int colliders = _site.GetComponentsInChildren<Collider>(true).Length;
+            Renderer[] siteRenderers = _site.GetComponentsInChildren<Renderer>(true);
+            Collider[] siteColliders = _site.GetComponentsInChildren<Collider>(true);
+
+            _monzaRenderLayers.Clear();
+            foreach (Renderer renderer in siteRenderers)
+                if (renderer != null)
+                    _monzaRenderLayers.Add(renderer.gameObject.layer);
+            foreach (Collider collider in siteColliders)
+                if (collider != null)
+                    _monzaRenderLayers.Add(collider.gameObject.layer);
+
+            int renderers = siteRenderers.Length;
+            int colliders = siteColliders.Length;
             int meshColliders = _site.GetComponentsInChildren<MeshCollider>(true).Length;
 
             if (renderers == 0)
@@ -325,35 +376,67 @@ namespace MonzaTestTrack
 
             _trackVehicleBody = null;
             _previousCollisionDetectionMode = null;
+            _lastSurface = SurfaceKind.Unknown;
         }
 
         private void EnsureTrackCameraRange()
         {
+            const float monzaViewDistance = 8000f;
+
             foreach (Camera camera in Camera.allCameras)
             {
                 if (camera == null)
                     continue;
 
-                if (!_cameraFarClips.ContainsKey(camera))
-                    _cameraFarClips[camera] = camera.farClipPlane;
+                if (!_cameraStates.ContainsKey(camera))
+                {
+                    _cameraStates[camera] = new CameraRuntimeState
+                    {
+                        FarClipPlane = camera.farClipPlane,
+                        LayerCullDistances = (float[])camera.layerCullDistances.Clone(),
+                        LayerCullSpherical = camera.layerCullSpherical,
+                        UseOcclusionCulling = camera.useOcclusionCulling
+                    };
+                }
 
-                if (camera.farClipPlane < 5500f)
-                    camera.farClipPlane = 5500f;
+                if (camera.farClipPlane < monzaViewDistance)
+                    camera.farClipPlane = monzaViewDistance;
+
+                float[] distances = camera.layerCullDistances;
+                if (distances == null || distances.Length != 32)
+                    distances = new float[32];
+
+                foreach (int layer in _monzaRenderLayers)
+                {
+                    if (layer >= 0 && layer < distances.Length)
+                        distances[layer] = monzaViewDistance;
+                }
+
+                camera.layerCullDistances = distances;
+                camera.layerCullSpherical = true;
+                camera.useOcclusionCulling = false;
             }
         }
 
         private void RestoreCameraRange()
         {
-            if (_cameraFarClips.Count == 0)
+            if (_cameraStates.Count == 0)
                 return;
 
-            foreach (var entry in _cameraFarClips)
+            foreach (var entry in _cameraStates)
             {
-                if (entry.Key != null)
-                    entry.Key.farClipPlane = entry.Value;
+                Camera camera = entry.Key;
+                CameraRuntimeState state = entry.Value;
+                if (camera == null)
+                    continue;
+
+                camera.farClipPlane = state.FarClipPlane;
+                camera.layerCullDistances = (float[])state.LayerCullDistances.Clone();
+                camera.layerCullSpherical = state.LayerCullSpherical;
+                camera.useOcclusionCulling = state.UseOcclusionCulling;
             }
 
-            _cameraFarClips.Clear();
+            _cameraStates.Clear();
         }
 
         private void ApplyOffRoadSurfaceEffects()
@@ -366,56 +449,191 @@ namespace MonzaTestTrack
             if (car == null || body == null || body.isKinematic)
                 return;
 
-            Vector3 origin = body.worldCenterOfMass + Vector3.up * 1.5f;
-            RaycastHit[] hits = Physics.RaycastAll(
-                origin,
-                Vector3.down,
-                6f,
-                ~0,
-                QueryTriggerInteraction.Ignore);
+            SurfaceKind surface = DetectVehicleSurface(car, body);
 
-            if (hits == null || hits.Length == 0)
-                return;
-
-            Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
-
-            foreach (RaycastHit hit in hits)
+            if (surface != _lastSurface)
             {
-                Collider collider = hit.collider;
-                if (collider == null || !collider.transform.IsChildOf(_site.transform))
-                    continue;
+                _lastSurface = surface;
+                _logger?.Info("[MonzaTestTrack] Vehicle surface changed to " + surface + ".");
+            }
 
-                string name = collider.gameObject.name ?? string.Empty;
+            switch (surface)
+            {
+                case SurfaceKind.Gravel:
+                    // Gravel traps should kill speed quickly and prevent simply
+                    // accelerating through them as if they were asphalt.
+                    ApplyHorizontalSpeedLimit(
+                        body,
+                        maxSpeedMetresPerSecond: 15f / 3.6f,
+                        decelerationMetresPerSecondSquared: 12f);
+                    break;
 
-                if (name.StartsWith("COL_Gravel_", StringComparison.Ordinal))
-                {
-                    ApplyHorizontalDeceleration(body, 4.5f);
-                    return;
-                }
-
-                if (name.StartsWith("COL_Grass_", StringComparison.Ordinal))
-                {
-                    ApplyHorizontalDeceleration(body, 1.4f);
-                    return;
-                }
-
-                // The nearest Monza collider is asphalt, paved runoff, or the
-                // safety base. No additional rolling resistance is needed.
-                return;
+                case SurfaceKind.Grass:
+                    // Grass remains driveable but is substantially slower and
+                    // harder to accelerate across than the racing surface.
+                    ApplyHorizontalSpeedLimit(
+                        body,
+                        maxSpeedMetresPerSecond: 80f / 3.6f,
+                        decelerationMetresPerSecondSquared: 2.5f);
+                    break;
             }
         }
 
-        private static void ApplyHorizontalDeceleration(Rigidbody body, float metresPerSecondSquared)
+        private SurfaceKind DetectVehicleSurface(CarController car, Rigidbody body)
+        {
+            Vector3 center = body.worldCenterOfMass;
+            Vector3 forward = car.transform.forward;
+            Vector3 right = car.transform.right;
+
+            int gravel = 0;
+            int grass = 0;
+            int paved = 0;
+            int track = 0;
+
+            SampleSurface(center, ref gravel, ref grass, ref paved, ref track);
+            SampleSurface(center + forward * 1.45f + right * 0.78f, ref gravel, ref grass, ref paved, ref track);
+            SampleSurface(center + forward * 1.45f - right * 0.78f, ref gravel, ref grass, ref paved, ref track);
+            SampleSurface(center - forward * 1.20f + right * 0.78f, ref gravel, ref grass, ref paved, ref track);
+            SampleSurface(center - forward * 1.20f - right * 0.78f, ref gravel, ref grass, ref paved, ref track);
+
+            // Require more than a single edge sample when asphalt is still under
+            // the car, otherwise merely touching a gravel/grass boundary would
+            // trigger the full off-road behavior.
+            if (gravel >= 2 || (gravel > 0 && track == 0 && paved == 0))
+                return SurfaceKind.Gravel;
+            if (grass >= 2 || (grass > 0 && track == 0 && paved == 0 && gravel == 0))
+                return SurfaceKind.Grass;
+            if (track > 0)
+                return SurfaceKind.Track;
+            if (paved > 0)
+                return SurfaceKind.PavedRunoff;
+            if (gravel > 0)
+                return SurfaceKind.Gravel;
+            if (grass > 0)
+                return SurfaceKind.Grass;
+
+            return SurfaceKind.Unknown;
+        }
+
+        private void SampleSurface(
+            Vector3 point,
+            ref int gravel,
+            ref int grass,
+            ref int paved,
+            ref int track)
+        {
+            if (_site == null)
+                return;
+
+            Vector3 origin = point + Vector3.up * 1.75f;
+            int hitCount = Physics.RaycastNonAlloc(
+                origin,
+                Vector3.down,
+                _surfaceHits,
+                7f,
+                _groundLayerMask,
+                QueryTriggerInteraction.Ignore);
+
+            SurfaceKind closestKind = SurfaceKind.Unknown;
+            float closestDistance = float.PositiveInfinity;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                RaycastHit hit = _surfaceHits[i];
+                Collider collider = hit.collider;
+                if (collider == null ||
+                    !collider.transform.IsChildOf(_site.transform) ||
+                    hit.distance >= closestDistance)
+                {
+                    continue;
+                }
+
+                SurfaceKind kind = ClassifySurface(collider);
+                if (kind == SurfaceKind.Unknown)
+                    continue;
+
+                closestDistance = hit.distance;
+                closestKind = kind;
+            }
+
+            switch (closestKind)
+            {
+                case SurfaceKind.Gravel:
+                    gravel++;
+                    break;
+                case SurfaceKind.Grass:
+                    grass++;
+                    break;
+                case SurfaceKind.PavedRunoff:
+                    paved++;
+                    break;
+                case SurfaceKind.Track:
+                    track++;
+                    break;
+            }
+        }
+
+        private static SurfaceKind ClassifySurface(Collider collider)
+        {
+            string materialName = collider.sharedMaterial != null
+                ? collider.sharedMaterial.name ?? string.Empty
+                : string.Empty;
+            string objectName = collider.gameObject.name ?? string.Empty;
+
+            if (materialName.IndexOf("MonzaGravel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                objectName.StartsWith("COL_Gravel_", StringComparison.Ordinal))
+            {
+                return SurfaceKind.Gravel;
+            }
+
+            if (materialName.IndexOf("MonzaGrass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                objectName.StartsWith("COL_Grass_", StringComparison.Ordinal) ||
+                string.Equals(objectName, "GroundSafetyBase", StringComparison.Ordinal))
+            {
+                return SurfaceKind.Grass;
+            }
+
+            if (materialName.IndexOf("MonzaPavedRunoff", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                objectName.StartsWith("COL_PavedRunoff_", StringComparison.Ordinal))
+            {
+                return SurfaceKind.PavedRunoff;
+            }
+
+            if (materialName.IndexOf("MonzaTrackGrip", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                materialName.IndexOf("Monza Track Grip", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                objectName.StartsWith("COL_Track", StringComparison.Ordinal))
+            {
+                return SurfaceKind.Track;
+            }
+
+            return SurfaceKind.Unknown;
+        }
+
+        private static void ApplyHorizontalSpeedLimit(
+            Rigidbody body,
+            float maxSpeedMetresPerSecond,
+            float decelerationMetresPerSecondSquared)
         {
             Vector3 velocity = body.velocity;
             Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
             float speed = horizontal.magnitude;
-            if (speed < 0.05f)
+            if (speed < 0.01f)
                 return;
 
-            float nextSpeed = Mathf.Max(0f, speed - metresPerSecondSquared * Time.deltaTime);
-            float scale = nextSpeed / speed;
+            float nextSpeed = speed;
 
+            if (speed > maxSpeedMetresPerSecond)
+            {
+                nextSpeed = Mathf.Max(
+                    maxSpeedMetresPerSecond,
+                    speed - decelerationMetresPerSecondSquared * Time.fixedDeltaTime);
+            }
+            else
+            {
+                nextSpeed = Mathf.Min(speed, maxSpeedMetresPerSecond);
+            }
+
+            float scale = nextSpeed / speed;
             body.velocity = new Vector3(
                 horizontal.x * scale,
                 velocity.y,
