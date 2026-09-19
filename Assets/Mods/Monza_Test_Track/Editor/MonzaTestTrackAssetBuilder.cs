@@ -115,13 +115,13 @@ namespace MonzaTestTrack.Editor
                 roadBounds = CombinedBounds(roadRenderers);
 
                 var grip = GetOrCreateTrackGrip();
-                var colliders = CreateRoadColliders(roadRenderers, grip);
+                var colliders = CreateRoadColliders(root.transform, roadRenderers, grip);
                 if (colliders.Count == 0)
                     throw new InvalidOperationException("No MeshColliders were created for the Monza asphalt.");
 
                 Physics.SyncTransforms();
                 CreateInvisibleSafetyBase(root.transform, roadBounds, grip);
-                var spawn = CreateSpawnPoint(root.transform, roadRenderers, roadBounds);
+                var spawn = CreateSpawnPoint(root.transform, colliders, roadBounds);
 
                 foreach (var transform in root.GetComponentsInChildren<Transform>(true))
                 {
@@ -202,24 +202,90 @@ namespace MonzaTestTrack.Editor
         }
 
         private static List<MeshCollider> CreateRoadColliders(
+            Transform parent,
             IEnumerable<MeshRenderer> roadRenderers,
             PhysicMaterial grip)
         {
             var result = new List<MeshCollider>();
             int groundLayer = RequireLayer("Ground");
 
+            var collisionsRoot = new GameObject("Collisions");
+            collisionsRoot.transform.SetParent(parent, false);
+            collisionsRoot.layer = groundLayer;
+            collisionsRoot.isStatic = true;
+
+            int colliderIndex = 0;
+            int totalTriangles = 0;
+            int flippedTriangles = 0;
+
             foreach (var renderer in roadRenderers)
             {
                 var filter = renderer.GetComponent<MeshFilter>();
-                if (filter == null || filter.sharedMesh == null)
+                var sourceMesh = filter != null ? filter.sharedMesh : null;
+                if (sourceMesh == null)
                     continue;
 
-                var existing = renderer.GetComponent<MeshCollider>();
-                if (existing != null)
-                    UnityEngine.Object.DestroyImmediate(existing);
+                var sourceVertices = sourceMesh.vertices;
+                var sourceTriangles = sourceMesh.triangles;
+                if (sourceVertices.Length < 3 || sourceTriangles.Length < 3)
+                    continue;
 
-                var collider = renderer.gameObject.AddComponent<MeshCollider>();
-                collider.sharedMesh = filter.sharedMesh;
+                var bakedVertices = new Vector3[sourceVertices.Length];
+                for (int i = 0; i < sourceVertices.Length; i++)
+                {
+                    var world = renderer.transform.TransformPoint(sourceVertices[i]);
+                    bakedVertices[i] = parent.InverseTransformPoint(world);
+                }
+
+                var bakedTriangles = (int[])sourceTriangles.Clone();
+                for (int i = 0; i + 2 < bakedTriangles.Length; i += 3)
+                {
+                    int ia = bakedTriangles[i];
+                    int ib = bakedTriangles[i + 1];
+                    int ic = bakedTriangles[i + 2];
+
+                    var a = bakedVertices[ia];
+                    var b = bakedVertices[ib];
+                    var c = bakedVertices[ic];
+                    var cross = Vector3.Cross(b - a, c - a);
+
+                    // glTF import can leave the complete road surface with the
+                    // opposite winding after axis conversion / mirrored transforms.
+                    // Make the drivable side consistently face upward for PhysX.
+                    if (cross.y < 0f)
+                    {
+                        bakedTriangles[i + 1] = ic;
+                        bakedTriangles[i + 2] = ib;
+                        flippedTriangles++;
+                    }
+
+                    totalTriangles++;
+                }
+
+                string meshPath = GeneratedFolder + "/COL_Track_" + colliderIndex + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<Mesh>(meshPath) != null)
+                    AssetDatabase.DeleteAsset(meshPath);
+
+                var collisionMesh = new Mesh
+                {
+                    name = "COL_Track_" + colliderIndex,
+                    indexFormat = bakedVertices.Length > 65535
+                        ? IndexFormat.UInt32
+                        : IndexFormat.UInt16
+                };
+                collisionMesh.vertices = bakedVertices;
+                collisionMesh.triangles = bakedTriangles;
+                collisionMesh.RecalculateNormals();
+                collisionMesh.RecalculateBounds();
+                AssetDatabase.CreateAsset(collisionMesh, meshPath);
+
+                var collisionObject = new GameObject("COL_Track_" + colliderIndex);
+                collisionObject.transform.SetParent(collisionsRoot.transform, false);
+                collisionObject.layer = groundLayer;
+                collisionObject.isStatic = true;
+
+                var collider = collisionObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = collisionMesh;
                 collider.convex = false;
                 collider.isTrigger = false;
                 collider.cookingOptions =
@@ -228,9 +294,17 @@ namespace MonzaTestTrack.Editor
                     MeshColliderCookingOptions.WeldColocatedVertices |
                     MeshColliderCookingOptions.UseFastMidphase;
                 collider.sharedMaterial = grip;
-                renderer.gameObject.layer = groundLayer;
+
                 result.Add(collider);
+                colliderIndex++;
             }
+
+            AssetDatabase.SaveAssets();
+
+            Debug.Log(
+                "MonzaTestTrack collision geometry: colliders=" + result.Count +
+                ", triangles=" + totalTriangles +
+                ", flippedWinding=" + flippedTriangles + ".");
 
             return result;
         }
@@ -258,15 +332,12 @@ namespace MonzaTestTrack.Editor
 
         private static Transform CreateSpawnPoint(
             Transform parent,
-            IReadOnlyList<MeshRenderer> roadRenderers,
+            IReadOnlyList<MeshCollider> roadColliders,
             Bounds roadBounds)
         {
             var spawn = new GameObject("SpawnPoint").transform;
             spawn.SetParent(parent, false);
 
-            // Pick a point from the actual asphalt triangles instead of sampling a
-            // coarse X/Z grid across a 2+ km circuit. A narrow road can easily fall
-            // between grid points even when its collider is perfectly valid.
             var preferred = new Vector3(
                 roadBounds.center.x + roadBounds.size.x * 0.267f,
                 roadBounds.center.y,
@@ -276,22 +347,18 @@ namespace MonzaTestTrack.Editor
             Vector3 bestPoint = default;
             Vector3 bestForward = Vector3.forward;
             float bestScore = float.NegativeInfinity;
-            string bestRenderer = string.Empty;
+            string bestCollider = string.Empty;
             int sampledTriangles = 0;
 
-            foreach (var renderer in roadRenderers)
+            foreach (var collider in roadColliders)
             {
-                if (renderer == null)
-                    continue;
-
-                var filter = renderer.GetComponent<MeshFilter>();
-                var mesh = filter != null ? filter.sharedMesh : null;
+                var mesh = collider != null ? collider.sharedMesh : null;
                 if (mesh == null)
                     continue;
 
                 var vertices = mesh.vertices;
                 var triangles = mesh.triangles;
-                var transform = renderer.transform;
+                var transform = collider.transform;
 
                 for (int i = 0; i + 2 < triangles.Length; i += 3)
                 {
@@ -311,19 +378,12 @@ namespace MonzaTestTrack.Editor
                     sampledTriangles++;
 
                     var center = (a + b + c) / 3f;
-
-                    // Prefer a sensible location near the source model's known
-                    // start/finish region, but any genuine upward asphalt triangle
-                    // is valid as a fallback.
                     float planarDistance = Vector2.Distance(
                         new Vector2(center.x, center.z),
                         new Vector2(preferred.x, preferred.z));
 
-                    // A slightly larger triangle is preferable to tiny seam/decal
-                    // geometry, without allowing huge polygons to dominate.
                     float areaBonus = Mathf.Min(doubleArea * 0.5f, 20f);
                     float score = -planarDistance + areaBonus + normal.y * 10f;
-
                     if (score <= bestScore)
                         continue;
 
@@ -346,7 +406,7 @@ namespace MonzaTestTrack.Editor
                     bestScore = score;
                     bestPoint = center;
                     bestForward = forward;
-                    bestRenderer = renderer.name;
+                    bestCollider = collider.name;
                     found = true;
                 }
             }
@@ -354,8 +414,8 @@ namespace MonzaTestTrack.Editor
             if (!found)
             {
                 throw new InvalidOperationException(
-                    "Could not find an upward-facing driveable triangle on the bundled Monza asphalt. " +
-                    "roadRenderers=" + roadRenderers.Count +
+                    "Could not find an upward-facing driveable triangle on the corrected Monza collision mesh. " +
+                    "roadColliders=" + roadColliders.Count +
                     ", sampledTriangles=" + sampledTriangles + ".");
             }
 
@@ -363,8 +423,8 @@ namespace MonzaTestTrack.Editor
             spawn.rotation = Quaternion.LookRotation(bestForward, Vector3.up);
 
             Debug.Log(
-                "MonzaTestTrack spawn selected from asphalt geometry: renderer=" +
-                bestRenderer +
+                "MonzaTestTrack spawn selected from corrected collision geometry: collider=" +
+                bestCollider +
                 ", sampledTriangles=" + sampledTriangles +
                 ", position=" + spawn.position +
                 ", forward=" + bestForward + ".");
