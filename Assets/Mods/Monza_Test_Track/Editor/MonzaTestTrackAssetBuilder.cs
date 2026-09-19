@@ -667,21 +667,24 @@ namespace MonzaTestTrack.Editor
                     bakedVertices[i] = parent.InverseTransformPoint(world) + Vector3.down * 0.035f;
                 }
 
-                var triangles = new int[sourceTriangles.Length * 2];
-                for (int i = 0; i + 2 < sourceTriangles.Length; i += 3)
+                var triangles = (int[])sourceTriangles.Clone();
+                for (int i = 0; i + 2 < triangles.Length; i += 3)
                 {
-                    int ia = sourceTriangles[i];
-                    int ib = sourceTriangles[i + 1];
-                    int ic = sourceTriangles[i + 2];
+                    int ia = triangles[i];
+                    int ib = triangles[i + 1];
+                    int ic = triangles[i + 2];
 
-                    int dst = i * 2;
-                    triangles[dst] = ia;
-                    triangles[dst + 1] = ib;
-                    triangles[dst + 2] = ic;
-                    triangles[dst + 3] = ia;
-                    triangles[dst + 4] = ic;
-                    triangles[dst + 5] = ib;
-                    totalTriangles += 2;
+                    Vector3 a = bakedVertices[ia];
+                    Vector3 b = bakedVertices[ib];
+                    Vector3 c = bakedVertices[ic];
+
+                    if (Vector3.Cross(b - a, c - a).y < 0f)
+                    {
+                        triangles[i + 1] = ic;
+                        triangles[i + 2] = ib;
+                    }
+
+                    totalTriangles++;
                 }
 
                 string meshPath = GeneratedFolder + "/COL_TrackSupport_" + colliderIndex + ".asset";
