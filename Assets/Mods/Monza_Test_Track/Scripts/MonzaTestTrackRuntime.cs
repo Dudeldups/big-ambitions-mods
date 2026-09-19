@@ -6,7 +6,6 @@ using System.Text;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
 namespace MonzaTestTrack
@@ -57,7 +56,7 @@ namespace MonzaTestTrack
 
         private void Update()
         {
-            if (_site == null || Keyboard.current?.f7Key.wasPressedThisFrame != true)
+            if (_site == null || !Input.GetKeyDown(KeyCode.F7))
                 return;
 
             try
