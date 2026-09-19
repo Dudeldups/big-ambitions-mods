@@ -11,13 +11,23 @@ $BundleTarget = Join-Path $RepoRoot "Assets\Mods\Monza_Test_Track\AssetBundles\W
 $LogPath = Join-Path $RepoRoot "Logs\MonzaTestTrackAssetBuild.log"
 
 if (-not $SourceGlb) {
-    $downloads = Join-Path $env:USERPROFILE "Downloads"
-    if (Test-Path -LiteralPath $downloads) {
+    $downloadCandidates = @(
+        "E:\\Downloads",
+        (Join-Path $env:USERPROFILE "Downloads")
+    ) | Select-Object -Unique
+
+    foreach ($downloads in $downloadCandidates) {
+        if (-not (Test-Path -LiteralPath $downloads -PathType Container)) {
+            continue
+        }
+
         $candidate = Get-ChildItem -LiteralPath $downloads -File -Filter "monza_circuit_1998_layout*.glb" |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
+
         if ($candidate) {
             $SourceGlb = $candidate.FullName
+            break
         }
     }
 }
