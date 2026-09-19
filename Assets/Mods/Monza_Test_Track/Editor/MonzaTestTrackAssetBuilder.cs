@@ -107,6 +107,9 @@ namespace MonzaTestTrack.Editor
                         "or source meshes Object_105/Object_106.");
                 }
 
+                var runoffRenderers = FindRunoffRenderers(visual, roadRenderers).ToArray();
+                FixRunoffVisuals(runoffRenderers);
+
                 DisableOutlierRenderers(visual, roadRenderers);
 
                 var roadBounds = CombinedBounds(roadRenderers);
@@ -129,6 +132,8 @@ namespace MonzaTestTrack.Editor
                 if (colliders.Count == 0)
                     throw new InvalidOperationException("No MeshColliders were created for the Monza asphalt.");
 
+                var runoffColliders = CreateRunoffColliders(root.transform, runoffRenderers, grip);
+
                 Physics.SyncTransforms();
                 CreateInvisibleSafetyBase(root.transform, roadBounds, grip);
                 var spawn = CreateSpawnPoint(root.transform, colliders, roadBounds);
@@ -148,6 +153,7 @@ namespace MonzaTestTrack.Editor
                     "MonzaTestTrack prefab prepared: renderers=" +
                     saved.GetComponentsInChildren<Renderer>(true).Length +
                     ", roadColliders=" + colliders.Count +
+                    ", runoffColliders=" + runoffColliders.Count +
                     ", roadSize=" + roadBounds.size +
                     ", spawn=" + spawn.position + ".");
             }
@@ -190,6 +196,90 @@ namespace MonzaTestTrack.Editor
                 if (materialMatch || meshMatch || objectMatch)
                     yield return renderer;
             }
+        }
+
+        private static IEnumerable<MeshRenderer> FindRunoffRenderers(
+            GameObject visual,
+            IReadOnlyCollection<MeshRenderer> roadRenderers)
+        {
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (roadRenderers.Contains(renderer))
+                    continue;
+
+                var filter = renderer.GetComponent<MeshFilter>();
+                if (filter == null || filter.sharedMesh == null)
+                    continue;
+
+                bool isRunoffSurface = renderer.sharedMaterials.Any(material =>
+                {
+                    if (material == null)
+                        return false;
+
+                    string name = material.name ?? string.Empty;
+                    return string.Equals(name, "logoansa", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(name, "logoansa_78", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(name, "logoansa_82", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(name, "logoansa_84", StringComparison.OrdinalIgnoreCase);
+                });
+
+                if (isRunoffSurface)
+                    yield return renderer;
+            }
+        }
+
+        private static void FixRunoffVisuals(IEnumerable<MeshRenderer> runoffRenderers)
+        {
+            int gravelRenderers = 0;
+            int materialsTouched = 0;
+
+            foreach (var renderer in runoffRenderers)
+            {
+                bool gravel = renderer.sharedMaterials.Any(material =>
+                    material != null &&
+                    (string.Equals(material.name, "logoansa_78", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(material.name, "logoansa_82", StringComparison.OrdinalIgnoreCase)));
+
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    if (material == null)
+                        continue;
+
+                    string name = material.name ?? string.Empty;
+                    bool surfaceMaterial =
+                        string.Equals(name, "logoansa", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(name, "logoansa_78", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(name, "logoansa_82", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(name, "logoansa_84", StringComparison.OrdinalIgnoreCase);
+
+                    if (!surfaceMaterial)
+                        continue;
+
+                    material.doubleSidedGI = true;
+                    if (material.HasProperty("_DoubleSidedEnable"))
+                        material.SetFloat("_DoubleSidedEnable", 1f);
+                    if (material.HasProperty("_CullMode"))
+                        material.SetFloat("_CullMode", 0f);
+                    if (material.HasProperty("_CullModeForward"))
+                        material.SetFloat("_CullModeForward", 0f);
+                    material.EnableKeyword("_DOUBLESIDED_ON");
+                    EditorUtility.SetDirty(material);
+                    materialsTouched++;
+                }
+
+                // Several gravel/runoff polygons in the source model are almost
+                // coplanar with the surrounding ground. Lift only those visual
+                // surfaces a few centimetres to avoid intermittent depth fighting.
+                if (gravel)
+                {
+                    renderer.transform.position += Vector3.up * 0.025f;
+                    gravelRenderers++;
+                }
+            }
+
+            Debug.Log(
+                "MonzaTestTrack runoff visuals: gravelRenderers=" + gravelRenderers +
+                ", materialsTouched=" + materialsTouched + ".");
         }
 
         private static void DisableOutlierRenderers(GameObject visual, IReadOnlyCollection<MeshRenderer> roadRenderers)
@@ -314,6 +404,132 @@ namespace MonzaTestTrack.Editor
             Debug.Log(
                 "MonzaTestTrack collision geometry: colliders=" + result.Count +
                 ", triangles=" + totalTriangles +
+                ", flippedWinding=" + flippedTriangles + ".");
+
+            return result;
+        }
+
+        private static List<MeshCollider> CreateRunoffColliders(
+            Transform parent,
+            IEnumerable<MeshRenderer> runoffRenderers,
+            PhysicMaterial grip)
+        {
+            var result = new List<MeshCollider>();
+            int groundLayer = RequireLayer("Ground");
+
+            var collisionsRoot = new GameObject("RunoffCollisions");
+            collisionsRoot.transform.SetParent(parent, false);
+            collisionsRoot.layer = groundLayer;
+            collisionsRoot.isStatic = true;
+
+            int colliderIndex = 0;
+            int totalTriangles = 0;
+            int flippedTriangles = 0;
+
+            foreach (var renderer in runoffRenderers)
+            {
+                var filter = renderer.GetComponent<MeshFilter>();
+                var sourceMesh = filter != null ? filter.sharedMesh : null;
+                if (sourceMesh == null)
+                    continue;
+
+                var sourceVertices = sourceMesh.vertices;
+                var sourceTriangles = sourceMesh.triangles;
+                if (sourceVertices.Length < 3 || sourceTriangles.Length < 3)
+                    continue;
+
+                var bakedVertices = new Vector3[sourceVertices.Length];
+                for (int i = 0; i < sourceVertices.Length; i++)
+                {
+                    var world = renderer.transform.TransformPoint(sourceVertices[i]);
+                    bakedVertices[i] = parent.InverseTransformPoint(world);
+                }
+
+                var acceptedTriangles = new List<int>(sourceTriangles.Length);
+
+                for (int i = 0; i + 2 < sourceTriangles.Length; i += 3)
+                {
+                    int ia = sourceTriangles[i];
+                    int ib = sourceTriangles[i + 1];
+                    int ic = sourceTriangles[i + 2];
+
+                    var a = bakedVertices[ia];
+                    var b = bakedVertices[ib];
+                    var c = bakedVertices[ic];
+                    var cross = Vector3.Cross(b - a, c - a);
+                    float magnitude = cross.magnitude;
+                    if (magnitude < 0.01f)
+                        continue;
+
+                    // Keep only ground-like triangles. This avoids turning trees,
+                    // walls or vertical scenery that happen to share a material
+                    // into invisible driving barriers.
+                    float up = Mathf.Abs(cross.y / magnitude);
+                    if (up < 0.35f)
+                        continue;
+
+                    if (cross.y < 0f)
+                    {
+                        acceptedTriangles.Add(ia);
+                        acceptedTriangles.Add(ic);
+                        acceptedTriangles.Add(ib);
+                        flippedTriangles++;
+                    }
+                    else
+                    {
+                        acceptedTriangles.Add(ia);
+                        acceptedTriangles.Add(ib);
+                        acceptedTriangles.Add(ic);
+                    }
+
+                    totalTriangles++;
+                }
+
+                if (acceptedTriangles.Count < 3)
+                    continue;
+
+                string meshPath = GeneratedFolder + "/COL_Runoff_" + colliderIndex + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<Mesh>(meshPath) != null)
+                    AssetDatabase.DeleteAsset(meshPath);
+
+                var collisionMesh = new Mesh
+                {
+                    name = "COL_Runoff_" + colliderIndex,
+                    indexFormat = bakedVertices.Length > 65535
+                        ? IndexFormat.UInt32
+                        : IndexFormat.UInt16
+                };
+                collisionMesh.vertices = bakedVertices;
+                collisionMesh.triangles = acceptedTriangles.ToArray();
+                collisionMesh.RecalculateNormals();
+                collisionMesh.RecalculateBounds();
+                AssetDatabase.CreateAsset(collisionMesh, meshPath);
+
+                var collisionObject = new GameObject("COL_Runoff_" + colliderIndex);
+                collisionObject.transform.SetParent(collisionsRoot.transform, false);
+                collisionObject.layer = groundLayer;
+                collisionObject.isStatic = true;
+
+                var collider = collisionObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = collisionMesh;
+                collider.convex = false;
+                collider.isTrigger = false;
+                collider.cookingOptions =
+                    MeshColliderCookingOptions.CookForFasterSimulation |
+                    MeshColliderCookingOptions.EnableMeshCleaning |
+                    MeshColliderCookingOptions.WeldColocatedVertices |
+                    MeshColliderCookingOptions.UseFastMidphase;
+                collider.sharedMaterial = grip;
+
+                result.Add(collider);
+                colliderIndex++;
+            }
+
+            AssetDatabase.SaveAssets();
+
+            Debug.Log(
+                "MonzaTestTrack runoff collision geometry: colliders=" + result.Count +
+                ", groundTriangles=" + totalTriangles +
                 ", flippedWinding=" + flippedTriangles + ".");
 
             return result;
