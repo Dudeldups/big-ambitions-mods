@@ -6,6 +6,7 @@ using System.Text;
 using BAModAPI;
 using Helpers;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
 namespace MonzaTestTrack
@@ -13,8 +14,6 @@ namespace MonzaTestTrack
     public sealed class MonzaTestTrackRuntime : MonoBehaviour
     {
         private const string SurfaceDataPattern = "track_surface.clean.*.txt";
-        private const KeyCode TeleportKey = KeyCode.F7;
-
         // First prototype: keep the entire circuit away from the normal city.
         // The extracted driveable asphalt is about 2.31 km x 1.12 km.
         private static readonly Vector3 SiteCentre = new Vector3(5000f, 80f, 0f);
@@ -58,7 +57,7 @@ namespace MonzaTestTrack
 
         private void Update()
         {
-            if (_site == null || !Input.GetKeyDown(TeleportKey))
+            if (_site == null || Keyboard.current?.f7Key.wasPressedThisFrame != true)
                 return;
 
             try
