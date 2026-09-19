@@ -21,6 +21,7 @@ namespace MonzaTestTrack.Editor
         private const string GrassPhysicsMaterialPath = GeneratedFolder + "/MonzaGrass.physicMaterial";
         private const string GravelPhysicsMaterialPath = GeneratedFolder + "/MonzaGravel.physicMaterial";
         private const string PavedRunoffPhysicsMaterialPath = GeneratedFolder + "/MonzaPavedRunoff.physicMaterial";
+        private const string SceneryPhysicsMaterialPath = GeneratedFolder + "/MonzaScenery.physicMaterial";
         private const string BundleName = "monzatesttrack.unity3d";
         private const string BootstrapScenePath = Root + "/Scenes/MonzaTestTrack_Bootstrap.unity";
 
@@ -112,6 +113,8 @@ namespace MonzaTestTrack.Editor
                 }
 
                 var runoffRenderers = FindRunoffRenderers(visual, roadRenderers).ToArray();
+                var roadSupportRenderers = FindRoadSupportRenderers(
+                    visual, roadRenderers, runoffRenderers).ToArray();
                 FixRunoffVisuals(runoffRenderers);
 
                 DisableOutlierRenderers(visual, roadRenderers);
@@ -151,6 +154,8 @@ namespace MonzaTestTrack.Editor
                     GravelPhysicsMaterialPath, "MonzaGravel", 0.18f, 0.22f, PhysicMaterialCombine.Minimum);
                 var pavedRunoffGrip = GetOrCreateSurfaceMaterial(
                     PavedRunoffPhysicsMaterialPath, "MonzaPavedRunoff", 0.75f, 0.80f, PhysicMaterialCombine.Average);
+                var sceneryPhysics = GetOrCreateSurfaceMaterial(
+                    SceneryPhysicsMaterialPath, "MonzaScenery", 0.55f, 0.60f, PhysicMaterialCombine.Average);
 
                 var colliders = CreateRoadColliders(root.transform, roadRenderers, trackGrip);
                 if (colliders.Count == 0)
@@ -158,6 +163,14 @@ namespace MonzaTestTrack.Editor
 
                 var runoffColliders = CreateRunoffColliders(
                     root.transform, runoffRenderers, grassGrip, gravelGrip, pavedRunoffGrip);
+                var roadSupportColliders = CreateRoadSupportColliders(
+                    root.transform, roadSupportRenderers, trackGrip);
+                int sceneryColliders = CreateSceneryColliders(
+                    visual,
+                    roadRenderers,
+                    runoffRenderers,
+                    roadSupportRenderers,
+                    sceneryPhysics);
 
                 Physics.SyncTransforms();
                 CreateInvisibleSafetyBase(root.transform, roadBounds, grassGrip);
@@ -179,6 +192,8 @@ namespace MonzaTestTrack.Editor
                     saved.GetComponentsInChildren<Renderer>(true).Length +
                     ", roadColliders=" + colliders.Count +
                     ", runoffColliders=" + runoffColliders.Count +
+                    ", roadSupportColliders=" + roadSupportColliders.Count +
+                    ", sceneryColliders=" + sceneryColliders +
                     ", roadSize=" + roadBounds.size +
                     ", spawn=" + spawn.position + ".");
             }
@@ -253,6 +268,39 @@ namespace MonzaTestTrack.Editor
             }
         }
 
+        private static IEnumerable<MeshRenderer> FindRoadSupportRenderers(
+            GameObject visual,
+            IReadOnlyCollection<MeshRenderer> roadRenderers,
+            IReadOnlyCollection<MeshRenderer> runoffRenderers)
+        {
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (roadRenderers.Contains(renderer) || runoffRenderers.Contains(renderer))
+                    continue;
+
+                var filter = renderer.GetComponent<MeshFilter>();
+                if (filter == null || filter.sharedMesh == null)
+                    continue;
+
+                // The start-grid / start-finish detail pieces are separate flat
+                // road meshes in this GLB. The main logoansa_95 road has holes
+                // where these pieces live, so they need real support colliders.
+                bool supportMaterial = renderer.sharedMaterials.Any(material =>
+                {
+                    if (material == null)
+                        return false;
+
+                    string name = material.name ?? string.Empty;
+                    return string.Equals(name, "logoansa_79", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(name, "logoansa_80", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(name, "logoansa_81", StringComparison.OrdinalIgnoreCase);
+                });
+
+                if (supportMaterial)
+                    yield return renderer;
+            }
+        }
+
         private static void FixRunoffVisuals(IEnumerable<MeshRenderer> runoffRenderers)
         {
             int gravelRenderers = 0;
@@ -262,8 +310,7 @@ namespace MonzaTestTrack.Editor
             {
                 bool gravel = renderer.sharedMaterials.Any(material =>
                     material != null &&
-                    (string.Equals(material.name, "logoansa_78", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(material.name, "logoansa_82", StringComparison.OrdinalIgnoreCase)));
+                    string.Equals(material.name, "logoansa_82", StringComparison.OrdinalIgnoreCase));
 
                 foreach (var material in renderer.sharedMaterials)
                 {
@@ -476,8 +523,7 @@ namespace MonzaTestTrack.Editor
                     string.Equals(material.name, "logoansa", StringComparison.OrdinalIgnoreCase));
                 bool isGravel = renderer.sharedMaterials.Any(material =>
                     material != null &&
-                    (string.Equals(material.name, "logoansa_78", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(material.name, "logoansa_82", StringComparison.OrdinalIgnoreCase)));
+                    string.Equals(material.name, "logoansa_82", StringComparison.OrdinalIgnoreCase));
 
                 string surfaceName = isGravel ? "Gravel" : (isGrass ? "Grass" : "PavedRunoff");
                 PhysicMaterial surfaceMaterial =
@@ -516,13 +562,10 @@ namespace MonzaTestTrack.Editor
                     if (magnitude < 0.01f)
                         continue;
 
-                    // Keep only ground-like triangles. This avoids turning trees,
-                    // walls or vertical scenery that happen to share a material
-                    // into invisible driving barriers.
-                    float up = Mathf.Abs(cross.y / magnitude);
-                    if (up < 0.35f)
-                        continue;
-
+                    // These renderers are selected by known ground-surface
+                    // materials. Keep every non-degenerate triangle so grass and
+                    // gravel cannot silently lose large sections due to slope or
+                    // imported-normal thresholds.
                     if (cross.y < 0f)
                     {
                         acceptedTriangles.Add(ia);
@@ -588,6 +631,168 @@ namespace MonzaTestTrack.Editor
                 ", flippedWinding=" + flippedTriangles + ".");
 
             return result;
+        }
+
+        private static List<MeshCollider> CreateRoadSupportColliders(
+            Transform parent,
+            IEnumerable<MeshRenderer> supportRenderers,
+            PhysicMaterial trackGrip)
+        {
+            var result = new List<MeshCollider>();
+            int groundLayer = RequireLayer("Ground");
+            int colliderIndex = 0;
+            int totalTriangles = 0;
+
+            var root = new GameObject("RoadSupportCollisions");
+            root.transform.SetParent(parent, false);
+            root.layer = groundLayer;
+            root.isStatic = true;
+
+            foreach (var renderer in supportRenderers)
+            {
+                var filter = renderer.GetComponent<MeshFilter>();
+                var sourceMesh = filter != null ? filter.sharedMesh : null;
+                if (sourceMesh == null)
+                    continue;
+
+                var sourceVertices = sourceMesh.vertices;
+                var sourceTriangles = sourceMesh.triangles;
+                if (sourceVertices.Length < 3 || sourceTriangles.Length < 3)
+                    continue;
+
+                var bakedVertices = new Vector3[sourceVertices.Length];
+                for (int i = 0; i < sourceVertices.Length; i++)
+                {
+                    var world = renderer.transform.TransformPoint(sourceVertices[i]);
+                    bakedVertices[i] = parent.InverseTransformPoint(world) + Vector3.down * 0.035f;
+                }
+
+                var triangles = new int[sourceTriangles.Length * 2];
+                for (int i = 0; i + 2 < sourceTriangles.Length; i += 3)
+                {
+                    int ia = sourceTriangles[i];
+                    int ib = sourceTriangles[i + 1];
+                    int ic = sourceTriangles[i + 2];
+
+                    int dst = i * 2;
+                    triangles[dst] = ia;
+                    triangles[dst + 1] = ib;
+                    triangles[dst + 2] = ic;
+                    triangles[dst + 3] = ia;
+                    triangles[dst + 4] = ic;
+                    triangles[dst + 5] = ib;
+                    totalTriangles += 2;
+                }
+
+                string meshPath = GeneratedFolder + "/COL_TrackSupport_" + colliderIndex + ".asset";
+                if (AssetDatabase.LoadAssetAtPath<Mesh>(meshPath) != null)
+                    AssetDatabase.DeleteAsset(meshPath);
+
+                var collisionMesh = new Mesh
+                {
+                    name = "COL_TrackSupport_" + colliderIndex,
+                    indexFormat = bakedVertices.Length > 65535
+                        ? IndexFormat.UInt32
+                        : IndexFormat.UInt16
+                };
+                collisionMesh.vertices = bakedVertices;
+                collisionMesh.triangles = triangles;
+                collisionMesh.RecalculateNormals();
+                collisionMesh.RecalculateBounds();
+                AssetDatabase.CreateAsset(collisionMesh, meshPath);
+
+                var collisionObject = new GameObject("COL_TrackSupport_" + colliderIndex);
+                collisionObject.transform.SetParent(root.transform, false);
+                collisionObject.layer = groundLayer;
+                collisionObject.isStatic = true;
+
+                var collider = collisionObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = collisionMesh;
+                collider.convex = false;
+                collider.isTrigger = false;
+                collider.cookingOptions =
+                    MeshColliderCookingOptions.CookForFasterSimulation |
+                    MeshColliderCookingOptions.EnableMeshCleaning |
+                    MeshColliderCookingOptions.WeldColocatedVertices |
+                    MeshColliderCookingOptions.UseFastMidphase;
+                collider.sharedMaterial = trackGrip;
+
+                result.Add(collider);
+                colliderIndex++;
+            }
+
+            AssetDatabase.SaveAssets();
+
+            Debug.Log(
+                "MonzaTestTrack road-support collision geometry: colliders=" +
+                result.Count + ", triangles=" + totalTriangles + ".");
+
+            return result;
+        }
+
+        private static int CreateSceneryColliders(
+            GameObject visual,
+            IReadOnlyCollection<MeshRenderer> roadRenderers,
+            IReadOnlyCollection<MeshRenderer> runoffRenderers,
+            IReadOnlyCollection<MeshRenderer> roadSupportRenderers,
+            PhysicMaterial sceneryMaterial)
+        {
+            int wallsLayer = RequireLayer("BuildingWalls");
+            int created = 0;
+            int skippedFlat = 0;
+            int totalTriangles = 0;
+
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (!renderer.enabled ||
+                    roadRenderers.Contains(renderer) ||
+                    runoffRenderers.Contains(renderer) ||
+                    roadSupportRenderers.Contains(renderer))
+                {
+                    continue;
+                }
+
+                var filter = renderer.GetComponent<MeshFilter>();
+                var mesh = filter != null ? filter.sharedMesh : null;
+                if (mesh == null || mesh.triangles == null || mesh.triangles.Length < 3)
+                    continue;
+
+                // Do not turn road paint / decals into coplanar collision sheets.
+                // Actual start-grid sheets are handled explicitly as TrackSupport.
+                if (renderer.bounds.size.y < 0.12f &&
+                    renderer.bounds.size.x > 1f &&
+                    renderer.bounds.size.z > 1f)
+                {
+                    skippedFlat++;
+                    continue;
+                }
+
+                var collisionObject = new GameObject("COL_Scenery_" + created);
+                collisionObject.transform.SetParent(renderer.transform, false);
+                collisionObject.layer = wallsLayer;
+                collisionObject.isStatic = true;
+
+                var collider = collisionObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = mesh;
+                collider.convex = false;
+                collider.isTrigger = false;
+                collider.cookingOptions =
+                    MeshColliderCookingOptions.CookForFasterSimulation |
+                    MeshColliderCookingOptions.EnableMeshCleaning |
+                    MeshColliderCookingOptions.WeldColocatedVertices |
+                    MeshColliderCookingOptions.UseFastMidphase;
+                collider.sharedMaterial = sceneryMaterial;
+
+                created++;
+                totalTriangles += mesh.triangles.Length / 3;
+            }
+
+            Debug.Log(
+                "MonzaTestTrack scenery collision geometry: colliders=" + created +
+                ", triangles=" + totalTriangles +
+                ", skippedFlatDecals=" + skippedFlat + ".");
+
+            return created;
         }
 
         private static void CreateInvisibleSafetyBase(
