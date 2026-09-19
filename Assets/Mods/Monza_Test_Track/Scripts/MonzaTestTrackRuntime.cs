@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using BAModAPI;
 using Helpers;
@@ -13,39 +14,54 @@ namespace MonzaTestTrack
     public sealed class MonzaTestTrackRuntime : MonoBehaviour
     {
         private const string SurfaceDataPattern = "track_surface.clean.*.txt";
-        // First prototype: keep the entire circuit away from the normal city.
-        // The extracted driveable asphalt is about 2.31 km x 1.12 km.
-        private static readonly Vector3 SiteCentre = new Vector3(5000f, 80f, 0f);
 
-        // Start/finish straight candidate derived from the source GLB.
+        // Keep X/Z inside the normal city/grid footprint so Gley traffic can still
+        // resolve its active cells, but place the test facility far above the city.
+        private static readonly Vector3 SiteCentre = new Vector3(0f, 600f, 0f);
+
+        // Diagnostic fallback spawn derived from the extracted asphalt component.
         private static readonly Vector3 SpawnProbeLocal = new Vector3(618.5f, 80f, 274.05f);
-        private static readonly Quaternion SpawnRotation = Quaternion.Euler(0f, 90f, 0f);
+        private static readonly Quaternion FallbackSpawnRotation = Quaternion.Euler(0f, 90f, 0f);
 
         private IModLogger? _logger;
         private string? _modRootPath;
         private GameObject? _site;
+        private GameObject? _bundledPrefab;
         private Mesh? _trackMesh;
         private Material? _trackMaterial;
-        private Material? _safetyMaterial;
         private PhysicMaterial? _trackPhysicsMaterial;
         private Vector3 _spawnPosition;
+        private Quaternion _spawnRotation;
 
         private bool _hasReturnPosition;
         private Vector3 _returnPosition;
         private Quaternion _returnRotation;
         private bool _shuttingDown;
+        private bool _usingVisualBundle;
 
-        public void Initialize(string modRootPath, IModLogger logger)
+        public void Initialize(string modRootPath, IModLogger logger, GameObject? bundledPrefab)
         {
             _modRootPath = modRootPath;
             _logger = logger;
+            _bundledPrefab = bundledPrefab;
 
             try
             {
-                BuildPrototype();
+                if (_bundledPrefab != null)
+                {
+                    BuildFromBundle(_bundledPrefab);
+                    _usingVisualBundle = true;
+                }
+                else
+                {
+                    BuildDiagnosticFallback();
+                    _usingVisualBundle = false;
+                }
+
                 _logger.Info(
-                    "[MonzaTestTrack] Prototype ready. Enter a vehicle and press F7 to teleport to Monza; " +
-                    "press F7 again to return.");
+                    "[MonzaTestTrack] Track ready (" +
+                    (_usingVisualBundle ? "full visual bundle" : "diagnostic fallback") +
+                    "). Enter a vehicle and press F7 to teleport; press F7 again to return.");
             }
             catch (Exception ex)
             {
@@ -69,21 +85,54 @@ namespace MonzaTestTrack
             }
         }
 
-        private void BuildPrototype()
+        private void BuildFromBundle(GameObject prefab)
+        {
+            _site = Instantiate(prefab, SiteCentre, Quaternion.identity, transform);
+            _site.name = "MonzaTestTrack.Site";
+
+            var spawn = FindTransform(_site.transform, "SpawnPoint");
+            if (spawn == null)
+                throw new InvalidOperationException(
+                    "Bundled Monza prefab does not contain the required SpawnPoint.");
+
+            _spawnPosition = spawn.position;
+            _spawnRotation = spawn.rotation;
+
+            int renderers = _site.GetComponentsInChildren<Renderer>(true).Length;
+            int colliders = _site.GetComponentsInChildren<Collider>(true).Length;
+            int meshColliders = _site.GetComponentsInChildren<MeshCollider>(true).Length;
+
+            if (renderers == 0)
+                throw new InvalidOperationException("Bundled Monza prefab contains no renderers.");
+            if (meshColliders == 0)
+                throw new InvalidOperationException("Bundled Monza prefab contains no track MeshColliders.");
+
+            Physics.SyncTransforms();
+
+            _logger?.Info(
+                "[MonzaTestTrack] Full visual prefab placed at " + SiteCentre +
+                "; renderers=" + renderers +
+                ", colliders=" + colliders +
+                ", meshColliders=" + meshColliders +
+                ", spawn=" + _spawnPosition + ".");
+        }
+
+        private void BuildDiagnosticFallback()
         {
             if (string.IsNullOrEmpty(_modRootPath))
                 throw new InvalidOperationException("Mod root path is unavailable.");
 
             string configDirectory = Path.Combine(_modRootPath, "Config");
             if (!Directory.Exists(configDirectory))
-                throw new DirectoryNotFoundException("Monza prototype Config folder is missing: " + configDirectory);
+                throw new DirectoryNotFoundException(
+                    "Monza diagnostic Config folder is missing: " + configDirectory);
 
             string[] parts = Directory.GetFiles(configDirectory, SurfaceDataPattern);
             Array.Sort(parts, StringComparer.OrdinalIgnoreCase);
 
             if (parts.Length == 0)
                 throw new FileNotFoundException(
-                    "Cleaned Monza prototype surface data was not installed in " + configDirectory + ".");
+                    "Cleaned Monza diagnostic surface data was not installed in " + configDirectory + ".");
 
             var encoded = new StringBuilder();
             foreach (string part in parts)
@@ -103,7 +152,7 @@ namespace MonzaTestTrack
             track.AddComponent<MeshFilter>().sharedMesh = _trackMesh;
 
             _trackMaterial = CreateMaterial(
-                "Monza Prototype Asphalt",
+                "Monza Diagnostic Asphalt",
                 new Color(0.16f, 0.17f, 0.18f, 1f),
                 0.23f);
             track.AddComponent<MeshRenderer>().sharedMaterial = _trackMaterial;
@@ -118,16 +167,18 @@ namespace MonzaTestTrack
                 MeshColliderCookingOptions.UseFastMidphase;
             collider.sharedMaterial = TrackPhysicsMaterial;
 
-            BuildSafetyBase();
+            BuildInvisibleSafetyBase(_trackMesh.bounds);
             Physics.SyncTransforms();
 
-            if (!TryResolveSpawn(collider, out _spawnPosition))
+            if (!TryResolveFallbackSpawn(collider, out _spawnPosition))
                 throw new InvalidOperationException(
-                    "Could not resolve a driveable spawn point on the Monza prototype.");
+                    "Could not resolve a driveable spawn point on the Monza diagnostic surface.");
+
+            _spawnRotation = FallbackSpawnRotation;
 
             Bounds bounds = _trackMesh.bounds;
             _logger?.Info(
-                "[MonzaTestTrack] Placed prototype at " + SiteCentre +
+                "[MonzaTestTrack] Diagnostic surface placed at " + SiteCentre +
                 "; asphalt=" + _trackMesh.vertexCount + " vertices / " +
                 (_trackMesh.triangles.Length / 3) + " triangles" +
                 "; size=" + bounds.size.x.ToString("0.0") + " x " +
@@ -135,34 +186,26 @@ namespace MonzaTestTrack
                 "; spawn=" + _spawnPosition + ".");
         }
 
-        private void BuildSafetyBase()
+        private void BuildInvisibleSafetyBase(Bounds trackBounds)
         {
             if (_site == null)
                 return;
 
-            var safety = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            safety.name = "GroundSafetyBase";
+            var safety = new GameObject("GroundSafetyBase");
             safety.transform.SetParent(_site.transform, false);
-            safety.transform.localPosition = new Vector3(0f, -3f, 0f);
-            safety.transform.localScale = new Vector3(2500f, 2f, 1250f);
             safety.layer = ResolveLayer("Ground");
             safety.isStatic = true;
 
-            _safetyMaterial = CreateMaterial(
-                "Monza Prototype Safety Base",
-                new Color(0.08f, 0.085f, 0.09f, 1f),
-                0.08f);
-
-            var renderer = safety.GetComponent<MeshRenderer>();
-            if (renderer != null)
-                renderer.sharedMaterial = _safetyMaterial;
-
-            var collider = safety.GetComponent<BoxCollider>();
-            if (collider != null)
-                collider.sharedMaterial = TrackPhysicsMaterial;
+            var box = safety.AddComponent<BoxCollider>();
+            box.center = new Vector3(trackBounds.center.x, trackBounds.min.y - 2.5f, trackBounds.center.z);
+            box.size = new Vector3(
+                Mathf.Max(trackBounds.size.x + 120f, 2500f),
+                1f,
+                Mathf.Max(trackBounds.size.z + 120f, 1250f));
+            box.sharedMaterial = TrackPhysicsMaterial;
         }
 
-        private bool TryResolveSpawn(MeshCollider trackCollider, out Vector3 position)
+        private bool TryResolveFallbackSpawn(MeshCollider trackCollider, out Vector3 position)
         {
             Vector3 origin = _site!.transform.TransformPoint(SpawnProbeLocal);
 
@@ -172,7 +215,6 @@ namespace MonzaTestTrack
                 return true;
             }
 
-            // Fallback around the intended main straight in case the source mesh changes slightly.
             for (float radius = 20f; radius <= 260f; radius += 20f)
             {
                 for (int step = 0; step < 24; step++)
@@ -221,15 +263,16 @@ namespace MonzaTestTrack
             _returnRotation = Quaternion.Euler(0f, car.transform.eulerAngles.y, 0f);
             _hasReturnPosition = true;
 
-            TeleportVehicle(car, _spawnPosition, SpawnRotation);
-            _logger?.Info("[MonzaTestTrack] Teleported current vehicle to the Monza prototype.");
+            TeleportVehicle(car, _spawnPosition, _spawnRotation);
+            _logger?.Info(
+                "[MonzaTestTrack] Teleported current vehicle to Monza " +
+                (_usingVisualBundle ? "full visual track." : "diagnostic surface."));
         }
 
         private static bool IsAtTestSite(Vector3 position)
         {
-            return Vector2.Distance(
-                new Vector2(position.x, position.z),
-                new Vector2(SiteCentre.x, SiteCentre.z)) < 1700f;
+            // X/Z overlap with the real city by design. Height separates the facility.
+            return position.y > SiteCentre.y - 120f;
         }
 
         private static void TeleportVehicle(CarController car, Vector3 position, Quaternion rotation)
@@ -249,6 +292,14 @@ namespace MonzaTestTrack
                 body.angularVelocity = Vector3.zero;
                 body.WakeUp();
             }
+        }
+
+        private static Transform? FindTransform(Transform root, string name)
+        {
+            foreach (var candidate in root.GetComponentsInChildren<Transform>(true))
+                if (string.Equals(candidate.name, name, StringComparison.Ordinal))
+                    return candidate;
+            return null;
         }
 
         private static Mesh LoadTrackMesh(string encoded)
@@ -301,7 +352,7 @@ namespace MonzaTestTrack
 
             var mesh = new Mesh
             {
-                name = "Monza Prototype Surface",
+                name = "Monza Diagnostic Surface",
                 indexFormat = IndexFormat.UInt16
             };
             mesh.vertices = vertices;
@@ -318,7 +369,7 @@ namespace MonzaTestTrack
                 if (_trackPhysicsMaterial != null)
                     return _trackPhysicsMaterial;
 
-                _trackPhysicsMaterial = new PhysicMaterial("Monza Prototype Track Grip")
+                _trackPhysicsMaterial = new PhysicMaterial("Monza Track Grip")
                 {
                     dynamicFriction = 0.8f,
                     staticFriction = 0.8f,
@@ -398,12 +449,6 @@ namespace MonzaTestTrack
             {
                 Destroy(_trackMaterial);
                 _trackMaterial = null;
-            }
-
-            if (_safetyMaterial != null)
-            {
-                Destroy(_safetyMaterial);
-                _safetyMaterial = null;
             }
 
             if (_trackPhysicsMaterial != null)
