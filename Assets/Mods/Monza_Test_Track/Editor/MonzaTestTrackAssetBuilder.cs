@@ -119,8 +119,9 @@ namespace MonzaTestTrack.Editor
                 if (colliders.Count == 0)
                     throw new InvalidOperationException("No MeshColliders were created for the Monza asphalt.");
 
+                Physics.SyncTransforms();
                 CreateInvisibleSafetyBase(root.transform, roadBounds, grip);
-                var spawn = CreateSpawnPoint(root.transform, colliders, roadBounds);
+                var spawn = CreateSpawnPoint(root.transform, roadRenderers, roadBounds);
 
                 foreach (var transform in root.GetComponentsInChildren<Transform>(true))
                 {
@@ -257,69 +258,118 @@ namespace MonzaTestTrack.Editor
 
         private static Transform CreateSpawnPoint(
             Transform parent,
-            IReadOnlyList<MeshCollider> roadColliders,
+            IReadOnlyList<MeshRenderer> roadRenderers,
             Bounds roadBounds)
         {
             var spawn = new GameObject("SpawnPoint").transform;
             spawn.SetParent(parent, false);
 
+            // Pick a point from the actual asphalt triangles instead of sampling a
+            // coarse X/Z grid across a 2+ km circuit. A narrow road can easily fall
+            // between grid points even when its collider is perfectly valid.
             var preferred = new Vector3(
                 roadBounds.center.x + roadBounds.size.x * 0.267f,
-                roadBounds.max.y + 120f,
+                roadBounds.center.y,
                 roadBounds.center.z + roadBounds.size.z * 0.245f);
 
-            if (!TryRoadHit(roadColliders, preferred, out var hit))
-            {
-                bool found = false;
-                for (int ix = 1; ix < 20 && !found; ix++)
-                {
-                    for (int iz = 1; iz < 12 && !found; iz++)
-                    {
-                        var point = new Vector3(
-                            Mathf.Lerp(roadBounds.min.x, roadBounds.max.x, ix / 20f),
-                            roadBounds.max.y + 120f,
-                            Mathf.Lerp(roadBounds.min.z, roadBounds.max.z, iz / 12f));
-
-                        if (TryRoadHit(roadColliders, point, out hit))
-                            found = true;
-                    }
-                }
-
-                if (!found)
-                    throw new InvalidOperationException("Could not find a driveable spawn point on the bundled track.");
-            }
-
-            spawn.position = hit.point + Vector3.up * 0.4f;
-            spawn.rotation = Quaternion.Euler(0f, 90f, 0f);
-            return spawn;
-        }
-
-        private static bool TryRoadHit(
-            IEnumerable<MeshCollider> colliders,
-            Vector3 rayOrigin,
-            out RaycastHit bestHit)
-        {
-            bestHit = default;
             bool found = false;
-            float highest = float.NegativeInfinity;
+            Vector3 bestPoint = default;
+            Vector3 bestForward = Vector3.forward;
+            float bestScore = float.NegativeInfinity;
+            string bestRenderer = string.Empty;
+            int sampledTriangles = 0;
 
-            foreach (var collider in colliders)
+            foreach (var renderer in roadRenderers)
             {
-                if (collider == null)
+                if (renderer == null)
                     continue;
 
-                if (!collider.Raycast(new Ray(rayOrigin, Vector3.down), out var hit, 300f))
+                var filter = renderer.GetComponent<MeshFilter>();
+                var mesh = filter != null ? filter.sharedMesh : null;
+                if (mesh == null)
                     continue;
 
-                if (hit.point.y <= highest)
-                    continue;
+                var vertices = mesh.vertices;
+                var triangles = mesh.triangles;
+                var transform = renderer.transform;
 
-                highest = hit.point.y;
-                bestHit = hit;
-                found = true;
+                for (int i = 0; i + 2 < triangles.Length; i += 3)
+                {
+                    var a = transform.TransformPoint(vertices[triangles[i]]);
+                    var b = transform.TransformPoint(vertices[triangles[i + 1]]);
+                    var c = transform.TransformPoint(vertices[triangles[i + 2]]);
+
+                    var cross = Vector3.Cross(b - a, c - a);
+                    float doubleArea = cross.magnitude;
+                    if (doubleArea < 0.05f)
+                        continue;
+
+                    var normal = cross / doubleArea;
+                    if (normal.y < 0.70f)
+                        continue;
+
+                    sampledTriangles++;
+
+                    var center = (a + b + c) / 3f;
+
+                    // Prefer a sensible location near the source model's known
+                    // start/finish region, but any genuine upward asphalt triangle
+                    // is valid as a fallback.
+                    float planarDistance = Vector2.Distance(
+                        new Vector2(center.x, center.z),
+                        new Vector2(preferred.x, preferred.z));
+
+                    // A slightly larger triangle is preferable to tiny seam/decal
+                    // geometry, without allowing huge polygons to dominate.
+                    float areaBonus = Mathf.Min(doubleArea * 0.5f, 20f);
+                    float score = -planarDistance + areaBonus + normal.y * 10f;
+
+                    if (score <= bestScore)
+                        continue;
+
+                    Vector3 edgeAB = b - a;
+                    Vector3 edgeBC = c - b;
+                    Vector3 edgeCA = a - c;
+                    Vector3 forward = edgeAB;
+
+                    if (edgeBC.sqrMagnitude > forward.sqrMagnitude)
+                        forward = edgeBC;
+                    if (edgeCA.sqrMagnitude > forward.sqrMagnitude)
+                        forward = edgeCA;
+
+                    forward.y = 0f;
+                    if (forward.sqrMagnitude < 0.01f)
+                        forward = Vector3.forward;
+                    else
+                        forward.Normalize();
+
+                    bestScore = score;
+                    bestPoint = center;
+                    bestForward = forward;
+                    bestRenderer = renderer.name;
+                    found = true;
+                }
             }
 
-            return found;
+            if (!found)
+            {
+                throw new InvalidOperationException(
+                    "Could not find an upward-facing driveable triangle on the bundled Monza asphalt. " +
+                    "roadRenderers=" + roadRenderers.Count +
+                    ", sampledTriangles=" + sampledTriangles + ".");
+            }
+
+            spawn.position = bestPoint + Vector3.up * 0.45f;
+            spawn.rotation = Quaternion.LookRotation(bestForward, Vector3.up);
+
+            Debug.Log(
+                "MonzaTestTrack spawn selected from asphalt geometry: renderer=" +
+                bestRenderer +
+                ", sampledTriangles=" + sampledTriangles +
+                ", position=" + spawn.position +
+                ", forward=" + bestForward + ".");
+
+            return spawn;
         }
 
         private static Bounds CombinedBounds(IReadOnlyList<MeshRenderer> renderers)
